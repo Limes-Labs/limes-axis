@@ -73,7 +73,7 @@ Foundation acceptance is tracked in
 - [x] Build the ontology explorer.
 - [ ] Build the workflow console.
 - [ ] Build the agent registry.
-- [ ] Build the approval inbox.
+- [x] Build the approval inbox.
 - [ ] Build the audit explorer.
 - [ ] Build the model routing and cost observability layer.
 - [ ] Build the connector framework.
@@ -87,6 +87,10 @@ has ontology relationships, approval actions, workflow execution and replay.
 The ontology explorer is currently read-only and backed by the synthetic
 manufacturing graph. TypeDB-backed entity detail pages and permission-aware graph
 queries remain Platform work.
+
+The approval inbox is currently read-only at the API boundary and uses local
+browser state for decision previews. Tenant-scoped persistence, workflow signals,
+permission enforcement and append-only audit writes remain Platform work.
 
 ### Enterprise
 

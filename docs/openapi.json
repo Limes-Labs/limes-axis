@@ -45,6 +45,206 @@
         "title": "AgentSummary",
         "type": "object"
       },
+      "ApprovalAuditPreview": {
+        "properties": {
+          "actor_role": {
+            "minLength": 1,
+            "title": "Actor Role",
+            "type": "string"
+          },
+          "event": {
+            "minLength": 1,
+            "title": "Event",
+            "type": "string"
+          },
+          "result": {
+            "minLength": 1,
+            "title": "Result",
+            "type": "string"
+          },
+          "scope": {
+            "minLength": 1,
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "actor_role",
+          "scope",
+          "result"
+        ],
+        "title": "ApprovalAuditPreview",
+        "type": "object"
+      },
+      "ApprovalDecision": {
+        "enum": [
+          "approve",
+          "reject",
+          "request_changes"
+        ],
+        "title": "ApprovalDecision",
+        "type": "string"
+      },
+      "ApprovalDecisionOption": {
+        "properties": {
+          "consequence": {
+            "minLength": 1,
+            "title": "Consequence",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "label",
+          "consequence"
+        ],
+        "title": "ApprovalDecisionOption",
+        "type": "object"
+      },
+      "ApprovalInboxItem": {
+        "properties": {
+          "action": {
+            "minLength": 1,
+            "title": "Action",
+            "type": "string"
+          },
+          "alternatives": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "approval_id": {
+            "minLength": 1,
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "audit_event_preview": {
+            "$ref": "#/components/schemas/ApprovalAuditPreview"
+          },
+          "data_accessed": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Data Accessed",
+            "type": "array"
+          },
+          "decision_options": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalDecisionOption"
+            },
+            "minItems": 1,
+            "title": "Decision Options",
+            "type": "array"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "due": {
+            "minLength": 1,
+            "title": "Due",
+            "type": "string"
+          },
+          "estimated_cost": {
+            "minLength": 1,
+            "title": "Estimated Cost",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence",
+            "type": "array"
+          },
+          "model_policy": {
+            "minLength": 1,
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "required_permission": {
+            "minLength": 1,
+            "title": "Required Permission",
+            "type": "string"
+          },
+          "risk_level": {
+            "minLength": 1,
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Risks",
+            "type": "array"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id",
+          "action",
+          "risk_level",
+          "status",
+          "requested_by",
+          "owner_role",
+          "due",
+          "workflow_id",
+          "domain",
+          "summary",
+          "evidence",
+          "data_accessed",
+          "risks",
+          "alternatives",
+          "estimated_cost",
+          "model_policy",
+          "required_permission",
+          "audit_event_preview",
+          "decision_options"
+        ],
+        "title": "ApprovalInboxItem",
+        "type": "object"
+      },
       "ApprovalSummary": {
         "properties": {
           "action": {
@@ -119,6 +319,60 @@
           "result"
         ],
         "title": "AuditEvidence",
+        "type": "object"
+      },
+      "ManufacturingApprovalInbox": {
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalInboxItem"
+            },
+            "minItems": 1,
+            "title": "Approvals",
+            "type": "array"
+          },
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "policy_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Policy Notes",
+            "type": "array"
+          },
+          "queue_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "queue_status",
+          "policy_notes",
+          "approvals"
+        ],
+        "title": "ManufacturingApprovalInbox",
         "type": "object"
       },
       "ManufacturingOntology": {
@@ -524,6 +778,27 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/demo/manufacturing/approvals": {
+      "get": {
+        "operationId": "manufacturing_approval_inbox_demo_manufacturing_approvals_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingApprovalInbox"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Approval Inbox",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/demo/manufacturing/ontology": {
       "get": {
         "operationId": "manufacturing_ontology_demo_manufacturing_ontology_get",

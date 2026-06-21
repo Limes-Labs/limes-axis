@@ -60,4 +60,29 @@ test.describe("Axis console smoke", () => {
 
     await expectNoHorizontalOverflow(page);
   });
+
+  test("renders the approval inbox with local decision preview", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/approvals");
+
+    await expect(page.getByRole("heading", { name: "Policy gate queue" })).toBeVisible();
+    await expect(page.getByText("Fallback approval seed")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Expedite supplier batch/ })).toBeVisible();
+
+    await page.getByRole("button", { name: /Place Batch Q-1842 on quality hold/ }).click();
+
+    await expect(page.getByRole("heading", { name: "Place Batch Q-1842 on quality hold" }))
+      .toBeVisible();
+    await expect(page.getByText("approvals:quality:decide")).toBeVisible();
+
+    await page.getByRole("button", { name: "Approve" }).click();
+
+    await expect(page.getByRole("heading", { name: "Approved" })).toBeVisible();
+    await expect(page.getByText("approved_preview")).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
 });
