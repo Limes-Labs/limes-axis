@@ -65,6 +65,16 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Approval Gated Dry Run")).toBeVisible();
     await expect(page.getByText("approvals:supply:request").first()).toBeVisible();
 
+    await page.getByRole("button", { name: "Request dry-run" }).click();
+    await expect(page.getByRole("heading", { name: "Approval Required" })).toBeVisible();
+    await expect(page.getByText("Local preview only; API persistence is unavailable."))
+      .toBeVisible();
+    await expect(
+      page.getByText(
+        "tenant_demo_manufacturing:request_supplier_expedite:appr_expedite_supplier_batch",
+      ),
+    ).toBeVisible();
+
     await expectNoHorizontalOverflow(page);
   });
 

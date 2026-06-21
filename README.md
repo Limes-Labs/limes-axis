@@ -48,8 +48,9 @@ audit slice adds a read-only explorer for synthetic ledger events, filters and
 redacted payload previews. The agent registry slice adds a read-only governed
 agent view with autonomy boundaries, required permissions, model egress posture,
 proposals, workflow links and approval references. The action registry slice
-adds a read-only typed action catalog with schemas, risk levels, approval modes,
-permissions, guardrails, workflow bindings and dry-run payload previews. The
+adds a typed action catalog with schemas, risk levels, approval modes,
+permissions, guardrails, workflow bindings, dry-run payload previews and
+API-backed action run creation with idempotency enforcement. The
 model routing slice adds read-only route telemetry, provider boundaries, blocked
 egress visibility, synthetic token/cost estimates and audit evidence. The
 persistence foundation adds Postgres schema and repository methods for approval
@@ -61,7 +62,10 @@ when the console runs standalone. The approval permission slice enforces the
 required demo approval scope before decision persistence and returns a 403 when
 the actor scopes are insufficient. The workflow signal slice sends approval
 decisions through the Axis workflow runtime port to Temporal when the runtime is
-available, and records an explicit degraded status when it is not.
+available, and records an explicit degraded status when it is not. The action
+run slice records typed dry-run/proposal requests from action payloads, enforces
+idempotency keys and appends action audit events without enabling live connector
+execution.
 
 ## Architecture Defaults
 

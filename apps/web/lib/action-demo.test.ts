@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   allActionFilter,
+  buildActionRunIdempotencyKey,
+  buildActionRunRequest,
+  buildTypedActionPayload,
   countApprovalGatedActions,
   defaultManufacturingActionRegistry,
   filterActions,
@@ -89,6 +92,33 @@ describe("manufacturing action registry demo contract", () => {
 
     expect(formatSchemaFields(supplyAction.definition.input_schema)).toContain(
       "supplier_batch_id: string (required)",
+    );
+  });
+
+  it("builds typed action run requests from sample payloads", () => {
+    const qualityAction = findActionById(defaultManufacturingActionRegistry, "place_quality_hold");
+    const payload = buildTypedActionPayload(qualityAction);
+    const request = buildActionRunRequest(defaultManufacturingActionRegistry, qualityAction);
+
+    expect(payload.evidence_refs).toEqual([
+      "risk_quality_drift",
+      "audit_20260621_134400_quality_proposal",
+    ]);
+    expect(request).toMatchObject({
+      actor_id: "agent_quality_risk",
+      actor_scopes: ["quality:read", "approvals:quality:request"],
+      idempotency_key: "tenant_demo_manufacturing:place_quality_hold:appr_quality_hold_batch",
+    });
+  });
+
+  it("keeps action run idempotency keys stable for approval-gated actions", () => {
+    const supplyAction = findActionById(
+      defaultManufacturingActionRegistry,
+      "request_supplier_expedite",
+    );
+
+    expect(buildActionRunIdempotencyKey(defaultManufacturingActionRegistry, supplyAction)).toBe(
+      "tenant_demo_manufacturing:request_supplier_expedite:appr_expedite_supplier_batch",
     );
   });
 });

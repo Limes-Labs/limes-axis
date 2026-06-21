@@ -1,7 +1,7 @@
 # Platform Action Registry
 
-The Platform action registry slice introduces a public-safe, read-only view of
-typed actions in the manufacturing reference scenario.
+The Platform action registry slice introduces a public-safe view of typed
+actions in the manufacturing reference scenario.
 
 It exposes the boundary between agent proposals and production execution:
 actions have schemas, risk levels, approval modes, required permissions,
@@ -12,6 +12,8 @@ slice does not execute production actions.
 
 - `GET /demo/manufacturing/actions` returns a synthetic manufacturing action
   registry.
+- `POST /demo/manufacturing/actions/{action_id}/runs` records a typed dry-run
+  or proposal request with action idempotency enforcement and append-only audit.
 - The Next.js console renders the registry on `/agents`, below the agent
   registry.
 - The UI supports local filters for domain, risk level, approval mode and
@@ -21,7 +23,7 @@ slice does not execute production actions.
   bindings, approval references, guardrails, blocked conditions and synthetic
   dry-run payload previews.
 - High-risk demo actions require owner approval.
-- Runtime execution is disabled in the public demo.
+- Live runtime execution is disabled in the public demo.
 
 ## Demo Actions
 
@@ -40,18 +42,19 @@ audit explorer without enabling live mutation.
 
 ## Boundaries
 
-This slice remains read-only at the API boundary.
+The registry remains read-only at the catalog boundary, while action run
+requests are now persisted as dry-run/proposal records.
 
 The Postgres persistence foundation now includes `action_runs`, action
 idempotency uniqueness and repository methods for recording action run results.
-The action registry UI still uses the synthetic seed and does not execute
-actions.
+The action registry UI still uses the synthetic seed for catalog data and does
+not execute production actions.
 
 It does not yet include:
 
 - live runtime execution;
 - workflow signal execution from action payloads;
-- production audit writes;
+- connector-backed production mutations;
 - tenant-scoped action configuration;
 - connector-backed action invocation;
 - policy simulation or replay from real histories.
@@ -65,7 +68,8 @@ approval inbox and append-only audit ledger boundaries.
 - The endpoint is covered by API tests and OpenAPI generation.
 - The web fallback seed mirrors the API contract for offline demo rendering.
 - The web unit tests cover filtering, fallback lookup, schema formatting,
-  public-safety checks and approval-gating invariants.
+  public-safety checks, action run request building and approval-gating
+  invariants.
 - Playwright smoke tests cover the mobile navigation path, action risk filtering
   and schema visibility.
 - Public documentation avoids customer data, personal names, contacts, pricing,

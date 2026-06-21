@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
+import { FileText, Filter, RadioTower, RotateCcw, Send, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allActionFilter,
+  buildActionRunIdempotencyKey,
+  buildActionRunRequest,
   countApprovalGatedActions,
   defaultManufacturingActionRegistry,
   filterActions,
@@ -14,6 +16,7 @@ import {
   formatSchemaFields,
   type ActionFilters,
   type ActionRegistryEntry,
+  type ActionRunPersistenceResult,
   type ManufacturingActionRegistry,
 } from "@/lib/action-demo";
 import {
@@ -23,6 +26,17 @@ import {
 } from "@/lib/platform-overview";
 
 type ActionSource = "loading" | "api" | "fallback";
+type ActionRunSource = "api" | "local";
+
+type LocalActionRunResult = {
+  source: ActionRunSource;
+  status: string;
+  actionRunId: string;
+  idempotencyKey: string;
+  detail: string;
+  auditEventType?: string;
+  permissionDetail?: string;
+};
 
 const defaultFilters: ActionFilters = {
   domain: allActionFilter,
@@ -73,6 +87,10 @@ export function ActionRegistry() {
   const [selectedActionId, setSelectedActionId] = useState(
     defaultManufacturingActionRegistry.actions[0].definition.action_id,
   );
+  const [actionRunResults, setActionRunResults] = useState<Record<string, LocalActionRunResult>>(
+    {},
+  );
+  const [submittingActionId, setSubmittingActionId] = useState<string | null>(null);
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -119,6 +137,7 @@ export function ActionRegistry() {
     [registry, effectiveSelectedActionId],
   );
   const gatedActions = countApprovalGatedActions(registry);
+  const selectedRunResult = actionRunResults[selectedAction.definition.action_id];
 
   function updateFilter(filterName: keyof ActionFilters, value: string) {
     setFilters((current) => ({
@@ -129,6 +148,62 @@ export function ActionRegistry() {
 
   function resetFilters() {
     setFilters(defaultFilters);
+  }
+
+  function localActionRunStatus(action: ActionRegistryEntry): string {
+    return action.definition.approval_mode === "not_required"
+      ? "preview_generated"
+      : "approval_required";
+  }
+
+  async function requestActionRun(action: ActionRegistryEntry) {
+    const request = buildActionRunRequest(registry, action);
+    setSubmittingActionId(action.definition.action_id);
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/demo/manufacturing/actions/${action.definition.action_id}/runs`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Action run request failed with ${response.status}`);
+      }
+
+      const result = (await response.json()) as ActionRunPersistenceResult;
+      setActionRunResults((current) => ({
+        ...current,
+        [action.definition.action_id]: {
+          source: "api",
+          status: result.status,
+          actionRunId: result.action_run_id,
+          idempotencyKey: result.idempotency_key,
+          detail: result.idempotent_replay
+            ? "Idempotent replay returned the existing action run."
+            : "Persisted through the action run API.",
+          auditEventType: result.audit_event_type ?? "no new audit event",
+          permissionDetail: `Permission ${result.permission_decision.reason}.`,
+        },
+      }));
+    } catch {
+      setActionRunResults((current) => ({
+        ...current,
+        [action.definition.action_id]: {
+          source: "local",
+          status: localActionRunStatus(action),
+          actionRunId: "local_action_run_preview",
+          idempotencyKey: buildActionRunIdempotencyKey(registry, action),
+          detail: "Local preview only; API persistence is unavailable.",
+          auditEventType: action.policy.audit_event_type,
+        },
+      }));
+    } finally {
+      setSubmittingActionId(null);
+    }
   }
 
   return (
@@ -437,7 +512,20 @@ export function ActionRegistry() {
                 <p className="section-label">Payload Preview</p>
                 <h3 className="subsection-title">Synthetic dry-run payload</h3>
               </div>
-              <ShieldCheck size={18} />
+              <div className="toolbar-actions">
+                <button
+                  className="command-button"
+                  disabled={submittingActionId === selectedAction.definition.action_id}
+                  onClick={() => void requestActionRun(selectedAction)}
+                  type="button"
+                >
+                  <Send size={16} />
+                  {submittingActionId === selectedAction.definition.action_id
+                    ? "Requesting"
+                    : "Request dry-run"}
+                </button>
+                <ShieldCheck size={18} />
+              </div>
             </div>
             <div className="action-sample-grid">
               <section>
@@ -449,6 +537,41 @@ export function ActionRegistry() {
                 <PayloadRows payload={selectedAction.sample_output} />
               </section>
             </div>
+            {selectedRunResult ? (
+              <section className="action-run-result" aria-label="Action run result">
+                <div>
+                  <p className="section-label">
+                    {selectedRunResult.source === "api" ? "Persisted Action Run" : "Local Action Run"}
+                  </p>
+                  <h3 className="subsection-title">
+                    {formatActionLabel(selectedRunResult.status)}
+                  </h3>
+                  <p className="row-detail">{selectedRunResult.detail}</p>
+                </div>
+                <div className="payload-grid">
+                  <div className="payload-row">
+                    <p className="metric-label">Run ID</p>
+                    <p className="row-detail mono">{selectedRunResult.actionRunId}</p>
+                  </div>
+                  <div className="payload-row">
+                    <p className="metric-label">Idempotency</p>
+                    <p className="row-detail mono">{selectedRunResult.idempotencyKey}</p>
+                  </div>
+                  {selectedRunResult.auditEventType ? (
+                    <div className="payload-row">
+                      <p className="metric-label">Audit</p>
+                      <p className="row-detail">{selectedRunResult.auditEventType}</p>
+                    </div>
+                  ) : null}
+                  {selectedRunResult.permissionDetail ? (
+                    <div className="payload-row">
+                      <p className="metric-label">Permission</p>
+                      <p className="row-detail">{selectedRunResult.permissionDetail}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
           </section>
         </section>
       </div>

@@ -118,10 +118,11 @@ manufacturing agent seed. Production action execution, persisted agent state,
 tenant-scoped agent configuration, runtime policy enforcement and model cost
 observability remain Platform work.
 
-The action registry UI is currently read-only and backed by the synthetic
-manufacturing action seed. The Postgres action run and idempotency foundation
-now exists, but live runtime execution, workflow signals, production audit
-writes and connector invocation remain Platform work.
+The action registry UI is currently backed by the synthetic manufacturing
+action seed for catalog browsing. Typed dry-run/proposal action requests can now
+be persisted through the demo API with idempotency enforcement and append-only
+audit events, but live runtime execution, workflow signals from action payloads
+and connector invocation remain Platform work.
 
 The model routing and cost observability layer is currently read-only and backed
 by synthetic manufacturing route telemetry. Live provider adapters,

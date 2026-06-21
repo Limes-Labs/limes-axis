@@ -171,6 +171,14 @@ textarea {
   justify-content: flex-end;
 }
 
+.toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .icon-button,
 .command-button {
   display: inline-flex;
@@ -1157,6 +1165,14 @@ textarea {
   gap: 18px;
 }
 
+.action-run-result {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.4fr) minmax(0, 1fr);
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
 .model-filter-panel {
   display: flex;
   align-items: flex-end;
@@ -1442,6 +1458,7 @@ textarea {
   .action-columns,
   .action-policy-band,
   .action-sample-grid,
+  .action-run-result,
   .model-routing-layout,
   .model-route-detail-grid,
   .model-policy-band,

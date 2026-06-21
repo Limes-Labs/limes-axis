@@ -974,10 +974,10 @@ def get_manufacturing_action_registry() -> ManufacturingActionRegistry:
         filter_options=_action_registry_filter_options(actions),
         actions=actions,
         registry_notes=[
-            "This public action registry seed is read-only and synthetic.",
-            "Actions are typed and policy-gated, but runtime execution is not enabled.",
+            "This public action registry seed is synthetic and safe for dry-run requests.",
+            "Actions are typed and policy-gated, but live runtime execution is not enabled.",
             "High-risk actions require owner approval before any production signal.",
-            "Persisted action state, runtime signals and audit writes remain Platform work.",
+            "Action run requests can be persisted with idempotency and append-only audit.",
         ],
     )
 

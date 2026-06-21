@@ -22,6 +22,7 @@ POST /demo/manufacturing/approvals/{approval_id}/decision
 GET /demo/manufacturing/audit
 GET /demo/manufacturing/agents
 GET /demo/manufacturing/actions
+POST /demo/manufacturing/actions/{action_id}/runs
 GET /demo/manufacturing/model-routing
 ```
 
@@ -52,9 +53,9 @@ It includes:
 - read-only agent registry entries with autonomy boundaries, required
   permissions, model egress posture, action proposals, workflow links and
   approval references.
-- read-only action registry entries with typed input/output schemas, risk
-  levels, approval modes, permissions, guardrails, workflow bindings and dry-run
-  payload previews.
+- action registry entries with typed input/output schemas, risk levels,
+  approval modes, permissions, guardrails, workflow bindings, dry-run payload
+  previews and API-backed action run request persistence.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
 - Postgres persistence foundation for approval records, action runs and
@@ -67,13 +68,12 @@ The reference demo should grow into an end-to-end Platform scenario:
 - realistic orders, machines, materials, suppliers, quality and maintenance
   entities;
 - TypeDB-backed ontology relationships and permission-aware graph queries;
-- API-backed use of Postgres approval/action/audit state;
+- broader API-backed use of Postgres approval/action/audit state;
 - persisted workflow histories and deterministic replay;
 - production identity-bound permission enforcement;
 - audit export and retention controls;
-- production action registry execution and persisted agent state;
+- production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;
-- persisted action state, idempotency storage and workflow signal execution from
-  typed action payloads;
+- workflow signal execution from typed action payloads;
 - replay and simulation artifacts.
