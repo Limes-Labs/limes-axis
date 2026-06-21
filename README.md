@@ -71,7 +71,10 @@ explicit degraded status when the runtime is unavailable. The OIDC actor-binding
 slice validates bearer tokens against configurable OIDC/JWKS settings, derives
 tenant, actor and scopes from token claims, binds approval and action mutation
 requests to the authenticated principal when present or required, and rejects
-actor impersonation before persistence. The audit query slice
+actor impersonation before persistence. The relationship permission slice uses
+ontology relationship scopes to protect authenticated entity detail reads and
+to reject action payloads that reference cross-domain ontology resources without
+the required relationship scope. The audit query slice
 reads persisted `audit_events` through a tenant-scoped API endpoint and keeps
 the synthetic seed as a fallback. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews and

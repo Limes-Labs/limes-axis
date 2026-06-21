@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from axis_api.config import Settings
 from axis_api.demo import (
     ApprovalDecision,
     OntologyNodeType,
@@ -14,7 +15,17 @@ from axis_api.demo import (
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
 )
+from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
+
+
+class StaticIdentityVerifier:
+    def __init__(self, principal: OidcPrincipal) -> None:
+        self.principal = principal
+
+    def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+        assert authorization == "Bearer valid-token"
+        return self.principal
 
 
 def test_manufacturing_overview_seed_is_valid_and_actionable() -> None:
@@ -385,6 +396,51 @@ def test_manufacturing_ontology_entity_detail_endpoint_handles_missing_node() ->
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Ontology entity not found"
+
+
+def test_manufacturing_ontology_entity_detail_endpoint_enforces_relationship_scopes() -> None:
+    app = create_app(Settings(oidc_auth_required=True))
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="operations-reader",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["operations:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/ontology/entities/asset_line_2_packaging",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The actor cannot read this ontology entity relationship context.",
+        "required_permissions": ["operations:read", "supply:read"],
+        "reason": "missing_relationship_scope:supply:read",
+    }
+
+
+def test_manufacturing_ontology_entity_detail_endpoint_allows_relationship_scopes() -> None:
+    app = create_app(Settings(oidc_auth_required=True))
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="operations-reader",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["operations:read", "supply:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/ontology/entities/asset_line_2_packaging",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["node"]["node_id"] == "asset_line_2_packaging"
 
 
 def test_openapi_exposes_manufacturing_ontology_entity_detail_endpoint() -> None:

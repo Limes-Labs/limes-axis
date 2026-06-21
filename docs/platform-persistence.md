@@ -68,6 +68,8 @@ Delivered:
 - OIDC/JWKS token validation and actor binding for approval decision and action
   run mutation endpoints, with demo body actor/scopes kept as standalone
   fallback only.
+- relationship-derived permission checks for authenticated ontology entity
+  detail reads and action payload resource references.
 - API-backed audit explorer queries from persisted `audit_events`, with tenant,
   event, actor, scope and limit filters.
 - redacted audit export bundles with manifest checksum, applied filters and
@@ -77,8 +79,8 @@ Delivered:
 Still Platform work:
 
 - production connector mutations from action runtime paths;
-- broader relationship-aware permission enforcement beyond the current
-  OIDC-bound approval/action mutation checks;
+- broader relationship-aware permission enforcement beyond the current demo
+  ontology-scope checks;
 - immutable storage hardening beyond insert-only repository shape;
 - retention deletion enforcement and legal hold workflows;
 - deterministic replay and simulation from persisted histories.

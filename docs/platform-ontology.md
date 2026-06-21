@@ -44,6 +44,12 @@ The entity detail endpoint returns:
 - related workflows, approvals and agents;
 - public-safe data access summaries and detail notes.
 
+In standalone demo mode, the entity detail endpoint remains readable without a
+token. When a bearer token is present, or when OIDC auth is required by
+configuration, the endpoint evaluates the token-derived scopes against the
+relationship scopes connected to the requested node. Missing relationship scope
+coverage returns 403 before the graph detail is returned.
+
 The schema is included in `docs/openapi.json` and checked by CI.
 
 ## Console Behavior
@@ -57,14 +63,16 @@ and falls back to a local detail builder when the API is unavailable.
 
 The current graph and detail pages are read-only. Future Platform work should
 add tenant-scoped TypeDB-backed graph queries, persisted relationship metadata
-and permission-aware query enforcement.
+and broader graph authorization beyond the current demo relationship-scope
+checks.
 
 ## Verification
 
 Covered by:
 
 - API tests for graph integrity and endpoint exposure;
-- API tests for entity detail, 404 handling and endpoint exposure;
+- API tests for entity detail, 404 handling, relationship-scope enforcement and
+  endpoint exposure;
 - generated OpenAPI drift check;
 - web unit tests for fallback graph integrity and local detail building;
 - Playwright smoke tests for desktop and mobile rendering, including entity

@@ -26,3 +26,24 @@ def test_permission_allows_actor_with_required_scope() -> None:
     )
     decision = evaluate_permission(request)
     assert decision.allowed is True
+
+
+def test_permission_denies_missing_relationship_scope_after_action_scopes_pass() -> None:
+    request = PermissionRequest(
+        tenant_id="tenant_demo",
+        actor_id="agent_supply_risk",
+        actor_scopes=["supply:read", "approvals:supply:request"],
+        required_scopes=["supply:read", "approvals:supply:request"],
+        relationship_scopes=["quality:read"],
+        attributes={
+            "action_id": "request_supplier_expedite",
+            "resource_refs": ["asset_batch_q_1842"],
+        },
+    )
+
+    decision = evaluate_permission(request)
+
+    assert decision == PermissionDecision(
+        allowed=False,
+        reason="missing_relationship_scope:quality:read",
+    )

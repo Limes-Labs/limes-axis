@@ -57,6 +57,7 @@ from axis_api.identity import (
     RemoteJwksOidcVerifier,
     bind_request_actor,
 )
+from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_runtime import (
@@ -146,6 +147,51 @@ def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
                 "reason": exc.reason,
             },
         ) from exc
+
+
+def _authorize_demo_ontology_detail(
+    detail: ManufacturingOntologyEntityDetail,
+    principal: OidcPrincipal | None,
+) -> None:
+    if principal is None:
+        return
+
+    if principal.tenant_id != detail.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "required_permissions": detail.required_permissions,
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=detail.tenant_id,
+            actor_id=principal.actor_id,
+            actor_scopes=principal.scopes,
+            required_scopes=[],
+            relationship_scopes=detail.required_permissions,
+            attributes={
+                "node_id": detail.node.node_id,
+                "node_type": detail.node.node_type.value,
+                "domain": detail.node.domain,
+                "relationship_count": len(detail.connected_relationships),
+            },
+        )
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The actor cannot read this ontology entity relationship context.",
+                "required_permissions": detail.required_permissions,
+                "reason": decision.reason,
+            },
+        )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -442,10 +488,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_ontology_entity_detail(
         node_id: str,
+        principal: OidcPrincipalDependency,
     ) -> ManufacturingOntologyEntityDetail:
         detail = get_manufacturing_ontology_entity_detail(node_id)
         if detail is None:
             raise HTTPException(status_code=404, detail="Ontology entity not found")
+        _authorize_demo_ontology_detail(detail, principal)
         return detail
 
     return app

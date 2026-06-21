@@ -3,7 +3,11 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from axis_api.audit import AuditEventCreate
-from axis_api.demo import ActionRegistryEntry, get_manufacturing_action_registry
+from axis_api.demo import (
+    ActionRegistryEntry,
+    get_manufacturing_action_registry,
+    get_manufacturing_ontology,
+)
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import ActionRunCreate, AxisPersistenceRepository
 from axis_api.workflow_runtime import (
@@ -107,17 +111,51 @@ def _validate_payload(action: ActionRegistryEntry, payload: dict) -> None:
         raise ActionPayloadValidationError(issues)
 
 
+def _payload_ontology_refs(action: ActionRegistryEntry, payload: dict) -> list[str]:
+    properties = action.definition.input_schema.get("properties", {})
+    refs: set[str] = set()
+    for field_name, field_schema in properties.items():
+        if not isinstance(field_schema, dict) or not field_schema.get("x-axis-ontology-ref"):
+            continue
+
+        value = payload.get(field_name)
+        if isinstance(value, str) and value:
+            refs.add(value)
+        elif isinstance(value, list):
+            refs.update(item for item in value if isinstance(item, str) and item)
+
+    return sorted(refs)
+
+
+def _relationship_scopes_for_refs(resource_refs: list[str]) -> list[str]:
+    if not resource_refs:
+        return []
+
+    ref_ids = set(resource_refs)
+    ontology = get_manufacturing_ontology()
+    return sorted(
+        {
+            relationship.permission_scope
+            for relationship in ontology.relationships
+            if relationship.source_id in ref_ids or relationship.target_id in ref_ids
+        }
+    )
+
+
 def _evaluate_action_permission(
     tenant_id: str,
     action: ActionRegistryEntry,
     request: ActionRunRequest,
 ) -> PermissionDecision:
+    resource_refs = _payload_ontology_refs(action, request.payload)
+    relationship_scopes = _relationship_scopes_for_refs(resource_refs)
     decision = evaluate_permission(
         PermissionRequest(
             tenant_id=tenant_id,
             actor_id=request.actor_id,
             actor_scopes=request.actor_scopes,
             required_scopes=action.definition.required_permissions,
+            relationship_scopes=relationship_scopes,
             attributes={
                 "action_id": action.definition.action_id,
                 "domain": action.definition.domain,
@@ -125,11 +163,16 @@ def _evaluate_action_permission(
                 "approval_mode": action.definition.approval_mode.value,
                 "owner_role": action.owner_role,
                 "execution_mode": action.policy.execution_mode,
+                "resource_refs": resource_refs,
+                "relationship_scopes": relationship_scopes,
             },
         )
     )
     if not decision.allowed:
-        raise ActionPermissionDenied(action.definition.required_permissions, decision)
+        raise ActionPermissionDenied(
+            sorted(set(action.definition.required_permissions) | set(relationship_scopes)),
+            decision,
+        )
 
     return decision
 
@@ -315,6 +358,9 @@ async def record_demo_action_run(
                 "risk_level": action.definition.risk_level.value,
                 "approval_mode": action.definition.approval_mode.value,
                 "permission_decision": permission_decision.model_dump(),
+                "relationship_scopes": _relationship_scopes_for_refs(
+                    _payload_ontology_refs(action, request.payload)
+                ),
                 "payload_field_names": sorted(request.payload.keys()),
                 "payload_recorded": "true",
                 "workflow_signal_status": workflow_signal_status,
