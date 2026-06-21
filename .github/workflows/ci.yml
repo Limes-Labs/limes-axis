@@ -72,6 +72,9 @@ jobs:
         working-directory: services/api
         run: uv run pytest
 
+      - name: Check OpenAPI schema
+        run: make openapi-check
+
       - name: Install worker dependencies
         working-directory: services/worker
         run: uv sync --locked
