@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from axis_api.action_runs import (
@@ -50,6 +50,13 @@ from axis_api.demo import (
     get_manufacturing_workflow_console,
 )
 from axis_api.errors import AxisErrorCode
+from axis_api.identity import (
+    ActorBindingError,
+    OidcAuthenticationError,
+    OidcPrincipal,
+    RemoteJwksOidcVerifier,
+    bind_request_actor,
+)
 from axis_api.persistence import AxisPersistenceRepository
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_runtime import (
@@ -79,6 +86,66 @@ WorkflowRuntime = Annotated[
     WorkflowSignalRuntime,
     Depends(workflow_runtime),
 ]
+
+
+def oidc_principal(
+    request: Request,
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+) -> OidcPrincipal | None:
+    settings: Settings = request.app.state.settings
+    if not authorization:
+        if settings.oidc_auth_required:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "A valid OIDC bearer token is required.",
+                    "reason": "missing_authorization",
+                },
+            )
+        return None
+
+    try:
+        return request.app.state.identity_verifier.verify_authorization_header(authorization)
+    except OidcAuthenticationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": AxisErrorCode.AUTH_REQUIRED.value,
+                "message": "The OIDC bearer token could not be verified.",
+                "reason": exc.reason,
+            },
+        ) from exc
+
+
+OidcPrincipalDependency = Annotated[
+    OidcPrincipal | None,
+    Depends(oidc_principal),
+]
+
+
+def _oidc_jwks_url(settings: Settings) -> str:
+    if settings.oidc_jwks_url:
+        return settings.oidc_jwks_url
+    return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/certs"
+
+
+def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
+    try:
+        return bind_request_actor(
+            request_model,
+            principal,
+            expected_tenant_id="tenant_demo_manufacturing",
+        )
+    except ActorBindingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": exc.message,
+                "reason": exc.reason,
+            },
+        ) from exc
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -111,6 +178,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if resolved_settings.workflow_signals_enabled
         else DeferredWorkflowSignalRuntime()
+    )
+    app.state.identity_verifier = RemoteJwksOidcVerifier(
+        issuer=resolved_settings.oidc_issuer,
+        audience=resolved_settings.oidc_audience,
+        algorithms=resolved_settings.oidc_algorithms,
+        jwks_url=_oidc_jwks_url(resolved_settings),
+        cache_seconds=resolved_settings.oidc_jwks_cache_seconds,
+        actor_claim=resolved_settings.oidc_actor_claim,
+        tenant_claim=resolved_settings.oidc_tenant_claim,
     )
 
     @app.get("/health", tags=["system"])
@@ -194,10 +270,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         action_run: ActionRunRequest,
         repository: PersistenceRepository,
         runtime: WorkflowRuntime,
+        principal: OidcPrincipalDependency,
         response: Response,
     ) -> ActionRunPersistenceResult:
         try:
-            result = await record_demo_action_run(repository, action_id, action_run, runtime)
+            bound_action_run = _bind_demo_actor(action_run, principal)
+            result = await record_demo_action_run(repository, action_id, bound_action_run, runtime)
         except DemoActionNotFound as exc:
             raise HTTPException(status_code=404, detail="Action not found") from exc
         except ActionPermissionDenied as exc:
@@ -254,9 +332,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         decision: ApprovalDecisionRequest,
         repository: PersistenceRepository,
         runtime: WorkflowRuntime,
+        principal: OidcPrincipalDependency,
     ) -> ApprovalDecisionPersistenceResult:
         try:
-            return await record_demo_approval_decision(repository, approval_id, decision, runtime)
+            bound_decision = _bind_demo_actor(decision, principal)
+            return await record_demo_approval_decision(
+                repository,
+                approval_id,
+                bound_decision,
+                runtime,
+            )
         except DemoApprovalNotFound as exc:
             raise HTTPException(status_code=404, detail="Approval not found") from exc
         except ApprovalPermissionDenied as exc:

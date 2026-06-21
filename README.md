@@ -67,7 +67,11 @@ run slice records typed dry-run/proposal requests from action payloads, enforces
 idempotency keys and appends action audit events without enabling live connector
 execution. The action workflow signal slice sends approval-gated action payloads
 through the workflow runtime adapter after persistence, while preserving
-explicit degraded status when the runtime is unavailable. The audit query slice
+explicit degraded status when the runtime is unavailable. The OIDC actor-binding
+slice validates bearer tokens against configurable OIDC/JWKS settings, derives
+tenant, actor and scopes from token claims, binds approval and action mutation
+requests to the authenticated principal when present or required, and rejects
+actor impersonation before persistence. The audit query slice
 reads persisted `audit_events` through a tenant-scoped API endpoint and keeps
 the synthetic seed as a fallback. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews and
