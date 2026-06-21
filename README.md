@@ -53,6 +53,32 @@ identity boundary, audit ledger, action registry and a governance console shell.
 - Deployment: Docker Compose for local/dev, Kubernetes/Helm for production.
 - Tooling direction: `uv`, `pnpm`, Docker.
 
+## Local Runtime
+
+The development runtime is self-hosted through Docker Compose:
+
+```bash
+cp .env.example .env
+make dev-stack-up
+```
+
+Services:
+
+- Postgres: `localhost:5432`
+- TypeDB gRPC: `localhost:1729`
+- TypeDB HTTP: `http://localhost:8001`
+- Temporal: `localhost:7233`
+- Temporal UI: `http://localhost:8088`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- Keycloak: `http://localhost:8080`
+
+Stop the stack with:
+
+```bash
+make dev-stack-down
+```
+
 ## Repository Strategy
 
 Axis starts as one public repository to keep the core coherent. It is still
@@ -82,4 +108,3 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`CLA.md`](./CLA.md).
 ## License
 
 Apache-2.0. See [`LICENSE`](./LICENSE).
-
