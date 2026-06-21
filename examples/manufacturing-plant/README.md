@@ -45,6 +45,8 @@ It includes:
 - web console decision submission to the persisted demo endpoint, with local
   fallback for standalone runs.
 - demo approval decision permission checks using the approval's required scope.
+- workflow signal execution through the Axis workflow runtime adapter when the
+  runtime is available.
 - read-only audit explorer events with tenant, event type and scope filters,
   evidence references and redacted payload previews.
 - read-only agent registry entries with autonomy boundaries, required
@@ -66,8 +68,7 @@ The reference demo should grow into an end-to-end Platform scenario:
   entities;
 - TypeDB-backed ontology relationships and permission-aware graph queries;
 - API-backed use of Postgres approval/action/audit state;
-- Temporal signal execution through the Axis workflow runtime adapter;
-- workflow signal execution after persisted approval decisions;
+- persisted workflow histories and deterministic replay;
 - production identity-bound permission enforcement;
 - audit export and retention controls;
 - production action registry execution and persisted agent state;

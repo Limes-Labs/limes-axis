@@ -704,6 +704,9 @@
             "title": "Workflow Id",
             "type": "string"
           },
+          "workflow_signal": {
+            "$ref": "#/components/schemas/WorkflowSignalResult"
+          },
           "workflow_signal_status": {
             "minLength": 1,
             "title": "Workflow Signal Status",
@@ -722,6 +725,7 @@
           "audit_event_type",
           "persisted",
           "permission_decision",
+          "workflow_signal",
           "workflow_signal_status"
         ],
         "title": "ApprovalDecisionPersistenceResult",
@@ -2625,6 +2629,43 @@
           "status"
         ],
         "title": "WorkflowSignal",
+        "type": "object"
+      },
+      "WorkflowSignalResult": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "signal_name": {
+            "minLength": 1,
+            "title": "Signal Name",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "status",
+          "adapter",
+          "signal_name"
+        ],
+        "title": "WorkflowSignalResult",
         "type": "object"
       },
       "WorkflowSummary": {

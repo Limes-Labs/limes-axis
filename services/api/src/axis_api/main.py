@@ -35,6 +35,12 @@ from axis_api.demo import (
 )
 from axis_api.errors import AxisErrorCode
 from axis_api.persistence import AxisPersistenceRepository
+from axis_api.workflow_runtime import (
+    DeferredWorkflowSignalRuntime,
+    TemporalWorkflowSignalConfig,
+    TemporalWorkflowSignalRuntime,
+    WorkflowSignalRuntime,
+)
 
 
 def persistence_repository(request: Request) -> Generator[AxisPersistenceRepository]:
@@ -45,6 +51,16 @@ def persistence_repository(request: Request) -> Generator[AxisPersistenceReposit
 PersistenceRepository = Annotated[
     AxisPersistenceRepository,
     Depends(persistence_repository),
+]
+
+
+def workflow_runtime(request: Request) -> WorkflowSignalRuntime:
+    return request.app.state.workflow_runtime
+
+
+WorkflowRuntime = Annotated[
+    WorkflowSignalRuntime,
+    Depends(workflow_runtime),
 ]
 
 
@@ -68,6 +84,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = resolved_settings
     app.state.session_factory = create_session_factory(resolved_settings)
+    app.state.workflow_runtime = (
+        TemporalWorkflowSignalRuntime(
+            TemporalWorkflowSignalConfig(
+                address=resolved_settings.temporal_address,
+                namespace=resolved_settings.temporal_namespace,
+                signal_timeout_seconds=resolved_settings.temporal_signal_timeout_seconds,
+            )
+        )
+        if resolved_settings.workflow_signals_enabled
+        else DeferredWorkflowSignalRuntime()
+    )
 
     @app.get("/health", tags=["system"])
     def health() -> dict[str, str]:
@@ -133,13 +160,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
-    def manufacturing_approval_decision(
+    async def manufacturing_approval_decision(
         approval_id: str,
         decision: ApprovalDecisionRequest,
         repository: PersistenceRepository,
+        runtime: WorkflowRuntime,
     ) -> ApprovalDecisionPersistenceResult:
         try:
-            return record_demo_approval_decision(repository, approval_id, decision)
+            return await record_demo_approval_decision(repository, approval_id, decision, runtime)
         except DemoApprovalNotFound as exc:
             raise HTTPException(status_code=404, detail="Approval not found") from exc
         except ApprovalPermissionDenied as exc:

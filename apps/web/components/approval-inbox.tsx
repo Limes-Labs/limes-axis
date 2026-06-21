@@ -38,6 +38,7 @@ type LocalApprovalDecision = {
   workflowSignalStatus?: string;
   persistenceDetail?: string;
   permissionDetail?: string;
+  workflowSignalDetail?: string;
 };
 
 function sourceLabel(source: ApprovalSource): string {
@@ -183,6 +184,7 @@ export function ApprovalInbox() {
         workflowSignalStatus: result.workflow_signal_status,
         persistenceDetail: "Persisted through the approval decision API.",
         permissionDetail: `Permission ${result.permission_decision.reason}.`,
+        workflowSignalDetail: `${result.workflow_signal.adapter} / ${result.workflow_signal.signal_name}`,
       });
     } catch {
       updateDecisionState(approvalId, {
@@ -419,6 +421,9 @@ export function ApprovalInbox() {
               ) : null}
               {selectedDecision?.permissionDetail ? (
                 <p className="row-detail">{selectedDecision.permissionDetail}</p>
+              ) : null}
+              {selectedDecision?.workflowSignalDetail ? (
+                <p className="row-detail">{selectedDecision.workflowSignalDetail}</p>
               ) : null}
             </div>
           </div>

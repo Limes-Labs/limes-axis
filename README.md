@@ -59,7 +59,9 @@ audit events. The approval console persistence slice submits reviewer decisions
 to that endpoint when the API is reachable and keeps a local preview fallback
 when the console runs standalone. The approval permission slice enforces the
 required demo approval scope before decision persistence and returns a 403 when
-the actor scopes are insufficient.
+the actor scopes are insufficient. The workflow signal slice sends approval
+decisions through the Axis workflow runtime port to Temporal when the runtime is
+available, and records an explicit degraded status when it is not.
 
 ## Architecture Defaults
 

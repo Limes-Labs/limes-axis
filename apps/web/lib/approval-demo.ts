@@ -62,6 +62,18 @@ export type ApprovalDecisionPersistenceResult = {
     allowed: boolean;
     reason: string;
   };
+  workflow_signal: {
+    workflow_id: string;
+    status: string;
+    adapter: string;
+    signal_name: string;
+    payload: {
+      approval_id?: string;
+      approved?: boolean;
+      decision?: ApprovalDecision;
+      reason?: string;
+    };
+  };
   workflow_signal_status: string;
 };
 

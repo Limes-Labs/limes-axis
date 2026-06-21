@@ -1302,8 +1302,8 @@ def get_manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
             "Temporal remains behind the Axis workflow runtime adapter boundary.",
             "Signals shown here are pending governance signals, not live production mutations.",
             (
-                "Durable replay, persisted history views and workflow signal execution remain "
-                "Platform work."
+                "Approval decisions can signal the runtime; durable replay and persisted "
+                "history views remain Platform work."
             ),
         ],
         workflow_runs=[
@@ -2310,7 +2310,7 @@ def _ontology_detail_overrides() -> dict[str, dict[str, list[str]]]:
             ],
             "detail_notes": [
                 "Workflow detail is inspectable without exposing runtime mutation controls.",
-                "Signal execution remains behind the Axis workflow runtime adapter.",
+                "Approval decisions signal this workflow through the Axis runtime adapter.",
             ],
         },
         "appr_expedite_supplier_batch": {

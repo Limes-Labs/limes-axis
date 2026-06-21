@@ -10,6 +10,14 @@ from axis_api.persistence import (
     ApprovalRecordCreate,
     AxisPersistenceRepository,
 )
+from axis_api.workflow_runtime import (
+    DeferredWorkflowSignalRuntime,
+    WorkflowSignalError,
+    WorkflowSignalRequest,
+    WorkflowSignalResult,
+    WorkflowSignalRuntime,
+    workflow_signal_failure_result,
+)
 
 
 class DemoApprovalNotFound(LookupError):
@@ -42,6 +50,7 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     audit_event_type: str = Field(min_length=1)
     persisted: bool
     permission_decision: PermissionDecision
+    workflow_signal: WorkflowSignalResult
     workflow_signal_status: str = Field(min_length=1)
 
 
@@ -121,14 +130,34 @@ def _evaluate_approval_decision_permission(
     return decision
 
 
-def record_demo_approval_decision(
+async def _signal_approval_workflow(
+    workflow_runtime: WorkflowSignalRuntime,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    request: ApprovalDecisionRequest,
+) -> WorkflowSignalResult:
+    signal_request = WorkflowSignalRequest(
+        tenant_id=tenant_id,
+        workflow_id=approval.workflow_id,
+        approval_id=approval.approval_id,
+        decision=request.decision,
+    )
+    try:
+        return await workflow_runtime.signal_approval_decision(signal_request)
+    except WorkflowSignalError as exc:
+        return workflow_signal_failure_result(signal_request, reason=str(exc))
+
+
+async def record_demo_approval_decision(
     repository: AxisPersistenceRepository,
     approval_id: str,
     request: ApprovalDecisionRequest,
+    workflow_runtime: WorkflowSignalRuntime | None = None,
 ) -> ApprovalDecisionPersistenceResult:
     tenant_id, approval = _find_demo_approval(approval_id)
     action_id = _approval_action_id(approval.approval_id)
     permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
+    runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
     _ensure_approval_record(repository, tenant_id, approval)
 
     approval_record = repository.record_approval_decision(
@@ -140,6 +169,7 @@ def record_demo_approval_decision(
             decision_note=request.note,
         )
     )
+    workflow_signal = await _signal_approval_workflow(runtime, tenant_id, approval, request)
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=tenant_id,
@@ -152,6 +182,7 @@ def record_demo_approval_decision(
                 "decision": request.decision.value,
                 "required_permission": approval.required_permission,
                 "permission_decision": permission_decision.model_dump(),
+                "workflow_signal": workflow_signal.model_dump(),
                 "result": approval.audit_event_preview.result,
                 "decision_note_recorded": str(request.note is not None).lower(),
             },
@@ -170,5 +201,6 @@ def record_demo_approval_decision(
         audit_event_type=audit_event.event_type,
         persisted=True,
         permission_decision=permission_decision,
-        workflow_signal_status="pending_runtime_signal",
+        workflow_signal=workflow_signal,
+        workflow_signal_status=workflow_signal.status,
     )

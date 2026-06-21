@@ -31,7 +31,9 @@ before persistence. If the required `approvals:*:decide` scope is missing, the
 endpoint returns 403 and does not write the approval record or audit event. When
 allowed, it creates or reuses the matching tenant-scoped `approval_records` row,
 records the decision and appends an `approval.decision.recorded` audit event.
-Workflow signal execution remains pending.
+It also signals the Axis workflow runtime adapter. When Temporal is unavailable
+or the workflow is not running, the decision still persists and the response
+returns an explicit degraded workflow signal status.
 
 ## Console Behavior
 
@@ -41,7 +43,7 @@ When the API is not reachable, the page falls back to the local synthetic seed.
 The page lets a reviewer select approval proposals and submit a decision. The
 console sends a typed `decision`, `actor_id`, `actor_scopes` and note payload to
 the demo API. When the request succeeds, the panel shows the persisted audit
-event, permission result and workflow signal placeholder returned by the API.
+event, permission result and workflow signal result returned by the API.
 When the request fails, the panel keeps a browser-local preview so the
 standalone console remains usable.
 
@@ -50,12 +52,12 @@ standalone console remains usable.
 This slice demonstrates the approval contract and review experience. It can
 persist decisions through the demo API, and the console now uses that endpoint
 when available. The demo endpoint enforces the approval's required permission
-from the supplied actor scopes. No Temporal workflow signal is emitted yet, and
-production OIDC-bound permission enforcement is still a future hardening path.
+from the supplied actor scopes and signals the workflow runtime adapter.
+Production OIDC-bound permission enforcement is still a future hardening path.
 
 Future Platform work should connect this contract to:
 
-- workflow signal execution behind the Axis workflow runtime adapter;
+- persisted workflow state and tenant-scoped runtime history;
 - production identity-bound permission checks for `approvals:*:decide`;
 - replay and simulation of approval outcomes.
 
@@ -66,6 +68,7 @@ The slice is covered by:
 - API unit tests for the manufacturing approval inbox seed and endpoint;
 - API unit tests for persisted approval decisions and audit writes;
 - API unit tests for approval decision permission denial;
+- API unit tests for workflow signal success and degraded runtime paths;
 - OpenAPI schema export/check;
 - web unit tests for the persisted decision payload contract;
 - Playwright smoke tests for queue rendering and standalone local fallback.

@@ -18,6 +18,15 @@ class Settings(BaseSettings):
     typedb_username: str = Field(default="admin", alias="AXIS_TYPEDB_USERNAME")
     typedb_password: str = Field(default="password", alias="AXIS_TYPEDB_PASSWORD")
     temporal_address: str = Field(default="localhost:7233", alias="AXIS_TEMPORAL_ADDRESS")
+    temporal_namespace: str = Field(default="default", alias="AXIS_TEMPORAL_NAMESPACE")
+    temporal_signal_timeout_seconds: float = Field(
+        default=2.0,
+        alias="AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS",
+    )
+    workflow_signals_enabled: bool = Field(
+        default=True,
+        alias="AXIS_WORKFLOW_SIGNALS_ENABLED",
+    )
     external_model_egress_enabled: bool = Field(
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",

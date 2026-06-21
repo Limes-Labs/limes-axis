@@ -39,11 +39,14 @@ Temporal remains behind the Axis workflow runtime adapter. The public console
 shows the contract Axis expects from that boundary without exposing production
 operations.
 
+Approval decision persistence now uses this runtime boundary to signal the
+matching workflow when Temporal is available. The workflow console itself stays
+read-only: it does not expose live mutation controls or persisted history yet.
+
 Future Platform work should connect this contract to:
 
 - persisted workflow run state;
 - tenant-scoped history views;
-- workflow signal execution behind permission checks;
 - append-only audit ledger writes;
 - deterministic replay and simulation outputs.
 
