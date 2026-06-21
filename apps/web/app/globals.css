@@ -214,6 +214,10 @@ textarea {
   padding: 16px;
 }
 
+.compact-card {
+  min-height: 120px;
+}
+
 .metric-label,
 .section-label {
   margin: 0;
@@ -326,6 +330,26 @@ textarea {
 .api-url {
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #eef2f7;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .two-column {

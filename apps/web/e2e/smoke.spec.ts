@@ -46,4 +46,18 @@ test.describe("Axis console smoke", () => {
 
     await expectNoHorizontalOverflow(page);
   });
+
+  test("renders the read-only ontology explorer", async ({ page }) => {
+    await page.goto("/ontology");
+
+    await expect(page.getByRole("heading", { name: "Operational knowledge model" })).toBeVisible();
+    await expect(page.getByText("Fallback ontology seed")).toBeVisible();
+    await expect(page.getByRole("row", { name: "Line 2 Packaging Packaging" })).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "requires_approval Workflow cannot execute" }),
+    ).toBeVisible();
+    expect(await page.getByRole("cell", { name: "operations:read" }).count()).toBeGreaterThan(0);
+
+    await expectNoHorizontalOverflow(page);
+  });
 });

@@ -2,7 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from axis_api.config import Settings
-from axis_api.demo import ManufacturingOverview, get_manufacturing_overview
+from axis_api.demo import (
+    ManufacturingOntology,
+    ManufacturingOverview,
+    get_manufacturing_ontology,
+    get_manufacturing_overview,
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -49,6 +54,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_overview() -> ManufacturingOverview:
         return get_manufacturing_overview()
+
+    @app.get(
+        "/demo/manufacturing/ontology",
+        response_model=ManufacturingOntology,
+        tags=["demo"],
+    )
+    def manufacturing_ontology() -> ManufacturingOntology:
+        return get_manufacturing_ontology()
 
     return app
 

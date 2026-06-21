@@ -70,7 +70,7 @@ Foundation acceptance is tracked in
 ### Platform
 
 - [x] Build the governance console overview.
-- [ ] Build the ontology explorer.
+- [x] Build the ontology explorer.
 - [ ] Build the workflow console.
 - [ ] Build the agent registry.
 - [ ] Build the approval inbox.
@@ -83,6 +83,10 @@ Foundation acceptance is tracked in
 The governance console overview is backed by the first public-safe synthetic
 manufacturing seed. The full manufacturing reference demo remains open until it
 has ontology relationships, approval actions, workflow execution and replay.
+
+The ontology explorer is currently read-only and backed by the synthetic
+manufacturing graph. TypeDB-backed entity detail pages and permission-aware graph
+queries remain Platform work.
 
 ### Enterprise
 

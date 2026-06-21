@@ -121,6 +121,74 @@
         "title": "AuditEvidence",
         "type": "object"
       },
+      "ManufacturingOntology": {
+        "properties": {
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/OntologyNode"
+            },
+            "minItems": 1,
+            "title": "Nodes",
+            "type": "array"
+          },
+          "permission_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Permission Notes",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/OntologyRelationship"
+            },
+            "minItems": 1,
+            "title": "Relationships",
+            "type": "array"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "source_systems": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Source Systems",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "nodes",
+          "relationships",
+          "source_systems",
+          "permission_notes"
+        ],
+        "title": "ManufacturingOntology",
+        "type": "object"
+      },
       "ManufacturingOverview": {
         "properties": {
           "agents": {
@@ -205,6 +273,112 @@
           "audit_events"
         ],
         "title": "ManufacturingOverview",
+        "type": "object"
+      },
+      "OntologyNode": {
+        "properties": {
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "node_id": {
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_type": {
+            "$ref": "#/components/schemas/OntologyNodeType"
+          },
+          "source_system": {
+            "minLength": 1,
+            "title": "Source System",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "label",
+          "node_type",
+          "domain",
+          "status",
+          "source_system",
+          "summary"
+        ],
+        "title": "OntologyNode",
+        "type": "object"
+      },
+      "OntologyNodeType": {
+        "enum": [
+          "organization",
+          "asset",
+          "process",
+          "workflow",
+          "risk",
+          "approval",
+          "agent",
+          "system",
+          "policy",
+          "audit_event"
+        ],
+        "title": "OntologyNodeType",
+        "type": "string"
+      },
+      "OntologyRelationship": {
+        "properties": {
+          "permission_scope": {
+            "minLength": 1,
+            "title": "Permission Scope",
+            "type": "string"
+          },
+          "relation_type": {
+            "minLength": 1,
+            "title": "Relation Type",
+            "type": "string"
+          },
+          "relationship_id": {
+            "minLength": 1,
+            "title": "Relationship Id",
+            "type": "string"
+          },
+          "source_id": {
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "target_id": {
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "relationship_id",
+          "source_id",
+          "target_id",
+          "relation_type",
+          "summary",
+          "permission_scope"
+        ],
+        "title": "OntologyRelationship",
         "type": "object"
       },
       "OverviewMetric": {
@@ -350,6 +524,27 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/demo/manufacturing/ontology": {
+      "get": {
+        "operationId": "manufacturing_ontology_demo_manufacturing_ontology_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingOntology"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Ontology",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/demo/manufacturing/overview": {
       "get": {
         "operationId": "manufacturing_overview_demo_manufacturing_overview_get",
