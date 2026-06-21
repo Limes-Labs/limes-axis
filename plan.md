@@ -79,6 +79,7 @@ Foundation acceptance is tracked in
 - [x] Build the model routing and cost observability layer.
 - [x] Add the Postgres persistence foundation for approvals, actions and audit events.
 - [x] Add API-backed approval decisions with audit writes.
+- [x] Connect the approval console to persisted decision submission with local fallback.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Build replay and simulation foundations.
@@ -96,10 +97,10 @@ The workflow console is currently read-only and backed by the synthetic
 manufacturing workflow seed. Persisted workflow state, runtime signal execution,
 tenant-scoped history views and deterministic replay remain Platform work.
 
-The approval queue is still read-only for listing and the web console still uses
-local browser state for decision previews. A demo decision endpoint now persists
-approval decisions and appends audit events, while console submission, workflow
-signals and permission enforcement remain Platform work.
+The approval queue is still read-only for listing. A demo decision endpoint now
+persists approval decisions and appends audit events, and the web console
+submits reviewer decisions to it when available while keeping a standalone local
+fallback. Workflow signals and permission enforcement remain Platform work.
 
 The audit explorer is currently read-only and backed by the synthetic
 manufacturing audit seed. The append-only audit event table and repository now

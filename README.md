@@ -55,7 +55,9 @@ egress visibility, synthetic token/cost estimates and audit evidence. The
 persistence foundation adds Postgres schema and repository methods for approval
 records, action runs and append-only audit events. The approval persistence
 slice adds an API-backed decision endpoint that records approval decisions and
-audit events.
+audit events. The approval console persistence slice submits reviewer decisions
+to that endpoint when the API is reachable and keeps a local preview fallback
+when the console runs standalone.
 
 ## Architecture Defaults
 
@@ -174,6 +176,8 @@ Architecture and acceptance notes:
 - [`docs/platform-audit.md`](./docs/platform-audit.md)
 - [`docs/platform-agents.md`](./docs/platform-agents.md)
 - [`docs/platform-actions.md`](./docs/platform-actions.md)
+- [`docs/platform-persistence.md`](./docs/platform-persistence.md)
+- [`docs/platform-model-routing.md`](./docs/platform-model-routing.md)
 
 Reference examples:
 

@@ -12,11 +12,14 @@ import {
 
 import {
   approvalDecisionLabel,
+  approvalDecisionActorId,
   approvalRiskClass,
+  buildApprovalDecisionPayload,
   defaultManufacturingApprovalInbox,
   findApprovalById,
   type ApprovalDecision,
   type ApprovalDecisionOption,
+  type ApprovalDecisionPersistenceResult,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { getApiBaseUrl } from "@/lib/api-status";
@@ -29,6 +32,11 @@ type LocalApprovalDecision = {
   label: string;
   decidedAt: string;
   auditResult: string;
+  storage: "persisting" | "persisted" | "local";
+  actorId: string;
+  auditEventId?: string;
+  workflowSignalStatus?: string;
+  persistenceDetail?: string;
 };
 
 function sourceLabel(source: ApprovalSource): string {
@@ -45,6 +53,10 @@ function decisionAuditResult(decision: ApprovalDecision): string {
   }
 
   return decision === "reject" ? "rejected_preview" : "changes_requested_preview";
+}
+
+function persistedAuditResult(result: ApprovalDecisionPersistenceResult): string {
+  return `${result.audit_event_type} / ${result.workflow_signal_status}`;
 }
 
 function DecisionIcon({ decision }: { decision: ApprovalDecision }) {
@@ -116,19 +128,71 @@ export function ApprovalInbox() {
   const pendingCount = inbox.approvals.length - localDecisionCount;
   const highRiskCount = inbox.approvals.filter((approval) => approval.risk_level === "high").length;
 
-  function recordDecision(option: ApprovalDecisionOption) {
+  function updateDecisionState(
+    approvalId: string,
+    decision: LocalApprovalDecision,
+  ) {
     setLocalDecisions((current) => ({
       ...current,
-      [selectedApproval.approval_id]: {
+      [approvalId]: decision,
+    }));
+  }
+
+  async function recordDecision(option: ApprovalDecisionOption) {
+    const approvalId = selectedApproval.approval_id;
+    const decidedAt = new Intl.DateTimeFormat("en", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date());
+    const actorId = approvalDecisionActorId(selectedApproval);
+
+    updateDecisionState(approvalId, {
+      decision: option.decision,
+      label: option.label,
+      decidedAt,
+      auditResult: "persisting_decision",
+      storage: "persisting",
+      actorId,
+      persistenceDetail: "Recording decision through the API.",
+    });
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/demo/manufacturing/approvals/${approvalId}/decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildApprovalDecisionPayload(selectedApproval, option.decision)),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Approval decision request failed with ${response.status}`);
+      }
+
+      const result = (await response.json()) as ApprovalDecisionPersistenceResult;
+      updateDecisionState(approvalId, {
+        decision: result.decision,
+        label: option.label,
+        decidedAt,
+        auditResult: persistedAuditResult(result),
+        storage: "persisted",
+        actorId: result.actor_id,
+        auditEventId: result.audit_event_id,
+        workflowSignalStatus: result.workflow_signal_status,
+        persistenceDetail: "Persisted through the approval decision API.",
+      });
+    } catch {
+      updateDecisionState(approvalId, {
         decision: option.decision,
         label: option.label,
-        decidedAt: new Intl.DateTimeFormat("en", {
-          dateStyle: "medium",
-          timeStyle: "short",
-        }).format(new Date()),
+        decidedAt,
         auditResult: decisionAuditResult(option.decision),
-      },
-    }));
+        storage: "local",
+        actorId,
+        persistenceDetail: "Local preview only; API persistence is unavailable.",
+      });
+    }
   }
 
   return (
@@ -168,7 +232,7 @@ export function ApprovalInbox() {
         <article className="metric-card compact-card">
           <p className="metric-label">Decisions</p>
           <p className="metric-value">{localDecisionCount}</p>
-          <p className="metric-detail">Local review states recorded in this browser session</p>
+          <p className="metric-detail">Persisted through the API when available</p>
         </article>
         <article className="metric-card compact-card">
           <p className="metric-label">Policy</p>
@@ -309,13 +373,23 @@ export function ApprovalInbox() {
                   {selectedDecision.label} / {selectedDecision.decidedAt}
                 </p>
               ) : null}
+              {selectedDecision ? (
+                <p className="row-detail">
+                  {selectedDecision.storage === "persisted"
+                    ? "Persisted decision"
+                    : selectedDecision.storage === "persisting"
+                      ? "Recording decision"
+                      : "Local preview"}
+                </p>
+              ) : null}
             </div>
             <div className="decision-toolbar">
               {selectedApproval.decision_options.map((option) => (
                 <button
                   className="command-button decision-command"
+                  disabled={selectedDecision?.storage === "persisting"}
                   key={option.decision}
-                  onClick={() => recordDecision(option)}
+                  onClick={() => void recordDecision(option)}
                   title={option.consequence}
                   type="button"
                 >
@@ -335,6 +409,12 @@ export function ApprovalInbox() {
                 {selectedApproval.audit_event_preview.scope} /{" "}
                 {selectedDecision?.auditResult ?? selectedApproval.audit_event_preview.result}
               </p>
+              {selectedDecision?.auditEventId ? (
+                <p className="row-detail mono">{selectedDecision.auditEventId}</p>
+              ) : null}
+              {selectedDecision?.persistenceDetail ? (
+                <p className="row-detail">{selectedDecision.persistenceDetail}</p>
+              ) : null}
             </div>
           </div>
         </section>

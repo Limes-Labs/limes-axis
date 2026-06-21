@@ -110,7 +110,7 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
-  test("renders the approval inbox with local decision preview", async ({ page }) => {
+  test("renders the approval inbox with persisted decision fallback", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
@@ -129,7 +129,10 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("button", { name: "Approve" }).click();
 
     await expect(page.getByRole("heading", { name: "Approved" })).toBeVisible();
+    await expect(page.getByText("Local preview", { exact: true })).toBeVisible();
     await expect(page.getByText("approved_preview")).toBeVisible();
+    await expect(page.getByText("Local preview only; API persistence is unavailable."))
+      .toBeVisible();
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
