@@ -7,6 +7,7 @@ from axis_api.demo import (
     ManufacturingAgentRegistry,
     ManufacturingApprovalInbox,
     ManufacturingAuditExplorer,
+    ManufacturingModelRouting,
     ManufacturingOntology,
     ManufacturingOntologyEntityDetail,
     ManufacturingOverview,
@@ -15,6 +16,7 @@ from axis_api.demo import (
     get_manufacturing_agent_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
+    get_manufacturing_model_routing,
     get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
     get_manufacturing_overview,
@@ -106,6 +108,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_audit_explorer() -> ManufacturingAuditExplorer:
         return get_manufacturing_audit_explorer()
+
+    @app.get(
+        "/demo/manufacturing/model-routing",
+        response_model=ManufacturingModelRouting,
+        tags=["demo"],
+    )
+    def manufacturing_model_routing() -> ManufacturingModelRouting:
+        return get_manufacturing_model_routing()
 
     @app.get(
         "/demo/manufacturing/ontology",

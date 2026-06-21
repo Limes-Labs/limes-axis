@@ -53,7 +53,10 @@ workflow runtime port. This keeps orchestration replaceable and makes future
 Cloud, Enterprise and deployment extraction cleaner.
 
 The model router is provider-agnostic. External provider egress is blocked by
-default and must be explicitly enabled by policy.
+default and must be explicitly enabled by policy. The current public Platform
+slice exposes read-only model route telemetry and synthetic cost estimates; live
+provider adapters, persisted usage records, budget enforcement and
+OpenTelemetry-emitted route spans remain behind the runtime boundary.
 
 ## Permission Boundaries
 

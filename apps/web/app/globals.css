@@ -405,6 +405,7 @@ textarea {
 .row-title {
   margin: 0;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .row-detail {
@@ -1146,6 +1147,169 @@ textarea {
   gap: 18px;
 }
 
+.model-filter-panel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.model-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.model-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 170px;
+}
+
+.model-filters select {
+  min-height: 38px;
+  max-width: 250px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  box-shadow: var(--shadow);
+}
+
+.model-routing-layout {
+  display: grid;
+  grid-template-columns: minmax(330px, 0.48fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.model-routing-layout > *,
+.model-route-detail > *,
+.model-route-detail-grid > *,
+.model-policy-band > *,
+.model-columns > *,
+.model-note-grid > * {
+  min-width: 0;
+}
+
+.model-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.model-route-list {
+  display: grid;
+}
+
+.model-route-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  min-height: 104px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 14px 10px;
+  text-align: left;
+  min-width: 0;
+}
+
+.model-route-list-item:first-child {
+  border-top: 0;
+}
+
+.model-route-list-item:hover,
+.model-route-list-item.active {
+  background: #f8fafc;
+}
+
+.model-route-list-item.active {
+  box-shadow: inset 4px 0 0 var(--blue);
+}
+
+.model-route-list-item .row-title,
+.model-route-list-item .row-detail {
+  display: block;
+}
+
+.model-route-list-item .status-pill {
+  justify-self: end;
+  max-width: 190px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.model-route-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.model-route-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+}
+
+.model-route-detail-header .status-pill,
+.model-provider-header .status-pill {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.model-route-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.model-policy-band {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(260px, 1fr);
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.model-columns,
+.model-note-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.model-note-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.model-provider-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.model-provider-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .entity-summary-panel {
   display: flex;
   align-items: flex-start;
@@ -1268,6 +1432,11 @@ textarea {
   .action-columns,
   .action-policy-band,
   .action-sample-grid,
+  .model-routing-layout,
+  .model-route-detail-grid,
+  .model-policy-band,
+  .model-columns,
+  .model-note-grid,
   .entity-layout,
   .entity-columns {
     grid-template-columns: 1fr;
@@ -1286,6 +1455,9 @@ textarea {
   .action-filter-panel,
   .action-detail-header,
   .action-schema-header,
+  .model-filter-panel,
+  .model-route-detail-header,
+  .model-provider-header,
   .entity-summary-panel,
   .entity-detail-header {
     display: grid;
@@ -1295,13 +1467,15 @@ textarea {
   .decision-toolbar,
   .audit-filters,
   .agent-filters,
-  .action-filters {
+  .action-filters,
+  .model-filters {
     justify-content: flex-start;
   }
 
   .audit-filters select,
   .agent-filters select,
-  .action-filters select {
+  .action-filters select,
+  .model-filters select {
     max-width: none;
   }
 }
@@ -1334,6 +1508,7 @@ textarea {
   .audit-list-item,
   .agent-list-item,
   .action-list-item,
+  .model-route-list-item,
   .entity-relationship-item,
   .payload-row {
     grid-template-columns: 1fr;
@@ -1343,7 +1518,8 @@ textarea {
   .workflow-list-item .status-pill,
   .audit-list-item .status-pill,
   .agent-list-item .status-pill,
-  .action-list-item .status-pill {
+  .action-list-item .status-pill,
+  .model-route-list-item .status-pill {
     justify-self: start;
   }
 }

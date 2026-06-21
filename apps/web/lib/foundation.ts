@@ -43,6 +43,7 @@ export const navigationItems: NavigationItem[] = [
   { href: "/ontology", label: "Ontology", icon: "network" },
   { href: "/workflows", label: "Workflows", icon: "workflow" },
   { href: "/agents", label: "Agents", icon: "bot" },
+  { href: "/model-routing", label: "Models", icon: "gauge" },
   { href: "/approvals", label: "Approvals", icon: "shield" },
   { href: "/audit", label: "Audit", icon: "receipt" },
 ];

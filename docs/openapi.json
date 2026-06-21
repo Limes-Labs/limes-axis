@@ -1346,6 +1346,91 @@
         "title": "ManufacturingAuditExplorer",
         "type": "object"
       },
+      "ManufacturingModelRouting": {
+        "properties": {
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "budget_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Budget Notes",
+            "type": "array"
+          },
+          "filter_options": {
+            "$ref": "#/components/schemas/ModelRoutingFilterOptions"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "minItems": 1,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "observability_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Observability Notes",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "provider_options": {
+            "items": {
+              "$ref": "#/components/schemas/ModelProviderOption"
+            },
+            "minItems": 1,
+            "title": "Provider Options",
+            "type": "array"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRouteTelemetry"
+            },
+            "minItems": 1,
+            "title": "Routes",
+            "type": "array"
+          },
+          "routing_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "routing_status",
+          "metrics",
+          "filter_options",
+          "provider_options",
+          "routes",
+          "budget_notes",
+          "observability_notes"
+        ],
+        "title": "ManufacturingModelRouting",
+        "type": "object"
+      },
       "ManufacturingOntology": {
         "properties": {
           "as_of": {
@@ -1680,6 +1765,284 @@
           "runtime_notes"
         ],
         "title": "ManufacturingWorkflowConsole",
+        "type": "object"
+      },
+      "ModelProviderOption": {
+        "properties": {
+          "allowed_policies": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Allowed Policies",
+            "type": "array"
+          },
+          "cost_basis": {
+            "minLength": 1,
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "egress_mode": {
+            "minLength": 1,
+            "title": "Egress Mode",
+            "type": "string"
+          },
+          "hosting_boundary": {
+            "minLength": 1,
+            "title": "Hosting Boundary",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Notes",
+            "type": "array"
+          },
+          "provider_id": {
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_type": {
+            "minLength": 1,
+            "title": "Provider Type",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id",
+          "display_name",
+          "provider_type",
+          "hosting_boundary",
+          "status",
+          "egress_mode",
+          "cost_basis",
+          "allowed_policies",
+          "notes"
+        ],
+        "title": "ModelProviderOption",
+        "type": "object"
+      },
+      "ModelRouteTelemetry": {
+        "properties": {
+          "agent_id": {
+            "minLength": 1,
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "agent_name": {
+            "minLength": 1,
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "minLength": 1,
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "cost_center": {
+            "minLength": 1,
+            "title": "Cost Center",
+            "type": "string"
+          },
+          "data_boundary": {
+            "minLength": 1,
+            "title": "Data Boundary",
+            "type": "string"
+          },
+          "decision_reason": {
+            "minLength": 1,
+            "title": "Decision Reason",
+            "type": "string"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "egress_decision": {
+            "minLength": 1,
+            "title": "Egress Decision",
+            "type": "string"
+          },
+          "estimated_cost_eur": {
+            "minimum": 0.0,
+            "title": "Estimated Cost Eur",
+            "type": "number"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "external_egress_allowed": {
+            "title": "External Egress Allowed",
+            "type": "boolean"
+          },
+          "external_egress_requested": {
+            "title": "External Egress Requested",
+            "type": "boolean"
+          },
+          "input_tokens": {
+            "minimum": 0.0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "model_policy": {
+            "minLength": 1,
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "observability_events": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Observability Events",
+            "type": "array"
+          },
+          "output_tokens": {
+            "minimum": 0.0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_classification": {
+            "minLength": 1,
+            "title": "Prompt Classification",
+            "type": "string"
+          },
+          "provider_id": {
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "minLength": 1,
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "required_permissions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Required Permissions",
+            "type": "array"
+          },
+          "route_id": {
+            "minLength": 1,
+            "title": "Route Id",
+            "type": "string"
+          },
+          "route_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          }
+        },
+        "required": [
+          "route_id",
+          "agent_id",
+          "agent_name",
+          "domain",
+          "provider_id",
+          "provider_name",
+          "model",
+          "model_policy",
+          "prompt_classification",
+          "data_boundary",
+          "external_egress_requested",
+          "external_egress_allowed",
+          "egress_decision",
+          "decision_reason",
+          "route_status",
+          "input_tokens",
+          "output_tokens",
+          "estimated_cost_eur",
+          "latency_ms",
+          "cost_center",
+          "required_permissions",
+          "evidence_refs",
+          "audit_event_id",
+          "observability_events"
+        ],
+        "title": "ModelRouteTelemetry",
+        "type": "object"
+      },
+      "ModelRoutingFilterOptions": {
+        "properties": {
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Domains",
+            "type": "array"
+          },
+          "egress_decisions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Egress Decisions",
+            "type": "array"
+          },
+          "model_policies": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Model Policies",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Providers",
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewStatus"
+            },
+            "minItems": 1,
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "domains",
+          "providers",
+          "model_policies",
+          "egress_decisions",
+          "statuses"
+        ],
+        "title": "ModelRoutingFilterOptions",
         "type": "object"
       },
       "OntologyEntityRelationship": {
@@ -2313,6 +2676,27 @@
           }
         },
         "summary": "Manufacturing Audit Explorer",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/model-routing": {
+      "get": {
+        "operationId": "manufacturing_model_routing_demo_manufacturing_model_routing_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingModelRouting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Model Routing",
         "tags": [
           "demo"
         ]
