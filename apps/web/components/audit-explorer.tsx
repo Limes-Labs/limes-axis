@@ -19,7 +19,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type AuditSource = "loading" | "api" | "fallback";
+type AuditSource = "loading" | "persisted" | "api" | "fallback";
 
 const defaultFilters: AuditFilters = {
   tenant: allAuditFilter,
@@ -28,6 +28,10 @@ const defaultFilters: AuditFilters = {
 };
 
 function sourceLabel(source: AuditSource): string {
+  if (source === "persisted") {
+    return "Persisted audit events";
+  }
+
   if (source === "api") {
     return "Live audit seed";
   }
@@ -58,20 +62,34 @@ export function AuditExplorer() {
   useEffect(() => {
     const controller = new AbortController();
 
+    async function fetchAuditData(path: string): Promise<ManufacturingAuditExplorer> {
+      const response = await fetch(`${apiBaseUrl}${path}`, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Audit explorer request failed with ${response.status}`);
+      }
+
+      return (await response.json()) as ManufacturingAuditExplorer;
+    }
+
     async function fetchAudit() {
       try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/audit`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Audit explorer request failed with ${response.status}`);
+        const persistedAuditData = await fetchAuditData(
+          "/demo/manufacturing/audit/events?tenant_id=tenant_demo_manufacturing&limit=100",
+        );
+        if (persistedAuditData.events.length > 0) {
+          setAuditData(persistedAuditData);
+          setSelectedEventId(persistedAuditData.events[0].audit_event_id);
+          setSource("persisted");
+          return;
         }
 
-        const nextAuditData = (await response.json()) as ManufacturingAuditExplorer;
-        setAuditData(nextAuditData);
-        setSelectedEventId(nextAuditData.events[0].audit_event_id);
+        const seedAuditData = await fetchAuditData("/demo/manufacturing/audit");
+        setAuditData(seedAuditData);
+        setSelectedEventId(seedAuditData.events[0].audit_event_id);
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {

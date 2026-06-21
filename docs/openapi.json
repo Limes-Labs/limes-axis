@@ -1147,7 +1147,6 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1,
             "title": "Actors",
             "type": "array"
           },
@@ -1155,7 +1154,6 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1,
             "title": "Categories",
             "type": "array"
           },
@@ -1163,7 +1161,6 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1,
             "title": "Event Types",
             "type": "array"
           },
@@ -1171,7 +1168,6 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1,
             "title": "Scopes",
             "type": "array"
           },
@@ -1185,11 +1181,7 @@
           }
         },
         "required": [
-          "tenants",
-          "event_types",
-          "scopes",
-          "actors",
-          "categories"
+          "tenants"
         ],
         "title": "AuditFilterOptions",
         "type": "object"
@@ -1559,7 +1551,6 @@
             "items": {
               "$ref": "#/components/schemas/AuditLedgerEvent"
             },
-            "minItems": 1,
             "title": "Events",
             "type": "array"
           },
@@ -1609,7 +1600,6 @@
           "ledger_status",
           "metrics",
           "filter_options",
-          "events",
           "retention_notes"
         ],
         "title": "ManufacturingAuditExplorer",
@@ -3106,6 +3096,113 @@
           }
         },
         "summary": "Manufacturing Audit Explorer",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/audit/events": {
+      "get": {
+        "operationId": "manufacturing_persisted_audit_events_demo_manufacturing_audit_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingAuditExplorer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Persisted Audit Events",
         "tags": [
           "demo"
         ]

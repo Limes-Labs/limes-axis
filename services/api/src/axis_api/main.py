@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from axis_api.action_runs import (
@@ -20,6 +20,7 @@ from axis_api.approval_decisions import (
     DemoApprovalNotFound,
     record_demo_approval_decision,
 )
+from axis_api.audit_queries import AuditEventQuery, query_persisted_audit_events
 from axis_api.config import Settings
 from axis_api.db import create_session_factory, session_scope
 from axis_api.demo import (
@@ -252,6 +253,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_audit_explorer() -> ManufacturingAuditExplorer:
         return get_manufacturing_audit_explorer()
+
+    @app.get(
+        "/demo/manufacturing/audit/events",
+        response_model=ManufacturingAuditExplorer,
+        tags=["demo"],
+    )
+    def manufacturing_persisted_audit_events(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        event_type: str | None = Query(default=None, min_length=1),
+        actor_id: str | None = Query(default=None, min_length=1),
+        scope: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingAuditExplorer:
+        return query_persisted_audit_events(
+            repository,
+            AuditEventQuery(
+                tenant_id=tenant_id,
+                event_type=event_type,
+                actor_id=actor_id,
+                scope=scope,
+                limit=limit,
+            ),
+        )
 
     @app.get(
         "/demo/manufacturing/model-routing",

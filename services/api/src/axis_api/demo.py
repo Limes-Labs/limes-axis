@@ -294,10 +294,10 @@ class AuditLedgerEvent(BaseModel):
 
 class AuditFilterOptions(BaseModel):
     tenants: list[str] = Field(min_length=1)
-    event_types: list[str] = Field(min_length=1)
-    scopes: list[str] = Field(min_length=1)
-    actors: list[str] = Field(min_length=1)
-    categories: list[str] = Field(min_length=1)
+    event_types: list[str] = Field(default_factory=list)
+    scopes: list[str] = Field(default_factory=list)
+    actors: list[str] = Field(default_factory=list)
+    categories: list[str] = Field(default_factory=list)
 
 
 class ManufacturingAuditExplorer(BaseModel):
@@ -308,7 +308,7 @@ class ManufacturingAuditExplorer(BaseModel):
     ledger_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(min_length=1)
     filter_options: AuditFilterOptions
-    events: list[AuditLedgerEvent] = Field(min_length=1)
+    events: list[AuditLedgerEvent] = Field(default_factory=list)
     retention_notes: list[str] = Field(min_length=1)
 
 
