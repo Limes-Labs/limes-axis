@@ -1,6 +1,11 @@
 from fastapi.testclient import TestClient
 
-from axis_api.demo import OverviewStatus, get_manufacturing_overview
+from axis_api.demo import (
+    OntologyNodeType,
+    OverviewStatus,
+    get_manufacturing_ontology,
+    get_manufacturing_overview,
+)
 from axis_api.main import create_app
 
 
@@ -36,3 +41,35 @@ def test_openapi_exposes_manufacturing_overview_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/overview" in response.json()["paths"]
+
+
+def test_manufacturing_ontology_seed_has_valid_relationships() -> None:
+    ontology = get_manufacturing_ontology()
+    node_ids = {node.node_id for node in ontology.nodes}
+
+    assert ontology.scenario == "Plant Operations Cockpit"
+    assert OntologyNodeType.RISK in {node.node_type for node in ontology.nodes}
+    assert OntologyNodeType.APPROVAL in {node.node_type for node in ontology.nodes}
+    assert all(edge.source_id in node_ids for edge in ontology.relationships)
+    assert all(edge.target_id in node_ids for edge in ontology.relationships)
+    assert all("@" not in note for note in ontology.permission_notes)
+
+
+def test_manufacturing_ontology_endpoint_returns_read_only_graph() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/ontology")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["nodes"][0]["node_id"] == "org_ravenna_operations"
+    assert any(edge["relation_type"] == "requires_approval" for edge in body["relationships"])
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_ontology_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/ontology" in response.json()["paths"]
