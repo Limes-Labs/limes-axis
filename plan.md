@@ -46,18 +46,21 @@ Axis will use:
 
 ### Foundation
 
-- [ ] Create the initial monorepo structure.
-- [ ] Add Python/FastAPI service foundation.
-- [ ] Add Next.js governance console foundation.
-- [ ] Add local Docker Compose runtime.
-- [ ] Add Postgres, TypeDB and Temporal local services.
-- [ ] Define tenant, actor, audit, action and workflow schemas.
-- [ ] Define the operational ontology primitives.
-- [ ] Define the Workflow Runtime Port and Temporal adapter.
-- [ ] Define the typed action registry.
-- [ ] Define the L0-L4 agent autonomy model.
-- [ ] Add OIDC/Keycloak identity boundary.
-- [ ] Add initial test, lint and CI commands.
+- [x] Create the initial monorepo structure.
+- [x] Add Python/FastAPI service foundation.
+- [x] Add Next.js governance console foundation.
+- [x] Add local Docker Compose runtime.
+- [x] Add Postgres, TypeDB and Temporal local services.
+- [x] Define tenant, actor, audit, action and workflow schemas.
+- [x] Define the operational ontology primitives.
+- [x] Define the Workflow Runtime Port and Temporal adapter.
+- [x] Define the typed action registry.
+- [x] Define the L0-L4 agent autonomy model.
+- [x] Add OIDC/Keycloak identity boundary.
+- [x] Add initial test, lint and CI commands.
+
+Foundation acceptance is tracked in
+[`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md).
 
 ### Platform
 
@@ -123,4 +126,3 @@ reviewed legally before broad external contribution intake.
 - No uncontrolled autonomous agents.
 - No dependency on a proprietary hosted model provider.
 - No promise that commercial Cloud or Enterprise code will live in this repo.
-

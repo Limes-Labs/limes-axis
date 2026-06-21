@@ -30,12 +30,11 @@ generally.
 
 ## Current Status
 
-Axis is in active build planning. This repository starts with public-safe design
-and roadmap documents before application code is added.
-
-The first engineering track is Platform Foundation: monorepo structure, local
-self-hosted runtime, API skeleton, ontology/data foundation, workflow adapter,
-identity boundary, audit ledger, action registry and a governance console shell.
+Axis is in the Platform Foundation track. The repository now includes the
+monorepo structure, self-hosted local runtime, FastAPI foundation, Postgres
+migration baseline, TypeDB ontology boundary, workflow runtime port, Temporal
+adapter, typed action registry, model egress guard, permission primitives and a
+Next.js governance console shell.
 
 ## Architecture Defaults
 
@@ -79,6 +78,35 @@ Stop the stack with:
 make dev-stack-down
 ```
 
+## Development
+
+Install dependencies:
+
+```bash
+make install
+```
+
+Run checks:
+
+```bash
+make lint
+make test
+make build-web
+```
+
+Run the web console locally:
+
+```bash
+pnpm --filter @limes-axis/web dev --hostname 127.0.0.1 --port 3000
+```
+
+Apply the first Postgres migration:
+
+```bash
+cd services/api
+uv run alembic upgrade head
+```
+
 ## Repository Strategy
 
 Axis starts as one public repository to keep the core coherent. It is still
@@ -97,6 +125,11 @@ The roadmap is organized as:
 - Foundation: trustworthy self-hostable platform base.
 - Platform: usable governance control plane with reference demo.
 - Enterprise: deployment, security, support and compliance hardening.
+
+Architecture and acceptance notes:
+
+- [`docs/architecture.md`](./docs/architecture.md)
+- [`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md)
 
 ## Contributing
 
