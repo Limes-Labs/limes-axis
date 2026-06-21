@@ -5,6 +5,7 @@ from axis_api.demo import (
     OntologyNodeType,
     OverviewStatus,
     get_manufacturing_approval_inbox,
+    get_manufacturing_audit_explorer,
     get_manufacturing_ontology,
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
@@ -133,6 +134,47 @@ def test_openapi_exposes_manufacturing_approval_inbox_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/approvals" in response.json()["paths"]
+
+
+def test_manufacturing_audit_explorer_seed_is_filterable() -> None:
+    explorer = get_manufacturing_audit_explorer()
+
+    assert explorer.scenario == "Plant Operations Cockpit"
+    assert explorer.ledger_status == OverviewStatus.WATCH
+    assert len(explorer.events) == 9
+    assert explorer.filter_options.tenants == ["tenant_demo_manufacturing"]
+    assert "agent.proposal.created" in explorer.filter_options.event_types
+    assert "wf_supplier_delay_review" in explorer.filter_options.scopes
+    assert "supply-risk-agent" in explorer.filter_options.actors
+    assert any(event.severity == OverviewStatus.ACTION_REQUIRED for event in explorer.events)
+    assert any(event.event_type == "policy.egress.blocked" for event in explorer.events)
+    assert all(event.payload_preview for event in explorer.events)
+    assert all(event.data_classification == "public-demo" for event in explorer.events)
+    assert "password" not in explorer.model_dump_json().lower()
+    assert "secret" not in explorer.model_dump_json().lower()
+    assert "@" not in explorer.model_dump_json()
+
+
+def test_manufacturing_audit_explorer_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/audit")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["events"][0]["event_type"] == "workflow.started"
+    assert body["events"][1]["related_approval_id"] == "appr_expedite_supplier_batch"
+    assert "agent.proposal.created" in body["filter_options"]["event_types"]
+    assert "retention policy enforcement" in body["retention_notes"][3]
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_audit_explorer_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/audit" in response.json()["paths"]
 
 
 def test_manufacturing_ontology_seed_has_valid_relationships() -> None:

@@ -1,0 +1,69 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  allAuditFilter,
+  defaultManufacturingAuditExplorer,
+  filterAuditEvents,
+  findAuditEventById,
+  formatAuditLabel,
+} from "./audit-demo";
+
+describe("manufacturing audit explorer demo contract", () => {
+  it("keeps a public-safe audit seed available without the API", () => {
+    expect(defaultManufacturingAuditExplorer.scenario).toBe("Plant Operations Cockpit");
+    expect(defaultManufacturingAuditExplorer.plant_name).toBe("Ravenna Works");
+    expect(defaultManufacturingAuditExplorer.events).toHaveLength(9);
+    expect(JSON.stringify(defaultManufacturingAuditExplorer)).not.toContain("@");
+    expect(JSON.stringify(defaultManufacturingAuditExplorer).toLowerCase()).not.toContain("secret");
+  });
+
+  it("exposes tenant, event and scope filter options", () => {
+    expect(defaultManufacturingAuditExplorer.filter_options.tenants).toEqual([
+      "tenant_demo_manufacturing",
+    ]);
+    expect(defaultManufacturingAuditExplorer.filter_options.event_types).toContain(
+      "agent.proposal.created",
+    );
+    expect(defaultManufacturingAuditExplorer.filter_options.scopes).toContain(
+      "wf_supplier_delay_review",
+    );
+  });
+
+  it("filters events by tenant, event type and scope", () => {
+    const events = filterAuditEvents(defaultManufacturingAuditExplorer, {
+      tenant: "tenant_demo_manufacturing",
+      eventType: "agent.proposal.created",
+      scope: "wf_supplier_delay_review",
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].actor_id).toBe("supply-risk-agent");
+  });
+
+  it("keeps all events when filters are set to all", () => {
+    expect(
+      filterAuditEvents(defaultManufacturingAuditExplorer, {
+        tenant: allAuditFilter,
+        eventType: allAuditFilter,
+        scope: allAuditFilter,
+      }),
+    ).toHaveLength(defaultManufacturingAuditExplorer.events.length);
+  });
+
+  it("finds audit events by id with a safe fallback", () => {
+    expect(
+      findAuditEventById(
+        defaultManufacturingAuditExplorer,
+        "audit_20260621_133900_egress_blocked",
+      ).event_type,
+    ).toBe("policy.egress.blocked");
+    expect(findAuditEventById(defaultManufacturingAuditExplorer, "missing").event_type).toBe(
+      "workflow.started",
+    );
+  });
+
+  it("formats audit labels", () => {
+    expect(formatAuditLabel("policy.egress.blocked")).toBe("Policy Egress Blocked");
+    expect(formatAuditLabel("approvals:supply:decide")).toBe("Approvals Supply Decide");
+  });
+});

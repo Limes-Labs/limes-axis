@@ -1,5 +1,5 @@
+import { AuditExplorer } from "@/components/audit-explorer";
 import { PageActions } from "@/components/page-actions";
-import { auditEvents } from "@/lib/foundation";
 
 export default function AuditPage() {
   return (
@@ -16,28 +16,7 @@ export default function AuditPage() {
         <PageActions />
       </header>
 
-      <section className="table-panel">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Event</th>
-              <th>Actor</th>
-              <th>Scope</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {auditEvents.map((event) => (
-              <tr key={`${event.event}-${event.scope}`}>
-                <td className="mono">{event.event}</td>
-                <td>{event.actor}</td>
-                <td>{event.scope}</td>
-                <td>{event.result}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <AuditExplorer />
     </section>
   );
 }

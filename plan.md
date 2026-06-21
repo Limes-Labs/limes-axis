@@ -74,7 +74,7 @@ Foundation acceptance is tracked in
 - [x] Build the workflow console.
 - [ ] Build the agent registry.
 - [x] Build the approval inbox.
-- [ ] Build the audit explorer.
+- [x] Build the audit explorer.
 - [ ] Build the model routing and cost observability layer.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
@@ -95,6 +95,10 @@ tenant-scoped history views and deterministic replay remain Platform work.
 The approval inbox is currently read-only at the API boundary and uses local
 browser state for decision previews. Tenant-scoped persistence, workflow signals,
 permission enforcement and append-only audit writes remain Platform work.
+
+The audit explorer is currently read-only and backed by the synthetic
+manufacturing audit seed. Persisted append-only storage, export, retention policy
+enforcement, tenant-scoped query permissions and replay remain Platform work.
 
 ### Enterprise
 
