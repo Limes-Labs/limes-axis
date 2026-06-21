@@ -58,11 +58,23 @@ slice exposes read-only model route telemetry and synthetic cost estimates; live
 provider adapters, persisted usage records, budget enforcement and
 OpenTelemetry-emitted route spans remain behind the runtime boundary.
 
+## Identity Boundaries
+
+Axis is OIDC-first. The API can validate bearer tokens against configurable
+issuer, audience, algorithms and JWKS settings, with Keycloak/self-hosted OIDC
+as the default local path. Token claims provide the authenticated tenant, actor
+and scopes used by mutation endpoints. Demo request-body actor fields remain
+available only as standalone fallback metadata when OIDC auth is optional and no
+bearer token is supplied.
+
 ## Permission Boundaries
 
 Axis starts with RBAC, ABAC and relationship-aware permission primitives. The
 first implementation evaluates explicit roles, action attributes and resource
-relationships before action execution or approval.
+relationships before action execution or approval. The current Platform
+mutation endpoints bind approval decisions and action run requests to
+OIDC-derived actors and scopes when authenticated, then apply the existing
+permission checks before persistence.
 
 ## Expansion Rule
 

@@ -8,6 +8,7 @@ from axis_api.approval_decisions import ApprovalDecisionRequest, record_demo_app
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.demo import ApprovalDecision
+from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import ApprovalRecord, AuditEvent, Base
 from axis_api.persistence import AxisPersistenceRepository
@@ -46,6 +47,15 @@ class FailingWorkflowRuntime:
         request: WorkflowSignalRequest,
     ) -> WorkflowSignalResult:
         raise WorkflowSignalError("synthetic_runtime_down")
+
+
+class StaticIdentityVerifier:
+    def __init__(self, principal: OidcPrincipal) -> None:
+        self.principal = principal
+
+    def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+        assert authorization == "Bearer valid-token"
+        return self.principal
 
 
 @pytest.fixture
@@ -183,6 +193,126 @@ def test_approval_decision_endpoint_persists_result(
     assert approval.status == "approve"
     assert approval.decision_actor_id == "maintenance-owner-role"
     assert audit_event.actor_id == "maintenance-owner-role"
+
+
+def test_approval_decision_endpoint_binds_actor_and_scopes_from_oidc_token(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.workflow_runtime = RecordingWorkflowRuntime()
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["approvals:supply:decide"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": [],
+            "note": "Approved with token-derived scopes.",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["actor_id"] == "plant-operations-owner-role"
+    assert response.json()["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    with session_factory() as session:
+        audit_event = session.scalars(select(AuditEvent)).one()
+    assert audit_event.actor_id == "plant-operations-owner-role"
+
+
+def test_approval_decision_endpoint_requires_oidc_when_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["approvals:supply:decide"],
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "AUTH_REQUIRED"
+
+
+def test_approval_decision_endpoint_rejects_oidc_actor_impersonation(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["approvals:supply:decide"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "decision": "approve",
+            "actor_id": "quality-owner-role",
+            "actor_scopes": ["approvals:supply:decide"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The request actor does not match the authenticated OIDC actor.",
+        "reason": "actor_mismatch",
+    }
+
+
+def test_approval_decision_endpoint_rejects_oidc_tenant_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_other",
+            scopes=["approvals:supply:decide"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["approvals:supply:decide"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+        "reason": "tenant_mismatch",
+    }
+    with session_factory() as session:
+        assert session.scalars(select(AuditEvent)).all() == []
 
 
 async def test_approval_decision_records_signal_failure_without_blocking_persistence(

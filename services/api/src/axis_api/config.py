@@ -27,6 +27,20 @@ class Settings(BaseSettings):
         default=True,
         alias="AXIS_WORKFLOW_SIGNALS_ENABLED",
     )
+    oidc_issuer: str = Field(
+        default="http://localhost:8080/realms/axis",
+        alias="AXIS_OIDC_ISSUER",
+    )
+    oidc_audience: str = Field(default="limes-axis-api", alias="AXIS_OIDC_AUDIENCE")
+    oidc_jwks_url: str | None = Field(default=None, alias="AXIS_OIDC_JWKS_URL")
+    oidc_algorithms: list[str] = Field(
+        default_factory=lambda: ["RS256"],
+        alias="AXIS_OIDC_ALGORITHMS",
+    )
+    oidc_actor_claim: str = Field(default="sub", alias="AXIS_OIDC_ACTOR_CLAIM")
+    oidc_tenant_claim: str = Field(default="axis_tenant", alias="AXIS_OIDC_TENANT_CLAIM")
+    oidc_jwks_cache_seconds: int = Field(default=300, alias="AXIS_OIDC_JWKS_CACHE_SECONDS")
+    oidc_auth_required: bool = Field(default=False, alias="AXIS_OIDC_AUTH_REQUIRED")
     external_model_egress_enabled: bool = Field(
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",

@@ -84,6 +84,8 @@ Foundation acceptance is tracked in
 - [x] Signal approval decisions through the workflow runtime adapter.
 - [x] Persist typed action run requests with idempotency enforcement.
 - [x] Signal workflow runtime from typed action payloads behind policy.
+- [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
+  and scopes.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests and retention policy metadata.
 - [x] Persist workflow run state and tenant-scoped history views.
@@ -110,9 +112,11 @@ The approval queue is still read-only for listing. A demo decision endpoint now
 persists approval decisions and appends audit events, and the web console
 submits reviewer decisions to it when available while keeping a standalone local
 fallback. The decision endpoint enforces the required demo approval scope before
-persistence and signals the workflow runtime adapter. Production identity
-binding and broader relationship-aware permission enforcement remain Platform
-work.
+persistence and signals the workflow runtime adapter. When a bearer token is
+present, or when OIDC auth is required by configuration, the endpoint validates
+the token against configurable OIDC/JWKS settings and derives tenant, actor and
+scopes from token claims before persistence. Broader relationship-aware
+permission enforcement remains Platform work.
 
 The audit explorer is backed by the synthetic manufacturing audit seed and can
 query persisted `audit_events` through the demo API when records exist. The demo
@@ -131,8 +135,11 @@ action seed for catalog browsing. Typed dry-run/proposal action requests can now
 be persisted through the demo API with idempotency enforcement and append-only
 audit events. Approval-gated action payloads now signal the Axis workflow
 runtime adapter after persistence, with explicit degraded status when the
-runtime is unavailable. Live production execution and connector invocation
-remain Platform work.
+runtime is unavailable. When a bearer token is present, or when OIDC auth is
+required by configuration, action run creation derives tenant, actor and scopes
+from token claims and rejects actor impersonation before persistence. Live
+production execution, connector invocation and broader relationship-aware
+permission enforcement remain Platform work.
 
 The model routing and cost observability layer is currently read-only and backed
 by synthetic manufacturing route telemetry. Live provider adapters,

@@ -14,6 +14,9 @@ slice does not execute production actions.
   registry.
 - `POST /demo/manufacturing/actions/{action_id}/runs` records a typed dry-run
   or proposal request with action idempotency enforcement and append-only audit.
+- When an OIDC bearer token is present, or when auth is required by
+  configuration, action run creation derives tenant, actor and scopes from token
+  claims and rejects actor impersonation before persistence.
 - Approval-gated action runs signal the Axis workflow runtime adapter after
   persistence when a workflow binding and runtime policy are present.
 - The Next.js console renders the registry on `/agents`, below the agent
@@ -50,9 +53,11 @@ requests are now persisted as dry-run/proposal records.
 The Postgres persistence foundation now includes `action_runs`, action
 idempotency uniqueness and repository methods for recording action run results.
 The action run path emits a redacted workflow signal result for approval-gated
-demo actions through the Axis workflow runtime adapter. The action registry UI
-still uses the synthetic seed for catalog data and does not execute production
-actions or connector mutations.
+demo actions through the Axis workflow runtime adapter. In standalone demo
+mode, actor id and scopes can still be supplied in the request body. In
+authenticated deployments, the API binds the action run to the bearer token
+principal instead. The action registry UI still uses the synthetic seed for
+catalog data and does not execute production actions or connector mutations.
 
 It does not yet include:
 

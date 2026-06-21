@@ -13,6 +13,7 @@ from axis_api.action_runs import (
 )
 from axis_api.config import Settings
 from axis_api.db import session_scope
+from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import ActionRun, AuditEvent, Base
 from axis_api.persistence import AxisPersistenceRepository
@@ -43,6 +44,15 @@ class RecordingActionWorkflowRuntime:
 class FailingActionWorkflowRuntime:
     async def signal_action_run(self, request: object) -> WorkflowSignalResult:
         raise WorkflowSignalError("synthetic_action_runtime_down")
+
+
+class StaticIdentityVerifier:
+    def __init__(self, principal: OidcPrincipal) -> None:
+        self.principal = principal
+
+    def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+        assert authorization == "Bearer valid-token"
+        return self.principal
 
 
 @pytest.fixture
@@ -346,6 +356,38 @@ def test_action_run_endpoint_returns_created_then_idempotent_replay(
     assert second_body["workflow_signal"] is None
     assert second_body["audit_event_id"] is None
     assert len(app.state.workflow_runtime.requests) == 1
+
+
+def test_action_run_endpoint_binds_actor_and_scopes_from_oidc_token(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.workflow_runtime = RecordingActionWorkflowRuntime()
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="agent_supply_risk",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["supply:read", "approvals:supply:request"],
+        )
+    )
+    client = TestClient(app)
+    payload = supplier_action_request().model_dump()
+    payload["actor_scopes"] = []
+
+    response = client.post(
+        "/demo/manufacturing/actions/request_supplier_expedite/runs",
+        headers={"Authorization": "Bearer valid-token"},
+        json=payload,
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["requested_by"] == "agent_supply_risk"
+    assert body["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    with session_factory() as session:
+        audit_event = session.scalars(select(AuditEvent)).one()
+    assert audit_event.actor_id == "agent_supply_risk"
 
 
 def test_action_run_endpoint_returns_validation_and_permission_errors(

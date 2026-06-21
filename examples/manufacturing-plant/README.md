@@ -66,6 +66,8 @@ It includes:
 - workflow signal execution from approval-gated action payloads through the
   Axis workflow runtime adapter, with redacted signal metadata in API responses
   and audit events.
+- OIDC/JWKS actor binding for approval decisions and action run requests, with
+  actor/scopes derived from bearer token claims when present or required.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
 - Postgres persistence foundation for approval records, action runs and
@@ -80,7 +82,8 @@ The reference demo should grow into an end-to-end Platform scenario:
 - TypeDB-backed ontology relationships and permission-aware graph queries;
 - broader API-backed use of Postgres approval/action/audit/workflow state;
 - deterministic workflow replay;
-- production identity-bound permission enforcement;
+- broader relationship-aware permission enforcement beyond the current
+  OIDC-bound approval/action mutation checks;
 - audit retention deletion enforcement and legal hold workflows;
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
