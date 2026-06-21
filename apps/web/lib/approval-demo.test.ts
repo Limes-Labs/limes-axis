@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   approvalDecisionActorId,
+  approvalDecisionActorScopes,
   approvalDecisionLabel,
   approvalRiskClass,
   buildApprovalDecisionPayload,
@@ -57,9 +58,11 @@ describe("manufacturing approval inbox demo contract", () => {
     const payload = buildApprovalDecisionPayload(approval, "approve");
 
     expect(approvalDecisionActorId(approval)).toBe("plant-operations-owner-role");
+    expect(approvalDecisionActorScopes(approval)).toEqual(["approvals:supply:decide"]);
     expect(payload).toEqual({
       decision: "approve",
       actor_id: "plant-operations-owner-role",
+      actor_scopes: ["approvals:supply:decide"],
       note: "Console decision recorded for appr_expedite_supplier_batch.",
     });
     expect(JSON.stringify(payload)).not.toContain("@");

@@ -36,7 +36,10 @@ test.describe("Axis console smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    await page.getByRole("link", { name: "Agents" }).first().click();
+    const mobileNav = page.locator(".topnav");
+    await expect(mobileNav).toBeVisible();
+    await mobileNav.getByRole("link", { name: "Agents" }).click();
+    await expect(page).toHaveURL(/\/agents$/);
 
     await expect(
       page.getByRole("heading", { name: "Autonomy and action registry" }),
@@ -77,6 +80,7 @@ test.describe("Axis console smoke", () => {
     expect(await page.getByRole("cell", { name: "operations:read" }).count()).toBeGreaterThan(0);
 
     await page.getByRole("link", { name: "Line 2 Packaging" }).click();
+    await expect(page).toHaveURL(/\/ontology\/asset_line_2_packaging$/);
 
     await expect(page.getByRole("heading", { name: "Entity detail" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Line 2 Packaging" })).toBeVisible();

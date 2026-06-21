@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from axis_api.approval_decisions import (
     ApprovalDecisionPersistenceResult,
     ApprovalDecisionRequest,
+    ApprovalPermissionDenied,
     DemoApprovalNotFound,
     record_demo_approval_decision,
 )
@@ -32,6 +33,7 @@ from axis_api.demo import (
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
 )
+from axis_api.errors import AxisErrorCode
 from axis_api.persistence import AxisPersistenceRepository
 
 
@@ -127,6 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/demo/manufacturing/approvals/{approval_id}/decision",
         response_model=ApprovalDecisionPersistenceResult,
+        responses={403: {"description": "Approval decision permission denied"}},
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
@@ -139,6 +142,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return record_demo_approval_decision(repository, approval_id, decision)
         except DemoApprovalNotFound as exc:
             raise HTTPException(status_code=404, detail="Approval not found") from exc
+        except ApprovalPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot decide this approval.",
+                    "required_permission": exc.required_permission,
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/audit",

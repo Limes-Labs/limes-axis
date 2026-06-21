@@ -57,7 +57,9 @@ records, action runs and append-only audit events. The approval persistence
 slice adds an API-backed decision endpoint that records approval decisions and
 audit events. The approval console persistence slice submits reviewer decisions
 to that endpoint when the API is reachable and keeps a local preview fallback
-when the console runs standalone.
+when the console runs standalone. The approval permission slice enforces the
+required demo approval scope before decision persistence and returns a 403 when
+the actor scopes are insufficient.
 
 ## Architecture Defaults
 

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ApprovalDecision, ApprovalInboxItem, get_manufacturing_approval_inbox
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
@@ -15,9 +16,17 @@ class DemoApprovalNotFound(LookupError):
     pass
 
 
+class ApprovalPermissionDenied(PermissionError):
+    def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.required_permission = required_permission
+        self.decision = decision
+
+
 class ApprovalDecisionRequest(BaseModel):
     decision: ApprovalDecision
     actor_id: str = Field(min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
     note: str | None = Field(default=None, max_length=600)
 
 
@@ -32,6 +41,7 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     audit_event_id: UUID
     audit_event_type: str = Field(min_length=1)
     persisted: bool
+    permission_decision: PermissionDecision
     workflow_signal_status: str = Field(min_length=1)
 
 
@@ -85,6 +95,32 @@ def _ensure_approval_record(
     )
 
 
+def _evaluate_approval_decision_permission(
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    request: ApprovalDecisionRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[approval.required_permission],
+            attributes={
+                "approval_id": approval.approval_id,
+                "workflow_id": approval.workflow_id,
+                "domain": approval.domain,
+                "owner_role": approval.owner_role,
+                "risk_level": approval.risk_level,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ApprovalPermissionDenied(approval.required_permission, decision)
+
+    return decision
+
+
 def record_demo_approval_decision(
     repository: AxisPersistenceRepository,
     approval_id: str,
@@ -92,6 +128,7 @@ def record_demo_approval_decision(
 ) -> ApprovalDecisionPersistenceResult:
     tenant_id, approval = _find_demo_approval(approval_id)
     action_id = _approval_action_id(approval.approval_id)
+    permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
     _ensure_approval_record(repository, tenant_id, approval)
 
     approval_record = repository.record_approval_decision(
@@ -114,6 +151,7 @@ def record_demo_approval_decision(
                 "action_id": action_id,
                 "decision": request.decision.value,
                 "required_permission": approval.required_permission,
+                "permission_decision": permission_decision.model_dump(),
                 "result": approval.audit_event_preview.result,
                 "decision_note_recorded": str(request.note is not None).lower(),
             },
@@ -131,5 +169,6 @@ def record_demo_approval_decision(
         audit_event_id=audit_event.id,
         audit_event_type=audit_event.event_type,
         persisted=True,
+        permission_decision=permission_decision,
         workflow_signal_status="pending_runtime_signal",
     )
