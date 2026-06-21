@@ -56,6 +56,8 @@ Delivered:
   idempotency replay/conflict behavior and append-only action audit events.
 - API-backed audit explorer queries from persisted `audit_events`, with tenant,
   event, actor, scope and limit filters.
+- redacted audit export bundles with manifest checksum, applied filters and
+  retention policy metadata.
 
 Still Platform work:
 
@@ -63,5 +65,5 @@ Still Platform work:
 - production connector mutations from action runtime paths;
 - production identity-bound permission enforcement;
 - immutable storage hardening beyond insert-only repository shape;
-- retention/export controls;
+- retention deletion enforcement and legal hold workflows;
 - replay and simulation from persisted histories.

@@ -193,6 +193,9 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /policy.egress.blocked/ })).toBeVisible();
     await expect(page.getByText("blocked_by_default").first()).toBeVisible();
     await expect(page.getByText("no-external-egress")).toBeVisible();
+    await expect(page.getByText("Export Controls")).toBeVisible();
+    await expect(page.getByText("audit-export-local-seed")).toBeVisible();
+    await expect(page.getByText("365 days")).toBeVisible();
 
     await page.getByRole("button", { name: "Reset filters" }).click();
 

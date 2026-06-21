@@ -66,7 +66,9 @@ available, and records an explicit degraded status when it is not. The action
 run slice records typed dry-run/proposal requests from action payloads, enforces
 idempotency keys and appends action audit events without enabling live connector
 execution. The audit query slice reads persisted `audit_events` through a
-tenant-scoped API endpoint and keeps the synthetic seed as a fallback.
+tenant-scoped API endpoint and keeps the synthetic seed as a fallback. The
+audit retention/export slice adds a demo JSON export bundle with manifest,
+checksum, redacted event payload previews and retention policy metadata.
 
 ## Architecture Defaults
 

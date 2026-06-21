@@ -21,6 +21,7 @@ GET /demo/manufacturing/approvals
 POST /demo/manufacturing/approvals/{approval_id}/decision
 GET /demo/manufacturing/audit
 GET /demo/manufacturing/audit/events
+GET /demo/manufacturing/audit/export
 GET /demo/manufacturing/agents
 GET /demo/manufacturing/actions
 POST /demo/manufacturing/actions/{action_id}/runs
@@ -52,6 +53,8 @@ It includes:
 - read-only audit explorer events with tenant, event type and scope filters,
   evidence references and redacted payload previews.
 - API-backed persisted audit event queries from append-only `audit_events`.
+- redacted audit export bundles with manifest checksum, applied filters and
+  retention policy metadata.
 - read-only agent registry entries with autonomy boundaries, required
   permissions, model egress posture, action proposals, workflow links and
   approval references.
@@ -73,7 +76,7 @@ The reference demo should grow into an end-to-end Platform scenario:
 - broader API-backed use of Postgres approval/action/audit state;
 - persisted workflow histories and deterministic replay;
 - production identity-bound permission enforcement;
-- audit export and retention controls;
+- audit retention deletion enforcement and legal hold workflows;
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;

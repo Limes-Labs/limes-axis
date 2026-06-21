@@ -82,6 +82,9 @@ Foundation acceptance is tracked in
 - [x] Connect the approval console to persisted decision submission with local fallback.
 - [x] Enforce demo approval decision permissions before persistence.
 - [x] Signal approval decisions through the workflow runtime adapter.
+- [x] Persist typed action run requests with idempotency enforcement.
+- [x] Query persisted audit events from the audit explorer.
+- [x] Add demo audit export manifests and retention policy metadata.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Build replay and simulation foundations.
@@ -109,9 +112,11 @@ binding and broader relationship-aware permission enforcement remain Platform
 work.
 
 The audit explorer is backed by the synthetic manufacturing audit seed and can
-query persisted `audit_events` through the demo API when records exist. Export,
-retention policy enforcement, production-grade tenant-scoped query permissions
-and replay remain Platform work.
+query persisted `audit_events` through the demo API when records exist. The demo
+API can also return a redacted JSON export bundle with manifest checksum,
+applied filters and retention policy metadata. Retention deletion enforcement,
+legal hold workflow, production-grade tenant-scoped query permissions and replay
+remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
