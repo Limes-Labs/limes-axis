@@ -1,0 +1,85 @@
+# Limes Axis
+
+The sovereign AI control plane for European operations.
+
+Limes Axis is an open-source, self-hostable foundation for governing enterprise
+data, workflows, humans and AI agents in one operational control plane.
+
+It is not another chatbot, dashboard or single-purpose agent framework. Axis is
+designed to sit above existing systems of record, model the organization as an
+operational ontology, and let humans and AI agents act through typed,
+permissioned, auditable workflows.
+
+## What Axis Is For
+
+European organizations increasingly want AI inside real operations, but not at
+the cost of losing control over data, approvals, audit trails or deployment.
+Axis is built around a few core ideas:
+
+- integrate above existing ERP, CRM, MES, databases, documents and internal tools;
+- model operational context through an ontology;
+- give humans, services and AI agents explicit identities and permissions;
+- route agent actions through typed schemas, policy checks and approval gates;
+- keep every important read, proposal, approval and action auditable;
+- support SaaS, dedicated, private-cloud and on-prem deployment paths;
+- avoid required managed-service dependencies for the open-source core.
+
+The first reference demo will use a realistic operations cockpit for
+manufacturing, but Axis is designed as a platform for European operations more
+generally.
+
+## Current Status
+
+Axis is in active build planning. This repository starts with public-safe design
+and roadmap documents before application code is added.
+
+The first engineering track is Platform Foundation: monorepo structure, local
+self-hosted runtime, API skeleton, ontology/data foundation, workflow adapter,
+identity boundary, audit ledger, action registry and a governance console shell.
+
+## Architecture Defaults
+
+- Frontend: Next.js + React.
+- Backend/API: Python + FastAPI.
+- API style: REST/OpenAPI first.
+- Data: Postgres + TypeDB.
+- Workflow runtime: Temporal OSS self-hosted behind an Axis adapter.
+- Identity: OIDC-first, with Keycloak/self-hosted support.
+- Tenancy: multi-tenant SaaS, single-tenant managed and on-prem/private cloud.
+- Agents: L0-L4 autonomy model and typed action registry.
+- Permissions: RBAC + ABAC + relationship-aware checks.
+- Audit: append-only audit ledger.
+- Observability: OpenTelemetry-first.
+- Deployment: Docker Compose for local/dev, Kubernetes/Helm for production.
+- Tooling direction: `uv`, `pnpm`, Docker.
+
+## Repository Strategy
+
+Axis starts as one public repository to keep the core coherent. It is still
+designed with extractable boundaries from day one.
+
+Cloud, Enterprise, connectors, SDKs, deployment and docs may become separate
+repositories when they develop different release cadences, ownership, security
+requirements or customer-specific concerns.
+
+## Roadmap
+
+See [`plan.md`](./plan.md) for the public milestone roadmap.
+
+The roadmap is organized as:
+
+- Foundation: trustworthy self-hostable platform base.
+- Platform: usable governance control plane with reference demo.
+- Enterprise: deployment, security, support and compliance hardening.
+
+## Contributing
+
+Axis is early. Contributions are welcome once contribution and CLA processes are
+in place.
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`CLA.md`](./CLA.md).
+
+## License
+
+Apache-2.0. See [`LICENSE`](./LICENSE).
+
