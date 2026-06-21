@@ -1,5 +1,6 @@
 import { ShieldCheck } from "lucide-react";
 
+import { ApiStatusPanel } from "@/components/api-status-panel";
 import { PageActions } from "@/components/page-actions";
 import { StatusPill } from "@/components/status-pill";
 import { auditEvents, foundationMetrics, workflowChecks } from "@/lib/foundation";
@@ -49,23 +50,26 @@ export default function OverviewPage() {
           </div>
         </section>
 
-        <section className="panel">
-          <p className="section-label">Recent Evidence</p>
-          <h2 className="panel-title">Audit trail</h2>
-          <div className="stack">
-            {auditEvents.map((item) => (
-              <div className="row" key={`${item.event}-${item.scope}`}>
-                <div>
-                  <p className="row-title mono">{item.event}</p>
-                  <p className="row-detail">
-                    {item.actor} / {item.scope}
-                  </p>
+        <div className="stack">
+          <ApiStatusPanel />
+          <section className="panel">
+            <p className="section-label">Recent Evidence</p>
+            <h2 className="panel-title">Audit trail</h2>
+            <div className="stack">
+              {auditEvents.map((item) => (
+                <div className="row" key={`${item.event}-${item.scope}`}>
+                  <div>
+                    <p className="row-title mono">{item.event}</p>
+                    <p className="row-detail">
+                      {item.actor} / {item.scope}
+                    </p>
+                  </div>
+                  <ShieldCheck size={18} aria-label={item.result} />
                 </div>
-                <ShieldCheck size={18} aria-label={item.result} />
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </section>
   );

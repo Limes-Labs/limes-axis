@@ -260,6 +260,45 @@ textarea {
   color: var(--blue);
 }
 
+.status-checking {
+  background: #eef2f7;
+  color: var(--muted);
+}
+
+.status-online {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.status-degraded {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.status-unavailable {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.status-pill svg {
+  margin-right: 6px;
+}
+
+.api-status-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.api-status-body {
+  display: grid;
+  gap: 8px;
+}
+
+.api-url {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .two-column {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
