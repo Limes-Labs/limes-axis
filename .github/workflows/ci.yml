@@ -44,6 +44,12 @@ jobs:
       - name: Build
         run: pnpm --filter @limes-axis/web build
 
+      - name: Install Playwright browsers
+        run: pnpm --filter @limes-axis/web exec playwright install --with-deps chromium
+
+      - name: Smoke test
+        run: pnpm --filter @limes-axis/web test:e2e
+
   python:
     name: Python
     runs-on: ubuntu-latest
