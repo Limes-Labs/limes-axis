@@ -17,6 +17,7 @@ GET /demo/manufacturing/overview
 GET /demo/manufacturing/ontology
 GET /demo/manufacturing/ontology/entities/{node_id}
 GET /demo/manufacturing/workflows
+GET /demo/manufacturing/workflows/runs
 GET /demo/manufacturing/approvals
 POST /demo/manufacturing/approvals/{approval_id}/decision
 GET /demo/manufacturing/audit
@@ -42,6 +43,7 @@ It includes:
   permission scopes, evidence refs and data access summaries.
 - read-only workflow runs with runtime adapter metadata, pending signals,
   controls and timeline preview.
+- API-backed persisted workflow runs and tenant-scoped timeline history.
 - approval inbox proposals with evidence, data accessed, risk review,
   alternatives, model policy and audit event preview.
 - persisted demo approval decisions with append-only audit events.
@@ -73,8 +75,8 @@ The reference demo should grow into an end-to-end Platform scenario:
 - realistic orders, machines, materials, suppliers, quality and maintenance
   entities;
 - TypeDB-backed ontology relationships and permission-aware graph queries;
-- broader API-backed use of Postgres approval/action/audit state;
-- persisted workflow histories and deterministic replay;
+- broader API-backed use of Postgres approval/action/audit/workflow state;
+- deterministic workflow replay;
 - production identity-bound permission enforcement;
 - audit retention deletion enforcement and legal hold workflows;
 - production action registry execution, connector mutation and persisted agent state;

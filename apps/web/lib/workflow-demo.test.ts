@@ -5,6 +5,7 @@ import {
   defaultManufacturingWorkflowConsole,
   findWorkflowById,
   formatWorkflowState,
+  shouldUsePersistedWorkflowData,
 } from "./workflow-demo";
 
 describe("manufacturing workflow console demo contract", () => {
@@ -42,5 +43,15 @@ describe("manufacturing workflow console demo contract", () => {
   it("formats workflow state labels", () => {
     expect(formatWorkflowState("waiting_for_approval")).toBe("Waiting For Approval");
     expect(formatWorkflowState("proposal_ready")).toBe("Proposal Ready");
+  });
+
+  it("uses persisted workflow data only when workflow runs exist", () => {
+    expect(shouldUsePersistedWorkflowData(defaultManufacturingWorkflowConsole)).toBe(true);
+    expect(
+      shouldUsePersistedWorkflowData({
+        ...defaultManufacturingWorkflowConsole,
+        workflow_runs: [],
+      }),
+    ).toBe(false);
   });
 });

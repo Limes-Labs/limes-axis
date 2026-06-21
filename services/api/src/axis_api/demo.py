@@ -72,7 +72,7 @@ class WorkflowRun(BaseModel):
     proposed_outputs: list[str] = Field(min_length=1)
     pending_signals: list[WorkflowSignal] = Field(min_length=1)
     controls: list[str] = Field(min_length=1)
-    timeline: list[WorkflowTimelineEvent] = Field(min_length=1)
+    timeline: list[WorkflowTimelineEvent] = Field(default_factory=list)
     audit_scope: str = Field(min_length=1)
     replay_ready: bool
 
@@ -84,7 +84,7 @@ class ManufacturingWorkflowConsole(BaseModel):
     as_of: str = Field(min_length=1)
     runtime_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(min_length=1)
-    workflow_runs: list[WorkflowRun] = Field(min_length=1)
+    workflow_runs: list[WorkflowRun] = Field(default_factory=list)
     runtime_notes: list[str] = Field(min_length=1)
 
 

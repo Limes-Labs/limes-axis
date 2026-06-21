@@ -6,7 +6,7 @@ governed operational state.
 It is intentionally narrow: schema, ORM models, repository methods, a demo
 approval decision endpoint, web console submission, demo permission enforcement,
 workflow signal execution, action run creation and tests. It does not yet
-replace all public demo seeds or persist workflow histories.
+replace all public demo seeds or implement deterministic workflow replay.
 
 ## Tables
 
@@ -20,6 +20,13 @@ The second Alembic migration adds:
 
 The existing `audit_events` table remains the append-only event foundation.
 
+The third Alembic migration adds:
+
+- `workflow_runs`: tenant-scoped workflow state, owner, runtime adapter,
+  governance metadata, pending signals and replay flag.
+- `workflow_timeline_events`: tenant-scoped workflow history events ordered by
+  workflow-local sequence.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -31,6 +38,8 @@ The existing `audit_events` table remains the append-only event foundation.
 - idempotency lookup by tenant, action and key;
 - action run result update;
 - action run listing by tenant and optional status.
+- workflow run creation and tenant-scoped listing;
+- workflow timeline event append and tenant-scoped history listing.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
@@ -58,12 +67,12 @@ Delivered:
   event, actor, scope and limit filters.
 - redacted audit export bundles with manifest checksum, applied filters and
   retention policy metadata.
+- persisted workflow run state and tenant-scoped history views.
 
 Still Platform work:
 
-- persisted workflow run state and tenant-scoped history views;
 - production connector mutations from action runtime paths;
 - production identity-bound permission enforcement;
 - immutable storage hardening beyond insert-only repository shape;
 - retention deletion enforcement and legal hold workflows;
-- replay and simulation from persisted histories.
+- deterministic replay and simulation from persisted histories.

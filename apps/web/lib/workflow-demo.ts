@@ -306,3 +306,9 @@ export function formatWorkflowState(state: string): string {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+
+export function shouldUsePersistedWorkflowData(
+  console: ManufacturingWorkflowConsole,
+): boolean {
+  return console.workflow_runs.length > 0;
+}

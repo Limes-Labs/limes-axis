@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, String, UniqueConstraint, Uuid
+from sqlalchemy import JSON, DateTime, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -104,5 +104,70 @@ class ActionRun(Base):
             "action_id",
             "idempotency_key",
             name="uq_action_runs_tenant_action_idempotency",
+        ),
+    )
+
+
+class WorkflowRunRecord(Base):
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    workflow_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    domain: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    state: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    owner_role: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    runtime: Mapped[str] = mapped_column(String(120), nullable=False)
+    adapter: Mapped[str] = mapped_column(String(120), nullable=False)
+    autonomy_level: Mapped[str] = mapped_column(String(8), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    eta: Mapped[str] = mapped_column(String(120), nullable=False)
+    blocker: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    objective: Mapped[str] = mapped_column(String(1000), nullable=False)
+    current_step: Mapped[str] = mapped_column(String(200), nullable=False)
+    related_risk: Mapped[str] = mapped_column(String(160), nullable=False)
+    related_assets: Mapped[list] = mapped_column(JSON, nullable=False)
+    inputs: Mapped[list] = mapped_column(JSON, nullable=False)
+    proposed_outputs: Mapped[list] = mapped_column(JSON, nullable=False)
+    pending_signals: Mapped[list] = mapped_column(JSON, nullable=False)
+    controls: Mapped[list] = mapped_column(JSON, nullable=False)
+    audit_scope: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    replay_ready: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "workflow_id", name="uq_workflow_runs_tenant_workflow"),
+    )
+
+
+class WorkflowTimelineRecord(Base):
+    __tablename__ = "workflow_timeline_events"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    workflow_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actor: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    result: Mapped[str] = mapped_column(String(120), nullable=False)
+    summary: Mapped[str] = mapped_column(String(1000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "workflow_id",
+            "sequence",
+            name="uq_workflow_timeline_tenant_workflow_sequence",
         ),
     )

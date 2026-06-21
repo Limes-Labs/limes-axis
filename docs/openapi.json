@@ -2227,7 +2227,6 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowRun"
             },
-            "minItems": 1,
             "title": "Workflow Runs",
             "type": "array"
           }
@@ -2239,7 +2238,6 @@
           "as_of",
           "runtime_status",
           "metrics",
-          "workflow_runs",
           "runtime_notes"
         ],
         "title": "ManufacturingWorkflowConsole",
@@ -2919,7 +2917,6 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowTimelineEvent"
             },
-            "minItems": 1,
             "title": "Timeline",
             "type": "array"
           },
@@ -2949,7 +2946,6 @@
           "proposed_outputs",
           "pending_signals",
           "controls",
-          "timeline",
           "audit_scope",
           "replay_ready"
         ],
@@ -3700,6 +3696,79 @@
           }
         },
         "summary": "Manufacturing Workflow Console",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/workflows/runs": {
+      "get": {
+        "operationId": "manufacturing_persisted_workflow_runs_demo_manufacturing_workflows_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingWorkflowConsole"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Persisted Workflow Runs",
         "tags": [
           "demo"
         ]

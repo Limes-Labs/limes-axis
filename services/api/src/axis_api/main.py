@@ -51,6 +51,7 @@ from axis_api.demo import (
 )
 from axis_api.errors import AxisErrorCode
 from axis_api.persistence import AxisPersistenceRepository
+from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     TemporalWorkflowSignalConfig,
@@ -144,6 +145,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
         return get_manufacturing_workflow_console()
+
+    @app.get(
+        "/demo/manufacturing/workflows/runs",
+        response_model=ManufacturingWorkflowConsole,
+        tags=["demo"],
+    )
+    def manufacturing_persisted_workflow_runs(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        state: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingWorkflowConsole:
+        return query_persisted_workflow_runs(
+            repository,
+            WorkflowRunQuery(tenant_id=tenant_id, state=state, limit=limit),
+        )
 
     @app.get(
         "/demo/manufacturing/agents",
