@@ -1,0 +1,118 @@
+define
+
+attribute axis_id, value string;
+attribute display_name, value string;
+attribute actor_type, value string;
+attribute asset_type, value string;
+attribute workflow_status, value string;
+attribute event_type, value string;
+attribute decision_status, value string;
+attribute risk_level, value string;
+attribute approval_status, value string;
+
+entity axis_actor,
+  owns axis_id,
+  owns display_name,
+  owns actor_type,
+  plays axis_owns_relation:owner,
+  plays axis_uses_relation:user;
+
+entity axis_organization,
+  owns axis_id,
+  owns display_name,
+  plays axis_owns_relation:owner,
+  plays axis_owns_relation:owned;
+
+entity axis_asset,
+  owns axis_id,
+  owns display_name,
+  owns asset_type,
+  plays axis_owns_relation:owned,
+  plays axis_uses_relation:used;
+
+entity axis_process,
+  owns axis_id,
+  owns display_name,
+  plays axis_owns_relation:owner,
+  plays axis_uses_relation:user,
+  plays axis_uses_relation:used;
+
+entity axis_workflow,
+  owns axis_id,
+  owns display_name,
+  owns workflow_status,
+  plays axis_owns_relation:owned,
+  plays axis_uses_relation:used;
+
+entity axis_operation,
+  owns axis_id,
+  owns display_name,
+  owns risk_level,
+  plays axis_requires_approval:action_requiring_approval,
+  plays axis_uses_relation:used;
+
+entity axis_event,
+  owns axis_id,
+  owns event_type,
+  plays axis_owns_relation:owned;
+
+entity axis_decision,
+  owns axis_id,
+  owns decision_status,
+  plays axis_owns_relation:owned;
+
+entity axis_risk,
+  owns axis_id,
+  owns risk_level,
+  plays axis_owns_relation:owned;
+
+entity axis_policy,
+  owns axis_id,
+  owns display_name,
+  plays axis_requires_approval:approval_policy,
+  plays axis_owns_relation:owned;
+
+entity axis_document,
+  owns axis_id,
+  owns display_name,
+  plays axis_owns_relation:owned,
+  plays axis_uses_relation:used;
+
+entity axis_data_source,
+  owns axis_id,
+  owns display_name,
+  plays axis_owns_relation:owned,
+  plays axis_uses_relation:used;
+
+entity axis_system,
+  owns axis_id,
+  owns display_name,
+  plays axis_owns_relation:owner,
+  plays axis_uses_relation:user;
+
+entity axis_permission_scope,
+  owns axis_id,
+  owns display_name,
+  plays axis_owns_relation:owned;
+
+entity axis_approval,
+  owns axis_id,
+  owns approval_status,
+  plays axis_owns_relation:owned;
+
+entity axis_audit_event,
+  owns axis_id,
+  owns event_type,
+  plays axis_owns_relation:owned;
+
+relation axis_owns_relation,
+  relates owner,
+  relates owned;
+
+relation axis_uses_relation,
+  relates user,
+  relates used;
+
+relation axis_requires_approval,
+  relates action_requiring_approval,
+  relates approval_policy;

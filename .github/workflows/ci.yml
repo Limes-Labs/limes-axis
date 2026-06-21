@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @limes-axis/web lint
+
+      - name: Typecheck
+        run: pnpm --filter @limes-axis/web typecheck
+
+      - name: Test
+        run: pnpm --filter @limes-axis/web test
+
+      - name: Build
+        run: pnpm --filter @limes-axis/web build
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install API dependencies
+        working-directory: services/api
+        run: uv sync --locked
+
+      - name: Lint API
+        working-directory: services/api
+        run: uv run ruff check .
+
+      - name: Test API
+        working-directory: services/api
+        run: uv run pytest
+
+      - name: Install worker dependencies
+        working-directory: services/worker
+        run: uv sync --locked
+
+      - name: Lint worker
+        working-directory: services/worker
+        run: uv run ruff check .
+
+      - name: Test worker
+        working-directory: services/worker
+        run: uv run pytest

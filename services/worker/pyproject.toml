@@ -1,0 +1,32 @@
+[project]
+name = "limes-axis-worker"
+version = "0.0.0"
+description = "Worker runtime for Limes Axis workflows and agent actions."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "opentelemetry-api>=1.39",
+  "opentelemetry-sdk>=1.39",
+  "pydantic>=2.12",
+  "temporalio>=1.20"
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.0",
+  "pytest-asyncio>=1.3",
+  "ruff>=0.14"
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

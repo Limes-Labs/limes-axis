@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.limeslabs.eu/axis/action.schema.json",
+  "title": "Limes Axis Action Definition",
+  "type": "object",
+  "required": [
+    "action_id",
+    "display_name",
+    "domain",
+    "risk_level",
+    "approval_mode",
+    "input_schema",
+    "output_schema",
+    "required_permissions"
+  ],
+  "properties": {
+    "action_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "approval_mode": {
+      "type": "string",
+      "enum": ["not_required", "required", "conditional"]
+    },
+    "input_schema": {
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object"
+    },
+    "required_permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false
+}

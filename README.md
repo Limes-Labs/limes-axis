@@ -30,12 +30,11 @@ generally.
 
 ## Current Status
 
-Axis is in active build planning. This repository starts with public-safe design
-and roadmap documents before application code is added.
-
-The first engineering track is Platform Foundation: monorepo structure, local
-self-hosted runtime, API skeleton, ontology/data foundation, workflow adapter,
-identity boundary, audit ledger, action registry and a governance console shell.
+Axis is in the Platform Foundation track. The repository now includes the
+monorepo structure, self-hosted local runtime, FastAPI foundation, Postgres
+migration baseline, TypeDB ontology boundary, workflow runtime port, Temporal
+adapter, typed action registry, model egress guard, permission primitives and a
+Next.js governance console shell.
 
 ## Architecture Defaults
 
@@ -52,6 +51,61 @@ identity boundary, audit ledger, action registry and a governance console shell.
 - Observability: OpenTelemetry-first.
 - Deployment: Docker Compose for local/dev, Kubernetes/Helm for production.
 - Tooling direction: `uv`, `pnpm`, Docker.
+
+## Local Runtime
+
+The development runtime is self-hosted through Docker Compose:
+
+```bash
+cp .env.example .env
+make dev-stack-up
+```
+
+Services:
+
+- Postgres: `localhost:5432`
+- TypeDB gRPC: `localhost:1729`
+- TypeDB HTTP: `http://localhost:8001`
+- Temporal: `localhost:7233`
+- Temporal UI: `http://localhost:8088`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- Keycloak: `http://localhost:8080`
+
+Stop the stack with:
+
+```bash
+make dev-stack-down
+```
+
+## Development
+
+Install dependencies:
+
+```bash
+make install
+```
+
+Run checks:
+
+```bash
+make lint
+make test
+make build-web
+```
+
+Run the web console locally:
+
+```bash
+pnpm --filter @limes-axis/web dev --hostname 127.0.0.1 --port 3000
+```
+
+Apply the first Postgres migration:
+
+```bash
+cd services/api
+uv run alembic upgrade head
+```
 
 ## Repository Strategy
 
@@ -72,6 +126,11 @@ The roadmap is organized as:
 - Platform: usable governance control plane with reference demo.
 - Enterprise: deployment, security, support and compliance hardening.
 
+Architecture and acceptance notes:
+
+- [`docs/architecture.md`](./docs/architecture.md)
+- [`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md)
+
 ## Contributing
 
 Axis is early. Contributions are welcome once contribution and CLA processes are
@@ -82,4 +141,3 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`CLA.md`](./CLA.md).
 ## License
 
 Apache-2.0. See [`LICENSE`](./LICENSE).
-
