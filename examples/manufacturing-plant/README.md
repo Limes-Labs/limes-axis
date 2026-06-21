@@ -15,6 +15,7 @@ The current seed is served by:
 ```text
 GET /demo/manufacturing/overview
 GET /demo/manufacturing/ontology
+GET /demo/manufacturing/ontology/entities/{node_id}
 GET /demo/manufacturing/workflows
 GET /demo/manufacturing/approvals
 GET /demo/manufacturing/audit
@@ -32,6 +33,8 @@ It includes:
 - recent audit evidence;
 - read-only ontology nodes and relationships for source systems, permission
   scopes, risks, workflows, approvals and agents.
+- read-only ontology entity details with inbound/outbound relationships,
+  permission scopes, evidence refs and data access summaries.
 - read-only workflow runs with runtime adapter metadata, pending signals,
   controls and timeline preview.
 - approval inbox proposals with evidence, data accessed, risk review,
@@ -51,7 +54,7 @@ The reference demo should grow into an end-to-end Platform scenario:
 
 - realistic orders, machines, materials, suppliers, quality and maintenance
   entities;
-- TypeDB ontology relationships;
+- TypeDB-backed ontology relationships and permission-aware graph queries;
 - Postgres-backed workflow and audit state;
 - Temporal signal execution through the Axis workflow runtime adapter;
 - persisted approval inbox actions and workflow signals;

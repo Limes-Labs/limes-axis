@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Database, Network } from "lucide-react";
 
@@ -132,7 +133,9 @@ export function OntologyExplorer() {
             {ontology.nodes.map((node) => (
               <tr key={node.node_id}>
                 <td>
-                  <strong>{node.label}</strong>
+                  <Link className="text-link" href={`/ontology/${node.node_id}`}>
+                    {node.label}
+                  </Link>
                   <p className="row-detail">{node.summary}</p>
                 </td>
                 <td>{formatNodeType(node.node_type)}</td>

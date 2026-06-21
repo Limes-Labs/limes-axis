@@ -207,6 +207,7 @@ textarea {
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .metric-card {
@@ -237,6 +238,7 @@ textarea {
   margin: 0;
   color: var(--muted);
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .status-pill {
@@ -336,6 +338,7 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .tag {
@@ -350,6 +353,19 @@ textarea {
   color: var(--text);
   font-size: 13px;
   font-weight: 700;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.text-link {
+  color: var(--blue);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .two-column {
@@ -395,6 +411,7 @@ textarea {
   margin: 4px 0 0;
   color: var(--muted);
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .table-panel {
@@ -428,6 +445,7 @@ textarea {
 .mono {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .timeline {
@@ -1128,6 +1146,57 @@ textarea {
   gap: 18px;
 }
 
+.entity-summary-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.entity-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.74fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.entity-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.entity-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entity-relationship-list {
+  display: grid;
+}
+
+.entity-relationship-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 82px;
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+  min-width: 0;
+}
+
+.entity-relationship-item:first-child {
+  border-top: 0;
+}
+
+.entity-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1198,7 +1267,9 @@ textarea {
   .action-detail-grid,
   .action-columns,
   .action-policy-band,
-  .action-sample-grid {
+  .action-sample-grid,
+  .entity-layout,
+  .entity-columns {
     grid-template-columns: 1fr;
   }
 
@@ -1214,7 +1285,9 @@ textarea {
   .agent-proposals-header,
   .action-filter-panel,
   .action-detail-header,
-  .action-schema-header {
+  .action-schema-header,
+  .entity-summary-panel,
+  .entity-detail-header {
     display: grid;
   }
 
@@ -1261,6 +1334,7 @@ textarea {
   .audit-list-item,
   .agent-list-item,
   .action-list-item,
+  .entity-relationship-item,
   .payload-row {
     grid-template-columns: 1fr;
   }

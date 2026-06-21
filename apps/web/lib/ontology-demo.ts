@@ -42,6 +42,31 @@ export type ManufacturingOntology = {
   permission_notes: string[];
 };
 
+export type OntologyEntityRelationship = {
+  direction: "inbound" | "outbound";
+  relationship: OntologyRelationship;
+  peer_node: OntologyNode;
+};
+
+export type ManufacturingOntologyEntityDetail = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  as_of: string;
+  node: OntologyNode;
+  connected_relationships: OntologyEntityRelationship[];
+  inbound_count: number;
+  outbound_count: number;
+  required_permissions: string[];
+  evidence_refs: string[];
+  data_access: string[];
+  governed_by: string[];
+  related_workflows: string[];
+  related_approvals: string[];
+  related_agents: string[];
+  detail_notes: string[];
+};
+
 export const defaultManufacturingOntology: ManufacturingOntology = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -350,4 +375,218 @@ export function formatNodeType(type: OntologyNodeType): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+type DetailLists = {
+  evidence_refs: string[];
+  data_access: string[];
+  detail_notes: string[];
+};
+
+const ontologyDetailOverrides: Record<string, DetailLists> = {
+  asset_line_2_packaging: {
+    evidence_refs: [
+      "risk_supplier_delay",
+      "wf_supplier_delay_review",
+      "audit_20260621_154000_ontology_read",
+    ],
+    data_access: [
+      "MES line status summary",
+      "supplier delay risk relationship",
+      "approval gate summary",
+    ],
+    detail_notes: [
+      "This detail page is read-only and derived from the public ontology seed.",
+      "Operations can inspect the line context, but cannot execute workflow signals here.",
+      "The supplier delay risk is visible because the relationship scope allows it.",
+    ],
+  },
+  risk_supplier_delay: {
+    evidence_refs: [
+      "asset_motors_batch",
+      "asset_line_2_packaging",
+      "wf_supplier_delay_review",
+    ],
+    data_access: [
+      "supplier risk summary",
+      "impacted production line",
+      "workflow blocker summary",
+    ],
+    detail_notes: [
+      "Risk detail is derived from TypeDB-shaped relationships in the demo seed.",
+      "The risk can drive action proposals, but does not execute actions directly.",
+    ],
+  },
+  wf_supplier_delay_review: {
+    evidence_refs: [
+      "risk_supplier_delay",
+      "appr_expedite_supplier_batch",
+      "audit_20260621_141800_signal_awaiting",
+    ],
+    data_access: [
+      "workflow state summary",
+      "pending signal metadata",
+      "approval requirement relationship",
+    ],
+    detail_notes: [
+      "Workflow detail is inspectable without exposing runtime mutation controls.",
+      "Signal execution remains behind the Axis workflow runtime adapter.",
+    ],
+  },
+  appr_expedite_supplier_batch: {
+    evidence_refs: [
+      "wf_supplier_delay_review",
+      "agent_supply_risk",
+      "audit_20260621_141200_agent_proposal",
+    ],
+    data_access: [
+      "approval summary",
+      "requesting agent relationship",
+      "workflow requirement relationship",
+    ],
+    detail_notes: [
+      "Approval detail links the proposed action to the owner review gate.",
+      "Decisions are preview-only until persisted approval state is implemented.",
+    ],
+  },
+  agent_supply_risk: {
+    evidence_refs: [
+      "appr_expedite_supplier_batch",
+      "risk_supplier_delay",
+      "audit_20260621_141200_agent_proposal",
+    ],
+    data_access: [
+      "agent relationship summary",
+      "proposal approval reference",
+      "supply risk evidence",
+    ],
+    detail_notes: [
+      "Agent detail is scoped to declared tenant and domain relationships.",
+      "Agent runtime state remains outside this read-only ontology detail slice.",
+    ],
+  },
+  policy_external_egress: {
+    evidence_refs: [
+      "agent_quality_risk",
+      "audit_policy_egress_blocked",
+      "audit_20260621_133900_egress_blocked",
+    ],
+    data_access: [
+      "policy summary",
+      "governed agent relationship",
+      "audit evidence relationship",
+    ],
+    detail_notes: [
+      "Policy detail shows governance relationships, not policy editing controls.",
+      "External model egress remains blocked unless tenant policy explicitly allows it.",
+    ],
+  },
+};
+
+function defaultDetailLists(node: OntologyNode): DetailLists {
+  return {
+    evidence_refs: [node.node_id],
+    data_access: [
+      `${node.source_system} public-demo summary`,
+      `${node.domain} relationship context`,
+      `${node.node_type} metadata`,
+    ],
+    detail_notes: [
+      "This entity detail is read-only and synthetic.",
+      "Production entity details will require tenant-scoped graph query permissions.",
+    ],
+  };
+}
+
+export function buildOntologyEntityDetail(
+  ontology: ManufacturingOntology,
+  nodeId: string,
+): ManufacturingOntologyEntityDetail | null {
+  const nodeById = new Map(ontology.nodes.map((node) => [node.node_id, node]));
+  const node = nodeById.get(nodeId);
+
+  if (!node) {
+    return null;
+  }
+
+  const connectedRelationships: OntologyEntityRelationship[] = [];
+
+  for (const relationship of ontology.relationships) {
+    if (relationship.source_id === nodeId) {
+      const peerNode = nodeById.get(relationship.target_id);
+      if (peerNode) {
+        connectedRelationships.push({
+          direction: "outbound",
+          relationship,
+          peer_node: peerNode,
+        });
+      }
+    } else if (relationship.target_id === nodeId) {
+      const peerNode = nodeById.get(relationship.source_id);
+      if (peerNode) {
+        connectedRelationships.push({
+          direction: "inbound",
+          relationship,
+          peer_node: peerNode,
+        });
+      }
+    }
+  }
+
+  const inboundCount = connectedRelationships.filter(
+    (relationship) => relationship.direction === "inbound",
+  ).length;
+  const outboundCount = connectedRelationships.length - inboundCount;
+  const permissions = Array.from(
+    new Set(
+      connectedRelationships.map((item) => item.relationship.permission_scope),
+    ),
+  ).sort();
+  const detailLists = {
+    ...defaultDetailLists(node),
+    ...ontologyDetailOverrides[nodeId],
+  };
+
+  return {
+    tenant_id: ontology.tenant_id,
+    plant_name: ontology.plant_name,
+    scenario: ontology.scenario,
+    as_of: ontology.as_of,
+    node,
+    connected_relationships: connectedRelationships,
+    inbound_count: inboundCount,
+    outbound_count: outboundCount,
+    required_permissions: permissions.length > 0 ? permissions : [`${node.domain.toLowerCase()}:read`],
+    evidence_refs: detailLists.evidence_refs,
+    data_access: detailLists.data_access,
+    governed_by: connectedRelationships
+      .filter((item) => item.relationship.relation_type === "governs")
+      .map((item) => item.peer_node.node_id)
+      .sort(),
+    related_workflows: Array.from(
+      new Set([
+        ...connectedRelationships
+          .filter((item) => item.peer_node.node_type === "workflow")
+          .map((item) => item.peer_node.node_id),
+        ...(node.node_type === "workflow" ? [node.node_id] : []),
+      ]),
+    ).sort(),
+    related_approvals: Array.from(
+      new Set([
+        ...connectedRelationships
+          .filter((item) => item.peer_node.node_type === "approval")
+          .map((item) => item.peer_node.node_id),
+        ...(node.node_type === "approval" ? [node.node_id] : []),
+      ]),
+    ).sort(),
+    related_agents: Array.from(
+      new Set([
+        ...connectedRelationships
+          .filter((item) => item.peer_node.node_type === "agent")
+          .map((item) => item.peer_node.node_id),
+        ...(node.node_type === "agent" ? [node.node_id] : []),
+      ]),
+    ).sort(),
+    detail_notes: detailLists.detail_notes,
+  };
 }

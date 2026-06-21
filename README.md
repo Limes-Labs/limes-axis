@@ -39,7 +39,8 @@ generated OpenAPI checks, opt-in runtime integration tests, API status in the
 console and Playwright smoke tests in CI. The first Platform slice adds a
 synthetic manufacturing overview seed and API-backed governance console
 overview. The ontology slice adds a read-only manufacturing graph for typed
-nodes, source-system links, relationship mapping and permission scopes. The
+nodes, source-system links, relationship mapping, permission scopes and entity
+detail pages. The
 approval slice adds a synthetic approval inbox with evidence, risk review,
 decision options and local audit preview. The workflow slice adds a read-only
 runtime console for workflow state, pending signals and history preview. The

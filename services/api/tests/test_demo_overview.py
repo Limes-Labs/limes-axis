@@ -9,6 +9,7 @@ from axis_api.demo import (
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_ontology,
+    get_manufacturing_ontology_entity_detail,
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
 )
@@ -296,3 +297,52 @@ def test_openapi_exposes_manufacturing_ontology_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/ontology" in response.json()["paths"]
+
+
+def test_manufacturing_ontology_entity_detail_seed_is_connected() -> None:
+    detail = get_manufacturing_ontology_entity_detail("asset_line_2_packaging")
+
+    assert detail is not None
+    assert detail.node.label == "Line 2 Packaging"
+    assert detail.node.node_type == OntologyNodeType.ASSET
+    assert detail.inbound_count == 2
+    assert detail.outbound_count == 0
+    assert "operations:read" in detail.required_permissions
+    assert "supply:read" in detail.required_permissions
+    assert "risk_supplier_delay" in detail.evidence_refs
+    assert any(
+        item.relationship.relation_type == "impacts" for item in detail.connected_relationships
+    )
+    assert "password" not in detail.model_dump_json().lower()
+    assert "secret" not in detail.model_dump_json().lower()
+    assert "@" not in detail.model_dump_json()
+
+
+def test_manufacturing_ontology_entity_detail_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/ontology/entities/risk_supplier_delay")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["node"]["node_id"] == "risk_supplier_delay"
+    assert body["related_workflows"] == ["wf_supplier_delay_review"]
+    assert "supply:read" in body["required_permissions"]
+    assert "TypeDB-shaped relationships" in body["detail_notes"][0]
+    assert "password" not in str(body).lower()
+
+
+def test_manufacturing_ontology_entity_detail_endpoint_handles_missing_node() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/ontology/entities/missing-node")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Ontology entity not found"
+
+
+def test_openapi_exposes_manufacturing_ontology_entity_detail_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/ontology/entities/{node_id}" in response.json()["paths"]

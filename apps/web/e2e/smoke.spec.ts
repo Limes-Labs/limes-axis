@@ -76,6 +76,15 @@ test.describe("Axis console smoke", () => {
     ).toBeVisible();
     expect(await page.getByRole("cell", { name: "operations:read" }).count()).toBeGreaterThan(0);
 
+    await page.getByRole("link", { name: "Line 2 Packaging" }).click();
+
+    await expect(page.getByRole("heading", { name: "Entity detail" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Line 2 Packaging" })).toBeVisible();
+    await expect(page.getByText("Fallback entity seed")).toBeVisible();
+    await expect(page.getByText("supplier delay risk relationship")).toBeVisible();
+    await expect(page.getByText("risk_supplier_delay").first()).toBeVisible();
+    await expect(page.getByText("supply:read").first()).toBeVisible();
+
     await expectNoHorizontalOverflow(page);
   });
 

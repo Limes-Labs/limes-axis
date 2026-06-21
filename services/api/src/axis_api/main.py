@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from axis_api.config import Settings
@@ -8,6 +8,7 @@ from axis_api.demo import (
     ManufacturingApprovalInbox,
     ManufacturingAuditExplorer,
     ManufacturingOntology,
+    ManufacturingOntologyEntityDetail,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
     get_manufacturing_action_registry,
@@ -15,6 +16,7 @@ from axis_api.demo import (
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_ontology,
+    get_manufacturing_ontology_entity_detail,
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
 )
@@ -112,6 +114,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_ontology() -> ManufacturingOntology:
         return get_manufacturing_ontology()
+
+    @app.get(
+        "/demo/manufacturing/ontology/entities/{node_id}",
+        response_model=ManufacturingOntologyEntityDetail,
+        tags=["demo"],
+    )
+    def manufacturing_ontology_entity_detail(
+        node_id: str,
+    ) -> ManufacturingOntologyEntityDetail:
+        detail = get_manufacturing_ontology_entity_detail(node_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Ontology entity not found")
+        return detail
 
     return app
 
