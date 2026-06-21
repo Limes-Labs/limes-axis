@@ -55,7 +55,8 @@ cd services/api && uv run alembic upgrade head
 make test-integration
 ```
 
-The first migration creates tenants, actors and audit events.
+The migrations create tenants, actors, append-only audit events, approval
+records and action runs.
 
 ## TypeDB Checks
 

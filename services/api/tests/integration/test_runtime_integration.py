@@ -28,7 +28,9 @@ def test_postgres_migration_creates_foundation_tables() -> None:
     finally:
         engine.dispose()
 
-    assert {"tenants", "actors", "audit_events"}.issubset(tables)
+    assert {"tenants", "actors", "audit_events", "approval_records", "action_runs"}.issubset(
+        tables
+    )
 
 
 def test_typedb_schema_loads_into_fresh_database() -> None:

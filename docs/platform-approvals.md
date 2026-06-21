@@ -35,12 +35,17 @@ browser session only.
 ## Governance Boundary
 
 This slice demonstrates the approval contract and review experience. It does
-not yet persist approval decisions, signal Temporal workflows or write tenant
-audit records.
+not yet persist browser decisions through the demo API, signal Temporal workflows
+or write tenant audit records from the approval surface.
+
+The Postgres persistence foundation now includes `approval_records` and
+repository methods for creating approval records and recording decisions. The
+approval inbox still needs API integration before the console uses that storage
+path.
 
 Future Platform work should connect this contract to:
 
-- tenant-scoped approval records in Postgres;
+- approval inbox endpoints backed by tenant-scoped approval records;
 - workflow signal execution behind the Axis workflow runtime adapter;
 - append-only audit ledger writes;
 - permission checks for `approvals:*:decide`;

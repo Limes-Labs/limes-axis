@@ -51,7 +51,9 @@ proposals, workflow links and approval references. The action registry slice
 adds a read-only typed action catalog with schemas, risk levels, approval modes,
 permissions, guardrails, workflow bindings and dry-run payload previews. The
 model routing slice adds read-only route telemetry, provider boundaries, blocked
-egress visibility, synthetic token/cost estimates and audit evidence.
+egress visibility, synthetic token/cost estimates and audit evidence. The
+persistence foundation adds Postgres schema and repository methods for approval
+records, action runs and append-only audit events.
 
 ## Architecture Defaults
 
@@ -133,7 +135,7 @@ Run the web console locally:
 pnpm --filter @limes-axis/web dev --hostname 127.0.0.1 --port 3000
 ```
 
-Apply the first Postgres migration:
+Apply the Postgres migrations:
 
 ```bash
 cd services/api
