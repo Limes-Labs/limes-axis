@@ -280,8 +280,37 @@ textarea {
   color: var(--red);
 }
 
+.signal-ready {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.signal-watch {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.signal-action-required {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
 .status-pill svg {
   margin-right: 6px;
+}
+
+.overview-context {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.overview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .api-status-panel {
@@ -439,6 +468,14 @@ textarea {
   }
 
   .toolbar {
+    justify-content: flex-start;
+  }
+
+  .overview-context {
+    display: grid;
+  }
+
+  .overview-meta {
     justify-content: flex-start;
   }
 
