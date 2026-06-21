@@ -6,9 +6,11 @@ from axis_api.demo import (
     ManufacturingApprovalInbox,
     ManufacturingOntology,
     ManufacturingOverview,
+    ManufacturingWorkflowConsole,
     get_manufacturing_approval_inbox,
     get_manufacturing_ontology,
     get_manufacturing_overview,
+    get_manufacturing_workflow_console,
 )
 
 
@@ -56,6 +58,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_overview() -> ManufacturingOverview:
         return get_manufacturing_overview()
+
+    @app.get(
+        "/demo/manufacturing/workflows",
+        response_model=ManufacturingWorkflowConsole,
+        tags=["demo"],
+    )
+    def manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
+        return get_manufacturing_workflow_console()
 
     @app.get(
         "/demo/manufacturing/approvals",

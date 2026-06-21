@@ -529,6 +529,69 @@
         "title": "ManufacturingOverview",
         "type": "object"
       },
+      "ManufacturingWorkflowConsole": {
+        "properties": {
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "minItems": 1,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "runtime_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Runtime Notes",
+            "type": "array"
+          },
+          "runtime_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_runs": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRun"
+            },
+            "minItems": 1,
+            "title": "Workflow Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "runtime_status",
+          "metrics",
+          "workflow_runs",
+          "runtime_notes"
+        ],
+        "title": "ManufacturingWorkflowConsole",
+        "type": "object"
+      },
       "OntologyNode": {
         "properties": {
           "domain": {
@@ -716,6 +779,209 @@
         "title": "RiskSignal",
         "type": "object"
       },
+      "WorkflowRun": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "audit_scope": {
+            "minLength": 1,
+            "title": "Audit Scope",
+            "type": "string"
+          },
+          "autonomy_level": {
+            "pattern": "^L[0-4]$",
+            "title": "Autonomy Level",
+            "type": "string"
+          },
+          "blocker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocker"
+          },
+          "controls": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Controls",
+            "type": "array"
+          },
+          "current_step": {
+            "minLength": 1,
+            "title": "Current Step",
+            "type": "string"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "eta": {
+            "minLength": 1,
+            "title": "Eta",
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Inputs",
+            "type": "array"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "objective": {
+            "minLength": 1,
+            "title": "Objective",
+            "type": "string"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "pending_signals": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowSignal"
+            },
+            "minItems": 1,
+            "title": "Pending Signals",
+            "type": "array"
+          },
+          "proposed_outputs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Proposed Outputs",
+            "type": "array"
+          },
+          "related_assets": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Related Assets",
+            "type": "array"
+          },
+          "related_risk": {
+            "minLength": 1,
+            "title": "Related Risk",
+            "type": "string"
+          },
+          "replay_ready": {
+            "title": "Replay Ready",
+            "type": "boolean"
+          },
+          "runtime": {
+            "minLength": 1,
+            "title": "Runtime",
+            "type": "string"
+          },
+          "started_at": {
+            "minLength": 1,
+            "title": "Started At",
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTimelineEvent"
+            },
+            "minItems": 1,
+            "title": "Timeline",
+            "type": "array"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "name",
+          "domain",
+          "state",
+          "status",
+          "owner_role",
+          "runtime",
+          "adapter",
+          "autonomy_level",
+          "started_at",
+          "eta",
+          "objective",
+          "current_step",
+          "related_risk",
+          "related_assets",
+          "inputs",
+          "proposed_outputs",
+          "pending_signals",
+          "controls",
+          "timeline",
+          "audit_scope",
+          "replay_ready"
+        ],
+        "title": "WorkflowRun",
+        "type": "object"
+      },
+      "WorkflowSignal": {
+        "properties": {
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Id"
+          },
+          "required_role": {
+            "minLength": 1,
+            "title": "Required Role",
+            "type": "string"
+          },
+          "signal": {
+            "minLength": 1,
+            "title": "Signal",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signal",
+          "required_role",
+          "status"
+        ],
+        "title": "WorkflowSignal",
+        "type": "object"
+      },
       "WorkflowSummary": {
         "properties": {
           "blocker": {
@@ -763,6 +1029,44 @@
           "eta"
         ],
         "title": "WorkflowSummary",
+        "type": "object"
+      },
+      "WorkflowTimelineEvent": {
+        "properties": {
+          "actor": {
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "minLength": 1,
+            "title": "At",
+            "type": "string"
+          },
+          "event": {
+            "minLength": 1,
+            "title": "Event",
+            "type": "string"
+          },
+          "result": {
+            "minLength": 1,
+            "title": "Result",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "at",
+          "actor",
+          "result",
+          "summary"
+        ],
+        "title": "WorkflowTimelineEvent",
         "type": "object"
       }
     }
@@ -836,6 +1140,27 @@
           }
         },
         "summary": "Manufacturing Overview",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/workflows": {
+      "get": {
+        "operationId": "manufacturing_workflow_console_demo_manufacturing_workflows_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingWorkflowConsole"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Workflow Console",
         "tags": [
           "demo"
         ]
