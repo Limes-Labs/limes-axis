@@ -8,6 +8,7 @@ from axis_api.demo import (
     get_manufacturing_agent_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
+    get_manufacturing_model_routing,
     get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
     get_manufacturing_overview,
@@ -265,6 +266,52 @@ def test_openapi_exposes_manufacturing_audit_explorer_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/audit" in response.json()["paths"]
+
+
+def test_manufacturing_model_routing_seed_is_observable() -> None:
+    routing = get_manufacturing_model_routing()
+
+    assert routing.scenario == "Plant Operations Cockpit"
+    assert routing.routing_status == OverviewStatus.WATCH
+    assert len(routing.routes) == 4
+    assert len(routing.provider_options) == 3
+    assert "Quality" in routing.filter_options.domains
+    assert "blocked_by_default" in routing.filter_options.egress_decisions
+    assert any(route.egress_decision == "blocked_by_default" for route in routing.routes)
+    assert any(route.estimated_cost_eur > 0 for route in routing.routes)
+    assert all(
+        route.estimated_cost_eur == 0
+        for route in routing.routes
+        if route.egress_decision == "blocked_by_default"
+    )
+    assert all(not route.external_egress_allowed for route in routing.routes)
+    assert all(route.required_permissions for route in routing.routes)
+    assert "password" not in routing.model_dump_json().lower()
+    assert "secret" not in routing.model_dump_json().lower()
+    assert "@" not in routing.model_dump_json()
+
+
+def test_manufacturing_model_routing_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/model-routing")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["routes"][2]["route_id"] == "route_quality_external_blocked"
+    assert body["routes"][2]["egress_decision"] == "blocked_by_default"
+    assert body["routes"][2]["estimated_cost_eur"] == 0
+    assert body["provider_options"][0]["provider_id"] == "local-vllm"
+    assert "not product pricing" in body["budget_notes"][0]
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_model_routing_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/model-routing" in response.json()["paths"]
 
 
 def test_manufacturing_ontology_seed_has_valid_relationships() -> None:

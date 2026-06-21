@@ -9,6 +9,7 @@ describe("foundation console contracts", () => {
       "/ontology",
       "/workflows",
       "/agents",
+      "/model-routing",
       "/approvals",
       "/audit",
     ]);

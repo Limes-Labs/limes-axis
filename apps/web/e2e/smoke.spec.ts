@@ -88,6 +88,28 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("renders model routing and cost observability", async ({ page }) => {
+    await page.goto("/model-routing");
+
+    await expect(page.getByRole("heading", { name: "Model routing and spend" })).toBeVisible();
+    await expect(page.getByText("Fallback routing seed")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Quality Risk Agent/ })).toBeVisible();
+    await expect(page.getByText("EUR 0.76").first()).toBeVisible();
+
+    await page.getByLabel("Decision").selectOption("blocked_by_default");
+
+    await expect(page.getByRole("heading", { name: "1 visible" })).toBeVisible();
+    await page.getByRole("button", { name: /Quality Risk Agent/ }).click();
+
+    await expect(page.getByRole("heading", { name: "Quality Risk Agent" })).toBeVisible();
+    await expect(page.getByText("model.egress.blocked")).toBeVisible();
+    await expect(page.getByText("audit_20260621_133900_egress_blocked").first()).toBeVisible();
+    await expect(page.getByText("no-external-egress").first()).toBeVisible();
+    await expect(page.getByText("EUR 0.00").first()).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("renders the approval inbox with local decision preview", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));

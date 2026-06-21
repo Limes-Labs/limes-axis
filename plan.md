@@ -76,7 +76,7 @@ Foundation acceptance is tracked in
 - [x] Build the action registry UI.
 - [x] Build the approval inbox.
 - [x] Build the audit explorer.
-- [ ] Build the model routing and cost observability layer.
+- [x] Build the model routing and cost observability layer.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Build replay and simulation foundations.
@@ -111,6 +111,12 @@ The action registry UI is currently read-only and backed by the synthetic
 manufacturing action seed. Persisted action state, live runtime execution,
 workflow signals, idempotency storage, production audit writes and connector
 invocation remain Platform work.
+
+The model routing and cost observability layer is currently read-only and backed
+by synthetic manufacturing route telemetry. Live provider adapters,
+provider-specific billing ingestion, tenant budget enforcement, persisted usage
+records, OpenTelemetry spans from runtime code and audit writes from live route
+decisions remain Platform work.
 
 ### Enterprise
 
