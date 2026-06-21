@@ -15,6 +15,7 @@ The current seed is served by:
 ```text
 GET /demo/manufacturing/overview
 GET /demo/manufacturing/ontology
+GET /demo/manufacturing/approvals
 ```
 
 It includes:
@@ -27,6 +28,8 @@ It includes:
 - recent audit evidence;
 - read-only ontology nodes and relationships for source systems, permission
   scopes, risks, workflows, approvals and agents.
+- approval inbox proposals with evidence, data accessed, risk review,
+  alternatives, model policy and audit event preview.
 
 ## Next Expansion
 
@@ -36,5 +39,5 @@ The reference demo should grow into an end-to-end Platform scenario:
   entities;
 - TypeDB ontology relationships;
 - Postgres-backed workflow and audit state;
-- approval inbox actions;
+- persisted approval inbox actions and workflow signals;
 - replay and simulation artifacts.

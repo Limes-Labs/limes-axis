@@ -1,8 +1,10 @@
 from fastapi.testclient import TestClient
 
 from axis_api.demo import (
+    ApprovalDecision,
     OntologyNodeType,
     OverviewStatus,
+    get_manufacturing_approval_inbox,
     get_manufacturing_ontology,
     get_manufacturing_overview,
 )
@@ -41,6 +43,54 @@ def test_openapi_exposes_manufacturing_overview_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/overview" in response.json()["paths"]
+
+
+def test_manufacturing_approval_inbox_seed_is_governed() -> None:
+    inbox = get_manufacturing_approval_inbox()
+
+    assert inbox.scenario == "Plant Operations Cockpit"
+    assert inbox.queue_status == OverviewStatus.ACTION_REQUIRED
+    assert len(inbox.approvals) == 3
+    assert any(item.risk_level == "high" for item in inbox.approvals)
+    assert all(item.status == "pending" for item in inbox.approvals)
+    assert all(item.evidence for item in inbox.approvals)
+    assert all(item.data_accessed for item in inbox.approvals)
+    assert all(
+        item.audit_event_preview.event == "approval.decision.recorded" for item in inbox.approvals
+    )
+    assert all(
+        {option.decision for option in item.decision_options}
+        == {
+            ApprovalDecision.APPROVE,
+            ApprovalDecision.REJECT,
+            ApprovalDecision.REQUEST_CHANGES,
+        }
+        for item in inbox.approvals
+    )
+    assert "password" not in inbox.model_dump_json().lower()
+    assert "@" not in inbox.model_dump_json()
+
+
+def test_manufacturing_approval_inbox_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/approvals")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["approvals"][0]["approval_id"] == "appr_expedite_supplier_batch"
+    assert body["approvals"][0]["required_permission"] == "approvals:supply:decide"
+    assert body["approvals"][0]["decision_options"][0]["decision"] == "approve"
+    assert "production persistence remains Platform work" in body["policy_notes"][3]
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_approval_inbox_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/approvals" in response.json()["paths"]
 
 
 def test_manufacturing_ontology_seed_has_valid_relationships() -> None:
