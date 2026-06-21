@@ -26,12 +26,12 @@ services:
   temporal:
     image: temporalio/auto-setup:1.25
     environment:
-      DB: postgresql
+      DB: postgres12
       DB_PORT: 5432
       POSTGRES_USER: axis
       POSTGRES_PWD: axis
       POSTGRES_SEEDS: postgres
-      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/docker.yaml
     ports:
       - "7233:7233"
     depends_on:

@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check test-api test-worker test-web dev-stack-up dev-stack-down
+.PHONY: install lint test typecheck build-web openapi openapi-check test-api test-worker test-web test-integration dev-stack-up dev-stack-down
 
 install:
 	pnpm install
@@ -23,6 +23,10 @@ test-worker:
 
 test-web:
 	pnpm --filter @limes-axis/web test
+
+test-integration:
+	cd services/api && AXIS_RUN_INTEGRATION=1 uv run pytest tests/integration
+	cd services/worker && AXIS_RUN_INTEGRATION=1 uv run pytest tests/integration
 
 build-web:
 	pnpm --filter @limes-axis/web build

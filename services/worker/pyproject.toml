@@ -30,3 +30,6 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+  "integration: requires the local Docker runtime and AXIS_RUN_INTEGRATION=1"
+]
