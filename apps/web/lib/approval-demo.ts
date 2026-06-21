@@ -58,12 +58,17 @@ export type ApprovalDecisionPersistenceResult = {
   audit_event_id: string;
   audit_event_type: string;
   persisted: boolean;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
   workflow_signal_status: string;
 };
 
 export type ApprovalDecisionRequestPayload = {
   decision: ApprovalDecision;
   actor_id: string;
+  actor_scopes: string[];
   note?: string;
 };
 
@@ -283,6 +288,10 @@ export function approvalDecisionActorId(approval: ApprovalInboxItem): string {
   return `${approval.owner_role}-role`;
 }
 
+export function approvalDecisionActorScopes(approval: ApprovalInboxItem): string[] {
+  return [approval.required_permission];
+}
+
 export function buildApprovalDecisionPayload(
   approval: ApprovalInboxItem,
   decision: ApprovalDecision,
@@ -290,6 +299,7 @@ export function buildApprovalDecisionPayload(
   return {
     decision,
     actor_id: approvalDecisionActorId(approval),
+    actor_scopes: approvalDecisionActorScopes(approval),
     note: `Console decision recorded for ${approval.approval_id}.`,
   };
 }

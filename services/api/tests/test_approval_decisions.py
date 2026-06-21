@@ -37,6 +37,7 @@ def test_record_demo_approval_decision_persists_approval_and_audit_event(
             ApprovalDecisionRequest(
                 decision=ApprovalDecision.APPROVE,
                 actor_id="plant-operations-owner-role",
+                actor_scopes=["approvals:supply:decide"],
                 note="Approved in synthetic test scope.",
             ),
         )
@@ -46,6 +47,8 @@ def test_record_demo_approval_decision_persists_approval_and_audit_event(
         audit_event = session.scalars(select(AuditEvent)).one()
 
     assert result.persisted is True
+    assert result.permission_decision.allowed is True
+    assert result.permission_decision.reason == "allowed"
     assert result.workflow_signal_status == "pending_runtime_signal"
     assert result.action_id == "request_supplier_expedite"
     assert result.audit_event_id == audit_event.id
@@ -55,6 +58,10 @@ def test_record_demo_approval_decision_persists_approval_and_audit_event(
     assert audit_event.event_type == "approval.decision.recorded"
     assert audit_event.payload["approval_id"] == "appr_expedite_supplier_batch"
     assert audit_event.payload["decision"] == "approve"
+    assert audit_event.payload["permission_decision"] == {
+        "allowed": True,
+        "reason": "allowed",
+    }
     assert audit_event.payload["decision_note_recorded"] == "true"
 
 
@@ -69,6 +76,7 @@ def test_record_demo_approval_decision_reuses_existing_approval_record(
             ApprovalDecisionRequest(
                 decision=ApprovalDecision.REQUEST_CHANGES,
                 actor_id="quality-owner-role",
+                actor_scopes=["approvals:quality:decide"],
             ),
         )
         record_demo_approval_decision(
@@ -77,6 +85,7 @@ def test_record_demo_approval_decision_reuses_existing_approval_record(
             ApprovalDecisionRequest(
                 decision=ApprovalDecision.REJECT,
                 actor_id="quality-owner-role",
+                actor_scopes=["approvals:quality:decide"],
             ),
         )
 
@@ -101,6 +110,7 @@ def test_approval_decision_endpoint_persists_result(
         json={
             "decision": "approve",
             "actor_id": "maintenance-owner-role",
+            "actor_scopes": ["approvals:maintenance:decide"],
             "note": "Approved in synthetic endpoint test.",
         },
     )
@@ -110,6 +120,7 @@ def test_approval_decision_endpoint_persists_result(
     assert body["approval_id"] == "appr_shift_maintenance_window"
     assert body["action_id"] == "shift_maintenance_window"
     assert body["audit_event_type"] == "approval.decision.recorded"
+    assert body["permission_decision"] == {"allowed": True, "reason": "allowed"}
     assert body["workflow_signal_status"] == "pending_runtime_signal"
 
     with session_factory() as session:
@@ -135,6 +146,35 @@ def test_approval_decision_endpoint_handles_missing_approval(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Approval not found"
+
+
+def test_approval_decision_endpoint_denies_actor_without_required_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "quality-owner-role",
+            "actor_scopes": ["approvals:quality:decide"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The actor cannot decide this approval.",
+        "required_permission": "approvals:supply:decide",
+        "reason": "missing_scope:approvals:supply:decide",
+    }
+
+    with session_factory() as session:
+        assert list(session.scalars(select(ApprovalRecord))) == []
+        assert list(session.scalars(select(AuditEvent))) == []
 
 
 def test_openapi_exposes_approval_decision_endpoint() -> None:
