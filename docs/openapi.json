@@ -1,6 +1,276 @@
 {
   "components": {
     "schemas": {
+      "ActionDefinition": {
+        "properties": {
+          "action_id": {
+            "minLength": 1,
+            "title": "Action Id",
+            "type": "string"
+          },
+          "approval_mode": {
+            "$ref": "#/components/schemas/ApprovalMode"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "title": "Input Schema",
+            "type": "object"
+          },
+          "output_schema": {
+            "additionalProperties": true,
+            "title": "Output Schema",
+            "type": "object"
+          },
+          "required_permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Permissions",
+            "type": "array"
+          },
+          "risk_level": {
+            "$ref": "#/components/schemas/ActionRiskLevel"
+          }
+        },
+        "required": [
+          "action_id",
+          "display_name",
+          "domain",
+          "risk_level",
+          "approval_mode",
+          "input_schema",
+          "output_schema",
+          "required_permissions"
+        ],
+        "title": "ActionDefinition",
+        "type": "object"
+      },
+      "ActionRegistryEntry": {
+        "properties": {
+          "approval_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Approval Refs",
+            "type": "array"
+          },
+          "blocked_conditions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Blocked Conditions",
+            "type": "array"
+          },
+          "connected_agents": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Connected Agents",
+            "type": "array"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/ActionDefinition"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "guardrails": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Guardrails",
+            "type": "array"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/ActionRegistryPolicy"
+          },
+          "sample_input": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "minProperties": 1,
+            "title": "Sample Input",
+            "type": "object"
+          },
+          "sample_output": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "minProperties": 1,
+            "title": "Sample Output",
+            "type": "object"
+          },
+          "side_effects": {
+            "minLength": 1,
+            "title": "Side Effects",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "validation_checks": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Validation Checks",
+            "type": "array"
+          },
+          "workflow_bindings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Workflow Bindings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "definition",
+          "description",
+          "owner_role",
+          "status",
+          "side_effects",
+          "policy",
+          "connected_agents",
+          "guardrails",
+          "validation_checks",
+          "blocked_conditions",
+          "sample_input",
+          "sample_output"
+        ],
+        "title": "ActionRegistryEntry",
+        "type": "object"
+      },
+      "ActionRegistryFilterOptions": {
+        "properties": {
+          "approval_modes": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalMode"
+            },
+            "minItems": 1,
+            "title": "Approval Modes",
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Domains",
+            "type": "array"
+          },
+          "risk_levels": {
+            "items": {
+              "$ref": "#/components/schemas/ActionRiskLevel"
+            },
+            "minItems": 1,
+            "title": "Risk Levels",
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "domains",
+          "risk_levels",
+          "approval_modes",
+          "statuses"
+        ],
+        "title": "ActionRegistryFilterOptions",
+        "type": "object"
+      },
+      "ActionRegistryPolicy": {
+        "properties": {
+          "approval_role": {
+            "minLength": 1,
+            "title": "Approval Role",
+            "type": "string"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "autonomy_ceiling": {
+            "pattern": "^L[0-4]$",
+            "title": "Autonomy Ceiling",
+            "type": "string"
+          },
+          "dry_run_supported": {
+            "title": "Dry Run Supported",
+            "type": "boolean"
+          },
+          "execution_mode": {
+            "minLength": 1,
+            "title": "Execution Mode",
+            "type": "string"
+          },
+          "idempotency_required": {
+            "title": "Idempotency Required",
+            "type": "boolean"
+          },
+          "model_egress_policy": {
+            "minLength": 1,
+            "title": "Model Egress Policy",
+            "type": "string"
+          },
+          "runtime_adapter": {
+            "minLength": 1,
+            "title": "Runtime Adapter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_role",
+          "autonomy_ceiling",
+          "execution_mode",
+          "runtime_adapter",
+          "audit_event_type",
+          "model_egress_policy",
+          "idempotency_required",
+          "dry_run_supported"
+        ],
+        "title": "ActionRegistryPolicy",
+        "type": "object"
+      },
+      "ActionRiskLevel": {
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "title": "ActionRiskLevel",
+        "type": "string"
+      },
       "AgentActionProposal": {
         "properties": {
           "action": {
@@ -517,6 +787,15 @@
         "title": "ApprovalInboxItem",
         "type": "object"
       },
+      "ApprovalMode": {
+        "enum": [
+          "not_required",
+          "required",
+          "conditional"
+        ],
+        "title": "ApprovalMode",
+        "type": "string"
+      },
       "ApprovalSummary": {
         "properties": {
           "action": {
@@ -791,6 +1070,79 @@
           "payload_preview"
         ],
         "title": "AuditLedgerEvent",
+        "type": "object"
+      },
+      "ManufacturingActionRegistry": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionRegistryEntry"
+            },
+            "minItems": 1,
+            "title": "Actions",
+            "type": "array"
+          },
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "filter_options": {
+            "$ref": "#/components/schemas/ActionRegistryFilterOptions"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "minItems": 1,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Registry Notes",
+            "type": "array"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "schema_version": {
+            "minLength": 1,
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "registry_status",
+          "schema_version",
+          "metrics",
+          "filter_options",
+          "actions",
+          "registry_notes"
+        ],
+        "title": "ManufacturingActionRegistry",
         "type": "object"
       },
       "ManufacturingAgentRegistry": {
@@ -1688,6 +2040,27 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/demo/manufacturing/actions": {
+      "get": {
+        "operationId": "manufacturing_action_registry_demo_manufacturing_actions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingActionRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Action Registry",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/demo/manufacturing/agents": {
       "get": {
         "operationId": "manufacturing_agent_registry_demo_manufacturing_agents_get",

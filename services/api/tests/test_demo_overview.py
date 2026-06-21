@@ -4,6 +4,7 @@ from axis_api.demo import (
     ApprovalDecision,
     OntologyNodeType,
     OverviewStatus,
+    get_manufacturing_action_registry,
     get_manufacturing_agent_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
@@ -127,6 +128,53 @@ def test_openapi_exposes_manufacturing_agent_registry_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/agents" in response.json()["paths"]
+
+
+def test_manufacturing_action_registry_seed_is_policy_gated() -> None:
+    registry = get_manufacturing_action_registry()
+
+    assert registry.scenario == "Plant Operations Cockpit"
+    assert registry.registry_status == OverviewStatus.WATCH
+    assert registry.schema_version == "2026-06-21"
+    assert len(registry.actions) == 4
+    assert "Supply" in registry.filter_options.domains
+    assert "required" in registry.filter_options.approval_modes
+    assert "high" in registry.filter_options.risk_levels
+    assert any(
+        action.definition.action_id == "request_supplier_expedite" for action in registry.actions
+    )
+    assert sum(action.definition.requires_approval for action in registry.actions) == 3
+    assert all(action.policy.dry_run_supported for action in registry.actions)
+    assert all(action.policy.execution_mode != "live_execution" for action in registry.actions)
+    assert all(action.validation_checks for action in registry.actions)
+    assert all(action.blocked_conditions for action in registry.actions)
+    assert "password" not in registry.model_dump_json().lower()
+    assert "secret" not in registry.model_dump_json().lower()
+    assert "@" not in registry.model_dump_json()
+
+
+def test_manufacturing_action_registry_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/actions")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["actions"][1]["definition"]["action_id"] == "request_supplier_expedite"
+    assert body["actions"][1]["definition"]["risk_level"] == "high"
+    assert body["actions"][1]["definition"]["approval_mode"] == "required"
+    assert body["actions"][1]["approval_refs"][0] == "appr_expedite_supplier_batch"
+    assert body["actions"][1]["policy"]["model_egress_policy"] == "no-external-egress"
+    assert "runtime execution is not enabled" in body["registry_notes"][1]
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_action_registry_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/actions" in response.json()["paths"]
 
 
 def test_manufacturing_approval_inbox_seed_is_governed() -> None:

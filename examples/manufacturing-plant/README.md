@@ -19,6 +19,7 @@ GET /demo/manufacturing/workflows
 GET /demo/manufacturing/approvals
 GET /demo/manufacturing/audit
 GET /demo/manufacturing/agents
+GET /demo/manufacturing/actions
 ```
 
 It includes:
@@ -40,6 +41,9 @@ It includes:
 - read-only agent registry entries with autonomy boundaries, required
   permissions, model egress posture, action proposals, workflow links and
   approval references.
+- read-only action registry entries with typed input/output schemas, risk
+  levels, approval modes, permissions, guardrails, workflow bindings and dry-run
+  payload previews.
 
 ## Next Expansion
 
@@ -54,4 +58,6 @@ The reference demo should grow into an end-to-end Platform scenario:
 - persisted append-only audit storage, export and retention controls;
 - production action registry execution, persisted agent state and model cost
   observability;
+- persisted action state, idempotency storage and workflow signal execution from
+  typed action payloads;
 - replay and simulation artifacts.

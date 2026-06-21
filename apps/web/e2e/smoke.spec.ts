@@ -39,19 +39,28 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("link", { name: "Agents" }).first().click();
 
     await expect(
-      page.getByRole("heading", { name: "Autonomy and agent registry" }),
+      page.getByRole("heading", { name: "Autonomy and action registry" }),
     ).toBeVisible();
     await expect(page.getByText("Fallback agent seed")).toBeVisible();
     await expect(page.getByRole("button", { name: /Supply Risk Agent/ })).toBeVisible();
 
-    await page.getByLabel("Domain").selectOption("Supply");
+    await page.getByLabel("Domain").first().selectOption("Supply");
 
     await expect(page.getByRole("heading", { name: "1 visible" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Supply Risk Agent" })).toBeVisible();
-    await expect(page.getByText("approvals:supply:request")).toBeVisible();
+    await expect(page.getByText("approvals:supply:request").first()).toBeVisible();
     await expect(page.getByText("appr_expedite_supplier_batch", { exact: true }).first())
       .toBeVisible();
     await expect(page.getByText("no-external-egress")).toBeVisible();
+    await expect(page.getByText("Fallback action seed")).toBeVisible();
+
+    await page.getByLabel("Risk").selectOption("high");
+    await page.getByRole("button", { name: /Request supplier expedite/ }).click();
+
+    await expect(page.getByRole("heading", { name: "Request supplier expedite" })).toBeVisible();
+    await expect(page.getByText("supplier_batch_id: string (required)")).toBeVisible();
+    await expect(page.getByText("Approval Gated Dry Run")).toBeVisible();
+    await expect(page.getByText("approvals:supply:request").first()).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
   });

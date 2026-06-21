@@ -46,7 +46,9 @@ runtime console for workflow state, pending signals and history preview. The
 audit slice adds a read-only explorer for synthetic ledger events, filters and
 redacted payload previews. The agent registry slice adds a read-only governed
 agent view with autonomy boundaries, required permissions, model egress posture,
-proposals, workflow links and approval references.
+proposals, workflow links and approval references. The action registry slice
+adds a read-only typed action catalog with schemas, risk levels, approval modes,
+permissions, guardrails, workflow bindings and dry-run payload previews.
 
 ## Architecture Defaults
 
@@ -164,6 +166,7 @@ Architecture and acceptance notes:
 - [`docs/platform-approvals.md`](./docs/platform-approvals.md)
 - [`docs/platform-audit.md`](./docs/platform-audit.md)
 - [`docs/platform-agents.md`](./docs/platform-agents.md)
+- [`docs/platform-actions.md`](./docs/platform-actions.md)
 
 Reference examples:
 
