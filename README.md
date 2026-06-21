@@ -68,7 +68,9 @@ idempotency keys and appends action audit events without enabling live connector
 execution. The audit query slice reads persisted `audit_events` through a
 tenant-scoped API endpoint and keeps the synthetic seed as a fallback. The
 audit retention/export slice adds a demo JSON export bundle with manifest,
-checksum, redacted event payload previews and retention policy metadata.
+checksum, redacted event payload previews and retention policy metadata. The
+workflow persistence slice adds Postgres-backed workflow runs and timeline
+events, with the workflow console preferring persisted state when records exist.
 
 ## Architecture Defaults
 

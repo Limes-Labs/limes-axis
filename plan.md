@@ -85,6 +85,7 @@ Foundation acceptance is tracked in
 - [x] Persist typed action run requests with idempotency enforcement.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests and retention policy metadata.
+- [x] Persist workflow run state and tenant-scoped history views.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Build replay and simulation foundations.
@@ -99,9 +100,10 @@ relationship metadata and permission-aware query enforcement remain Platform
 work.
 
 The workflow console is currently read-only and backed by the synthetic
-manufacturing workflow seed. Approval decisions now signal the workflow runtime
-adapter when available, but persisted workflow state, tenant-scoped history
-views and deterministic replay remain Platform work.
+manufacturing workflow seed, with a persisted workflow run endpoint available
+when Postgres records exist. Approval decisions now signal the workflow runtime
+adapter when available. Deterministic replay, workflow history retention and
+workflow mutation controls remain Platform work.
 
 The approval queue is still read-only for listing. A demo decision endpoint now
 persists approval decisions and appends audit events, and the web console

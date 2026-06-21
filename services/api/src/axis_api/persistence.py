@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -5,7 +6,14 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from axis_api.audit import AuditEventCreate
-from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, utc_now
+from axis_api.models import (
+    ActionRun,
+    ApprovalRecord,
+    AuditEvent,
+    WorkflowRunRecord,
+    WorkflowTimelineRecord,
+    utc_now,
+)
 
 
 class PersistenceRecordNotFound(LookupError):
@@ -49,6 +57,43 @@ class ActionRunResultRecord(BaseModel):
     action_run_id: UUID
     status: str = Field(min_length=1)
     result_payload: dict = Field(default_factory=dict)
+
+
+class WorkflowRunCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    runtime: str = Field(min_length=1)
+    adapter: str = Field(min_length=1)
+    autonomy_level: str = Field(pattern=r"^L[0-4]$")
+    started_at: datetime
+    eta: str = Field(min_length=1)
+    blocker: str | None = None
+    objective: str = Field(min_length=1)
+    current_step: str = Field(min_length=1)
+    related_risk: str = Field(min_length=1)
+    related_assets: list[str] = Field(min_length=1)
+    inputs: list[str] = Field(min_length=1)
+    proposed_outputs: list[str] = Field(min_length=1)
+    pending_signals: list[dict] = Field(default_factory=list)
+    controls: list[str] = Field(min_length=1)
+    audit_scope: str = Field(min_length=1)
+    replay_ready: bool = False
+
+
+class WorkflowTimelineEventCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    sequence: int = Field(ge=1)
+    event: str = Field(min_length=1)
+    occurred_at: datetime
+    actor: str = Field(min_length=1)
+    result: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
 
 
 class AxisPersistenceRepository:
@@ -196,4 +241,84 @@ class AxisPersistenceRepository:
             statement = statement.where(ActionRun.status == status)
 
         statement = statement.order_by(ActionRun.created_at.desc()).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_workflow_run(self, record: WorkflowRunCreate) -> WorkflowRunRecord:
+        workflow_run = WorkflowRunRecord(
+            tenant_id=record.tenant_id,
+            workflow_id=record.workflow_id,
+            name=record.name,
+            domain=record.domain,
+            state=record.state,
+            status=record.status,
+            owner_role=record.owner_role,
+            runtime=record.runtime,
+            adapter=record.adapter,
+            autonomy_level=record.autonomy_level,
+            started_at=record.started_at,
+            eta=record.eta,
+            blocker=record.blocker,
+            objective=record.objective,
+            current_step=record.current_step,
+            related_risk=record.related_risk,
+            related_assets=record.related_assets,
+            inputs=record.inputs,
+            proposed_outputs=record.proposed_outputs,
+            pending_signals=record.pending_signals,
+            controls=record.controls,
+            audit_scope=record.audit_scope,
+            replay_ready=record.replay_ready,
+        )
+        self.session.add(workflow_run)
+        self.session.flush()
+        return workflow_run
+
+    def list_workflow_runs(
+        self,
+        tenant_id: str,
+        state: str | None = None,
+        limit: int = 100,
+    ) -> list[WorkflowRunRecord]:
+        statement: Select[tuple[WorkflowRunRecord]] = select(WorkflowRunRecord).where(
+            WorkflowRunRecord.tenant_id == tenant_id
+        )
+        if state is not None:
+            statement = statement.where(WorkflowRunRecord.state == state)
+
+        statement = statement.order_by(WorkflowRunRecord.started_at.desc()).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def append_workflow_timeline_event(
+        self,
+        event: WorkflowTimelineEventCreate,
+    ) -> WorkflowTimelineRecord:
+        timeline_event = WorkflowTimelineRecord(
+            tenant_id=event.tenant_id,
+            workflow_id=event.workflow_id,
+            sequence=event.sequence,
+            event=event.event,
+            occurred_at=event.occurred_at,
+            actor=event.actor,
+            result=event.result,
+            summary=event.summary,
+        )
+        self.session.add(timeline_event)
+        self.session.flush()
+        return timeline_event
+
+    def list_workflow_timeline_events(
+        self,
+        tenant_id: str,
+        workflow_id: str,
+        limit: int = 100,
+    ) -> list[WorkflowTimelineRecord]:
+        statement: Select[tuple[WorkflowTimelineRecord]] = (
+            select(WorkflowTimelineRecord)
+            .where(
+                WorkflowTimelineRecord.tenant_id == tenant_id,
+                WorkflowTimelineRecord.workflow_id == workflow_id,
+            )
+            .order_by(WorkflowTimelineRecord.sequence.asc())
+            .limit(limit)
+        )
         return list(self.session.scalars(statement))

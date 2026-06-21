@@ -9,6 +9,7 @@ import {
   defaultManufacturingWorkflowConsole,
   findWorkflowById,
   formatWorkflowState,
+  shouldUsePersistedWorkflowData,
   type ManufacturingWorkflowConsole,
 } from "@/lib/workflow-demo";
 import {
@@ -17,9 +18,13 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type WorkflowSource = "loading" | "api" | "fallback";
+type WorkflowSource = "loading" | "persisted" | "api" | "fallback";
 
 function sourceLabel(source: WorkflowSource): string {
+  if (source === "persisted") {
+    return "Persisted workflow runs";
+  }
+
   if (source === "api") {
     return "Live workflow seed";
   }
@@ -49,20 +54,34 @@ export function WorkflowConsole() {
   useEffect(() => {
     const controller = new AbortController();
 
+    async function fetchWorkflowData(path: string): Promise<ManufacturingWorkflowConsole> {
+      const response = await fetch(`${apiBaseUrl}${path}`, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Workflow console request failed with ${response.status}`);
+      }
+
+      return (await response.json()) as ManufacturingWorkflowConsole;
+    }
+
     async function fetchWorkflows() {
       try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/workflows`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Workflow console request failed with ${response.status}`);
+        const persistedWorkflowData = await fetchWorkflowData(
+          "/demo/manufacturing/workflows/runs?tenant_id=tenant_demo_manufacturing&limit=100",
+        );
+        if (shouldUsePersistedWorkflowData(persistedWorkflowData)) {
+          setWorkflowData(persistedWorkflowData);
+          setSelectedWorkflowId(persistedWorkflowData.workflow_runs[0].workflow_id);
+          setSource("persisted");
+          return;
         }
 
-        const nextWorkflowData = (await response.json()) as ManufacturingWorkflowConsole;
-        setWorkflowData(nextWorkflowData);
-        setSelectedWorkflowId(nextWorkflowData.workflow_runs[0].workflow_id);
+        const seedWorkflowData = await fetchWorkflowData("/demo/manufacturing/workflows");
+        setWorkflowData(seedWorkflowData);
+        setSelectedWorkflowId(seedWorkflowData.workflow_runs[0].workflow_id);
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {

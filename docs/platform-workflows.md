@@ -11,9 +11,18 @@ metadata without executing live workflow mutations.
 
 ```text
 GET /demo/manufacturing/workflows
+GET /demo/manufacturing/workflows/runs
 ```
 
-The endpoint returns a typed workflow console for the demo tenant:
+The seed endpoint returns a typed workflow console for the demo tenant. The
+persisted endpoint reads Postgres workflow run state and tenant-scoped timeline
+events with optional filters:
+
+- `tenant_id`;
+- `state`;
+- `limit`.
+
+Both endpoints return the same workflow console contract:
 
 - runtime status and workflow metrics;
 - workflow id, domain, state, owner role and autonomy level;
@@ -25,9 +34,10 @@ The endpoint returns a typed workflow console for the demo tenant:
 
 ## Console Behavior
 
-The `/workflows` page loads the endpoint from `NEXT_PUBLIC_AXIS_API_BASE_URL`.
-When the API is unavailable, the page falls back to the local synthetic workflow
-seed.
+The `/workflows` page first loads persisted workflow runs from
+`/demo/manufacturing/workflows/runs`. If that query returns no rows, it uses the
+synthetic seed endpoint. When the API is unavailable, the page falls back to the
+local synthetic workflow seed.
 
 The page is read-only. It lets an operator inspect workflow runs, pending
 signals and history preview data, but it does not signal Temporal, mutate state
@@ -41,20 +51,21 @@ operations.
 
 Approval decision persistence now uses this runtime boundary to signal the
 matching workflow when Temporal is available. The workflow console itself stays
-read-only: it does not expose live mutation controls or persisted history yet.
+read-only: it shows persisted run state and history views without exposing live
+mutation controls.
 
 Future Platform work should connect this contract to:
 
-- persisted workflow run state;
-- tenant-scoped history views;
 - append-only audit ledger writes;
 - deterministic replay and simulation outputs.
+- workflow history retention and replay artifacts.
 
 ## Verification
 
 The slice is covered by:
 
 - API unit tests for the manufacturing workflow console seed and endpoint;
+- API unit tests for persisted workflow run state and tenant-scoped history;
 - OpenAPI schema export/check;
-- web unit tests for the local fallback contract;
+- web unit tests for the local fallback and persisted-data selection contract;
 - Playwright smoke tests for workflow rendering on desktop and mobile.
