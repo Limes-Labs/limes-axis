@@ -39,9 +39,9 @@ flowchart LR
 ## Data Boundaries
 
 Postgres owns operational records that need transactional semantics: tenants,
-actors and append-only audit events. TypeDB owns the operational ontology:
-actors, organizations, assets, processes, workflows, operations, policies,
-approvals, audit evidence and relationship primitives.
+actors, approval records, action runs and append-only audit events. TypeDB owns
+the operational ontology: actors, organizations, assets, processes, workflows,
+operations, policies, approvals, audit evidence and relationship primitives.
 
 Search starts from Postgres and remains behind an adapter until a specialized
 engine is justified.

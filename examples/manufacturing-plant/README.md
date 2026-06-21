@@ -50,6 +50,8 @@ It includes:
   payload previews.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
+- Postgres persistence foundation for approval records, action runs and
+  append-only audit events.
 
 ## Next Expansion
 
@@ -58,10 +60,10 @@ The reference demo should grow into an end-to-end Platform scenario:
 - realistic orders, machines, materials, suppliers, quality and maintenance
   entities;
 - TypeDB-backed ontology relationships and permission-aware graph queries;
-- Postgres-backed workflow and audit state;
+- API-backed use of Postgres approval/action/audit state;
 - Temporal signal execution through the Axis workflow runtime adapter;
-- persisted approval inbox actions and workflow signals;
-- persisted append-only audit storage, export and retention controls;
+- persisted approval inbox decisions and workflow signals;
+- audit export and retention controls;
 - production action registry execution and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;

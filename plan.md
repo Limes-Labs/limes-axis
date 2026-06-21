@@ -77,6 +77,7 @@ Foundation acceptance is tracked in
 - [x] Build the approval inbox.
 - [x] Build the audit explorer.
 - [x] Build the model routing and cost observability layer.
+- [x] Add the Postgres persistence foundation for approvals, actions and audit events.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Build replay and simulation foundations.
@@ -95,12 +96,14 @@ manufacturing workflow seed. Persisted workflow state, runtime signal execution,
 tenant-scoped history views and deterministic replay remain Platform work.
 
 The approval inbox is currently read-only at the API boundary and uses local
-browser state for decision previews. Tenant-scoped persistence, workflow signals,
-permission enforcement and append-only audit writes remain Platform work.
+browser state for decision previews. The Postgres approval record foundation now
+exists, but endpoint integration, workflow signals, permission enforcement and
+append-only audit writes from approval decisions remain Platform work.
 
 The audit explorer is currently read-only and backed by the synthetic
-manufacturing audit seed. Persisted append-only storage, export, retention policy
-enforcement, tenant-scoped query permissions and replay remain Platform work.
+manufacturing audit seed. The append-only audit event table and repository now
+exist, but export, retention policy enforcement, tenant-scoped query permissions
+and replay remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
@@ -108,9 +111,9 @@ tenant-scoped agent configuration, runtime policy enforcement and model cost
 observability remain Platform work.
 
 The action registry UI is currently read-only and backed by the synthetic
-manufacturing action seed. Persisted action state, live runtime execution,
-workflow signals, idempotency storage, production audit writes and connector
-invocation remain Platform work.
+manufacturing action seed. The Postgres action run and idempotency foundation
+now exists, but live runtime execution, workflow signals, production audit
+writes and connector invocation remain Platform work.
 
 The model routing and cost observability layer is currently read-only and backed
 by synthetic manufacturing route telemetry. Live provider adapters,

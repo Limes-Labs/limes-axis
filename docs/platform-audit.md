@@ -37,9 +37,14 @@ This slice demonstrates the audit contract and explorer surface. It does not
 yet implement production ledger export, retention policy enforcement, immutable
 storage guarantees or deterministic replay.
 
+The Postgres persistence foundation now includes the append-only `audit_events`
+table and repository methods for inserting and tenant-scoped listing. The
+public audit explorer still reads the synthetic demo seed until production query
+permissions and retention/export controls are added.
+
 Future Platform work should connect this contract to:
 
-- persisted append-only audit storage;
+- API-backed audit explorer queries from persisted append-only audit storage;
 - tenant-scoped query permissions;
 - export and retention policy controls;
 - replay and simulation from audit/history;

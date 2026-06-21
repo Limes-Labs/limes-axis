@@ -42,12 +42,15 @@ audit explorer without enabling live mutation.
 
 This slice remains read-only at the API boundary.
 
+The Postgres persistence foundation now includes `action_runs`, action
+idempotency uniqueness and repository methods for recording action run results.
+The action registry UI still uses the synthetic seed and does not execute
+actions.
+
 It does not yet include:
 
-- persisted action state;
 - live runtime execution;
 - workflow signal execution from action payloads;
-- idempotency storage;
 - production audit writes;
 - tenant-scoped action configuration;
 - connector-backed action invocation;
