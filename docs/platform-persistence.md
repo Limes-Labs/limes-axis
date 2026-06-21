@@ -5,8 +5,8 @@ governed operational state.
 
 It is intentionally narrow: schema, ORM models, repository methods, a demo
 approval decision endpoint, web console submission, demo permission enforcement
-and tests. It does not yet replace all public demo seeds or emit workflow
-signals from approved decisions.
+workflow signal execution and tests. It does not yet replace all public demo
+seeds or persist workflow histories.
 
 ## Tables
 
@@ -50,10 +50,12 @@ Delivered:
 - web console submission to the persisted decision endpoint, with standalone
   local fallback when the API is unavailable.
 - demo approval decision permission checks before persistence.
+- workflow signal execution through the Axis workflow runtime adapter, with
+  explicit degraded status when the runtime is unavailable.
 
 Still Platform work:
 
-- workflow signal execution after approved actions;
+- persisted workflow run state and tenant-scoped history views;
 - production audit writes from action runtime paths;
 - production identity-bound permission enforcement;
 - immutable storage hardening beyond insert-only repository shape;

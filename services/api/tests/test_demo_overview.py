@@ -80,7 +80,7 @@ def test_manufacturing_workflow_console_endpoint_returns_public_demo_data() -> N
         "appr_expedite_supplier_batch"
     )
     assert body["workflow_runs"][0]["controls"][0] == "approvals:supply:decide"
-    assert "workflow signal execution remain Platform work" in body["runtime_notes"][3]
+    assert "Approval decisions can signal the runtime" in body["runtime_notes"][3]
     assert "password" not in str(body).lower()
 
 
