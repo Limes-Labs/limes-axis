@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  approvalDecisionActorId,
   approvalDecisionLabel,
   approvalRiskClass,
+  buildApprovalDecisionPayload,
   defaultManufacturingApprovalInbox,
   findApprovalById,
 } from "./approval-demo";
@@ -45,5 +47,21 @@ describe("manufacturing approval inbox demo contract", () => {
     expect(findApprovalById(defaultManufacturingApprovalInbox, "missing").action).toBe(
       "Expedite supplier batch",
     );
+  });
+
+  it("builds public-safe persisted decision payloads", () => {
+    const approval = findApprovalById(
+      defaultManufacturingApprovalInbox,
+      "appr_expedite_supplier_batch",
+    );
+    const payload = buildApprovalDecisionPayload(approval, "approve");
+
+    expect(approvalDecisionActorId(approval)).toBe("plant-operations-owner-role");
+    expect(payload).toEqual({
+      decision: "approve",
+      actor_id: "plant-operations-owner-role",
+      note: "Console decision recorded for appr_expedite_supplier_batch.",
+    });
+    expect(JSON.stringify(payload)).not.toContain("@");
   });
 });

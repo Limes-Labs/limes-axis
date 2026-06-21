@@ -47,6 +47,26 @@ export type ManufacturingApprovalInbox = {
   approvals: ApprovalInboxItem[];
 };
 
+export type ApprovalDecisionPersistenceResult = {
+  tenant_id: string;
+  approval_id: string;
+  workflow_id: string;
+  action_id: string;
+  decision: ApprovalDecision;
+  status: string;
+  actor_id: string;
+  audit_event_id: string;
+  audit_event_type: string;
+  persisted: boolean;
+  workflow_signal_status: string;
+};
+
+export type ApprovalDecisionRequestPayload = {
+  decision: ApprovalDecision;
+  actor_id: string;
+  note?: string;
+};
+
 export const defaultManufacturingApprovalInbox: ManufacturingApprovalInbox = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -257,6 +277,21 @@ export function approvalDecisionLabel(decision: ApprovalDecision): string {
   }
 
   return decision === "approve" ? "Approved" : "Rejected";
+}
+
+export function approvalDecisionActorId(approval: ApprovalInboxItem): string {
+  return `${approval.owner_role}-role`;
+}
+
+export function buildApprovalDecisionPayload(
+  approval: ApprovalInboxItem,
+  decision: ApprovalDecision,
+): ApprovalDecisionRequestPayload {
+  return {
+    decision,
+    actor_id: approvalDecisionActorId(approval),
+    note: `Console decision recorded for ${approval.approval_id}.`,
+  };
 }
 
 export function findApprovalById(

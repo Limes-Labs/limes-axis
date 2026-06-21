@@ -4,8 +4,8 @@ The persistence foundation adds the first Postgres-backed storage boundary for
 governed operational state.
 
 It is intentionally narrow: schema, ORM models, repository methods, a demo
-approval decision endpoint and tests. It does not yet replace all public demo
-seeds or make the web console submit persisted decisions.
+approval decision endpoint, web console submission and tests. It does not yet
+replace all public demo seeds or emit workflow signals from approved decisions.
 
 ## Tables
 
@@ -46,10 +46,11 @@ Delivered:
 - idempotency uniqueness for action runs.
 - persisted demo approval decisions with `approval.decision.recorded` audit
   events.
+- web console submission to the persisted decision endpoint, with standalone
+  local fallback when the API is unavailable.
 
 Still Platform work:
 
-- web console submission to the persisted decision endpoint;
 - workflow signal execution after approved actions;
 - production audit writes from action runtime paths;
 - immutable storage hardening beyond insert-only repository shape;

@@ -5,7 +5,8 @@ governance surface for the manufacturing reference demo.
 
 It is intentionally public-safe and synthetic. The queue endpoint is read-only,
 while the decision endpoint can persist a demo approval decision and append an
-audit event. The web console still keeps decision state locally in the browser.
+audit event. The web console submits reviewer decisions to the endpoint when the
+API is reachable and falls back to a local preview when it is not.
 
 ## Demo Endpoint
 
@@ -34,19 +35,20 @@ signal execution remains pending.
 The `/approvals` page loads the endpoint from `NEXT_PUBLIC_AXIS_API_BASE_URL`.
 When the API is not reachable, the page falls back to the local synthetic seed.
 
-The page lets a reviewer select approval proposals and record a local decision
-preview. This updates the visible queue state and audit result for the current
-browser session only.
+The page lets a reviewer select approval proposals and submit a decision. The
+console sends a typed `decision`, `actor_id` and note payload to the demo API.
+When the request succeeds, the panel shows the persisted audit event and
+workflow signal placeholder returned by the API. When the request fails, the
+panel keeps a browser-local preview so the standalone console remains usable.
 
 ## Governance Boundary
 
 This slice demonstrates the approval contract and review experience. It can
-persist decisions through the demo API, but the console still uses browser-local
-decision previews and no Temporal workflow signal is emitted yet.
+persist decisions through the demo API, and the console now uses that endpoint
+when available. No Temporal workflow signal is emitted yet.
 
 Future Platform work should connect this contract to:
 
-- console decision submission backed by tenant-scoped approval records;
 - workflow signal execution behind the Axis workflow runtime adapter;
 - permission checks for `approvals:*:decide`;
 - replay and simulation of approval outcomes.
@@ -58,5 +60,5 @@ The slice is covered by:
 - API unit tests for the manufacturing approval inbox seed and endpoint;
 - API unit tests for persisted approval decisions and audit writes;
 - OpenAPI schema export/check;
-- web unit tests for the local fallback contract;
-- Playwright smoke tests for queue rendering and local decision preview.
+- web unit tests for the persisted decision payload contract;
+- Playwright smoke tests for queue rendering and standalone local fallback.

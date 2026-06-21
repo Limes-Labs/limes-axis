@@ -194,6 +194,12 @@ textarea {
   font-weight: 700;
 }
 
+.icon-button:disabled,
+.command-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -596,6 +602,10 @@ textarea {
 
 .decision-command {
   cursor: pointer;
+}
+
+.decision-command:disabled {
+  cursor: not-allowed;
 }
 
 .audit-preview {
