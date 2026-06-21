@@ -368,6 +368,31 @@ class ManufacturingOntology(BaseModel):
     permission_notes: list[str] = Field(min_length=1)
 
 
+class OntologyEntityRelationship(BaseModel):
+    direction: str = Field(pattern=r"^(inbound|outbound)$")
+    relationship: OntologyRelationship
+    peer_node: OntologyNode
+
+
+class ManufacturingOntologyEntityDetail(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    as_of: str = Field(min_length=1)
+    node: OntologyNode
+    connected_relationships: list[OntologyEntityRelationship] = Field(default_factory=list)
+    inbound_count: int = Field(ge=0)
+    outbound_count: int = Field(ge=0)
+    required_permissions: list[str] = Field(min_length=1)
+    evidence_refs: list[str] = Field(min_length=1)
+    data_access: list[str] = Field(min_length=1)
+    governed_by: list[str] = Field(default_factory=list)
+    related_workflows: list[str] = Field(default_factory=list)
+    related_approvals: list[str] = Field(default_factory=list)
+    related_agents: list[str] = Field(default_factory=list)
+    detail_notes: list[str] = Field(min_length=1)
+
+
 def get_manufacturing_overview() -> ManufacturingOverview:
     return ManufacturingOverview(
         tenant_id="tenant_demo_manufacturing",
@@ -2172,4 +2197,214 @@ def get_manufacturing_ontology() -> ManufacturingOntology:
                 permission_scope="audit:read",
             ),
         ],
+    )
+
+
+def _ontology_detail_overrides() -> dict[str, dict[str, list[str]]]:
+    return {
+        "asset_line_2_packaging": {
+            "evidence_refs": [
+                "risk_supplier_delay",
+                "wf_supplier_delay_review",
+                "audit_20260621_154000_ontology_read",
+            ],
+            "data_access": [
+                "MES line status summary",
+                "supplier delay risk relationship",
+                "approval gate summary",
+            ],
+            "detail_notes": [
+                "This detail page is read-only and derived from the public ontology seed.",
+                "Operations can inspect the line context, but cannot execute workflow "
+                "signals here.",
+                "The supplier delay risk is visible because the relationship scope allows it.",
+            ],
+        },
+        "risk_supplier_delay": {
+            "evidence_refs": [
+                "asset_motors_batch",
+                "asset_line_2_packaging",
+                "wf_supplier_delay_review",
+            ],
+            "data_access": [
+                "supplier risk summary",
+                "impacted production line",
+                "workflow blocker summary",
+            ],
+            "detail_notes": [
+                "Risk detail is derived from TypeDB-shaped relationships in the demo seed.",
+                "The risk can drive action proposals, but does not execute actions directly.",
+            ],
+        },
+        "wf_supplier_delay_review": {
+            "evidence_refs": [
+                "risk_supplier_delay",
+                "appr_expedite_supplier_batch",
+                "audit_20260621_141800_signal_awaiting",
+            ],
+            "data_access": [
+                "workflow state summary",
+                "pending signal metadata",
+                "approval requirement relationship",
+            ],
+            "detail_notes": [
+                "Workflow detail is inspectable without exposing runtime mutation controls.",
+                "Signal execution remains behind the Axis workflow runtime adapter.",
+            ],
+        },
+        "appr_expedite_supplier_batch": {
+            "evidence_refs": [
+                "wf_supplier_delay_review",
+                "agent_supply_risk",
+                "audit_20260621_141200_agent_proposal",
+            ],
+            "data_access": [
+                "approval summary",
+                "requesting agent relationship",
+                "workflow requirement relationship",
+            ],
+            "detail_notes": [
+                "Approval detail links the proposed action to the owner review gate.",
+                "Decisions are preview-only until persisted approval state is implemented.",
+            ],
+        },
+        "agent_supply_risk": {
+            "evidence_refs": [
+                "appr_expedite_supplier_batch",
+                "risk_supplier_delay",
+                "audit_20260621_141200_agent_proposal",
+            ],
+            "data_access": [
+                "agent relationship summary",
+                "proposal approval reference",
+                "supply risk evidence",
+            ],
+            "detail_notes": [
+                "Agent detail is scoped to declared tenant and domain relationships.",
+                "Agent runtime state remains outside this read-only ontology detail slice.",
+            ],
+        },
+        "policy_external_egress": {
+            "evidence_refs": [
+                "agent_quality_risk",
+                "audit_policy_egress_blocked",
+                "audit_20260621_133900_egress_blocked",
+            ],
+            "data_access": [
+                "policy summary",
+                "governed agent relationship",
+                "audit evidence relationship",
+            ],
+            "detail_notes": [
+                "Policy detail shows governance relationships, not policy editing controls.",
+                "External model egress remains blocked unless tenant policy explicitly allows it.",
+            ],
+        },
+    }
+
+
+def _default_ontology_detail_lists(node: OntologyNode) -> dict[str, list[str]]:
+    return {
+        "evidence_refs": [node.node_id],
+        "data_access": [
+            f"{node.source_system} public-demo summary",
+            f"{node.domain} relationship context",
+            f"{node.node_type.value} metadata",
+        ],
+        "detail_notes": [
+            "This entity detail is read-only and synthetic.",
+            "Production entity details will require tenant-scoped graph query permissions.",
+        ],
+    }
+
+
+def get_manufacturing_ontology_entity_detail(
+    node_id: str,
+) -> ManufacturingOntologyEntityDetail | None:
+    ontology = get_manufacturing_ontology()
+    node_by_id = {node.node_id: node for node in ontology.nodes}
+    node = node_by_id.get(node_id)
+
+    if node is None:
+        return None
+
+    connected_relationships: list[OntologyEntityRelationship] = []
+    inbound_count = 0
+    outbound_count = 0
+
+    for relationship in ontology.relationships:
+        if relationship.source_id == node_id:
+            peer_node = node_by_id[relationship.target_id]
+            connected_relationships.append(
+                OntologyEntityRelationship(
+                    direction="outbound",
+                    relationship=relationship,
+                    peer_node=peer_node,
+                )
+            )
+            outbound_count += 1
+        elif relationship.target_id == node_id:
+            peer_node = node_by_id[relationship.source_id]
+            connected_relationships.append(
+                OntologyEntityRelationship(
+                    direction="inbound",
+                    relationship=relationship,
+                    peer_node=peer_node,
+                )
+            )
+            inbound_count += 1
+
+    permissions = sorted(
+        {item.relationship.permission_scope for item in connected_relationships}
+        or {f"{node.domain.lower()}:read"}
+    )
+    detail_lists = _default_ontology_detail_lists(node) | _ontology_detail_overrides().get(
+        node_id,
+        {},
+    )
+
+    return ManufacturingOntologyEntityDetail(
+        tenant_id=ontology.tenant_id,
+        plant_name=ontology.plant_name,
+        scenario=ontology.scenario,
+        as_of=ontology.as_of,
+        node=node,
+        connected_relationships=connected_relationships,
+        inbound_count=inbound_count,
+        outbound_count=outbound_count,
+        required_permissions=permissions,
+        evidence_refs=detail_lists["evidence_refs"],
+        data_access=detail_lists["data_access"],
+        governed_by=sorted(
+            {
+                item.peer_node.node_id
+                for item in connected_relationships
+                if item.relationship.relation_type == "governs"
+            }
+        ),
+        related_workflows=sorted(
+            {
+                item.peer_node.node_id
+                for item in connected_relationships
+                if item.peer_node.node_type == OntologyNodeType.WORKFLOW
+            }
+            | ({node.node_id} if node.node_type == OntologyNodeType.WORKFLOW else set())
+        ),
+        related_approvals=sorted(
+            {
+                item.peer_node.node_id
+                for item in connected_relationships
+                if item.peer_node.node_type == OntologyNodeType.APPROVAL
+            }
+            | ({node.node_id} if node.node_type == OntologyNodeType.APPROVAL else set())
+        ),
+        related_agents=sorted(
+            {
+                item.peer_node.node_id
+                for item in connected_relationships
+                if item.peer_node.node_type == OntologyNodeType.AGENT
+            }
+            | ({node.node_id} if node.node_type == OntologyNodeType.AGENT else set())
+        ),
+        detail_notes=detail_lists["detail_notes"],
     )

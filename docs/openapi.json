@@ -1072,6 +1072,19 @@
         "title": "AuditLedgerEvent",
         "type": "object"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "ManufacturingActionRegistry": {
         "properties": {
           "actions": {
@@ -1401,6 +1414,125 @@
         "title": "ManufacturingOntology",
         "type": "object"
       },
+      "ManufacturingOntologyEntityDetail": {
+        "properties": {
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "connected_relationships": {
+            "items": {
+              "$ref": "#/components/schemas/OntologyEntityRelationship"
+            },
+            "title": "Connected Relationships",
+            "type": "array"
+          },
+          "data_access": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Data Access",
+            "type": "array"
+          },
+          "detail_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Detail Notes",
+            "type": "array"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "governed_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Governed By",
+            "type": "array"
+          },
+          "inbound_count": {
+            "minimum": 0.0,
+            "title": "Inbound Count",
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/OntologyNode"
+          },
+          "outbound_count": {
+            "minimum": 0.0,
+            "title": "Outbound Count",
+            "type": "integer"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "related_agents": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Related Agents",
+            "type": "array"
+          },
+          "related_approvals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Related Approvals",
+            "type": "array"
+          },
+          "related_workflows": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Related Workflows",
+            "type": "array"
+          },
+          "required_permissions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Required Permissions",
+            "type": "array"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "node",
+          "inbound_count",
+          "outbound_count",
+          "required_permissions",
+          "evidence_refs",
+          "data_access",
+          "detail_notes"
+        ],
+        "title": "ManufacturingOntologyEntityDetail",
+        "type": "object"
+      },
       "ManufacturingOverview": {
         "properties": {
           "agents": {
@@ -1548,6 +1680,28 @@
           "runtime_notes"
         ],
         "title": "ManufacturingWorkflowConsole",
+        "type": "object"
+      },
+      "OntologyEntityRelationship": {
+        "properties": {
+          "direction": {
+            "pattern": "^(inbound|outbound)$",
+            "title": "Direction",
+            "type": "string"
+          },
+          "peer_node": {
+            "$ref": "#/components/schemas/OntologyNode"
+          },
+          "relationship": {
+            "$ref": "#/components/schemas/OntologyRelationship"
+          }
+        },
+        "required": [
+          "direction",
+          "relationship",
+          "peer_node"
+        ],
+        "title": "OntologyEntityRelationship",
         "type": "object"
       },
       "OntologyNode": {
@@ -1735,6 +1889,46 @@
           "related_asset"
         ],
         "title": "RiskSignal",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
         "type": "object"
       },
       "WorkflowRun": {
@@ -2140,6 +2334,48 @@
           }
         },
         "summary": "Manufacturing Ontology",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/ontology/entities/{node_id}": {
+      "get": {
+        "operationId": "manufacturing_ontology_entity_detail_demo_manufacturing_ontology_entities__node_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingOntologyEntityDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Ontology Entity Detail",
         "tags": [
           "demo"
         ]

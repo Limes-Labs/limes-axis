@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildOntologyEntityDetail,
   countNodesByType,
   defaultManufacturingOntology,
   formatNodeType,
@@ -33,5 +34,39 @@ describe("manufacturing ontology demo contract", () => {
   it("formats node type labels for the UI", () => {
     expect(formatNodeType("audit_event")).toBe("Audit Event");
     expect(formatNodeType("workflow")).toBe("Workflow");
+  });
+
+  it("builds connected entity detail pages from the graph seed", () => {
+    const detail = buildOntologyEntityDetail(
+      defaultManufacturingOntology,
+      "asset_line_2_packaging",
+    );
+
+    expect(detail?.node.label).toBe("Line 2 Packaging");
+    expect(detail?.inbound_count).toBe(2);
+    expect(detail?.outbound_count).toBe(0);
+    expect(detail?.required_permissions).toContain("operations:read");
+    expect(detail?.required_permissions).toContain("supply:read");
+    expect(detail?.evidence_refs).toContain("risk_supplier_delay");
+    expect(
+      detail?.connected_relationships.some(
+        (relationship) => relationship.relationship.relation_type === "impacts",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns null when a detail node is missing", () => {
+    expect(buildOntologyEntityDetail(defaultManufacturingOntology, "missing")).toBeNull();
+  });
+
+  it("keeps entity detail public-safe", () => {
+    const detail = buildOntologyEntityDetail(
+      defaultManufacturingOntology,
+      "risk_supplier_delay",
+    );
+
+    expect(JSON.stringify(detail)).not.toContain("@");
+    expect(JSON.stringify(detail).toLowerCase()).not.toContain("secret");
+    expect(detail?.related_workflows).toEqual(["wf_supplier_delay_review"]);
   });
 });

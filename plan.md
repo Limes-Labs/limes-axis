@@ -85,9 +85,10 @@ The governance console overview is backed by the first public-safe synthetic
 manufacturing seed. The full manufacturing reference demo remains open until it
 has ontology relationships, approval actions, workflow execution and replay.
 
-The ontology explorer is currently read-only and backed by the synthetic
-manufacturing graph. TypeDB-backed entity detail pages and permission-aware graph
-queries remain Platform work.
+The ontology explorer and entity detail pages are currently read-only and backed
+by the synthetic manufacturing graph. TypeDB-backed graph queries, persisted
+relationship metadata and permission-aware query enforcement remain Platform
+work.
 
 The workflow console is currently read-only and backed by the synthetic
 manufacturing workflow seed. Persisted workflow state, runtime signal execution,
