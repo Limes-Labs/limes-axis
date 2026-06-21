@@ -73,6 +73,7 @@ Foundation acceptance is tracked in
 - [x] Build the ontology explorer.
 - [x] Build the workflow console.
 - [x] Build the agent registry.
+- [x] Build the action registry UI.
 - [x] Build the approval inbox.
 - [x] Build the audit explorer.
 - [ ] Build the model routing and cost observability layer.
@@ -104,6 +105,11 @@ The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
 tenant-scoped agent configuration, runtime policy enforcement and model cost
 observability remain Platform work.
+
+The action registry UI is currently read-only and backed by the synthetic
+manufacturing action seed. Persisted action state, live runtime execution,
+workflow signals, idempotency storage, production audit writes and connector
+invocation remain Platform work.
 
 ### Enterprise
 
