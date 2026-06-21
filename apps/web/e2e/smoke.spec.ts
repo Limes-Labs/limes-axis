@@ -85,4 +85,27 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
+
+  test("renders the read-only workflow console", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/workflows");
+
+    await expect(page.getByRole("heading", { name: "Runtime adapter track" })).toBeVisible();
+    await expect(page.getByText("Fallback workflow seed")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toBeVisible();
+    await expect(page.getByText("axis-temporal-adapter", { exact: true })).toBeVisible();
+    await expect(page.getByText("approval.decision")).toBeVisible();
+
+    await page.getByRole("button", { name: /Maintenance Reschedule/ }).click();
+
+    await expect(page.getByRole("heading", { name: "Maintenance Reschedule" })).toBeVisible();
+    await expect(page.getByText("maintenance.owner.review")).toBeVisible();
+    await expect(page.getByText("service-window-policy")).toBeVisible();
+    await expect(page.getByText("Replay preview only")).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
 });

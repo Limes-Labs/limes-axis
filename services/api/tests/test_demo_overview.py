@@ -7,6 +7,7 @@ from axis_api.demo import (
     get_manufacturing_approval_inbox,
     get_manufacturing_ontology,
     get_manufacturing_overview,
+    get_manufacturing_workflow_console,
 )
 from axis_api.main import create_app
 
@@ -43,6 +44,47 @@ def test_openapi_exposes_manufacturing_overview_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/overview" in response.json()["paths"]
+
+
+def test_manufacturing_workflow_console_seed_is_inspectable() -> None:
+    console = get_manufacturing_workflow_console()
+
+    assert console.scenario == "Plant Operations Cockpit"
+    assert console.runtime_status == OverviewStatus.WATCH
+    assert len(console.workflow_runs) == 3
+    assert any(run.state == "waiting_for_approval" for run in console.workflow_runs)
+    assert any(run.status == OverviewStatus.ACTION_REQUIRED for run in console.workflow_runs)
+    assert all(run.runtime == "Temporal OSS" for run in console.workflow_runs)
+    assert all(run.adapter == "axis-temporal-adapter" for run in console.workflow_runs)
+    assert all(run.pending_signals for run in console.workflow_runs)
+    assert all(run.timeline for run in console.workflow_runs)
+    assert all(not run.replay_ready for run in console.workflow_runs)
+    assert "password" not in console.model_dump_json().lower()
+    assert "@" not in console.model_dump_json()
+
+
+def test_manufacturing_workflow_console_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/workflows")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["workflow_runs"][0]["workflow_id"] == "wf_supplier_delay_review"
+    assert body["workflow_runs"][0]["pending_signals"][0]["approval_id"] == (
+        "appr_expedite_supplier_batch"
+    )
+    assert body["workflow_runs"][0]["controls"][0] == "approvals:supply:decide"
+    assert "workflow signal execution remain Platform work" in body["runtime_notes"][3]
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_workflow_console_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/workflows" in response.json()["paths"]
 
 
 def test_manufacturing_approval_inbox_seed_is_governed() -> None:

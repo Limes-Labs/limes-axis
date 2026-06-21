@@ -41,7 +41,8 @@ synthetic manufacturing overview seed and API-backed governance console
 overview. The ontology slice adds a read-only manufacturing graph for typed
 nodes, source-system links, relationship mapping and permission scopes. The
 approval slice adds a synthetic approval inbox with evidence, risk review,
-decision options and local audit preview.
+decision options and local audit preview. The workflow slice adds a read-only
+runtime console for workflow state, pending signals and history preview.
 
 ## Architecture Defaults
 
@@ -155,6 +156,7 @@ Architecture and acceptance notes:
 - [`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md)
 - [`docs/platform-overview.md`](./docs/platform-overview.md)
 - [`docs/platform-ontology.md`](./docs/platform-ontology.md)
+- [`docs/platform-workflows.md`](./docs/platform-workflows.md)
 - [`docs/platform-approvals.md`](./docs/platform-approvals.md)
 
 Reference examples:
