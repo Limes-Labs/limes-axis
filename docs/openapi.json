@@ -652,6 +652,107 @@
         "title": "ApprovalDecisionOption",
         "type": "object"
       },
+      "ApprovalDecisionPersistenceResult": {
+        "properties": {
+          "action_id": {
+            "minLength": 1,
+            "title": "Action Id",
+            "type": "string"
+          },
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "approval_id": {
+            "minLength": 1,
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "format": "uuid",
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "persisted": {
+            "title": "Persisted",
+            "type": "boolean"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          },
+          "workflow_signal_status": {
+            "minLength": 1,
+            "title": "Workflow Signal Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "approval_id",
+          "workflow_id",
+          "action_id",
+          "decision",
+          "status",
+          "actor_id",
+          "audit_event_id",
+          "audit_event_type",
+          "persisted",
+          "workflow_signal_status"
+        ],
+        "title": "ApprovalDecisionPersistenceResult",
+        "type": "object"
+      },
+      "ApprovalDecisionRequest": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "decision",
+          "actor_id"
+        ],
+        "title": "ApprovalDecisionRequest",
+        "type": "object"
+      },
       "ApprovalInboxItem": {
         "properties": {
           "action": {
@@ -2655,6 +2756,58 @@
           }
         },
         "summary": "Manufacturing Approval Inbox",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/approvals/{approval_id}/decision": {
+      "post": {
+        "operationId": "manufacturing_approval_decision_demo_manufacturing_approvals__approval_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDecisionPersistenceResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Approval Decision",
         "tags": [
           "demo"
         ]
