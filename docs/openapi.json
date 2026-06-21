@@ -367,6 +367,22 @@
               }
             ],
             "title": "Workflow Id"
+          },
+          "workflow_signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowSignalResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workflow_signal_status": {
+            "default": "not_required",
+            "minLength": 1,
+            "title": "Workflow Signal Status",
+            "type": "string"
           }
         },
         "required": [

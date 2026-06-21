@@ -80,6 +80,14 @@ export type ActionRunRequest = {
   payload: Record<string, unknown>;
 };
 
+export type ActionRunWorkflowSignal = {
+  workflow_id?: string;
+  status?: string;
+  adapter: string;
+  signal_name: string;
+  payload?: Record<string, unknown>;
+};
+
 export type ActionRunPersistenceResult = {
   tenant_id: string;
   action_run_id: string;
@@ -99,7 +107,19 @@ export type ActionRunPersistenceResult = {
   };
   audit_event_id?: string | null;
   audit_event_type?: string | null;
+  workflow_signal?: ActionRunWorkflowSignal | null;
+  workflow_signal_status: string;
 };
+
+export function actionRunWorkflowSignalLabel(
+  result: Pick<ActionRunPersistenceResult, "workflow_signal" | "workflow_signal_status">,
+): string {
+  if (!result.workflow_signal || result.workflow_signal_status === "not_required") {
+    return "workflow signal not required";
+  }
+
+  return `${result.workflow_signal_status} via ${result.workflow_signal.adapter} / ${result.workflow_signal.signal_name}`;
+}
 
 export type ActionFilters = {
   domain: string;

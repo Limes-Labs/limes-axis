@@ -6,6 +6,14 @@ from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry, get_manufacturing_action_registry
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import ActionRunCreate, AxisPersistenceRepository
+from axis_api.workflow_runtime import (
+    DeferredWorkflowSignalRuntime,
+    WorkflowActionSignalRequest,
+    WorkflowSignalError,
+    WorkflowSignalResult,
+    WorkflowSignalRuntime,
+    workflow_action_signal_failure_result,
+)
 
 
 class DemoActionNotFound(LookupError):
@@ -54,6 +62,8 @@ class ActionRunPersistenceResult(BaseModel):
     permission_decision: PermissionDecision
     audit_event_id: UUID | None = None
     audit_event_type: str | None = None
+    workflow_signal: WorkflowSignalResult | None = None
+    workflow_signal_status: str = Field(default="not_required", min_length=1)
 
 
 def _find_demo_action(action_id: str) -> tuple[str, ActionRegistryEntry]:
@@ -152,6 +162,47 @@ def _stored_payload(action: ActionRegistryEntry, request: ActionRunRequest) -> d
     }
 
 
+def _should_signal_workflow(action: ActionRegistryEntry) -> bool:
+    return (
+        bool(action.workflow_bindings)
+        and action.policy.runtime_adapter == "axis-temporal-adapter"
+    )
+
+
+def _workflow_signal_status(workflow_signal: WorkflowSignalResult | None) -> str:
+    if workflow_signal is None:
+        return "not_required"
+    return workflow_signal.status
+
+
+async def _signal_action_workflow(
+    workflow_runtime: WorkflowSignalRuntime,
+    *,
+    tenant_id: str,
+    action: ActionRegistryEntry,
+    action_run_id: UUID,
+    idempotency_key: str,
+    request: ActionRunRequest,
+) -> WorkflowSignalResult | None:
+    if not _should_signal_workflow(action):
+        return None
+
+    signal_request = WorkflowActionSignalRequest(
+        tenant_id=tenant_id,
+        workflow_id=action.workflow_bindings[0],
+        action_id=action.definition.action_id,
+        action_run_id=action_run_id,
+        idempotency_key=idempotency_key,
+        approval_id=action.approval_refs[0] if action.approval_refs else None,
+        execution_mode=action.policy.execution_mode,
+        payload=request.payload,
+    )
+    try:
+        return await workflow_runtime.signal_action_run(signal_request)
+    except WorkflowSignalError as exc:
+        return workflow_action_signal_failure_result(signal_request, reason=str(exc))
+
+
 def _result_from_action_run(
     *,
     tenant_id: str,
@@ -164,6 +215,8 @@ def _result_from_action_run(
     audit_event_id: UUID | None,
     audit_event_type: str | None,
     idempotent_replay: bool,
+    workflow_signal: WorkflowSignalResult | None = None,
+    workflow_signal_status: str | None = None,
 ) -> ActionRunPersistenceResult:
     return ActionRunPersistenceResult(
         tenant_id=tenant_id,
@@ -181,19 +234,23 @@ def _result_from_action_run(
         permission_decision=permission_decision,
         audit_event_id=audit_event_id,
         audit_event_type=audit_event_type,
+        workflow_signal=workflow_signal,
+        workflow_signal_status=workflow_signal_status or _workflow_signal_status(workflow_signal),
     )
 
 
-def record_demo_action_run(
+async def record_demo_action_run(
     repository: AxisPersistenceRepository,
     action_id: str,
     request: ActionRunRequest,
+    workflow_runtime: WorkflowSignalRuntime | None = None,
 ) -> ActionRunPersistenceResult:
     tenant_id, action = _find_demo_action(action_id)
     _validate_payload(action, request.payload)
     permission_decision = _evaluate_action_permission(tenant_id, action, request)
     idempotency_key = _idempotency_key(tenant_id, action, request)
     payload = _stored_payload(action, request)
+    runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
 
     existing = repository.get_action_run_by_idempotency_key(
         tenant_id,
@@ -215,6 +272,7 @@ def record_demo_action_run(
             audit_event_id=None,
             audit_event_type=None,
             idempotent_replay=True,
+            workflow_signal_status="idempotent_replay",
         )
 
     status = _action_status(action)
@@ -231,6 +289,15 @@ def record_demo_action_run(
             status=status,
         )
     )
+    workflow_signal = await _signal_action_workflow(
+        runtime,
+        tenant_id=tenant_id,
+        action=action,
+        action_run_id=action_run.id,
+        idempotency_key=idempotency_key,
+        request=request,
+    )
+    workflow_signal_status = _workflow_signal_status(workflow_signal)
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=tenant_id,
@@ -250,6 +317,8 @@ def record_demo_action_run(
                 "permission_decision": permission_decision.model_dump(),
                 "payload_field_names": sorted(request.payload.keys()),
                 "payload_recorded": "true",
+                "workflow_signal_status": workflow_signal_status,
+                "workflow_signal": workflow_signal.model_dump() if workflow_signal else None,
             },
         )
     )
@@ -265,4 +334,6 @@ def record_demo_action_run(
         audit_event_id=audit_event.id,
         audit_event_type=audit_event.event_type,
         idempotent_replay=False,
+        workflow_signal=workflow_signal,
+        workflow_signal_status=workflow_signal_status,
     )

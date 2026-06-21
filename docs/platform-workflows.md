@@ -54,10 +54,15 @@ matching workflow when Temporal is available. The workflow console itself stays
 read-only: it shows persisted run state and history views without exposing live
 mutation controls.
 
+Typed action run persistence now also uses this boundary for approval-gated
+action payloads. The API sends an `action_requested` signal after the action run
+is persisted and records either the adapter result or an explicit degraded
+status in the action audit event. The signal result is redacted in API and UI
+responses and does not expose raw payload content in audit metadata.
+
 Future Platform work should connect this contract to:
 
-- append-only audit ledger writes;
-- deterministic replay and simulation outputs.
+- deterministic replay and simulation outputs;
 - workflow history retention and replay artifacts.
 
 ## Verification

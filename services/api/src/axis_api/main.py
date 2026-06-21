@@ -189,14 +189,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
-    def manufacturing_action_run(
+    async def manufacturing_action_run(
         action_id: str,
         action_run: ActionRunRequest,
         repository: PersistenceRepository,
+        runtime: WorkflowRuntime,
         response: Response,
     ) -> ActionRunPersistenceResult:
         try:
-            result = record_demo_action_run(repository, action_id, action_run)
+            result = await record_demo_action_run(repository, action_id, action_run, runtime)
         except DemoActionNotFound as exc:
             raise HTTPException(status_code=404, detail="Action not found") from exc
         except ActionPermissionDenied as exc:

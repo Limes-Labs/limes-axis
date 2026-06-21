@@ -1,6 +1,6 @@
 # Limes Axis Public Plan
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
 ## Summary
 
@@ -83,6 +83,7 @@ Foundation acceptance is tracked in
 - [x] Enforce demo approval decision permissions before persistence.
 - [x] Signal approval decisions through the workflow runtime adapter.
 - [x] Persist typed action run requests with idempotency enforcement.
+- [x] Signal workflow runtime from typed action payloads behind policy.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests and retention policy metadata.
 - [x] Persist workflow run state and tenant-scoped history views.
@@ -128,8 +129,10 @@ observability remain Platform work.
 The action registry UI is currently backed by the synthetic manufacturing
 action seed for catalog browsing. Typed dry-run/proposal action requests can now
 be persisted through the demo API with idempotency enforcement and append-only
-audit events, but live runtime execution, workflow signals from action payloads
-and connector invocation remain Platform work.
+audit events. Approval-gated action payloads now signal the Axis workflow
+runtime adapter after persistence, with explicit degraded status when the
+runtime is unavailable. Live production execution and connector invocation
+remain Platform work.
 
 The model routing and cost observability layer is currently read-only and backed
 by synthetic manufacturing route telemetry. Live provider adapters,

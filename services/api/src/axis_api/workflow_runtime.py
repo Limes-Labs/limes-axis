@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Protocol
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 from temporalio.client import Client
@@ -30,10 +31,51 @@ class WorkflowSignalResult(BaseModel):
     payload: dict = Field(default_factory=dict)
 
 
+class WorkflowActionSignalRequest(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    action_id: str = Field(min_length=1)
+    action_run_id: UUID
+    idempotency_key: str = Field(min_length=1)
+    approval_id: str | None = None
+    execution_mode: str = Field(min_length=1)
+    signal_name: str = Field(default="action_requested", min_length=1)
+    payload: dict = Field(default_factory=dict)
+
+    @property
+    def runtime_payload(self) -> dict:
+        return {
+            "tenant_id": self.tenant_id,
+            "action_id": self.action_id,
+            "action_run_id": str(self.action_run_id),
+            "idempotency_key": self.idempotency_key,
+            "approval_id": self.approval_id,
+            "execution_mode": self.execution_mode,
+            "payload": self.payload,
+        }
+
+    @property
+    def audit_payload(self) -> dict:
+        return {
+            "action_id": self.action_id,
+            "action_run_id": str(self.action_run_id),
+            "idempotency_key": self.idempotency_key,
+            "approval_id": self.approval_id,
+            "execution_mode": self.execution_mode,
+            "payload_field_names": sorted(self.payload.keys()),
+        }
+
+
 class WorkflowSignalRuntime(Protocol):
     async def signal_approval_decision(
         self,
         request: WorkflowSignalRequest,
+    ) -> WorkflowSignalResult:
+        ...
+
+    async def signal_action_run(
+        self,
+        request: WorkflowActionSignalRequest,
     ) -> WorkflowSignalResult:
         ...
 
@@ -91,6 +133,29 @@ class TemporalWorkflowSignalRuntime:
             },
         )
 
+    async def signal_action_run(
+        self,
+        request: WorkflowActionSignalRequest,
+    ) -> WorkflowSignalResult:
+        try:
+            client = await self.client()
+            handle = client.get_workflow_handle(request.workflow_id)
+            await handle.signal(
+                request.signal_name,
+                request.runtime_payload,
+                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
+            )
+        except (OSError, RuntimeError, TemporalError, RPCError) as exc:
+            raise WorkflowSignalError(exc.__class__.__name__) from exc
+
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="action_signal_requested",
+            adapter=self.adapter_name,
+            signal_name=request.signal_name,
+            payload=request.audit_payload,
+        )
+
 
 class DeferredWorkflowSignalRuntime:
     adapter_name = "axis-deferred-workflow-adapter"
@@ -111,6 +176,18 @@ class DeferredWorkflowSignalRuntime:
             },
         )
 
+    async def signal_action_run(
+        self,
+        request: WorkflowActionSignalRequest,
+    ) -> WorkflowSignalResult:
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="runtime_signal_deferred",
+            adapter=self.adapter_name,
+            signal_name=request.signal_name,
+            payload=request.audit_payload,
+        )
+
 
 def workflow_signal_failure_result(
     request: WorkflowSignalRequest,
@@ -128,4 +205,18 @@ def workflow_signal_failure_result(
             "decision": request.decision.value,
             "reason": reason,
         },
+    )
+
+
+def workflow_action_signal_failure_result(
+    request: WorkflowActionSignalRequest,
+    reason: str,
+    adapter: str = TemporalWorkflowSignalRuntime.adapter_name,
+) -> WorkflowSignalResult:
+    return WorkflowSignalResult(
+        workflow_id=request.workflow_id,
+        status="runtime_signal_unavailable",
+        adapter=adapter,
+        signal_name=request.signal_name,
+        payload={**request.audit_payload, "reason": reason},
     )

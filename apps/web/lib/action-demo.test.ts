@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   allActionFilter,
+  actionRunWorkflowSignalLabel,
   buildActionRunIdempotencyKey,
   buildActionRunRequest,
   buildTypedActionPayload,
@@ -119,6 +120,22 @@ describe("manufacturing action registry demo contract", () => {
 
     expect(buildActionRunIdempotencyKey(defaultManufacturingActionRegistry, supplyAction)).toBe(
       "tenant_demo_manufacturing:request_supplier_expedite:appr_expedite_supplier_batch",
+    );
+  });
+
+  it("formats action run workflow signal status for persisted results", () => {
+    expect(
+      actionRunWorkflowSignalLabel({
+        workflow_signal_status: "action_signal_requested",
+        workflow_signal: {
+          adapter: "axis-temporal-adapter",
+          signal_name: "action_requested",
+        },
+      }),
+    ).toBe("action_signal_requested via axis-temporal-adapter / action_requested");
+
+    expect(actionRunWorkflowSignalLabel({ workflow_signal_status: "not_required" })).toBe(
+      "workflow signal not required",
     );
   });
 });
