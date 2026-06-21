@@ -697,6 +697,155 @@ textarea {
   gap: 16px;
 }
 
+.audit-filter-panel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.audit-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.audit-filters select {
+  min-height: 38px;
+  max-width: 260px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  box-shadow: var(--shadow);
+}
+
+.audit-layout {
+  display: grid;
+  grid-template-columns: minmax(310px, 0.48fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.audit-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.audit-list {
+  display: grid;
+}
+
+.audit-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  min-height: 94px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 14px 10px;
+  text-align: left;
+}
+
+.audit-list-item:first-child {
+  border-top: 0;
+}
+
+.audit-list-item:hover,
+.audit-list-item.active {
+  background: #f8fafc;
+}
+
+.audit-list-item.active {
+  box-shadow: inset 4px 0 0 var(--blue);
+}
+
+.audit-list-item .row-title,
+.audit-list-item .row-detail {
+  display: block;
+}
+
+.audit-list-item .status-pill {
+  justify-self: end;
+  max-width: 170px;
+  overflow-wrap: anywhere;
+}
+
+.audit-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.audit-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.audit-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.audit-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.audit-payload {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.audit-payload-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.payload-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.payload-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.payload-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -755,20 +904,31 @@ textarea {
   .workflow-layout,
   .workflow-detail-grid,
   .workflow-columns,
-  .workflow-signal-band {
+  .workflow-signal-band,
+  .audit-layout,
+  .audit-detail-grid,
+  .audit-columns {
     grid-template-columns: 1fr;
   }
 
   .approval-detail-header,
   .decision-panel,
   .workflow-detail-header,
-  .workflow-history-header {
+  .workflow-history-header,
+  .audit-filter-panel,
+  .audit-detail-header,
+  .audit-payload-header {
     display: grid;
   }
 
   .status-stack,
-  .decision-toolbar {
+  .decision-toolbar,
+  .audit-filters {
     justify-content: flex-start;
+  }
+
+  .audit-filters select {
+    max-width: none;
   }
 }
 
@@ -797,8 +957,14 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .audit-list-item,
+  .payload-row {
+    grid-template-columns: 1fr;
+  }
+
   .approval-list-item .status-pill,
-  .workflow-list-item .status-pill {
+  .workflow-list-item .status-pill,
+  .audit-list-item .status-pill {
     justify-self: start;
   }
 }

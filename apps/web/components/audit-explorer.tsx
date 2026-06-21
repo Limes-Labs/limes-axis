@@ -1,0 +1,338 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
+
+import { getApiBaseUrl } from "@/lib/api-status";
+import {
+  allAuditFilter,
+  defaultManufacturingAuditExplorer,
+  filterAuditEvents,
+  findAuditEventById,
+  formatAuditLabel,
+  type AuditFilters,
+  type ManufacturingAuditExplorer,
+} from "@/lib/audit-demo";
+import {
+  formatOverviewTimestamp,
+  platformStatusClass,
+  platformStatusLabel,
+} from "@/lib/platform-overview";
+
+type AuditSource = "loading" | "api" | "fallback";
+
+const defaultFilters: AuditFilters = {
+  tenant: allAuditFilter,
+  eventType: allAuditFilter,
+  scope: allAuditFilter,
+};
+
+function sourceLabel(source: AuditSource): string {
+  if (source === "api") {
+    return "Live audit seed";
+  }
+
+  return source === "loading" ? "Loading audit seed" : "Fallback audit seed";
+}
+
+function formatAuditTime(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+export function AuditExplorer() {
+  const [auditData, setAuditData] = useState<ManufacturingAuditExplorer>(
+    defaultManufacturingAuditExplorer,
+  );
+  const [source, setSource] = useState<AuditSource>("loading");
+  const [filters, setFilters] = useState<AuditFilters>(defaultFilters);
+  const [selectedEventId, setSelectedEventId] = useState(
+    defaultManufacturingAuditExplorer.events[0].audit_event_id,
+  );
+  const apiBaseUrl = getApiBaseUrl();
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function fetchAudit() {
+      try {
+        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/audit`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Audit explorer request failed with ${response.status}`);
+        }
+
+        const nextAuditData = (await response.json()) as ManufacturingAuditExplorer;
+        setAuditData(nextAuditData);
+        setSelectedEventId(nextAuditData.events[0].audit_event_id);
+        setSource("api");
+      } catch {
+        if (!controller.signal.aborted) {
+          setAuditData(defaultManufacturingAuditExplorer);
+          setSelectedEventId(defaultManufacturingAuditExplorer.events[0].audit_event_id);
+          setSource("fallback");
+        }
+      }
+    }
+
+    void fetchAudit();
+
+    return () => controller.abort();
+  }, [apiBaseUrl]);
+
+  const filteredEvents = useMemo(() => filterAuditEvents(auditData, filters), [auditData, filters]);
+  const effectiveSelectedEventId = filteredEvents.some(
+    (event) => event.audit_event_id === selectedEventId,
+  )
+    ? selectedEventId
+    : (filteredEvents[0]?.audit_event_id ?? auditData.events[0].audit_event_id);
+
+  const selectedEvent = useMemo(
+    () => findAuditEventById(auditData, effectiveSelectedEventId),
+    [auditData, effectiveSelectedEventId],
+  );
+
+  function updateFilter(filterName: keyof AuditFilters, value: string) {
+    setFilters((current) => ({
+      ...current,
+      [filterName]: value,
+    }));
+  }
+
+  function resetFilters() {
+    setFilters(defaultFilters);
+  }
+
+  return (
+    <div className="stack">
+      <section className="panel overview-context">
+        <div>
+          <p className="section-label">Demo Audit Ledger</p>
+          <h2 className="panel-title">{auditData.plant_name}</h2>
+          <p className="row-detail">
+            {auditData.scenario} / {auditData.tenant_id}
+          </p>
+        </div>
+        <div className="overview-meta" aria-label="Audit source and ledger status">
+          <span className="status-pill signal-ready">
+            <RadioTower size={15} />
+            {sourceLabel(source)}
+          </span>
+          <span className={`status-pill ${platformStatusClass(auditData.ledger_status)}`}>
+            <ShieldCheck size={15} />
+            {platformStatusLabel(auditData.ledger_status)}
+          </span>
+          <span className="mono">{formatOverviewTimestamp(auditData.as_of)}</span>
+        </div>
+      </section>
+
+      <div className="metric-grid">
+        {auditData.metrics.map((metric) => (
+          <article className="metric-card compact-card" key={metric.label}>
+            <div className="row">
+              <p className="metric-label">{metric.label}</p>
+              <span className={`status-pill ${platformStatusClass(metric.status)}`}>
+                {platformStatusLabel(metric.status)}
+              </span>
+            </div>
+            <p className="metric-value">{metric.value}</p>
+            <p className="metric-detail">{metric.detail}</p>
+          </article>
+        ))}
+      </div>
+
+      <section className="panel audit-filter-panel">
+        <div>
+          <p className="section-label">Filters</p>
+          <h2 className="panel-title">Audit explorer</h2>
+        </div>
+        <div className="audit-filters">
+          <label>
+            <span className="metric-label">Tenant</span>
+            <select value={filters.tenant} onChange={(event) => updateFilter("tenant", event.target.value)}>
+              <option value={allAuditFilter}>All tenants</option>
+              {auditData.filter_options.tenants.map((tenant) => (
+                <option key={tenant} value={tenant}>
+                  {tenant}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="metric-label">Event</span>
+            <select
+              value={filters.eventType}
+              onChange={(event) => updateFilter("eventType", event.target.value)}
+            >
+              <option value={allAuditFilter}>All events</option>
+              {auditData.filter_options.event_types.map((eventType) => (
+                <option key={eventType} value={eventType}>
+                  {formatAuditLabel(eventType)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="metric-label">Scope</span>
+            <select value={filters.scope} onChange={(event) => updateFilter("scope", event.target.value)}>
+              <option value={allAuditFilter}>All scopes</option>
+              {auditData.filter_options.scopes.map((scope) => (
+                <option key={scope} value={scope}>
+                  {scope}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
+            <RotateCcw size={17} />
+          </button>
+        </div>
+      </section>
+
+      <div className="audit-layout">
+        <section className="panel">
+          <div className="audit-list-header">
+            <div>
+              <p className="section-label">Events</p>
+              <h2 className="panel-title">{filteredEvents.length} visible</h2>
+            </div>
+            <span className="status-pill signal-ready">
+              <Filter size={15} />
+              {auditData.events.length} total
+            </span>
+          </div>
+          <div className="audit-list">
+            {filteredEvents.map((event) => {
+              const isSelected = event.audit_event_id === selectedEvent.audit_event_id;
+
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={`audit-list-item${isSelected ? " active" : ""}`}
+                  key={event.audit_event_id}
+                  onClick={() => setSelectedEventId(event.audit_event_id)}
+                  type="button"
+                >
+                  <span>
+                    <span className="row-title mono">{event.event_type}</span>
+                    <span className="row-detail">
+                      {formatAuditTime(event.occurred_at)} / {event.actor_id}
+                    </span>
+                    <span className="row-detail">{event.scope}</span>
+                  </span>
+                  <span className={`status-pill ${platformStatusClass(event.severity)}`}>
+                    {event.result}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="panel audit-detail">
+          <div className="audit-detail-header">
+            <div>
+              <p className="section-label">{selectedEvent.category}</p>
+              <h2 className="panel-title">{formatAuditLabel(selectedEvent.event_type)}</h2>
+              <p className="row-detail">{selectedEvent.summary}</p>
+            </div>
+            <div className="status-stack">
+              <span className={`status-pill ${platformStatusClass(selectedEvent.severity)}`}>
+                {platformStatusLabel(selectedEvent.severity)}
+              </span>
+              <span className="status-pill status-checking">{selectedEvent.result}</span>
+            </div>
+          </div>
+
+          <div className="audit-detail-grid">
+            <div>
+              <p className="metric-label">Actor</p>
+              <p className="row-title">{selectedEvent.actor_id}</p>
+              <p className="row-detail">{selectedEvent.actor_type}</p>
+            </div>
+            <div>
+              <p className="metric-label">Scope</p>
+              <p className="row-title mono">{selectedEvent.scope}</p>
+              <p className="row-detail">{selectedEvent.permission_scope}</p>
+            </div>
+            <div>
+              <p className="metric-label">Source</p>
+              <p className="row-title">{selectedEvent.source}</p>
+              <p className="row-detail">{selectedEvent.domain}</p>
+            </div>
+            <div>
+              <p className="metric-label">Occurred</p>
+              <p className="row-title">{formatAuditTime(selectedEvent.occurred_at)}</p>
+              <p className="row-detail">{selectedEvent.data_classification}</p>
+            </div>
+          </div>
+
+          <div className="audit-columns">
+            <section>
+              <p className="section-label">Related</p>
+              <div className="tag-list">
+                {[
+                  selectedEvent.related_workflow_id,
+                  selectedEvent.related_approval_id,
+                  selectedEvent.related_agent_id,
+                ]
+                  .filter(Boolean)
+                  .map((item) => (
+                    <span className="tag" key={item}>
+                      {item}
+                    </span>
+                  ))}
+              </div>
+            </section>
+            <section>
+              <p className="section-label">Evidence</p>
+              <div className="tag-list">
+                {selectedEvent.evidence_refs.map((item) => (
+                  <span className="tag" key={item}>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Payload Preview</p>
+                <h3 className="subsection-title">Redacted fields</h3>
+              </div>
+              <FileText size={18} />
+            </div>
+            <div className="payload-grid">
+              {Object.entries(selectedEvent.payload_preview).map(([key, value]) => (
+                <div className="payload-row" key={key}>
+                  <span className="metric-label">{formatAuditLabel(key)}</span>
+                  <span className="mono">{value}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </section>
+      </div>
+
+      <section className="panel">
+        <p className="section-label">Retention Notes</p>
+        <div className="stack">
+          {auditData.retention_notes.map((note) => (
+            <p className="row-detail" key={note}>
+              {note}
+            </p>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}

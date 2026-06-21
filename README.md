@@ -42,7 +42,9 @@ overview. The ontology slice adds a read-only manufacturing graph for typed
 nodes, source-system links, relationship mapping and permission scopes. The
 approval slice adds a synthetic approval inbox with evidence, risk review,
 decision options and local audit preview. The workflow slice adds a read-only
-runtime console for workflow state, pending signals and history preview.
+runtime console for workflow state, pending signals and history preview. The
+audit slice adds a read-only explorer for synthetic ledger events, filters and
+redacted payload previews.
 
 ## Architecture Defaults
 
@@ -158,6 +160,7 @@ Architecture and acceptance notes:
 - [`docs/platform-ontology.md`](./docs/platform-ontology.md)
 - [`docs/platform-workflows.md`](./docs/platform-workflows.md)
 - [`docs/platform-approvals.md`](./docs/platform-approvals.md)
+- [`docs/platform-audit.md`](./docs/platform-audit.md)
 
 Reference examples:
 

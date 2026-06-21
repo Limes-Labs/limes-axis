@@ -17,6 +17,7 @@ GET /demo/manufacturing/overview
 GET /demo/manufacturing/ontology
 GET /demo/manufacturing/workflows
 GET /demo/manufacturing/approvals
+GET /demo/manufacturing/audit
 ```
 
 It includes:
@@ -33,6 +34,8 @@ It includes:
   controls and timeline preview.
 - approval inbox proposals with evidence, data accessed, risk review,
   alternatives, model policy and audit event preview.
+- read-only audit explorer events with tenant, event type and scope filters,
+  evidence references and redacted payload previews.
 
 ## Next Expansion
 
@@ -44,4 +47,5 @@ The reference demo should grow into an end-to-end Platform scenario:
 - Postgres-backed workflow and audit state;
 - Temporal signal execution through the Axis workflow runtime adapter;
 - persisted approval inbox actions and workflow signals;
+- persisted append-only audit storage, export and retention controls;
 - replay and simulation artifacts.

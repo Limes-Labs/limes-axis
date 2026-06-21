@@ -321,6 +321,206 @@
         "title": "AuditEvidence",
         "type": "object"
       },
+      "AuditFilterOptions": {
+        "properties": {
+          "actors": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Actors",
+            "type": "array"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Categories",
+            "type": "array"
+          },
+          "event_types": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Event Types",
+            "type": "array"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Scopes",
+            "type": "array"
+          },
+          "tenants": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Tenants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenants",
+          "event_types",
+          "scopes",
+          "actors",
+          "categories"
+        ],
+        "title": "AuditFilterOptions",
+        "type": "object"
+      },
+      "AuditLedgerEvent": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_type": {
+            "minLength": 1,
+            "title": "Actor Type",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "minLength": 1,
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "category": {
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "data_classification": {
+            "minLength": 1,
+            "title": "Data Classification",
+            "type": "string"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "event_type": {
+            "minLength": 1,
+            "title": "Event Type",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "occurred_at": {
+            "minLength": 1,
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload_preview": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "minProperties": 1,
+            "title": "Payload Preview",
+            "type": "object"
+          },
+          "permission_scope": {
+            "minLength": 1,
+            "title": "Permission Scope",
+            "type": "string"
+          },
+          "related_agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Agent Id"
+          },
+          "related_approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Approval Id"
+          },
+          "related_workflow_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Workflow Id"
+          },
+          "result": {
+            "minLength": 1,
+            "title": "Result",
+            "type": "string"
+          },
+          "scope": {
+            "minLength": 1,
+            "title": "Scope",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audit_event_id",
+          "occurred_at",
+          "tenant_id",
+          "actor_id",
+          "actor_type",
+          "event_type",
+          "category",
+          "domain",
+          "scope",
+          "result",
+          "severity",
+          "source",
+          "summary",
+          "permission_scope",
+          "data_classification",
+          "evidence_refs",
+          "payload_preview"
+        ],
+        "title": "AuditLedgerEvent",
+        "type": "object"
+      },
       "ManufacturingApprovalInbox": {
         "properties": {
           "approvals": {
@@ -373,6 +573,73 @@
           "approvals"
         ],
         "title": "ManufacturingApprovalInbox",
+        "type": "object"
+      },
+      "ManufacturingAuditExplorer": {
+        "properties": {
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLedgerEvent"
+            },
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          },
+          "filter_options": {
+            "$ref": "#/components/schemas/AuditFilterOptions"
+          },
+          "ledger_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "minItems": 1,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "retention_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Retention Notes",
+            "type": "array"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "ledger_status",
+          "metrics",
+          "filter_options",
+          "events",
+          "retention_notes"
+        ],
+        "title": "ManufacturingAuditExplorer",
         "type": "object"
       },
       "ManufacturingOntology": {
@@ -1098,6 +1365,27 @@
           }
         },
         "summary": "Manufacturing Approval Inbox",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/audit": {
+      "get": {
+        "operationId": "manufacturing_audit_explorer_demo_manufacturing_audit_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingAuditExplorer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Audit Explorer",
         "tags": [
           "demo"
         ]
