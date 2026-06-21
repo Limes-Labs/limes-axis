@@ -65,12 +65,15 @@ decisions through the Axis workflow runtime port to Temporal when the runtime is
 available, and records an explicit degraded status when it is not. The action
 run slice records typed dry-run/proposal requests from action payloads, enforces
 idempotency keys and appends action audit events without enabling live connector
-execution. The audit query slice reads persisted `audit_events` through a
-tenant-scoped API endpoint and keeps the synthetic seed as a fallback. The
-audit retention/export slice adds a demo JSON export bundle with manifest,
-checksum, redacted event payload previews and retention policy metadata. The
-workflow persistence slice adds Postgres-backed workflow runs and timeline
-events, with the workflow console preferring persisted state when records exist.
+execution. The action workflow signal slice sends approval-gated action payloads
+through the workflow runtime adapter after persistence, while preserving
+explicit degraded status when the runtime is unavailable. The audit query slice
+reads persisted `audit_events` through a tenant-scoped API endpoint and keeps
+the synthetic seed as a fallback. The audit retention/export slice adds a demo
+JSON export bundle with manifest, checksum, redacted event payload previews and
+retention policy metadata. The workflow persistence slice adds Postgres-backed
+workflow runs and timeline events, with the workflow console preferring
+persisted state when records exist.
 
 ## Architecture Defaults
 

@@ -63,6 +63,8 @@ Delivered:
   explicit degraded status when the runtime is unavailable.
 - typed action run creation from demo action payloads, with permission checks,
   idempotency replay/conflict behavior and append-only action audit events.
+- workflow signal execution from approval-gated action payloads after action
+  run persistence, with redacted signal metadata in audit events.
 - API-backed audit explorer queries from persisted `audit_events`, with tenant,
   event, actor, scope and limit filters.
 - redacted audit export bundles with manifest checksum, applied filters and

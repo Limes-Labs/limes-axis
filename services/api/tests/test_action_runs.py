@@ -16,6 +16,33 @@ from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import ActionRun, AuditEvent, Base
 from axis_api.persistence import AxisPersistenceRepository
+from axis_api.workflow_runtime import WorkflowSignalError, WorkflowSignalResult
+
+
+class RecordingActionWorkflowRuntime:
+    def __init__(self) -> None:
+        self.requests: list[object] = []
+
+    async def signal_action_run(self, request: object) -> WorkflowSignalResult:
+        self.requests.append(request)
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="action_signal_requested",
+            adapter="axis-test-action-workflow-adapter",
+            signal_name=request.signal_name,
+            payload={
+                "action_id": request.action_id,
+                "action_run_id": str(request.action_run_id),
+                "idempotency_key": request.idempotency_key,
+                "approval_id": request.approval_id,
+                "payload_field_names": sorted(request.payload.keys()),
+            },
+        )
+
+
+class FailingActionWorkflowRuntime:
+    async def signal_action_run(self, request: object) -> WorkflowSignalResult:
+        raise WorkflowSignalError("synthetic_action_runtime_down")
 
 
 @pytest.fixture
@@ -49,12 +76,12 @@ def supplier_action_request(
     )
 
 
-def test_record_demo_action_run_persists_run_and_audit_event(
+async def test_record_demo_action_run_persists_run_and_audit_event(
     session_factory: sessionmaker[Session],
 ) -> None:
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
-        result = record_demo_action_run(
+        result = await record_demo_action_run(
             repository,
             "request_supplier_expedite",
             supplier_action_request(),
@@ -89,14 +116,94 @@ def test_record_demo_action_run_persists_run_and_audit_event(
     ]
 
 
-def test_record_demo_action_run_replays_same_idempotency_key_without_duplicate_audit(
+async def test_record_demo_action_run_signals_bound_workflow_after_persistence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    workflow_runtime = RecordingActionWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        result = await record_demo_action_run(
+            repository,
+            "request_supplier_expedite",
+            supplier_action_request(),
+            workflow_runtime,
+        )
+
+    with session_factory() as session:
+        action_run = session.scalars(select(ActionRun)).one()
+        audit_event = session.scalars(select(AuditEvent)).one()
+
+    assert result.workflow_signal_status == "action_signal_requested"
+    assert result.workflow_signal is not None
+    assert result.workflow_signal.payload == {
+        "action_id": "request_supplier_expedite",
+        "action_run_id": str(action_run.id),
+        "idempotency_key": "tenant_demo_manufacturing:request_supplier_expedite:test",
+        "approval_id": "appr_expedite_supplier_batch",
+        "payload_field_names": [
+            "cost_ceiling_eur",
+            "reason",
+            "supplier_batch_id",
+            "target_arrival",
+        ],
+    }
+    assert workflow_runtime.requests[0].workflow_id == "wf_supplier_delay_review"
+    assert workflow_runtime.requests[0].action_id == "request_supplier_expedite"
+    assert workflow_runtime.requests[0].action_run_id == action_run.id
+    assert workflow_runtime.requests[0].approval_id == "appr_expedite_supplier_batch"
+    assert workflow_runtime.requests[0].payload["supplier_batch_id"] == "asset_motors_batch"
+    assert audit_event.payload["workflow_signal"]["status"] == "action_signal_requested"
+    assert audit_event.payload["workflow_signal"]["payload"]["payload_field_names"] == [
+        "cost_ceiling_eur",
+        "reason",
+        "supplier_batch_id",
+        "target_arrival",
+    ]
+    assert "payload" not in audit_event.payload["workflow_signal"]["payload"]
+
+
+async def test_record_demo_action_run_records_signal_failure_without_blocking_persistence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        result = await record_demo_action_run(
+            repository,
+            "request_supplier_expedite",
+            supplier_action_request(),
+            FailingActionWorkflowRuntime(),
+        )
+
+    with session_factory() as session:
+        action_run = session.scalars(select(ActionRun)).one()
+        audit_event = session.scalars(select(AuditEvent)).one()
+
+    assert action_run.status == "approval_required"
+    assert result.workflow_signal_status == "runtime_signal_unavailable"
+    assert result.workflow_signal is not None
+    assert result.workflow_signal.payload["reason"] == "synthetic_action_runtime_down"
+    assert audit_event.payload["workflow_signal"]["status"] == "runtime_signal_unavailable"
+
+
+async def test_record_demo_action_run_replays_same_idempotency_key_without_duplicate_audit(
     session_factory: sessionmaker[Session],
 ) -> None:
     request = supplier_action_request()
+    workflow_runtime = RecordingActionWorkflowRuntime()
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
-        first = record_demo_action_run(repository, "request_supplier_expedite", request)
-        second = record_demo_action_run(repository, "request_supplier_expedite", request)
+        first = await record_demo_action_run(
+            repository,
+            "request_supplier_expedite",
+            request,
+            workflow_runtime,
+        )
+        second = await record_demo_action_run(
+            repository,
+            "request_supplier_expedite",
+            request,
+            workflow_runtime,
+        )
 
     with session_factory() as session:
         action_runs = list(session.scalars(select(ActionRun)))
@@ -104,23 +211,25 @@ def test_record_demo_action_run_replays_same_idempotency_key_without_duplicate_a
 
     assert first.action_run_id == second.action_run_id
     assert second.idempotent_replay is True
+    assert second.workflow_signal_status == "idempotent_replay"
     assert second.audit_event_id is None
+    assert len(workflow_runtime.requests) == 1
     assert len(action_runs) == 1
     assert len(audit_events) == 1
 
 
-def test_record_demo_action_run_rejects_same_idempotency_key_with_different_payload(
+async def test_record_demo_action_run_rejects_same_idempotency_key_with_different_payload(
     session_factory: sessionmaker[Session],
 ) -> None:
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
-        record_demo_action_run(
+        await record_demo_action_run(
             repository,
             "request_supplier_expedite",
             supplier_action_request(reason="Line 2 packaging risk"),
         )
         with pytest.raises(ActionRunIdempotencyConflict):
-            record_demo_action_run(
+            await record_demo_action_run(
                 repository,
                 "request_supplier_expedite",
                 supplier_action_request(reason="Changed payload"),
@@ -131,13 +240,13 @@ def test_record_demo_action_run_rejects_same_idempotency_key_with_different_payl
         assert len(list(session.scalars(select(AuditEvent)))) == 1
 
 
-def test_record_demo_action_run_denies_actor_without_required_scope(
+async def test_record_demo_action_run_denies_actor_without_required_scope(
     session_factory: sessionmaker[Session],
 ) -> None:
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
         with pytest.raises(ActionPermissionDenied, match="missing_scope:approvals:supply:request"):
-            record_demo_action_run(
+            await record_demo_action_run(
                 repository,
                 "request_supplier_expedite",
                 ActionRunRequest(
@@ -153,13 +262,13 @@ def test_record_demo_action_run_denies_actor_without_required_scope(
         assert list(session.scalars(select(AuditEvent))) == []
 
 
-def test_record_demo_action_run_validates_typed_payload_before_persistence(
+async def test_record_demo_action_run_validates_typed_payload_before_persistence(
     session_factory: sessionmaker[Session],
 ) -> None:
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
         with pytest.raises(ActionPayloadValidationError) as exc_info:
-            record_demo_action_run(
+            await record_demo_action_run(
                 repository,
                 "request_supplier_expedite",
                 ActionRunRequest(
@@ -176,12 +285,12 @@ def test_record_demo_action_run_validates_typed_payload_before_persistence(
         assert list(session.scalars(select(AuditEvent))) == []
 
 
-def test_record_demo_action_run_derives_optional_idempotency_for_preview_action(
+async def test_record_demo_action_run_derives_optional_idempotency_for_preview_action(
     session_factory: sessionmaker[Session],
 ) -> None:
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
-        result = record_demo_action_run(
+        result = await record_demo_action_run(
             repository,
             "generate_daily_plant_brief",
             ActionRunRequest(
@@ -211,6 +320,7 @@ def test_action_run_endpoint_returns_created_then_idempotent_replay(
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = session_factory
+    app.state.workflow_runtime = RecordingActionWorkflowRuntime()
     client = TestClient(app)
     payload = supplier_action_request().model_dump()
 
@@ -229,8 +339,13 @@ def test_action_run_endpoint_returns_created_then_idempotent_replay(
     second_body = second.json()
     assert first_body["action_run_id"] == second_body["action_run_id"]
     assert first_body["idempotent_replay"] is False
+    assert first_body["workflow_signal_status"] == "action_signal_requested"
+    assert first_body["workflow_signal"]["signal_name"] == "action_requested"
     assert second_body["idempotent_replay"] is True
+    assert second_body["workflow_signal_status"] == "idempotent_replay"
+    assert second_body["workflow_signal"] is None
     assert second_body["audit_event_id"] is None
+    assert len(app.state.workflow_runtime.requests) == 1
 
 
 def test_action_run_endpoint_returns_validation_and_permission_errors(

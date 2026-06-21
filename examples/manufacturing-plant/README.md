@@ -63,6 +63,9 @@ It includes:
 - action registry entries with typed input/output schemas, risk levels,
   approval modes, permissions, guardrails, workflow bindings, dry-run payload
   previews and API-backed action run request persistence.
+- workflow signal execution from approval-gated action payloads through the
+  Axis workflow runtime adapter, with redacted signal metadata in API responses
+  and audit events.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
 - Postgres persistence foundation for approval records, action runs and
@@ -82,5 +85,4 @@ The reference demo should grow into an end-to-end Platform scenario:
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;
-- workflow signal execution from typed action payloads;
 - replay and simulation artifacts.

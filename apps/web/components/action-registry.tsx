@@ -5,6 +5,7 @@ import { FileText, Filter, RadioTower, RotateCcw, Send, ShieldCheck } from "luci
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  actionRunWorkflowSignalLabel,
   allActionFilter,
   buildActionRunIdempotencyKey,
   buildActionRunRequest,
@@ -36,6 +37,7 @@ type LocalActionRunResult = {
   detail: string;
   auditEventType?: string;
   permissionDetail?: string;
+  workflowSignalDetail?: string;
 };
 
 const defaultFilters: ActionFilters = {
@@ -187,6 +189,7 @@ export function ActionRegistry() {
             : "Persisted through the action run API.",
           auditEventType: result.audit_event_type ?? "no new audit event",
           permissionDetail: `Permission ${result.permission_decision.reason}.`,
+          workflowSignalDetail: actionRunWorkflowSignalLabel(result),
         },
       }));
     } catch {
@@ -199,6 +202,7 @@ export function ActionRegistry() {
           idempotencyKey: buildActionRunIdempotencyKey(registry, action),
           detail: "Local preview only; API persistence is unavailable.",
           auditEventType: action.policy.audit_event_type,
+          workflowSignalDetail: "workflow signal not requested locally",
         },
       }));
     } finally {
@@ -567,6 +571,12 @@ export function ActionRegistry() {
                     <div className="payload-row">
                       <p className="metric-label">Permission</p>
                       <p className="row-detail">{selectedRunResult.permissionDetail}</p>
+                    </div>
+                  ) : null}
+                  {selectedRunResult.workflowSignalDetail ? (
+                    <div className="payload-row">
+                      <p className="metric-label">Workflow Signal</p>
+                      <p className="row-detail">{selectedRunResult.workflowSignalDetail}</p>
                     </div>
                   ) : null}
                 </div>
