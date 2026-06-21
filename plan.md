@@ -69,7 +69,7 @@ Foundation acceptance is tracked in
 
 ### Platform
 
-- [ ] Build the governance console overview.
+- [x] Build the governance console overview.
 - [ ] Build the ontology explorer.
 - [ ] Build the workflow console.
 - [ ] Build the agent registry.
@@ -79,6 +79,10 @@ Foundation acceptance is tracked in
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Build replay and simulation foundations.
+
+The governance console overview is backed by the first public-safe synthetic
+manufacturing seed. The full manufacturing reference demo remains open until it
+has ontology relationships, approval actions, workflow execution and replay.
 
 ### Enterprise
 

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from axis_api.config import Settings
+from axis_api.demo import ManufacturingOverview, get_manufacturing_overview
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -40,6 +41,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             "external_model_egress_enabled": resolved_settings.external_model_egress_enabled,
         }
+
+    @app.get(
+        "/demo/manufacturing/overview",
+        response_model=ManufacturingOverview,
+        tags=["demo"],
+    )
+    def manufacturing_overview() -> ManufacturingOverview:
+        return get_manufacturing_overview()
 
     return app
 

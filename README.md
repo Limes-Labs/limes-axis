@@ -36,7 +36,9 @@ migration baseline, TypeDB ontology boundary, workflow runtime port, Temporal
 adapter, typed action registry, model egress guard, permission primitives and a
 Next.js governance console shell. Foundation hardening adds API readiness,
 generated OpenAPI checks, opt-in runtime integration tests, API status in the
-console and Playwright smoke tests in CI.
+console and Playwright smoke tests in CI. The first Platform slice adds a
+synthetic manufacturing overview seed and API-backed governance console
+overview.
 
 ## Architecture Defaults
 
@@ -148,6 +150,11 @@ Architecture and acceptance notes:
 
 - [`docs/architecture.md`](./docs/architecture.md)
 - [`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md)
+- [`docs/platform-overview.md`](./docs/platform-overview.md)
+
+Reference examples:
+
+- [`examples/manufacturing-plant`](./examples/manufacturing-plant)
 
 ## Contributing
 

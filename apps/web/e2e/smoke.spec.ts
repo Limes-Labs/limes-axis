@@ -16,6 +16,10 @@ test.describe("Axis console smoke", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "Operations control plane" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ravenna Works" })).toBeVisible();
+    await expect(page.getByText("Plant Operations Cockpit")).toBeVisible();
+    await expect(page.getByText("Supplier Delay Review")).toBeVisible();
+    await expect(page.getByText("Fallback demo seed")).toBeVisible();
     await expect(page.getByText("API Status")).toBeVisible();
     await expect(page.getByText("Control API")).toBeVisible();
     await expect(page.getByText("Unavailable")).toBeVisible();
