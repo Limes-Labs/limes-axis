@@ -53,7 +53,9 @@ permissions, guardrails, workflow bindings and dry-run payload previews. The
 model routing slice adds read-only route telemetry, provider boundaries, blocked
 egress visibility, synthetic token/cost estimates and audit evidence. The
 persistence foundation adds Postgres schema and repository methods for approval
-records, action runs and append-only audit events.
+records, action runs and append-only audit events. The approval persistence
+slice adds an API-backed decision endpoint that records approval decisions and
+audit events.
 
 ## Architecture Defaults
 

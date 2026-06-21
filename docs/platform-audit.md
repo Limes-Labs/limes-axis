@@ -39,6 +39,7 @@ storage guarantees or deterministic replay.
 
 The Postgres persistence foundation now includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. The
+approval decision endpoint now appends `approval.decision.recorded` events. The
 public audit explorer still reads the synthetic demo seed until production query
 permissions and retention/export controls are added.
 

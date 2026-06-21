@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -11,6 +12,7 @@ def create_session_factory(settings: Settings) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+@contextmanager
 def session_scope(factory: sessionmaker[Session]) -> Generator[Session]:
     session = factory()
     try:

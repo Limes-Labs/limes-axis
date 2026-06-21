@@ -1,0 +1,135 @@
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+from axis_api.audit import AuditEventCreate
+from axis_api.demo import ApprovalDecision, ApprovalInboxItem, get_manufacturing_approval_inbox
+from axis_api.persistence import (
+    ApprovalDecisionRecord,
+    ApprovalRecordCreate,
+    AxisPersistenceRepository,
+)
+
+
+class DemoApprovalNotFound(LookupError):
+    pass
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: ApprovalDecision
+    actor_id: str = Field(min_length=1)
+    note: str | None = Field(default=None, max_length=600)
+
+
+class ApprovalDecisionPersistenceResult(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    action_id: str = Field(min_length=1)
+    decision: ApprovalDecision
+    status: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    audit_event_id: UUID
+    audit_event_type: str = Field(min_length=1)
+    persisted: bool
+    workflow_signal_status: str = Field(min_length=1)
+
+
+_APPROVAL_ACTION_IDS = {
+    "appr_expedite_supplier_batch": "request_supplier_expedite",
+    "appr_quality_hold_batch": "place_quality_hold",
+    "appr_shift_maintenance_window": "shift_maintenance_window",
+}
+
+
+def _approval_action_id(approval_id: str) -> str:
+    return _APPROVAL_ACTION_IDS.get(approval_id, approval_id)
+
+
+def _find_demo_approval(approval_id: str) -> tuple[str, ApprovalInboxItem]:
+    inbox = get_manufacturing_approval_inbox()
+    for approval in inbox.approvals:
+        if approval.approval_id == approval_id:
+            return inbox.tenant_id, approval
+
+    raise DemoApprovalNotFound("Approval not found")
+
+
+def _ensure_approval_record(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+) -> None:
+    existing = repository.get_approval_record(tenant_id, approval.approval_id)
+    if existing is not None:
+        return
+
+    repository.create_approval_record(
+        ApprovalRecordCreate(
+            tenant_id=tenant_id,
+            approval_id=approval.approval_id,
+            workflow_id=approval.workflow_id,
+            action_id=_approval_action_id(approval.approval_id),
+            requested_by=approval.requested_by,
+            owner_role=approval.owner_role,
+            risk_level=approval.risk_level,
+            payload={
+                "action": approval.action,
+                "summary": approval.summary,
+                "required_permission": approval.required_permission,
+                "model_policy": approval.model_policy,
+                "estimated_cost": approval.estimated_cost,
+                "audit_event_preview": approval.audit_event_preview.model_dump(),
+            },
+        )
+    )
+
+
+def record_demo_approval_decision(
+    repository: AxisPersistenceRepository,
+    approval_id: str,
+    request: ApprovalDecisionRequest,
+) -> ApprovalDecisionPersistenceResult:
+    tenant_id, approval = _find_demo_approval(approval_id)
+    action_id = _approval_action_id(approval.approval_id)
+    _ensure_approval_record(repository, tenant_id, approval)
+
+    approval_record = repository.record_approval_decision(
+        ApprovalDecisionRecord(
+            tenant_id=tenant_id,
+            approval_id=approval.approval_id,
+            decision=request.decision.value,
+            decision_actor_id=request.actor_id,
+            decision_note=request.note,
+        )
+    )
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=tenant_id,
+            actor_id=request.actor_id,
+            event_type="approval.decision.recorded",
+            payload={
+                "approval_id": approval.approval_id,
+                "workflow_id": approval.workflow_id,
+                "action_id": action_id,
+                "decision": request.decision.value,
+                "required_permission": approval.required_permission,
+                "result": approval.audit_event_preview.result,
+                "decision_note_recorded": str(request.note is not None).lower(),
+            },
+        )
+    )
+
+    return ApprovalDecisionPersistenceResult(
+        tenant_id=tenant_id,
+        approval_id=approval.approval_id,
+        workflow_id=approval.workflow_id,
+        action_id=action_id,
+        decision=request.decision,
+        status=approval_record.status,
+        actor_id=request.actor_id,
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
+        persisted=True,
+        workflow_signal_status="pending_runtime_signal",
+    )

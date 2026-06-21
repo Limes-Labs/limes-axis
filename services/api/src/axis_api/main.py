@@ -1,7 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from collections.abc import Generator
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from axis_api.approval_decisions import (
+    ApprovalDecisionPersistenceResult,
+    ApprovalDecisionRequest,
+    DemoApprovalNotFound,
+    record_demo_approval_decision,
+)
 from axis_api.config import Settings
+from axis_api.db import create_session_factory, session_scope
 from axis_api.demo import (
     ManufacturingActionRegistry,
     ManufacturingAgentRegistry,
@@ -22,6 +32,18 @@ from axis_api.demo import (
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
 )
+from axis_api.persistence import AxisPersistenceRepository
+
+
+def persistence_repository(request: Request) -> Generator[AxisPersistenceRepository]:
+    with session_scope(request.app.state.session_factory) as session:
+        yield AxisPersistenceRepository(session)
+
+
+PersistenceRepository = Annotated[
+    AxisPersistenceRepository,
+    Depends(persistence_repository),
+]
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -43,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-Axis-Tenant", "X-Axis-Actor"],
     )
     app.state.settings = resolved_settings
+    app.state.session_factory = create_session_factory(resolved_settings)
 
     @app.get("/health", tags=["system"])
     def health() -> dict[str, str]:
@@ -100,6 +123,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_approval_inbox() -> ManufacturingApprovalInbox:
         return get_manufacturing_approval_inbox()
+
+    @app.post(
+        "/demo/manufacturing/approvals/{approval_id}/decision",
+        response_model=ApprovalDecisionPersistenceResult,
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_approval_decision(
+        approval_id: str,
+        decision: ApprovalDecisionRequest,
+        repository: PersistenceRepository,
+    ) -> ApprovalDecisionPersistenceResult:
+        try:
+            return record_demo_approval_decision(repository, approval_id, decision)
+        except DemoApprovalNotFound as exc:
+            raise HTTPException(status_code=404, detail="Approval not found") from exc
 
     @app.get(
         "/demo/manufacturing/audit",
