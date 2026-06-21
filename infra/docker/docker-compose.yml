@@ -16,7 +16,7 @@ services:
       retries: 20
 
   typedb:
-    image: typedb/typedb:latest
+    image: typedb/typedb@sha256:b51d9131b6b4c4dd102c377b9b8941a81a90e2f982af9a0b58f1ba5e0bfcf9b7
     ports:
       - "1729:1729"
       - "8001:8000"
