@@ -4,9 +4,9 @@ The persistence foundation adds the first Postgres-backed storage boundary for
 governed operational state.
 
 It is intentionally narrow: schema, ORM models, repository methods, a demo
-approval decision endpoint, web console submission, demo permission enforcement
-workflow signal execution and tests. It does not yet replace all public demo
-seeds or persist workflow histories.
+approval decision endpoint, web console submission, demo permission enforcement,
+workflow signal execution, action run creation and tests. It does not yet
+replace all public demo seeds or persist workflow histories.
 
 ## Tables
 
@@ -52,11 +52,13 @@ Delivered:
 - demo approval decision permission checks before persistence.
 - workflow signal execution through the Axis workflow runtime adapter, with
   explicit degraded status when the runtime is unavailable.
+- typed action run creation from demo action payloads, with permission checks,
+  idempotency replay/conflict behavior and append-only action audit events.
 
 Still Platform work:
 
 - persisted workflow run state and tenant-scoped history views;
-- production audit writes from action runtime paths;
+- production connector mutations from action runtime paths;
 - production identity-bound permission enforcement;
 - immutable storage hardening beyond insert-only repository shape;
 - retention/export controls;

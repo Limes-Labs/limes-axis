@@ -73,6 +73,34 @@ export type ManufacturingActionRegistry = {
   registry_notes: string[];
 };
 
+export type ActionRunRequest = {
+  actor_id: string;
+  actor_scopes: string[];
+  idempotency_key?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ActionRunPersistenceResult = {
+  tenant_id: string;
+  action_run_id: string;
+  action_id: string;
+  idempotency_key: string;
+  status: string;
+  execution_mode: string;
+  requested_by: string;
+  approval_required: boolean;
+  approval_id?: string | null;
+  workflow_id?: string | null;
+  persisted: boolean;
+  idempotent_replay: boolean;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id?: string | null;
+  audit_event_type?: string | null;
+};
+
 export type ActionFilters = {
   domain: string;
   riskLevel: string;
@@ -414,10 +442,10 @@ export const defaultManufacturingActionRegistry: ManufacturingActionRegistry = {
     },
   ],
   registry_notes: [
-    "This public action registry seed is read-only and synthetic.",
-    "Actions are typed and policy-gated, but runtime execution is not enabled.",
+    "This public action registry seed is synthetic and safe for dry-run requests.",
+    "Actions are typed and policy-gated, but live runtime execution is not enabled.",
     "High-risk actions require owner approval before any production signal.",
-    "Persisted action state, runtime signals and audit writes remain Platform work.",
+    "Action run requests can be persisted with idempotency and append-only audit.",
   ],
 };
 
@@ -472,4 +500,44 @@ export function formatSchemaFields(schema: ActionJsonSchema): string[] {
 
     return `${name}: ${type} (${required})`;
   });
+}
+
+export function buildActionRunIdempotencyKey(
+  registry: ManufacturingActionRegistry,
+  action: ActionRegistryEntry,
+): string {
+  const approvalOrPreview = action.approval_refs[0] ?? "preview";
+
+  return `${registry.tenant_id}:${action.definition.action_id}:${approvalOrPreview}`;
+}
+
+export function buildTypedActionPayload(action: ActionRegistryEntry): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(action.sample_input).map(([field, value]) => {
+      const fieldSchema = action.definition.input_schema.properties?.[field];
+      if (fieldSchema?.type === "array") {
+        return [
+          field,
+          value
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        ];
+      }
+
+      return [field, value];
+    }),
+  );
+}
+
+export function buildActionRunRequest(
+  registry: ManufacturingActionRegistry,
+  action: ActionRegistryEntry,
+): ActionRunRequest {
+  return {
+    actor_id: action.connected_agents[0] ?? action.owner_role,
+    actor_scopes: action.definition.required_permissions,
+    idempotency_key: buildActionRunIdempotencyKey(registry, action),
+    payload: buildTypedActionPayload(action),
+  };
 }

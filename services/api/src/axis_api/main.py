@@ -1,9 +1,18 @@
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from axis_api.action_runs import (
+    ActionPayloadValidationError,
+    ActionPermissionDenied,
+    ActionRunIdempotencyConflict,
+    ActionRunPersistenceResult,
+    ActionRunRequest,
+    DemoActionNotFound,
+    record_demo_action_run,
+)
 from axis_api.approval_decisions import (
     ApprovalDecisionPersistenceResult,
     ApprovalDecisionRequest,
@@ -144,6 +153,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_action_registry() -> ManufacturingActionRegistry:
         return get_manufacturing_action_registry()
+
+    @app.post(
+        "/demo/manufacturing/actions/{action_id}/runs",
+        response_model=ActionRunPersistenceResult,
+        responses={
+            403: {"description": "Action run permission denied"},
+            409: {"description": "Action run idempotency conflict"},
+            422: {"description": "Action payload validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_action_run(
+        action_id: str,
+        action_run: ActionRunRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> ActionRunPersistenceResult:
+        try:
+            result = record_demo_action_run(repository, action_id, action_run)
+        except DemoActionNotFound as exc:
+            raise HTTPException(status_code=404, detail="Action not found") from exc
+        except ActionPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot request this action run.",
+                    "required_permissions": exc.required_permissions,
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except ActionRunIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The idempotency key already exists with a different payload.",
+                    "action_run_id": str(exc.action_run_id),
+                },
+            ) from exc
+        except ActionPayloadValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The action payload does not match the typed input schema.",
+                    "issues": exc.issues,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+
+        return result
 
     @app.get(
         "/demo/manufacturing/approvals",
