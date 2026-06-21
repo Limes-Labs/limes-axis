@@ -68,6 +68,8 @@ It includes:
   and audit events.
 - OIDC/JWKS actor binding for approval decisions and action run requests, with
   actor/scopes derived from bearer token claims when present or required.
+- relationship-derived permission checks for authenticated ontology entity
+  detail reads and action payload resource references.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
 - Postgres persistence foundation for approval records, action runs and
@@ -82,8 +84,8 @@ The reference demo should grow into an end-to-end Platform scenario:
 - TypeDB-backed ontology relationships and permission-aware graph queries;
 - broader API-backed use of Postgres approval/action/audit/workflow state;
 - deterministic workflow replay;
-- broader relationship-aware permission enforcement beyond the current
-  OIDC-bound approval/action mutation checks;
+- broader relationship-aware permission enforcement beyond the current demo
+  ontology-scope checks;
 - audit retention deletion enforcement and legal hold workflows;
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry

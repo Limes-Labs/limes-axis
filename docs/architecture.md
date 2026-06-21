@@ -74,7 +74,11 @@ first implementation evaluates explicit roles, action attributes and resource
 relationships before action execution or approval. The current Platform
 mutation endpoints bind approval decisions and action run requests to
 OIDC-derived actors and scopes when authenticated, then apply the existing
-permission checks before persistence.
+permission checks before persistence. Entity detail reads and typed action
+payloads can also derive required scopes from the synthetic ontology
+relationships attached to referenced resources, so cross-domain graph context
+cannot be read or proposed through an action without the matching relationship
+scope.
 
 ## Expansion Rule
 

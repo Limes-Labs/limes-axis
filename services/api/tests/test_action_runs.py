@@ -272,6 +272,32 @@ async def test_record_demo_action_run_denies_actor_without_required_scope(
         assert list(session.scalars(select(AuditEvent))) == []
 
 
+async def test_record_demo_action_run_denies_cross_domain_payload_relationship(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = supplier_action_request().payload | {"supplier_batch_id": "asset_batch_q_1842"}
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(
+            ActionPermissionDenied,
+            match="missing_relationship_scope:quality:read",
+        ):
+            await record_demo_action_run(
+                repository,
+                "request_supplier_expedite",
+                ActionRunRequest(
+                    actor_id="agent_supply_risk",
+                    actor_scopes=["supply:read", "approvals:supply:request"],
+                    idempotency_key="cross-domain-payload",
+                    payload=payload,
+                ),
+            )
+
+    with session_factory() as session:
+        assert list(session.scalars(select(ActionRun))) == []
+        assert list(session.scalars(select(AuditEvent))) == []
+
+
 async def test_record_demo_action_run_validates_typed_payload_before_persistence(
     session_factory: sessionmaker[Session],
 ) -> None:

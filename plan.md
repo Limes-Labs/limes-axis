@@ -86,6 +86,8 @@ Foundation acceptance is tracked in
 - [x] Signal workflow runtime from typed action payloads behind policy.
 - [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
   and scopes.
+- [x] Enforce relationship-derived ontology scopes on entity detail reads and
+  action payload resource references.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests and retention policy metadata.
 - [x] Persist workflow run state and tenant-scoped history views.
@@ -98,9 +100,10 @@ manufacturing seed. The full manufacturing reference demo remains open until it
 has ontology relationships, approval actions, workflow execution and replay.
 
 The ontology explorer and entity detail pages are currently read-only and backed
-by the synthetic manufacturing graph. TypeDB-backed graph queries, persisted
-relationship metadata and permission-aware query enforcement remain Platform
-work.
+by the synthetic manufacturing graph. Entity detail reads can enforce
+relationship-derived required permissions when a bearer token is present or OIDC
+auth is required by configuration. TypeDB-backed graph queries, persisted
+relationship metadata and broader graph authorization remain Platform work.
 
 The workflow console is currently read-only and backed by the synthetic
 manufacturing workflow seed, with a persisted workflow run endpoint available
@@ -137,9 +140,12 @@ audit events. Approval-gated action payloads now signal the Axis workflow
 runtime adapter after persistence, with explicit degraded status when the
 runtime is unavailable. When a bearer token is present, or when OIDC auth is
 required by configuration, action run creation derives tenant, actor and scopes
-from token claims and rejects actor impersonation before persistence. Live
-production execution, connector invocation and broader relationship-aware
-permission enforcement remain Platform work.
+from token claims and rejects actor impersonation before persistence. Action
+payload fields marked as ontology references also require the scopes attached to
+their connected ontology relationships, preventing cross-domain resource
+references from bypassing the typed action permission check. Live production
+execution, connector invocation and broader relationship-aware permission
+enforcement remain Platform work.
 
 The model routing and cost observability layer is currently read-only and backed
 by synthetic manufacturing route telemetry. Live provider adapters,

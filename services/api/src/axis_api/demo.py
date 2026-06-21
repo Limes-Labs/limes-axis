@@ -722,7 +722,7 @@ def get_manufacturing_action_registry() -> ManufacturingActionRegistry:
                         "cost_ceiling_eur",
                     ],
                     "properties": {
-                        "supplier_batch_id": {"type": "string"},
+                        "supplier_batch_id": {"type": "string", "x-axis-ontology-ref": True},
                         "target_arrival": {"type": "string"},
                         "reason": {"type": "string"},
                         "cost_ceiling_eur": {"type": "string"},
@@ -797,7 +797,7 @@ def get_manufacturing_action_registry() -> ManufacturingActionRegistry:
                     "type": "object",
                     "required": ["batch_id", "hold_reason", "evidence_refs"],
                     "properties": {
-                        "batch_id": {"type": "string"},
+                        "batch_id": {"type": "string", "x-axis-ontology-ref": True},
                         "hold_reason": {"type": "string"},
                         "evidence_refs": {"type": "array", "items": {"type": "string"}},
                     },
@@ -872,7 +872,7 @@ def get_manufacturing_action_registry() -> ManufacturingActionRegistry:
                         "policy_check_id",
                     ],
                     "properties": {
-                        "asset_id": {"type": "string"},
+                        "asset_id": {"type": "string", "x-axis-ontology-ref": True},
                         "current_window": {"type": "string"},
                         "proposed_window": {"type": "string"},
                         "policy_check_id": {"type": "string"},

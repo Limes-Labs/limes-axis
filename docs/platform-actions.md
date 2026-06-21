@@ -17,6 +17,8 @@ slice does not execute production actions.
 - When an OIDC bearer token is present, or when auth is required by
   configuration, action run creation derives tenant, actor and scopes from token
   claims and rejects actor impersonation before persistence.
+- Payload fields marked as ontology resource references require the permission
+  scopes attached to their connected ontology relationships before persistence.
 - Approval-gated action runs signal the Axis workflow runtime adapter after
   persistence when a workflow binding and runtime policy are present.
 - The Next.js console renders the registry on `/agents`, below the agent
@@ -56,8 +58,11 @@ The action run path emits a redacted workflow signal result for approval-gated
 demo actions through the Axis workflow runtime adapter. In standalone demo
 mode, actor id and scopes can still be supplied in the request body. In
 authenticated deployments, the API binds the action run to the bearer token
-principal instead. The action registry UI still uses the synthetic seed for
-catalog data and does not execute production actions or connector mutations.
+principal instead. Action payloads cannot use an otherwise valid action scope
+to reference cross-domain ontology resources unless the actor also has the
+relationship scope for those resources. The action registry UI still uses the
+synthetic seed for catalog data and does not execute production actions or
+connector mutations.
 
 It does not yet include:
 
@@ -75,6 +80,8 @@ approval inbox and append-only audit ledger boundaries.
 
 - The endpoint is covered by API tests, workflow signal adapter tests and
   OpenAPI generation.
+- Relationship-scope tests cover cross-domain ontology resource references in
+  typed action payloads.
 - The web fallback seed mirrors the API contract for offline demo rendering.
 - The web unit tests cover filtering, fallback lookup, schema formatting,
   public-safety checks, action run request building and approval-gating
