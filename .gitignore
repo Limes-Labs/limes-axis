@@ -8,6 +8,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.pytype/
+*.egg-info/
 .coverage
 htmlcov/
 
@@ -34,7 +36,10 @@ tmp/
 data/
 *.log
 
+# Playwright / frontend QA
+playwright-report/
+test-results/
+
 # Editors
 .idea/
 .vscode/
-
