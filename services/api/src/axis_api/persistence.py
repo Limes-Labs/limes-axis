@@ -66,12 +66,23 @@ class AxisPersistenceRepository:
         self.session.flush()
         return audit_event
 
-    def list_audit_events(self, tenant_id: str, limit: int = 100) -> list[AuditEvent]:
-        statement = (
-            select(AuditEvent)
-            .where(AuditEvent.tenant_id == tenant_id)
-            .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
-            .limit(limit)
+    def list_audit_events(
+        self,
+        tenant_id: str,
+        event_type: str | None = None,
+        actor_id: str | None = None,
+        limit: int = 100,
+    ) -> list[AuditEvent]:
+        statement: Select[tuple[AuditEvent]] = select(AuditEvent).where(
+            AuditEvent.tenant_id == tenant_id
+        )
+        if event_type is not None:
+            statement = statement.where(AuditEvent.event_type == event_type)
+        if actor_id is not None:
+            statement = statement.where(AuditEvent.actor_id == actor_id)
+
+        statement = statement.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).limit(
+            limit
         )
         return list(self.session.scalars(statement))
 

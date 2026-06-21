@@ -54,6 +54,8 @@ Delivered:
   explicit degraded status when the runtime is unavailable.
 - typed action run creation from demo action payloads, with permission checks,
   idempotency replay/conflict behavior and append-only action audit events.
+- API-backed audit explorer queries from persisted `audit_events`, with tenant,
+  event, actor, scope and limit filters.
 
 Still Platform work:
 

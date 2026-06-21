@@ -44,10 +44,10 @@ detail pages. The
 approval slice adds a synthetic approval inbox with evidence, risk review,
 decision options and local audit preview. The workflow slice adds a read-only
 runtime console for workflow state, pending signals and history preview. The
-audit slice adds a read-only explorer for synthetic ledger events, filters and
-redacted payload previews. The agent registry slice adds a read-only governed
-agent view with autonomy boundaries, required permissions, model egress posture,
-proposals, workflow links and approval references. The action registry slice
+audit slice adds an explorer for synthetic and persisted ledger events, filters
+and redacted payload previews. The agent registry slice adds a read-only
+governed agent view with autonomy boundaries, required permissions, model egress
+posture, proposals, workflow links and approval references. The action registry slice
 adds a typed action catalog with schemas, risk levels, approval modes,
 permissions, guardrails, workflow bindings, dry-run payload previews and
 API-backed action run creation with idempotency enforcement. The
@@ -65,7 +65,8 @@ decisions through the Axis workflow runtime port to Temporal when the runtime is
 available, and records an explicit degraded status when it is not. The action
 run slice records typed dry-run/proposal requests from action payloads, enforces
 idempotency keys and appends action audit events without enabling live connector
-execution.
+execution. The audit query slice reads persisted `audit_events` through a
+tenant-scoped API endpoint and keeps the synthetic seed as a fallback.
 
 ## Architecture Defaults
 

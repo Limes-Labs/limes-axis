@@ -20,6 +20,7 @@ GET /demo/manufacturing/workflows
 GET /demo/manufacturing/approvals
 POST /demo/manufacturing/approvals/{approval_id}/decision
 GET /demo/manufacturing/audit
+GET /demo/manufacturing/audit/events
 GET /demo/manufacturing/agents
 GET /demo/manufacturing/actions
 POST /demo/manufacturing/actions/{action_id}/runs
@@ -50,6 +51,7 @@ It includes:
   runtime is available.
 - read-only audit explorer events with tenant, event type and scope filters,
   evidence references and redacted payload previews.
+- API-backed persisted audit event queries from append-only `audit_events`.
 - read-only agent registry entries with autonomy boundaries, required
   permissions, model egress posture, action proposals, workflow links and
   approval references.

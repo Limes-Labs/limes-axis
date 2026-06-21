@@ -108,9 +108,9 @@ persistence and signals the workflow runtime adapter. Production identity
 binding and broader relationship-aware permission enforcement remain Platform
 work.
 
-The audit explorer is currently read-only and backed by the synthetic
-manufacturing audit seed. The append-only audit event table and repository now
-exist, but export, retention policy enforcement, tenant-scoped query permissions
+The audit explorer is backed by the synthetic manufacturing audit seed and can
+query persisted `audit_events` through the demo API when records exist. Export,
+retention policy enforcement, production-grade tenant-scoped query permissions
 and replay remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
