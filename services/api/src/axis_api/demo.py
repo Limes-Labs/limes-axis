@@ -155,6 +155,63 @@ class AgentSummary(BaseModel):
     model_policy: str = Field(min_length=1)
 
 
+class AgentActionProposal(BaseModel):
+    proposal_id: str = Field(min_length=1)
+    action: str = Field(min_length=1)
+    risk_level: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    approval_required: bool
+    related_workflow_id: str | None = None
+    related_approval_id: str | None = None
+
+
+class AgentPolicyBoundary(BaseModel):
+    autonomy_level: str = Field(pattern=r"^L[0-4]$")
+    model_policy: str = Field(min_length=1)
+    external_egress_allowed: bool
+    max_action_level: str = Field(pattern=r"^L[0-4]$")
+    required_permissions: list[str] = Field(min_length=1)
+    guardrails: list[str] = Field(min_length=1)
+
+
+class AgentRegistryEntry(BaseModel):
+    agent_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    purpose: str = Field(min_length=1)
+    policy_boundary: AgentPolicyBoundary
+    connected_systems: list[str] = Field(min_length=1)
+    data_access: list[str] = Field(min_length=1)
+    allowed_actions: list[str] = Field(min_length=1)
+    blocked_actions: list[str] = Field(min_length=1)
+    proposals: list[AgentActionProposal] = Field(default_factory=list)
+    active_workflows: list[str] = Field(default_factory=list)
+    pending_approvals: list[str] = Field(default_factory=list)
+    last_audit_event: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(min_length=1)
+
+
+class AgentRegistryFilterOptions(BaseModel):
+    domains: list[str] = Field(min_length=1)
+    autonomy_levels: list[str] = Field(min_length=1)
+    statuses: list[str] = Field(min_length=1)
+    model_policies: list[str] = Field(min_length=1)
+
+
+class ManufacturingAgentRegistry(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    as_of: str = Field(min_length=1)
+    registry_status: OverviewStatus
+    metrics: list[OverviewMetric] = Field(min_length=1)
+    filter_options: AgentRegistryFilterOptions
+    agents: list[AgentRegistryEntry] = Field(min_length=1)
+    registry_notes: list[str] = Field(min_length=1)
+
+
 class AuditEvidence(BaseModel):
     event: str = Field(min_length=1)
     actor: str = Field(min_length=1)
@@ -396,6 +453,14 @@ def get_manufacturing_overview() -> ManufacturingOverview:
                 proposals_pending=1,
                 model_policy="no-external-egress",
             ),
+            AgentSummary(
+                agent_id="agent_maintenance_planner",
+                name="Maintenance Planner Agent",
+                autonomy_level="L2",
+                status="proposal_ready",
+                proposals_pending=1,
+                model_policy="local-or-approved-provider",
+            ),
         ],
         audit_events=[
             AuditEvidence(
@@ -416,6 +481,288 @@ def get_manufacturing_overview() -> ManufacturingOverview:
                 scope="wf_quality_hold_review",
                 result="recorded",
             ),
+        ],
+    )
+
+
+def _agent_registry_filter_options(
+    agents: list[AgentRegistryEntry],
+) -> AgentRegistryFilterOptions:
+    return AgentRegistryFilterOptions(
+        domains=sorted({agent.domain for agent in agents}),
+        autonomy_levels=sorted({agent.policy_boundary.autonomy_level for agent in agents}),
+        statuses=sorted({agent.status for agent in agents}),
+        model_policies=sorted({agent.policy_boundary.model_policy for agent in agents}),
+    )
+
+
+def get_manufacturing_agent_registry() -> ManufacturingAgentRegistry:
+    agents = [
+        AgentRegistryEntry(
+            agent_id="agent_daily_brief",
+            name="Daily Brief Agent",
+            domain="Operations",
+            status="recommending",
+            owner_role="plant-operations-owner",
+            purpose="Summarize plant risks, pending workflow gates and audit evidence for owners.",
+            policy_boundary=AgentPolicyBoundary(
+                autonomy_level="L1",
+                model_policy="local-or-approved-provider",
+                external_egress_allowed=False,
+                max_action_level="L1",
+                required_permissions=["agents:read", "audit:read", "workflows:read"],
+                guardrails=[
+                    "Summaries only; no action payload execution.",
+                    "No external model egress unless tenant policy explicitly allows it.",
+                    "Must cite workflow, approval or audit evidence for operational claims.",
+                ],
+            ),
+            connected_systems=["Axis Audit", "Temporal", "TypeDB Boundary"],
+            data_access=[
+                "workflow summaries",
+                "approval queue summaries",
+                "audit event summaries",
+                "ontology relationship summaries",
+            ],
+            allowed_actions=[
+                "Generate daily plant brief",
+                "Rank open governance gates",
+                "Prepare owner-facing evidence summary",
+            ],
+            blocked_actions=[
+                "Execute workflow signal",
+                "Approve action payload",
+                "Read unrestricted source-system records",
+            ],
+            proposals=[
+                AgentActionProposal(
+                    proposal_id="proposal_daily_brief_20260621",
+                    action="Generate daily plant brief",
+                    risk_level="low",
+                    status="ready_for_owner_review",
+                    approval_required=False,
+                    related_workflow_id="wf_supplier_delay_review",
+                )
+            ],
+            active_workflows=["wf_supplier_delay_review", "wf_quality_hold_review"],
+            pending_approvals=[],
+            last_audit_event="audit_20260621_154000_ontology_read",
+            evidence_refs=["wf_supplier_delay_review", "audit_20260621_154000_ontology_read"],
+        ),
+        AgentRegistryEntry(
+            agent_id="agent_supply_risk",
+            name="Supply Risk Agent",
+            domain="Supply",
+            status="waiting_for_approval",
+            owner_role="plant-operations-owner",
+            purpose="Detect supplier delay risk and draft governed supply actions.",
+            policy_boundary=AgentPolicyBoundary(
+                autonomy_level="L2",
+                model_policy="no-external-egress",
+                external_egress_allowed=False,
+                max_action_level="L2",
+                required_permissions=["agents:read", "supply:read", "approvals:supply:request"],
+                guardrails=[
+                    "Can draft action payloads, but cannot execute supplier changes.",
+                    "High-risk supply actions require plant operations owner approval.",
+                    "Must keep supplier and production context inside tenant boundary.",
+                ],
+            ),
+            connected_systems=["Supplier Portal", "MES", "ERP", "Axis Audit"],
+            data_access=[
+                "inbound shipment status",
+                "Line 2 packaging schedule",
+                "rush order priority flag",
+                "supply approval history",
+            ],
+            allowed_actions=[
+                "Draft expedite supplier batch action",
+                "Prepare supplier delay evidence",
+                "Request supply owner approval",
+            ],
+            blocked_actions=[
+                "Book priority freight",
+                "Mutate supplier order",
+                "Signal workflow completion",
+            ],
+            proposals=[
+                AgentActionProposal(
+                    proposal_id="proposal_expedite_supplier_batch",
+                    action="Expedite supplier batch",
+                    risk_level="high",
+                    status="approval_required",
+                    approval_required=True,
+                    related_workflow_id="wf_supplier_delay_review",
+                    related_approval_id="appr_expedite_supplier_batch",
+                )
+            ],
+            active_workflows=["wf_supplier_delay_review"],
+            pending_approvals=["appr_expedite_supplier_batch"],
+            last_audit_event="audit_20260621_141200_agent_proposal",
+            evidence_refs=[
+                "risk_supplier_delay",
+                "asset_motors_batch",
+                "audit_20260621_141200_agent_proposal",
+            ],
+        ),
+        AgentRegistryEntry(
+            agent_id="agent_quality_risk",
+            name="Quality Risk Agent",
+            domain="Quality",
+            status="drafting_actions",
+            owner_role="quality-owner",
+            purpose="Review quality drift evidence and draft quality hold recommendations.",
+            policy_boundary=AgentPolicyBoundary(
+                autonomy_level="L2",
+                model_policy="no-external-egress",
+                external_egress_allowed=False,
+                max_action_level="L2",
+                required_permissions=["agents:read", "quality:read", "approvals:quality:request"],
+                guardrails=[
+                    "Can draft quality hold recommendations, but cannot release or hold batches.",
+                    "Quality evidence must stay inside approved tenant systems.",
+                    "External model egress is blocked by default for quality evidence.",
+                ],
+            ),
+            connected_systems=["QMS", "MES", "ERP", "Axis Audit"],
+            data_access=[
+                "sample inspection variance",
+                "batch genealogy",
+                "customer order priority",
+                "quality proposal audit trail",
+            ],
+            allowed_actions=[
+                "Draft quality hold proposal",
+                "Prepare evidence for quality owner",
+                "Request quality owner review",
+            ],
+            blocked_actions=[
+                "Release batch",
+                "Place batch on hold without approval",
+                "Use external model provider for quality data",
+            ],
+            proposals=[
+                AgentActionProposal(
+                    proposal_id="proposal_quality_hold_batch_q_1842",
+                    action="Place Batch Q-1842 on quality hold",
+                    risk_level="high",
+                    status="review_required",
+                    approval_required=True,
+                    related_workflow_id="wf_quality_hold_review",
+                    related_approval_id="appr_quality_hold_batch",
+                )
+            ],
+            active_workflows=["wf_quality_hold_review"],
+            pending_approvals=["appr_quality_hold_batch"],
+            last_audit_event="audit_20260621_134400_quality_proposal",
+            evidence_refs=[
+                "risk_quality_drift",
+                "asset_batch_q_1842",
+                "audit_20260621_133900_egress_blocked",
+            ],
+        ),
+        AgentRegistryEntry(
+            agent_id="agent_maintenance_planner",
+            name="Maintenance Planner Agent",
+            domain="Maintenance",
+            status="proposal_ready",
+            owner_role="maintenance-owner",
+            purpose="Draft maintenance schedule changes while preserving service-window policy.",
+            policy_boundary=AgentPolicyBoundary(
+                autonomy_level="L2",
+                model_policy="local-or-approved-provider",
+                external_egress_allowed=False,
+                max_action_level="L2",
+                required_permissions=[
+                    "agents:read",
+                    "maintenance:read",
+                    "approvals:maintenance:request",
+                ],
+                guardrails=[
+                    "Can draft schedule shifts, but cannot mutate CMMS state.",
+                    "Service-window policy must be checked before owner review.",
+                    "Schedule changes require maintenance owner approval.",
+                ],
+            ),
+            connected_systems=["CMMS", "MES", "ERP", "Axis Audit"],
+            data_access=[
+                "Press 4 maintenance window",
+                "rush order schedule",
+                "service interval tolerance",
+                "maintenance proposal audit trail",
+            ],
+            allowed_actions=[
+                "Draft maintenance reschedule proposal",
+                "Prepare service-window evidence",
+                "Request maintenance owner review",
+            ],
+            blocked_actions=[
+                "Mutate CMMS schedule",
+                "Delay maintenance beyond policy",
+                "Close workflow without owner signal",
+            ],
+            proposals=[
+                AgentActionProposal(
+                    proposal_id="proposal_shift_press_4_maintenance",
+                    action="Shift Press 4 maintenance window",
+                    risk_level="medium",
+                    status="proposal_ready",
+                    approval_required=True,
+                    related_workflow_id="wf_maintenance_reschedule",
+                    related_approval_id="appr_shift_maintenance_window",
+                )
+            ],
+            active_workflows=["wf_maintenance_reschedule"],
+            pending_approvals=["appr_shift_maintenance_window"],
+            last_audit_event="audit_20260621_151800_maintenance_proposal",
+            evidence_refs=[
+                "risk_maintenance_window",
+                "asset_press_4",
+                "audit_20260621_151800_maintenance_proposal",
+            ],
+        ),
+    ]
+
+    return ManufacturingAgentRegistry(
+        tenant_id="tenant_demo_manufacturing",
+        plant_name="Ravenna Works",
+        scenario="Plant Operations Cockpit",
+        as_of="2026-06-21T16:30:00+02:00",
+        registry_status=OverviewStatus.WATCH,
+        metrics=[
+            OverviewMetric(
+                label="Registered Agents",
+                value=str(len(agents)),
+                detail="Governed L1-L2 agents in the manufacturing demo tenant",
+                status=OverviewStatus.READY,
+            ),
+            OverviewMetric(
+                label="Pending Proposals",
+                value="4",
+                detail="One brief proposal and three action proposals under owner review",
+                status=OverviewStatus.WATCH,
+            ),
+            OverviewMetric(
+                label="Approval Gates",
+                value="3",
+                detail="High and medium risk agent proposals require human owners",
+                status=OverviewStatus.ACTION_REQUIRED,
+            ),
+            OverviewMetric(
+                label="External Egress",
+                value="0 allowed",
+                detail="All demo agents remain inside the tenant boundary",
+                status=OverviewStatus.READY,
+            ),
+        ],
+        filter_options=_agent_registry_filter_options(agents),
+        agents=agents,
+        registry_notes=[
+            "This public agent registry seed is read-only and synthetic.",
+            "Agents can draft or recommend inside their autonomy level, but cannot mutate systems.",
+            "External model egress is disabled unless tenant policy explicitly enables it.",
+            "A production action registry, runtime execution and persisted agent state "
+            "remain Platform work.",
         ],
     )
 

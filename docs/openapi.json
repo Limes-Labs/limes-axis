@@ -1,6 +1,278 @@
 {
   "components": {
     "schemas": {
+      "AgentActionProposal": {
+        "properties": {
+          "action": {
+            "minLength": 1,
+            "title": "Action",
+            "type": "string"
+          },
+          "approval_required": {
+            "title": "Approval Required",
+            "type": "boolean"
+          },
+          "proposal_id": {
+            "minLength": 1,
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "related_approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Approval Id"
+          },
+          "related_workflow_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Workflow Id"
+          },
+          "risk_level": {
+            "minLength": 1,
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "action",
+          "risk_level",
+          "status",
+          "approval_required"
+        ],
+        "title": "AgentActionProposal",
+        "type": "object"
+      },
+      "AgentPolicyBoundary": {
+        "properties": {
+          "autonomy_level": {
+            "pattern": "^L[0-4]$",
+            "title": "Autonomy Level",
+            "type": "string"
+          },
+          "external_egress_allowed": {
+            "title": "External Egress Allowed",
+            "type": "boolean"
+          },
+          "guardrails": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Guardrails",
+            "type": "array"
+          },
+          "max_action_level": {
+            "pattern": "^L[0-4]$",
+            "title": "Max Action Level",
+            "type": "string"
+          },
+          "model_policy": {
+            "minLength": 1,
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "required_permissions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Required Permissions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "autonomy_level",
+          "model_policy",
+          "external_egress_allowed",
+          "max_action_level",
+          "required_permissions",
+          "guardrails"
+        ],
+        "title": "AgentPolicyBoundary",
+        "type": "object"
+      },
+      "AgentRegistryEntry": {
+        "properties": {
+          "active_workflows": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Active Workflows",
+            "type": "array"
+          },
+          "agent_id": {
+            "minLength": 1,
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "allowed_actions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Allowed Actions",
+            "type": "array"
+          },
+          "blocked_actions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Blocked Actions",
+            "type": "array"
+          },
+          "connected_systems": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Connected Systems",
+            "type": "array"
+          },
+          "data_access": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Data Access",
+            "type": "array"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "last_audit_event": {
+            "minLength": 1,
+            "title": "Last Audit Event",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "pending_approvals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pending Approvals",
+            "type": "array"
+          },
+          "policy_boundary": {
+            "$ref": "#/components/schemas/AgentPolicyBoundary"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/AgentActionProposal"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "purpose": {
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "name",
+          "domain",
+          "status",
+          "owner_role",
+          "purpose",
+          "policy_boundary",
+          "connected_systems",
+          "data_access",
+          "allowed_actions",
+          "blocked_actions",
+          "last_audit_event",
+          "evidence_refs"
+        ],
+        "title": "AgentRegistryEntry",
+        "type": "object"
+      },
+      "AgentRegistryFilterOptions": {
+        "properties": {
+          "autonomy_levels": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Autonomy Levels",
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Domains",
+            "type": "array"
+          },
+          "model_policies": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Model Policies",
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "domains",
+          "autonomy_levels",
+          "statuses",
+          "model_policies"
+        ],
+        "title": "AgentRegistryFilterOptions",
+        "type": "object"
+      },
       "AgentSummary": {
         "properties": {
           "agent_id": {
@@ -519,6 +791,73 @@
           "payload_preview"
         ],
         "title": "AuditLedgerEvent",
+        "type": "object"
+      },
+      "ManufacturingAgentRegistry": {
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRegistryEntry"
+            },
+            "minItems": 1,
+            "title": "Agents",
+            "type": "array"
+          },
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "filter_options": {
+            "$ref": "#/components/schemas/AgentRegistryFilterOptions"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "minItems": 1,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Registry Notes",
+            "type": "array"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "registry_status",
+          "metrics",
+          "filter_options",
+          "agents",
+          "registry_notes"
+        ],
+        "title": "ManufacturingAgentRegistry",
         "type": "object"
       },
       "ManufacturingApprovalInbox": {
@@ -1349,6 +1688,27 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/demo/manufacturing/agents": {
+      "get": {
+        "operationId": "manufacturing_agent_registry_demo_manufacturing_agents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingAgentRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Agent Registry",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/demo/manufacturing/approvals": {
       "get": {
         "operationId": "manufacturing_approval_inbox_demo_manufacturing_approvals_get",

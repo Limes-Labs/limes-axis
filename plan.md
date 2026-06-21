@@ -72,7 +72,7 @@ Foundation acceptance is tracked in
 - [x] Build the governance console overview.
 - [x] Build the ontology explorer.
 - [x] Build the workflow console.
-- [ ] Build the agent registry.
+- [x] Build the agent registry.
 - [x] Build the approval inbox.
 - [x] Build the audit explorer.
 - [ ] Build the model routing and cost observability layer.
@@ -99,6 +99,11 @@ permission enforcement and append-only audit writes remain Platform work.
 The audit explorer is currently read-only and backed by the synthetic
 manufacturing audit seed. Persisted append-only storage, export, retention policy
 enforcement, tenant-scoped query permissions and replay remain Platform work.
+
+The agent registry is currently read-only and backed by the synthetic
+manufacturing agent seed. Production action execution, persisted agent state,
+tenant-scoped agent configuration, runtime policy enforcement and model cost
+observability remain Platform work.
 
 ### Enterprise
 

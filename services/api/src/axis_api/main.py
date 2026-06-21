@@ -3,11 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from axis_api.config import Settings
 from axis_api.demo import (
+    ManufacturingAgentRegistry,
     ManufacturingApprovalInbox,
     ManufacturingAuditExplorer,
     ManufacturingOntology,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
+    get_manufacturing_agent_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_ontology,
@@ -68,6 +70,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
         return get_manufacturing_workflow_console()
+
+    @app.get(
+        "/demo/manufacturing/agents",
+        response_model=ManufacturingAgentRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_agent_registry() -> ManufacturingAgentRegistry:
+        return get_manufacturing_agent_registry()
 
     @app.get(
         "/demo/manufacturing/approvals",
