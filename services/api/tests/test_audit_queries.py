@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from axis_api.audit import AuditEventCreate
-from axis_api.audit_queries import AuditEventQuery, query_persisted_audit_events
+from axis_api.audit_queries import (
+    AuditEventQuery,
+    AuditExportQuery,
+    export_persisted_audit_events,
+    query_persisted_audit_events,
+)
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
@@ -43,6 +48,7 @@ def seed_audit_events(repository: AxisPersistenceRepository) -> None:
                 "approval_required": True,
                 "permission_decision": {"allowed": True, "reason": "allowed"},
                 "payload_field_names": ["supplier_batch_id", "target_arrival"],
+                "credential_secret": "never-export-this-value",
             },
         )
     )
@@ -193,3 +199,97 @@ def test_openapi_exposes_persisted_audit_events_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/audit/events" in response.json()["paths"]
+
+
+def test_export_persisted_audit_events_returns_manifest_and_retention_controls(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(
+                tenant_id="tenant_demo_manufacturing",
+                export_reason="security-review",
+            ),
+        )
+
+    assert export.tenant_id == "tenant_demo_manufacturing"
+    assert export.format == "json"
+    assert export.export_reason == "security-review"
+    assert export.manifest.tenant_id == "tenant_demo_manufacturing"
+    assert export.manifest.record_count == 2
+    assert export.manifest.redaction_policy == "payload-preview-only"
+    assert export.retention_policy.policy_id == "axis-demo-audit-standard"
+    assert export.retention_policy.retention_days == 365
+    assert export.retention_policy.legal_hold is False
+    assert export.retention_policy.export_requires_review is True
+    assert len(export.events) == 2
+    assert {event.tenant_id for event in export.events} == {"tenant_demo_manufacturing"}
+    assert "tenant_other" not in export.model_dump_json()
+    assert "credential_secret" not in export.model_dump_json()
+    assert "never-export-this-value" not in export.model_dump_json()
+
+
+def test_export_persisted_audit_events_applies_event_actor_scope_and_limit_filters(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(
+                tenant_id="tenant_demo_manufacturing",
+                event_type="approval.decision.recorded",
+                actor_id="plant-operations-owner-role",
+                scope="wf_supplier_delay_review",
+                limit=1,
+            ),
+        )
+
+    assert export.manifest.record_count == 1
+    assert export.filters.event_type == "approval.decision.recorded"
+    assert export.filters.actor_id == "plant-operations-owner-role"
+    assert export.filters.scope == "wf_supplier_delay_review"
+    assert export.filters.limit == 1
+    assert [event.event_type for event in export.events] == ["approval.decision.recorded"]
+
+
+def test_persisted_audit_export_endpoint_returns_tenant_scoped_redacted_bundle(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_audit_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/export",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "event_type": "action.proposal.created",
+            "export_reason": "incident-review",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["export_reason"] == "incident-review"
+    assert body["manifest"]["record_count"] == 1
+    assert body["retention_policy"]["retention_days"] == 365
+    assert body["events"][0]["event_type"] == "action.proposal.created"
+    assert "tenant_other" not in str(body)
+    assert "credential_secret" not in str(body)
+    assert "never-export-this-value" not in str(body)
+
+
+def test_openapi_exposes_persisted_audit_export_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/audit/export" in response.json()["paths"]

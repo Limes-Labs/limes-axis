@@ -1,4 +1,6 @@
-from datetime import UTC
+import hashlib
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -20,6 +22,46 @@ class AuditEventQuery(BaseModel):
     actor_id: str | None = Field(default=None, min_length=1)
     scope: str | None = Field(default=None, min_length=1)
     limit: int = Field(default=100, ge=1, le=200)
+
+
+class AuditExportQuery(AuditEventQuery):
+    export_reason: str = Field(default="governance-review", min_length=1, max_length=120)
+    retention_days: int = Field(default=365, ge=30, le=3650)
+    legal_hold: bool = False
+    format: str = Field(default="json", pattern="^json$")
+
+
+class AuditRetentionPolicy(BaseModel):
+    policy_id: str = Field(min_length=1)
+    retention_days: int = Field(ge=1)
+    retention_basis: str = Field(min_length=1)
+    disposal_action: str = Field(min_length=1)
+    legal_hold: bool
+    export_requires_review: bool
+    notes: list[str] = Field(default_factory=list)
+
+
+class AuditExportManifest(BaseModel):
+    export_id: str = Field(min_length=1)
+    generated_at: str = Field(min_length=1)
+    tenant_id: str = Field(min_length=1)
+    record_count: int = Field(ge=0)
+    format: str = Field(min_length=1)
+    redaction_policy: str = Field(min_length=1)
+    retention_policy_id: str = Field(min_length=1)
+    checksum_sha256: str = Field(min_length=64, max_length=64)
+
+
+class AuditExportBundle(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    format: str = Field(min_length=1)
+    export_reason: str = Field(min_length=1)
+    filters: AuditEventQuery
+    retention_policy: AuditRetentionPolicy
+    manifest: AuditExportManifest
+    events: list[AuditLedgerEvent] = Field(default_factory=list)
+    retention_notes: list[str] = Field(default_factory=list)
 
 
 def _string_value(value: Any) -> str:
@@ -215,6 +257,16 @@ def _metrics(events: list[AuditLedgerEvent]) -> list[OverviewMetric]:
     ]
 
 
+def _query_filters(query: AuditEventQuery) -> AuditEventQuery:
+    return AuditEventQuery(
+        tenant_id=query.tenant_id,
+        event_type=query.event_type,
+        actor_id=query.actor_id,
+        scope=query.scope,
+        limit=query.limit,
+    )
+
+
 def query_persisted_audit_events(
     repository: AxisPersistenceRepository,
     query: AuditEventQuery,
@@ -242,6 +294,69 @@ def query_persisted_audit_events(
             "This view is backed by persisted append-only audit events.",
             "Payload previews expose governed field summaries, not raw sensitive payloads.",
             "Queries are tenant-scoped before optional event, actor and scope filters.",
-            "Export, retention policy enforcement and replay remain Platform work.",
+            "Export manifests are available through the retention/export endpoint; "
+            "replay remains Platform work.",
+        ],
+    )
+
+
+def _retention_policy(query: AuditExportQuery) -> AuditRetentionPolicy:
+    return AuditRetentionPolicy(
+        policy_id="axis-demo-audit-standard",
+        retention_days=query.retention_days,
+        retention_basis="tenant-scoped operational audit ledger",
+        disposal_action="review_then_delete",
+        legal_hold=query.legal_hold,
+        export_requires_review=True,
+        notes=[
+            "Demo exports are payload-preview-only and require governance review before sharing.",
+            "Retention controls are represented as policy metadata in this slice.",
+            "Deletion enforcement, legal hold workflow and immutable storage hardening "
+            "remain future work.",
+        ],
+    )
+
+
+def _events_checksum(events: list[AuditLedgerEvent]) -> str:
+    encoded_events = json.dumps(
+        [event.model_dump(mode="json") for event in events],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded_events.encode("utf-8")).hexdigest()
+
+
+def export_persisted_audit_events(
+    repository: AxisPersistenceRepository,
+    query: AuditExportQuery,
+) -> AuditExportBundle:
+    explorer = query_persisted_audit_events(repository, query)
+    retention_policy = _retention_policy(query)
+    checksum = _events_checksum(explorer.events)
+    generated_at = datetime.now(UTC).isoformat()
+    manifest = AuditExportManifest(
+        export_id=f"audit-export-{checksum[:16]}",
+        generated_at=generated_at,
+        tenant_id=query.tenant_id,
+        record_count=len(explorer.events),
+        format=query.format,
+        redaction_policy="payload-preview-only",
+        retention_policy_id=retention_policy.policy_id,
+        checksum_sha256=checksum,
+    )
+    return AuditExportBundle(
+        tenant_id=query.tenant_id,
+        scenario=explorer.scenario,
+        format=query.format,
+        export_reason=query.export_reason,
+        filters=_query_filters(query),
+        retention_policy=retention_policy,
+        manifest=manifest,
+        events=explorer.events,
+        retention_notes=[
+            "Export bundle is tenant-scoped before optional filters are applied.",
+            "Events include ledger metadata and redacted payload previews only.",
+            "Manifest checksum covers the exported event payload previews and metadata.",
+            "Retention policy is advisory metadata until enforcement is implemented.",
         ],
     )

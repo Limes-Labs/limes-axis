@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   allAuditFilter,
+  defaultAuditExportBundle,
   defaultManufacturingAuditExplorer,
   filterAuditEvents,
   findAuditEventById,
@@ -65,5 +66,16 @@ describe("manufacturing audit explorer demo contract", () => {
   it("formats audit labels", () => {
     expect(formatAuditLabel("policy.egress.blocked")).toBe("Policy Egress Blocked");
     expect(formatAuditLabel("approvals:supply:decide")).toBe("Approvals Supply Decide");
+  });
+
+  it("keeps a public-safe audit export bundle available without the API", () => {
+    expect(defaultAuditExportBundle.tenant_id).toBe("tenant_demo_manufacturing");
+    expect(defaultAuditExportBundle.manifest.record_count).toBe(
+      defaultManufacturingAuditExplorer.events.length,
+    );
+    expect(defaultAuditExportBundle.retention_policy.retention_days).toBe(365);
+    expect(defaultAuditExportBundle.retention_policy.export_requires_review).toBe(true);
+    expect(JSON.stringify(defaultAuditExportBundle)).not.toContain("@");
+    expect(JSON.stringify(defaultAuditExportBundle).toLowerCase()).not.toContain("secret");
   });
 });

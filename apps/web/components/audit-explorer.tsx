@@ -6,11 +6,13 @@ import { FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-rea
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allAuditFilter,
+  defaultAuditExportBundle,
   defaultManufacturingAuditExplorer,
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
   type AuditFilters,
+  type AuditExportBundle,
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
 import {
@@ -52,6 +54,7 @@ export function AuditExplorer() {
   const [auditData, setAuditData] = useState<ManufacturingAuditExplorer>(
     defaultManufacturingAuditExplorer,
   );
+  const [auditExport, setAuditExport] = useState<AuditExportBundle>(defaultAuditExportBundle);
   const [source, setSource] = useState<AuditSource>("loading");
   const [filters, setFilters] = useState<AuditFilters>(defaultFilters);
   const [selectedEventId, setSelectedEventId] = useState(
@@ -75,11 +78,43 @@ export function AuditExplorer() {
       return (await response.json()) as ManufacturingAuditExplorer;
     }
 
+    async function fetchAuditExport(): Promise<AuditExportBundle> {
+      const params = new URLSearchParams({
+        tenant_id: "tenant_demo_manufacturing",
+        limit: "100",
+        export_reason: "console-review",
+      });
+      const response = await fetch(`${apiBaseUrl}/demo/manufacturing/audit/export?${params}`, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Audit export request failed with ${response.status}`);
+      }
+
+      return (await response.json()) as AuditExportBundle;
+    }
+
+    async function loadAuditExport() {
+      try {
+        const exportData = await fetchAuditExport();
+        if (!controller.signal.aborted) {
+          setAuditExport(exportData);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setAuditExport(defaultAuditExportBundle);
+        }
+      }
+    }
+
     async function fetchAudit() {
       try {
         const persistedAuditData = await fetchAuditData(
           "/demo/manufacturing/audit/events?tenant_id=tenant_demo_manufacturing&limit=100",
         );
+        await loadAuditExport();
         if (persistedAuditData.events.length > 0) {
           setAuditData(persistedAuditData);
           setSelectedEventId(persistedAuditData.events[0].audit_event_id);
@@ -94,6 +129,7 @@ export function AuditExplorer() {
       } catch {
         if (!controller.signal.aborted) {
           setAuditData(defaultManufacturingAuditExplorer);
+          setAuditExport(defaultAuditExportBundle);
           setSelectedEventId(defaultManufacturingAuditExplorer.events[0].audit_event_id);
           setSource("fallback");
         }
@@ -345,6 +381,55 @@ export function AuditExplorer() {
         <p className="section-label">Retention Notes</p>
         <div className="stack">
           {auditData.retention_notes.map((note) => (
+            <p className="row-detail" key={note}>
+              {note}
+            </p>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel audit-detail">
+        <div className="audit-detail-header">
+          <div>
+            <p className="section-label">Export Controls</p>
+            <h2 className="panel-title">{auditExport.manifest.export_id}</h2>
+            <p className="row-detail">
+              {auditExport.export_reason} / {auditExport.manifest.redaction_policy}
+            </p>
+          </div>
+          <span className="status-pill signal-ready">
+            <FileText size={15} />
+            {auditExport.format.toUpperCase()} export
+          </span>
+        </div>
+
+        <div className="audit-detail-grid">
+          <div>
+            <p className="metric-label">Records</p>
+            <p className="row-title">{auditExport.manifest.record_count}</p>
+            <p className="row-detail">{auditExport.manifest.tenant_id}</p>
+          </div>
+          <div>
+            <p className="metric-label">Retention</p>
+            <p className="row-title">{auditExport.retention_policy.retention_days} days</p>
+            <p className="row-detail">{auditExport.retention_policy.policy_id}</p>
+          </div>
+          <div>
+            <p className="metric-label">Legal hold</p>
+            <p className="row-title">{auditExport.retention_policy.legal_hold ? "On" : "Off"}</p>
+            <p className="row-detail">{auditExport.retention_policy.disposal_action}</p>
+          </div>
+          <div>
+            <p className="metric-label">Checksum</p>
+            <p className="row-title mono">
+              {auditExport.manifest.checksum_sha256.slice(0, 12)}
+            </p>
+            <p className="row-detail">{auditExport.manifest.format}</p>
+          </div>
+        </div>
+
+        <div className="stack">
+          {auditExport.retention_notes.map((note) => (
             <p className="row-detail" key={note}>
               {note}
             </p>

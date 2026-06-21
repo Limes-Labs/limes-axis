@@ -1109,6 +1109,61 @@
         "title": "ApprovalSummary",
         "type": "object"
       },
+      "AuditEventQuery": {
+        "properties": {
+          "actor_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "title": "AuditEventQuery",
+        "type": "object"
+      },
       "AuditEvidence": {
         "properties": {
           "actor": {
@@ -1139,6 +1194,121 @@
           "result"
         ],
         "title": "AuditEvidence",
+        "type": "object"
+      },
+      "AuditExportBundle": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLedgerEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "export_reason": {
+            "minLength": 1,
+            "title": "Export Reason",
+            "type": "string"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AuditEventQuery"
+          },
+          "format": {
+            "minLength": 1,
+            "title": "Format",
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/AuditExportManifest"
+          },
+          "retention_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Retention Notes",
+            "type": "array"
+          },
+          "retention_policy": {
+            "$ref": "#/components/schemas/AuditRetentionPolicy"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "scenario",
+          "format",
+          "export_reason",
+          "filters",
+          "retention_policy",
+          "manifest"
+        ],
+        "title": "AuditExportBundle",
+        "type": "object"
+      },
+      "AuditExportManifest": {
+        "properties": {
+          "checksum_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Checksum Sha256",
+            "type": "string"
+          },
+          "export_id": {
+            "minLength": 1,
+            "title": "Export Id",
+            "type": "string"
+          },
+          "format": {
+            "minLength": 1,
+            "title": "Format",
+            "type": "string"
+          },
+          "generated_at": {
+            "minLength": 1,
+            "title": "Generated At",
+            "type": "string"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "redaction_policy": {
+            "minLength": 1,
+            "title": "Redaction Policy",
+            "type": "string"
+          },
+          "retention_policy_id": {
+            "minLength": 1,
+            "title": "Retention Policy Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "export_id",
+          "generated_at",
+          "tenant_id",
+          "record_count",
+          "format",
+          "redaction_policy",
+          "retention_policy_id",
+          "checksum_sha256"
+        ],
+        "title": "AuditExportManifest",
         "type": "object"
       },
       "AuditFilterOptions": {
@@ -1331,6 +1501,55 @@
           "payload_preview"
         ],
         "title": "AuditLedgerEvent",
+        "type": "object"
+      },
+      "AuditRetentionPolicy": {
+        "properties": {
+          "disposal_action": {
+            "minLength": 1,
+            "title": "Disposal Action",
+            "type": "string"
+          },
+          "export_requires_review": {
+            "title": "Export Requires Review",
+            "type": "boolean"
+          },
+          "legal_hold": {
+            "title": "Legal Hold",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "policy_id": {
+            "minLength": 1,
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "retention_basis": {
+            "minLength": 1,
+            "title": "Retention Basis",
+            "type": "string"
+          },
+          "retention_days": {
+            "minimum": 1.0,
+            "title": "Retention Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "policy_id",
+          "retention_days",
+          "retention_basis",
+          "disposal_action",
+          "legal_hold",
+          "export_requires_review"
+        ],
+        "title": "AuditRetentionPolicy",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -3203,6 +3422,158 @@
           }
         },
         "summary": "Manufacturing Persisted Audit Events",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/audit/export": {
+      "get": {
+        "operationId": "manufacturing_persisted_audit_export_demo_manufacturing_audit_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "export_reason",
+            "required": false,
+            "schema": {
+              "default": "governance-review",
+              "maxLength": 120,
+              "minLength": 1,
+              "title": "Export Reason",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "retention_days",
+            "required": false,
+            "schema": {
+              "default": 365,
+              "maximum": 3650,
+              "minimum": 30,
+              "title": "Retention Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "legal_hold",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Legal Hold",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "pattern": "^json$",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditExportBundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Persisted Audit Export",
         "tags": [
           "demo"
         ]

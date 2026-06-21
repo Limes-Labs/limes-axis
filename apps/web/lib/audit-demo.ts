@@ -48,6 +48,45 @@ export type ManufacturingAuditExplorer = {
   retention_notes: string[];
 };
 
+export type AuditRetentionPolicy = {
+  policy_id: string;
+  retention_days: number;
+  retention_basis: string;
+  disposal_action: string;
+  legal_hold: boolean;
+  export_requires_review: boolean;
+  notes: string[];
+};
+
+export type AuditExportManifest = {
+  export_id: string;
+  generated_at: string;
+  tenant_id: string;
+  record_count: number;
+  format: string;
+  redaction_policy: string;
+  retention_policy_id: string;
+  checksum_sha256: string;
+};
+
+export type AuditExportBundle = {
+  tenant_id: string;
+  scenario: string;
+  format: string;
+  export_reason: string;
+  filters: {
+    tenant_id: string;
+    event_type: string | null;
+    actor_id: string | null;
+    scope: string | null;
+    limit: number;
+  };
+  retention_policy: AuditRetentionPolicy;
+  manifest: AuditExportManifest;
+  events: AuditLedgerEvent[];
+  retention_notes: string[];
+};
+
 export type AuditFilters = {
   tenant: string;
   eventType: string;
@@ -359,6 +398,49 @@ export const defaultManufacturingAuditExplorer: ManufacturingAuditExplorer = {
     "Payload previews are redacted and contain no customer data or credentials.",
     "Production audit events must be append-only and tenant-scoped.",
     "Export, retention policy enforcement and replay remain Platform work.",
+  ],
+};
+
+export const defaultAuditExportBundle: AuditExportBundle = {
+  tenant_id: defaultManufacturingAuditExplorer.tenant_id,
+  scenario: defaultManufacturingAuditExplorer.scenario,
+  format: "json",
+  export_reason: "standalone-console-fallback",
+  filters: {
+    tenant_id: defaultManufacturingAuditExplorer.tenant_id,
+    event_type: null,
+    actor_id: null,
+    scope: null,
+    limit: 100,
+  },
+  retention_policy: {
+    policy_id: "axis-demo-audit-standard",
+    retention_days: 365,
+    retention_basis: "tenant-scoped operational audit ledger",
+    disposal_action: "review_then_delete",
+    legal_hold: false,
+    export_requires_review: true,
+    notes: [
+      "Demo exports are payload-preview-only and require governance review before sharing.",
+      "Retention controls are represented as policy metadata in this slice.",
+      "Deletion enforcement, legal hold workflow and immutable storage hardening remain future work.",
+    ],
+  },
+  manifest: {
+    export_id: "audit-export-local-seed",
+    generated_at: defaultManufacturingAuditExplorer.as_of,
+    tenant_id: defaultManufacturingAuditExplorer.tenant_id,
+    record_count: defaultManufacturingAuditExplorer.events.length,
+    format: "json",
+    redaction_policy: "payload-preview-only",
+    retention_policy_id: "axis-demo-audit-standard",
+    checksum_sha256: "0".repeat(64),
+  },
+  events: defaultManufacturingAuditExplorer.events,
+  retention_notes: [
+    "Export bundle is tenant-scoped before optional filters are applied.",
+    "Events include ledger metadata and redacted payload previews only.",
+    "Retention policy is advisory metadata until enforcement is implemented.",
   ],
 };
 
