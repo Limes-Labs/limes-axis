@@ -18,6 +18,7 @@ GET /demo/manufacturing/ontology
 GET /demo/manufacturing/workflows
 GET /demo/manufacturing/approvals
 GET /demo/manufacturing/audit
+GET /demo/manufacturing/agents
 ```
 
 It includes:
@@ -36,6 +37,9 @@ It includes:
   alternatives, model policy and audit event preview.
 - read-only audit explorer events with tenant, event type and scope filters,
   evidence references and redacted payload previews.
+- read-only agent registry entries with autonomy boundaries, required
+  permissions, model egress posture, action proposals, workflow links and
+  approval references.
 
 ## Next Expansion
 
@@ -48,4 +52,6 @@ The reference demo should grow into an end-to-end Platform scenario:
 - Temporal signal execution through the Axis workflow runtime adapter;
 - persisted approval inbox actions and workflow signals;
 - persisted append-only audit storage, export and retention controls;
+- production action registry execution, persisted agent state and model cost
+  observability;
 - replay and simulation artifacts.

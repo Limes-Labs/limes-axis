@@ -32,17 +32,26 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("keeps navigation and autonomy levels usable on mobile", async ({ page }) => {
+  test("keeps navigation and agent registry usable on mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
     await page.getByRole("link", { name: "Agents" }).first().click();
 
     await expect(
-      page.getByRole("heading", { name: "Autonomy and action registry" }),
+      page.getByRole("heading", { name: "Autonomy and agent registry" }),
     ).toBeVisible();
-    await expect(page.getByRole("cell", { name: "L0" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "L4" })).toBeVisible();
+    await expect(page.getByText("Fallback agent seed")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Supply Risk Agent/ })).toBeVisible();
+
+    await page.getByLabel("Domain").selectOption("Supply");
+
+    await expect(page.getByRole("heading", { name: "1 visible" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Supply Risk Agent" })).toBeVisible();
+    await expect(page.getByText("approvals:supply:request")).toBeVisible();
+    await expect(page.getByText("appr_expedite_supplier_batch", { exact: true }).first())
+      .toBeVisible();
+    await expect(page.getByText("no-external-egress")).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
   });

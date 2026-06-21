@@ -4,6 +4,7 @@ from axis_api.demo import (
     ApprovalDecision,
     OntologyNodeType,
     OverviewStatus,
+    get_manufacturing_agent_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_ontology,
@@ -86,6 +87,46 @@ def test_openapi_exposes_manufacturing_workflow_console_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/workflows" in response.json()["paths"]
+
+
+def test_manufacturing_agent_registry_seed_is_governed() -> None:
+    registry = get_manufacturing_agent_registry()
+
+    assert registry.scenario == "Plant Operations Cockpit"
+    assert registry.registry_status == OverviewStatus.WATCH
+    assert len(registry.agents) == 4
+    assert registry.filter_options.autonomy_levels == ["L1", "L2"]
+    assert "Supply" in registry.filter_options.domains
+    assert any(agent.agent_id == "agent_maintenance_planner" for agent in registry.agents)
+    assert any(agent.proposals for agent in registry.agents)
+    assert all(not agent.policy_boundary.external_egress_allowed for agent in registry.agents)
+    assert all(agent.policy_boundary.max_action_level in {"L1", "L2"} for agent in registry.agents)
+    assert all(agent.policy_boundary.guardrails for agent in registry.agents)
+    assert "password" not in registry.model_dump_json().lower()
+    assert "secret" not in registry.model_dump_json().lower()
+    assert "@" not in registry.model_dump_json()
+
+
+def test_manufacturing_agent_registry_endpoint_returns_public_demo_data() -> None:
+    client = TestClient(create_app())
+    response = client.get("/demo/manufacturing/agents")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["agents"][1]["agent_id"] == "agent_supply_risk"
+    assert body["agents"][1]["pending_approvals"][0] == "appr_expedite_supplier_batch"
+    assert body["agents"][1]["policy_boundary"]["external_egress_allowed"] is False
+    assert "production action registry" in body["registry_notes"][3]
+    assert "password" not in str(body).lower()
+
+
+def test_openapi_exposes_manufacturing_agent_registry_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert "/demo/manufacturing/agents" in response.json()["paths"]
 
 
 def test_manufacturing_approval_inbox_seed_is_governed() -> None:
