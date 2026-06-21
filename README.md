@@ -38,7 +38,8 @@ Next.js governance console shell. Foundation hardening adds API readiness,
 generated OpenAPI checks, opt-in runtime integration tests, API status in the
 console and Playwright smoke tests in CI. The first Platform slice adds a
 synthetic manufacturing overview seed and API-backed governance console
-overview.
+overview. The ontology slice adds a read-only manufacturing graph for typed
+nodes, source-system links, relationship mapping and permission scopes.
 
 ## Architecture Defaults
 
@@ -151,6 +152,7 @@ Architecture and acceptance notes:
 - [`docs/architecture.md`](./docs/architecture.md)
 - [`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md)
 - [`docs/platform-overview.md`](./docs/platform-overview.md)
+- [`docs/platform-ontology.md`](./docs/platform-ontology.md)
 
 Reference examples:
 

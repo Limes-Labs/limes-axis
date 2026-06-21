@@ -14,6 +14,7 @@ The current seed is served by:
 
 ```text
 GET /demo/manufacturing/overview
+GET /demo/manufacturing/ontology
 ```
 
 It includes:
@@ -23,7 +24,9 @@ It includes:
 - active workflow summaries;
 - pending approval summaries;
 - governed L1/L2 agents;
-- recent audit evidence.
+- recent audit evidence;
+- read-only ontology nodes and relationships for source systems, permission
+  scopes, risks, workflows, approvals and agents.
 
 ## Next Expansion
 
