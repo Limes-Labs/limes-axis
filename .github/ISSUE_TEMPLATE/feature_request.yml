@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose an improvement to the Axis open core.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Public feature requests should stay public-safe. Do not include private
+        customer names, pricing, contracts, secrets or proprietary data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operational problem should Axis solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Foundation
+        - Governance console
+        - API
+        - Ontology
+        - Workflows
+        - Agents/actions
+        - Connectors
+        - Deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundary checklist
+      options:
+        - label: This can work without required managed services.
+        - label: This preserves tenant, permission, approval and audit boundaries.
+        - label: This does not require external model/data egress by default.
+        - label: This may need future extraction into a separate module or repository.
