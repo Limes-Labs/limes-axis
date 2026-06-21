@@ -4,6 +4,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     environment: str = Field(default="development", alias="AXIS_ENV")
+    public_base_url: str = Field(default="http://localhost:3000", alias="AXIS_PUBLIC_BASE_URL")
+    api_base_url: str = Field(default="http://localhost:8000", alias="AXIS_API_BASE_URL")
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        alias="AXIS_CORS_ORIGINS",
+    )
     postgres_dsn: str = Field(
         default="postgresql+psycopg://axis:axis@localhost:5432/axis",
         alias="AXIS_POSTGRES_DSN",

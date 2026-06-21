@@ -57,6 +57,16 @@ class OntologyClient:
                 transaction.rollback()
             raise
 
+    def schema(self) -> str:
+        self.ensure_database()
+        return self._driver.databases.get(self.config.database).schema()
+
+    def drop_database(self) -> None:
+        if self._driver is None:
+            self.connect()
+        if self._driver.databases.contains(self.config.database):
+            self._driver.databases.get(self.config.database).delete()
+
     def close(self) -> None:
         if self._driver is not None:
             self._driver.close()

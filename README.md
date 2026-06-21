@@ -34,7 +34,9 @@ Axis is in the Platform Foundation track. The repository now includes the
 monorepo structure, self-hosted local runtime, FastAPI foundation, Postgres
 migration baseline, TypeDB ontology boundary, workflow runtime port, Temporal
 adapter, typed action registry, model egress guard, permission primitives and a
-Next.js governance console shell.
+Next.js governance console shell. Foundation hardening adds API readiness,
+generated OpenAPI checks, opt-in runtime integration tests, API status in the
+console and Playwright smoke tests in CI.
 
 ## Architecture Defaults
 
@@ -92,6 +94,22 @@ Run checks:
 make lint
 make test
 make build-web
+make openapi-check
+```
+
+Run opt-in integration checks against the local Docker runtime:
+
+```bash
+make dev-stack-up
+make test-integration
+```
+
+Run web smoke tests against the production build:
+
+```bash
+pnpm --filter @limes-axis/web build
+pnpm --filter @limes-axis/web exec playwright install chromium
+pnpm --filter @limes-axis/web test:e2e
 ```
 
 Run the web console locally:

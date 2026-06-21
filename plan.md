@@ -58,6 +58,11 @@ Axis will use:
 - [x] Define the L0-L4 agent autonomy model.
 - [x] Add OIDC/Keycloak identity boundary.
 - [x] Add initial test, lint and CI commands.
+- [x] Add repository issue, PR and security policy templates.
+- [x] Generate and check the OpenAPI contract.
+- [x] Add API readiness checks and console API status.
+- [x] Add opt-in Postgres, TypeDB and Temporal integration tests.
+- [x] Add Playwright smoke tests to the web CI gate.
 
 Foundation acceptance is tracked in
 [`docs/foundation-acceptance.md`](./docs/foundation-acceptance.md).

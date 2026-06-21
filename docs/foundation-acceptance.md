@@ -28,11 +28,16 @@ Verified locally:
 ```bash
 cd services/api && uv run ruff check . && uv run pytest
 cd services/worker && uv run ruff check . && uv run pytest
+make openapi-check
 ```
 
 Coverage:
 
 - FastAPI app metadata and health endpoint.
+- Readiness endpoint covering Postgres, TypeDB, Temporal configuration and
+  external model egress policy.
+- CORS preflight behavior for the configured public base URL.
+- Generated OpenAPI schema committed at `docs/openapi.json`.
 - Public error envelope.
 - Tenant and audit primitives.
 - Action registry approval rules.
@@ -47,6 +52,7 @@ Verified locally against the Docker Postgres runtime:
 
 ```bash
 cd services/api && uv run alembic upgrade head
+make test-integration
 ```
 
 The first migration creates tenants, actors and audit events.
@@ -79,6 +85,23 @@ PY
 The schema uses TypeDB 3.x syntax and `axis_` labels to avoid TypeQL keyword
 collisions.
 
+The opt-in integration suite also verifies that a temporary TypeDB database can
+be created, loaded with the schema, inspected and dropped.
+
+## Workflow Integration Checks
+
+Verified locally against the Docker Temporal runtime:
+
+```bash
+make test-integration
+```
+
+Coverage:
+
+- Temporal self-hosted service connectivity on `localhost:7233`.
+- Worker registration through the Axis workflow runtime adapter.
+- Approval workflow start, approval signal and completion result.
+
 ## Web Checks
 
 Verified locally:
@@ -88,6 +111,7 @@ pnpm --filter @limes-axis/web lint
 pnpm --filter @limes-axis/web typecheck
 pnpm --filter @limes-axis/web test
 pnpm --filter @limes-axis/web build
+pnpm --filter @limes-axis/web test:e2e
 ```
 
 Also verified with a local Next.js server and browser automation:
@@ -102,10 +126,17 @@ Also verified with a local Next.js server and browser automation:
 Desktop and mobile renders were checked for non-empty content and no document
 level horizontal overflow.
 
+The console overview now reads `/health` and `/ready` and shows a public-safe
+API availability summary. The fallback state was verified with the API stopped.
+
+The Playwright smoke suite covers desktop and mobile rendering, overview API
+status fallback, main navigation and autonomy level visibility.
+
 ## CI Gate
 
 GitHub Actions runs:
 
-- web lint, typecheck, tests and build;
+- web lint, typecheck, unit tests, build and Playwright smoke tests;
 - API dependency sync, lint and tests;
+- OpenAPI schema drift check;
 - worker dependency sync, lint and tests.
