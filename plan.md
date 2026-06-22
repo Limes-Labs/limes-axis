@@ -155,6 +155,7 @@ Foundation acceptance is tracked in
 - [x] Remove the approval inbox runtime seed factory from the API module.
 - [x] Persist the manufacturing audit explorer reference as a tenant-scoped
   bootstrap record.
+- [x] Remove the audit explorer runtime seed factory from the API module.
 - [x] Persist the manufacturing model routing reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing ontology graph and entity detail reference as a
@@ -194,6 +195,8 @@ inbox runtime seed factory; tests validate the Alembic bootstrap payload
 directly. The audit explorer reference endpoint reads from
 `surface=audit` and `reference_id=manufacturing-audit-explorer`; the separate
 audit events and export endpoints continue to query persisted `audit_events`.
+The API module no longer defines an audit explorer runtime seed factory; tests
+validate the Alembic bootstrap payload directly.
 The model routing reference endpoint reads from `surface=model-routing` and
 `reference_id=manufacturing-model-routing`; live provider routing, usage
 metering and billing adapters remain separate Platform work.
