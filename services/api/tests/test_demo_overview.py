@@ -21,8 +21,7 @@ from axis_api.demo import (
     ManufacturingWorkflowConsole,
     OntologyNodeType,
     OverviewStatus,
-    get_manufacturing_ontology,
-    get_manufacturing_ontology_entity_detail,
+    build_manufacturing_ontology_entity_detail,
 )
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
@@ -1531,8 +1530,9 @@ def test_openapi_exposes_manufacturing_model_routing_endpoint() -> None:
     assert "/demo/manufacturing/model-routing" in response.json()["paths"]
 
 
-def test_manufacturing_ontology_seed_has_valid_relationships() -> None:
-    ontology = get_manufacturing_ontology()
+def test_manufacturing_ontology_bootstrap_seed_has_valid_relationships() -> None:
+    migration = run_path("migrations/versions/0030_ontology_reference.py")
+    ontology = ManufacturingOntology.model_validate(migration["ONTOLOGY_PAYLOAD"])
     node_ids = {node.node_id for node in ontology.nodes}
 
     assert ontology.scenario == "Plant Operations Cockpit"
@@ -1572,6 +1572,13 @@ def test_manufacturing_ontology_runtime_is_not_defined_as_seed_source() -> None:
     source = Path("src/axis_api/ontology/queries.py").read_text()
 
     assert "get_manufacturing_ontology()" not in source
+
+
+def test_manufacturing_ontology_runtime_module_does_not_define_seed() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_ontology(" not in source
+    assert "def get_manufacturing_ontology_entity_detail" not in source
 
 
 def test_manufacturing_ontology_detail_endpoint_is_not_defined_as_runtime_seed() -> None:
@@ -1637,8 +1644,10 @@ def test_openapi_exposes_manufacturing_ontology_endpoint() -> None:
     assert "/demo/manufacturing/ontology" in response.json()["paths"]
 
 
-def test_manufacturing_ontology_entity_detail_seed_is_connected() -> None:
-    detail = get_manufacturing_ontology_entity_detail("asset_line_2_packaging")
+def test_manufacturing_ontology_entity_detail_bootstrap_seed_is_connected() -> None:
+    migration = run_path("migrations/versions/0030_ontology_reference.py")
+    ontology = ManufacturingOntology.model_validate(migration["ONTOLOGY_PAYLOAD"])
+    detail = build_manufacturing_ontology_entity_detail(ontology, "asset_line_2_packaging")
 
     assert detail is not None
     assert detail.node.label == "Line 2 Packaging"

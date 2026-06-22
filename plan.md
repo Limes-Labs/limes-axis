@@ -163,6 +163,7 @@ Foundation acceptance is tracked in
 - [x] Remove the model routing runtime seed factory from the API module.
 - [x] Persist the manufacturing ontology graph and entity detail reference as a
   tenant-scoped bootstrap record.
+- [x] Remove the ontology graph/detail runtime seed factory from the API module.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -209,7 +210,8 @@ bootstrap payload directly.
 The ontology graph and entity detail endpoints read from `surface=ontology` and
 `reference_id=manufacturing-ontology`; the query runtime now applies metadata
 and relationship-scope filtering to that persisted graph instead of loading a
-route-owned seed.
+route-owned seed. The API module no longer defines ontology graph/detail
+runtime seed factories; tests validate the Alembic bootstrap payload directly.
 Remaining API-owned reference records are a
 bootstrap boundary and must be moved to persisted tenant-scoped records before
 production use. The full manufacturing reference demo remains open until it has
