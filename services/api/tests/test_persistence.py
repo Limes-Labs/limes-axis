@@ -4,13 +4,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from axis_api.audit import AuditEventCreate
-from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, Base
+from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, Base, ConnectorConfiguration
 from axis_api.persistence import (
     ActionRunCreate,
     ActionRunResultRecord,
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
     AxisPersistenceRepository,
+    ConnectorConfigurationCreate,
     PersistenceRecordNotFound,
 )
 
@@ -26,12 +27,13 @@ def session() -> Session:
 
 
 def test_persistence_metadata_exposes_foundation_tables() -> None:
-    assert {"audit_events", "approval_records", "action_runs"}.issubset(
+    assert {"audit_events", "approval_records", "action_runs", "connector_configurations"}.issubset(
         Base.metadata.tables.keys()
     )
     assert ApprovalRecord.__table__.c.tenant_id.index is True
     assert ActionRun.__table__.c.idempotency_key.index is True
     assert AuditEvent.__table__.c.event_type.index is True
+    assert ConnectorConfiguration.__table__.c.connector_id.index is True
 
 
 def test_repository_appends_audit_events_without_cross_tenant_leakage(session: Session) -> None:
@@ -160,3 +162,50 @@ def test_action_run_idempotency_is_unique_per_tenant_action(session: Session) ->
 
     with pytest.raises(IntegrityError):
         repository.create_action_run(payload)
+
+
+def test_repository_records_connector_configurations_tenant_scoped(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    created = repository.create_connector_configuration(
+        ConnectorConfigurationCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            display_name="Manufacturing assets CSV intake",
+            status="configured_preview_only",
+            sync_mode="preview",
+            runtime_boundary="axis-connector-sandbox",
+            created_by="plant-operations-owner-role",
+            configuration_payload={
+                "file_name_pattern": "*.csv",
+                "mapping_profile": "manufacturing_asset_v1",
+            },
+            credential_ref_ids=[],
+            notes=["Preview-only tenant configuration."],
+        )
+    )
+    repository.create_connector_configuration(
+        ConnectorConfigurationCreate(
+            tenant_id="tenant_other",
+            connector_id="file_csv_manufacturing_assets",
+            display_name="Other tenant CSV intake",
+            status="configured_preview_only",
+            sync_mode="preview",
+            runtime_boundary="axis-connector-sandbox",
+            created_by="other-owner-role",
+            configuration_payload={"file_name_pattern": "*.csv"},
+            credential_ref_ids=[],
+            notes=[],
+        )
+    )
+
+    records = repository.list_connector_configurations("tenant_demo_manufacturing")
+
+    assert records == [created]
+    assert records[0].configuration_payload == {
+        "file_name_pattern": "*.csv",
+        "mapping_profile": "manufacturing_asset_v1",
+    }
+    assert records[0].credential_ref_ids == []
+    assert records[0].status == "configured_preview_only"

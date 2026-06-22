@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildDefaultConnectorConfigurationRequest,
   buildDefaultCsvPreviewRequest,
+  defaultConnectorConfigurationRegistry,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
   findConnectorById,
@@ -56,6 +58,55 @@ describe("manufacturing connector demo contract", () => {
     });
     expect(buildDefaultCsvPreviewRequest().csv_content).toContain("asset_id,asset_name");
     expect(buildDefaultCsvPreviewRequest().csv_content.toLowerCase()).not.toContain("password");
+  });
+
+  it("keeps tenant-scoped connector configuration fallback public-safe", () => {
+    expect(defaultConnectorConfigurationRegistry.tenant_id).toBe("tenant_demo_manufacturing");
+    expect(defaultConnectorConfigurationRegistry.configurations).toHaveLength(1);
+    expect(defaultConnectorConfigurationRegistry.metrics[0]).toMatchObject({
+      label: "Configured Connectors",
+      value: "1",
+    });
+
+    const configuration = defaultConnectorConfigurationRegistry.configurations[0];
+    expect(configuration.connector_id).toBe("file_csv_manufacturing_assets");
+    expect(configuration.status).toBe("configured_preview_only");
+    expect(configuration.sync_mode).toBe("preview");
+    expect(configuration.runtime_boundary).toBe("axis-connector-sandbox");
+    expect(configuration.credential_ref_ids).toEqual([]);
+    expect(configuration.configuration_payload).toMatchObject({
+      file_name_pattern: "*.csv",
+      mapping_profile: "manufacturing_asset_v1",
+    });
+    expect(JSON.stringify(defaultConnectorConfigurationRegistry).toLowerCase()).not.toContain(
+      "password",
+    );
+    expect(JSON.stringify(defaultConnectorConfigurationRegistry).toLowerCase()).not.toContain(
+      "api_key",
+    );
+    expect(JSON.stringify(defaultConnectorConfigurationRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
+  });
+
+  it("builds the demo connector configuration request without raw credentials", () => {
+    const request = buildDefaultConnectorConfigurationRequest();
+
+    expect(request).toMatchObject({
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      display_name: "Manufacturing assets CSV intake",
+      sync_mode: "preview",
+      created_by: "plant-operations-owner-role",
+      credential_ref_ids: [],
+    });
+    expect(request.configuration_payload).toMatchObject({
+      file_name_pattern: "*.csv",
+      mapping_profile: "manufacturing_asset_v1",
+    });
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("api_key");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
   });
 
   it("finds connectors and formats connector labels", () => {

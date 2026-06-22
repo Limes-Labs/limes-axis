@@ -6,11 +6,13 @@ import { Cable, Database, FileText, ShieldCheck } from "lucide-react";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   buildDefaultCsvPreviewRequest,
+  defaultConnectorConfigurationRegistry,
   defaultManufacturingConnectorPreview,
   defaultManufacturingConnectorRegistry,
   findConnectorById,
   formatConnectorLabel,
   type ConnectorCsvPreviewResult,
+  type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorRegistry,
 } from "@/lib/connectors-demo";
 import {
@@ -36,6 +38,10 @@ export function ConnectorConsole() {
   const [preview, setPreview] = useState<ConnectorCsvPreviewResult>(
     defaultManufacturingConnectorPreview,
   );
+  const [configurationRegistry, setConfigurationRegistry] =
+    useState<ManufacturingConnectorConfigurationRegistry>(
+      defaultConnectorConfigurationRegistry,
+    );
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -65,7 +71,7 @@ export function ConnectorConsole() {
 
     async function loadConnectors() {
       try {
-        const [registryData, previewData] = await Promise.all([
+        const [registryData, previewData, configurationData] = await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
             "/demo/manufacturing/connectors/file-csv/preview",
@@ -74,9 +80,13 @@ export function ConnectorConsole() {
               method: "POST",
             },
           ),
+          fetchJson<ManufacturingConnectorConfigurationRegistry>(
+            "/demo/manufacturing/connectors/configurations",
+          ),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
+          setConfigurationRegistry(configurationData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -87,6 +97,7 @@ export function ConnectorConsole() {
       } catch {
         if (!controller.signal.aborted) {
           setRegistry(defaultManufacturingConnectorRegistry);
+          setConfigurationRegistry(defaultConnectorConfigurationRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -104,6 +115,13 @@ export function ConnectorConsole() {
   const selectedConnector = useMemo(
     () => findConnectorById(registry, selectedConnectorId),
     [registry, selectedConnectorId],
+  );
+  const selectedConfiguration = useMemo(
+    () =>
+      configurationRegistry.configurations.find(
+        (configuration) => configuration.connector_id === selectedConnectorId,
+      ) ?? configurationRegistry.configurations[0],
+    [configurationRegistry.configurations, selectedConnectorId],
   );
   const manifest = selectedConnector.manifest;
 
@@ -131,7 +149,7 @@ export function ConnectorConsole() {
       </section>
 
       <div className="metric-grid">
-        {registry.metrics.map((metric) => (
+        {registry.metrics.concat(configurationRegistry.metrics).map((metric) => (
           <article className="metric-card compact-card" key={metric.label}>
             <div className="row">
               <p className="metric-label">{metric.label}</p>
@@ -248,6 +266,49 @@ export function ConnectorConsole() {
             </section>
           </div>
 
+          {selectedConfiguration ? (
+            <section className="audit-payload">
+              <div className="audit-payload-header">
+                <div>
+                  <p className="section-label">Tenant Configuration</p>
+                  <h3 className="subsection-title">{selectedConfiguration.display_name}</h3>
+                  <p className="row-detail mono">{selectedConfiguration.status}</p>
+                </div>
+                <Database size={18} />
+              </div>
+              <div className="audit-detail-grid">
+                <div>
+                  <p className="metric-label">Sync</p>
+                  <p className="row-title">{selectedConfiguration.sync_mode}</p>
+                  <p className="row-detail">{selectedConfiguration.runtime_boundary}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Created By</p>
+                  <p className="row-title">{selectedConfiguration.created_by}</p>
+                  <p className="row-detail">tenant-scoped configuration</p>
+                </div>
+                <div>
+                  <p className="metric-label">Credential Handles</p>
+                  <p className="row-title">{selectedConfiguration.credential_ref_ids.length}</p>
+                  <p className="row-detail">no raw credential values</p>
+                </div>
+                <div>
+                  <p className="metric-label">Mode</p>
+                  <p className="row-title">Preview only</p>
+                  <p className="row-detail">no scheduled sync</p>
+                </div>
+              </div>
+              <div className="payload-grid">
+                {Object.entries(selectedConfiguration.configuration_payload).map(([key, value]) => (
+                  <div className="payload-row" key={key}>
+                    <span className="metric-label">{key}</span>
+                    <span className="mono">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="audit-payload">
             <div className="audit-payload-header">
               <div>
@@ -285,11 +346,15 @@ export function ConnectorConsole() {
           </section>
 
           <div className="stack">
-            {registry.connector_notes.concat(preview.preview_notes).map((note) => (
+            {registry.connector_notes
+              .concat(configurationRegistry.configuration_notes)
+              .concat(selectedConfiguration?.notes ?? [])
+              .concat(preview.preview_notes)
+              .map((note) => (
               <p className="row-detail" key={note}>
                 {note}
               </p>
-            ))}
+              ))}
           </div>
         </section>
       </div>

@@ -257,11 +257,16 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Fallback connector seed")).toBeVisible();
     await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toBeVisible();
     await expect(page.getByText("file_csv_manufacturing_assets").first()).toBeVisible();
-    await expect(page.getByText("axis-connector-sandbox")).toBeVisible();
+    await expect(page.locator(".workflow-detail-header").getByText("axis-connector-sandbox")).toBeVisible();
     await expect(page.getByText("connectors:file_csv:preview")).toBeVisible();
+    await expect(page.getByText("Configured Connectors")).toBeVisible();
+    await expect(page.getByText("configured_preview_only")).toBeVisible();
+    await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();
     await expect(page.getByText("connector.preview.generated")).toBeVisible();
     await expect(page.getByText("asset_line_2_packaging").first()).toBeVisible();
-    await expect(page.locator(".audit-detail-grid").getByText("Preview Only")).toBeVisible();
+    await expect(
+      page.locator(".audit-detail-grid").getByText("Preview Only", { exact: true }),
+    ).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

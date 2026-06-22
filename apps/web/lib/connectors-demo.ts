@@ -74,6 +74,17 @@ export type ConnectorCsvPreviewRequest = {
   csv_content: string;
 };
 
+export type ConnectorConfigurationCreateRequest = {
+  tenant_id: string;
+  connector_id: string;
+  display_name: string;
+  sync_mode: string;
+  created_by: string;
+  configuration_payload: Record<string, string>;
+  credential_ref_ids: string[];
+  notes: string[];
+};
+
 export type ProposedOntologyEntity = {
   node_id: string;
   node_type: string;
@@ -104,6 +115,34 @@ export type ConnectorCsvPreviewResult = {
   proposed_entities: ProposedOntologyEntity[];
   audit_event_preview: ConnectorAuditEventPreview;
   preview_notes: string[];
+};
+
+export type ConnectorTenantConfiguration = {
+  tenant_id: string;
+  connector_id: string;
+  display_name: string;
+  status: string;
+  sync_mode: string;
+  runtime_boundary: string;
+  created_by: string;
+  configuration_payload: Record<string, string>;
+  credential_ref_ids: string[];
+  notes: string[];
+};
+
+export type ManufacturingConnectorConfigurationRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  configurations: ConnectorTenantConfiguration[];
+  configuration_notes: string[];
 };
 
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
@@ -293,6 +332,59 @@ export const defaultManufacturingConnectorPreview: ConnectorCsvPreviewResult = {
   ],
 };
 
+export const defaultConnectorConfigurationRegistry: ManufacturingConnectorConfigurationRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "watch",
+  metrics: [
+    {
+      label: "Configured Connectors",
+      value: "1",
+      detail: "Tenant-scoped preview connector configurations",
+      status: "ready",
+    },
+    {
+      label: "Credential Values",
+      value: "Blocked",
+      detail: "Configurations store handles and public-safe settings only",
+      status: "watch",
+    },
+    {
+      label: "Live Sync",
+      value: "Disabled",
+      detail: "Configuration is preview-only until connector run governance matures",
+      status: "watch",
+    },
+  ],
+  configurations: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      display_name: "Manufacturing assets CSV intake",
+      status: "configured_preview_only",
+      sync_mode: "preview",
+      runtime_boundary: "axis-connector-sandbox",
+      created_by: "plant-operations-owner-role",
+      configuration_payload: {
+        file_name_pattern: "*.csv",
+        mapping_profile: "manufacturing_asset_v1",
+        row_limit: "500",
+      },
+      credential_ref_ids: [],
+      notes: [
+        "Preview-only tenant configuration.",
+        "No raw credential values are stored.",
+      ],
+    },
+  ],
+  configuration_notes: [
+    "Connector configurations are tenant-scoped and preview-only.",
+    "Raw credential values are rejected; future work must use credential handles.",
+    "Persisted connector runs, scheduled sync and audit writes remain future work.",
+  ],
+};
+
 export function buildDefaultCsvPreviewRequest(): ConnectorCsvPreviewRequest {
   return {
     tenant_id: "tenant_demo_manufacturing",
@@ -302,6 +394,22 @@ export function buildDefaultCsvPreviewRequest(): ConnectorCsvPreviewRequest {
       "asset_id,asset_name,domain,station,risk_level\n" +
       "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n" +
       "asset_press_4,Press 4,Maintenance,Press 4,medium\n",
+  };
+}
+
+export function buildDefaultConnectorConfigurationRequest(): ConnectorConfigurationCreateRequest {
+  return {
+    tenant_id: "tenant_demo_manufacturing",
+    connector_id: "file_csv_manufacturing_assets",
+    display_name: "Manufacturing assets CSV intake",
+    sync_mode: "preview",
+    created_by: "plant-operations-owner-role",
+    configuration_payload: {
+      file_name_pattern: "*.csv",
+      mapping_profile: "manufacturing_asset_v1",
+    },
+    credential_ref_ids: [],
+    notes: ["Preview-only tenant configuration."],
   };
 }
 
