@@ -4,9 +4,10 @@ The connector foundation introduces a public-safe contract for bringing
 external data sources into Axis without enabling live production mutation.
 
 This slice defines connector manifests, runtime policy boundaries, schema
-mapping metadata and a first preview-only file/CSV connector for the
-manufacturing reference demo. It also adds the first tenant-scoped connector
-configuration records and metadata-only connector run records. Governed
+mapping metadata, a preview-only file/CSV connector and a metadata-only
+external database preview connector for the manufacturing reference demo. It
+also adds the first tenant-scoped connector configuration records and
+metadata-only connector run records. Governed
 dry-run execution now passes through a deferred Axis connector execution
 adapter while keeping live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
@@ -39,6 +40,7 @@ GET /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/manual-imports/{import_id}/decision
 POST /demo/manufacturing/connectors/file-csv/preview
+POST /demo/manufacturing/connectors/external-db/preview
 ```
 
 The registry endpoint returns:
@@ -62,6 +64,29 @@ The CSV preview endpoint accepts a demo CSV payload and returns:
 
 The endpoint does not persist raw file content, store credentials, call external
 systems or write ontology graph records.
+
+The external DB preview endpoint accepts only metadata references:
+
+- connection profile id;
+- schema and table names;
+- selected column names;
+- sample limit;
+- credential handle id.
+
+It returns:
+
+- preview status;
+- live query flag, always `false` in this slice;
+- inspected table and mapped column metadata;
+- synthetic public-safe sample rows;
+- ontology entity proposals;
+- redacted audit event preview;
+- public-safe preview notes.
+
+The endpoint rejects raw connection material, DSNs, host/port details, SQL or
+query text and raw credential material. It does not connect to Postgres, inspect
+a real database, retrieve credentials, execute SQL, persist imported rows or
+write ontology graph records.
 
 The configuration endpoints store and query tenant-scoped preview connector
 configuration records. A configuration includes:
@@ -303,6 +328,25 @@ Required columns are validated before proposals are generated. Unsupported
 connector ids are blocked. The response includes ontology proposals only; the
 raw `csv_content` field is not returned.
 
+## External DB Manifest
+
+The second connector is `external_db_operational_mirror`.
+
+It maps declared table metadata from `operations.production_orders` to
+production order proposals:
+
+- `order_id`;
+- `asset_id`;
+- `work_center`;
+- `status`;
+- `risk_level`.
+
+The preview contract uses `profile_postgres_ops_readonly` and
+`cred_external_db_readonly` as public-safe references. These are identifiers,
+not live connection strings. The endpoint blocks raw connection details and
+query text, returns `live_query_executed=false`, and uses
+`connector.external_db.previewed` as the audit event preview type.
+
 ## Console Behavior
 
 The `/connectors` page loads the connector registry and preview result from the
@@ -364,7 +408,7 @@ Future Platform work should add:
 - persisted connector manifest management beyond the demo seed;
 - production vault/KMS integration and secret lease automation;
 - scheduled sync lifecycle;
-- Postgres or external database demo connector;
+- live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.
 
 Future extraction to `limes-axis-connectors` becomes mandatory when the
@@ -375,7 +419,8 @@ integrations, separate ownership or substantial runtime/deployment concerns.
 
 The slice is covered by:
 
-- API unit tests for manifest shape, public-safety checks and CSV mapping;
+- API unit tests for manifest shape, public-safety checks, CSV mapping and
+  metadata-only external DB preview;
 - API unit tests for tenant-scoped connector configuration persistence and raw
   credential field rejection;
 - API unit tests for credential handle metadata, secret reference guardrails
@@ -390,5 +435,6 @@ The slice is covered by:
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for fallback registry, configuration, credential handle, run
-  record, ontology proposal, manual import and preview contracts;
+  record, ontology proposal, manual import, CSV preview and external DB preview
+  contracts;
 - Playwright smoke tests for `/connectors` rendering.

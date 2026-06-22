@@ -5,6 +5,7 @@ import {
   buildDefaultConnectorPromotionPolicyEnableRequest,
   buildDefaultConnectorPromotionPolicyRequest,
   buildDefaultCsvPreviewRequest,
+  buildDefaultExternalDbPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
   defaultConnectorManualImportRegistry,
@@ -12,6 +13,7 @@ import {
   defaultConnectorPromotionPolicyRegistry,
   defaultConnectorPromotionPolicySetRegistry,
   defaultConnectorRunRegistry,
+  defaultExternalDbConnectorPreview,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
   findConnectorById,
@@ -23,7 +25,7 @@ import {
 describe("manufacturing connector demo contract", () => {
   it("keeps a public-safe file CSV connector manifest available without the API", () => {
     expect(defaultManufacturingConnectorRegistry.tenant_id).toBe("tenant_demo_manufacturing");
-    expect(defaultManufacturingConnectorRegistry.connectors).toHaveLength(1);
+    expect(defaultManufacturingConnectorRegistry.connectors).toHaveLength(2);
 
     const connector = defaultManufacturingConnectorRegistry.connectors[0];
     expect(connector.manifest.connector_id).toBe("file_csv_manufacturing_assets");
@@ -44,6 +46,39 @@ describe("manufacturing connector demo contract", () => {
     expect(JSON.stringify(defaultManufacturingConnectorRegistry).toLowerCase()).not.toContain(
       "api_key",
     );
+  });
+
+  it("keeps a public-safe external DB connector manifest available without the API", () => {
+    const connector = findConnectorById(
+      defaultManufacturingConnectorRegistry,
+      "external_db_operational_mirror",
+    );
+
+    expect(connector.manifest.display_name).toBe("Postgres operational mirror");
+    expect(connector.manifest.connector_type).toBe("external_db");
+    expect(connector.manifest.source_type).toBe("database");
+    expect(connector.manifest.sync_modes).toEqual(["schema_preview", "manual_import"]);
+    expect(connector.manifest.credential_requirements.storage).toBe("external_reference");
+    expect(connector.manifest.credential_requirements.required_secret_refs).toEqual([
+      "cred_external_db_readonly",
+    ]);
+    expect(connector.runtime_policy.allowed_operations).toEqual([
+      "schema_validate",
+      "metadata_preview",
+      "dry_run_diff",
+    ]);
+    expect(connector.runtime_policy.blocked_operations).toContain("live_query");
+    expect(connector.manifest.schema_fields.map((field) => field.source_column)).toEqual([
+      "order_id",
+      "asset_id",
+      "work_center",
+      "status",
+      "risk_level",
+    ]);
+    const serialized = JSON.stringify(connector).toLowerCase();
+    expect(serialized).not.toContain("connection_string");
+    expect(serialized).not.toContain("postgres://");
+    expect(serialized).not.toContain("password");
   });
 
   it("keeps a preview-only CSV mapping result", () => {
@@ -68,6 +103,40 @@ describe("manufacturing connector demo contract", () => {
     });
     expect(buildDefaultCsvPreviewRequest().csv_content).toContain("asset_id,asset_name");
     expect(buildDefaultCsvPreviewRequest().csv_content.toLowerCase()).not.toContain("password");
+  });
+
+  it("keeps a metadata-only external DB preview fallback", () => {
+    expect(defaultExternalDbConnectorPreview.preview_status).toBe("ready");
+    expect(defaultExternalDbConnectorPreview.sync_mode).toBe("schema_preview_only");
+    expect(defaultExternalDbConnectorPreview.live_query_executed).toBe(false);
+    expect(defaultExternalDbConnectorPreview.inspected_table.table_name).toBe(
+      "production_orders",
+    );
+    expect(defaultExternalDbConnectorPreview.proposed_entities[0]).toMatchObject({
+      node_id: "order_po_10045",
+      ontology_type: "production_order",
+    });
+    expect(defaultExternalDbConnectorPreview.audit_event_preview.event_type).toBe(
+      "connector.external_db.previewed",
+    );
+    const serialized = JSON.stringify(defaultExternalDbConnectorPreview).toLowerCase();
+    expect(serialized).not.toContain("connection_string");
+    expect(serialized).not.toContain("postgres://");
+    expect(serialized).not.toContain("raw_sql");
+    expect(serialized).not.toContain("password");
+  });
+
+  it("builds the external DB preview request from handles and profile ids only", () => {
+    expect(buildDefaultExternalDbPreviewRequest()).toMatchObject({
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      connection_profile_id: "profile_postgres_ops_readonly",
+      credential_handle_id: "cred_external_db_readonly",
+    });
+    const serialized = JSON.stringify(buildDefaultExternalDbPreviewRequest()).toLowerCase();
+    expect(serialized).not.toContain("connection_string");
+    expect(serialized).not.toContain("postgres://");
+    expect(serialized).not.toContain("password");
   });
 
   it("keeps tenant-scoped connector configuration fallback public-safe", () => {

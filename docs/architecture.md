@@ -66,9 +66,11 @@ OpenTelemetry-emitted route spans remain behind the runtime boundary.
 
 Connector manifests sit behind an Axis connector runtime boundary. The current
 public Platform slice exposes a preview-only file/CSV manufacturing connector
-that validates rows, maps them to ontology proposals and returns redacted audit
-preview metadata without persisting raw file content, storing credentials,
-calling external systems or mutating the graph. Tenant-scoped connector
+that validates rows and a metadata-only external DB connector that previews
+declared table metadata through profile ids and credential handles. Both map
+public-safe input to ontology proposals and return redacted audit preview
+metadata without persisting raw file content, storing credentials, executing
+SQL, calling external systems or mutating the graph. Tenant-scoped connector
 configuration records are persisted separately from connector runs and reject
 raw credential fields. Credential handle records persist external secret
 references, rotation metadata and rotation history without storing raw

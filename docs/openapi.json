@@ -2241,6 +2241,243 @@
         "title": "ConnectorExecutionResult",
         "type": "object"
       },
+      "ConnectorExternalDbColumnPreview": {
+        "properties": {
+          "data_type": {
+            "minLength": 1,
+            "title": "Data Type",
+            "type": "string"
+          },
+          "nullable": {
+            "title": "Nullable",
+            "type": "boolean"
+          },
+          "ontology_target": {
+            "minLength": 1,
+            "title": "Ontology Target",
+            "type": "string"
+          },
+          "source_column": {
+            "minLength": 1,
+            "title": "Source Column",
+            "type": "string"
+          },
+          "target_field": {
+            "minLength": 1,
+            "title": "Target Field",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_column",
+          "target_field",
+          "ontology_target",
+          "data_type",
+          "nullable"
+        ],
+        "title": "ConnectorExternalDbColumnPreview",
+        "type": "object"
+      },
+      "ConnectorExternalDbPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_profile_id": {
+            "default": "profile_postgres_ops_readonly",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Connection Profile Id",
+            "type": "string"
+          },
+          "connector_id": {
+            "default": "external_db_operational_mirror",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "credential_handle_id": {
+            "default": "cred_external_db_readonly",
+            "minLength": 1,
+            "title": "Credential Handle Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "sample_limit": {
+            "default": 2,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Sample Limit",
+            "type": "integer"
+          },
+          "schema_name": {
+            "default": "operations",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Schema Name",
+            "type": "string"
+          },
+          "selected_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Selected Columns",
+            "type": "array"
+          },
+          "table_name": {
+            "default": "production_orders",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Table Name",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "title": "ConnectorExternalDbPreviewRequest",
+        "type": "object"
+      },
+      "ConnectorExternalDbPreviewResult": {
+        "properties": {
+          "audit_event_preview": {
+            "$ref": "#/components/schemas/ConnectorAuditEventPreview"
+          },
+          "connection_profile_id": {
+            "minLength": 1,
+            "title": "Connection Profile Id",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "inspected_table": {
+            "$ref": "#/components/schemas/ConnectorExternalDbTablePreview"
+          },
+          "live_query_executed": {
+            "title": "Live Query Executed",
+            "type": "boolean"
+          },
+          "preview_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Preview Notes",
+            "type": "array"
+          },
+          "preview_status": {
+            "minLength": 1,
+            "title": "Preview Status",
+            "type": "string"
+          },
+          "proposed_entities": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedOntologyEntity"
+            },
+            "title": "Proposed Entities",
+            "type": "array"
+          },
+          "source_type": {
+            "minLength": 1,
+            "title": "Source Type",
+            "type": "string"
+          },
+          "sync_mode": {
+            "minLength": 1,
+            "title": "Sync Mode",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "validation_issues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validation Issues",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "connection_profile_id",
+          "source_type",
+          "preview_status",
+          "sync_mode",
+          "live_query_executed",
+          "inspected_table",
+          "audit_event_preview"
+        ],
+        "title": "ConnectorExternalDbPreviewResult",
+        "type": "object"
+      },
+      "ConnectorExternalDbTablePreview": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorExternalDbColumnPreview"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "record_count_estimate": {
+            "minLength": 1,
+            "title": "Record Count Estimate",
+            "type": "string"
+          },
+          "sample_limit": {
+            "minimum": 1.0,
+            "title": "Sample Limit",
+            "type": "integer"
+          },
+          "sample_rows": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Sample Rows",
+            "type": "array"
+          },
+          "schema_name": {
+            "minLength": 1,
+            "title": "Schema Name",
+            "type": "string"
+          },
+          "table_name": {
+            "minLength": 1,
+            "title": "Table Name",
+            "type": "string"
+          },
+          "table_ref": {
+            "minLength": 1,
+            "title": "Table Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_name",
+          "table_name",
+          "table_ref",
+          "record_count_estimate",
+          "sample_limit"
+        ],
+        "title": "ConnectorExternalDbTablePreview",
+        "type": "object"
+      },
       "ConnectorManifest": {
         "properties": {
           "connector_id": {
@@ -8626,6 +8863,47 @@
           }
         },
         "summary": "Manufacturing Connector Credential Handle Rotation",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/external-db/preview": {
+      "post": {
+        "operationId": "manufacturing_external_db_connector_preview_demo_manufacturing_connectors_external_db_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorExternalDbPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorExternalDbPreviewResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing External Db Connector Preview",
         "tags": [
           "demo"
         ]

@@ -254,6 +254,20 @@ export function ConnectorConsole() {
     [promotionPolicySetRegistry.policy_sets, selectedConnectorId],
   );
   const manifest = selectedConnector.manifest;
+  const csvPreviewApplies = preview.connector_id === selectedConnectorId;
+  const selectedPreviewMode = csvPreviewApplies
+    ? preview.sync_mode
+    : (manifest.sync_modes[0] ?? "preview");
+  const selectedRecordCount = csvPreviewApplies
+    ? preview.record_count
+    : selectedConnector.preview_sample.record_count;
+  const selectedRecordDetail = csvPreviewApplies
+    ? `${preview.accepted_record_count} accepted / ${preview.rejected_record_count} rejected`
+    : `${selectedConnector.preview_sample.headers.length} metadata fields / ${selectedConnector.preview_sample.file_name}`;
+  const credentialDetail =
+    manifest.credential_requirements.required_secret_refs.length > 0
+      ? `${manifest.credential_requirements.required_secret_refs.length} external handle ref`
+      : "no stored credentials";
 
   async function authorPromotionPolicy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -463,20 +477,18 @@ export function ConnectorConsole() {
           <div className="audit-detail-grid">
             <div>
               <p className="metric-label">Sync Mode</p>
-              <p className="row-title">{formatConnectorLabel(preview.sync_mode)}</p>
+              <p className="row-title">{formatConnectorLabel(selectedPreviewMode)}</p>
               <p className="row-detail">{manifest.sync_modes.join(", ")}</p>
             </div>
             <div>
               <p className="metric-label">Rows</p>
-              <p className="row-title">{preview.record_count}</p>
-              <p className="row-detail">
-                {preview.accepted_record_count} accepted / {preview.rejected_record_count} rejected
-              </p>
+              <p className="row-title">{selectedRecordCount}</p>
+              <p className="row-detail">{selectedRecordDetail}</p>
             </div>
             <div>
               <p className="metric-label">Credentials</p>
               <p className="row-title">{manifest.credential_requirements.storage}</p>
-              <p className="row-detail">no stored credentials</p>
+              <p className="row-detail">{credentialDetail}</p>
             </div>
             <div>
               <p className="metric-label">Payload</p>
