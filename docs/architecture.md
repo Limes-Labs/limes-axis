@@ -93,9 +93,10 @@ mutation execution. Versioned policy sets add
 `connectors:promotion_policy_set:activate` and
 `connector.promotion_policy_set.activated` evidence so one active set can define
 multi-policy required gates for a connector; promotions persist `policy_set_id`
-and `policy_ids` before TypeDB mutation execution. Replacing an active set
-requires approval/workflow evidence, writes
-`connector.promotion_policy_set.replaced` and supersedes the prior active
+and `policy_ids` before TypeDB mutation execution. Replacing or rolling back an
+active set requires approval/workflow evidence, writes
+`connector.promotion_policy_set.replaced` or
+`connector.promotion_policy_set.rolled_back`, and supersedes the prior active
 record. Policy and policy-set rejections write
 `connector.ontology_promotion.rejected` evidence before the validation response
 so failed governance checks remain replayable. The TypeDB adapter is deferred

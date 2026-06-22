@@ -287,6 +287,10 @@ class ConnectorPromotionPolicySetCreate(BaseModel):
     replacement_decision: str | None = None
     replacement_workflow_signal_status: str | None = None
     replaced_at: datetime | None = None
+    rollback_to_policy_set_id: str | None = None
+    rollback_approval_id: str | None = None
+    rollback_decision: str | None = None
+    rollback_workflow_signal_status: str | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -1000,6 +1004,10 @@ class AxisPersistenceRepository:
             replacement_decision=record.replacement_decision,
             replacement_workflow_signal_status=record.replacement_workflow_signal_status,
             replaced_at=record.replaced_at,
+            rollback_to_policy_set_id=record.rollback_to_policy_set_id,
+            rollback_approval_id=record.rollback_approval_id,
+            rollback_decision=record.rollback_decision,
+            rollback_workflow_signal_status=record.rollback_workflow_signal_status,
             notes=record.notes,
         )
         self.session.add(policy_set)
@@ -1014,10 +1022,14 @@ class AxisPersistenceRepository:
         replaced_at = utc_now()
         active_policy_set.status = "superseded"
         active_policy_set.replaced_by_policy_set_id = record.policy_set_id
-        active_policy_set.replacement_approval_id = record.replacement_approval_id
-        active_policy_set.replacement_decision = record.replacement_decision
+        active_policy_set.replacement_approval_id = (
+            record.replacement_approval_id or record.rollback_approval_id
+        )
+        active_policy_set.replacement_decision = (
+            record.replacement_decision or record.rollback_decision
+        )
         active_policy_set.replacement_workflow_signal_status = (
-            record.replacement_workflow_signal_status
+            record.replacement_workflow_signal_status or record.rollback_workflow_signal_status
         )
         active_policy_set.replaced_at = replaced_at
         policy_set = self.create_connector_promotion_policy_set(

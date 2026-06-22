@@ -104,6 +104,7 @@ Foundation acceptance is tracked in
 - [x] Add connector console policy authoring controls with API/local preview.
 - [x] Add connector promotion policy enablement workflow with audit evidence.
 - [x] Add versioned connector promotion policy sets for multi-policy required gates.
+- [x] Add governed connector promotion policy set replacement and rollback evidence.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -202,11 +203,12 @@ can activate a versioned active set with
 policies in that set and stores `policy_set_id`, `policy_ids` and
 `policy_set_enforced` evidence. When a policy set is active, explicit single
 `policy_id` selection is rejected so promotions cannot bypass the full
-required-gate set. Replacing an active set requires `replaces_policy_set_id`,
-an approved replacement decision, `policy_set_replacement_signal_recorded`
-workflow evidence and writes `connector.promotion_policy_set.replaced` while
-marking the previous set `superseded`. Policy and policy-set promotion
-rejections write
+required-gate set. Replacing or rolling back an active set requires
+`replaces_policy_set_id`, an approved transition decision and workflow evidence.
+Replacement writes `connector.promotion_policy_set.replaced`; rollback restores a
+superseded target through a new active version, writes
+`connector.promotion_policy_set.rolled_back` and marks the previous active set
+`superseded`. Policy and policy-set promotion rejections write
 `connector.ontology_promotion.rejected` audit evidence with the effective
 policy context before the API returns 422. If multiple required policies exist
 without an active set, Axis still rejects implicit selection.

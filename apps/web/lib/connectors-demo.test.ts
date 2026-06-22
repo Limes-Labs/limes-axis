@@ -306,10 +306,10 @@ describe("manufacturing connector demo contract", () => {
     expect(defaultConnectorPromotionPolicySetRegistry.tenant_id).toBe(
       "tenant_demo_manufacturing",
     );
-    expect(defaultConnectorPromotionPolicySetRegistry.policy_sets).toHaveLength(2);
+    expect(defaultConnectorPromotionPolicySetRegistry.policy_sets).toHaveLength(3);
     expect(defaultConnectorPromotionPolicySetRegistry.metrics[0]).toMatchObject({
       label: "Policy Sets",
-      value: "2",
+      value: "3",
     });
     expect(defaultConnectorPromotionPolicySetRegistry.metrics[1]).toMatchObject({
       label: "Active Sets",
@@ -327,16 +327,42 @@ describe("manufacturing connector demo contract", () => {
       "policy_set_connector_asset_required_20260622_v2",
     );
 
-    const activePolicySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[1];
-    expect(activePolicySet.policy_set_id).toBe(
+    const replacementPolicySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[1];
+    expect(replacementPolicySet.policy_set_id).toBe(
       "policy_set_connector_asset_required_20260622_v2",
+    );
+    expect(replacementPolicySet.status).toBe("superseded");
+    expect(replacementPolicySet.replaces_policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622",
+    );
+    expect(replacementPolicySet.replaced_by_policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622_rollback",
+    );
+    expect(replacementPolicySet.audit_event_type).toBe(
+      "connector.promotion_policy_set.replaced",
+    );
+    expect(replacementPolicySet.replacement_workflow_signal_status).toBe(
+      "policy_set_rollback_signal_recorded",
+    );
+
+    const activePolicySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[2];
+    expect(activePolicySet.policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622_rollback",
     );
     expect(activePolicySet.status).toBe("active");
     expect(activePolicySet.replaces_policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622_v2",
+    );
+    expect(activePolicySet.rollback_to_policy_set_id).toBe(
       "policy_set_connector_asset_required_20260622",
     );
-    expect(activePolicySet.audit_event_type).toBe("connector.promotion_policy_set.replaced");
-    expect(activePolicySet.replacement_workflow_signal_status).toBe(
+    expect(activePolicySet.audit_event_type).toBe(
+      "connector.promotion_policy_set.rolled_back",
+    );
+    expect(activePolicySet.rollback_workflow_signal_status).toBe(
+      "policy_set_rollback_signal_recorded",
+    );
+    expect(policySet.replacement_workflow_signal_status).toBe(
       "policy_set_replacement_signal_recorded",
     );
     expect(JSON.stringify(defaultConnectorPromotionPolicySetRegistry).toLowerCase()).not.toContain(

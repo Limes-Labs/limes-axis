@@ -243,7 +243,11 @@ required-gate set. A new active set can replace the current active set only when
 the request names `replaces_policy_set_id`, carries an approved replacement
 decision and includes `policy_set_replacement_signal_recorded` workflow
 evidence; Axis writes `connector.promotion_policy_set.replaced` and marks the
-previous set `superseded`. Policy and policy-set promotion rejections write
+previous set `superseded`. A rollback also names the current active set, points
+at a superseded `rollback_to_policy_set_id`, carries approved rollback evidence,
+requires `policy_set_rollback_signal_recorded`, writes
+`connector.promotion_policy_set.rolled_back` and creates a new active version
+instead of reactivating old rows. Policy and policy-set promotion rejections write
 `connector.ontology_promotion.rejected` audit evidence with policy ids,
 matched constraints, violations and permission context before the API returns
 422. Without an active set, multi-policy auto-selection is rejected with
@@ -255,9 +259,10 @@ posts to `POST /demo/manufacturing/connectors/promotion-policies`; when the API
 is unavailable, it records a local public-safe preview and refreshes the policy
 metrics. It also includes a compact enablement control that posts approval and
 workflow evidence to the enable endpoint or records a local public-safe preview.
-It also shows versioned policy-set evidence so reviewers can inspect the active
-required-gate set before promotion. This does not add policy update/rollback or
-connector execution; policy-set activation is append-only in this slice.
+It also shows versioned policy-set evidence so reviewers can inspect active,
+superseded, replaced and rolled-back required-gate sets before promotion. This
+does not add mutable policy update or connector execution; policy-set transitions
+are append-only in this slice.
 
 ## Manufacturing CSV Manifest
 
