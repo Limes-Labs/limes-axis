@@ -240,6 +240,14 @@ For `external_db_operational_mirror`, setting
 profile adapter boundary. That adapter writes provider/profile/table/count
 evidence, keeps `external_query_started=false` in this slice and never returns
 raw connection strings or credential material.
+If the run input explicitly sets `live_query_requested=true`, the adapter enters
+a live-query preflight path. By default it writes
+`connector.run.sync_execution_preflight_blocked`; with
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, an approved private
+endpoint egress boundary, an egress policy id and a lease-scoped secret
+reference can write `connector.run.sync_execution_preflight_passed`. Passing
+preflight still does not start a database query, return credential material or
+mutate the graph.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:

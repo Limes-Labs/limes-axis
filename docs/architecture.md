@@ -102,7 +102,11 @@ executor that completes the run without external egress, credential material or
 graph mutation. `AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true` selects the
 Postgres external DB profile adapter boundary for
 `external_db_operational_mirror`, returning profile/table/count evidence without
-raw connection strings or credential material. Connector ontology
+raw connection strings or credential material. When a live query is requested,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can mark the preflight as
+passed only for approved private endpoint egress and lease-scoped secret
+references; the slice still records `external_query_started=false` and returns
+no credential material. Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records

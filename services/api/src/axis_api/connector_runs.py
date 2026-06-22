@@ -148,6 +148,12 @@ SYNC_SCHEDULE_AUDIT_EVENT_TYPE = "connector.run.sync_scheduled"
 SYNC_DISPATCH_AUDIT_EVENT_TYPE = "connector.run.sync_dispatch_deferred"
 SYNC_EXECUTION_DEFERRED_AUDIT_EVENT_TYPE = "connector.run.sync_execution_deferred"
 SYNC_EXECUTION_COMPLETED_AUDIT_EVENT_TYPE = "connector.run.sync_execution_completed"
+SYNC_EXECUTION_PREFLIGHT_BLOCKED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_execution_preflight_blocked"
+)
+SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_execution_preflight_passed"
+)
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
 SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
@@ -819,4 +825,8 @@ def _sync_execution_result_from_summary(
 def _sync_execution_audit_event_type(result: ConnectorSyncExecutionResult) -> str:
     if result.status == "sync_execution_completed":
         return SYNC_EXECUTION_COMPLETED_AUDIT_EVENT_TYPE
+    if result.status == "sync_execution_preflight_blocked":
+        return SYNC_EXECUTION_PREFLIGHT_BLOCKED_AUDIT_EVENT_TYPE
+    if result.status == "sync_execution_preflight_passed":
+        return SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE
     return SYNC_EXECUTION_DEFERRED_AUDIT_EVENT_TYPE
