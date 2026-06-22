@@ -11917,6 +11917,19 @@
     "/demo/manufacturing/model-routing": {
       "get": {
         "operationId": "manufacturing_model_routing_demo_manufacturing_model_routing_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -11927,6 +11940,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Model routing reference record not found"
+          },
+          "422": {
+            "description": "Model routing reference payload invalid"
           }
         },
         "summary": "Manufacturing Model Routing",

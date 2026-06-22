@@ -144,9 +144,12 @@ Foundation acceptance is tracked in
   bootstrap record.
 - [x] Persist the manufacturing audit explorer reference as a tenant-scoped
   bootstrap record.
+- [x] Persist the manufacturing model routing reference as a tenant-scoped
+  bootstrap record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
-  console, approval inbox, audit explorer, connector registry, agent registry
-  and action registry with persisted, tenant-scoped bootstrap records.
+  console, approval inbox, audit explorer, model routing, connector registry,
+  agent registry and action registry with persisted, tenant-scoped bootstrap
+  records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -172,6 +175,9 @@ permissions against that same persisted record before writing approval, audit
 or workflow-signal evidence. The audit explorer reference endpoint reads from
 `surface=audit` and `reference_id=manufacturing-audit-explorer`; the separate
 audit events and export endpoints continue to query persisted `audit_events`.
+The model routing reference endpoint reads from `surface=model-routing` and
+`reference_id=manufacturing-model-routing`; live provider routing, usage
+metering and billing adapters remain separate Platform work.
 Remaining API-owned reference records are a
 bootstrap boundary and must be moved to persisted tenant-scoped records before
 production use. The full manufacturing reference demo remains open until it has
@@ -400,7 +406,8 @@ execution, connector invocation and broader relationship-aware permission
 enforcement remain Platform work.
 
 The model routing and cost observability layer is currently read-only and API
-required. The browser no longer carries local route telemetry fallback records.
+required. The browser no longer carries local route telemetry fallback records,
+and the API reference now comes from a persisted tenant-scoped bootstrap row.
 Live provider adapters, provider-specific billing ingestion, tenant budget
 enforcement, persisted usage records, OpenTelemetry spans from runtime code and
 audit writes from live route decisions remain Platform work.

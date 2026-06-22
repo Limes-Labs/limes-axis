@@ -98,6 +98,14 @@ def test_postgres_migration_creates_foundation_tables() -> None:
                 "AND reference_id = 'manufacturing-audit-explorer'"
             )
         ).scalar_one()
+        model_routing_count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM demo_reference_records "
+                "WHERE tenant_id = 'tenant_demo_manufacturing' "
+                "AND surface = 'model-routing' "
+                "AND reference_id = 'manufacturing-model-routing'"
+            )
+        ).scalar_one()
 
     assert overview_count == 1
     assert connector_registry_count == 1
@@ -106,6 +114,7 @@ def test_postgres_migration_creates_foundation_tables() -> None:
     assert workflow_console_count == 1
     assert approval_inbox_count == 1
     assert audit_explorer_count == 1
+    assert model_routing_count == 1
 
 
 def test_typedb_schema_loads_into_fresh_database() -> None:
