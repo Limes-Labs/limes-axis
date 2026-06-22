@@ -1,5 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
+function unsignedToken(claims: Record<string, unknown>): string {
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  return `axis.${payload}.signature`;
+}
+
 async function expectNoHorizontalOverflow(page: Page) {
   const hasOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -133,6 +138,23 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("heading", { name: "Policy gate queue" })).toBeVisible();
     await expect(page.getByText("Fallback approval seed")).toBeVisible();
     await expect(page.getByRole("button", { name: /Expedite supplier batch/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "OIDC" }).click();
+    await page.getByLabel("OIDC bearer token").fill(
+      unsignedToken({
+        sub: "plant-operations-owner-role",
+        axis_tenant: "tenant_demo_manufacturing",
+        scope: "approvals:supply:decide supply:read operations:read",
+        scp: ["workflows:read"],
+        exp: 4102444800,
+      }),
+    );
+    await page.getByRole("button", { name: "Connect OIDC session" }).click();
+
+    await expect(page.getByLabel("OIDC session", { exact: true })).toContainText(
+      "plant-operations-owner-role",
+    );
+    await expect(page.getByRole("button", { name: "Clear OIDC session" })).toBeVisible();
 
     await page.getByRole("button", { name: /Place Batch Q-1842 on quality hold/ }).click();
 

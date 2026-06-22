@@ -60,6 +60,9 @@ local synthetic ontology seed.
 
 Entity links open `/ontology/[nodeId]`, which loads the entity detail endpoint
 and falls back to a local detail builder when the API is unavailable.
+When an OIDC session is attached in the console toolbar, entity detail fetches
+include the bearer token so relationship-scope denials can be exercised from
+the console.
 
 The current graph and detail pages are read-only. Future Platform work should
 add tenant-scoped TypeDB-backed graph queries, persisted relationship metadata
@@ -73,6 +76,7 @@ Covered by:
 - API tests for graph integrity and endpoint exposure;
 - API tests for entity detail, 404 handling, relationship-scope enforcement and
   endpoint exposure;
+- web unit tests for OIDC session token parsing and authorization headers;
 - generated OpenAPI drift check;
 - web unit tests for fallback graph integrity and local detail building;
 - Playwright smoke tests for desktop and mobile rendering, including entity
