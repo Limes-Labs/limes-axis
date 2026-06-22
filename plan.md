@@ -120,6 +120,7 @@ Foundation acceptance is tracked in
 - [x] Add Postgres external DB sync adapter boundary with public-safe profile evidence.
 - [x] Add external DB live-query preflight policy evidence without live query execution.
 - [x] Add credential lease evidence hardening for external DB live-query preflight.
+- [x] Add egress policy evidence hardening for external DB live-query preflight.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -238,9 +239,13 @@ decision is `connector.run.sync_execution_preflight_blocked`; setting
 approved private endpoint egress boundary, egress policy id and lease-scoped
 secret reference. This still keeps `external_query_started=false`, returns no
 credential material and performs no graph mutation. The passed preflight now
-also depends on the validated credential lease result: the runtime records
-lease id/mode/runtime/result status/reference evidence and blocks the path if
-the lease evidence says secret material was returned.
+depends on validated egress policy evidence from the self-hosted policy boundary
+and the validated credential lease result: the runtime records policy
+runtime/ref/scope/private-endpoint evidence, blocks unknown policies before
+secret retrieval is considered, records lease id/mode/runtime/result
+status/reference evidence and blocks the path if the lease evidence says secret
+material was returned. Network policy enforcement and real query execution stay
+outside this slice.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.

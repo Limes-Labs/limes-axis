@@ -1705,6 +1705,16 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
         egress_policy_id: "egress_policy_private_endpoint_ops",
         egress_boundary: "approved_private_endpoint",
         credential_access_mode: "lease_scoped_secret_ref",
+        egress_policy_evidence_status: "validated",
+        egress_policy_runtime_boundary: "axis-egress-policy-enforcer",
+        egress_policy_result_status: "egress_policy_approved",
+        egress_policy_ref:
+          "self-hosted-egress-policy://tenant_demo_manufacturing/" +
+          "egress_policy_private_endpoint_ops",
+        egress_policy_scope: "external_db_operational_mirror:profile_postgres_ops_readonly",
+        egress_policy_mode: "approved_private_endpoint",
+        egress_policy_private_endpoint_ref:
+          "private-endpoint://tenant_demo_manufacturing/operations-postgres-readonly",
         credential_lease_evidence_status: "validated",
         credential_lease_id: "lease_external_db_readonly_20260622",
         credential_lease_mode: "self_hosted_vault_kms_lease",
@@ -1794,6 +1804,16 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
           egress_policy_id: "egress_policy_private_endpoint_ops",
           egress_boundary: "approved_private_endpoint",
           credential_access_mode: "lease_scoped_secret_ref",
+          egress_policy_evidence_status: "validated",
+          egress_policy_runtime_boundary: "axis-egress-policy-enforcer",
+          egress_policy_result_status: "egress_policy_approved",
+          egress_policy_ref:
+            "self-hosted-egress-policy://tenant_demo_manufacturing/" +
+            "egress_policy_private_endpoint_ops",
+          egress_policy_scope: "external_db_operational_mirror:profile_postgres_ops_readonly",
+          egress_policy_mode: "approved_private_endpoint",
+          egress_policy_private_endpoint_ref:
+            "private-endpoint://tenant_demo_manufacturing/operations-postgres-readonly",
           credential_lease_evidence_status: "validated",
           credential_lease_id: "lease_external_db_readonly_20260622",
           credential_lease_mode: "self_hosted_vault_kms_lease",

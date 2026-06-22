@@ -104,11 +104,14 @@ Postgres external DB profile adapter boundary for
 `external_db_operational_mirror`, returning profile/table/count evidence without
 raw connection strings or credential material. When a live query is requested,
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can mark the preflight as
-passed only for approved private endpoint egress and lease-scoped secret
-references; the slice still records `external_query_started=false` and returns
-no credential material. The preflight consumes the already validated credential
-lease result as redacted evidence and blocks the path if that lease result says
-secret material was returned. Connector ontology
+passed only when the self-hosted egress policy boundary validates the known
+private-endpoint policy for the connector profile and the run uses a
+lease-scoped secret reference; the slice still records
+`external_query_started=false` and returns no credential material. The preflight
+records redacted egress policy evidence plus the already validated credential
+lease result, blocks unknown egress policies before secret retrieval is
+considered and also blocks if the lease result says secret material was
+returned. Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records

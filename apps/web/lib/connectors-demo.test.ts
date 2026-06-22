@@ -354,6 +354,16 @@ describe("manufacturing connector demo contract", () => {
       live_query_requested: "true",
       live_query_preflight_status: "passed",
       egress_policy_decision: "approved_private_endpoint",
+      egress_policy_evidence_status: "validated",
+      egress_policy_runtime_boundary: "axis-egress-policy-enforcer",
+      egress_policy_result_status: "egress_policy_approved",
+      egress_policy_ref:
+        "self-hosted-egress-policy://tenant_demo_manufacturing/" +
+        "egress_policy_private_endpoint_ops",
+      egress_policy_scope: "external_db_operational_mirror:profile_postgres_ops_readonly",
+      egress_policy_mode: "approved_private_endpoint",
+      egress_policy_private_endpoint_ref:
+        "private-endpoint://tenant_demo_manufacturing/operations-postgres-readonly",
       secret_retrieval_decision: "lease_scoped_reference_only",
       credential_lease_evidence_status: "validated",
       credential_lease_id: "lease_external_db_readonly_20260622",

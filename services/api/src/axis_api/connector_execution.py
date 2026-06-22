@@ -342,6 +342,20 @@ class SelfHostedConnectorSyncExecutionRuntime:
         egress_policy_id = request.input_summary.get("egress_policy_id", "")
         egress_boundary = request.input_summary.get("egress_boundary", "")
         credential_access_mode = request.input_summary.get("credential_access_mode", "")
+        egress_policy_evidence = _external_db_egress_policy_evidence(
+            tenant_id=request.tenant_id,
+            connector_id=request.connector_id,
+            connection_profile_id=connection_profile_id,
+            egress_policy_id=egress_policy_id,
+        )
+        egress_policy_evidence_valid = (
+            egress_policy_evidence["egress_policy_evidence_status"] == "validated"
+            and egress_policy_evidence["egress_policy_result_status"]
+            == "egress_policy_approved"
+            and egress_policy_evidence["egress_policy_mode"]
+            == "approved_private_endpoint"
+            and egress_boundary == "approved_private_endpoint"
+        )
         lease_result_status = str(request.credential_lease_result.get("status", "unknown"))
         credential_lease_ref = str(request.credential_lease_result.get("provider_lease_ref", ""))
         credential_lease_secret_returned = _bool_as_text(
@@ -356,8 +370,7 @@ class SelfHostedConnectorSyncExecutionRuntime:
         )
         policy_preflight_passed = (
             self.external_db_live_query_preflight_enabled
-            and bool(egress_policy_id)
-            and egress_boundary == "approved_private_endpoint"
+            and egress_policy_evidence_valid
             and credential_access_mode == "lease_scoped_secret_ref"
         )
         preflight_passed = (
@@ -390,14 +403,17 @@ class SelfHostedConnectorSyncExecutionRuntime:
             "records_rejected": "0",
             "live_query_requested": "true",
             "live_query_preflight_status": "passed" if preflight_passed else "blocked",
-            "egress_policy_decision": (
-                "approved_private_endpoint"
-                if policy_preflight_passed
-                else "blocked_by_default"
+            "egress_policy_decision": _egress_policy_decision(
+                preflight_enabled=self.external_db_live_query_preflight_enabled,
+                policy_evidence_valid=egress_policy_evidence_valid,
+                policy_evidence_status=egress_policy_evidence[
+                    "egress_policy_evidence_status"
+                ],
             ),
             "secret_retrieval_decision": (
                 _secret_retrieval_decision(
                     preflight_enabled=self.external_db_live_query_preflight_enabled,
+                    policy_preflight_passed=policy_preflight_passed,
                     lease_evidence_valid=credential_lease_evidence_valid,
                     secret_material_returned=credential_lease_secret_returned,
                 )
@@ -412,6 +428,7 @@ class SelfHostedConnectorSyncExecutionRuntime:
             result_summary["egress_boundary"] = egress_boundary
             result_summary["credential_access_mode"] = credential_access_mode
         if self.external_db_live_query_preflight_enabled:
+            result_summary.update(egress_policy_evidence)
             result_summary["credential_lease_evidence_status"] = (
                 "validated" if credential_lease_evidence_valid else "failed"
             )
@@ -445,6 +462,62 @@ class SelfHostedConnectorSyncExecutionRuntime:
         )
 
 
+def _external_db_egress_policy_evidence(
+    *,
+    tenant_id: str,
+    connector_id: str,
+    connection_profile_id: str,
+    egress_policy_id: str,
+) -> dict[str, str]:
+    expected_scope = "external_db_operational_mirror:profile_postgres_ops_readonly"
+    requested_scope = f"{connector_id}:{connection_profile_id}"
+    if (
+        egress_policy_id == "egress_policy_private_endpoint_ops"
+        and requested_scope == expected_scope
+    ):
+        return {
+            "egress_policy_evidence_status": "validated",
+            "egress_policy_runtime_boundary": "axis-egress-policy-enforcer",
+            "egress_policy_result_status": "egress_policy_approved",
+            "egress_policy_ref": (
+                f"self-hosted-egress-policy://{tenant_id}/"
+                "egress_policy_private_endpoint_ops"
+            ),
+            "egress_policy_scope": requested_scope,
+            "egress_policy_mode": "approved_private_endpoint",
+            "egress_policy_private_endpoint_ref": (
+                f"private-endpoint://{tenant_id}/operations-postgres-readonly"
+            ),
+        }
+    return {
+        "egress_policy_evidence_status": "missing",
+        "egress_policy_runtime_boundary": "axis-egress-policy-enforcer",
+        "egress_policy_result_status": "egress_policy_not_found",
+        "egress_policy_ref": (
+            f"self-hosted-egress-policy://{tenant_id}/"
+            f"{egress_policy_id or 'missing'}"
+        ),
+        "egress_policy_scope": requested_scope,
+        "egress_policy_mode": "unknown",
+        "egress_policy_private_endpoint_ref": "",
+    }
+
+
+def _egress_policy_decision(
+    *,
+    preflight_enabled: bool,
+    policy_evidence_valid: bool,
+    policy_evidence_status: str,
+) -> str:
+    if not preflight_enabled:
+        return "blocked_by_default"
+    if policy_evidence_valid:
+        return "approved_private_endpoint"
+    if policy_evidence_status == "missing":
+        return "blocked_policy_not_found"
+    return "blocked_policy_mismatch"
+
+
 def _bool_as_text(value: object) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -454,10 +527,13 @@ def _bool_as_text(value: object) -> str:
 def _secret_retrieval_decision(
     *,
     preflight_enabled: bool,
+    policy_preflight_passed: bool,
     lease_evidence_valid: bool,
     secret_material_returned: str,
 ) -> str:
     if not preflight_enabled:
+        return "not_started"
+    if not policy_preflight_passed:
         return "not_started"
     if lease_evidence_valid:
         return "lease_scoped_reference_only"

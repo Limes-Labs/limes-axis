@@ -243,11 +243,15 @@ raw connection strings or credential material.
 If the run input explicitly sets `live_query_requested=true`, the adapter enters
 a live-query preflight path. By default it writes
 `connector.run.sync_execution_preflight_blocked`; with
-`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, an approved private
-endpoint egress boundary, an egress policy id and a lease-scoped secret
-reference can write `connector.run.sync_execution_preflight_passed`. Passing
-preflight also requires the already validated credential lease result to include
-a lease reference, an executed/renewed lease status and
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, the self-hosted egress
+policy boundary must validate the known private-endpoint policy for the
+connector profile before `connector.run.sync_execution_preflight_passed` can be
+written. The result summary includes the egress policy runtime boundary, policy
+reference, scope, mode and private endpoint reference. Unknown or unapproved
+egress policies write `connector.run.sync_execution_preflight_blocked` with
+`egress_policy_decision=blocked_policy_not_found` before secret retrieval is
+considered. Passing preflight also requires the already validated credential
+lease result to include a lease reference, an executed/renewed lease status and
 `secret_material_returned=false`. If the lease evidence says secret material was
 returned, the runtime writes `connector.run.sync_execution_preflight_blocked`
 with `secret_retrieval_decision=blocked_secret_material_returned`. The preflight
