@@ -222,6 +222,43 @@ export type ManufacturingConnectorRunRegistry = {
   run_notes: string[];
 };
 
+export type ConnectorOntologyProposalRecord = {
+  tenant_id: string;
+  connector_id: string;
+  proposal_id: string;
+  source_run_id: string | null;
+  source_file_name: string;
+  mapping_profile: string;
+  status: string;
+  write_mode: string;
+  graph_mutation_status: string;
+  proposed_by: string;
+  node_id: string;
+  node_type: string;
+  ontology_type: string;
+  field_summary: Record<string, string>;
+  evidence_refs: string[];
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorOntologyProposalRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  proposals: ConnectorOntologyProposalRecord[];
+  proposal_notes: string[];
+};
+
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -405,7 +442,7 @@ export const defaultManufacturingConnectorPreview: ConnectorCsvPreviewResult = {
   preview_notes: [
     "CSV content is parsed only for preview and is not persisted.",
     "Mapped rows become ontology proposals, not live graph mutations.",
-    "Connector sync, credential handles and audit writes remain future work.",
+    "Connector execution, scheduled sync and graph mutation remain future work.",
   ],
 };
 
@@ -581,6 +618,94 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
     "Live sync and connector-backed production actions remain future work.",
   ],
 };
+
+export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOntologyProposalRegistry =
+  {
+    tenant_id: "tenant_demo_manufacturing",
+    plant_name: "Ravenna Works",
+    scenario: "Plant Operations Cockpit",
+    registry_status: "ready",
+    metrics: [
+      {
+        label: "Ontology Proposals",
+        value: "2",
+        detail: "Connector preview proposals persisted for review",
+        status: "ready",
+      },
+      {
+        label: "Pending Review",
+        value: "2",
+        detail: "Proposals waiting for approval or import workflow",
+        status: "watch",
+      },
+      {
+        label: "Graph Mutations",
+        value: "0",
+        detail: "No connector proposal writes to the ontology graph automatically",
+        status: "ready",
+      },
+    ],
+    proposals: [
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        proposal_id: "proposal_asset_line_2_packaging",
+        source_run_id: "run_file_csv_assets_preview_20260622",
+        source_file_name: "manufacturing-assets-demo.csv",
+        mapping_profile: "manufacturing_asset_v1",
+        status: "proposed_from_preview",
+        write_mode: "proposal_only",
+        graph_mutation_status: "not_applied",
+        proposed_by: "plant-operations-owner-role",
+        node_id: "asset_line_2_packaging",
+        node_type: "asset",
+        ontology_type: "manufacturing_asset",
+        field_summary: {
+          asset_name: "Line 2 Packaging",
+          domain: "Operations",
+          station: "Line 2",
+          risk_level: "high",
+        },
+        evidence_refs: ["manufacturing-assets-demo.csv", "asset_line_2_packaging"],
+        audit_event_id: "audit_connector_ontology_proposals_demo_20260622",
+        audit_event_type: "connector.ontology_proposals.recorded",
+        notes: ["Proposal persisted for review; graph mutation is not applied."],
+        created_at: "2026-06-22T00:00:00Z",
+      },
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        proposal_id: "proposal_asset_press_4",
+        source_run_id: "run_file_csv_assets_preview_20260622",
+        source_file_name: "manufacturing-assets-demo.csv",
+        mapping_profile: "manufacturing_asset_v1",
+        status: "proposed_from_preview",
+        write_mode: "proposal_only",
+        graph_mutation_status: "not_applied",
+        proposed_by: "plant-operations-owner-role",
+        node_id: "asset_press_4",
+        node_type: "asset",
+        ontology_type: "manufacturing_asset",
+        field_summary: {
+          asset_name: "Press 4",
+          domain: "Maintenance",
+          station: "Press 4",
+          risk_level: "medium",
+        },
+        evidence_refs: ["manufacturing-assets-demo.csv", "asset_press_4"],
+        audit_event_id: "audit_connector_ontology_proposals_demo_20260622",
+        audit_event_type: "connector.ontology_proposals.recorded",
+        notes: ["Proposal persisted for review; graph mutation is not applied."],
+        created_at: "2026-06-22T00:00:00Z",
+      },
+    ],
+    proposal_notes: [
+      "Connector ontology proposals are persisted for review only.",
+      "Graph mutation is not applied by connector preview records.",
+      "Raw CSV content, payloads and credential material are never stored.",
+      "Promotion to ontology graph requires future approval and workflow controls.",
+    ],
+  };
 
 export function buildDefaultCsvPreviewRequest(): ConnectorCsvPreviewRequest {
   return {

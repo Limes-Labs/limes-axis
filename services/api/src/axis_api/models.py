@@ -288,3 +288,41 @@ class ConnectorRun(Base):
             name="uq_connector_runs_tenant_run",
         ),
     )
+
+
+class ConnectorOntologyProposal(Base):
+    __tablename__ = "connector_ontology_proposals"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    proposal_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    source_file_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    mapping_profile: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    write_mode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    graph_mutation_status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    proposed_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    node_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    node_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    ontology_type: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    field_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "proposal_id",
+            name="uq_connector_ontology_proposals_tenant_proposal",
+        ),
+    )

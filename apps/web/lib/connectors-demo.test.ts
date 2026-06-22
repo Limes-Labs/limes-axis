@@ -5,6 +5,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorOntologyProposalRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
@@ -153,6 +154,37 @@ describe("manufacturing connector demo contract", () => {
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("csv_content");
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
+  });
+
+  it("keeps connector ontology proposal fallback review-only and redacted", () => {
+    expect(defaultConnectorOntologyProposalRegistry.tenant_id).toBe(
+      "tenant_demo_manufacturing",
+    );
+    expect(defaultConnectorOntologyProposalRegistry.proposals).toHaveLength(2);
+    expect(defaultConnectorOntologyProposalRegistry.metrics[0]).toMatchObject({
+      label: "Ontology Proposals",
+      value: "2",
+    });
+    expect(defaultConnectorOntologyProposalRegistry.metrics[2]).toMatchObject({
+      label: "Graph Mutations",
+      value: "0",
+    });
+
+    const proposal = defaultConnectorOntologyProposalRegistry.proposals[0];
+    expect(proposal.proposal_id).toBe("proposal_asset_line_2_packaging");
+    expect(proposal.status).toBe("proposed_from_preview");
+    expect(proposal.write_mode).toBe("proposal_only");
+    expect(proposal.graph_mutation_status).toBe("not_applied");
+    expect(proposal.audit_event_type).toBe("connector.ontology_proposals.recorded");
+    expect(JSON.stringify(defaultConnectorOntologyProposalRegistry).toLowerCase()).not.toContain(
+      "csv_content",
+    );
+    expect(JSON.stringify(defaultConnectorOntologyProposalRegistry).toLowerCase()).not.toContain(
+      "password",
+    );
+    expect(JSON.stringify(defaultConnectorOntologyProposalRegistry).toLowerCase()).not.toContain(
       "credential_value",
     );
   });

@@ -70,8 +70,11 @@ raw credential fields. Credential handle records persist external secret
 references, rotation metadata and rotation history without storing raw
 credential values. Connector run records persist redacted input/result summaries
 and link to append-only `connector.run.recorded` audit events without executing
-sync. Future connector execution must use those handles with tenant-scoped
-permissions, append-only audit writes and no external egress by default.
+sync. Connector ontology proposal records persist preview-derived proposed
+nodes for review, link to `connector.ontology_proposals.recorded` audit events
+and keep graph mutation explicitly `not_applied`. Future connector execution
+must use those handles with tenant-scoped permissions, append-only audit writes
+and no external egress by default.
 
 ## Identity Boundaries
 

@@ -2272,6 +2272,272 @@
         "title": "ConnectorManifest",
         "type": "object"
       },
+      "ConnectorOntologyProposalCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "connector_id": {
+            "default": "file_csv_manufacturing_assets",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "mapping_profile": {
+            "default": "manufacturing_asset_v1",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Mapping Profile",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "proposed_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Proposed By",
+            "type": "string"
+          },
+          "proposed_entities": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorOntologyProposalEntity"
+            },
+            "minItems": 1,
+            "title": "Proposed Entities",
+            "type": "array"
+          },
+          "source_file_name": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Source File Name",
+            "type": "string"
+          },
+          "source_run_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Run Id"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "write_mode": {
+            "default": "proposal_only",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Write Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_file_name",
+          "proposed_by",
+          "proposed_entities"
+        ],
+        "title": "ConnectorOntologyProposalCreateRequest",
+        "type": "object"
+      },
+      "ConnectorOntologyProposalEntity": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "field_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Field Summary",
+            "type": "object"
+          },
+          "node_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Node Type",
+            "type": "string"
+          },
+          "ontology_type": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Ontology Type",
+            "type": "string"
+          },
+          "proposal_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "node_id",
+          "node_type",
+          "ontology_type"
+        ],
+        "title": "ConnectorOntologyProposalEntity",
+        "type": "object"
+      },
+      "ConnectorOntologyProposalRecord": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "field_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Field Summary",
+            "type": "object"
+          },
+          "graph_mutation_status": {
+            "minLength": 1,
+            "title": "Graph Mutation Status",
+            "type": "string"
+          },
+          "mapping_profile": {
+            "minLength": 1,
+            "title": "Mapping Profile",
+            "type": "string"
+          },
+          "node_id": {
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_type": {
+            "minLength": 1,
+            "title": "Node Type",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "ontology_type": {
+            "minLength": 1,
+            "title": "Ontology Type",
+            "type": "string"
+          },
+          "proposal_id": {
+            "minLength": 1,
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "proposed_by": {
+            "minLength": 1,
+            "title": "Proposed By",
+            "type": "string"
+          },
+          "source_file_name": {
+            "minLength": 1,
+            "title": "Source File Name",
+            "type": "string"
+          },
+          "source_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Run Id"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "write_mode": {
+            "minLength": 1,
+            "title": "Write Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "proposal_id",
+          "source_file_name",
+          "mapping_profile",
+          "status",
+          "write_mode",
+          "graph_mutation_status",
+          "proposed_by",
+          "node_id",
+          "node_type",
+          "ontology_type",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorOntologyProposalRecord",
+        "type": "object"
+      },
       "ConnectorPreviewSample": {
         "properties": {
           "file_name": {
@@ -3038,6 +3304,57 @@
           "registry_status"
         ],
         "title": "ManufacturingConnectorCredentialHandleRegistry",
+        "type": "object"
+      },
+      "ManufacturingConnectorOntologyProposalRegistry": {
+        "properties": {
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "proposal_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Proposal Notes",
+            "type": "array"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorOntologyProposalRecord"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorOntologyProposalRegistry",
         "type": "object"
       },
       "ManufacturingConnectorRegistry": {
@@ -5507,6 +5824,128 @@
           }
         },
         "summary": "Manufacturing File Csv Connector Preview",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/ontology-proposals": {
+      "get": {
+        "operationId": "manufacturing_connector_ontology_proposals_demo_manufacturing_connectors_ontology_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorOntologyProposalRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Ontology Proposals",
+        "tags": [
+          "demo"
+        ]
+      },
+      "post": {
+        "operationId": "manufacturing_connector_ontology_proposal_create_demo_manufacturing_connectors_ontology_proposals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorOntologyProposalCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorOntologyProposalRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Connector ontology proposal validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Ontology Proposal Create",
         "tags": [
           "demo"
         ]

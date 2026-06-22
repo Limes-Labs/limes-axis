@@ -14,6 +14,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorOntologyProposal,
     ConnectorRun,
 )
 from axis_api.persistence import (
@@ -25,6 +26,7 @@ from axis_api.persistence import (
     ConnectorConfigurationCreate,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialRotationCreate,
+    ConnectorOntologyProposalCreate,
     ConnectorRunCreate,
     PersistenceRecordNotFound,
 )
@@ -49,6 +51,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "connector_credential_handles",
         "connector_credential_rotations",
         "connector_runs",
+        "connector_ontology_proposals",
     }.issubset(Base.metadata.tables.keys())
     assert ApprovalRecord.__table__.c.tenant_id.index is True
     assert ActionRun.__table__.c.idempotency_key.index is True
@@ -57,6 +60,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorCredentialHandle.__table__.c.handle_id.index is True
     assert ConnectorCredentialRotation.__table__.c.handle_id.index is True
     assert ConnectorRun.__table__.c.run_id.index is True
+    assert ConnectorOntologyProposal.__table__.c.proposal_id.index is True
 
 
 def test_repository_appends_audit_events_without_cross_tenant_leakage(session: Session) -> None:
@@ -353,4 +357,79 @@ def test_repository_records_connector_runs_tenant_scoped(session: Session) -> No
     assert records[0].input_summary == {
         "file_name": "manufacturing-assets-demo.csv",
         "record_count": "2",
+    }
+
+
+def test_repository_records_connector_ontology_proposals_tenant_scoped(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="connector-preview-service",
+            event_type="connector.ontology_proposals.recorded",
+            payload={
+                "connector_id": "file_csv_manufacturing_assets",
+                "proposal_ids": ["proposal_asset_line_2_packaging"],
+                "write_mode": "proposal_only",
+            },
+        )
+    )
+    created = repository.create_connector_ontology_proposal(
+        ConnectorOntologyProposalCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            proposal_id="proposal_asset_line_2_packaging",
+            source_run_id="run_file_csv_assets_preview_20260622",
+            source_file_name="manufacturing-assets-demo.csv",
+            mapping_profile="manufacturing_asset_v1",
+            status="proposed_from_preview",
+            write_mode="proposal_only",
+            graph_mutation_status="not_applied",
+            proposed_by="plant-operations-owner-role",
+            node_id="asset_line_2_packaging",
+            node_type="asset",
+            ontology_type="manufacturing_asset",
+            field_summary={
+                "asset_name": "Line 2 Packaging",
+                "domain": "Operations",
+                "station": "Line 2",
+                "risk_level": "high",
+            },
+            evidence_refs=["manufacturing-assets-demo.csv", "asset_line_2_packaging"],
+            audit_event_id=audit_event.id,
+            notes=["Proposal persisted for review; graph mutation is not applied."],
+        )
+    )
+    repository.create_connector_ontology_proposal(
+        ConnectorOntologyProposalCreate(
+            tenant_id="tenant_other",
+            connector_id="file_csv_manufacturing_assets",
+            proposal_id="proposal_other",
+            source_file_name="other.csv",
+            mapping_profile="manufacturing_asset_v1",
+            proposed_by="other-owner-role",
+            node_id="asset_other",
+            node_type="asset",
+            ontology_type="manufacturing_asset",
+            field_summary={"asset_name": "Other"},
+            evidence_refs=["other.csv", "asset_other"],
+            audit_event_id=audit_event.id,
+        )
+    )
+
+    records = repository.list_connector_ontology_proposals("tenant_demo_manufacturing")
+
+    assert records == [created]
+    assert records[0].proposal_id == "proposal_asset_line_2_packaging"
+    assert records[0].source_run_id == "run_file_csv_assets_preview_20260622"
+    assert records[0].write_mode == "proposal_only"
+    assert records[0].graph_mutation_status == "not_applied"
+    assert records[0].audit_event_id == audit_event.id
+    assert records[0].field_summary == {
+        "asset_name": "Line 2 Packaging",
+        "domain": "Operations",
+        "station": "Line 2",
+        "risk_level": "high",
     }
