@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  buildDefaultConnectorPromotionPolicyRequest,
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
@@ -16,7 +17,10 @@ import {
   defaultManufacturingConnectorRegistry,
   findConnectorById,
   formatConnectorLabel,
+  recordLocalConnectorPromotionPolicy,
   type ConnectorCsvPreviewResult,
+  type ConnectorPromotionPolicyCreateRequest,
+  type ConnectorPromotionPolicyRecord,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
   type ManufacturingConnectorManualImportRegistry,
@@ -32,6 +36,7 @@ import {
 } from "@/lib/platform-overview";
 
 type ConnectorSource = "loading" | "api" | "fallback";
+type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "local_created" | "error";
 
 function sourceLabel(source: ConnectorSource): string {
   if (source === "api") {
@@ -74,6 +79,11 @@ export function ConnectorConsole() {
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
   );
+  const [policyForm, setPolicyForm] = useState<ConnectorPromotionPolicyCreateRequest>(() =>
+    buildDefaultConnectorPromotionPolicyRequest(),
+  );
+  const [policyAuthoringStatus, setPolicyAuthoringStatus] =
+    useState<PolicyAuthoringStatus>("idle");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -216,6 +226,54 @@ export function ConnectorConsole() {
     [promotionPolicyRegistry.policies, selectedConnectorId],
   );
   const manifest = selectedConnector.manifest;
+
+  async function authorPromotionPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const request = {
+      ...policyForm,
+      tenant_id: registry.tenant_id,
+      connector_id: selectedConnectorId,
+      actor_scopes: ["connectors:promotion_policy:author"],
+      required_scopes: ["connectors:ontology:promote"],
+      required_manual_import_status: "approval_approved",
+      required_workflow_signal_status: "manual_import_signal_requested",
+      allowed_risk_levels: ["high", "medium"],
+      allowed_ontology_types: ["manufacturing_asset"],
+      review_window_hours: 24,
+    };
+
+    setPolicyAuthoringStatus("saving");
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/demo/manufacturing/connectors/promotion-policies`,
+        {
+          body: JSON.stringify(request),
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        },
+      );
+
+      if (!response.ok) {
+        setPolicyAuthoringStatus("error");
+        return;
+      }
+
+      const record = (await response.json()) as ConnectorPromotionPolicyRecord;
+      setPromotionPolicyRegistry((currentRegistry) =>
+        recordLocalConnectorPromotionPolicy(currentRegistry, request, record),
+      );
+      setPolicyAuthoringStatus("api_created");
+      return;
+    } catch {
+      setPromotionPolicyRegistry((currentRegistry) =>
+        recordLocalConnectorPromotionPolicy(currentRegistry, request),
+      );
+      setPolicyAuthoringStatus("local_created");
+    }
+  }
 
   return (
     <div className="stack">
@@ -663,6 +721,79 @@ export function ConnectorConsole() {
               </div>
               <ScrollText size={18} />
             </div>
+            <form
+              aria-label="Promotion policy authoring"
+              className="policy-authoring-form"
+              onSubmit={authorPromotionPolicy}
+            >
+              <label>
+                <span className="metric-label">Policy ID</span>
+                <input
+                  aria-label="Policy ID"
+                  onChange={(event) =>
+                    setPolicyForm((currentForm) => ({
+                      ...currentForm,
+                      policy_id: event.target.value,
+                    }))
+                  }
+                  pattern="[a-z0-9][a-z0-9_-]*"
+                  required
+                  type="text"
+                  value={policyForm.policy_id}
+                />
+              </label>
+              <label>
+                <span className="metric-label">Status</span>
+                <select
+                  aria-label="Status"
+                  onChange={(event) =>
+                    setPolicyForm((currentForm) => ({
+                      ...currentForm,
+                      status: event.target.value,
+                    }))
+                  }
+                  value={policyForm.status}
+                >
+                  <option value="draft">draft</option>
+                  <option value="enabled">enabled</option>
+                </select>
+              </label>
+              <label>
+                <span className="metric-label">Enforcement</span>
+                <select
+                  aria-label="Enforcement"
+                  onChange={(event) =>
+                    setPolicyForm((currentForm) => ({
+                      ...currentForm,
+                      enforcement_mode: event.target.value,
+                    }))
+                  }
+                  value={policyForm.enforcement_mode}
+                >
+                  <option value="advisory">advisory</option>
+                  <option value="required">required</option>
+                </select>
+              </label>
+              <button
+                className="command-button"
+                disabled={policyAuthoringStatus === "saving"}
+                type="submit"
+              >
+                <ScrollText size={15} />
+                {policyAuthoringStatus === "saving" ? "Authoring" : "Author policy"}
+              </button>
+            </form>
+            {policyAuthoringStatus !== "idle" ? (
+              <p className="row-detail">
+                {policyAuthoringStatus === "api_created"
+                  ? "API policy authored"
+                  : policyAuthoringStatus === "local_created"
+                    ? "Local policy authoring preview"
+                  : policyAuthoringStatus === "saving"
+                    ? "Policy authoring pending"
+                    : "Policy authoring rejected"}
+              </p>
+            ) : null}
             <div className="payload-grid">
               {selectedPromotionPolicies.map((policy) => (
                 <div className="payload-row" key={policy.policy_id}>

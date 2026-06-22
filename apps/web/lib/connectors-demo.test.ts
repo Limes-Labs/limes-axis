@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDefaultConnectorConfigurationRequest,
+  buildDefaultConnectorPromotionPolicyRequest,
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
@@ -13,6 +14,7 @@ import {
   defaultManufacturingConnectorPreview,
   findConnectorById,
   formatConnectorLabel,
+  recordLocalConnectorPromotionPolicy,
 } from "./connectors-demo";
 
 describe("manufacturing connector demo contract", () => {
@@ -290,6 +292,59 @@ describe("manufacturing connector demo contract", () => {
     expect(JSON.stringify(defaultConnectorPromotionPolicyRegistry).toLowerCase()).not.toContain(
       "credential_value",
     );
+  });
+
+  it("builds connector promotion policy authoring requests without raw payloads", () => {
+    const request = buildDefaultConnectorPromotionPolicyRequest({
+      policy_id: "policy_connector_asset_promotion_ui_v1",
+      status: "enabled",
+      enforcement_mode: "required",
+    });
+
+    expect(request).toMatchObject({
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      policy_id: "policy_connector_asset_promotion_ui_v1",
+      policy_version: "2026-06-22-ui",
+      status: "enabled",
+      enforcement_mode: "required",
+      created_by: "platform-governance-owner-role",
+      actor_scopes: ["connectors:promotion_policy:author"],
+      required_scopes: ["connectors:ontology:promote"],
+      required_manual_import_status: "approval_approved",
+      required_workflow_signal_status: "manual_import_signal_requested",
+      allowed_risk_levels: ["high", "medium"],
+      allowed_ontology_types: ["manufacturing_asset"],
+      review_window_hours: 24,
+    });
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("csv_content");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("records local connector promotion policies and refreshes registry metrics", () => {
+    const request = buildDefaultConnectorPromotionPolicyRequest({
+      policy_id: "policy_connector_asset_promotion_ui_v1",
+      status: "draft",
+      enforcement_mode: "advisory",
+    });
+
+    const registry = recordLocalConnectorPromotionPolicy(
+      defaultConnectorPromotionPolicyRegistry,
+      request,
+    );
+
+    expect(registry.policies).toHaveLength(2);
+    expect(registry.metrics[0]).toMatchObject({ label: "Promotion Policies", value: "2" });
+    expect(registry.metrics[1]).toMatchObject({ label: "Draft Policies", value: "1" });
+    expect(registry.metrics[2]).toMatchObject({ label: "Required Gates", value: "1" });
+    expect(registry.policies[0]).toMatchObject({
+      policy_id: "policy_connector_asset_promotion_ui_v1",
+      status: "draft",
+      enforcement_mode: "advisory",
+      audit_event_type: "connector.promotion_policy.authored",
+    });
+    expect(registry.policies[0].audit_event_id).toBeNull();
   });
 
   it("finds connectors and formats connector labels", () => {

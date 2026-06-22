@@ -101,6 +101,7 @@ Foundation acceptance is tracked in
 - [x] Author connector promotion policies before required enforcement.
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.
+- [x] Add connector console policy authoring controls with API/local preview.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -193,7 +194,9 @@ The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
 run evidence, persisted ontology proposal evidence, promotion evidence, manual
 import decision evidence, promotion policy authoring/enforcement evidence and
-schema mapping with an offline fallback seed.
+schema mapping with an offline fallback seed. It can author promotion policies
+through the API when available or record a local public-safe preview when the
+API is offline.
 Persisted connector manifest management beyond the demo seed, credential vault
 integration, scheduled sync, external database connectors and connector-backed
 production actions remain Platform work.

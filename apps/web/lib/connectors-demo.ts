@@ -357,6 +357,24 @@ export type ConnectorPromotionPolicyRecord = {
   created_at: string;
 };
 
+export type ConnectorPromotionPolicyCreateRequest = {
+  tenant_id: string;
+  connector_id: string;
+  policy_id: string;
+  policy_version: string;
+  status: string;
+  enforcement_mode: string;
+  created_by: string;
+  actor_scopes: string[];
+  required_scopes: string[];
+  required_manual_import_status: string;
+  required_workflow_signal_status: string;
+  allowed_risk_levels: string[];
+  allowed_ontology_types: string[];
+  review_window_hours: number;
+  notes: string[];
+};
+
 export type ManufacturingConnectorPromotionPolicyRegistry = {
   tenant_id: string;
   plant_name: string;
@@ -1038,6 +1056,94 @@ export function buildDefaultConnectorConfigurationRequest(): ConnectorConfigurat
     },
     credential_ref_ids: [],
     notes: ["Preview-only tenant configuration."],
+  };
+}
+
+export function buildDefaultConnectorPromotionPolicyRequest(
+  overrides: Partial<ConnectorPromotionPolicyCreateRequest> = {},
+): ConnectorPromotionPolicyCreateRequest {
+  return {
+    tenant_id: "tenant_demo_manufacturing",
+    connector_id: "file_csv_manufacturing_assets",
+    policy_id: "policy_connector_asset_promotion_ui_v1",
+    policy_version: "2026-06-22-ui",
+    status: "draft",
+    enforcement_mode: "advisory",
+    created_by: "platform-governance-owner-role",
+    actor_scopes: ["connectors:promotion_policy:author"],
+    required_scopes: ["connectors:ontology:promote"],
+    required_manual_import_status: "approval_approved",
+    required_workflow_signal_status: "manual_import_signal_requested",
+    allowed_risk_levels: ["high", "medium"],
+    allowed_ontology_types: ["manufacturing_asset"],
+    review_window_hours: 24,
+    notes: ["Policy authored from connector console."],
+    ...overrides,
+  };
+}
+
+export function recordLocalConnectorPromotionPolicy(
+  registry: ManufacturingConnectorPromotionPolicyRegistry,
+  request: ConnectorPromotionPolicyCreateRequest,
+  record?: ConnectorPromotionPolicyRecord,
+): ManufacturingConnectorPromotionPolicyRegistry {
+  const authoredPolicy: ConnectorPromotionPolicyRecord = record ?? {
+    tenant_id: request.tenant_id,
+    connector_id: request.connector_id,
+    policy_id: request.policy_id,
+    policy_version: request.policy_version,
+    status: request.status,
+    enforcement_mode: request.enforcement_mode,
+    created_by: request.created_by,
+    required_authoring_scope: "connectors:promotion_policy:author",
+    required_scopes: request.required_scopes,
+    required_manual_import_status: request.required_manual_import_status,
+    required_workflow_signal_status: request.required_workflow_signal_status,
+    allowed_risk_levels: request.allowed_risk_levels,
+    allowed_ontology_types: request.allowed_ontology_types,
+    review_window_hours: request.review_window_hours,
+    permission_decision: {
+      allowed: true,
+      reason: "local_preview",
+    },
+    audit_event_id: null,
+    audit_event_type: "connector.promotion_policy.authored",
+    notes: request.notes,
+    created_at: "2026-06-22T00:00:00Z",
+  };
+  const policies = [
+    authoredPolicy,
+    ...registry.policies.filter((policy) => policy.policy_id !== request.policy_id),
+  ];
+  const draftCount = policies.filter((policy) => policy.status === "draft").length;
+  const requiredCount = policies.filter(
+    (policy) => policy.status === "enabled" && policy.enforcement_mode === "required",
+  ).length;
+
+  return {
+    ...registry,
+    registry_status: "ready",
+    metrics: [
+      {
+        label: "Promotion Policies",
+        value: String(policies.length),
+        detail: "Connector proposal promotion policies",
+        status: policies.length > 0 ? "ready" : "watch",
+      },
+      {
+        label: "Draft Policies",
+        value: String(draftCount),
+        detail: "Policies authored but not enabled",
+        status: draftCount > 0 ? "watch" : "ready",
+      },
+      {
+        label: "Required Gates",
+        value: String(requiredCount),
+        detail: "Enabled policies marked required for promotion",
+        status: requiredCount > 0 ? "ready" : "watch",
+      },
+    ],
+    policies,
   };
 }
 
