@@ -134,8 +134,11 @@ Foundation acceptance is tracked in
   record.
 - [x] Persist the manufacturing connector registry reference as a
   tenant-scoped bootstrap record.
-- [ ] Replace remaining API-owned reference endpoints beyond overview and
-  connector registry with persisted, tenant-scoped bootstrap records.
+- [x] Persist the manufacturing agent registry reference as a tenant-scoped
+  bootstrap record.
+- [ ] Replace remaining API-owned reference endpoints beyond overview,
+  connector registry and agent registry with persisted, tenant-scoped bootstrap
+  records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -145,7 +148,9 @@ manufacturing overview endpoint now reads a tenant-scoped
 `demo_reference_records` bootstrap row and returns explicit API errors when the
 record is missing or invalid. The connector registry endpoint follows the same
 pattern with `surface=connectors` and
-`reference_id=manufacturing-connector-registry`. Remaining API-owned reference
+`reference_id=manufacturing-connector-registry`. The agent registry endpoint
+also reads from `surface=agents` and
+`reference_id=manufacturing-agent-registry`. Remaining API-owned reference
 records are a bootstrap boundary and must be moved to persisted tenant-scoped
 records before production use. The full manufacturing reference demo remains
 open until it has ontology relationships, approval actions, workflow execution

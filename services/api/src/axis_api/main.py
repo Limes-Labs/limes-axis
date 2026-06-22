@@ -13,6 +13,11 @@ from axis_api.action_runs import (
     DemoActionNotFound,
     record_demo_action_run,
 )
+from axis_api.agent_reference import (
+    AgentReferenceRecordInvalid,
+    AgentReferenceRecordNotFound,
+    get_persisted_manufacturing_agent_registry,
+)
 from axis_api.approval_decisions import (
     ApprovalDecisionPersistenceResult,
     ApprovalDecisionRequest,
@@ -198,7 +203,6 @@ from axis_api.demo import (
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
     get_manufacturing_action_registry,
-    get_manufacturing_agent_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
@@ -863,10 +867,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/agents",
         response_model=ManufacturingAgentRegistry,
+        responses={
+            404: {"description": "Agent registry reference record not found"},
+            422: {"description": "Agent registry reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_agent_registry() -> ManufacturingAgentRegistry:
-        return get_manufacturing_agent_registry()
+    def manufacturing_agent_registry(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingAgentRegistry:
+        try:
+            return get_persisted_manufacturing_agent_registry(
+                repository,
+                tenant_id=tenant_id,
+            )
+        except AgentReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing agent registry reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "agents",
+                },
+            ) from exc
+        except AgentReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing agent registry reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "agents",
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/actions",
