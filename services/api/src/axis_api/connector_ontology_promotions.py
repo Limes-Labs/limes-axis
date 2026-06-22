@@ -26,10 +26,18 @@ class ConnectorOntologyPromotionNotFound(LookupError):
 
 
 class ConnectorOntologyPromotionValidationError(ValueError):
-    def __init__(self, message: str, reason: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        reason: str,
+        audit_event_id: UUID | None = None,
+        audit_event_type: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.reason = reason
+        self.audit_event_id = audit_event_id
+        self.audit_event_type = audit_event_type
 
 
 class ConnectorOntologyPromotionPermissionDenied(PermissionError):
@@ -124,6 +132,7 @@ PROMOTION_MODE = "approved_manual_import"
 APPLIED_AUDIT_EVENT_TYPE = "connector.ontology_promotion.applied"
 DEFERRED_AUDIT_EVENT_TYPE = "connector.ontology_promotion.deferred"
 FAILED_AUDIT_EVENT_TYPE = "connector.ontology_promotion.failed"
+REJECTED_AUDIT_EVENT_TYPE = "connector.ontology_promotion.rejected"
 
 
 def record_demo_connector_ontology_promotion(
@@ -168,7 +177,13 @@ def record_demo_connector_ontology_promotion(
     )
     _validate_manual_import_for_promotion(manual_import, request.proposal_id)
     permission_decision = _evaluate_promotion_permission(request, proposal, manual_import)
-    policy_decision = _evaluate_promotion_policy(repository, request, proposal, manual_import)
+    policy_decision = _evaluate_promotion_policy(
+        repository,
+        request,
+        proposal,
+        manual_import,
+        permission_decision,
+    )
     effective_policy_id = policy_decision.policy_id if policy_decision else request.policy_id
     effective_policy_set_id = policy_decision.policy_set_id if policy_decision else None
     effective_policy_ids = policy_decision.policy_ids if policy_decision else None
@@ -362,6 +377,7 @@ def _evaluate_promotion_policy(
     request: ConnectorOntologyPromotionRequest,
     proposal,
     manual_import,
+    permission_decision: PermissionDecision,
 ) -> ConnectorPromotionPolicyDecision | None:
     active_policy_sets = repository.list_active_connector_promotion_policy_sets(
         request.tenant_id,
@@ -374,15 +390,29 @@ def _evaluate_promotion_policy(
         )
     if len(active_policy_sets) == 1:
         if request.policy_id is not None:
-            raise ConnectorOntologyPromotionValidationError(
-                "Active connector promotion policy sets require set-level evaluation.",
-                "promotion_policy_set_required",
+            policy_set = active_policy_sets[0]
+            policy_decision = _required_policy_set_decision(
+                requested_policy_id=request.policy_id,
+                policy_set=policy_set,
+                manual_import=manual_import,
+                proposal=proposal,
+            )
+            _raise_policy_rejection_with_audit(
+                repository=repository,
+                request=request,
+                proposal=proposal,
+                manual_import=manual_import,
+                permission_decision=permission_decision,
+                policy_decision=policy_decision,
+                message="Active connector promotion policy sets require set-level evaluation.",
+                rejection_reason="promotion_policy_set_required",
             )
         return _evaluate_promotion_policy_set(
             repository,
             request,
             proposal,
             manual_import,
+            permission_decision,
             active_policy_sets[0],
         )
 
@@ -441,9 +471,20 @@ def _evaluate_promotion_policy(
     violations = _policy_violations(policy, request, proposal, manual_import)
 
     if violations:
-        raise ConnectorOntologyPromotionValidationError(
-            "Connector promotion policy rejected this promotion.",
-            "promotion_policy_rejected",
+        policy_decision = _rejected_policy_decision(
+            policy=policy,
+            violations=violations,
+            matched_constraints=matched_constraints,
+        )
+        _raise_policy_rejection_with_audit(
+            repository=repository,
+            request=request,
+            proposal=proposal,
+            manual_import=manual_import,
+            permission_decision=permission_decision,
+            policy_decision=policy_decision,
+            message="Connector promotion policy rejected this promotion.",
+            rejection_reason="promotion_policy_rejected",
         )
 
     return ConnectorPromotionPolicyDecision(
@@ -472,6 +513,7 @@ def _evaluate_promotion_policy_set(
     request: ConnectorOntologyPromotionRequest,
     proposal,
     manual_import,
+    permission_decision: PermissionDecision,
     policy_set,
 ) -> ConnectorPromotionPolicyDecision:
     policies = []
@@ -513,9 +555,32 @@ def _evaluate_promotion_policy_set(
     for policy in policies:
         violations = _policy_violations(policy, request, proposal, manual_import)
         if violations:
-            raise ConnectorOntologyPromotionValidationError(
-                "Connector promotion policy rejected this promotion.",
-                "promotion_policy_rejected",
+            policy_results.append(
+                {
+                    "policy_id": policy.policy_id,
+                    "policy_version": policy.policy_version,
+                    "status": "policy_rejected",
+                    "allowed": False,
+                    "reason": "policy_constraints_failed",
+                    "violations": violations,
+                }
+            )
+            policy_decision = _rejected_policy_set_decision(
+                policy_set=policy_set,
+                policies=policies,
+                policy_results=policy_results,
+                manual_import=manual_import,
+                proposal=proposal,
+            )
+            _raise_policy_rejection_with_audit(
+                repository=repository,
+                request=request,
+                proposal=proposal,
+                manual_import=manual_import,
+                permission_decision=permission_decision,
+                policy_decision=policy_decision,
+                message="Connector promotion policy rejected this promotion.",
+                rejection_reason="promotion_policy_rejected",
             )
         policy_results.append(
             {
@@ -551,6 +616,155 @@ def _evaluate_promotion_policy_set(
         reason="policy_set_constraints_satisfied",
         required_scopes=required_scopes,
         matched_constraints=matched_constraints,
+    )
+
+
+def _rejected_policy_decision(
+    *,
+    policy,
+    violations: list[str],
+    matched_constraints: dict[str, str],
+) -> ConnectorPromotionPolicyDecision:
+    return ConnectorPromotionPolicyDecision(
+        status="policy_rejected",
+        allowed=False,
+        policy_id=policy.policy_id,
+        policy_version=policy.policy_version,
+        policy_ids=[policy.policy_id],
+        policy_results=[
+            {
+                "policy_id": policy.policy_id,
+                "policy_version": policy.policy_version,
+                "status": "policy_rejected",
+                "allowed": False,
+                "reason": "policy_constraints_failed",
+                "violations": violations,
+            }
+        ],
+        enforcement_mode=policy.enforcement_mode,
+        reason="policy_constraints_failed",
+        required_scopes=policy.required_scopes,
+        matched_constraints=matched_constraints,
+    )
+
+
+def _rejected_policy_set_decision(
+    *,
+    policy_set,
+    policies: list,
+    policy_results: list[dict],
+    manual_import,
+    proposal,
+) -> ConnectorPromotionPolicyDecision:
+    policy_ids = [policy.policy_id for policy in policies]
+    required_scopes = sorted({scope for policy in policies for scope in policy.required_scopes})
+    matched_constraints = {
+        "policy_set_status": policy_set.status,
+        "manual_import_status": manual_import.status,
+        "workflow_signal_status": manual_import.workflow_signal_status,
+        "risk_level": manual_import.risk_level,
+        "ontology_type": proposal.ontology_type,
+        "selection_mode": "active_policy_set",
+        "policy_count": str(len(policy_ids)),
+    }
+    return ConnectorPromotionPolicyDecision(
+        status="policy_set_rejected",
+        allowed=False,
+        policy_id=policy_ids[0],
+        policy_version=policies[0].policy_version,
+        policy_set_id=policy_set.policy_set_id,
+        policy_set_version=policy_set.policy_set_version,
+        policy_ids=policy_ids,
+        policy_results=policy_results,
+        enforcement_mode="required",
+        reason="policy_set_constraints_failed",
+        required_scopes=required_scopes,
+        matched_constraints=matched_constraints,
+    )
+
+
+def _required_policy_set_decision(
+    *,
+    requested_policy_id: str,
+    policy_set,
+    manual_import,
+    proposal,
+) -> ConnectorPromotionPolicyDecision:
+    matched_constraints = {
+        "policy_set_status": policy_set.status,
+        "manual_import_status": manual_import.status,
+        "workflow_signal_status": manual_import.workflow_signal_status,
+        "risk_level": manual_import.risk_level,
+        "ontology_type": proposal.ontology_type,
+        "selection_mode": "active_policy_set",
+        "policy_count": str(len(policy_set.policy_ids)),
+    }
+    return ConnectorPromotionPolicyDecision(
+        status="policy_set_rejected",
+        allowed=False,
+        policy_id=requested_policy_id,
+        policy_set_id=policy_set.policy_set_id,
+        policy_set_version=policy_set.policy_set_version,
+        policy_ids=policy_set.policy_ids,
+        policy_results=[
+            {
+                "policy_id": requested_policy_id,
+                "status": "policy_set_rejected",
+                "allowed": False,
+                "reason": "policy_set_required",
+            }
+        ],
+        enforcement_mode="required",
+        reason="policy_set_required",
+        required_scopes=[],
+        matched_constraints=matched_constraints,
+    )
+
+
+def _raise_policy_rejection_with_audit(
+    *,
+    repository: AxisPersistenceRepository,
+    request: ConnectorOntologyPromotionRequest,
+    proposal,
+    manual_import,
+    permission_decision: PermissionDecision,
+    policy_decision: ConnectorPromotionPolicyDecision,
+    message: str,
+    rejection_reason: str,
+) -> None:
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=REJECTED_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": proposal.connector_id,
+                "promotion_id": request.promotion_id,
+                "proposal_id": proposal.proposal_id,
+                "manual_import_id": manual_import.import_id,
+                "promotion_mode": request.promotion_mode,
+                "policy_id": policy_decision.policy_id,
+                "policy_set_id": policy_decision.policy_set_id,
+                "policy_ids": policy_decision.policy_ids,
+                "policy_decision": policy_decision.model_dump(),
+                "status": "promotion_rejected",
+                "graph_mutation_status": "not_applied",
+                "rejection_reason": rejection_reason,
+                "required_permission": REQUIRED_PROMOTION_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+                "node_id": proposal.node_id,
+                "node_type": proposal.node_type,
+                "ontology_type": proposal.ontology_type,
+                "field_summary_keys": sorted(proposal.field_summary.keys()),
+                "decision_note_recorded": str(request.note is not None).lower(),
+            },
+        )
+    )
+    raise ConnectorOntologyPromotionValidationError(
+        message,
+        rejection_reason,
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
     )
 
 

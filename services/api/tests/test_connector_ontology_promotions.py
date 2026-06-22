@@ -505,9 +505,33 @@ def test_connector_ontology_promotion_endpoint_rejects_policy_risk_mismatch(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["reason"] == "promotion_policy_rejected"
+    detail = response.json()["detail"]
+    assert detail["reason"] == "promotion_policy_rejected"
+    assert detail["audit_event_type"] == "connector.ontology_promotion.rejected"
     with session_factory() as session:
         assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
+        rejection_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.ontology_promotion.rejected"
+            )
+        ).one()
+
+    assert detail["audit_event_id"] == str(rejection_event.id)
+    assert rejection_event.actor_id == "plant-operations-owner-role"
+    assert rejection_event.payload["promotion_id"] == "promote_asset_line_2_packaging_20260622"
+    assert rejection_event.payload["proposal_id"] == "proposal_asset_line_2_packaging"
+    assert rejection_event.payload["manual_import_id"] == "import_assets_manual_20260622"
+    assert rejection_event.payload["policy_id"] == "policy_connector_asset_promotion_v1"
+    assert rejection_event.payload["policy_set_id"] is None
+    assert rejection_event.payload["policy_ids"] == ["policy_connector_asset_promotion_v1"]
+    assert rejection_event.payload["status"] == "promotion_rejected"
+    assert rejection_event.payload["graph_mutation_status"] == "not_applied"
+    assert rejection_event.payload["rejection_reason"] == "promotion_policy_rejected"
+    assert rejection_event.payload["policy_decision"]["status"] == "policy_rejected"
+    assert rejection_event.payload["policy_decision"]["allowed"] is False
+    assert rejection_event.payload["policy_decision"]["policy_results"][0]["violations"] == [
+        "risk_level_not_allowed"
+    ]
 
 
 def test_connector_ontology_promotion_endpoint_auto_selects_required_policy_and_rejects_mismatch(
@@ -527,9 +551,28 @@ def test_connector_ontology_promotion_endpoint_auto_selects_required_policy_and_
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["reason"] == "promotion_policy_rejected"
+    detail = response.json()["detail"]
+    assert detail["reason"] == "promotion_policy_rejected"
+    assert detail["audit_event_type"] == "connector.ontology_promotion.rejected"
     with session_factory() as session:
         assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
+        rejection_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.ontology_promotion.rejected"
+            )
+        ).one()
+
+    assert detail["audit_event_id"] == str(rejection_event.id)
+    assert rejection_event.payload["policy_id"] == "policy_connector_asset_promotion_v1"
+    assert rejection_event.payload["policy_set_id"] is None
+    assert rejection_event.payload["policy_ids"] == ["policy_connector_asset_promotion_v1"]
+    assert rejection_event.payload["policy_decision"]["status"] == "policy_rejected"
+    assert rejection_event.payload["policy_decision"]["matched_constraints"]["selection_mode"] == (
+        "auto_required"
+    )
+    assert rejection_event.payload["policy_decision"]["policy_results"][0]["violations"] == [
+        "risk_level_not_allowed"
+    ]
 
 
 def test_connector_ontology_promotion_rejects_ambiguous_required_policy_selection(
@@ -635,9 +678,33 @@ def test_connector_ontology_promotion_rejects_active_policy_set_violation(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["reason"] == "promotion_policy_rejected"
+    detail = response.json()["detail"]
+    assert detail["reason"] == "promotion_policy_rejected"
+    assert detail["audit_event_type"] == "connector.ontology_promotion.rejected"
     with session_factory() as session:
         assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
+        rejection_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.ontology_promotion.rejected"
+            )
+        ).one()
+
+    assert detail["audit_event_id"] == str(rejection_event.id)
+    assert rejection_event.payload["policy_set_id"] == (
+        "policy_set_connector_asset_required_20260622"
+    )
+    assert rejection_event.payload["policy_ids"] == [
+        "policy_connector_asset_required_scope",
+        "policy_connector_asset_required_risk",
+    ]
+    assert rejection_event.payload["policy_decision"]["status"] == "policy_set_rejected"
+    assert rejection_event.payload["policy_decision"]["policy_results"][1]["policy_id"] == (
+        "policy_connector_asset_required_risk"
+    )
+    assert rejection_event.payload["policy_decision"]["policy_results"][1]["allowed"] is False
+    assert rejection_event.payload["policy_decision"]["policy_results"][1]["violations"] == [
+        "risk_level_not_allowed"
+    ]
 
 
 def test_connector_ontology_promotion_rejects_explicit_policy_when_policy_set_active(
@@ -665,9 +732,29 @@ def test_connector_ontology_promotion_rejects_explicit_policy_when_policy_set_ac
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["reason"] == "promotion_policy_set_required"
+    detail = response.json()["detail"]
+    assert detail["reason"] == "promotion_policy_set_required"
+    assert detail["audit_event_type"] == "connector.ontology_promotion.rejected"
     with session_factory() as session:
         assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
+        rejection_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.ontology_promotion.rejected"
+            )
+        ).one()
+
+    assert detail["audit_event_id"] == str(rejection_event.id)
+    assert rejection_event.payload["policy_id"] == "policy_connector_asset_required_scope"
+    assert rejection_event.payload["policy_set_id"] == (
+        "policy_set_connector_asset_required_20260622"
+    )
+    assert rejection_event.payload["policy_ids"] == [
+        "policy_connector_asset_required_scope",
+        "policy_connector_asset_required_risk",
+    ]
+    assert rejection_event.payload["rejection_reason"] == "promotion_policy_set_required"
+    assert rejection_event.payload["policy_decision"]["status"] == "policy_set_rejected"
+    assert rejection_event.payload["policy_decision"]["reason"] == "policy_set_required"
 
 
 def test_connector_ontology_promotion_rejects_explicit_policy_after_policy_set_replay(

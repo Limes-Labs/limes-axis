@@ -202,8 +202,10 @@ can activate a versioned active set with
 policies in that set and stores `policy_set_id`, `policy_ids` and
 `policy_set_enforced` evidence. When a policy set is active, explicit single
 `policy_id` selection is rejected so promotions cannot bypass the full
-required-gate set. If multiple required policies exist without an active set,
-Axis still rejects implicit selection.
+required-gate set. Policy and policy-set promotion rejections write
+`connector.ontology_promotion.rejected` audit evidence with the effective
+policy context before the API returns 422. If multiple required policies exist
+without an active set, Axis still rejects implicit selection.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
 run evidence, persisted ontology proposal evidence, promotion evidence, manual

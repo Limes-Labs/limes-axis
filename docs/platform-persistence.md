@@ -190,6 +190,10 @@ Delivered:
   policy references, activation permission evidence, append-only
   `connector.promotion_policy_set.activated` audit writes and `policy_set_id` /
   `policy_ids` evidence on connector ontology promotions and proposals.
+- connector ontology promotion rejection audit events with
+  `connector.ontology_promotion.rejected`, effective policy/policy-set context,
+  matched constraints, violations and permission evidence when policy gates
+  block the mutation boundary before any promotion record is written.
 
 Still Platform work:
 

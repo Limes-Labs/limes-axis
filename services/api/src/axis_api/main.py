@@ -815,13 +815,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
         except ConnectorOntologyPromotionValidationError as exc:
+            detail = {
+                "code": AxisErrorCode.VALIDATION_FAILED.value,
+                "message": exc.message,
+                "reason": exc.reason,
+            }
+            if exc.audit_event_id is not None:
+                repository.session.commit()
+                detail["audit_event_id"] = str(exc.audit_event_id)
+            if exc.audit_event_type is not None:
+                detail["audit_event_type"] = exc.audit_event_type
             raise HTTPException(
                 status_code=422,
-                detail={
-                    "code": AxisErrorCode.VALIDATION_FAILED.value,
-                    "message": exc.message,
-                    "reason": exc.reason,
-                },
+                detail=detail,
             ) from exc
 
         if result.idempotent_replay:

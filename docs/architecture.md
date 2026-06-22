@@ -93,8 +93,10 @@ mutation execution. Versioned policy sets add
 `connectors:promotion_policy_set:activate` and
 `connector.promotion_policy_set.activated` evidence so one active set can define
 multi-policy required gates for a connector; promotions persist `policy_set_id`
-and `policy_ids` before TypeDB mutation execution. The TypeDB adapter is
-deferred by default and must be explicitly enabled for graph writes. Future
+and `policy_ids` before TypeDB mutation execution. Policy and policy-set
+rejections write `connector.ontology_promotion.rejected` evidence before the
+validation response so failed governance checks remain replayable. The TypeDB
+adapter is deferred by default and must be explicitly enabled for graph writes. Future
 connector execution must use those handles with tenant-scoped permissions,
 append-only audit writes and no external egress by default.
 
