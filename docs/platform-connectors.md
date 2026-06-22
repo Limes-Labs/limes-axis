@@ -15,6 +15,10 @@ also without starting external sync.
 It also introduces metadata-only credential handles, rotation history and
 short-lived Vault/KMS lease records for future connector execution, without
 storing or returning raw credential material in Axis.
+External DB live-query preflight now reads tenant-scoped persisted egress policy
+records instead of a local policy catalog before secret reference resolution.
+The `/connectors` console now requires the Axis API for connector records and
+shows an API-required empty state instead of local fallback connector data.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -38,6 +42,8 @@ GET /demo/manufacturing/connectors/credential-leases
 POST /demo/manufacturing/connectors/credential-leases
 POST /demo/manufacturing/connectors/credential-leases/{lease_id}/renew
 POST /demo/manufacturing/connectors/credential-leases/{lease_id}/revoke
+GET /demo/manufacturing/connectors/egress-policies
+POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/ontology-proposals
@@ -244,18 +250,23 @@ If the run input explicitly sets `live_query_requested=true`, the adapter enters
 a live-query preflight path. By default it writes
 `connector.run.sync_execution_preflight_blocked`; with
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, the self-hosted egress
-policy boundary must validate the known private-endpoint policy for the
-connector profile before `connector.run.sync_execution_preflight_passed` can be
-written. The result summary includes the egress policy runtime boundary, policy
-reference, scope, mode and private endpoint reference. Unknown or unapproved
-egress policies write `connector.run.sync_execution_preflight_blocked` with
+policy boundary must validate a persisted tenant-scoped connector egress policy
+for the connector profile before
+`connector.run.sync_execution_preflight_passed` can be written. Policies are
+created and listed through
+`/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
+the repository-backed record and does not rely on a hardcoded policy catalog.
+The result summary includes the egress policy runtime boundary, policy
+reference, scope, mode and private endpoint reference. Unknown, unpersisted or
+unapproved egress policies write
+`connector.run.sync_execution_preflight_blocked` with
 `egress_policy_decision=blocked_policy_not_found` before secret retrieval is
 considered. Passing preflight also requires the already validated credential
 lease result to include a lease reference, an executed/renewed lease status and
-`secret_material_returned=false`. The secret reference resolver then records its
-own runtime boundary, scope, access mode, lease reference and
-`secret_reference_material_returned=false` without fetching credential
-material. Missing lease references write
+`secret_material_returned=false`. The secret reference resolver then records
+its own runtime boundary, scope, access mode, lease reference and
+`secret_reference_material_returned=false` without fetching credential material.
+Missing lease references write
 `secret_retrieval_decision=blocked_secret_reference_evidence`; lease evidence
 that says secret material was returned writes
 `secret_retrieval_decision=blocked_secret_material_returned`. The preflight
@@ -514,6 +525,8 @@ contract keeps these boundaries visible:
 - tenant-scoped persisted manifest records before scheduled sync exists;
 - tenant-scoped run records with deferred execution evidence;
 - scheduled sync execution boundary with opt-in self-hosted demo runtime;
+- tenant-scoped persisted egress policy records before external DB live-query
+  preflight can pass;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -545,6 +558,8 @@ The slice is covered by:
   and rotation history;
 - API unit tests for credential lease request, renewal, revocation, permission
   checks and raw secret material rejection;
+- API unit tests for tenant-scoped egress policy persistence, endpoint listing
+  and live-query preflight enforcement;
 - API unit tests for connector run records, audit writes and raw payload
   rejection;
 - API unit tests for connector ontology proposal persistence, audit writes,
@@ -557,4 +572,5 @@ The slice is covered by:
 - web unit tests for fallback registry, persisted manifest registry,
   configuration, credential handle, credential lease, run record, ontology
   proposal, manual import, CSV preview and external DB preview contracts;
-- Playwright smoke tests for `/connectors` rendering.
+- Playwright smoke tests for `/connectors` API-required behavior when the
+  backend is unavailable.

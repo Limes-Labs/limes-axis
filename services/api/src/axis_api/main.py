@@ -66,6 +66,15 @@ from axis_api.connector_credential_leases import (
     renew_demo_connector_credential_lease,
     revoke_demo_connector_credential_lease,
 )
+from axis_api.connector_egress_policies import (
+    ConnectorEgressPolicyCreateRequest,
+    ConnectorEgressPolicyQuery,
+    ConnectorEgressPolicyRecord,
+    ConnectorEgressPolicyValidationError,
+    ManufacturingConnectorEgressPolicyRegistry,
+    build_connector_egress_policy_registry,
+    record_demo_connector_egress_policy,
+)
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
     ConnectorSyncDispatchRuntime,
@@ -1165,6 +1174,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
         except ConnectorCredentialLeaseValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/egress-policies",
+        response_model=ManufacturingConnectorEgressPolicyRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_egress_policies(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorEgressPolicyRegistry:
+        return build_connector_egress_policy_registry(
+            repository,
+            ConnectorEgressPolicyQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/egress-policies",
+        response_model=ConnectorEgressPolicyRecord,
+        responses={422: {"description": "Connector egress policy validation failed"}},
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_egress_policy_create(
+        egress_policy: ConnectorEgressPolicyCreateRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorEgressPolicyRecord:
+        try:
+            return record_demo_connector_egress_policy(repository, egress_policy)
+        except ConnectorEgressPolicyValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

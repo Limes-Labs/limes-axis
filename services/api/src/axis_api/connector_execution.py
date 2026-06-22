@@ -100,6 +100,7 @@ class ConnectorSyncExecutionRequest(BaseModel):
     credential_lease_mode: str = Field(default="", min_length=0)
     credential_lease_runtime_boundary: str = Field(default="", min_length=0)
     credential_lease_result: dict = Field(default_factory=dict)
+    egress_policy_evidence: dict[str, str] = Field(default_factory=dict)
     schedule_id: str = Field(min_length=1)
     schedule_ref: str = Field(min_length=1)
     dispatch_id: str = Field(min_length=1)
@@ -342,11 +343,12 @@ class SelfHostedConnectorSyncExecutionRuntime:
         egress_policy_id = request.input_summary.get("egress_policy_id", "")
         egress_boundary = request.input_summary.get("egress_boundary", "")
         credential_access_mode = request.input_summary.get("credential_access_mode", "")
-        egress_policy_evidence = _external_db_egress_policy_evidence(
+        egress_policy_evidence = _egress_policy_evidence_from_request(
             tenant_id=request.tenant_id,
             connector_id=request.connector_id,
             connection_profile_id=connection_profile_id,
             egress_policy_id=egress_policy_id,
+            evidence=request.egress_policy_evidence,
         )
         egress_policy_evidence_valid = (
             egress_policy_evidence["egress_policy_evidence_status"] == "validated"
@@ -478,31 +480,39 @@ class SelfHostedConnectorSyncExecutionRuntime:
         )
 
 
-def _external_db_egress_policy_evidence(
+def _egress_policy_evidence_from_request(
     *,
     tenant_id: str,
     connector_id: str,
     connection_profile_id: str,
     egress_policy_id: str,
+    evidence: dict[str, str],
 ) -> dict[str, str]:
-    expected_scope = "external_db_operational_mirror:profile_postgres_ops_readonly"
     requested_scope = f"{connector_id}:{connection_profile_id}"
-    if (
-        egress_policy_id == "egress_policy_private_endpoint_ops"
-        and requested_scope == expected_scope
-    ):
+    if evidence:
         return {
-            "egress_policy_evidence_status": "validated",
-            "egress_policy_runtime_boundary": "axis-egress-policy-enforcer",
-            "egress_policy_result_status": "egress_policy_approved",
-            "egress_policy_ref": (
-                f"self-hosted-egress-policy://{tenant_id}/"
-                "egress_policy_private_endpoint_ops"
+            "egress_policy_evidence_status": evidence.get(
+                "egress_policy_evidence_status",
+                "failed",
             ),
-            "egress_policy_scope": requested_scope,
-            "egress_policy_mode": "approved_private_endpoint",
-            "egress_policy_private_endpoint_ref": (
-                f"private-endpoint://{tenant_id}/operations-postgres-readonly"
+            "egress_policy_runtime_boundary": evidence.get(
+                "egress_policy_runtime_boundary",
+                "unknown",
+            ),
+            "egress_policy_result_status": evidence.get(
+                "egress_policy_result_status",
+                "egress_policy_evidence_missing",
+            ),
+            "egress_policy_ref": evidence.get(
+                "egress_policy_ref",
+                f"self-hosted-egress-policy://{tenant_id}/"
+                f"{egress_policy_id or 'missing'}",
+            ),
+            "egress_policy_scope": evidence.get("egress_policy_scope", requested_scope),
+            "egress_policy_mode": evidence.get("egress_policy_mode", "unknown"),
+            "egress_policy_private_endpoint_ref": evidence.get(
+                "egress_policy_private_endpoint_ref",
+                "",
             ),
         }
     return {

@@ -14,6 +14,7 @@ from axis_api.models import (
     ConnectorCredentialHandle,
     ConnectorCredentialLease,
     ConnectorCredentialRotation,
+    ConnectorEgressPolicy,
     ConnectorManifestRecord,
     ConnectorManualImportRequest,
     ConnectorOntologyPromotion,
@@ -233,6 +234,25 @@ class ConnectorCredentialLeaseRevocationRecord(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.credential_lease.revoked", min_length=1)
     lease_result: dict = Field(default_factory=dict)
+
+
+class ConnectorEgressPolicyCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    policy_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    status: str = Field(default="active", min_length=1)
+    connection_profile_id: str = Field(min_length=1)
+    egress_boundary: str = Field(min_length=1)
+    policy_mode: str = Field(min_length=1)
+    runtime_boundary: str = Field(default="axis-egress-policy-enforcer", min_length=1)
+    private_endpoint_ref: str = Field(min_length=1)
+    created_by: str = Field(min_length=1)
+    policy_document: dict = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.egress_policy.registered", min_length=1)
+    notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorRunCreate(BaseModel):
@@ -1047,6 +1067,64 @@ class AxisPersistenceRepository:
         lease.updated_at = utc_now()
         self.session.flush()
         return lease
+
+    def create_connector_egress_policy(
+        self,
+        record: ConnectorEgressPolicyCreate,
+    ) -> ConnectorEgressPolicy:
+        policy = ConnectorEgressPolicy(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            policy_id=record.policy_id,
+            display_name=record.display_name,
+            status=record.status,
+            connection_profile_id=record.connection_profile_id,
+            egress_boundary=record.egress_boundary,
+            policy_mode=record.policy_mode,
+            runtime_boundary=record.runtime_boundary,
+            private_endpoint_ref=record.private_endpoint_ref,
+            created_by=record.created_by,
+            policy_document=record.policy_document,
+            evidence_refs=record.evidence_refs,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(policy)
+        self.session.flush()
+        return policy
+
+    def get_connector_egress_policy(
+        self,
+        tenant_id: str,
+        policy_id: str,
+    ) -> ConnectorEgressPolicy | None:
+        statement = select(ConnectorEgressPolicy).where(
+            ConnectorEgressPolicy.tenant_id == tenant_id,
+            ConnectorEgressPolicy.policy_id == policy_id,
+        )
+        return self.session.scalar(statement)
+
+    def list_connector_egress_policies(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorEgressPolicy]:
+        statement: Select[tuple[ConnectorEgressPolicy]] = select(
+            ConnectorEgressPolicy
+        ).where(ConnectorEgressPolicy.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorEgressPolicy.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorEgressPolicy.status == status)
+
+        statement = statement.order_by(
+            ConnectorEgressPolicy.created_at.desc(),
+            ConnectorEgressPolicy.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
 
     def create_connector_run(
         self,

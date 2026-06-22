@@ -131,15 +131,16 @@ can opt into the Postgres profile adapter boundary with
 evidence without raw connection strings or credential material. Live-query
 requests remain preflight-only: `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`
 can mark policy gates as passed only when the self-hosted egress policy
-boundary validates the known private-endpoint policy for the connector profile
-and the run uses a lease-scoped secret reference, but still keeps
-`external_query_started=false` and returns no credential material. The passed
-preflight records redacted egress policy evidence, private-endpoint evidence
-credential lease evidence and secret reference resolver evidence from the
-validated lease result. Unknown or unapproved egress policies are blocked before
-secret retrieval is considered; missing lease references and lease evidence that
-indicates secret material was returned are also blocked. The resolver remains
-reference-only and does not return credential material.
+boundary validates a persisted tenant-scoped connector egress policy for the
+connector profile and the run uses a lease-scoped secret reference, but still
+keeps `external_query_started=false` and returns no credential material. The
+passed preflight records redacted egress policy evidence from persisted policy
+records, private-endpoint evidence, credential lease evidence and secret
+reference resolver evidence from the validated lease result. Unknown,
+unpersisted or unapproved egress policies are blocked before secret retrieval is
+considered; missing lease references and lease evidence that indicates secret
+material was returned are also blocked. The resolver remains reference-only and
+does not return credential material.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

@@ -15,6 +15,7 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialLeaseCreate,
+    ConnectorEgressPolicyCreate,
     ConnectorRunCreate,
 )
 
@@ -211,6 +212,55 @@ def seed_external_db_credential_lease(
             expires_at=now.replace(year=now.year + 1),
             renewal_due_at=now,
             notes=["Active lease for external DB sync tests."],
+        )
+    )
+
+
+def seed_external_db_egress_policy(
+    repository: AxisPersistenceRepository,
+    *,
+    policy_id: str = "egress_policy_private_endpoint_ops",
+    status: str = "active",
+    private_endpoint_ref: str = (
+        "private-endpoint://tenant_demo_manufacturing/"
+        "persisted-operations-postgres-readonly"
+    ),
+) -> None:
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="network-policy-owner-role",
+            event_type="connector.egress_policy.registered",
+            payload={
+                "connector_id": "external_db_operational_mirror",
+                "policy_id": policy_id,
+                "connection_profile_id": "profile_postgres_ops_readonly",
+                "egress_boundary": "approved_private_endpoint",
+                "private_endpoint_ref": private_endpoint_ref,
+            },
+        )
+    )
+    repository.create_connector_egress_policy(
+        ConnectorEgressPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            policy_id=policy_id,
+            display_name="Operations Postgres private endpoint policy",
+            status=status,
+            connection_profile_id="profile_postgres_ops_readonly",
+            egress_boundary="approved_private_endpoint",
+            policy_mode="approved_private_endpoint",
+            runtime_boundary="axis-egress-policy-enforcer",
+            private_endpoint_ref=private_endpoint_ref,
+            created_by="network-policy-owner-role",
+            policy_document={
+                "allowed_destination": "operations-postgres-readonly.internal",
+                "transport": "private_endpoint",
+                "live_query_mode": "read_only_snapshot",
+            },
+            evidence_refs=[str(audit_event.id)],
+            audit_event_id=audit_event.id,
+            notes=["Persisted egress policy for external DB preflight tests."],
         )
     )
 
@@ -1182,6 +1232,7 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
         repository = AxisPersistenceRepository(session)
         seed_external_db_credential_handle(repository)
         seed_external_db_credential_lease(repository)
+        seed_external_db_egress_policy(repository)
     client = TestClient(app)
     create_dispatched_scheduled_sync(
         client,
@@ -1262,7 +1313,7 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
         "egress_policy_mode": "approved_private_endpoint",
         "egress_policy_private_endpoint_ref": (
             "private-endpoint://tenant_demo_manufacturing/"
-            "operations-postgres-readonly"
+            "persisted-operations-postgres-readonly"
         ),
         "credential_lease_evidence_status": "validated",
         "credential_lease_id": "lease_external_db_readonly_20260622",
@@ -1334,6 +1385,7 @@ def test_execute_external_db_live_query_preflight_blocks_secret_material_returne
         repository = AxisPersistenceRepository(session)
         seed_external_db_credential_handle(repository)
         seed_external_db_credential_lease(repository, secret_material_returned=True)
+        seed_external_db_egress_policy(repository)
     client = TestClient(app)
     create_dispatched_scheduled_sync(
         client,
@@ -1469,6 +1521,82 @@ def test_execute_external_db_live_query_preflight_blocks_unknown_egress_policy(
     assert "dsn" not in str(body).lower()
 
 
+def test_execute_external_db_live_query_preflight_blocks_missing_persisted_egress_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_preflight_missing_policy_20260622",
+        dispatch_id="dispatch_external_db_orders_live_preflight_missing_policy_20260622_1400",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_missing_policy_20260622_1400"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_preflight_missing_policy_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": (
+                "sync_exec_external_db_orders_live_preflight_missing_policy_20260622_1400"
+            ),
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_preflight_missing_policy_20260622_1400"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_preflight_blocked"
+    assert body["audit_event_type"] == "connector.run.sync_execution_preflight_blocked"
+    result_summary = body["sync_execution_result"]["result_summary"]
+    assert result_summary["egress_policy_evidence_status"] == "missing"
+    assert result_summary["egress_policy_result_status"] == "egress_policy_not_found"
+    assert result_summary["egress_policy_decision"] == "blocked_policy_not_found"
+    assert result_summary["secret_retrieval_decision"] == "not_started"
+    assert result_summary["external_query_started"] == "false"
+    assert result_summary["credential_material_returned"] == "false"
+    assert result_summary["graph_mutation_started"] == "false"
+    assert "vault://" not in str(body).lower()
+    assert "password" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+
 def test_execute_external_db_live_query_preflight_blocks_missing_secret_reference(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -1485,6 +1613,7 @@ def test_execute_external_db_live_query_preflight_blocks_missing_secret_referenc
         repository = AxisPersistenceRepository(session)
         seed_external_db_credential_handle(repository)
         seed_external_db_credential_lease(repository, provider_lease_ref=None)
+        seed_external_db_egress_policy(repository)
     client = TestClient(app)
     create_dispatched_scheduled_sync(
         client,

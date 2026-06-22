@@ -290,132 +290,18 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("renders connector manifests and CSV preview", async ({ page }) => {
+  test("requires the connector API instead of local connector fallback data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/connectors");
 
     await expect(page.getByRole("heading", { name: "Connector intake" })).toBeVisible();
-    await expect(page.getByText("Fallback connector seed")).toBeVisible();
-    const csvConnectorButton = page.getByRole("button", { name: /Manufacturing assets CSV/ });
-    await expect(csvConnectorButton).toBeVisible();
-    await expect(page.getByText("file_csv_manufacturing_assets").first()).toBeVisible();
-    const externalDbConnectorButton = page.getByRole("button", {
-      name: /Postgres operational mirror/,
-    });
-    await expect(externalDbConnectorButton).toBeVisible();
-    await expect(page.getByText("external_db_operational_mirror").first()).toBeVisible();
-    await expect(page.getByText("Persisted Manifests")).toBeVisible();
-    await expect(page.getByText("connector.manifest.registered").first()).toBeVisible();
-    await externalDbConnectorButton.click();
-    await expect(page.getByText("connectors:external_db:preview")).toBeVisible();
-    await expect(page.getByText("live_query")).toBeVisible();
-    await csvConnectorButton.click();
-    await expect(page.locator(".workflow-detail-header").getByText("axis-connector-sandbox")).toBeVisible();
-    await expect(page.getByText("connectors:file_csv:preview")).toBeVisible();
-    await expect(page.getByText("Configured Connectors")).toBeVisible();
-    await expect(
-      page.locator(".metric-card").getByText("Credential Handles", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText("configured_preview_only")).toBeVisible();
-    await expect(page.getByText("cred_file_csv_readonly")).toBeVisible();
-    await expect(page.getByText("vault://axis/demo/connectors/file-csv-readonly")).toBeVisible();
-    await expect(page.getByText("change-window-2026-06-22")).toBeVisible();
-    await expect(
-      page.locator(".metric-card").getByText("Credential Leases", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText("lease_file_csv_readonly_20260622").first()).toBeVisible();
-    await expect(page.getByText("axis-deferred-vault-kms-lease-adapter").first()).toBeVisible();
-    await expect(page.getByText("connector.credential_lease.requested").first()).toBeVisible();
-    await expect(
-      page.locator(".metric-card").getByText("Connector Runs", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.locator(".metric-card").getByText("Ontology Proposals", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.locator(".metric-card").getByText("Manual Imports", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.locator(".metric-card").getByText("Promotion Policies", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText("run_file_csv_assets_governed_20260622").first()).toBeVisible();
-    await expect(page.getByText("proposal_asset_line_2_packaging").first()).toBeVisible();
-    await expect(page.getByText("import_assets_manual_20260622").first()).toBeVisible();
-    await expect(page.getByText("policy_connector_asset_promotion_v1").first()).toBeVisible();
-    await expect(page.getByText("policy_set_enforced").first()).toBeVisible();
-    await expect(page.getByText("policy_set_constraints_satisfied").first()).toBeVisible();
-    await expect(page.getByText("active_policy_set").first()).toBeVisible();
-    await page.getByLabel("Policy ID", { exact: true }).fill(
-      "policy_connector_asset_promotion_ui_v1",
-    );
-    await page.getByLabel("Enforcement").selectOption("required");
-    await page.getByRole("button", { name: "Author policy" }).click();
-    await expect(page.getByText("policy_connector_asset_promotion_ui_v1").first()).toBeVisible();
-    await expect(page.getByText("Local policy authoring preview").first()).toBeVisible();
-    await page.getByLabel("Enable Policy ID").fill("policy_connector_asset_promotion_ui_v1");
-    await page.getByLabel("Approval ID").fill("appr_policy_enable_connector_asset_promotion_ui_v1");
-    await page.getByRole("button", { name: "Enable policy" }).click();
-    await expect(page.getByText("Local policy enable preview").first()).toBeVisible();
-    await expect(
-      page.locator(".audit-detail-grid").getByText("connector.run.execution_deferred", {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator(".audit-detail-grid")
-        .getByText("connector.ontology_promotion.applied", { exact: true })
-        .first(),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator(".audit-detail-grid")
-        .getByText("connector.manual_import.decision_recorded", { exact: true })
-        .first(),
-    ).toBeVisible();
-    await expect(
-      page.locator(".payload-row .mono").getByText("execution_deferred", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.locator(".payload-row .mono").getByText("sync_execution_deferred", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText("axis-deferred-connector-execution-adapter").first()).toBeVisible();
-    await expect(page.getByText("promoted_to_graph").first()).toBeVisible();
-    await expect(page.getByText("type_db_mutation_applied").first()).toBeVisible();
-    await expect(page.getByText("promote_asset_line_2_packaging_20260622").first()).toBeVisible();
-    await expect(page.getByText("approval_approved").first()).toBeVisible();
-    await expect(page.getByText("manual_import_signal_requested").first()).toBeVisible();
-    await expect(page.getByText("connector_manual_import_decided").first()).toBeVisible();
-    await expect(page.getByText("approve").first()).toBeVisible();
-    await expect(page.getByText("connectors:promotion_policy:author").first()).toBeVisible();
-    await expect(page.getByText("connector.promotion_policy.authored").first()).toBeVisible();
-    await expect(page.getByText("connector.promotion_policy.revised").first()).toBeVisible();
-    await expect(page.getByText("idem_policy_revision_asset_promotion_v2").first()).toBeVisible();
-    await expect(page.getByText("policy_revision_signal_recorded").first()).toBeVisible();
-    await expect(page.getByText("connector.promotion_policy.enabled").first()).toBeVisible();
-    await expect(page.getByText("policy_set_connector_asset_required_20260622").first())
-      .toBeVisible();
-    await expect(page.getByText("connector.promotion_policy_set.activated").first())
-      .toBeVisible();
-    await expect(page.getByText("policy_set_connector_asset_required_20260622_v2").first())
-      .toBeVisible();
-    await expect(page.getByText("connector.promotion_policy_set.replaced").first())
-      .toBeVisible();
-    await expect(
-      page.getByText("policy_set_connector_asset_required_20260622_rollback").first(),
-    ).toBeVisible();
-    await expect(page.getByText("connector.promotion_policy_set.rolled_back").first())
-      .toBeVisible();
-    await expect(page.getByText("not_applied").first()).toBeVisible();
-    await expect(page.getByText("Never Stored").first()).toBeVisible();
-    await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();
-    await expect(page.getByText("connector.preview.generated")).toBeVisible();
-    await expect(page.getByText("asset_line_2_packaging").first()).toBeVisible();
-    await expect(
-      page.locator(".audit-detail-grid").getByText("Preview Only", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Connector API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback connector records are disabled.")).toBeVisible();
+    await expect(page.getByText("API required")).toBeVisible();
+    await expect(page.getByText("Fallback connector seed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

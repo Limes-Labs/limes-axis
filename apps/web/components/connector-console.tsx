@@ -7,28 +7,13 @@ import { getApiBaseUrl } from "@/lib/api-status";
 import {
   buildDefaultConnectorPromotionPolicyEnableRequest,
   buildDefaultConnectorPromotionPolicyRequest,
-  buildDefaultCsvPreviewRequest,
-  defaultConnectorConfigurationRegistry,
-  defaultConnectorCredentialHandleRegistry,
-  defaultConnectorCredentialLeaseRegistry,
-  defaultConnectorManifestRegistry,
-  defaultConnectorManualImportRegistry,
-  defaultConnectorOntologyProposalRegistry,
-  defaultConnectorPromotionPolicyRegistry,
-  defaultConnectorPromotionPolicySetRegistry,
-  defaultConnectorRunRegistry,
-  defaultManufacturingConnectorPreview,
-  defaultManufacturingConnectorRegistry,
-  findConnectorById,
   formatConnectorLabel,
-  recordLocalConnectorPromotionPolicyEnable,
-  recordLocalConnectorPromotionPolicy,
   type ConnectorCsvPreviewResult,
   type ConnectorPromotionPolicyCreateRequest,
   type ConnectorPromotionPolicyEnableRequest,
-  type ConnectorPromotionPolicyRecord,
   type ConnectorRunRecord,
   type ManufacturingConnectorConfigurationRegistry,
+  type ManufacturingConnectorEgressPolicyRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
   type ManufacturingConnectorCredentialLeaseRegistry,
   type ManufacturingConnectorManifestRegistry,
@@ -45,16 +30,233 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type ConnectorSource = "loading" | "api" | "fallback";
-type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "local_created" | "error";
-type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "local_enabled" | "error";
+type ConnectorSource = "loading" | "api" | "unavailable";
+type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "error";
+type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "error";
+
+const CONNECTOR_TENANT_ID = "tenant_demo_manufacturing";
+const CONNECTOR_PLANT_NAME = "Ravenna Works";
+const CONNECTOR_SCENARIO = "Plant Operations Cockpit";
+
+const EMPTY_REGISTRY_BASE = {
+  tenant_id: CONNECTOR_TENANT_ID,
+  plant_name: CONNECTOR_PLANT_NAME,
+  scenario: CONNECTOR_SCENARIO,
+  registry_status: "watch" as const,
+  metrics: [],
+};
+
+const EMPTY_CONNECTOR_REGISTRY: ManufacturingConnectorRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  connectors: [],
+  connector_notes: [],
+};
+
+const EMPTY_CSV_PREVIEW: ConnectorCsvPreviewResult = {
+  tenant_id: CONNECTOR_TENANT_ID,
+  connector_id: "",
+  file_name: "",
+  preview_status: "not_requested",
+  sync_mode: "not_requested",
+  record_count: 0,
+  accepted_record_count: 0,
+  rejected_record_count: 0,
+  validation_issues: [],
+  proposed_entities: [],
+  audit_event_preview: {
+    event_type: "not_requested",
+    scope: "api",
+    actor_id: "",
+    result: "not_requested",
+    evidence_refs: [],
+    payload_preview: {},
+  },
+  preview_notes: [],
+};
+
+const EMPTY_MANIFEST_REGISTRY: ManufacturingConnectorManifestRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  manifests: [],
+  manifest_notes: [],
+};
+
+const EMPTY_CONFIGURATION_REGISTRY: ManufacturingConnectorConfigurationRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  configurations: [],
+  configuration_notes: [],
+};
+
+const EMPTY_CREDENTIAL_HANDLE_REGISTRY: ManufacturingConnectorCredentialHandleRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  handles: [],
+  handle_notes: [],
+};
+
+const EMPTY_CREDENTIAL_LEASE_REGISTRY: ManufacturingConnectorCredentialLeaseRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  leases: [],
+  lease_notes: [],
+};
+
+const EMPTY_EGRESS_POLICY_REGISTRY: ManufacturingConnectorEgressPolicyRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  policies: [],
+  policy_notes: [],
+};
+
+const EMPTY_RUN_REGISTRY: ManufacturingConnectorRunRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  runs: [],
+  run_notes: [],
+};
+
+const EMPTY_ONTOLOGY_PROPOSAL_REGISTRY: ManufacturingConnectorOntologyProposalRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  proposals: [],
+  proposal_notes: [],
+};
+
+const EMPTY_MANUAL_IMPORT_REGISTRY: ManufacturingConnectorManualImportRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  imports: [],
+  import_notes: [],
+};
+
+const EMPTY_PROMOTION_POLICY_REGISTRY: ManufacturingConnectorPromotionPolicyRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  policies: [],
+  policy_notes: [],
+};
+
+const EMPTY_PROMOTION_POLICY_SET_REGISTRY: ManufacturingConnectorPromotionPolicySetRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  policy_sets: [],
+  policy_set_notes: [],
+};
 
 function sourceLabel(source: ConnectorSource): string {
   if (source === "api") {
-    return "API connector manifest";
+    return "API connector data";
   }
 
-  return source === "loading" ? "Loading connectors" : "Fallback connector seed";
+  return source === "loading" ? "Loading connector API" : "Connector API unavailable";
+}
+
+function sourcePillClass(source: ConnectorSource): string {
+  if (source === "api") {
+    return "signal-ready";
+  }
+
+  return source === "loading" ? "status-checking" : "signal-action-required";
+}
+
+async function fetchConnectorJson<T>(
+  apiBaseUrl: string,
+  path: string,
+  signal?: AbortSignal,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    signal,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Connector request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
+  const [
+    registryData,
+    manifestData,
+    configurationData,
+    credentialHandleData,
+    credentialLeaseData,
+    egressPolicyData,
+    runData,
+    ontologyProposalData,
+    manualImportData,
+    promotionPolicyData,
+    promotionPolicySetData,
+  ] = await Promise.all([
+    fetchConnectorJson<ManufacturingConnectorRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorManifestRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/manifests",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorConfigurationRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/configurations",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorCredentialHandleRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/credential-handles",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorCredentialLeaseRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/credential-leases",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorEgressPolicyRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/egress-policies",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorRunRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/runs",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/ontology-proposals",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorManualImportRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/manual-imports",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorPromotionPolicyRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/promotion-policies",
+      signal,
+    ),
+    fetchConnectorJson<ManufacturingConnectorPromotionPolicySetRegistry>(
+      apiBaseUrl,
+      "/demo/manufacturing/connectors/promotion-policy-sets",
+      signal,
+    ),
+  ]);
+
+  return {
+    configurationData,
+    credentialHandleData,
+    credentialLeaseData,
+    egressPolicyData,
+    manifestData,
+    manualImportData,
+    ontologyProposalData,
+    promotionPolicyData,
+    promotionPolicySetData,
+    registryData,
+    runData,
+  };
 }
 
 function connectorRunRuntimeAdapter(run: ConnectorRunRecord): string {
@@ -101,48 +303,50 @@ function connectorRunRuntimeEvidence(run: ConnectorRunRecord): string {
 
 export function ConnectorConsole() {
   const [registry, setRegistry] = useState<ManufacturingConnectorRegistry>(
-    defaultManufacturingConnectorRegistry,
+    EMPTY_CONNECTOR_REGISTRY,
   );
   const [preview, setPreview] = useState<ConnectorCsvPreviewResult>(
-    defaultManufacturingConnectorPreview,
+    EMPTY_CSV_PREVIEW,
   );
   const [configurationRegistry, setConfigurationRegistry] =
     useState<ManufacturingConnectorConfigurationRegistry>(
-      defaultConnectorConfigurationRegistry,
+      EMPTY_CONFIGURATION_REGISTRY,
     );
   const [manifestRegistry, setManifestRegistry] = useState<ManufacturingConnectorManifestRegistry>(
-    defaultConnectorManifestRegistry,
+    EMPTY_MANIFEST_REGISTRY,
   );
   const [credentialHandleRegistry, setCredentialHandleRegistry] =
     useState<ManufacturingConnectorCredentialHandleRegistry>(
-      defaultConnectorCredentialHandleRegistry,
+      EMPTY_CREDENTIAL_HANDLE_REGISTRY,
     );
   const [credentialLeaseRegistry, setCredentialLeaseRegistry] =
     useState<ManufacturingConnectorCredentialLeaseRegistry>(
-      defaultConnectorCredentialLeaseRegistry,
+      EMPTY_CREDENTIAL_LEASE_REGISTRY,
+    );
+  const [egressPolicyRegistry, setEgressPolicyRegistry] =
+    useState<ManufacturingConnectorEgressPolicyRegistry>(
+      EMPTY_EGRESS_POLICY_REGISTRY,
     );
   const [runRegistry, setRunRegistry] =
-    useState<ManufacturingConnectorRunRegistry>(defaultConnectorRunRegistry);
+    useState<ManufacturingConnectorRunRegistry>(EMPTY_RUN_REGISTRY);
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
-      defaultConnectorOntologyProposalRegistry,
+      EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
     );
   const [manualImportRegistry, setManualImportRegistry] =
     useState<ManufacturingConnectorManualImportRegistry>(
-      defaultConnectorManualImportRegistry,
+      EMPTY_MANUAL_IMPORT_REGISTRY,
     );
   const [promotionPolicyRegistry, setPromotionPolicyRegistry] =
     useState<ManufacturingConnectorPromotionPolicyRegistry>(
-      defaultConnectorPromotionPolicyRegistry,
+      EMPTY_PROMOTION_POLICY_REGISTRY,
     );
   const [promotionPolicySetRegistry, setPromotionPolicySetRegistry] =
     useState<ManufacturingConnectorPromotionPolicySetRegistry>(
-      defaultConnectorPromotionPolicySetRegistry,
+      EMPTY_PROMOTION_POLICY_SET_REGISTRY,
     );
   const [source, setSource] = useState<ConnectorSource>("loading");
-  const [selectedConnectorId, setSelectedConnectorId] = useState(
-    defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
-  );
+  const [selectedConnectorId, setSelectedConnectorId] = useState("");
   const [policyForm, setPolicyForm] = useState<ConnectorPromotionPolicyCreateRequest>(() =>
     buildDefaultConnectorPromotionPolicyRequest(),
   );
@@ -158,126 +362,47 @@ export function ConnectorConsole() {
   useEffect(() => {
     const controller = new AbortController();
 
-    async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-      const response = await fetch(`${apiBaseUrl}${path}`, {
-        ...init,
-        signal: controller.signal,
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-          ...(init?.headers ?? {}),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Connector request failed with ${response.status}`);
-      }
-
-      return (await response.json()) as T;
-    }
-
-    async function loadConnectors() {
+    async function loadInitialConnectors() {
       try {
-        const [
-          registryData,
-          previewData,
-          manifestData,
-          configurationData,
-          credentialHandleData,
-          credentialLeaseData,
-          runData,
-          ontologyProposalData,
-          manualImportData,
-          promotionPolicyData,
-          promotionPolicySetData,
-        ] = await Promise.all([
-          fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
-          fetchJson<ConnectorCsvPreviewResult>(
-            "/demo/manufacturing/connectors/file-csv/preview",
-            {
-              body: JSON.stringify(buildDefaultCsvPreviewRequest()),
-              method: "POST",
-            },
-          ),
-          fetchJson<ManufacturingConnectorManifestRegistry>(
-            "/demo/manufacturing/connectors/manifests",
-          ),
-          fetchJson<ManufacturingConnectorConfigurationRegistry>(
-            "/demo/manufacturing/connectors/configurations",
-          ),
-          fetchJson<ManufacturingConnectorCredentialHandleRegistry>(
-            "/demo/manufacturing/connectors/credential-handles",
-          ),
-          fetchJson<ManufacturingConnectorCredentialLeaseRegistry>(
-            "/demo/manufacturing/connectors/credential-leases",
-          ),
-          fetchJson<ManufacturingConnectorRunRegistry>("/demo/manufacturing/connectors/runs"),
-          fetchJson<ManufacturingConnectorOntologyProposalRegistry>(
-            "/demo/manufacturing/connectors/ontology-proposals",
-          ),
-          fetchJson<ManufacturingConnectorManualImportRegistry>(
-            "/demo/manufacturing/connectors/manual-imports",
-          ),
-          fetchJson<ManufacturingConnectorPromotionPolicyRegistry>(
-            "/demo/manufacturing/connectors/promotion-policies",
-          ),
-          fetchJson<ManufacturingConnectorPromotionPolicySetRegistry>(
-            "/demo/manufacturing/connectors/promotion-policy-sets",
-          ),
-        ]);
-        if (registryData.connectors.length > 0) {
-          setRegistry(registryData);
-          setManifestRegistry(manifestData);
-          setConfigurationRegistry(configurationData);
-          setCredentialHandleRegistry(credentialHandleData);
-          setCredentialLeaseRegistry(credentialLeaseData);
-          setRunRegistry(runData);
-          setOntologyProposalRegistry(ontologyProposalData);
-          setManualImportRegistry(manualImportData);
-          setPromotionPolicyRegistry(promotionPolicyData);
-          setPromotionPolicySetRegistry(promotionPolicySetData);
-          setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
-          setPreview(previewData);
-          setSource("api");
-          return;
-        }
-
-        setSource("fallback");
+        const data = await fetchConnectorData(apiBaseUrl, controller.signal);
+        setRegistry(data.registryData);
+        setManifestRegistry(data.manifestData);
+        setConfigurationRegistry(data.configurationData);
+        setCredentialHandleRegistry(data.credentialHandleData);
+        setCredentialLeaseRegistry(data.credentialLeaseData);
+        setEgressPolicyRegistry(data.egressPolicyData);
+        setRunRegistry(data.runData);
+        setOntologyProposalRegistry(data.ontologyProposalData);
+        setManualImportRegistry(data.manualImportData);
+        setPromotionPolicyRegistry(data.promotionPolicyData);
+        setPromotionPolicySetRegistry(data.promotionPolicySetData);
+        setPreview(EMPTY_CSV_PREVIEW);
+        setSelectedConnectorId(data.registryData.connectors[0]?.manifest.connector_id ?? "");
+        setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setRegistry(defaultManufacturingConnectorRegistry);
-          setManifestRegistry(defaultConnectorManifestRegistry);
-          setConfigurationRegistry(defaultConnectorConfigurationRegistry);
-          setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
-          setCredentialLeaseRegistry(defaultConnectorCredentialLeaseRegistry);
-          setRunRegistry(defaultConnectorRunRegistry);
-          setOntologyProposalRegistry(defaultConnectorOntologyProposalRegistry);
-          setManualImportRegistry(defaultConnectorManualImportRegistry);
-          setPromotionPolicyRegistry(defaultConnectorPromotionPolicyRegistry);
-          setPromotionPolicySetRegistry(defaultConnectorPromotionPolicySetRegistry);
-          setPreview(defaultManufacturingConnectorPreview);
-          setSelectedConnectorId(
-            defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
-          );
-          setSource("fallback");
+          setSource("unavailable");
         }
       }
     }
 
-    void loadConnectors();
+    void loadInitialConnectors();
 
     return () => controller.abort();
   }, [apiBaseUrl]);
 
   const selectedConnector = useMemo(
-    () => findConnectorById(registry, selectedConnectorId),
+    () =>
+      registry.connectors.find(
+        (connector) => connector.manifest.connector_id === selectedConnectorId,
+      ),
     [registry, selectedConnectorId],
   );
   const selectedConfiguration = useMemo(
     () =>
       configurationRegistry.configurations.find(
         (configuration) => configuration.connector_id === selectedConnectorId,
-      ) ?? configurationRegistry.configurations[0],
+      ),
     [configurationRegistry.configurations, selectedConnectorId],
   );
   const selectedManifestRecord = useMemo(
@@ -300,6 +425,13 @@ export function ConnectorConsole() {
         (lease) => lease.connector_id === selectedConnectorId,
       ),
     [credentialLeaseRegistry.leases, selectedConnectorId],
+  );
+  const selectedEgressPolicies = useMemo(
+    () =>
+      egressPolicyRegistry.policies.filter(
+        (policy) => policy.connector_id === selectedConnectorId,
+      ),
+    [egressPolicyRegistry.policies, selectedConnectorId],
   );
   const selectedRuns = useMemo(
     () => runRegistry.runs.filter((run) => run.connector_id === selectedConnectorId),
@@ -333,21 +465,30 @@ export function ConnectorConsole() {
       ),
     [promotionPolicySetRegistry.policy_sets, selectedConnectorId],
   );
-  const manifest = selectedConnector.manifest;
-  const csvPreviewApplies = preview.connector_id === selectedConnectorId;
-  const selectedPreviewMode = csvPreviewApplies
-    ? preview.sync_mode
-    : (manifest.sync_modes[0] ?? "preview");
-  const selectedRecordCount = csvPreviewApplies
-    ? preview.record_count
-    : selectedConnector.preview_sample.record_count;
-  const selectedRecordDetail = csvPreviewApplies
-    ? `${preview.accepted_record_count} accepted / ${preview.rejected_record_count} rejected`
-    : `${selectedConnector.preview_sample.headers.length} metadata fields / ${selectedConnector.preview_sample.file_name}`;
-  const credentialDetail =
-    manifest.credential_requirements.required_secret_refs.length > 0
-      ? `${manifest.credential_requirements.required_secret_refs.length} external handle ref`
-      : "no stored credentials";
+
+  async function refreshConnectorData() {
+    const data = await fetchConnectorData(apiBaseUrl);
+    setRegistry(data.registryData);
+    setManifestRegistry(data.manifestData);
+    setConfigurationRegistry(data.configurationData);
+    setCredentialHandleRegistry(data.credentialHandleData);
+    setCredentialLeaseRegistry(data.credentialLeaseData);
+    setEgressPolicyRegistry(data.egressPolicyData);
+    setRunRegistry(data.runData);
+    setOntologyProposalRegistry(data.ontologyProposalData);
+    setManualImportRegistry(data.manualImportData);
+    setPromotionPolicyRegistry(data.promotionPolicyData);
+    setPromotionPolicySetRegistry(data.promotionPolicySetData);
+    setPreview(EMPTY_CSV_PREVIEW);
+    setSelectedConnectorId((currentConnectorId) =>
+      data.registryData.connectors.some(
+        (connector) => connector.manifest.connector_id === currentConnectorId,
+      )
+        ? currentConnectorId
+        : (data.registryData.connectors[0]?.manifest.connector_id ?? ""),
+    );
+    setSource("api");
+  }
 
   async function authorPromotionPolicy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -366,44 +507,24 @@ export function ConnectorConsole() {
 
     setPolicyAuthoringStatus("saving");
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/demo/manufacturing/connectors/promotion-policies`,
+      await fetchConnectorJson<unknown>(
+        apiBaseUrl,
+        "/demo/manufacturing/connectors/promotion-policies",
+        undefined,
         {
           body: JSON.stringify(request),
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-          },
           method: "POST",
         },
       );
-
-      if (!response.ok) {
-        setPolicyAuthoringStatus("error");
-        return;
-      }
-
-      const record = (await response.json()) as ConnectorPromotionPolicyRecord;
-      setPromotionPolicyRegistry((currentRegistry) =>
-        recordLocalConnectorPromotionPolicy(currentRegistry, request, record),
-      );
+      await refreshConnectorData();
       setPolicyEnableForm(
         buildDefaultConnectorPromotionPolicyEnableRequest({
           policy_id: request.policy_id,
         }),
       );
       setPolicyAuthoringStatus("api_created");
-      return;
     } catch {
-      setPromotionPolicyRegistry((currentRegistry) =>
-        recordLocalConnectorPromotionPolicy(currentRegistry, request),
-      );
-      setPolicyEnableForm(
-        buildDefaultConnectorPromotionPolicyEnableRequest({
-          policy_id: request.policy_id,
-        }),
-      );
-      setPolicyAuthoringStatus("local_created");
+      setPolicyAuthoringStatus("error");
     }
   }
 
@@ -419,36 +540,112 @@ export function ConnectorConsole() {
 
     setPolicyEnableStatus("saving");
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/demo/manufacturing/connectors/promotion-policies/${request.policy_id}/enable`,
+      await fetchConnectorJson<unknown>(
+        apiBaseUrl,
+        `/demo/manufacturing/connectors/promotion-policies/${request.policy_id}/enable`,
+        undefined,
         {
           body: JSON.stringify(request),
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-          },
           method: "POST",
         },
       );
-
-      if (!response.ok) {
-        setPolicyEnableStatus("error");
-        return;
-      }
-
-      const record = (await response.json()) as ConnectorPromotionPolicyRecord;
-      setPromotionPolicyRegistry((currentRegistry) =>
-        recordLocalConnectorPromotionPolicyEnable(currentRegistry, request, record),
-      );
+      await refreshConnectorData();
       setPolicyEnableStatus("api_enabled");
-      return;
     } catch {
-      setPromotionPolicyRegistry((currentRegistry) =>
-        recordLocalConnectorPromotionPolicyEnable(currentRegistry, request),
-      );
-      setPolicyEnableStatus("local_enabled");
+      setPolicyEnableStatus("error");
     }
   }
+
+  const connectorMetrics = registry.metrics
+    .concat(manifestRegistry.metrics)
+    .concat(configurationRegistry.metrics)
+    .concat(credentialHandleRegistry.metrics)
+    .concat(credentialLeaseRegistry.metrics)
+    .concat(egressPolicyRegistry.metrics)
+    .concat(runRegistry.metrics)
+    .concat(ontologyProposalRegistry.metrics)
+    .concat(manualImportRegistry.metrics)
+    .concat(promotionPolicyRegistry.metrics)
+    .concat(promotionPolicySetRegistry.metrics);
+
+  if (!selectedConnector) {
+    return (
+      <div className="stack">
+        <section className="panel overview-context">
+          <div>
+            <p className="section-label">Connector Foundation</p>
+            <h2 className="panel-title">{registry.plant_name}</h2>
+            <p className="row-detail">
+              {registry.scenario} / {registry.tenant_id}
+            </p>
+          </div>
+          <div className="overview-meta" aria-label="Connector source and status">
+            <span className={`status-pill ${sourcePillClass(source)}`}>
+              <Cable size={15} />
+              {sourceLabel(source)}
+            </span>
+            <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
+              <ShieldCheck size={15} />
+              {platformStatusLabel(registry.registry_status)}
+            </span>
+            <span className="mono">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
+          </div>
+        </section>
+
+        {connectorMetrics.length > 0 ? (
+          <div className="metric-grid">
+            {connectorMetrics.map((metric) => (
+              <article className="metric-card compact-card" key={`${metric.label}-${metric.detail}`}>
+                <div className="row">
+                  <p className="metric-label">{metric.label}</p>
+                  <span className={`status-pill ${platformStatusClass(metric.status)}`}>
+                    {platformStatusLabel(metric.status)}
+                  </span>
+                </div>
+                <p className="metric-value">{metric.value}</p>
+                <p className="metric-detail">{metric.detail}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        <section className="panel">
+          <div className="audit-list-header">
+            <div>
+              <p className="section-label">Manifests</p>
+              <h2 className="panel-title">
+                {source === "loading" ? "Loading connector API" : "Connector API unavailable"}
+              </h2>
+              <p className="row-detail">
+                Connector data is loaded from the Axis API. Local fallback connector records are
+                disabled.
+              </p>
+            </div>
+            <span className={`status-pill ${sourcePillClass(source)}`}>
+              <Database size={15} />
+              {source === "loading" ? "Loading" : "API required"}
+            </span>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const manifest = selectedConnector.manifest;
+  const csvPreviewApplies = preview.connector_id === selectedConnectorId;
+  const selectedPreviewMode = csvPreviewApplies
+    ? preview.sync_mode
+    : (manifest.sync_modes[0] ?? "preview");
+  const selectedRecordCount = csvPreviewApplies
+    ? preview.record_count
+    : selectedConnector.preview_sample.record_count;
+  const selectedRecordDetail = csvPreviewApplies
+    ? `${preview.accepted_record_count} accepted / ${preview.rejected_record_count} rejected`
+    : `${selectedConnector.preview_sample.headers.length} metadata fields / ${selectedConnector.preview_sample.file_name}`;
+  const credentialDetail =
+    manifest.credential_requirements.required_secret_refs.length > 0
+      ? `${manifest.credential_requirements.required_secret_refs.length} external handle ref`
+      : "no stored credentials";
 
   return (
     <div className="stack">
@@ -461,7 +658,7 @@ export function ConnectorConsole() {
           </p>
         </div>
         <div className="overview-meta" aria-label="Connector source and status">
-          <span className="status-pill signal-ready">
+          <span className={`status-pill ${sourcePillClass(source)}`}>
             <Cable size={15} />
             {sourceLabel(source)}
           </span>
@@ -474,17 +671,7 @@ export function ConnectorConsole() {
       </section>
 
       <div className="metric-grid">
-        {registry.metrics
-          .concat(manifestRegistry.metrics)
-          .concat(configurationRegistry.metrics)
-          .concat(credentialHandleRegistry.metrics)
-          .concat(credentialLeaseRegistry.metrics)
-          .concat(runRegistry.metrics)
-          .concat(ontologyProposalRegistry.metrics)
-          .concat(manualImportRegistry.metrics)
-          .concat(promotionPolicyRegistry.metrics)
-          .concat(promotionPolicySetRegistry.metrics)
-          .map((metric) => (
+        {connectorMetrics.map((metric) => (
           <article
             className="metric-card compact-card"
             key={`${metric.label}-${metric.detail}`}
@@ -498,7 +685,7 @@ export function ConnectorConsole() {
             <p className="metric-value">{metric.value}</p>
             <p className="metric-detail">{metric.detail}</p>
           </article>
-          ))}
+        ))}
       </div>
 
       <div className="simulation-layout">
@@ -766,6 +953,54 @@ export function ConnectorConsole() {
                   <p className="metric-label">Secret Material</p>
                   <p className="row-title">{lease.lease_result.secret_material_returned}</p>
                   <p className="row-detail">{lease.renewal_count} renewals</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Egress Policies</p>
+                <h3 className="subsection-title">
+                  {selectedEgressPolicies.length} persisted policy
+                </h3>
+                <p className="row-detail">private endpoint records from the Axis API</p>
+              </div>
+              <ShieldCheck size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedEgressPolicies.map((policy) => (
+                <div className="payload-row" key={policy.policy_id}>
+                  <span>
+                    <span className="metric-label">{policy.policy_id}</span>
+                    <span className="row-detail">{policy.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{policy.status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedEgressPolicies.map((policy) => (
+              <div className="audit-detail-grid" key={`${policy.policy_id}-egress`}>
+                <div>
+                  <p className="metric-label">Profile</p>
+                  <p className="row-title">{policy.connection_profile_id}</p>
+                  <p className="row-detail">{policy.display_name}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Boundary</p>
+                  <p className="row-title">{policy.egress_boundary}</p>
+                  <p className="row-detail">{policy.policy_mode}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Runtime</p>
+                  <p className="row-title">{policy.runtime_boundary}</p>
+                  <p className="row-detail">{policy.private_endpoint_ref}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Audit Event</p>
+                  <p className="row-title">{policy.audit_event_type}</p>
+                  <p className="row-detail">{policy.audit_event_id ?? "pending"}</p>
                 </div>
               </div>
             ))}
@@ -1130,8 +1365,6 @@ export function ConnectorConsole() {
               <p className="row-detail">
                 {policyAuthoringStatus === "api_created"
                   ? "API policy authored"
-                  : policyAuthoringStatus === "local_created"
-                    ? "Local policy authoring preview"
                   : policyAuthoringStatus === "saving"
                     ? "Policy authoring pending"
                     : "Policy authoring rejected"}
@@ -1186,8 +1419,6 @@ export function ConnectorConsole() {
               <p className="row-detail">
                 {policyEnableStatus === "api_enabled"
                   ? "API policy enabled"
-                  : policyEnableStatus === "local_enabled"
-                    ? "Local policy enable preview"
                   : policyEnableStatus === "saving"
                     ? "Policy enable pending"
                     : "Policy enable rejected"}
@@ -1272,23 +1503,25 @@ export function ConnectorConsole() {
             </div>
           </section>
 
-          <section className="simulation-policy-band">
-            <div>
-              <p className="section-label">CSV Preview</p>
-              <h3 className="subsection-title">{preview.audit_event_preview.event_type}</h3>
-              <p className="row-detail">
-                {preview.audit_event_preview.result} / {preview.audit_event_preview.scope}
-              </p>
-            </div>
-            <div className="payload-grid">
-              {preview.proposed_entities.map((entity) => (
-                <div className="payload-row" key={entity.node_id}>
-                  <span className="metric-label">{entity.node_id}</span>
-                  <span className="mono">{entity.ontology_type}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          {csvPreviewApplies ? (
+            <section className="simulation-policy-band">
+              <div>
+                <p className="section-label">CSV Preview</p>
+                <h3 className="subsection-title">{preview.audit_event_preview.event_type}</h3>
+                <p className="row-detail">
+                  {preview.audit_event_preview.result} / {preview.audit_event_preview.scope}
+                </p>
+              </div>
+              <div className="payload-grid">
+                {preview.proposed_entities.map((entity) => (
+                  <div className="payload-row" key={entity.node_id}>
+                    <span className="metric-label">{entity.node_id}</span>
+                    <span className="mono">{entity.ontology_type}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <div className="stack">
             {registry.connector_notes
@@ -1296,6 +1529,7 @@ export function ConnectorConsole() {
               .concat(configurationRegistry.configuration_notes)
               .concat(credentialHandleRegistry.handle_notes)
               .concat(credentialLeaseRegistry.lease_notes)
+              .concat(egressPolicyRegistry.policy_notes)
               .concat(runRegistry.run_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
@@ -1305,12 +1539,13 @@ export function ConnectorConsole() {
               .concat(selectedManifestRecord?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(selectedCredentialLeases.flatMap((lease) => lease.notes))
+              .concat(selectedEgressPolicies.flatMap((policy) => policy.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))
               .concat(selectedPromotionPolicies.flatMap((policy) => policy.notes))
               .concat(selectedPromotionPolicySets.flatMap((policySet) => policySet.notes))
-              .concat(preview.preview_notes)
+              .concat(csvPreviewApplies ? preview.preview_notes : [])
               .map((note, index) => (
               <p className="row-detail" key={`${note}-${index}`}>
                 {note}

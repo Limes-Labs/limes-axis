@@ -318,6 +318,41 @@ export type ManufacturingConnectorCredentialLeaseRegistry = {
   lease_notes: string[];
 };
 
+export type ConnectorEgressPolicyRecord = {
+  tenant_id: string;
+  connector_id: string;
+  policy_id: string;
+  display_name: string;
+  status: string;
+  connection_profile_id: string;
+  egress_boundary: string;
+  policy_mode: string;
+  runtime_boundary: string;
+  private_endpoint_ref: string;
+  created_by: string;
+  policy_document: Record<string, string>;
+  evidence_refs: string[];
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorEgressPolicyRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  policies: ConnectorEgressPolicyRecord[];
+  policy_notes: string[];
+};
+
 export type ConnectorRunRecord = {
   tenant_id: string;
   connector_id: string;

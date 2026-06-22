@@ -394,6 +394,42 @@ class ConnectorCredentialLease(Base):
     )
 
 
+class ConnectorEgressPolicy(Base):
+    __tablename__ = "connector_egress_policies"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    policy_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connection_profile_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    egress_boundary: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    policy_mode: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    runtime_boundary: Mapped[str] = mapped_column(String(160), nullable=False)
+    private_endpoint_ref: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    policy_document: Mapped[dict] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "policy_id",
+            name="uq_connector_egress_policies_tenant_policy",
+        ),
+    )
+
+
 class ConnectorRun(Base):
     __tablename__ = "connector_runs"
 

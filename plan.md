@@ -122,6 +122,8 @@ Foundation acceptance is tracked in
 - [x] Add credential lease evidence hardening for external DB live-query preflight.
 - [x] Add egress policy evidence hardening for external DB live-query preflight.
 - [x] Add secret reference resolver evidence hardening for external DB live-query preflight.
+- [x] Persist tenant-scoped egress policy records for external DB preflight.
+- [x] Make the connector console API-required instead of using local fallback data.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -240,14 +242,19 @@ decision is `connector.run.sync_execution_preflight_blocked`; setting
 approved private endpoint egress boundary, egress policy id and lease-scoped
 secret reference. This still keeps `external_query_started=false`, returns no
 credential material and performs no graph mutation. The passed preflight now
-depends on validated egress policy evidence from the self-hosted policy boundary
-and the validated credential lease result: the runtime records policy
-runtime/ref/scope/private-endpoint evidence, blocks unknown policies before
-secret retrieval is considered, records lease id/mode/runtime/result
-status/reference evidence, records reference-only secret resolver evidence and
-blocks the path if the lease reference is missing or if the lease evidence says
-secret material was returned. Network policy enforcement, real secret retrieval
-and real query execution stay outside this slice.
+depends on validated egress policy evidence from persisted tenant-scoped policy
+records and the validated credential lease result: the runtime records policy
+runtime/ref/scope/private-endpoint evidence, blocks unknown or unpersisted
+policies before secret retrieval is considered, records lease
+id/mode/runtime/result status/reference evidence, records reference-only secret
+resolver evidence and blocks the path if the lease reference is missing or if
+the lease evidence says secret material was returned. Network policy
+enforcement, real secret retrieval and real query execution stay outside this
+slice.
+The `/connectors` console now fetches connector, credential, egress policy,
+run, proposal, import and promotion records from the Axis API; if the backend is
+unavailable it shows an API-required empty state instead of rendering local
+connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.
