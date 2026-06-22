@@ -106,6 +106,14 @@ def test_postgres_migration_creates_foundation_tables() -> None:
                 "AND reference_id = 'manufacturing-model-routing'"
             )
         ).scalar_one()
+        ontology_count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM demo_reference_records "
+                "WHERE tenant_id = 'tenant_demo_manufacturing' "
+                "AND surface = 'ontology' "
+                "AND reference_id = 'manufacturing-ontology'"
+            )
+        ).scalar_one()
 
     assert overview_count == 1
     assert connector_registry_count == 1
@@ -115,6 +123,7 @@ def test_postgres_migration_creates_foundation_tables() -> None:
     assert approval_inbox_count == 1
     assert audit_explorer_count == 1
     assert model_routing_count == 1
+    assert ontology_count == 1
 
 
 def test_typedb_schema_loads_into_fresh_database() -> None:

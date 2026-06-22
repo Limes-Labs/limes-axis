@@ -12009,15 +12009,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Manufacturing ontology reference record not found"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Manufacturing ontology reference payload invalid"
           }
         },
         "summary": "Manufacturing Ontology",
@@ -12036,6 +12032,17 @@
             "required": true,
             "schema": {
               "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
               "type": "string"
             }
           },
@@ -12067,15 +12074,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Manufacturing ontology entity or reference record not found"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Manufacturing ontology reference payload invalid"
           }
         },
         "summary": "Manufacturing Ontology Entity Detail",

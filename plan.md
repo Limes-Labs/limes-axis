@@ -146,10 +146,12 @@ Foundation acceptance is tracked in
   bootstrap record.
 - [x] Persist the manufacturing model routing reference as a tenant-scoped
   bootstrap record.
+- [x] Persist the manufacturing ontology graph and entity detail reference as a
+  tenant-scoped bootstrap record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
-  console, approval inbox, audit explorer, model routing, connector registry,
-  agent registry and action registry with persisted, tenant-scoped bootstrap
-  records.
+  console, approval inbox, audit explorer, model routing, ontology,
+  connector registry, agent registry and action registry with persisted,
+  tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -178,11 +180,15 @@ audit events and export endpoints continue to query persisted `audit_events`.
 The model routing reference endpoint reads from `surface=model-routing` and
 `reference_id=manufacturing-model-routing`; live provider routing, usage
 metering and billing adapters remain separate Platform work.
+The ontology graph and entity detail endpoints read from `surface=ontology` and
+`reference_id=manufacturing-ontology`; the query runtime now applies metadata
+and relationship-scope filtering to that persisted graph instead of loading a
+route-owned seed.
 Remaining API-owned reference records are a
 bootstrap boundary and must be moved to persisted tenant-scoped records before
 production use. The full manufacturing reference demo remains open until it has
-ontology relationships, approval actions, workflow execution and replay backed
-by real persistence paths.
+live TypeDB graph response mapping, production relationship metadata, approval
+actions, workflow execution and replay backed by real persistence paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
@@ -196,9 +202,9 @@ required; the browser no longer carries a local graph fallback. Graph reads now
 pass through the Axis ontology query runtime, expose query metadata and can
 filter relationships by OIDC-derived relationship scopes when a bearer token is
 present or OIDC auth is required by configuration. The TypeDB read boundary is
-optional and separated from graph mutations. Moving all reference graph records
-out of API bootstrap code, live TypeDB response mapping, persisted relationship
-metadata and broader graph authorization remain Platform work.
+optional and separated from graph mutations. Live TypeDB response mapping,
+production relationship metadata and broader graph authorization remain Platform
+work.
 
 The workflow console is currently read-only and API required, with a persisted
 workflow run endpoint available when Postgres records exist. The browser no

@@ -161,6 +161,14 @@ The twenty-ninth Alembic migration adds:
 - the public-safe provider options, egress decisions, route telemetry, token
   estimates and cost posture used by `GET /demo/manufacturing/model-routing`.
 
+The thirtieth Alembic migration adds:
+
+- a persisted manufacturing ontology bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe ontology graph nodes, relationship scopes, source systems and
+  permission notes used by `GET /demo/manufacturing/ontology` and
+  `GET /demo/manufacturing/ontology/entities/{node_id}`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -308,6 +316,10 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=model-routing/reference_id=manufacturing-model-routing` while live
   provider routing, usage metering and billing adapters remain out of scope.
+- persisted manufacturing ontology reference records through
+  `demo_reference_records`, with graph and entity detail endpoints reading
+  `surface=ontology/reference_id=manufacturing-ontology` before the ontology
+  query runtime applies metadata and relationship-scope filtering.
 
 Still Platform work:
 

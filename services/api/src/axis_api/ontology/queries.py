@@ -23,11 +23,7 @@ class OntologyGraphQueryRequest(BaseModel):
 
     @property
     def typeql(self) -> str:
-        return (
-            "match\n"
-            "  $entity isa $entity_type, has axis_id $axis_id;\n"
-            f"limit {self.limit};"
-        )
+        return f"match\n  $entity isa $entity_type, has axis_id $axis_id;\nlimit {self.limit};"
 
 
 class OntologyGraphQueryMetadata(BaseModel):
@@ -50,8 +46,8 @@ class OntologyGraphQueryRuntime(Protocol):
     def query_manufacturing_graph(
         self,
         request: OntologyGraphQueryRequest,
-    ) -> "ManufacturingOntology":
-        ...
+        ontology: "ManufacturingOntology",
+    ) -> "ManufacturingOntology": ...
 
 
 class DeferredOntologyQueryRuntime:
@@ -60,15 +56,13 @@ class DeferredOntologyQueryRuntime:
     def query_manufacturing_graph(
         self,
         request: OntologyGraphQueryRequest,
+        ontology: "ManufacturingOntology",
     ) -> "ManufacturingOntology":
-        from axis_api.demo import get_manufacturing_ontology
-
-        ontology = get_manufacturing_ontology()
         return _apply_graph_query_metadata(
             ontology,
             request,
             adapter=self.adapter_name,
-            source="demo-seed",
+            source="persisted-reference",
         )
 
 
@@ -98,15 +92,13 @@ class TypeDBOntologyQueryRuntime:
     def query_manufacturing_graph(
         self,
         request: OntologyGraphQueryRequest,
+        ontology: "ManufacturingOntology",
     ) -> "ManufacturingOntology":
-        from axis_api.demo import get_manufacturing_ontology
-
         try:
             self.client.execute_read(request.typeql)
         except Exception as exc:
             raise OntologyQueryError(exc.__class__.__name__) from exc
 
-        ontology = get_manufacturing_ontology()
         return _apply_graph_query_metadata(
             ontology,
             request,
@@ -118,8 +110,9 @@ class TypeDBOntologyQueryRuntime:
 def query_manufacturing_ontology_graph(
     runtime: OntologyGraphQueryRuntime,
     request: OntologyGraphQueryRequest,
+    ontology: "ManufacturingOntology",
 ) -> "ManufacturingOntology":
-    return runtime.query_manufacturing_graph(request)
+    return runtime.query_manufacturing_graph(request, ontology)
 
 
 def _apply_graph_query_metadata(
@@ -131,8 +124,8 @@ def _apply_graph_query_metadata(
 ) -> "ManufacturingOntology":
     relationships = ontology.relationships
     denied_relationship_count = 0
-    query_mode = "unfiltered_public_seed"
-    permission_decision = PermissionDecision(allowed=True, reason="public_seed")
+    query_mode = "unfiltered_reference"
+    permission_decision = PermissionDecision(allowed=True, reason="public_reference")
 
     if request.enforce_relationship_scopes:
         actor_scopes = set(request.actor_scopes)
@@ -148,12 +141,8 @@ def _apply_graph_query_metadata(
             reason="relationship_filter_applied",
         )
 
-    node_ids = {
-        relationship.source_id
-        for relationship in relationships
-    } | {
-        relationship.target_id
-        for relationship in relationships
+    node_ids = {relationship.source_id for relationship in relationships} | {
+        relationship.target_id for relationship in relationships
     }
     nodes = [
         node
@@ -187,7 +176,7 @@ def _apply_graph_query_metadata(
                     (
                         "Relationship scopes filtered this graph response."
                         if request.enforce_relationship_scopes
-                        else "Public demo graph is unfiltered when no OIDC principal is bound."
+                        else "Public reference graph is unfiltered when no OIDC principal is bound."
                     ),
                     "TypeDB live result mapping remains behind the ontology query runtime.",
                 ],

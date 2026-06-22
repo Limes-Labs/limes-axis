@@ -16,6 +16,7 @@ from axis_api.demo import (
     ManufacturingApprovalInbox,
     ManufacturingAuditExplorer,
     ManufacturingModelRouting,
+    ManufacturingOntology,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
     OntologyNodeType,
@@ -332,6 +333,85 @@ def persisted_model_routing_payload() -> dict:
         "budget_notes": ["Persisted model routing reference."],
         "observability_notes": ["Persisted model route telemetry."],
     }
+
+
+def persisted_ontology_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Ontology Graph",
+        "as_of": "2026-06-22T12:00:00+02:00",
+        "nodes": [
+            {
+                "node_id": "org_persisted_operations",
+                "label": "Persisted Operations",
+                "node_type": "organization",
+                "domain": "Operations",
+                "status": "ready",
+                "source_system": "Axis",
+                "summary": "Persisted organization node loaded from demo_reference_records.",
+            },
+            {
+                "node_id": "asset_persisted_line",
+                "label": "Persisted Line",
+                "node_type": "asset",
+                "domain": "Production",
+                "status": "action_required",
+                "source_system": "MES",
+                "summary": "Persisted line node used by the ontology reference endpoint.",
+            },
+            {
+                "node_id": "risk_persisted_delay",
+                "label": "Persisted Delay Risk",
+                "node_type": "risk",
+                "domain": "Supply",
+                "status": "watch",
+                "source_system": "Axis",
+                "summary": "Persisted risk node connected to the line.",
+            },
+        ],
+        "relationships": [
+            {
+                "relationship_id": "rel_persisted_ops_contains_line",
+                "source_id": "org_persisted_operations",
+                "target_id": "asset_persisted_line",
+                "relation_type": "contains",
+                "summary": "Persisted operations context contains the line.",
+                "permission_scope": "operations:read",
+            },
+            {
+                "relationship_id": "rel_persisted_risk_impacts_line",
+                "source_id": "risk_persisted_delay",
+                "target_id": "asset_persisted_line",
+                "relation_type": "impacts",
+                "summary": "Persisted risk impacts the line.",
+                "permission_scope": "supply:read",
+            },
+        ],
+        "source_systems": ["Axis", "MES"],
+        "permission_notes": [
+            "Persisted ontology graph reference.",
+            "Relationship scopes are still enforced by the API.",
+        ],
+    }
+
+
+def seed_ontology_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="ontology",
+                reference_id="manufacturing-ontology",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload or persisted_ontology_payload(),
+            )
+        )
 
 
 def persisted_agent_registry_payload() -> dict:
@@ -1427,16 +1507,90 @@ def test_manufacturing_ontology_seed_has_valid_relationships() -> None:
     assert all("@" not in note for note in ontology.permission_notes)
 
 
-def test_manufacturing_ontology_endpoint_returns_read_only_graph() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_ontology_reference_contract_is_valid() -> None:
+    ontology = ManufacturingOntology.model_validate(persisted_ontology_payload())
+
+    assert ontology.tenant_id == "tenant_demo_manufacturing"
+    assert ontology.scenario == "Persisted Ontology Graph"
+    assert ontology.nodes[1].node_id == "asset_persisted_line"
+    assert ontology.relationships[1].permission_scope == "supply:read"
+
+
+def test_manufacturing_ontology_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0030_ontology_reference.py")
+
+    ontology = ManufacturingOntology.model_validate(migration["ONTOLOGY_PAYLOAD"])
+
+    assert ontology.tenant_id == "tenant_demo_manufacturing"
+    assert ontology.scenario == "Plant Operations Cockpit"
+    assert len(ontology.nodes) == 18
+    assert len(ontology.relationships) == 14
+    assert any(node.node_id == "asset_line_2_packaging" for node in ontology.nodes)
+    serialized = ontology.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_ontology_runtime_is_not_defined_as_seed_source() -> None:
+    source = Path("src/axis_api/ontology/queries.py").read_text()
+
+    assert "get_manufacturing_ontology()" not in source
+
+
+def test_manufacturing_ontology_detail_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "get_manufacturing_ontology_entity_detail(node_id)" not in source
+
+
+def test_manufacturing_ontology_endpoint_returns_persisted_reference_graph(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    seed_ontology_reference(overview_session_factory)
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/ontology")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["nodes"][0]["node_id"] == "org_ravenna_operations"
-    assert any(edge["relation_type"] == "requires_approval" for edge in body["relationships"])
+    assert body["scenario"] == "Persisted Ontology Graph"
+    assert body["nodes"][1]["node_id"] == "asset_persisted_line"
+    assert body["graph_query"]["source"] == "persisted-reference"
+    assert any(
+        edge["relationship_id"] == "rel_persisted_risk_impacts_line"
+        for edge in body["relationships"]
+    )
     assert "password" not in str(body).lower()
+
+
+def test_manufacturing_ontology_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/ontology")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_ontology_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    payload = persisted_ontology_payload()
+    payload["tenant_id"] = "tenant_wrong"
+    seed_ontology_reference(overview_session_factory, payload)
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/ontology")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_openapi_exposes_manufacturing_ontology_endpoint() -> None:
@@ -1466,30 +1620,45 @@ def test_manufacturing_ontology_entity_detail_seed_is_connected() -> None:
     assert "@" not in detail.model_dump_json()
 
 
-def test_manufacturing_ontology_entity_detail_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
-    response = client.get("/demo/manufacturing/ontology/entities/risk_supplier_delay")
+def test_manufacturing_ontology_entity_detail_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    seed_ontology_reference(overview_session_factory)
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/ontology/entities/asset_persisted_line")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["node"]["node_id"] == "risk_supplier_delay"
-    assert body["related_workflows"] == ["wf_supplier_delay_review"]
+    assert body["scenario"] == "Persisted Ontology Graph"
+    assert body["node"]["node_id"] == "asset_persisted_line"
+    assert body["inbound_count"] == 2
+    assert body["outbound_count"] == 0
+    assert body["related_workflows"] == []
     assert "supply:read" in body["required_permissions"]
-    assert "TypeDB-shaped relationships" in body["detail_notes"][0]
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_ontology_entity_detail_endpoint_handles_missing_node() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_ontology_entity_detail_endpoint_handles_missing_node(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    seed_ontology_reference(overview_session_factory)
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/ontology/entities/missing-node")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Ontology entity not found"
 
 
-def test_manufacturing_ontology_entity_detail_endpoint_enforces_relationship_scopes() -> None:
-    app = create_app(Settings(oidc_auth_required=True))
+def test_manufacturing_ontology_entity_detail_endpoint_rejects_tenant_mismatch(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = overview_session_factory
     app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
             actor_id="operations-reader",
@@ -1500,7 +1669,31 @@ def test_manufacturing_ontology_entity_detail_endpoint_enforces_relationship_sco
     client = TestClient(app)
 
     response = client.get(
-        "/demo/manufacturing/ontology/entities/asset_line_2_packaging",
+        "/demo/manufacturing/ontology/entities/asset_persisted_line?tenant_id=tenant_other",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "tenant_mismatch"
+
+
+def test_manufacturing_ontology_entity_detail_endpoint_enforces_relationship_scopes(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = overview_session_factory
+    seed_ontology_reference(overview_session_factory)
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="operations-reader",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["operations:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/ontology/entities/asset_persisted_line",
         headers={"Authorization": "Bearer valid-token"},
     )
 
@@ -1513,8 +1706,12 @@ def test_manufacturing_ontology_entity_detail_endpoint_enforces_relationship_sco
     }
 
 
-def test_manufacturing_ontology_entity_detail_endpoint_allows_relationship_scopes() -> None:
-    app = create_app(Settings(oidc_auth_required=True))
+def test_manufacturing_ontology_entity_detail_endpoint_allows_relationship_scopes(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = overview_session_factory
+    seed_ontology_reference(overview_session_factory)
     app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
             actor_id="operations-reader",
@@ -1525,12 +1722,12 @@ def test_manufacturing_ontology_entity_detail_endpoint_allows_relationship_scope
     client = TestClient(app)
 
     response = client.get(
-        "/demo/manufacturing/ontology/entities/asset_line_2_packaging",
+        "/demo/manufacturing/ontology/entities/asset_persisted_line",
         headers={"Authorization": "Bearer valid-token"},
     )
 
     assert response.status_code == 200
-    assert response.json()["node"]["node_id"] == "asset_line_2_packaging"
+    assert response.json()["node"]["node_id"] == "asset_persisted_line"
 
 
 def test_openapi_exposes_manufacturing_ontology_entity_detail_endpoint() -> None:

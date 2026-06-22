@@ -7,7 +7,10 @@ read-only operational graph.
 
 The graph is public-safe. It uses demo IDs, roles and fictional plant context
 rather than customer data or personal names. The browser does not carry a local
-ontology graph.
+ontology graph. The API reads the active `demo_reference_records` row for
+`surface=ontology` and `reference_id=manufacturing-ontology`; missing or invalid
+persisted payloads return explicit 404/422 errors instead of falling back to an
+in-route seed.
 
 It includes:
 
@@ -49,8 +52,9 @@ The entity detail endpoint returns:
 - public-safe data access summaries and detail notes.
 
 In standalone demo mode, graph and entity detail reads remain readable without a
-token. Graph reads pass through the Axis ontology query runtime. The default
-runtime serves the public reference graph through
+token. Graph and detail reads derive from the same persisted, tenant-scoped
+reference graph. Graph reads pass through the Axis ontology query runtime. The
+default runtime serves the persisted public reference graph through
 `axis-deferred-ontology-query-adapter`.
 When a bearer token is present, or when OIDC auth is required by configuration,
 the graph endpoint derives actor, tenant and scopes from the principal, rejects
@@ -80,9 +84,9 @@ the console.
 The current graph and detail pages are read-only. The ontology page now exposes
 the active graph query adapter, mode, source, returned counts, denied
 relationship count and permission decision. Future Platform work should map
-live TypeDB query answers into the full response shape, persist relationship
-metadata and broaden graph authorization beyond the current demo
-relationship-scope checks.
+live TypeDB query answers into the full response shape, promote relationship
+metadata from the reference graph into production graph storage and broaden graph
+authorization beyond the current demo relationship-scope checks.
 
 Connector-driven ontology mutation is handled outside the read-only explorer.
 The connector promotion endpoint can promote an approved proposal through the
@@ -100,6 +104,8 @@ asset attributes needed by the promotion path: `axis_id`, `display_name`,
 Covered by:
 
 - API tests for graph integrity and endpoint exposure;
+- API tests for the persisted ontology reference record, missing-record and
+  invalid-payload handling;
 - API tests for the ontology query runtime, OIDC principal binding, tenant
   mismatch rejection and relationship-scope filtering;
 - API tests for entity detail, 404 handling, relationship-scope enforcement and
