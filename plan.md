@@ -140,6 +140,8 @@ Foundation acceptance is tracked in
   creation.
 - [x] Use the persisted connector registry reference for promotion policy
   authoring, enablement and revision.
+- [x] Use the persisted connector registry reference for promotion policy set
+  activation, replacement and rollback.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
@@ -272,6 +274,8 @@ Manual import request creation also uses the same persisted registry reference
 before writing approval-gated import audit evidence.
 Promotion policy authoring, enablement and revision also use that persisted
 registry reference before writing policy/audit evidence.
+Promotion policy set activation, replacement and rollback also use it before
+writing policy-set/audit evidence.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
@@ -388,8 +392,10 @@ promotion request omits `policy_id` and are enforced before the TypeDB mutation
 adapter is called. When more than one enabled required policy applies,
 `/demo/manufacturing/connectors/promotion-policy-sets`
 can activate a versioned active set with
-`connectors:promotion_policy_set:activate`; the promotion endpoint evaluates all
-policies in that set and stores `policy_set_id`, `policy_ids` and
+`connectors:promotion_policy_set:activate`; activation validates the connector
+through the persisted registry reference before writing set/audit evidence. The
+promotion endpoint evaluates all policies in that set and stores
+`policy_set_id`, `policy_ids` and
 `policy_set_enforced` evidence. When a policy set is active, explicit single
 `policy_id` selection is rejected so promotions cannot bypass the full
 required-gate set. Replacing or rolling back an active set requires

@@ -311,6 +311,10 @@ Delivered:
   `surface=connectors/reference_id=manufacturing-connector-registry` to
   validate connector ids before policy rows, revision rows, enablement updates
   or audit events are written.
+- connector promotion policy set activation, replacement and rollback now read
+  `surface=connectors/reference_id=manufacturing-connector-registry` to
+  validate connector ids before policy-set rows, replacement/rollback updates
+  or audit events are written.
 - persisted manufacturing agent registry reference records through
   `demo_reference_records`, with the API reading
   `surface=agents/reference_id=manufacturing-agent-registry` and returning

@@ -11686,11 +11686,14 @@
           "403": {
             "description": "Connector promotion policy set permission denied"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "409": {
             "description": "Connector promotion policy set already exists or active"
           },
           "422": {
-            "description": "Connector promotion policy set validation failed"
+            "description": "Connector promotion policy set or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Promotion Policy Set Create",

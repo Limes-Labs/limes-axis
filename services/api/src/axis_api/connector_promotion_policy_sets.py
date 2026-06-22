@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository, ConnectorPromotionPolicySetCreate
@@ -209,7 +209,7 @@ def record_demo_connector_promotion_policy_set(
     repository: AxisPersistenceRepository,
     request: ConnectorPromotionPolicySetActivateRequest,
 ) -> ConnectorPromotionPolicySetRecord:
-    _manifest_for_connector(request.connector_id)
+    _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_policy_set_status(request.status)
     _validate_policy_ids_unique(request.policy_ids)
     existing = repository.get_connector_promotion_policy_set(
@@ -710,8 +710,12 @@ def _validate_referenced_policies(
     return policies
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest
