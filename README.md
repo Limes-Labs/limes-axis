@@ -111,9 +111,9 @@ action registry API reference surfaces now read tenant-scoped
 those records are missing or invalid. Approval decisions and action runs
 validate against those persisted reference records before writing operational
 state; action runs also derive ontology relationship scopes from the persisted
-ontology reference. The workflow console, approval inbox and audit explorer
-reference runtime factories have also been removed from the API module; tests
-validate the Alembic bootstrap payloads directly. Remaining API-owned reference
+ontology reference. The workflow console, approval inbox, audit explorer and
+agent registry reference runtime factories have also been removed from the API
+module; tests validate the Alembic bootstrap payloads directly. Remaining API-owned reference
 records are tracked for migration to persisted, tenant-scoped bootstrap
 records. The model routing reference runtime factory has also been removed;
 tests validate the Alembic bootstrap payload directly while live provider
