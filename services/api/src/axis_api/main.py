@@ -52,6 +52,16 @@ from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
     DeferredConnectorExecutionRuntime,
 )
+from axis_api.connector_manifests import (
+    ConnectorManifestConflict,
+    ConnectorManifestCreateRequest,
+    ConnectorManifestQuery,
+    ConnectorManifestRecordView,
+    ConnectorManifestValidationError,
+    ManufacturingConnectorManifestRegistry,
+    build_connector_manifest_registry,
+    record_demo_connector_manifest,
+)
 from axis_api.connector_manual_imports import (
     ConnectorManualImportCreateRequest,
     ConnectorManualImportDecisionRequest,
@@ -738,6 +748,64 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_connector_registry() -> ManufacturingConnectorRegistry:
         return get_manufacturing_connector_registry()
+
+    @app.get(
+        "/demo/manufacturing/connectors/manifests",
+        response_model=ManufacturingConnectorManifestRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_manifests(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorManifestRegistry:
+        return build_connector_manifest_registry(
+            repository,
+            ConnectorManifestQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/manifests",
+        response_model=ConnectorManifestRecordView,
+        responses={
+            409: {"description": "Connector manifest already exists"},
+            422: {"description": "Connector manifest validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_manifest_create(
+        manifest: ConnectorManifestCreateRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorManifestRecordView:
+        try:
+            return record_demo_connector_manifest(repository, manifest)
+        except ConnectorManifestConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The connector manifest already exists.",
+                    "reason": "manifest_already_exists",
+                    "connector_id": exc.connector_id,
+                },
+            ) from exc
+        except ConnectorManifestValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/connectors/configurations",

@@ -71,8 +71,12 @@ declared table metadata through profile ids and credential handles. Both map
 public-safe input to ontology proposals and return redacted audit preview
 metadata without persisting raw file content, storing credentials, executing
 SQL, calling external systems or mutating the graph. Tenant-scoped connector
-configuration records are persisted separately from connector runs and reject
-raw credential fields. Credential handle records persist external secret
+manifest records can be registered with `connector.manifest.registered` audit
+evidence before scheduled sync exists; registration rejects raw connection
+fields, SQL/query text and credential material and does not activate runtime
+execution. Tenant-scoped connector configuration records are persisted
+separately from connector runs and reject raw credential fields. Credential
+handle records persist external secret
 references, rotation metadata and rotation history without storing raw
 credential values. Connector run records persist redacted input/result summaries
 and link to append-only `connector.run.recorded` audit events. Governed dry-run

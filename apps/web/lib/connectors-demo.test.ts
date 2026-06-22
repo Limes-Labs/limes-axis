@@ -8,6 +8,7 @@ import {
   buildDefaultExternalDbPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorManifestRegistry,
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
   defaultConnectorPromotionPolicyRegistry,
@@ -120,6 +121,26 @@ describe("manufacturing connector demo contract", () => {
       "connector.external_db.previewed",
     );
     const serialized = JSON.stringify(defaultExternalDbConnectorPreview).toLowerCase();
+    expect(serialized).not.toContain("connection_string");
+    expect(serialized).not.toContain("postgres://");
+    expect(serialized).not.toContain("raw_sql");
+    expect(serialized).not.toContain("password");
+  });
+
+  it("keeps persisted connector manifest registry fallback public-safe", () => {
+    expect(defaultConnectorManifestRegistry.tenant_id).toBe("tenant_demo_manufacturing");
+    expect(defaultConnectorManifestRegistry.registry_status).toBe("ready");
+    expect(defaultConnectorManifestRegistry.metrics[0]).toMatchObject({
+      label: "Persisted Manifests",
+      value: "2",
+    });
+    expect(defaultConnectorManifestRegistry.manifests).toHaveLength(2);
+    expect(defaultConnectorManifestRegistry.manifests[1]).toMatchObject({
+      connector_id: "external_db_operational_mirror",
+      status: "registered_preview_only",
+      audit_event_type: "connector.manifest.registered",
+    });
+    const serialized = JSON.stringify(defaultConnectorManifestRegistry).toLowerCase();
     expect(serialized).not.toContain("connection_string");
     expect(serialized).not.toContain("postgres://");
     expect(serialized).not.toContain("raw_sql");

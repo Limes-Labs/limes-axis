@@ -13,6 +13,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorManifestRecord,
     ConnectorManualImportRequest,
     ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
@@ -138,6 +139,24 @@ class ConnectorConfigurationCreate(BaseModel):
     created_by: str = Field(min_length=1)
     configuration_payload: dict = Field(default_factory=dict)
     credential_ref_ids: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorManifestCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    connector_type: str = Field(min_length=1)
+    source_type: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    status: str = Field(default="registered_preview_only", min_length=1)
+    runtime_boundary: str = Field(default="axis-connector-sandbox", min_length=1)
+    registered_by: str = Field(min_length=1)
+    manifest_payload: dict = Field(default_factory=dict)
+    runtime_policy: dict = Field(default_factory=dict)
+    preview_sample: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.manifest.registered", min_length=1)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -697,6 +716,63 @@ class AxisPersistenceRepository:
         statement = statement.order_by(
             ConnectorConfiguration.created_at.desc(),
             ConnectorConfiguration.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_connector_manifest(
+        self,
+        record: ConnectorManifestCreate,
+    ) -> ConnectorManifestRecord:
+        manifest = ConnectorManifestRecord(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            display_name=record.display_name,
+            connector_type=record.connector_type,
+            source_type=record.source_type,
+            version=record.version,
+            status=record.status,
+            runtime_boundary=record.runtime_boundary,
+            registered_by=record.registered_by,
+            manifest_payload=record.manifest_payload,
+            runtime_policy=record.runtime_policy,
+            preview_sample=record.preview_sample,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(manifest)
+        self.session.flush()
+        return manifest
+
+    def get_connector_manifest(
+        self,
+        tenant_id: str,
+        connector_id: str,
+    ) -> ConnectorManifestRecord | None:
+        statement = select(ConnectorManifestRecord).where(
+            ConnectorManifestRecord.tenant_id == tenant_id,
+            ConnectorManifestRecord.connector_id == connector_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_manifests(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorManifestRecord]:
+        statement: Select[tuple[ConnectorManifestRecord]] = select(
+            ConnectorManifestRecord
+        ).where(ConnectorManifestRecord.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorManifestRecord.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorManifestRecord.status == status)
+
+        statement = statement.order_by(
+            ConnectorManifestRecord.created_at.desc(),
+            ConnectorManifestRecord.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
 

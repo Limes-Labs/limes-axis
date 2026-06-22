@@ -67,6 +67,41 @@ export type ManufacturingConnectorRegistry = {
   connector_notes: string[];
 };
 
+export type ConnectorManifestRecord = {
+  tenant_id: string;
+  manifest_id: string;
+  connector_id: string;
+  display_name: string;
+  connector_type: string;
+  source_type: string;
+  version: string;
+  status: string;
+  runtime_boundary: string;
+  registered_by: string;
+  manifest: ConnectorManifest;
+  runtime_policy: ConnectorRuntimePolicy;
+  preview_sample: ConnectorPreviewSample;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorManifestRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  manifests: ConnectorManifestRecord[];
+  manifest_notes: string[];
+};
+
 export type ConnectorCsvPreviewRequest = {
   tenant_id: string;
   connector_id: string;
@@ -763,6 +798,63 @@ export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegist
     "The file/CSV connector maps rows to ontology proposals without writing data.",
     "The external DB connector previews declared metadata without live SQL.",
     "Credential retrieval, scheduled sync and production connector runs remain future work.",
+  ],
+};
+
+export const defaultConnectorManifestRegistry: ManufacturingConnectorManifestRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [
+    {
+      label: "Persisted Manifests",
+      value: "2",
+      detail: "Tenant-scoped connector manifest records",
+      status: "ready",
+    },
+    {
+      label: "Raw Material",
+      value: "Rejected",
+      detail: "DSNs, SQL text and credential values are blocked",
+      status: "ready",
+    },
+    {
+      label: "Live Sync",
+      value: "Not Enabled",
+      detail: "Persisting a manifest does not start connector execution",
+      status: "watch",
+    },
+  ],
+  manifests: defaultManufacturingConnectorRegistry.connectors.map((connector, index) => ({
+    tenant_id: "tenant_demo_manufacturing",
+    manifest_id:
+      index === 0
+        ? "manifest_file_csv_manufacturing_assets"
+        : "manifest_external_db_operational_mirror",
+    connector_id: connector.manifest.connector_id,
+    display_name: connector.manifest.display_name,
+    connector_type: connector.manifest.connector_type,
+    source_type: connector.manifest.source_type,
+    version: connector.manifest.version,
+    status: "registered_preview_only",
+    runtime_boundary: connector.manifest.runtime_boundary,
+    registered_by: "platform-connector-owner-role",
+    manifest: connector.manifest,
+    runtime_policy: connector.runtime_policy,
+    preview_sample: connector.preview_sample,
+    audit_event_id:
+      index === 0
+        ? "audit_connector_manifest_file_csv_20260622"
+        : "audit_connector_manifest_external_db_20260622",
+    audit_event_type: "connector.manifest.registered",
+    notes: ["Manifest registration is metadata-only and does not enable live sync."],
+    created_at: "2026-06-22T00:00:00Z",
+  })),
+  manifest_notes: [
+    "Persisted connector manifests are tenant-scoped metadata records.",
+    "Registration writes audit evidence but does not enable live sync.",
+    "Raw connection strings, SQL text and credential values are rejected.",
   ],
 };
 

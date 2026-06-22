@@ -99,6 +99,7 @@ Foundation acceptance is tracked in
 - [x] Add retention-aware replay windows for simulation responses.
 - [x] Add connector manifest foundation and file/CSV preview.
 - [x] Add metadata-only external database connector preview.
+- [x] Add tenant-scoped persisted connector manifest records.
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
@@ -177,7 +178,10 @@ preview through `/demo/manufacturing/connectors` and
 external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
-queries. The API also stores and
+queries. Tenant-scoped connector manifests can now be registered through
+`/demo/manufacturing/connectors/manifests`, writing
+`connector.manifest.registered` audit evidence while rejecting raw connection
+fields, SQL/query text and credential material. The API also stores and
 queries tenant-scoped preview connector configuration through
 `/demo/manufacturing/connectors/configurations`, rejecting raw credential
 fields in configuration payloads. The API now also stores metadata-only
@@ -252,7 +256,7 @@ mapping with an offline fallback seed.
 It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
-Persisted connector manifest management beyond the demo seed, production
+Manifest lifecycle transitions beyond preview-only registration, production
 credential vault integration, scheduled live sync, live external database
 adapters and connector-backed production actions remain Platform work.
 
