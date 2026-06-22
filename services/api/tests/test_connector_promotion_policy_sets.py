@@ -1,3 +1,8 @@
+from copy import deepcopy
+from pathlib import Path
+from runpy import run_path
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -10,10 +15,15 @@ from axis_api.connector_promotion_policy_sets import (
     build_connector_promotion_policy_set_registry,
     record_demo_connector_promotion_policy_set,
 )
+from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import AuditEvent, Base, ConnectorPromotionPolicy, ConnectorPromotionPolicySet
-from axis_api.persistence import AxisPersistenceRepository, ConnectorPromotionPolicyCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorPromotionPolicyCreate,
+    DemoReferenceRecordCreate,
+)
 
 
 def policy_set_payload() -> dict:
@@ -67,7 +77,10 @@ def rollback_policy_set_payload() -> dict:
     return payload
 
 
-def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
+def build_test_client(
+    *,
+    seed_connector_registry: bool = True,
+) -> tuple[TestClient, sessionmaker[Session]]:
     engine = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},
@@ -83,7 +96,39 @@ def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
         )
     )
     app.state.session_factory = factory
+    if seed_connector_registry:
+        seed_connector_registry_reference(factory)
     return TestClient(app), factory
+
+
+def connector_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
+
+
+def policy_set_request(connector_id: str = "file_csv_manufacturing_assets"):
+    payload = policy_set_payload()
+    payload["connector_id"] = connector_id
+    return ConnectorPromotionPolicySetActivateRequest(**payload)
 
 
 def seed_enabled_required_policy(
@@ -91,6 +136,7 @@ def seed_enabled_required_policy(
     policy_id: str,
     *,
     allowed_risk_levels: list[str] | None = None,
+    connector_id: str = "file_csv_manufacturing_assets",
 ) -> None:
     audit_event = repository.append_audit_event(
         AuditEventCreate(
@@ -98,7 +144,7 @@ def seed_enabled_required_policy(
             actor_id="platform-governance-owner-role",
             event_type="connector.promotion_policy.enabled",
             payload={
-                "connector_id": "file_csv_manufacturing_assets",
+                "connector_id": connector_id,
                 "policy_id": policy_id,
                 "status": "enabled",
                 "enforcement_mode": "required",
@@ -108,7 +154,7 @@ def seed_enabled_required_policy(
     repository.create_connector_promotion_policy(
         ConnectorPromotionPolicyCreate(
             tenant_id="tenant_demo_manufacturing",
-            connector_id="file_csv_manufacturing_assets",
+            connector_id=connector_id,
             policy_id=policy_id,
             policy_version="2026-06-22",
             status="enabled",
@@ -128,9 +174,21 @@ def seed_enabled_required_policy(
     )
 
 
-def seed_policy_set_dependencies(repository: AxisPersistenceRepository) -> None:
-    seed_enabled_required_policy(repository, "policy_connector_asset_required_scope")
-    seed_enabled_required_policy(repository, "policy_connector_asset_required_risk")
+def seed_policy_set_dependencies(
+    repository: AxisPersistenceRepository,
+    *,
+    connector_id: str = "file_csv_manufacturing_assets",
+) -> None:
+    seed_enabled_required_policy(
+        repository,
+        "policy_connector_asset_required_scope",
+        connector_id=connector_id,
+    )
+    seed_enabled_required_policy(
+        repository,
+        "policy_connector_asset_required_risk",
+        connector_id=connector_id,
+    )
 
 
 def seed_revised_draft_policy(repository: AxisPersistenceRepository) -> None:
@@ -194,6 +252,71 @@ def replacement_with_policy_revision_adoption_payload() -> dict:
         }
     ]
     return payload
+
+
+def test_connector_promotion_policy_set_path_does_not_load_demo_connector_registry_seed() -> None:
+    source = Path("src/axis_api/connector_promotion_policy_sets.py").read_text()
+
+    assert "get_manufacturing_connector_registry" not in source
+
+
+def test_record_connector_promotion_policy_set_requires_persisted_connector_registry() -> None:
+    client, factory = build_test_client(seed_connector_registry=False)
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_policy_set_dependencies(repository)
+        with pytest.raises(ConnectorReferenceRecordNotFound):
+            record_demo_connector_promotion_policy_set(repository, policy_set_request())
+
+    client.close()
+
+
+def test_record_connector_promotion_policy_set_uses_persisted_connector_manifest() -> None:
+    client, factory = build_test_client()
+    payload = connector_registry_payload()
+    persisted_only_connector = deepcopy(payload["connectors"][0])
+    persisted_only_connector["manifest"]["connector_id"] = "persisted_policy_set_connector"
+    persisted_only_connector["manifest"]["display_name"] = "Persisted policy set connector"
+    payload["connectors"].append(persisted_only_connector)
+    seed_connector_registry_reference(factory, payload)
+
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_policy_set_dependencies(
+            repository,
+            connector_id="persisted_policy_set_connector",
+        )
+        policy_set = record_demo_connector_promotion_policy_set(
+            repository,
+            policy_set_request("persisted_policy_set_connector"),
+        )
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.promotion_policy_set.activated",
+        )
+
+    client.close()
+    assert policy_set.connector_id == "persisted_policy_set_connector"
+    assert events[0].payload["connector_id"] == "persisted_policy_set_connector"
+
+
+def test_connector_promotion_policy_set_endpoint_reports_missing_connector_registry() -> None:
+    client, factory = build_test_client(seed_connector_registry=False)
+    with session_scope(factory) as session:
+        seed_policy_set_dependencies(AxisPersistenceRepository(session))
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    )
+
+    client.close()
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
 
 
 def test_record_connector_promotion_policy_set_writes_audit_and_registry() -> None:

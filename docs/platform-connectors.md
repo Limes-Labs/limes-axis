@@ -45,6 +45,9 @@ Promotion policy authoring, enablement and revision paths also use the
 persisted registry reference before writing policy rows or audit evidence, so
 policy governance no longer validates connector ids against a service-local
 connector seed.
+Promotion policy set activation, replacement and rollback use the same
+persisted registry reference before writing policy-set rows or audit evidence,
+so active required-gate selection also avoids service-local connector seeds.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -132,6 +135,12 @@ reference to validate connector ids before writing policy rows or audit
 evidence. Missing or invalid registry references return explicit 404/422 errors
 before any policy row, revision row, enablement update or audit event is
 written.
+
+Promotion policy set activation, replacement and rollback read the same
+registry reference to validate the requested connector before writing set rows
+or audit evidence. Missing or invalid registry references return explicit
+404/422 errors before any policy-set row, replacement/rollback update or audit
+event is written.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -463,8 +472,9 @@ types before calling the TypeDB mutation adapter. Draft or advisory policies
 remain visible governance evidence without blocking promotion. If more than one enabled
 required policy matches the same connector, Axis requires a versioned active
 policy set. `POST /demo/manufacturing/connectors/promotion-policy-sets`
-requires `connectors:promotion_policy_set:activate`, verifies every referenced
-policy is enabled and required, writes
+requires `connectors:promotion_policy_set:activate`, validates the connector
+through the persisted registry reference, verifies every referenced policy is
+enabled and required, writes
 `connector.promotion_policy_set.activated` audit evidence and allows the
 promotion endpoint to evaluate all policies in the set with
 `policy_set_enforced` evidence. When a policy set is active, explicit single

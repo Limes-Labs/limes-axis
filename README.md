@@ -128,7 +128,9 @@ evidence, connector run creation uses it before storing run/audit runtime
 boundary metadata, and manual import request creation uses it before writing
 approval-gated import audit evidence. Promotion policy authoring, enablement
 and revision paths also validate connector ids against the persisted registry
-reference before writing policy/audit evidence. The external DB
+reference before writing policy/audit evidence, and promotion policy set
+activation/replacement/rollback uses it before writing set/audit evidence. The
+external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.
@@ -192,7 +194,8 @@ omitted, so required gates cannot be bypassed before the TypeDB mutation
 boundary is called. Promotion policy authoring, enablement and revision now
 fail before policy/audit writes when the persisted connector registry reference
 is missing or invalid. Versioned promotion policy sets can now activate a single
-required-gate set per connector, so multiple enabled required policies are
+required-gate set per connector after validating the connector through the same
+persisted registry reference, so multiple enabled required policies are
 evaluated together with `connector.promotion_policy_set.activated` evidence
 instead of being selected implicitly; once a set is active, single-policy
 `policy_id` selection is rejected to avoid partial gate evaluation. Replacing or
