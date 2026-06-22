@@ -139,7 +139,6 @@ from axis_api.demo import (
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
-    get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
     get_manufacturing_overview,
     get_manufacturing_workflow_console,
@@ -157,6 +156,14 @@ from axis_api.ontology.mutations import (
     OntologyMutationRuntime,
     TypeDBOntologyMutationConfig,
     TypeDBOntologyMutationRuntime,
+)
+from axis_api.ontology.queries import (
+    DeferredOntologyQueryRuntime,
+    OntologyGraphQueryRequest,
+    OntologyGraphQueryRuntime,
+    TypeDBOntologyQueryConfig,
+    TypeDBOntologyQueryRuntime,
+    query_manufacturing_ontology_graph,
 )
 from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
@@ -208,6 +215,16 @@ def ontology_mutation_runtime(request: Request) -> OntologyMutationRuntime:
 OntologyMutationRuntimeDependency = Annotated[
     OntologyMutationRuntime,
     Depends(ontology_mutation_runtime),
+]
+
+
+def ontology_query_runtime(request: Request) -> OntologyGraphQueryRuntime:
+    return request.app.state.ontology_query_runtime
+
+
+OntologyQueryRuntimeDependency = Annotated[
+    OntologyGraphQueryRuntime,
+    Depends(ontology_query_runtime),
 ]
 
 
@@ -524,6 +541,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if resolved_settings.ontology_mutations_enabled
         else DeferredOntologyMutationRuntime()
     )
+    app.state.ontology_query_runtime = (
+        TypeDBOntologyQueryRuntime(
+            TypeDBOntologyQueryConfig(
+                address=resolved_settings.typedb_address,
+                username=resolved_settings.typedb_username,
+                password=resolved_settings.typedb_password,
+                database=resolved_settings.typedb_database,
+            )
+        )
+        if resolved_settings.ontology_queries_enabled
+        else DeferredOntologyQueryRuntime()
+    )
     app.state.identity_verifier = RemoteJwksOidcVerifier(
         issuer=resolved_settings.oidc_issuer,
         audience=resolved_settings.oidc_audience,
@@ -546,6 +575,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "dependencies": {
                 "postgres": bool(resolved_settings.postgres_dsn),
                 "typedb": bool(resolved_settings.typedb_address),
+                "typedb_queries": resolved_settings.ontology_queries_enabled,
                 "temporal": bool(resolved_settings.temporal_address),
             },
             "external_model_egress_enabled": resolved_settings.external_model_egress_enabled,
@@ -1569,8 +1599,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response_model=ManufacturingOntology,
         tags=["demo"],
     )
-    def manufacturing_ontology() -> ManufacturingOntology:
-        return get_manufacturing_ontology()
+    def manufacturing_ontology(
+        principal: OidcPrincipalDependency,
+        ontology_query_runtime: OntologyQueryRuntimeDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        limit: int = Query(default=200, ge=1, le=500),
+    ) -> ManufacturingOntology:
+        if principal is not None and principal.tenant_id != tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot read ontology graph data for this tenant.",
+                    "reason": "tenant_mismatch",
+                },
+            )
+
+        return query_manufacturing_ontology_graph(
+            ontology_query_runtime,
+            OntologyGraphQueryRequest(
+                tenant_id=tenant_id,
+                actor_id=principal.actor_id if principal is not None else "public-demo-reader",
+                actor_scopes=principal.scopes if principal is not None else [],
+                enforce_relationship_scopes=principal is not None,
+                limit=limit,
+            ),
+        )
 
     @app.get(
         "/demo/manufacturing/ontology/entities/{node_id}",

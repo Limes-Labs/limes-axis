@@ -3,12 +3,35 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from axis_api.actions import ActionDefinition, ActionRiskLevel, ApprovalMode
+from axis_api.ontology.queries import OntologyGraphQueryMetadata
+from axis_api.permissions import PermissionDecision
 
 
 class OverviewStatus(StrEnum):
     READY = "ready"
     WATCH = "watch"
     ACTION_REQUIRED = "action_required"
+
+
+def _default_ontology_graph_query_metadata() -> OntologyGraphQueryMetadata:
+    return OntologyGraphQueryMetadata(
+        adapter="axis-deferred-ontology-query-adapter",
+        source="demo-seed",
+        query_mode="unfiltered_public_seed",
+        tenant_id="tenant_demo_manufacturing",
+        actor_id="public-demo-reader",
+        permission_decision=PermissionDecision(allowed=True, reason="public_seed"),
+        requested_scopes=[],
+        applied_relationship_scopes=[],
+        denied_relationship_count=0,
+        returned_node_count=0,
+        returned_relationship_count=0,
+        typeql=None,
+        notes=[
+            "Public ontology seed is served through the Axis graph query contract.",
+            "Authenticated reads can be filtered by relationship-derived scopes.",
+        ],
+    )
 
 
 class OverviewMetric(BaseModel):
@@ -362,10 +385,27 @@ class ManufacturingOntology(BaseModel):
     plant_name: str = Field(min_length=1)
     scenario: str = Field(min_length=1)
     as_of: str = Field(min_length=1)
-    nodes: list[OntologyNode] = Field(min_length=1)
-    relationships: list[OntologyRelationship] = Field(min_length=1)
+    nodes: list[OntologyNode] = Field(default_factory=list)
+    relationships: list[OntologyRelationship] = Field(default_factory=list)
     source_systems: list[str] = Field(min_length=1)
     permission_notes: list[str] = Field(min_length=1)
+    graph_query: OntologyGraphQueryMetadata = Field(
+        default_factory=_default_ontology_graph_query_metadata
+    )
+
+
+def _seed_ontology_graph_query_metadata(
+    ontology: ManufacturingOntology,
+) -> OntologyGraphQueryMetadata:
+    return _default_ontology_graph_query_metadata().model_copy(
+        update={
+            "applied_relationship_scopes": sorted(
+                {relationship.permission_scope for relationship in ontology.relationships}
+            ),
+            "returned_node_count": len(ontology.nodes),
+            "returned_relationship_count": len(ontology.relationships),
+        }
+    )
 
 
 class OntologyEntityRelationship(BaseModel):
@@ -1968,7 +2008,7 @@ def get_manufacturing_approval_inbox() -> ManufacturingApprovalInbox:
 
 
 def get_manufacturing_ontology() -> ManufacturingOntology:
-    return ManufacturingOntology(
+    ontology = ManufacturingOntology(
         tenant_id="tenant_demo_manufacturing",
         plant_name="Ravenna Works",
         scenario="Plant Operations Cockpit",
@@ -2258,6 +2298,9 @@ def get_manufacturing_ontology() -> ManufacturingOntology:
                 permission_scope="audit:read",
             ),
         ],
+    )
+    return ontology.model_copy(
+        update={"graph_query": _seed_ontology_graph_query_metadata(ontology)}
     )
 
 

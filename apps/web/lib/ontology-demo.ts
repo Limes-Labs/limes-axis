@@ -31,6 +31,25 @@ export type OntologyRelationship = {
   permission_scope: string;
 };
 
+export type OntologyGraphQueryMetadata = {
+  adapter: string;
+  source: string;
+  query_mode: string;
+  tenant_id: string;
+  actor_id: string;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  requested_scopes: string[];
+  applied_relationship_scopes: string[];
+  denied_relationship_count: number;
+  returned_node_count: number;
+  returned_relationship_count: number;
+  typeql: string | null;
+  notes: string[];
+};
+
 export type ManufacturingOntology = {
   tenant_id: string;
   plant_name: string;
@@ -40,6 +59,7 @@ export type ManufacturingOntology = {
   relationships: OntologyRelationship[];
   source_systems: string[];
   permission_notes: string[];
+  graph_query: OntologyGraphQueryMetadata;
 };
 
 export type OntologyEntityRelationship = {
@@ -79,6 +99,36 @@ export const defaultManufacturingOntology: ManufacturingOntology = {
     "Agents can only read nodes inside their declared domain and tenant scope.",
     "External model egress remains blocked unless policy explicitly enables it.",
   ],
+  graph_query: {
+    adapter: "axis-deferred-ontology-query-adapter",
+    source: "demo-seed",
+    query_mode: "unfiltered_public_seed",
+    tenant_id: "tenant_demo_manufacturing",
+    actor_id: "public-demo-reader",
+    permission_decision: {
+      allowed: true,
+      reason: "public_seed",
+    },
+    requested_scopes: [],
+    applied_relationship_scopes: [
+      "agents:read",
+      "approvals:read",
+      "audit:read",
+      "maintenance:read",
+      "operations:read",
+      "quality:read",
+      "security:read",
+      "supply:read",
+    ],
+    denied_relationship_count: 0,
+    returned_node_count: 18,
+    returned_relationship_count: 14,
+    typeql: null,
+    notes: [
+      "Public ontology seed is served through the Axis graph query contract.",
+      "Authenticated reads can be filtered by relationship-derived scopes.",
+    ],
+  },
   nodes: [
     {
       node_id: "org_ravenna_operations",

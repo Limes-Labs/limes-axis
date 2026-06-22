@@ -19,6 +19,7 @@ def test_ready_returns_dependency_configuration_without_secrets() -> None:
     assert body["dependencies"] == {
         "postgres": True,
         "typedb": True,
+        "typedb_queries": False,
         "temporal": True,
     }
     assert "password" not in str(body).lower()

@@ -88,6 +88,8 @@ Foundation acceptance is tracked in
   and scopes.
 - [x] Enforce relationship-derived ontology scopes on entity detail reads and
   action payload resource references.
+- [x] Route ontology graph reads through a permission-aware query adapter with
+  optional TypeDB read boundary.
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
@@ -123,10 +125,12 @@ detail API calls. Full OIDC authorization-code login, refresh, secure cookie
 session management and provider configuration remain Platform/Enterprise work.
 
 The ontology explorer and entity detail pages are currently read-only and backed
-by the synthetic manufacturing graph. Entity detail reads can enforce
-relationship-derived required permissions when a bearer token is present or OIDC
-auth is required by configuration. TypeDB-backed graph queries, persisted
-relationship metadata and broader graph authorization remain Platform work.
+by the synthetic manufacturing graph. Graph reads now pass through the Axis
+ontology query runtime, expose query metadata and can filter relationships by
+OIDC-derived relationship scopes when a bearer token is present or OIDC auth is
+required by configuration. The TypeDB read boundary is optional and separated
+from graph mutations. Live TypeDB response mapping, persisted relationship
+metadata and broader graph authorization remain Platform work.
 
 The workflow console is currently read-only and backed by the synthetic
 manufacturing workflow seed, with a persisted workflow run endpoint available
