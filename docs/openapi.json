@@ -9898,6 +9898,19 @@
     "/demo/manufacturing/connectors": {
       "get": {
         "operationId": "manufacturing_connector_registry_demo_manufacturing_connectors_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9908,6 +9921,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
+          "422": {
+            "description": "Connector registry reference payload invalid"
           }
         },
         "summary": "Manufacturing Connector Registry",

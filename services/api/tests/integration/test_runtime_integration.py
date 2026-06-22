@@ -42,7 +42,7 @@ def test_postgres_migration_creates_foundation_tables() -> None:
         "demo_reference_records",
     }.issubset(tables)
     with engine.connect() as connection:
-        count = connection.execute(
+        overview_count = connection.execute(
             text(
                 "SELECT COUNT(*) FROM demo_reference_records "
                 "WHERE tenant_id = 'tenant_demo_manufacturing' "
@@ -50,8 +50,17 @@ def test_postgres_migration_creates_foundation_tables() -> None:
                 "AND reference_id = 'manufacturing-overview'"
             )
         ).scalar_one()
+        connector_registry_count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM demo_reference_records "
+                "WHERE tenant_id = 'tenant_demo_manufacturing' "
+                "AND surface = 'connectors' "
+                "AND reference_id = 'manufacturing-connector-registry'"
+            )
+        ).scalar_one()
 
-    assert count == 1
+    assert overview_count == 1
+    assert connector_registry_count == 1
 
 
 def test_typedb_schema_loads_into_fresh_database() -> None:

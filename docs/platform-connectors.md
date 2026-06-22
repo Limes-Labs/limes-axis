@@ -21,6 +21,11 @@ The `/connectors` console now requires the Axis API for connector records and
 shows an API-required empty state instead of local fallback connector data.
 The browser runtime no longer exports connector registry, preview, credential,
 run, proposal, import, promotion policy or policy-set default records.
+The connector registry API now reads its public-safe reference payload from
+`demo_reference_records` using `surface=connectors` and
+`reference_id=manufacturing-connector-registry`; missing or invalid persisted
+records return explicit API errors instead of silently falling back to runtime
+seed data.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -70,6 +75,12 @@ The registry endpoint returns:
 - schema fields and ontology mapping targets;
 - allowed and blocked runtime operations;
 - preview sample metadata.
+
+The registry endpoint is still a bootstrap reference surface, but it is no
+longer constructed inside the FastAPI route. The bootstrap record is inserted
+by Alembic migration `0023_connector_registry_reference`, validated against the
+`ManufacturingConnectorRegistry` contract and queried through the persistence
+repository.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:

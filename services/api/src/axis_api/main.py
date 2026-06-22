@@ -155,6 +155,11 @@ from axis_api.connector_promotion_policy_sets import (
     build_connector_promotion_policy_set_registry,
     record_demo_connector_promotion_policy_set,
 )
+from axis_api.connector_reference import (
+    ConnectorReferenceRecordInvalid,
+    ConnectorReferenceRecordNotFound,
+    get_persisted_manufacturing_connector_registry,
+)
 from axis_api.connector_runs import (
     ConnectorRunCreateRequest,
     ConnectorRunDispatchConflict,
@@ -178,7 +183,6 @@ from axis_api.connectors import (
     ConnectorExternalDbPreviewRequest,
     ConnectorExternalDbPreviewResult,
     ManufacturingConnectorRegistry,
-    get_manufacturing_connector_registry,
     preview_external_db_connector,
     preview_file_csv_connector,
 )
@@ -875,10 +879,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/connectors",
         response_model=ManufacturingConnectorRegistry,
+        responses={
+            404: {"description": "Connector registry reference record not found"},
+            422: {"description": "Connector registry reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_connector_registry() -> ManufacturingConnectorRegistry:
-        return get_manufacturing_connector_registry()
+    def manufacturing_connector_registry(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingConnectorRegistry:
+        try:
+            return get_persisted_manufacturing_connector_registry(
+                repository,
+                tenant_id=tenant_id,
+            )
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "connectors",
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/connectors/manifests",
