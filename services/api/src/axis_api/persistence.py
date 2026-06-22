@@ -297,6 +297,7 @@ class ConnectorPromotionPolicySetCreate(BaseModel):
     rollback_approval_id: str | None = None
     rollback_decision: str | None = None
     rollback_workflow_signal_status: str | None = None
+    policy_revision_adoptions: list[dict] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -995,6 +996,28 @@ class AxisPersistenceRepository:
         self.session.flush()
         return policy
 
+    def adopt_connector_promotion_policy_revision(
+        self,
+        current_policy: ConnectorPromotionPolicy,
+        revised_policy: ConnectorPromotionPolicy,
+        *,
+        audit_event_id: UUID,
+        audit_event_type: str,
+        note: str,
+    ) -> ConnectorPromotionPolicy:
+        current_policy.status = "superseded"
+        current_policy.replaced_by_policy_id = revised_policy.policy_id
+        current_policy.updated_at = utc_now()
+
+        revised_policy.status = "enabled"
+        revised_policy.enforcement_mode = "required"
+        revised_policy.audit_event_id = audit_event_id
+        revised_policy.audit_event_type = audit_event_type
+        revised_policy.notes = [*revised_policy.notes, note]
+        revised_policy.updated_at = utc_now()
+        self.session.flush()
+        return revised_policy
+
     def list_connector_promotion_policies(
         self,
         tenant_id: str,
@@ -1043,6 +1066,7 @@ class AxisPersistenceRepository:
             rollback_approval_id=record.rollback_approval_id,
             rollback_decision=record.rollback_decision,
             rollback_workflow_signal_status=record.rollback_workflow_signal_status,
+            policy_revision_adoptions=record.policy_revision_adoptions,
             notes=record.notes,
         )
         self.session.add(policy_set)

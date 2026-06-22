@@ -250,7 +250,13 @@ required-gate set. A new active set can replace the current active set only when
 the request names `replaces_policy_set_id`, carries an approved replacement
 decision and includes `policy_set_replacement_signal_recorded` workflow
 evidence; Axis writes `connector.promotion_policy_set.replaced` and marks the
-previous set `superseded`. A rollback also names the current active set, points
+previous set `superseded`. Replacement can include `policy_revision_adoptions`
+for approved draft revisions; each adoption requires approval evidence,
+`policy_revision_adoption_signal_recorded`, matching revision lineage and an
+active-set current policy. Axis writes
+`connector.promotion_policy.revision_adopted`, supersedes the current policy,
+enables the revised policy as required and stores adoption evidence on the new
+active set in the same transaction. A rollback also names the current active set, points
 at a superseded `rollback_to_policy_set_id`, carries approved rollback evidence,
 requires `policy_set_rollback_signal_recorded`, writes
 `connector.promotion_policy_set.rolled_back` and creates a new active version

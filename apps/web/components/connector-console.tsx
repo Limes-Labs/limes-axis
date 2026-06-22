@@ -657,6 +657,20 @@ export function ConnectorConsole() {
                       "no transition signal"}
                   </p>
                 </div>
+                <div>
+                  <p className="metric-label">Revision Adoptions</p>
+                  <p className="row-title">
+                    {policySet.policy_revision_adoptions.length} adopted
+                  </p>
+                  <p className="row-detail">
+                    {policySet.policy_revision_adoptions
+                      .map(
+                        (adoption) =>
+                          `${adoption.current_policy_id} -> ${adoption.revised_policy_id}`,
+                      )
+                      .join(", ") || "none"}
+                  </p>
+                </div>
               </div>
             ))}
           </section>

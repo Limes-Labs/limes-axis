@@ -12,7 +12,7 @@ from axis_api.connector_promotion_policy_sets import (
 )
 from axis_api.db import session_scope
 from axis_api.main import create_app
-from axis_api.models import AuditEvent, Base, ConnectorPromotionPolicySet
+from axis_api.models import AuditEvent, Base, ConnectorPromotionPolicy, ConnectorPromotionPolicySet
 from axis_api.persistence import AxisPersistenceRepository, ConnectorPromotionPolicyCreate
 
 
@@ -131,6 +131,69 @@ def seed_enabled_required_policy(
 def seed_policy_set_dependencies(repository: AxisPersistenceRepository) -> None:
     seed_enabled_required_policy(repository, "policy_connector_asset_required_scope")
     seed_enabled_required_policy(repository, "policy_connector_asset_required_risk")
+
+
+def seed_revised_draft_policy(repository: AxisPersistenceRepository) -> None:
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="platform-governance-owner-role",
+            event_type="connector.promotion_policy.revised",
+            payload={
+                "connector_id": "file_csv_manufacturing_assets",
+                "policy_id": "policy_connector_asset_required_scope_v2",
+                "revises_policy_id": "policy_connector_asset_required_scope",
+                "status": "draft",
+                "enforcement_mode": "advisory",
+            },
+        )
+    )
+    repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            policy_id="policy_connector_asset_required_scope_v2",
+            policy_version="2026-06-22.2",
+            status="draft",
+            enforcement_mode="advisory",
+            created_by="platform-governance-owner-role",
+            required_authoring_scope="connectors:promotion_policy:revise",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status="approval_approved",
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=["medium"],
+            allowed_ontology_types=["manufacturing_asset"],
+            review_window_hours=24,
+            permission_decision={"allowed": True, "reason": "allowed"},
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.promotion_policy.revised",
+            revises_policy_id="policy_connector_asset_required_scope",
+            revision_idempotency_key="idem_policy_revision_required_scope_v2",
+            revision_approval_id="approval_policy_revision_required_scope_v2",
+            revision_decision="approve",
+            revision_workflow_signal_status="policy_revision_signal_recorded",
+            notes=["Approved revision candidate awaiting policy-set adoption."],
+        )
+    )
+
+
+def replacement_with_policy_revision_adoption_payload() -> dict:
+    payload = replacement_policy_set_payload()
+    payload["policy_ids"] = [
+        "policy_connector_asset_required_scope_v2",
+        "policy_connector_asset_required_risk",
+    ]
+    payload["policy_revision_adoptions"] = [
+        {
+            "current_policy_id": "policy_connector_asset_required_scope",
+            "revised_policy_id": "policy_connector_asset_required_scope_v2",
+            "revision_idempotency_key": "idem_policy_revision_required_scope_v2",
+            "adoption_approval_id": "approval_policy_revision_adoption_required_scope_v2",
+            "adoption_decision": "approve",
+            "adoption_workflow_signal_status": "policy_revision_adoption_signal_recorded",
+        }
+    ]
+    return payload
 
 
 def test_record_connector_promotion_policy_set_writes_audit_and_registry() -> None:
@@ -262,6 +325,162 @@ def test_connector_promotion_policy_set_endpoint_replaces_active_set_with_eviden
     assert replacement_event.payload["replacement_workflow_signal_status"] == (
         "policy_set_replacement_signal_recorded"
     )
+
+
+def test_connector_promotion_policy_set_endpoint_adopts_revised_policy_atomically() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_policy_set_dependencies(repository)
+        seed_revised_draft_policy(repository)
+
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    ).status_code == 201
+    replacement_response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=replacement_with_policy_revision_adoption_payload(),
+    )
+
+    with factory() as session:
+        policies = {
+            record.policy_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicy)).all()
+        }
+        policy_sets = {
+            record.policy_set_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicySet)).all()
+        }
+        active_sets = [record for record in policy_sets.values() if record.status == "active"]
+        adoption_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy.revision_adopted"
+            )
+        ).one()
+        replacement_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy_set.replaced"
+            )
+        ).one()
+
+    client.close()
+    assert replacement_response.status_code == 201
+    body = replacement_response.json()
+    assert body["policy_set_id"] == "policy_set_connector_asset_required_20260622_v2"
+    assert body["policy_ids"] == [
+        "policy_connector_asset_required_scope_v2",
+        "policy_connector_asset_required_risk",
+    ]
+    assert body["policy_revision_adoptions"] == [
+        {
+            "current_policy_id": "policy_connector_asset_required_scope",
+            "revised_policy_id": "policy_connector_asset_required_scope_v2",
+            "revision_idempotency_key": "idem_policy_revision_required_scope_v2",
+            "adoption_approval_id": "approval_policy_revision_adoption_required_scope_v2",
+            "adoption_decision": "approve",
+            "adoption_workflow_signal_status": "policy_revision_adoption_signal_recorded",
+            "audit_event_id": str(adoption_event.id),
+            "audit_event_type": "connector.promotion_policy.revision_adopted",
+        }
+    ]
+    assert len(active_sets) == 1
+    assert active_sets[0].policy_set_id == "policy_set_connector_asset_required_20260622_v2"
+    assert policy_sets["policy_set_connector_asset_required_20260622"].status == "superseded"
+    assert policies["policy_connector_asset_required_scope"].status == "superseded"
+    assert policies["policy_connector_asset_required_scope"].replaced_by_policy_id == (
+        "policy_connector_asset_required_scope_v2"
+    )
+    assert policies["policy_connector_asset_required_scope_v2"].status == "enabled"
+    assert policies["policy_connector_asset_required_scope_v2"].enforcement_mode == "required"
+    assert policies["policy_connector_asset_required_scope_v2"].audit_event_id == adoption_event.id
+    assert policies["policy_connector_asset_required_scope_v2"].audit_event_type == (
+        "connector.promotion_policy.revision_adopted"
+    )
+    assert replacement_event.payload["policy_revision_adoptions"] == body[
+        "policy_revision_adoptions"
+    ]
+
+
+def test_connector_promotion_policy_set_endpoint_rejects_revision_adoption_without_signal() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_policy_set_dependencies(repository)
+        seed_revised_draft_policy(repository)
+
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    ).status_code == 201
+    payload = replacement_with_policy_revision_adoption_payload()
+    payload["policy_revision_adoptions"][0]["adoption_workflow_signal_status"] = None
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=payload,
+    )
+
+    with factory() as session:
+        policies = {
+            record.policy_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicy)).all()
+        }
+        policy_sets = session.scalars(select(ConnectorPromotionPolicySet)).all()
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_revision_adoption_signal_required"
+    assert [record.status for record in policy_sets].count("active") == 1
+    assert policies["policy_connector_asset_required_scope"].status == "enabled"
+    assert policies["policy_connector_asset_required_scope_v2"].status == "draft"
+
+
+def test_connector_promotion_policy_set_endpoint_rolls_back_adoption_when_set_invalid() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_policy_set_dependencies(repository)
+        seed_revised_draft_policy(repository)
+
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    ).status_code == 201
+    with session_scope(factory) as session:
+        risk_policy = AxisPersistenceRepository(session).get_connector_promotion_policy(
+            "tenant_demo_manufacturing",
+            "policy_connector_asset_required_risk",
+        )
+        risk_policy.status = "draft"
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=replacement_with_policy_revision_adoption_payload(),
+    )
+
+    with factory() as session:
+        policies = {
+            record.policy_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicy)).all()
+        }
+        policy_sets = session.scalars(select(ConnectorPromotionPolicySet)).all()
+        adoption_events = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy.revision_adopted"
+            )
+        ).all()
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_set_policy_not_enabled_required"
+    assert [record.status for record in policy_sets].count("active") == 1
+    assert policies["policy_connector_asset_required_scope"].status == "enabled"
+    assert policies["policy_connector_asset_required_scope"].replaced_by_policy_id is None
+    assert policies["policy_connector_asset_required_scope_v2"].status == "draft"
+    assert policies["policy_connector_asset_required_scope_v2"].enforcement_mode == "advisory"
+    assert policies["policy_connector_asset_required_risk"].status == "draft"
+    assert adoption_events == []
 
 
 def test_connector_promotion_policy_set_endpoint_rejects_replacement_without_approval() -> None:
