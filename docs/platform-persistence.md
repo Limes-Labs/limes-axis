@@ -356,7 +356,9 @@ Delivered:
 - persisted manufacturing model routing reference records through
   `demo_reference_records`, with the API reading
   `surface=model-routing/reference_id=manufacturing-model-routing` while live
-  provider routing, usage metering and billing adapters remain out of scope.
+  provider routing, usage metering and billing adapters remain out of scope;
+  the runtime seed factory has been removed from the API module and tests
+  validate the Alembic bootstrap payload directly.
 - persisted manufacturing ontology reference records through
   `demo_reference_records`, with graph and entity detail endpoints reading
   `surface=ontology/reference_id=manufacturing-ontology` before the ontology

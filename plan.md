@@ -158,6 +158,7 @@ Foundation acceptance is tracked in
 - [x] Remove the audit explorer runtime seed factory from the API module.
 - [x] Persist the manufacturing model routing reference as a tenant-scoped
   bootstrap record.
+- [x] Remove the model routing runtime seed factory from the API module.
 - [x] Persist the manufacturing ontology graph and entity detail reference as a
   tenant-scoped bootstrap record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
@@ -199,7 +200,9 @@ The API module no longer defines an audit explorer runtime seed factory; tests
 validate the Alembic bootstrap payload directly.
 The model routing reference endpoint reads from `surface=model-routing` and
 `reference_id=manufacturing-model-routing`; live provider routing, usage
-metering and billing adapters remain separate Platform work.
+metering and billing adapters remain separate Platform work. The API module no
+longer defines a model routing runtime seed factory; tests validate the Alembic
+bootstrap payload directly.
 The ontology graph and entity detail endpoints read from `surface=ontology` and
 `reference_id=manufacturing-ontology`; the query runtime now applies metadata
 and relationship-scope filtering to that persisted graph instead of loading a
@@ -470,6 +473,7 @@ broader relationship-aware permission enforcement remain Platform work.
 The model routing and cost observability layer is currently read-only and API
 required. The browser no longer carries local route telemetry fallback records,
 and the API reference now comes from a persisted tenant-scoped bootstrap row.
+The API module no longer defines a route telemetry seed factory.
 Live provider adapters, provider-specific billing ingestion, tenant budget
 enforcement, persisted usage records, OpenTelemetry spans from runtime code and
 audit writes from live route decisions remain Platform work.

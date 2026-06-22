@@ -9,6 +9,10 @@ instead of a route-owned runtime seed. It does not call a live model provider,
 does not send prompts outside the demo tenant boundary and does not enforce
 production budgets yet.
 
+The API module no longer defines a model routing runtime seed factory. Contract
+tests validate the Alembic bootstrap payload directly against the public API
+schema.
+
 ## API
 
 ```text
@@ -50,6 +54,7 @@ Delivered:
 
 - read-only reference route telemetry;
 - persisted bootstrap record for the reference route telemetry;
+- runtime seed factory removed from the API module;
 - blocked external route visibility;
 - local and approved-provider route examples;
 - token and cost estimates;

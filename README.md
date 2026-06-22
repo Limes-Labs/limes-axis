@@ -115,7 +115,9 @@ ontology reference. The workflow console, approval inbox and audit explorer
 reference runtime factories have also been removed from the API module; tests
 validate the Alembic bootstrap payloads directly. Remaining API-owned reference
 records are tracked for migration to persisted, tenant-scoped bootstrap
-records.
+records. The model routing reference runtime factory has also been removed;
+tests validate the Alembic bootstrap payload directly while live provider
+routing remains out of scope.
 
 The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
