@@ -1705,6 +1705,15 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
         egress_policy_id: "egress_policy_private_endpoint_ops",
         egress_boundary: "approved_private_endpoint",
         credential_access_mode: "lease_scoped_secret_ref",
+        credential_lease_evidence_status: "validated",
+        credential_lease_id: "lease_external_db_readonly_20260622",
+        credential_lease_mode: "self_hosted_vault_kms_lease",
+        credential_lease_runtime_boundary: "axis-credential-lease-broker",
+        credential_lease_result_status: "lease_executed",
+        credential_lease_ref:
+          "self-hosted-vault-kms://tenant_demo_manufacturing/" +
+          "lease_external_db_readonly_20260622",
+        credential_lease_secret_material_returned: "false",
         records_read: "0",
         records_accepted: "0",
         records_rejected: "0",
@@ -1785,6 +1794,15 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
           egress_policy_id: "egress_policy_private_endpoint_ops",
           egress_boundary: "approved_private_endpoint",
           credential_access_mode: "lease_scoped_secret_ref",
+          credential_lease_evidence_status: "validated",
+          credential_lease_id: "lease_external_db_readonly_20260622",
+          credential_lease_mode: "self_hosted_vault_kms_lease",
+          credential_lease_runtime_boundary: "axis-credential-lease-broker",
+          credential_lease_result_status: "lease_executed",
+          credential_lease_ref:
+            "self-hosted-vault-kms://tenant_demo_manufacturing/" +
+            "lease_external_db_readonly_20260622",
+          credential_lease_secret_material_returned: "false",
           records_read: "0",
           records_accepted: "0",
           records_rejected: "0",

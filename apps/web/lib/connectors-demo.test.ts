@@ -355,6 +355,15 @@ describe("manufacturing connector demo contract", () => {
       live_query_preflight_status: "passed",
       egress_policy_decision: "approved_private_endpoint",
       secret_retrieval_decision: "lease_scoped_reference_only",
+      credential_lease_evidence_status: "validated",
+      credential_lease_id: "lease_external_db_readonly_20260622",
+      credential_lease_mode: "self_hosted_vault_kms_lease",
+      credential_lease_runtime_boundary: "axis-credential-lease-broker",
+      credential_lease_result_status: "lease_executed",
+      credential_lease_ref:
+        "self-hosted-vault-kms://tenant_demo_manufacturing/" +
+        "lease_external_db_readonly_20260622",
+      credential_lease_secret_material_returned: "false",
       external_query_started: "false",
       credential_material_returned: "false",
       graph_mutation_started: "false",
