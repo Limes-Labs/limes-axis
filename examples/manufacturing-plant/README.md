@@ -27,6 +27,8 @@ GET /demo/manufacturing/agents
 GET /demo/manufacturing/actions
 POST /demo/manufacturing/actions/{action_id}/runs
 GET /demo/manufacturing/model-routing
+GET /demo/manufacturing/connectors
+POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
 It includes:
@@ -77,6 +79,8 @@ It includes:
   audit events.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
+- preview-only file/CSV connector manifest for manufacturing asset intake, with
+  schema validation, ontology proposal mapping and redacted audit event preview.
 - Postgres persistence foundation for approval records, action runs and
   append-only audit events.
 
@@ -97,4 +101,6 @@ The reference demo should grow into an end-to-end Platform scenario:
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;
+- persisted connector manifests, credential handles, scheduled sync, database
+  connectors and connector-backed actions behind policy gates;
 - persisted replay and simulation artifacts.

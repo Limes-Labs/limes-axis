@@ -246,4 +246,24 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
+
+  test("renders connector manifests and CSV preview", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/connectors");
+
+    await expect(page.getByRole("heading", { name: "Connector intake" })).toBeVisible();
+    await expect(page.getByText("Fallback connector seed")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toBeVisible();
+    await expect(page.getByText("file_csv_manufacturing_assets").first()).toBeVisible();
+    await expect(page.getByText("axis-connector-sandbox")).toBeVisible();
+    await expect(page.getByText("connectors:file_csv:preview")).toBeVisible();
+    await expect(page.getByText("connector.preview.generated")).toBeVisible();
+    await expect(page.getByText("asset_line_2_packaging").first()).toBeVisible();
+    await expect(page.locator(".audit-detail-grid").getByText("Preview Only")).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
 });

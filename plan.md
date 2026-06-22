@@ -93,7 +93,8 @@ Foundation acceptance is tracked in
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
-- [ ] Build the connector framework.
+- [x] Add connector manifest foundation and file/CSV preview.
+- [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
 The governance console overview is backed by the first public-safe synthetic
@@ -142,6 +143,17 @@ workflow run history, timeline events and redacted audit evidence. The
 manufacturing demo. Temporal deterministic replay, arbitrary policy diffing,
 retention-aware replay windows and persisted simulation outputs remain Platform
 and Enterprise work.
+
+The connector foundation exposes a public-safe manifest registry and a
+preview-only file/CSV connector for manufacturing asset intake. The API can
+validate CSV rows, map them to ontology entity proposals and return a redacted
+audit event preview through `/demo/manufacturing/connectors` and
+`/demo/manufacturing/connectors/file-csv/preview`. The `/connectors` console
+shows runtime boundaries, required permissions, blocked operations and schema
+mapping with an offline fallback seed. Persisted connector configuration,
+credential handles, scheduled sync, external database connectors, audit writes,
+live graph mutation and connector-backed production actions remain Platform
+work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
