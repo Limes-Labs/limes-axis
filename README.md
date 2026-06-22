@@ -105,8 +105,10 @@ transition adopts a future version. The credential handle slice adds
 metadata-only external secret references and rotation history for connector
 credentials, while still refusing to store raw credential values.
 The connector run record slice adds metadata-only run records linked to
-append-only audit events, without executing connector sync. The connector
-ontology proposal slice persists preview-derived proposals for review with
+append-only audit events, and governed connector dry-runs now pass through a
+deferred execution adapter that writes `connector.run.execution_deferred`
+evidence without starting live sync or retrieving credential material. The
+connector ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import
 requests with `connector.manual_import.requested` audit events. Manual import

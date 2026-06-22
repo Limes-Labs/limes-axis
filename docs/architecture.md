@@ -73,10 +73,13 @@ configuration records are persisted separately from connector runs and reject
 raw credential fields. Credential handle records persist external secret
 references, rotation metadata and rotation history without storing raw
 credential values. Connector run records persist redacted input/result summaries
-and link to append-only `connector.run.recorded` audit events without executing
-sync. Connector ontology proposal records persist preview-derived proposed
-nodes for review, link to `connector.ontology_proposals.recorded` audit events
-and keep graph mutation explicitly `not_applied`. Manual import request records
+and link to append-only `connector.run.recorded` audit events. Governed dry-run
+connector execution now calls a deferred Axis connector execution adapter,
+requires credential handle ids and writes `connector.run.execution_deferred`
+evidence while keeping `external_sync_started=false`. Connector ontology
+proposal records persist preview-derived proposed nodes for review, link to
+`connector.ontology_proposals.recorded` audit events and keep graph mutation
+explicitly `not_applied`. Manual import request records
 capture approval ids, workflow ids and idempotency keys for future proposal
 promotion, link to `connector.manual_import.requested` audit events and still
 keep graph mutation explicitly `not_applied`. Manual import decisions require

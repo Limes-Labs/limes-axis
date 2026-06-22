@@ -6,8 +6,9 @@ external data sources into Axis without enabling live production mutation.
 This slice defines connector manifests, runtime policy boundaries, schema
 mapping metadata and a first preview-only file/CSV connector for the
 manufacturing reference demo. It also adds the first tenant-scoped connector
-configuration records and metadata-only connector run records, while keeping
-connector execution and live sync disabled.
+configuration records and metadata-only connector run records. Governed
+dry-run execution now passes through a deferred Axis connector execution
+adapter while keeping live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
 future connector execution, without storing raw credential material in Axis.
 Preview-derived ontology proposal records are now persisted for review, with
@@ -107,18 +108,23 @@ record includes:
 - tenant id;
 - connector id;
 - run id;
-- preview/manual-import-record execution mode;
+- preview/manual-import-record/governed-dry-run execution mode;
 - runtime boundary;
 - requester role/system id;
 - credential handle ids;
 - redacted input and result summaries;
+- optional execution result metadata;
 - linked audit event id and type;
 - run notes.
 
 Creating a run record writes an append-only `connector.run.recorded` audit event
 with the same redacted metadata. The endpoint rejects raw payload fields such as
 `csv_content`, raw file content, passwords, API keys, tokens and secret refs.
-Run records do not execute connector sync, call external systems or mutate the
+When `execution_mode=governed_dry_run`, the endpoint requires active credential
+handle ids, calls the Axis connector execution runtime adapter, writes
+`connector.run.execution_deferred` audit evidence and records
+`external_sync_started=false`. The deferred adapter does not retrieve
+credential material, call external systems, start live sync or mutate the
 ontology graph.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
@@ -319,7 +325,7 @@ The console displays:
 - blocked operations;
 - tenant-scoped preview configuration;
 - credential handle references and rotation posture;
-- audit-backed connector run records;
+- audit-backed connector run records and deferred execution metadata;
 - review-only ontology proposal records with graph mutation status;
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
@@ -330,7 +336,8 @@ The console displays:
 - redacted ontology proposals and audit event preview.
 
 The page is read-only for operators. It does not upload files to storage,
-execute connector runs, capture credentials or trigger live sync.
+capture credentials or trigger live sync. Governed connector dry-runs are shown
+as deferred runtime evidence, not as live connector execution.
 
 ## Governance Boundary
 
@@ -343,8 +350,8 @@ contract keeps these boundaries visible:
 - rotation metadata before production vault integration;
 - no external egress by default;
 - redacted preview payloads;
-- audit event preview before future connector execution;
-- tenant-scoped run records before future connector execution;
+- audit event preview before live connector execution;
+- tenant-scoped run records with deferred execution evidence;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;

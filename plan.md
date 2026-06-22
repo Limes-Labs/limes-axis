@@ -180,7 +180,10 @@ credential handles and rotation history through
 references instead of raw credential values. Connector run records can now be
 written through `/demo/manufacturing/connectors/runs`; each record stores only
 redacted summaries and links to an append-only `connector.run.recorded` audit
-event. Preview-derived ontology proposals can now be persisted through
+event. Governed dry-run connector execution now calls the deferred Axis
+connector execution adapter, requires credential handle ids, writes
+`connector.run.execution_deferred` audit evidence and still does not start live
+sync. Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.
 Manual connector import requests can now be recorded through
@@ -236,15 +239,16 @@ policy context before the API returns 422. If multiple required policies exist
 without an active set, Axis still rejects implicit selection.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
-run evidence, persisted ontology proposal evidence, promotion evidence, manual
-import decision evidence, promotion policy authoring/enforcement evidence,
-versioned policy-set evidence and schema mapping with an offline fallback seed.
+run evidence, deferred execution metadata, persisted ontology proposal
+evidence, promotion evidence, manual import decision evidence, promotion policy
+authoring/enforcement evidence, versioned policy-set evidence and schema
+mapping with an offline fallback seed.
 It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
-Persisted connector manifest management beyond the demo seed, credential vault
-integration, scheduled sync, external database connectors and connector-backed
-production actions remain Platform work.
+Persisted connector manifest management beyond the demo seed, production
+credential vault integration, scheduled live sync, external database connectors
+and connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
