@@ -50,6 +50,14 @@ class ConnectorPromotionPolicySetActivateRequest(BaseModel):
     actor_scopes: list[str] = Field(default_factory=list)
     policy_ids: list[str] = Field(min_length=1, max_length=20)
     activation_reason: str = Field(min_length=1, max_length=600)
+    replaces_policy_set_id: str | None = Field(default=None, min_length=1, max_length=180)
+    replacement_approval_id: str | None = Field(default=None, min_length=1, max_length=180)
+    replacement_decision: str | None = Field(default=None, min_length=1, max_length=40)
+    replacement_workflow_signal_status: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
     notes: list[str] = Field(default_factory=list)
 
 
@@ -66,6 +74,12 @@ class ConnectorPromotionPolicySetRecord(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     activation_reason: str = Field(min_length=1)
+    replaces_policy_set_id: str | None = None
+    replaced_by_policy_set_id: str | None = None
+    replacement_approval_id: str | None = None
+    replacement_decision: str | None = None
+    replacement_workflow_signal_status: str | None = None
+    replaced_at: datetime | None = None
     notes: list[str] = Field(default_factory=list)
     created_at: datetime
 
@@ -82,6 +96,8 @@ class ManufacturingConnectorPromotionPolicySetRegistry(BaseModel):
 
 REQUIRED_POLICY_SET_ACTIVATION_SCOPE = "connectors:promotion_policy_set:activate"
 POLICY_SET_AUDIT_EVENT_TYPE = "connector.promotion_policy_set.activated"
+POLICY_SET_REPLACED_AUDIT_EVENT_TYPE = "connector.promotion_policy_set.replaced"
+REQUIRED_POLICY_SET_REPLACEMENT_SIGNAL = "policy_set_replacement_signal_recorded"
 SUPPORTED_POLICY_SET_STATUSES = {"active"}
 
 
@@ -130,7 +146,7 @@ def build_connector_promotion_policy_set_registry(
         policy_set_notes=[
             "Policy sets resolve multi-policy required gates without implicit selection.",
             "Activation requires each referenced policy to be enabled and required.",
-            "Only one active set per tenant and connector is allowed in this slice.",
+            "Active set replacement requires approval and workflow signal evidence.",
         ],
     )
 
@@ -155,49 +171,118 @@ def record_demo_connector_promotion_policy_set(
         request.tenant_id,
         request.connector_id,
     )
-    if active_sets:
+    active_policy_set = _active_policy_set_for_replacement(active_sets, request)
+    if active_sets and active_policy_set is None:
         raise ConnectorPromotionPolicySetConflict(
             active_sets[0].policy_set_id,
             "policy_set_active_exists",
         )
+    if not active_sets and request.replaces_policy_set_id is not None:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set replacement target is not active.",
+            "policy_set_replacement_target_not_found",
+        )
+    if active_policy_set is not None:
+        _validate_replacement_evidence(request)
     policies = _validate_referenced_policies(repository, request)
     permission_decision = _evaluate_activation_permission(request)
+    audit_event_type = (
+        POLICY_SET_REPLACED_AUDIT_EVENT_TYPE
+        if active_policy_set is not None
+        else POLICY_SET_AUDIT_EVENT_TYPE
+    )
+    audit_payload = {
+        "connector_id": request.connector_id,
+        "policy_set_id": request.policy_set_id,
+        "policy_set_version": request.policy_set_version,
+        "status": request.status,
+        "policy_ids": request.policy_ids,
+        "policy_versions": [policy.policy_version for policy in policies],
+        "activation_scope": REQUIRED_POLICY_SET_ACTIVATION_SCOPE,
+        "permission_decision": permission_decision.model_dump(),
+        "activation_reason": request.activation_reason,
+    }
+    if active_policy_set is not None:
+        audit_payload.update(
+            {
+                "previous_policy_set_id": active_policy_set.policy_set_id,
+                "previous_policy_set_version": active_policy_set.policy_set_version,
+                "previous_status": active_policy_set.status,
+                "replacement_approval_id": request.replacement_approval_id,
+                "replacement_decision": request.replacement_decision,
+                "replacement_workflow_signal_status": request.replacement_workflow_signal_status,
+            }
+        )
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
             actor_id=request.activated_by,
-            event_type=POLICY_SET_AUDIT_EVENT_TYPE,
-            payload={
-                "connector_id": request.connector_id,
-                "policy_set_id": request.policy_set_id,
-                "policy_set_version": request.policy_set_version,
-                "status": request.status,
-                "policy_ids": request.policy_ids,
-                "policy_versions": [policy.policy_version for policy in policies],
-                "activation_scope": REQUIRED_POLICY_SET_ACTIVATION_SCOPE,
-                "permission_decision": permission_decision.model_dump(),
-                "activation_reason": request.activation_reason,
-            },
+            event_type=audit_event_type,
+            payload=audit_payload,
         )
     )
-    policy_set = repository.create_connector_promotion_policy_set(
-        ConnectorPromotionPolicySetCreate(
-            tenant_id=request.tenant_id,
-            connector_id=request.connector_id,
-            policy_set_id=request.policy_set_id,
-            policy_set_version=request.policy_set_version,
-            status=request.status,
-            activated_by=request.activated_by,
-            activation_scope=REQUIRED_POLICY_SET_ACTIVATION_SCOPE,
-            policy_ids=request.policy_ids,
-            permission_decision=permission_decision.model_dump(),
-            audit_event_id=audit_event.id,
-            audit_event_type=audit_event.event_type,
-            activation_reason=request.activation_reason,
-            notes=request.notes,
-        )
+    create_record = ConnectorPromotionPolicySetCreate(
+        tenant_id=request.tenant_id,
+        connector_id=request.connector_id,
+        policy_set_id=request.policy_set_id,
+        policy_set_version=request.policy_set_version,
+        status=request.status,
+        activated_by=request.activated_by,
+        activation_scope=REQUIRED_POLICY_SET_ACTIVATION_SCOPE,
+        policy_ids=request.policy_ids,
+        permission_decision=permission_decision.model_dump(),
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
+        activation_reason=request.activation_reason,
+        replaces_policy_set_id=request.replaces_policy_set_id,
+        replacement_approval_id=request.replacement_approval_id,
+        replacement_decision=request.replacement_decision,
+        replacement_workflow_signal_status=request.replacement_workflow_signal_status,
+        notes=request.notes,
     )
+    if active_policy_set is None:
+        policy_set = repository.create_connector_promotion_policy_set(create_record)
+    else:
+        policy_set = repository.replace_connector_promotion_policy_set(
+            active_policy_set,
+            create_record,
+        )
     return _policy_set_from_record(policy_set)
+
+
+def _active_policy_set_for_replacement(
+    active_sets: list,
+    request: ConnectorPromotionPolicySetActivateRequest,
+):
+    if not active_sets:
+        return None
+    if request.replaces_policy_set_id is None:
+        return None
+    for active_set in active_sets:
+        if active_set.policy_set_id == request.replaces_policy_set_id:
+            return active_set
+    raise ConnectorPromotionPolicySetValidationError(
+        "Connector promotion policy set replacement target does not match the active set.",
+        "policy_set_replacement_target_mismatch",
+    )
+
+
+def _validate_replacement_evidence(request: ConnectorPromotionPolicySetActivateRequest) -> None:
+    if request.replacement_approval_id is None:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set replacement requires approval evidence.",
+            "policy_set_replacement_approval_required",
+        )
+    if request.replacement_decision != "approve":
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set replacement requires an approved decision.",
+            "policy_set_replacement_not_approved",
+        )
+    if request.replacement_workflow_signal_status != REQUIRED_POLICY_SET_REPLACEMENT_SIGNAL:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set replacement requires workflow signal evidence.",
+            "policy_set_replacement_signal_required",
+        )
 
 
 def _evaluate_activation_permission(
@@ -293,6 +378,12 @@ def _policy_set_from_record(record) -> ConnectorPromotionPolicySetRecord:
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         activation_reason=record.activation_reason,
+        replaces_policy_set_id=record.replaces_policy_set_id,
+        replaced_by_policy_set_id=record.replaced_by_policy_set_id,
+        replacement_approval_id=record.replacement_approval_id,
+        replacement_decision=record.replacement_decision,
+        replacement_workflow_signal_status=record.replacement_workflow_signal_status,
+        replaced_at=record.replaced_at,
         notes=record.notes,
         created_at=record.created_at,
     )

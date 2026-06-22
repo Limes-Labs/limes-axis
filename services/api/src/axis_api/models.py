@@ -434,6 +434,27 @@ class ConnectorPromotionPolicySet(Base):
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     activation_reason: Mapped[str] = mapped_column(String(600), nullable=False)
+    replaces_policy_set_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    replaced_by_policy_set_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    replacement_approval_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    replacement_decision: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    replacement_workflow_signal_status: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[list] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

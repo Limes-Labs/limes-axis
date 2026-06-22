@@ -423,6 +423,12 @@ export type ConnectorPromotionPolicySetRecord = {
   audit_event_id: string | null;
   audit_event_type: string;
   activation_reason: string;
+  replaces_policy_set_id: string | null;
+  replaced_by_policy_set_id: string | null;
+  replacement_approval_id: string | null;
+  replacement_decision: string | null;
+  replacement_workflow_signal_status: string | null;
+  replaced_at: string | null;
   notes: string[];
   created_at: string;
 };
@@ -1113,7 +1119,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
     metrics: [
       {
         label: "Policy Sets",
-        value: "1",
+        value: "2",
         detail: "Versioned connector promotion policy sets",
         status: "ready",
       },
@@ -1125,7 +1131,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
       },
       {
         label: "Set Policies",
-        value: "1",
+        value: "2",
         detail: "Required policy references inside versioned sets",
         status: "ready",
       },
@@ -1136,7 +1142,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
         connector_id: "file_csv_manufacturing_assets",
         policy_set_id: "policy_set_connector_asset_required_20260622",
         policy_set_version: "2026-06-22.1",
-        status: "active",
+        status: "superseded",
         activated_by: "platform-governance-owner-role",
         activation_scope: "connectors:promotion_policy_set:activate",
         policy_ids: ["policy_connector_asset_promotion_v1"],
@@ -1147,13 +1153,45 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
         audit_event_id: "audit_connector_promotion_policy_set_demo_20260622",
         audit_event_type: "connector.promotion_policy_set.activated",
         activation_reason: "Activate required policy set for connector asset promotions.",
-        notes: ["Active policy set resolves required gate selection before promotion."],
+        replaces_policy_set_id: null,
+        replaced_by_policy_set_id: "policy_set_connector_asset_required_20260622_v2",
+        replacement_approval_id: "approval_policy_set_replace_20260622",
+        replacement_decision: "approve",
+        replacement_workflow_signal_status: "policy_set_replacement_signal_recorded",
+        replaced_at: "2026-06-22T01:00:00Z",
+        notes: ["Superseded by a governed replacement policy set."],
+        created_at: "2026-06-22T00:00:00Z",
+      },
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        policy_set_id: "policy_set_connector_asset_required_20260622_v2",
+        policy_set_version: "2026-06-22.2",
+        status: "active",
+        activated_by: "platform-governance-owner-role",
+        activation_scope: "connectors:promotion_policy_set:activate",
+        policy_ids: ["policy_connector_asset_promotion_v1"],
+        permission_decision: {
+          allowed: true,
+          reason: "allowed",
+        },
+        audit_event_id: "audit_connector_promotion_policy_set_replace_demo_20260622",
+        audit_event_type: "connector.promotion_policy_set.replaced",
+        activation_reason: "Replace active set after governance review.",
+        replaces_policy_set_id: "policy_set_connector_asset_required_20260622",
+        replaced_by_policy_set_id: null,
+        replacement_approval_id: "approval_policy_set_replace_20260622",
+        replacement_decision: "approve",
+        replacement_workflow_signal_status: "policy_set_replacement_signal_recorded",
+        replaced_at: null,
+        notes: ["Active replacement set keeps approval and workflow evidence."],
         created_at: "2026-06-22T00:00:00Z",
       },
     ],
     policy_set_notes: [
       "Policy sets version the active required gates for connector promotions.",
       "Activation requires policy-set scope and enabled required policy references.",
+      "Replacing an active set requires approval and workflow signal evidence.",
       "Promotion auto-selection uses the active set before TypeDB mutation execution.",
     ],
   };

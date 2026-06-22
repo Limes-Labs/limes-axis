@@ -306,10 +306,10 @@ describe("manufacturing connector demo contract", () => {
     expect(defaultConnectorPromotionPolicySetRegistry.tenant_id).toBe(
       "tenant_demo_manufacturing",
     );
-    expect(defaultConnectorPromotionPolicySetRegistry.policy_sets).toHaveLength(1);
+    expect(defaultConnectorPromotionPolicySetRegistry.policy_sets).toHaveLength(2);
     expect(defaultConnectorPromotionPolicySetRegistry.metrics[0]).toMatchObject({
       label: "Policy Sets",
-      value: "1",
+      value: "2",
     });
     expect(defaultConnectorPromotionPolicySetRegistry.metrics[1]).toMatchObject({
       label: "Active Sets",
@@ -319,10 +319,26 @@ describe("manufacturing connector demo contract", () => {
     const policySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[0];
     expect(policySet.policy_set_id).toBe("policy_set_connector_asset_required_20260622");
     expect(policySet.policy_set_version).toBe("2026-06-22.1");
-    expect(policySet.status).toBe("active");
+    expect(policySet.status).toBe("superseded");
     expect(policySet.activation_scope).toBe("connectors:promotion_policy_set:activate");
     expect(policySet.policy_ids).toEqual(["policy_connector_asset_promotion_v1"]);
     expect(policySet.audit_event_type).toBe("connector.promotion_policy_set.activated");
+    expect(policySet.replaced_by_policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622_v2",
+    );
+
+    const activePolicySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[1];
+    expect(activePolicySet.policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622_v2",
+    );
+    expect(activePolicySet.status).toBe("active");
+    expect(activePolicySet.replaces_policy_set_id).toBe(
+      "policy_set_connector_asset_required_20260622",
+    );
+    expect(activePolicySet.audit_event_type).toBe("connector.promotion_policy_set.replaced");
+    expect(activePolicySet.replacement_workflow_signal_status).toBe(
+      "policy_set_replacement_signal_recorded",
+    );
     expect(JSON.stringify(defaultConnectorPromotionPolicySetRegistry).toLowerCase()).not.toContain(
       "csv_content",
     );

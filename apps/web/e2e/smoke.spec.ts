@@ -333,6 +333,10 @@ test.describe("Axis console smoke", () => {
       .toBeVisible();
     await expect(page.getByText("connector.promotion_policy_set.activated").first())
       .toBeVisible();
+    await expect(page.getByText("policy_set_connector_asset_required_20260622_v2").first())
+      .toBeVisible();
+    await expect(page.getByText("connector.promotion_policy_set.replaced").first())
+      .toBeVisible();
     await expect(page.getByText("not_applied").first()).toBeVisible();
     await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();

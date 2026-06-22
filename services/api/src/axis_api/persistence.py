@@ -281,6 +281,12 @@ class ConnectorPromotionPolicySetCreate(BaseModel):
         min_length=1,
     )
     activation_reason: str = Field(min_length=1)
+    replaces_policy_set_id: str | None = None
+    replaced_by_policy_set_id: str | None = None
+    replacement_approval_id: str | None = None
+    replacement_decision: str | None = None
+    replacement_workflow_signal_status: str | None = None
+    replaced_at: datetime | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -988,9 +994,40 @@ class AxisPersistenceRepository:
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
             activation_reason=record.activation_reason,
+            replaces_policy_set_id=record.replaces_policy_set_id,
+            replaced_by_policy_set_id=record.replaced_by_policy_set_id,
+            replacement_approval_id=record.replacement_approval_id,
+            replacement_decision=record.replacement_decision,
+            replacement_workflow_signal_status=record.replacement_workflow_signal_status,
+            replaced_at=record.replaced_at,
             notes=record.notes,
         )
         self.session.add(policy_set)
+        self.session.flush()
+        return policy_set
+
+    def replace_connector_promotion_policy_set(
+        self,
+        active_policy_set: ConnectorPromotionPolicySet,
+        record: ConnectorPromotionPolicySetCreate,
+    ) -> ConnectorPromotionPolicySet:
+        replaced_at = utc_now()
+        active_policy_set.status = "superseded"
+        active_policy_set.replaced_by_policy_set_id = record.policy_set_id
+        active_policy_set.replacement_approval_id = record.replacement_approval_id
+        active_policy_set.replacement_decision = record.replacement_decision
+        active_policy_set.replacement_workflow_signal_status = (
+            record.replacement_workflow_signal_status
+        )
+        active_policy_set.replaced_at = replaced_at
+        policy_set = self.create_connector_promotion_policy_set(
+            record.model_copy(
+                update={
+                    "replaces_policy_set_id": active_policy_set.policy_set_id,
+                    "replaced_at": None,
+                }
+            )
+        )
         self.session.flush()
         return policy_set
 
