@@ -99,8 +99,9 @@ windows before returning timeline, audit and persisted output records, with a
 legal-hold bypass for governance review.
 
 The web console runtime libraries no longer export browser-local fallback seed
-records for non-connector surfaces; those pages are API-required and protected
-by a regression test that blocks reintroducing default runtime seed records.
+records, including the connector console records; those pages are API-required
+and protected by a regression test that blocks reintroducing default runtime
+seed records.
 The remaining API-owned reference records beyond the manufacturing overview are
 tracked for migration to persisted, tenant-scoped bootstrap records.
 

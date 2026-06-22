@@ -128,6 +128,8 @@ Foundation acceptance is tracked in
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
   reintroduction.
+- [x] Remove connector browser-runtime seed records and guard against
+  reintroduction.
 - [x] Persist the manufacturing overview reference as a tenant-scoped bootstrap
   record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview with
@@ -334,7 +336,10 @@ authoring/enforcement evidence, versioned policy-set evidence and schema
 mapping from API-backed records only.
 It can author promotion policies through the API when available, enable them
 with approval/workflow evidence and reports API persistence errors without
-recording local public-safe previews when the API is offline.
+recording local public-safe previews when the API is offline. The browser
+runtime no longer exports connector registry, preview, credential, run,
+proposal, import, promotion policy or policy-set default records; connector
+unit tests use local fixtures instead of product runtime fallbacks.
 Manifest lifecycle transitions beyond preview-only registration,
 provider-specific Vault/KMS adapters, provider-specific scheduled live sync
 beyond the self-hosted execution boundary, live external database adapters and
