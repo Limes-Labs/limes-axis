@@ -226,6 +226,13 @@ allowed risk levels and allowed ontology types before calling the TypeDB
 mutation adapter. Draft or advisory policies remain visible governance evidence
 without blocking promotion.
 
+The connector console includes a compact promotion policy authoring control for
+policy id, status and enforcement mode. When the API is available, the control
+posts to `POST /demo/manufacturing/connectors/promotion-policies`; when the API
+is unavailable, it records a local public-safe preview and refreshes the policy
+metrics. This does not add a policy approval workflow or implicit policy set
+selection.
+
 ## Manufacturing CSV Manifest
 
 The first connector is `file_csv_manufacturing_assets`.
@@ -269,6 +276,7 @@ The console displays:
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
 - promotion policy authoring and enforcement evidence;
+- promotion policy authoring controls with API/local preview behavior;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.

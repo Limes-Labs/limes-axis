@@ -810,6 +810,33 @@ textarea {
   box-shadow: var(--shadow);
 }
 
+.policy-authoring-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(130px, 0.42fr) minmax(150px, 0.48fr) auto;
+  gap: 10px;
+  align-items: end;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.policy-authoring-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.policy-authoring-form input,
+.policy-authoring-form select {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  box-shadow: var(--shadow);
+}
+
 .audit-layout {
   display: grid;
   grid-template-columns: minmax(310px, 0.48fr) minmax(0, 1fr);
@@ -1571,6 +1598,7 @@ textarea {
   .status-stack,
   .decision-toolbar,
   .audit-filters,
+  .policy-authoring-form,
   .agent-filters,
   .action-filters,
   .model-filters {
@@ -1578,10 +1606,16 @@ textarea {
   }
 
   .audit-filters select,
+  .policy-authoring-form input,
+  .policy-authoring-form select,
   .agent-filters select,
   .action-filters select,
   .model-filters select {
     max-width: none;
+  }
+
+  .policy-authoring-form {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -107,7 +107,9 @@ connector execution and external sync. Connector promotion policies can now be
 authored as tenant-scoped governance metadata with
 `connector.promotion_policy.authored` audit evidence. Enabled required policies
 can now be enforced during controlled ontology promotion before the TypeDB
-mutation boundary is called.
+mutation boundary is called. The connector console now includes a compact
+policy authoring control that can post to the API or keep a local public-safe
+preview when the API is unavailable.
 
 ## Architecture Defaults
 

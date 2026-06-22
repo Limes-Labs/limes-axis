@@ -285,6 +285,12 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("policy_connector_asset_promotion_v1").first()).toBeVisible();
     await expect(page.getByText("policy_enforced").first()).toBeVisible();
     await expect(page.getByText("policy_constraints_satisfied").first()).toBeVisible();
+    await page.getByLabel("Policy ID").fill("policy_connector_asset_promotion_ui_v1");
+    await page.getByLabel("Status", { exact: true }).selectOption("enabled");
+    await page.getByLabel("Enforcement").selectOption("required");
+    await page.getByRole("button", { name: "Author policy" }).click();
+    await expect(page.getByText("policy_connector_asset_promotion_ui_v1").first()).toBeVisible();
+    await expect(page.getByText("Local policy authoring preview").first()).toBeVisible();
     await expect(
       page.locator(".audit-detail-grid").getByText("connector.run.recorded", { exact: true }),
     ).toBeVisible();
