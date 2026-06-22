@@ -118,6 +118,13 @@ The twenty-third Alembic migration adds:
 - the public-safe connector manifest, runtime policy and preview metadata used
   by `GET /demo/manufacturing/connectors`.
 
+The twenty-fourth Alembic migration adds:
+
+- a persisted manufacturing agent registry bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe L1-L2 agent registry, policy boundaries, proposals and
+  evidence references used by `GET /demo/manufacturing/agents`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -237,6 +244,10 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=connectors/reference_id=manufacturing-connector-registry` and
   returning 404/422 for missing or invalid persisted payloads.
+- persisted manufacturing agent registry reference records through
+  `demo_reference_records`, with the API reading
+  `surface=agents/reference_id=manufacturing-agent-registry` and returning
+  404/422 for missing or invalid persisted payloads.
 
 Still Platform work:
 

@@ -102,11 +102,11 @@ The web console runtime libraries no longer export browser-local fallback seed
 records, including the connector console records; those pages are API-required
 and protected by a regression test that blocks reintroducing default runtime
 seed records.
-The manufacturing overview and connector registry API reference surfaces now
-read tenant-scoped `demo_reference_records` bootstrap rows and return explicit
-API errors when those records are missing or invalid. Remaining API-owned
-reference records are tracked for migration to persisted, tenant-scoped
-bootstrap records.
+The manufacturing overview, connector registry and agent registry API
+reference surfaces now read tenant-scoped `demo_reference_records` bootstrap
+rows and return explicit API errors when those records are missing or invalid.
+Remaining API-owned reference records are tracked for migration to persisted,
+tenant-scoped bootstrap records.
 
 The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV

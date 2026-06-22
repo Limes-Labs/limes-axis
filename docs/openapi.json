@@ -9505,6 +9505,19 @@
     "/demo/manufacturing/agents": {
       "get": {
         "operationId": "manufacturing_agent_registry_demo_manufacturing_agents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9515,6 +9528,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Agent registry reference record not found"
+          },
+          "422": {
+            "description": "Agent registry reference payload invalid"
           }
         },
         "summary": "Manufacturing Agent Registry",

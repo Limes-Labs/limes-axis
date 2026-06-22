@@ -11,6 +11,7 @@ from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.demo import (
     ApprovalDecision,
+    ManufacturingAgentRegistry,
     ManufacturingOverview,
     OntologyNodeType,
     OverviewStatus,
@@ -91,6 +92,58 @@ def persisted_overview_payload() -> dict:
                 "result": "persisted",
             }
         ],
+    }
+
+
+def persisted_agent_registry_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Agent Registry",
+        "as_of": "2026-06-22T10:15:00+02:00",
+        "registry_status": "ready",
+        "metrics": [
+            {
+                "label": "Persisted Agents",
+                "value": "1 governed",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "filter_options": {
+            "domains": ["Operations"],
+            "autonomy_levels": ["L1"],
+            "statuses": ["ready"],
+            "model_policies": ["local-only"],
+        },
+        "agents": [
+            {
+                "agent_id": "agent_persisted_daily_brief",
+                "name": "Persisted Daily Brief Agent",
+                "domain": "Operations",
+                "status": "ready",
+                "owner_role": "plant-operations-owner",
+                "purpose": "Prepare owner-facing summaries from persisted evidence.",
+                "policy_boundary": {
+                    "autonomy_level": "L1",
+                    "model_policy": "local-only",
+                    "external_egress_allowed": False,
+                    "max_action_level": "L1",
+                    "required_permissions": ["agents:read"],
+                    "guardrails": ["No mutation or external egress."],
+                },
+                "connected_systems": ["Axis Audit"],
+                "data_access": ["audit summaries"],
+                "allowed_actions": ["Prepare daily brief"],
+                "blocked_actions": ["Mutate workflow state"],
+                "proposals": [],
+                "active_workflows": [],
+                "pending_approvals": [],
+                "last_audit_event": "audit_persisted_agent_registry",
+                "evidence_refs": ["agent_persisted_daily_brief"],
+            }
+        ],
+        "registry_notes": ["Persisted agent registry reference."],
     }
 
 
@@ -278,8 +331,122 @@ def test_manufacturing_agent_registry_seed_is_governed() -> None:
     assert "@" not in registry.model_dump_json()
 
 
-def test_manufacturing_agent_registry_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_agent_registry_reference_contract_is_valid_and_actionable() -> None:
+    registry = ManufacturingAgentRegistry.model_validate(persisted_agent_registry_payload())
+
+    assert registry.tenant_id == "tenant_demo_manufacturing"
+    assert registry.scenario == "Persisted Agent Registry"
+    assert registry.agents[0].agent_id == "agent_persisted_daily_brief"
+    assert registry.agents[0].policy_boundary.external_egress_allowed is False
+
+
+def test_manufacturing_agent_registry_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0024_agent_registry_reference.py")
+
+    registry = ManufacturingAgentRegistry.model_validate(migration["AGENT_REGISTRY_PAYLOAD"])
+
+    assert registry.tenant_id == "tenant_demo_manufacturing"
+    assert registry.scenario == "Plant Operations Cockpit"
+    assert len(registry.agents) == 4
+    assert any(agent.agent_id == "agent_supply_risk" for agent in registry.agents)
+    serialized = registry.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_agent_registry_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_agent_registry()" not in source
+
+
+def test_manufacturing_agent_registry_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="agents",
+                reference_id="manufacturing-agent-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_agent_registry_payload(),
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/agents")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["scenario"] == "Persisted Agent Registry"
+    assert body["agents"][0]["agent_id"] == "agent_persisted_daily_brief"
+    assert body["agents"][0]["policy_boundary"]["external_egress_allowed"] is False
+    assert "password" not in str(body).lower()
+
+
+def test_manufacturing_agent_registry_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/agents")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_agent_registry_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_agent_registry_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="agents",
+                reference_id="manufacturing-agent-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/agents")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
+
+
+def test_manufacturing_agent_registry_endpoint_returns_bootstrap_public_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    migration = run_path("migrations/versions/0024_agent_registry_reference.py")
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="agents",
+                reference_id="manufacturing-agent-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=migration["AGENT_REGISTRY_PAYLOAD"],
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/agents")
 
     assert response.status_code == 200
