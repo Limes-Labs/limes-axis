@@ -6,11 +6,37 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
+from axis_api.connector_execution import ConnectorExecutionRequest, ConnectorExecutionResult
 from axis_api.connector_runs import ConnectorRunQuery, build_connector_run_registry
 from axis_api.db import session_scope
 from axis_api.main import create_app
-from axis_api.models import Base
-from axis_api.persistence import AxisPersistenceRepository, ConnectorRunCreate
+from axis_api.models import Base, utc_now
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorCredentialHandleCreate,
+    ConnectorRunCreate,
+)
+
+
+class RecordingConnectorExecutionRuntime:
+    adapter_name = "axis-recording-connector-execution-adapter"
+
+    def __init__(self) -> None:
+        self.requests: list[ConnectorExecutionRequest] = []
+
+    def execute(self, request: ConnectorExecutionRequest) -> ConnectorExecutionResult:
+        self.requests.append(request)
+        return ConnectorExecutionResult(
+            adapter=self.adapter_name,
+            status="execution_deferred",
+            external_sync_started=False,
+            idempotency_key=f"{request.tenant_id}:{request.run_id}:execution",
+            result_summary={
+                "runtime_status": "deferred",
+                "external_sync_started": "false",
+            },
+            notes=["Recording runtime used by API test."],
+        )
 
 
 @pytest.fixture
@@ -67,6 +93,28 @@ def seed_connector_runs(repository: AxisPersistenceRepository) -> None:
             input_summary={"file_name": "other.csv"},
             result_summary={},
             audit_event_id=audit_event.id,
+        )
+    )
+
+
+def seed_connector_credential_handle(repository: AxisPersistenceRepository) -> None:
+    now = utc_now()
+    repository.create_connector_credential_handle(
+        ConnectorCredentialHandleCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            handle_id="cred_file_csv_readonly",
+            display_name="Read-only CSV intake handle",
+            status="active",
+            secret_provider="vault-dev",
+            secret_ref="vault://axis/demo/file-csv-readonly",
+            purpose="read_only_connector_execution",
+            rotation_interval_days=30,
+            last_rotated_at=now,
+            next_rotation_due_at=now,
+            created_by="security-owner-role",
+            labels={"environment": "demo"},
+            notes=["Metadata-only credential handle."],
         )
     )
 
@@ -191,6 +239,90 @@ def test_create_connector_run_records_audit_event(
     assert len(events) == 1
     assert events[0].payload["run_id"] == "run_file_csv_assets_preview_20260622"
     assert "csv_content" not in str(events[0].payload).lower()
+
+
+def test_create_connector_run_uses_deferred_execution_runtime(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    runtime = RecordingConnectorExecutionRuntime()
+    app.state.connector_execution_runtime = runtime
+    with session_scope(session_factory) as session:
+        seed_connector_credential_handle(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_governed_20260622",
+            "execution_mode": "governed_dry_run",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "input_summary": {"file_name": "manufacturing-assets-demo.csv", "record_count": "2"},
+            "result_summary": {},
+            "notes": ["Execution must remain deferred until connector runtime is enabled."],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "execution_deferred"
+    assert body["audit_event_type"] == "connector.run.execution_deferred"
+    assert body["execution_result"] == {
+        "adapter": "axis-recording-connector-execution-adapter",
+        "status": "execution_deferred",
+        "external_sync_started": False,
+        "idempotency_key": (
+            "tenant_demo_manufacturing:run_file_csv_assets_governed_20260622:execution"
+        ),
+        "result_summary": {
+            "runtime_status": "deferred",
+            "external_sync_started": "false",
+        },
+        "notes": ["Recording runtime used by API test."],
+    }
+    assert runtime.requests[0].credential_handle_ids == ["cred_file_csv_readonly"]
+    assert "secret_ref" not in str(runtime.requests[0]).lower()
+    assert "vault://" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.execution_deferred",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["execution_result"]["external_sync_started"] is False
+    assert "vault://" not in str(events[0].payload).lower()
+    assert "credential_value" not in str(events[0].payload).lower()
+
+
+def test_create_connector_run_requires_credential_handle_for_governed_execution(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_governed_missing_credential",
+            "execution_mode": "governed_dry_run",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": [],
+            "input_summary": {"file_name": "manufacturing-assets-demo.csv"},
+            "result_summary": {},
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "credential_handle_required"
 
 
 def test_create_connector_run_rejects_live_sync_mode(

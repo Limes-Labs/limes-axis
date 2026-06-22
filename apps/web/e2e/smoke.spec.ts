@@ -322,7 +322,7 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.locator(".metric-card").getByText("Promotion Policies", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("run_file_csv_assets_preview_20260622").first()).toBeVisible();
+    await expect(page.getByText("run_file_csv_assets_governed_20260622").first()).toBeVisible();
     await expect(page.getByText("proposal_asset_line_2_packaging").first()).toBeVisible();
     await expect(page.getByText("import_assets_manual_20260622").first()).toBeVisible();
     await expect(page.getByText("policy_connector_asset_promotion_v1").first()).toBeVisible();
@@ -341,7 +341,9 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("button", { name: "Enable policy" }).click();
     await expect(page.getByText("Local policy enable preview").first()).toBeVisible();
     await expect(
-      page.locator(".audit-detail-grid").getByText("connector.run.recorded", { exact: true }),
+      page.locator(".audit-detail-grid").getByText("connector.run.execution_deferred", {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       page
@@ -355,7 +357,8 @@ test.describe("Axis console smoke", () => {
         .getByText("connector.manual_import.decision_recorded", { exact: true })
         .first(),
     ).toBeVisible();
-    await expect(page.getByText("recorded_preview_only")).toBeVisible();
+    await expect(page.locator(".payload-row .mono").getByText("execution_deferred")).toBeVisible();
+    await expect(page.getByText("axis-deferred-connector-execution-adapter").first()).toBeVisible();
     await expect(page.getByText("promoted_to_graph").first()).toBeVisible();
     await expect(page.getByText("type_db_mutation_applied").first()).toBeVisible();
     await expect(page.getByText("promote_asset_line_2_packaging_20260622").first()).toBeVisible();

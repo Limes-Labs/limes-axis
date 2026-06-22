@@ -703,6 +703,22 @@ export function ConnectorConsole() {
                   <p className="row-detail">{run.runtime_boundary}</p>
                 </div>
                 <div>
+                  <p className="metric-label">Execution Adapter</p>
+                  <p className="row-title">{run.execution_result?.adapter ?? "not requested"}</p>
+                  <p className="row-detail">
+                    {run.execution_result?.status ?? "record-only evidence"}
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">External Sync</p>
+                  <p className="row-title">
+                    {run.execution_result?.external_sync_started ? "started" : "not started"}
+                  </p>
+                  <p className="row-detail">
+                    {run.execution_result?.idempotency_key ?? "no execution idempotency key"}
+                  </p>
+                </div>
+                <div>
                   <p className="metric-label">Requested By</p>
                   <p className="row-title">{run.requested_by}</p>
                   <p className="row-detail">{run.created_at}</p>

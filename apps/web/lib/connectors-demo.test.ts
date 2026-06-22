@@ -154,10 +154,15 @@ describe("manufacturing connector demo contract", () => {
     });
 
     const run = defaultConnectorRunRegistry.runs[0];
-    expect(run.run_id).toBe("run_file_csv_assets_preview_20260622");
-    expect(run.status).toBe("recorded_preview_only");
-    expect(run.audit_event_type).toBe("connector.run.recorded");
+    expect(run.run_id).toBe("run_file_csv_assets_governed_20260622");
+    expect(run.status).toBe("execution_deferred");
+    expect(run.audit_event_type).toBe("connector.run.execution_deferred");
     expect(run.credential_handle_ids).toEqual(["cred_file_csv_readonly"]);
+    expect(run.execution_result).toMatchObject({
+      adapter: "axis-deferred-connector-execution-adapter",
+      status: "execution_deferred",
+      external_sync_started: false,
+    });
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("csv_content");
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain(

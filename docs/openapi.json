@@ -2196,6 +2196,51 @@
         "title": "ConnectorCsvPreviewResult",
         "type": "object"
       },
+      "ConnectorExecutionResult": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "external_sync_started": {
+            "title": "External Sync Started",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "result_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Result Summary",
+            "type": "object"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter",
+          "status",
+          "external_sync_started",
+          "idempotency_key"
+        ],
+        "title": "ConnectorExecutionResult",
+        "type": "object"
+      },
       "ConnectorManifest": {
         "properties": {
           "connector_id": {
@@ -4817,6 +4862,16 @@
             "title": "Execution Mode",
             "type": "string"
           },
+          "execution_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorExecutionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "input_summary": {
             "additionalProperties": {
               "type": "string"
@@ -4837,9 +4892,7 @@
             "type": "string"
           },
           "result_summary": {
-            "additionalProperties": {
-              "type": "string"
-            },
+            "additionalProperties": true,
             "title": "Result Summary",
             "type": "object"
           },

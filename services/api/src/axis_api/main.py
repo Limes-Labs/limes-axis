@@ -48,6 +48,10 @@ from axis_api.connector_credential_handles import (
     record_demo_connector_credential_handle,
     record_demo_connector_credential_rotation,
 )
+from axis_api.connector_execution import (
+    ConnectorExecutionRuntime,
+    DeferredConnectorExecutionRuntime,
+)
 from axis_api.connector_manual_imports import (
     ConnectorManualImportCreateRequest,
     ConnectorManualImportDecisionRequest,
@@ -225,6 +229,16 @@ def ontology_query_runtime(request: Request) -> OntologyGraphQueryRuntime:
 OntologyQueryRuntimeDependency = Annotated[
     OntologyGraphQueryRuntime,
     Depends(ontology_query_runtime),
+]
+
+
+def connector_execution_runtime(request: Request) -> ConnectorExecutionRuntime:
+    return request.app.state.connector_execution_runtime
+
+
+ConnectorExecutionRuntimeDependency = Annotated[
+    ConnectorExecutionRuntime,
+    Depends(connector_execution_runtime),
 ]
 
 
@@ -553,6 +567,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if resolved_settings.ontology_queries_enabled
         else DeferredOntologyQueryRuntime()
     )
+    app.state.connector_execution_runtime = DeferredConnectorExecutionRuntime()
     app.state.identity_verifier = RemoteJwksOidcVerifier(
         issuer=resolved_settings.oidc_issuer,
         audience=resolved_settings.oidc_audience,
@@ -867,9 +882,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def manufacturing_connector_run_create(
         connector_run: ConnectorRunCreateRequest,
         repository: PersistenceRepository,
+        execution_runtime: ConnectorExecutionRuntimeDependency,
     ) -> ConnectorRunRecord:
         try:
-            return record_demo_connector_run(repository, connector_run)
+            return record_demo_connector_run(repository, connector_run, execution_runtime)
         except ConnectorRunValidationError as exc:
             raise HTTPException(
                 status_code=422,

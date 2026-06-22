@@ -201,10 +201,20 @@ export type ConnectorRunRecord = {
   credential_handle_ids: string[];
   input_summary: Record<string, string>;
   result_summary: Record<string, string>;
+  execution_result: ConnectorExecutionResult | null;
   audit_event_id: string | null;
   audit_event_type: string;
   notes: string[];
   created_at: string;
+};
+
+export type ConnectorExecutionResult = {
+  adapter: string;
+  status: string;
+  external_sync_started: boolean;
+  idempotency_key: string;
+  result_summary: Record<string, string>;
+  notes: string[];
 };
 
 export type ManufacturingConnectorRunRegistry = {
@@ -793,9 +803,9 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
       status: "ready",
     },
     {
-      label: "Live Sync",
-      value: "Disabled",
-      detail: "Run records do not execute connector sync",
+      label: "Execution",
+      value: "Deferred",
+      detail: "Governed connector dry-runs stay behind the runtime adapter",
       status: "watch",
     },
   ],
@@ -803,9 +813,9 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
     {
       tenant_id: "tenant_demo_manufacturing",
       connector_id: "file_csv_manufacturing_assets",
-      run_id: "run_file_csv_assets_preview_20260622",
-      status: "recorded_preview_only",
-      execution_mode: "preview",
+      run_id: "run_file_csv_assets_governed_20260622",
+      status: "execution_deferred",
+      execution_mode: "governed_dry_run",
       runtime_boundary: "axis-connector-sandbox",
       requested_by: "plant-operations-owner-role",
       credential_handle_ids: ["cred_file_csv_readonly"],
@@ -814,20 +824,37 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
         record_count: "2",
       },
       result_summary: {
-        accepted_record_count: "2",
-        rejected_record_count: "0",
+        runtime_status: "deferred",
+        external_sync_started: "false",
+      },
+      execution_result: {
+        adapter: "axis-deferred-connector-execution-adapter",
+        status: "execution_deferred",
+        external_sync_started: false,
+        idempotency_key:
+          "tenant_demo_manufacturing:run_file_csv_assets_governed_20260622:execution",
+        result_summary: {
+          runtime_status: "deferred",
+          external_sync_started: "false",
+          connector_id: "file_csv_manufacturing_assets",
+          execution_mode: "governed_dry_run",
+        },
+        notes: [
+          "Connector execution is deferred by the Axis runtime adapter.",
+          "No external sync, credential retrieval or graph mutation was started.",
+        ],
       },
       audit_event_id: "audit_connector_run_demo_20260622",
-      audit_event_type: "connector.run.recorded",
-      notes: ["Run record only; no connector execution occurred."],
+      audit_event_type: "connector.run.execution_deferred",
+      notes: ["Governed dry-run stayed deferred behind the connector runtime adapter."],
       created_at: "2026-06-22T00:00:00Z",
     },
   ],
   run_notes: [
     "Connector run records are metadata-only evidence.",
-    "Creating a run record writes an append-only audit event.",
+    "Governed dry-runs write append-only audit evidence before live sync exists.",
     "Raw payloads, file content and credential material are never stored.",
-    "Live sync and connector-backed production actions remain future work.",
+    "External sync and connector-backed production actions remain future work.",
   ],
 };
 
@@ -862,7 +889,7 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
         tenant_id: "tenant_demo_manufacturing",
         connector_id: "file_csv_manufacturing_assets",
         proposal_id: "proposal_asset_line_2_packaging",
-        source_run_id: "run_file_csv_assets_preview_20260622",
+        source_run_id: "run_file_csv_assets_governed_20260622",
         source_file_name: "manufacturing-assets-demo.csv",
         mapping_profile: "manufacturing_asset_v1",
         status: "promoted_to_graph",
@@ -937,7 +964,7 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
         tenant_id: "tenant_demo_manufacturing",
         connector_id: "file_csv_manufacturing_assets",
         proposal_id: "proposal_asset_press_4",
-        source_run_id: "run_file_csv_assets_preview_20260622",
+        source_run_id: "run_file_csv_assets_governed_20260622",
         source_file_name: "manufacturing-assets-demo.csv",
         mapping_profile: "manufacturing_asset_v1",
         status: "proposed_from_preview",

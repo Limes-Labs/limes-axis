@@ -4,6 +4,12 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
+from axis_api.connector_execution import (
+    ConnectorExecutionRequest,
+    ConnectorExecutionResult,
+    ConnectorExecutionRuntime,
+    DeferredConnectorExecutionRuntime,
+)
 from axis_api.connectors import get_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.persistence import AxisPersistenceRepository, ConnectorRunCreate
@@ -47,7 +53,8 @@ class ConnectorRunRecord(BaseModel):
     requested_by: str = Field(min_length=1)
     credential_handle_ids: list[str] = Field(default_factory=list)
     input_summary: dict[str, str] = Field(default_factory=dict)
-    result_summary: dict[str, str] = Field(default_factory=dict)
+    result_summary: dict = Field(default_factory=dict)
+    execution_result: ConnectorExecutionResult | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -65,7 +72,9 @@ class ManufacturingConnectorRunRegistry(BaseModel):
 
 
 AUDIT_EVENT_TYPE = "connector.run.recorded"
-ALLOWED_EXECUTION_MODES = {"preview", "manual_import_record"}
+EXECUTION_AUDIT_EVENT_TYPE = "connector.run.execution_deferred"
+GOVERNED_EXECUTION_MODE = "governed_dry_run"
+ALLOWED_EXECUTION_MODES = {"preview", "manual_import_record", GOVERNED_EXECUTION_MODE}
 RAW_PAYLOAD_FIELD_NAMES = {
     "api_key",
     "client_secret",
@@ -130,17 +139,36 @@ def build_connector_run_registry(
 def record_demo_connector_run(
     repository: AxisPersistenceRepository,
     request: ConnectorRunCreateRequest,
+    execution_runtime: ConnectorExecutionRuntime | None = None,
 ) -> ConnectorRunRecord:
     manifest = _manifest_for_connector(request.connector_id)
     _validate_execution_mode(request.execution_mode)
     _validate_redacted_summary(request.input_summary)
     _validate_redacted_summary(request.result_summary)
-    status = _status_for_execution_mode(request.execution_mode)
+    execution_result = _execute_connector_run(
+        repository,
+        request,
+        runtime_boundary=manifest.runtime_boundary,
+        execution_runtime=execution_runtime or DeferredConnectorExecutionRuntime(),
+    )
+    status = (
+        execution_result.status
+        if execution_result is not None
+        else _status_for_execution_mode(request.execution_mode)
+    )
+    audit_event_type = (
+        EXECUTION_AUDIT_EVENT_TYPE if execution_result is not None else AUDIT_EVENT_TYPE
+    )
+    result_summary = dict(request.result_summary)
+    if execution_result is not None:
+        result_summary.update(execution_result.result_summary)
+        result_summary["execution_result"] = execution_result.model_dump(mode="json")
+
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
             actor_id=request.requested_by,
-            event_type=AUDIT_EVENT_TYPE,
+            event_type=audit_event_type,
             payload={
                 "connector_id": request.connector_id,
                 "run_id": request.run_id,
@@ -148,7 +176,12 @@ def record_demo_connector_run(
                 "execution_mode": request.execution_mode,
                 "credential_handle_ids": request.credential_handle_ids,
                 "input_summary": request.input_summary,
-                "result_summary": request.result_summary,
+                "result_summary": result_summary,
+                "execution_result": (
+                    execution_result.model_dump(mode="json")
+                    if execution_result is not None
+                    else None
+                ),
                 "runtime_boundary": manifest.runtime_boundary,
             },
         )
@@ -164,9 +197,9 @@ def record_demo_connector_run(
             requested_by=request.requested_by,
             credential_handle_ids=request.credential_handle_ids,
             input_summary=request.input_summary,
-            result_summary=request.result_summary,
+            result_summary=result_summary,
             audit_event_id=audit_event.id,
-            audit_event_type=AUDIT_EVENT_TYPE,
+            audit_event_type=audit_event_type,
             notes=request.notes,
         )
     )
@@ -185,6 +218,7 @@ def _run_from_record(record) -> ConnectorRunRecord:
         credential_handle_ids=record.credential_handle_ids,
         input_summary=record.input_summary,
         result_summary=record.result_summary,
+        execution_result=_execution_result_from_summary(record.result_summary),
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
@@ -207,7 +241,7 @@ def _validate_execution_mode(execution_mode: str) -> None:
     if execution_mode in ALLOWED_EXECUTION_MODES:
         return
     raise ConnectorRunValidationError(
-        "Only preview and manual_import_record run records are supported.",
+        "Only preview, manual_import_record and governed_dry_run records are supported.",
         "unsupported_execution_mode",
     )
 
@@ -225,3 +259,64 @@ def _status_for_execution_mode(execution_mode: str) -> str:
     if execution_mode == "manual_import_record":
         return "recorded_manual_import_only"
     return "recorded_preview_only"
+
+
+def _execute_connector_run(
+    repository: AxisPersistenceRepository,
+    request: ConnectorRunCreateRequest,
+    *,
+    runtime_boundary: str,
+    execution_runtime: ConnectorExecutionRuntime,
+) -> ConnectorExecutionResult | None:
+    if request.execution_mode != GOVERNED_EXECUTION_MODE:
+        return None
+
+    _validate_governed_execution_credentials(repository, request)
+    return execution_runtime.execute(
+        ConnectorExecutionRequest(
+            tenant_id=request.tenant_id,
+            connector_id=request.connector_id,
+            run_id=request.run_id,
+            execution_mode=request.execution_mode,
+            runtime_boundary=runtime_boundary,
+            requested_by=request.requested_by,
+            credential_handle_ids=request.credential_handle_ids,
+            input_summary=request.input_summary,
+        )
+    )
+
+
+def _validate_governed_execution_credentials(
+    repository: AxisPersistenceRepository,
+    request: ConnectorRunCreateRequest,
+) -> None:
+    if not request.credential_handle_ids:
+        raise ConnectorRunValidationError(
+            "Governed connector execution requires at least one credential handle id.",
+            "credential_handle_required",
+        )
+
+    for handle_id in request.credential_handle_ids:
+        handle = repository.get_connector_credential_handle(request.tenant_id, handle_id)
+        if handle is None:
+            raise ConnectorRunValidationError(
+                "Connector credential handle not found.",
+                "credential_handle_not_found",
+            )
+        if handle.connector_id != request.connector_id:
+            raise ConnectorRunValidationError(
+                "Connector credential handle belongs to a different connector.",
+                "credential_handle_connector_mismatch",
+            )
+        if handle.status != "active":
+            raise ConnectorRunValidationError(
+                "Connector credential handle must be active.",
+                "credential_handle_inactive",
+            )
+
+
+def _execution_result_from_summary(result_summary: dict) -> ConnectorExecutionResult | None:
+    raw_result = result_summary.get("execution_result")
+    if not isinstance(raw_result, dict):
+        return None
+    return ConnectorExecutionResult.model_validate(raw_result)
