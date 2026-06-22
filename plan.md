@@ -148,6 +148,7 @@ Foundation acceptance is tracked in
   DB preview.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
+- [x] Remove the agent registry runtime seed factory from the API module.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing approval inbox reference as a tenant-scoped
@@ -176,10 +177,11 @@ record is missing or invalid. The connector registry endpoint follows the same
 pattern with `surface=connectors` and
 `reference_id=manufacturing-connector-registry`. The agent registry endpoint
 also reads from `surface=agents` and
-`reference_id=manufacturing-agent-registry`. The action registry endpoint reads
-from `surface=actions` and `reference_id=manufacturing-action-registry`; action
-run requests validate their action definitions against that same persisted
-record and derive ontology resource relationship scopes from
+`reference_id=manufacturing-agent-registry`; the API module no longer defines
+an agent registry runtime seed factory. The action registry endpoint reads from
+`surface=actions` and `reference_id=manufacturing-action-registry`; action run
+requests validate their action definitions against that same persisted record
+and derive ontology resource relationship scopes from
 `surface=ontology/reference_id=manufacturing-ontology` before writing
 action/audit state.
 The workflow console reference endpoint reads from `surface=workflows` and
@@ -452,7 +454,8 @@ beyond the self-hosted execution boundary, live external database adapters and
 connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and API required. The browser no
-longer carries local agent fallback records. Production action execution,
+longer carries local agent fallback records, and the API module no longer
+defines an agent registry runtime seed factory. Production action execution,
 persisted agent state, tenant-scoped agent configuration, runtime policy
 enforcement and model cost observability remain Platform work.
 

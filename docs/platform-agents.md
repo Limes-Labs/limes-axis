@@ -14,6 +14,8 @@ does not execute actions, persist agent state or mutate external systems.
 - The endpoint reads the active `demo_reference_records` row for
   `surface=agents` and `reference_id=manufacturing-agent-registry`; missing or
   invalid persisted records return explicit API errors.
+- The API module no longer defines an agent registry runtime seed factory; tests
+  validate the Alembic bootstrap payload directly.
 - The Next.js console renders the registry at `/agents`.
 - The UI supports local filters for domain, autonomy level and status.
 - Each agent exposes owner role, purpose, policy boundary, model egress posture,
@@ -39,8 +41,9 @@ overview, workflow console, approval inbox and audit explorer.
 This slice remains read-only at the API boundary.
 
 The registry is a bootstrap reference surface, but it is no longer constructed
-inside the FastAPI route. Alembic migration `0024_agent_registry_reference`
-inserts the public-safe payload, the API validates it against the
+inside the FastAPI route or the API demo module. Alembic migration
+`0024_agent_registry_reference` inserts the public-safe payload, the API
+validates it against the
 `ManufacturingAgentRegistry` contract and the repository provides the active
 tenant-scoped record.
 
@@ -62,6 +65,7 @@ model router and audit ledger boundaries.
 
 - The endpoint is covered by API tests and OpenAPI generation.
 - The persisted bootstrap payload is covered by a contract test.
+- A guard test blocks reintroducing the runtime seed factory in the API module.
 - The web console shows an API-required state when agent records are unavailable.
 - The web unit tests cover filtering, safe lookup and labels with local test
   fixtures only.
