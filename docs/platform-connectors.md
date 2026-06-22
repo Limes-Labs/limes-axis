@@ -26,6 +26,9 @@ The connector registry API now reads its public-safe reference payload from
 `reference_id=manufacturing-connector-registry`; missing or invalid persisted
 records return explicit API errors instead of silently falling back to runtime
 seed data.
+Connector configuration creation also resolves connector manifests from that
+persisted registry reference before storing runtime boundary metadata, so
+tenant configuration writes no longer depend on a service-local connector seed.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -81,6 +84,12 @@ longer constructed inside the FastAPI route. The bootstrap record is inserted
 by Alembic migration `0023_connector_registry_reference`, validated against the
 `ManufacturingConnectorRegistry` contract and queried through the persistence
 repository.
+
+Connector configuration creation reads that same persisted registry reference
+to resolve the connector manifest and runtime boundary for the requested
+connector id. If the registry reference is missing or invalid, configuration
+creation returns explicit 404/422 errors before storing tenant configuration
+state.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:

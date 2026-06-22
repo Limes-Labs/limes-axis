@@ -1,3 +1,7 @@
+from copy import deepcopy
+from pathlib import Path
+from runpy import run_path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -6,13 +10,20 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.connector_configurations import (
+    ConnectorConfigurationCreateRequest,
     ConnectorConfigurationQuery,
     build_connector_configuration_registry,
+    record_demo_connector_configuration,
 )
+from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import Base
-from axis_api.persistence import AxisPersistenceRepository, ConnectorConfigurationCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorConfigurationCreate,
+    DemoReferenceRecordCreate,
+)
 
 
 @pytest.fixture
@@ -24,8 +35,46 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_connector_registry_reference(factory)
     yield factory
     engine.dispose()
+
+
+@pytest.fixture
+def empty_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
+
+
+def connector_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
 
 
 def seed_connector_configurations(repository: AxisPersistenceRepository) -> None:
@@ -64,6 +113,57 @@ def seed_connector_configurations(repository: AxisPersistenceRepository) -> None
             notes=[],
         )
     )
+
+
+def connector_configuration_request() -> ConnectorConfigurationCreateRequest:
+    return ConnectorConfigurationCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        connector_id="file_csv_manufacturing_assets",
+        display_name="Manufacturing assets CSV intake",
+        sync_mode="preview",
+        created_by="plant-operations-owner-role",
+        configuration_payload={
+            "file_name_pattern": "*.csv",
+            "mapping_profile": "manufacturing_asset_v1",
+        },
+        credential_ref_ids=[],
+        notes=["Preview-only tenant configuration."],
+    )
+
+
+def test_connector_configuration_path_does_not_load_demo_connector_registry_seed() -> None:
+    source = Path("src/axis_api/connector_configurations.py").read_text()
+
+    assert "get_manufacturing_connector_registry" not in source
+
+
+def test_record_demo_connector_configuration_requires_persisted_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(empty_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(ConnectorReferenceRecordNotFound):
+            record_demo_connector_configuration(
+                repository,
+                connector_configuration_request(),
+            )
+
+
+def test_record_demo_connector_configuration_uses_persisted_connector_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][0]["manifest"]["runtime_boundary"] = "persisted-config-runtime-boundary"
+    seed_connector_registry_reference(session_factory, payload)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        configuration = record_demo_connector_configuration(
+            repository,
+            connector_configuration_request(),
+        )
+
+    assert configuration.runtime_boundary == "persisted-config-runtime-boundary"
 
 
 def test_build_connector_configuration_registry_maps_persisted_records(
@@ -188,6 +288,26 @@ def test_create_connector_configuration_endpoint_persists_preview_only_config(
     assert "password" not in str(body).lower()
     assert "api_key" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
+
+
+def test_create_connector_configuration_endpoint_reports_missing_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = empty_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/configurations",
+        json=connector_configuration_request().model_dump(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
 
 
 def test_openapi_exposes_connector_configuration_endpoints() -> None:
