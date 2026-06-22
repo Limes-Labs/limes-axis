@@ -8,6 +8,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorPreview,
@@ -17,6 +18,7 @@ import {
   type ConnectorCsvPreviewResult,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
+  type ManufacturingConnectorManualImportRegistry,
   type ManufacturingConnectorOntologyProposalRegistry,
   type ManufacturingConnectorRunRegistry,
   type ManufacturingConnectorRegistry,
@@ -58,6 +60,10 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       defaultConnectorOntologyProposalRegistry,
     );
+  const [manualImportRegistry, setManualImportRegistry] =
+    useState<ManufacturingConnectorManualImportRegistry>(
+      defaultConnectorManualImportRegistry,
+    );
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -94,6 +100,7 @@ export function ConnectorConsole() {
           credentialHandleData,
           runData,
           ontologyProposalData,
+          manualImportData,
         ] = await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
@@ -113,6 +120,9 @@ export function ConnectorConsole() {
           fetchJson<ManufacturingConnectorOntologyProposalRegistry>(
             "/demo/manufacturing/connectors/ontology-proposals",
           ),
+          fetchJson<ManufacturingConnectorManualImportRegistry>(
+            "/demo/manufacturing/connectors/manual-imports",
+          ),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
@@ -120,6 +130,7 @@ export function ConnectorConsole() {
           setCredentialHandleRegistry(credentialHandleData);
           setRunRegistry(runData);
           setOntologyProposalRegistry(ontologyProposalData);
+          setManualImportRegistry(manualImportData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -134,6 +145,7 @@ export function ConnectorConsole() {
           setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
           setRunRegistry(defaultConnectorRunRegistry);
           setOntologyProposalRegistry(defaultConnectorOntologyProposalRegistry);
+          setManualImportRegistry(defaultConnectorManualImportRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -177,6 +189,13 @@ export function ConnectorConsole() {
       ),
     [ontologyProposalRegistry.proposals, selectedConnectorId],
   );
+  const selectedManualImports = useMemo(
+    () =>
+      manualImportRegistry.imports.filter(
+        (manualImport) => manualImport.connector_id === selectedConnectorId,
+      ),
+    [manualImportRegistry.imports, selectedConnectorId],
+  );
   const manifest = selectedConnector.manifest;
 
   return (
@@ -208,6 +227,7 @@ export function ConnectorConsole() {
           .concat(credentialHandleRegistry.metrics)
           .concat(runRegistry.metrics)
           .concat(ontologyProposalRegistry.metrics)
+          .concat(manualImportRegistry.metrics)
           .map((metric) => (
           <article
             className="metric-card compact-card"
@@ -516,6 +536,61 @@ export function ConnectorConsole() {
           <section className="audit-payload">
             <div className="audit-payload-header">
               <div>
+                <p className="section-label">Manual Imports</p>
+                <h3 className="subsection-title">
+                  {selectedManualImports.length} approval-gated request
+                </h3>
+                <p className="row-detail">workflow and idempotency controls recorded</p>
+              </div>
+              <ShieldCheck size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedManualImports.map((manualImport) => (
+                <div className="payload-row" key={manualImport.import_id}>
+                  <span>
+                    <span className="metric-label">{manualImport.import_id}</span>
+                    <span className="row-detail">{manualImport.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{manualImport.status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedManualImports.map((manualImport) => (
+              <div className="audit-detail-grid" key={`${manualImport.import_id}-summary`}>
+                <div>
+                  <p className="metric-label">Approval</p>
+                  <p className="row-title">{manualImport.approval_id}</p>
+                  <p className="row-detail">{manualImport.owner_role}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Workflow</p>
+                  <p className="row-title">{manualImport.workflow_id}</p>
+                  <p className="row-detail">{manualImport.workflow_signal_status}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Idempotency</p>
+                  <p className="row-title">{manualImport.idempotency_key}</p>
+                  <p className="row-detail">{manualImport.import_mode}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Graph</p>
+                  <p className="row-title">{manualImport.graph_mutation_status}</p>
+                  <p className="row-detail">
+                    {manualImport.proposal_ids.length} linked proposal
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">Audit Event</p>
+                  <p className="row-title">{manualImport.audit_event_type}</p>
+                  <p className="row-detail">{manualImport.audit_event_id ?? "pending"}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
                 <p className="section-label">Schema Mapping</p>
                 <h3 className="subsection-title">{selectedConnector.preview_sample.file_name}</h3>
               </div>
@@ -555,10 +630,12 @@ export function ConnectorConsole() {
               .concat(credentialHandleRegistry.handle_notes)
               .concat(runRegistry.run_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
+              .concat(manualImportRegistry.import_notes)
               .concat(selectedConfiguration?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
+              .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))
               .concat(preview.preview_notes)
               .map((note, index) => (
               <p className="row-detail" key={`${note}-${index}`}>

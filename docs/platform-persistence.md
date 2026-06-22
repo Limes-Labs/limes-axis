@@ -51,6 +51,13 @@ The seventh Alembic migration adds:
   records derived from connector preview output, with redacted field summaries,
   linked audit event ids and `graph_mutation_status=not_applied`.
 
+The eighth Alembic migration adds:
+
+- `connector_manual_import_requests`: tenant-scoped approval-gated manual
+  import request records with idempotency keys, workflow ids, proposal ids,
+  redacted import summaries, linked audit event ids and
+  `graph_mutation_status=not_applied`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -69,6 +76,8 @@ The seventh Alembic migration adds:
 - connector credential rotation recording and tenant-scoped history listing.
 - connector run creation and tenant-scoped listing.
 - connector ontology proposal creation and tenant-scoped listing.
+- connector manual import request creation, idempotency lookup and
+  tenant-scoped listing.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
@@ -116,11 +125,16 @@ Delivered:
 - review-only connector ontology proposals with append-only
   `connector.ontology_proposals.recorded` audit writes, graph-write rejection
   and raw payload field rejection.
+- approval/workflow/idempotency-gated connector manual import requests with
+  append-only `connector.manual_import.requested` audit writes, idempotent
+  replay, conflict detection, graph-write rejection and raw payload field
+  rejection.
 
 Still Platform work:
 
 - connector execution from persisted run records;
-- promotion workflow from persisted ontology proposals into graph mutation;
+- promotion workflow from persisted ontology proposals and manual import
+  requests into graph mutation;
 - production vault/KMS integration, secret leasing and automated rotation;
 - scheduled connector sync lifecycle;
 - production connector mutations from action runtime paths;

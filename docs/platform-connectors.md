@@ -11,7 +11,9 @@ connector execution and live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
 future connector execution, without storing raw credential material in Axis.
 Preview-derived ontology proposal records are now persisted for review only,
-with graph mutation kept explicitly disabled.
+with graph mutation kept explicitly disabled. Manual import requests can now be
+recorded behind approval, workflow and idempotency gates without executing a
+connector import.
 
 ## Current Scope
 
@@ -26,6 +28,8 @@ GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals
+GET /demo/manufacturing/connectors/manual-imports
+POST /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -135,6 +139,37 @@ file content, passwords, API keys, tokens and secret refs. It also rejects graph
 write modes; persisted proposals remain review-only with
 `graph_mutation_status=not_applied`.
 
+The manual import endpoints store and query tenant-scoped requests to import
+reviewed connector proposals later. A request includes:
+
+- tenant id;
+- connector id;
+- import id;
+- idempotency key;
+- approval-required status;
+- manual-import-request mode;
+- requester role/system id;
+- owner role;
+- risk level;
+- approval id;
+- workflow id;
+- proposal ids;
+- redacted import summary;
+- required controls;
+- graph mutation status;
+- workflow signal status;
+- linked audit event id and type;
+- request notes.
+
+Creating a manual import request writes an append-only
+`connector.manual_import.requested` audit event. Replaying the same request with
+the same idempotency key returns the existing record and does not append another
+audit event. Reusing an idempotency key for a different import request returns a
+conflict. The endpoint rejects raw payload fields and direct graph-write import
+modes; persisted requests remain approval-gated with
+`graph_mutation_status=not_applied` and
+`workflow_signal_status=pending_approval_decision`.
+
 ## Manufacturing CSV Manifest
 
 The first connector is `file_csv_manufacturing_assets`.
@@ -158,9 +193,11 @@ API when available. It also loads tenant-scoped connector configurations from
 `/demo/manufacturing/connectors/configurations` and metadata-only credential
 handles from `/demo/manufacturing/connectors/credential-handles`, plus run
 records from `/demo/manufacturing/connectors/runs` and review-only ontology
-proposal records from `/demo/manufacturing/connectors/ontology-proposals`. If
-the API is unavailable, it uses the same public-safe fallback seed so the page
-remains useful in frontend-only development.
+proposal records from `/demo/manufacturing/connectors/ontology-proposals`, plus
+manual import request gates from
+`/demo/manufacturing/connectors/manual-imports`. If the API is unavailable, it
+uses the same public-safe fallback seed so the page remains useful in
+frontend-only development.
 
 The console displays:
 
@@ -172,6 +209,7 @@ The console displays:
 - credential handle references and rotation posture;
 - audit-backed connector run records;
 - review-only ontology proposal records with graph mutation status;
+- manual import requests with approval, workflow and idempotency evidence;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.
@@ -193,6 +231,8 @@ contract keeps these boundaries visible:
 - audit event preview before future connector execution;
 - tenant-scoped run records before future connector execution;
 - persisted ontology proposal records before future graph mutation.
+- approval/workflow/idempotency-gated manual import requests before future
+  graph mutation.
 
 Future Platform work should add:
 
@@ -219,8 +259,11 @@ The slice is covered by:
   rejection;
 - API unit tests for connector ontology proposal persistence, audit writes,
   graph-write rejection and raw payload rejection;
+- API unit tests for manual import request persistence, audit writes,
+  idempotent replay, conflict detection, graph-write rejection and raw payload
+  rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for fallback registry, configuration, credential handle, run
-  record, ontology proposal and preview contracts;
+  record, ontology proposal, manual import and preview contracts;
 - Playwright smoke tests for `/connectors` rendering.

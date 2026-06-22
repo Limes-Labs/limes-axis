@@ -13,6 +13,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorManualImportRequest,
     ConnectorOntologyProposal,
     ConnectorRun,
     WorkflowRunRecord,
@@ -175,6 +176,28 @@ class ConnectorOntologyProposalCreate(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.ontology_proposals.recorded", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorManualImportRequestCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    import_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(default="approval_required", min_length=1)
+    import_mode: str = Field(default="manual_import_request", min_length=1)
+    requested_by: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    risk_level: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    proposal_ids: list[str] = Field(min_length=1)
+    import_summary: dict = Field(default_factory=dict)
+    controls: list[str] = Field(default_factory=list)
+    graph_mutation_status: str = Field(default="not_applied", min_length=1)
+    workflow_signal_status: str = Field(default="pending_approval_decision", min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.manual_import.requested", min_length=1)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -639,5 +662,66 @@ class AxisPersistenceRepository:
         statement = statement.order_by(
             ConnectorOntologyProposal.created_at.desc(),
             ConnectorOntologyProposal.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_connector_manual_import_request(
+        self,
+        record: ConnectorManualImportRequestCreate,
+    ) -> ConnectorManualImportRequest:
+        manual_import = ConnectorManualImportRequest(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            import_id=record.import_id,
+            idempotency_key=record.idempotency_key,
+            status=record.status,
+            import_mode=record.import_mode,
+            requested_by=record.requested_by,
+            owner_role=record.owner_role,
+            risk_level=record.risk_level,
+            approval_id=record.approval_id,
+            workflow_id=record.workflow_id,
+            proposal_ids=record.proposal_ids,
+            import_summary=record.import_summary,
+            controls=record.controls,
+            graph_mutation_status=record.graph_mutation_status,
+            workflow_signal_status=record.workflow_signal_status,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(manual_import)
+        self.session.flush()
+        return manual_import
+
+    def get_connector_manual_import_request_by_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ConnectorManualImportRequest | None:
+        statement = select(ConnectorManualImportRequest).where(
+            ConnectorManualImportRequest.tenant_id == tenant_id,
+            ConnectorManualImportRequest.idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_manual_import_requests(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorManualImportRequest]:
+        statement: Select[tuple[ConnectorManualImportRequest]] = select(
+            ConnectorManualImportRequest
+        ).where(ConnectorManualImportRequest.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorManualImportRequest.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorManualImportRequest.status == status)
+
+        statement = statement.order_by(
+            ConnectorManualImportRequest.created_at.desc(),
+            ConnectorManualImportRequest.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))

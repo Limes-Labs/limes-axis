@@ -96,6 +96,8 @@ Foundation acceptance is tracked in
 - [x] Add connector manifest foundation and file/CSV preview.
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Persist connector ontology proposals without graph mutation.
+- [x] Record manual connector import requests behind approval, workflow and
+  idempotency gates.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -162,13 +164,19 @@ redacted summaries and links to an append-only `connector.run.recorded` audit
 event. Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 review-only, audit-backed and marked with `graph_mutation_status=not_applied`.
+Manual connector import requests can now be recorded through
+`/demo/manufacturing/connectors/manual-imports`; each request is tenant-scoped,
+idempotent, approval-gated, workflow-referenced and audit-backed with
+`connector.manual_import.requested`, while graph mutation remains
+`not_applied`. Replays with the same idempotency key and payload return the
+existing request instead of writing duplicate audit events.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
-run evidence, persisted ontology proposal evidence and schema mapping with an
-offline fallback seed. Persisted connector manifest management beyond the demo
-seed, credential vault integration, scheduled sync, external database
-connectors, live graph mutation and connector-backed production actions remain
-Platform work.
+run evidence, persisted ontology proposal evidence, manual import gates and
+schema mapping with an offline fallback seed. Persisted connector manifest
+management beyond the demo seed, credential vault integration, scheduled sync,
+external database connectors, live graph mutation and connector-backed
+production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
