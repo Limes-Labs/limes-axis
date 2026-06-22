@@ -5,6 +5,7 @@ import { FileText, GitBranch, History, RadioTower, ShieldCheck } from "lucide-re
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  countChangedPolicySetDiffs,
   countChangedPolicyResults,
   defaultManufacturingReplaySimulation,
   findReplayArtifactById,
@@ -98,7 +99,9 @@ export function SimulationConsole() {
     [simulationData, selectedArtifactId],
   );
   const changedPolicies = countChangedPolicyResults(simulationData);
+  const changedPolicySetDiffs = countChangedPolicySetDiffs(simulationData);
   const primaryPolicy = selectedArtifact.policy_results[0];
+  const primaryPolicySetDiff = (selectedArtifact.policy_set_diffs ?? [])[0];
 
   return (
     <div className="stack">
@@ -147,7 +150,7 @@ export function SimulationConsole() {
             </div>
             <span className="status-pill signal-watch">
               <GitBranch size={15} />
-              {changedPolicies} changed
+              {changedPolicies + changedPolicySetDiffs} changed
             </span>
           </div>
 
@@ -238,6 +241,44 @@ export function SimulationConsole() {
               </div>
             </div>
           </section>
+
+          {primaryPolicySetDiff ? (
+            <section className="simulation-policy-band">
+              <div>
+                <p className="section-label">Policy Set Diff</p>
+                <h3 className="subsection-title">{primaryPolicySetDiff.connector_id}</h3>
+                <p className="row-detail">{primaryPolicySetDiff.summary}</p>
+              </div>
+              <div className="payload-grid">
+                <div className="payload-row">
+                  <span className="metric-label">Baseline Set</span>
+                  <span className="mono">
+                    {primaryPolicySetDiff.baseline_policy_set_id} /{" "}
+                    {primaryPolicySetDiff.baseline_policy_set_version}
+                  </span>
+                </div>
+                <div className="payload-row">
+                  <span className="metric-label">Candidate Set</span>
+                  <span className="mono">
+                    {primaryPolicySetDiff.candidate_policy_set_id} /{" "}
+                    {primaryPolicySetDiff.candidate_policy_set_version}
+                  </span>
+                </div>
+                <div className="payload-row">
+                  <span className="metric-label">Diff Status</span>
+                  <span className="mono">{primaryPolicySetDiff.diff_status}</span>
+                </div>
+                <div className="payload-row">
+                  <span className="metric-label">Audit Event</span>
+                  <span className="mono">{primaryPolicySetDiff.audit_event_type}</span>
+                </div>
+                <div className="payload-row">
+                  <span className="metric-label">Changed Policies</span>
+                  <span className="mono">{primaryPolicySetDiff.changed_policy_ids.join(", ")}</span>
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <div className="workflow-columns">
             <section>

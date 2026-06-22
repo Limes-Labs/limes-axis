@@ -253,6 +253,10 @@ matched constraints, violations and permission context before the API returns
 422. Without an active set, multi-policy auto-selection is rejected with
 `promotion_policy_selection_ambiguous`.
 
+Replay simulation can compare governed connector policy-set versions over
+historical workflow and audit events without activating a new set or executing
+connector mutation.
+
 The connector console includes a compact promotion policy authoring control for
 policy id, status and enforcement mode. When the API is available, the control
 posts to `POST /demo/manufacturing/connectors/promotion-policies`; when the API

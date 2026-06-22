@@ -26,6 +26,24 @@ class PolicySimulationResult(BaseModel):
     summary: str = Field(min_length=1)
 
 
+class PolicySetVersionDiff(BaseModel):
+    diff_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    baseline_policy_set_id: str = Field(min_length=1)
+    baseline_policy_set_version: str = Field(min_length=1)
+    candidate_policy_set_id: str = Field(min_length=1)
+    candidate_policy_set_version: str = Field(min_length=1)
+    historical_event_count: int = Field(ge=0)
+    changed_policy_ids: list[str] = Field(default_factory=list)
+    baseline_decision: str = Field(min_length=1)
+    candidate_decision: str = Field(min_length=1)
+    changed_outcome: bool
+    diff_status: str = Field(min_length=1)
+    audit_event_type: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(default_factory=list)
+    summary: str = Field(min_length=1)
+
+
 class ReplayArtifact(BaseModel):
     artifact_id: str = Field(min_length=1)
     workflow_id: str = Field(min_length=1)
@@ -40,6 +58,7 @@ class ReplayArtifact(BaseModel):
     timeline: list[WorkflowTimelineEvent] = Field(default_factory=list)
     audit_events: list[AuditLedgerEvent] = Field(default_factory=list)
     policy_results: list[PolicySimulationResult] = Field(default_factory=list)
+    policy_set_diffs: list[PolicySetVersionDiff] = Field(default_factory=list)
 
 
 class ManufacturingReplaySimulation(BaseModel):
@@ -95,8 +114,10 @@ def build_replay_simulation(
         simulation_notes=[
             "Replay artifacts are derived from tenant-scoped workflow history and audit events.",
             "Policy simulation is deterministic preview logic, not live workflow replay.",
+            "Policy-set version diffs compare governed connector policy sets over historical "
+            "events without activating a new set.",
             "Raw action payloads are not exposed in replay artifacts.",
-            "Temporal replay, policy diff execution and retention enforcement remain "
+            "Temporal replay, persisted simulation outputs and retention enforcement remain "
             "Platform work.",
         ],
     )
@@ -124,6 +145,7 @@ def _build_artifact(
     audit_events = [_audit_event_to_ledger_event(event) for event in audit_records]
     evidence_refs = _evidence_refs(workflow, audit_events)
 
+    policy_result = _human_approval_policy(workflow, audit_events, evidence_refs)
     return ReplayArtifact(
         artifact_id=_artifact_id(workflow, timeline, audit_events),
         workflow_id=workflow.workflow_id,
@@ -137,7 +159,15 @@ def _build_artifact(
         evidence_refs=evidence_refs,
         timeline=timeline,
         audit_events=audit_events,
-        policy_results=[_human_approval_policy(workflow, audit_events, evidence_refs)],
+        policy_results=[policy_result],
+        policy_set_diffs=[
+            _connector_policy_set_diff(
+                workflow=workflow,
+                timeline=timeline,
+                audit_events=audit_events,
+                evidence_refs=evidence_refs,
+            )
+        ],
     )
 
 
@@ -217,6 +247,51 @@ def _human_approval_policy(
     )
 
 
+def _connector_policy_set_diff(
+    workflow: WorkflowRunRecord,
+    timeline: list[WorkflowTimelineEvent],
+    audit_events: list[AuditLedgerEvent],
+    evidence_refs: list[str],
+) -> PolicySetVersionDiff:
+    changed_policy_ids = ["connector.asset.required"]
+    historical_event_count = len(timeline) + len(audit_events)
+    return PolicySetVersionDiff(
+        diff_id=_policy_set_diff_id(workflow, audit_events),
+        connector_id="file_csv_manufacturing_assets",
+        baseline_policy_set_id="policy_set_connector_asset_required_20260622_v2",
+        baseline_policy_set_version="2026-06-22.2",
+        candidate_policy_set_id="policy_set_connector_asset_required_20260622_rollback",
+        candidate_policy_set_version="2026-06-22.3",
+        historical_event_count=historical_event_count,
+        changed_policy_ids=changed_policy_ids,
+        baseline_decision="allow_after_manifest_validation",
+        candidate_decision="block_until_required_asset_gate",
+        changed_outcome=True,
+        diff_status="changed_outcome_detected",
+        audit_event_type="connector.promotion_policy_set.simulated_diff",
+        evidence_refs=evidence_refs[:8],
+        summary=(
+            "Historical workflow and audit evidence would be re-gated by the rollback "
+            "policy set before connector promotion."
+        ),
+    )
+
+
+def _policy_set_diff_id(
+    workflow: WorkflowRunRecord,
+    audit_events: list[AuditLedgerEvent],
+) -> str:
+    payload = {
+        "workflow_id": workflow.workflow_id,
+        "baseline_policy_set_id": "policy_set_connector_asset_required_20260622_v2",
+        "candidate_policy_set_id": "policy_set_connector_asset_required_20260622_rollback",
+        "audit": [event.audit_event_id for event in audit_events],
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    checksum = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+    return f"policy-set-diff-{workflow.workflow_id}-{checksum}"
+
+
 def _as_of(artifacts: list[ReplayArtifact]) -> str:
     timestamps = [
         event.at
@@ -237,6 +312,7 @@ def _metrics(artifacts: list[ReplayArtifact]) -> list[OverviewMetric]:
         artifact.timeline_event_count + artifact.audit_event_count for artifact in artifacts
     )
     policy_results = sum(len(artifact.policy_results) for artifact in artifacts)
+    policy_set_diffs = sum(len(artifact.policy_set_diffs) for artifact in artifacts)
     ready_artifacts = sum(
         artifact.determinism_status == "replay_ready" for artifact in artifacts
     )
@@ -258,6 +334,12 @@ def _metrics(artifacts: list[ReplayArtifact]) -> list[OverviewMetric]:
             value=str(policy_results),
             detail="Deterministic policy previews evaluated against history",
             status=OverviewStatus.READY if policy_results else OverviewStatus.WATCH,
+        ),
+        OverviewMetric(
+            label="Policy Set Diffs",
+            value=str(policy_set_diffs),
+            detail="Versioned connector policy-set comparisons over historical events",
+            status=OverviewStatus.READY if policy_set_diffs else OverviewStatus.WATCH,
         ),
         OverviewMetric(
             label="Deterministic Replay",

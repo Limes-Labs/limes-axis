@@ -14,6 +14,24 @@ export type PolicySimulationResult = {
   summary: string;
 };
 
+export type PolicySetVersionDiff = {
+  diff_id: string;
+  connector_id: string;
+  baseline_policy_set_id: string;
+  baseline_policy_set_version: string;
+  candidate_policy_set_id: string;
+  candidate_policy_set_version: string;
+  historical_event_count: number;
+  changed_policy_ids: string[];
+  baseline_decision: string;
+  candidate_decision: string;
+  changed_outcome: boolean;
+  diff_status: string;
+  audit_event_type: string;
+  evidence_refs: string[];
+  summary: string;
+};
+
 export type ReplayArtifact = {
   artifact_id: string;
   workflow_id: string;
@@ -28,6 +46,7 @@ export type ReplayArtifact = {
   timeline: WorkflowTimelineEvent[];
   audit_events: AuditLedgerEvent[];
   policy_results: PolicySimulationResult[];
+  policy_set_diffs: PolicySetVersionDiff[];
 };
 
 export type ManufacturingReplaySimulation = {
@@ -89,6 +108,31 @@ function policyResult(workflow: WorkflowRun, evidenceRefs: string[]): PolicySimu
   };
 }
 
+function policySetDiff(
+  workflow: WorkflowRun,
+  auditEvents: AuditLedgerEvent[],
+  evidenceRefs: string[],
+): PolicySetVersionDiff {
+  return {
+    diff_id: `policy-set-diff-${workflow.workflow_id}-seed`,
+    connector_id: "file_csv_manufacturing_assets",
+    baseline_policy_set_id: "policy_set_connector_asset_required_20260622_v2",
+    baseline_policy_set_version: "2026-06-22.2",
+    candidate_policy_set_id: "policy_set_connector_asset_required_20260622_rollback",
+    candidate_policy_set_version: "2026-06-22.3",
+    historical_event_count: workflow.timeline.length + auditEvents.length,
+    changed_policy_ids: ["connector.asset.required"],
+    baseline_decision: "allow_after_manifest_validation",
+    candidate_decision: "block_until_required_asset_gate",
+    changed_outcome: true,
+    diff_status: "changed_outcome_detected",
+    audit_event_type: "connector.promotion_policy_set.simulated_diff",
+    evidence_refs: evidenceRefs.slice(0, 8),
+    summary:
+      "Historical workflow and audit evidence would be re-gated by the rollback policy set before connector promotion.",
+  };
+}
+
 function artifactFromWorkflow(workflow: WorkflowRun, index: number): ReplayArtifact {
   const auditEvents = relatedAuditEvents(workflow);
   const evidenceRefs = uniqueEvidenceRefs(workflow, auditEvents);
@@ -106,6 +150,7 @@ function artifactFromWorkflow(workflow: WorkflowRun, index: number): ReplayArtif
     timeline: workflow.timeline,
     audit_events: auditEvents,
     policy_results: [policyResult(workflow, evidenceRefs)],
+    policy_set_diffs: [policySetDiff(workflow, auditEvents, evidenceRefs)],
   };
 }
 
@@ -145,6 +190,14 @@ export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation
       status: "ready",
     },
     {
+      label: "Policy Set Diffs",
+      value: String(
+        defaultArtifacts.reduce((total, artifact) => total + artifact.policy_set_diffs.length, 0),
+      ),
+      detail: "Versioned connector policy-set comparisons over historical events",
+      status: "ready",
+    },
+    {
       label: "Deterministic Replay",
       value: "0",
       detail: "Full Temporal replay remains behind a future runtime path",
@@ -155,8 +208,9 @@ export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation
   simulation_notes: [
     "Replay artifacts are derived from workflow history and audit evidence.",
     "Policy simulation is deterministic preview logic, not live workflow replay.",
+    "Policy-set version diffs compare governed connector policy sets over historical events without activating a new set.",
     "Raw action payloads are not exposed in replay artifacts.",
-    "Temporal replay, policy diff execution and retention enforcement remain Platform work.",
+    "Temporal replay, persisted simulation outputs and retention enforcement remain Platform work.",
   ],
 };
 
@@ -181,6 +235,14 @@ export function countChangedPolicyResults(data: ManufacturingReplaySimulation): 
   return data.artifacts.reduce(
     (total, artifact) =>
       total + artifact.policy_results.filter((result) => result.changed_outcome).length,
+    0,
+  );
+}
+
+export function countChangedPolicySetDiffs(data: ManufacturingReplaySimulation): number {
+  return data.artifacts.reduce(
+    (total, artifact) =>
+      total + (artifact.policy_set_diffs ?? []).filter((diff) => diff.changed_outcome).length,
     0,
   );
 }

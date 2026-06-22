@@ -157,7 +157,8 @@ Delivered:
   retention-window enforcement, legal-hold bypass metadata and hash-chain
   integrity proof.
 - replay/simulation preview artifacts derived from `workflow_runs`,
-  `workflow_timeline_events` and redacted `audit_events`.
+  `workflow_timeline_events` and redacted `audit_events`, including governed
+  connector policy-set version diff previews.
 - persisted workflow run state and tenant-scoped history views.
 - tenant-scoped connector configuration records for preview-only connector
   setup, with raw credential fields rejected before persistence.

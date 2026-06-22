@@ -65,8 +65,10 @@ Future Platform work should connect this contract to:
 - workflow history retention and replay artifacts.
 
 The replay/simulation foundation now derives read-only replay preview artifacts
-from persisted workflow history and audit evidence. Full Temporal deterministic
-replay and production history retention remain future Platform work.
+from persisted workflow history and audit evidence, including governed
+policy-set version diff previews over historical workflow events. Full Temporal
+deterministic replay and production history retention remain future Platform
+work.
 
 ## Verification
 
