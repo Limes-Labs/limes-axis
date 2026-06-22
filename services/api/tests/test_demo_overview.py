@@ -578,6 +578,12 @@ def test_manufacturing_overview_is_not_defined_as_runtime_seed() -> None:
     assert "def get_manufacturing_overview" not in source
 
 
+def test_demo_module_does_not_define_manufacturing_runtime_factories() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_" not in source
+
+
 def test_manufacturing_overview_endpoint_returns_persisted_reference_data(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
