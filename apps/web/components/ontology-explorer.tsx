@@ -4,28 +4,29 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Database, Network, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   countNodesByType,
-  defaultManufacturingOntology,
   formatNodeType,
   nodeLabelById,
   type ManufacturingOntology,
+  type OntologyNodeType,
 } from "@/lib/ontology-demo";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
 
-type OntologySource = "loading" | "api" | "fallback";
+type OntologySource = "loading" | "api" | "unavailable";
 
 function sourceLabel(source: OntologySource): string {
   if (source === "api") {
-    return "Live ontology seed";
+    return "API ontology graph";
   }
 
-  return source === "loading" ? "Loading ontology seed" : "Fallback ontology seed";
+  return source === "loading" ? "Loading ontology API" : "Ontology API unavailable";
 }
 
 export function OntologyExplorer() {
-  const [ontology, setOntology] = useState<ManufacturingOntology>(defaultManufacturingOntology);
+  const [ontology, setOntology] = useState<ManufacturingOntology | null>(null);
   const [source, setSource] = useState<OntologySource>("loading");
   const apiBaseUrl = getApiBaseUrl();
 
@@ -47,8 +48,8 @@ export function OntologyExplorer() {
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setOntology(defaultManufacturingOntology);
-          setSource("fallback");
+          setOntology(null);
+          setSource("unavailable");
         }
       }
     }
@@ -58,8 +59,24 @@ export function OntologyExplorer() {
     return () => controller.abort();
   }, [apiBaseUrl]);
 
-  const nodeLabels = useMemo(() => nodeLabelById(ontology), [ontology]);
-  const nodeTypeCounts = useMemo(() => countNodesByType(ontology), [ontology]);
+  const nodeLabels = useMemo(
+    () => (ontology ? nodeLabelById(ontology) : new Map<string, string>()),
+    [ontology],
+  );
+  const nodeTypeCounts = useMemo(
+    () => (ontology ? countNodesByType(ontology) : new Map<OntologyNodeType, number>()),
+    [ontology],
+  );
+
+  if (!ontology) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
+        endpoint="/demo/manufacturing/ontology"
+        title={source === "loading" ? "Loading ontology API" : "Ontology API unavailable"}
+      />
+    );
+  }
 
   return (
     <div className="stack">

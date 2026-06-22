@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allAgentFilter,
   countPendingAgentProposals,
-  defaultManufacturingAgentRegistry,
   filterAgents,
   findAgentById,
   formatAgentLabel,
@@ -20,7 +20,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type AgentSource = "loading" | "api" | "fallback";
+type AgentSource = "loading" | "api" | "unavailable";
 
 const defaultFilters: AgentFilters = {
   domain: allAgentFilter,
@@ -30,21 +30,17 @@ const defaultFilters: AgentFilters = {
 
 function sourceLabel(source: AgentSource): string {
   if (source === "api") {
-    return "Live agent seed";
+    return "API agent registry";
   }
 
-  return source === "loading" ? "Loading agent seed" : "Fallback agent seed";
+  return source === "loading" ? "Loading agent API" : "Agent API unavailable";
 }
 
 export function AgentRegistry() {
-  const [registry, setRegistry] = useState<ManufacturingAgentRegistry>(
-    defaultManufacturingAgentRegistry,
-  );
+  const [registry, setRegistry] = useState<ManufacturingAgentRegistry | null>(null);
   const [source, setSource] = useState<AgentSource>("loading");
   const [filters, setFilters] = useState<AgentFilters>(defaultFilters);
-  const [selectedAgentId, setSelectedAgentId] = useState(
-    defaultManufacturingAgentRegistry.agents[0].agent_id,
-  );
+  const [selectedAgentId, setSelectedAgentId] = useState("");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -63,13 +59,13 @@ export function AgentRegistry() {
 
         const nextRegistry = (await response.json()) as ManufacturingAgentRegistry;
         setRegistry(nextRegistry);
-        setSelectedAgentId(nextRegistry.agents[0].agent_id);
+        setSelectedAgentId(nextRegistry.agents[0]?.agent_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setRegistry(defaultManufacturingAgentRegistry);
-          setSelectedAgentId(defaultManufacturingAgentRegistry.agents[0].agent_id);
-          setSource("fallback");
+          setRegistry(null);
+          setSelectedAgentId("");
+          setSource("unavailable");
         }
       }
     }
@@ -79,16 +75,23 @@ export function AgentRegistry() {
     return () => controller.abort();
   }, [apiBaseUrl]);
 
-  const filteredAgents = useMemo(() => filterAgents(registry, filters), [registry, filters]);
-  const effectiveSelectedAgentId = filteredAgents.some((agent) => agent.agent_id === selectedAgentId)
-    ? selectedAgentId
-    : (filteredAgents[0]?.agent_id ?? registry.agents[0].agent_id);
+  const filteredAgents = useMemo(
+    () => (registry ? filterAgents(registry, filters) : []),
+    [registry, filters],
+  );
+  const effectiveSelectedAgentId =
+    registry && filteredAgents.some((agent) => agent.agent_id === selectedAgentId)
+      ? selectedAgentId
+      : (filteredAgents[0]?.agent_id ?? registry?.agents[0]?.agent_id ?? "");
 
   const selectedAgent = useMemo(
-    () => findAgentById(registry, effectiveSelectedAgentId),
+    () =>
+      registry && registry.agents.length > 0
+        ? findAgentById(registry, effectiveSelectedAgentId)
+        : null,
     [registry, effectiveSelectedAgentId],
   );
-  const proposalCount = countPendingAgentProposals(registry);
+  const proposalCount = registry ? countPendingAgentProposals(registry) : 0;
 
   function updateFilter(filterName: keyof AgentFilters, value: string) {
     setFilters((current) => ({
@@ -99,6 +102,26 @@ export function AgentRegistry() {
 
   function resetFilters() {
     setFilters(defaultFilters);
+  }
+
+  if (!registry) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed agent records. Local fallback agent records are disabled."
+        endpoint="/demo/manufacturing/agents"
+        title={source === "loading" ? "Loading agent API" : "Agent API unavailable"}
+      />
+    );
+  }
+
+  if (!selectedAgent) {
+    return (
+      <ApiRequiredState
+        detail="The agent API responded without registry records for this tenant."
+        endpoint="/demo/manufacturing/agents"
+        title="Agent API returned no records"
+      />
+    );
   }
 
   return (

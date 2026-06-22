@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, RadioTower, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { ApiStatusPanel } from "@/components/api-status-panel";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
-  defaultManufacturingOverview,
   formatOverviewTimestamp,
   platformStatusClass,
   platformStatusLabel,
@@ -14,7 +14,7 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 
-type OverviewSource = "loading" | "api" | "fallback";
+type OverviewSource = "loading" | "api" | "unavailable";
 
 function SignalPill({ status }: { status: PlatformStatus }) {
   return (
@@ -26,14 +26,14 @@ function SignalPill({ status }: { status: PlatformStatus }) {
 
 function sourceLabel(source: OverviewSource): string {
   if (source === "api") {
-    return "Live API demo seed";
+    return "API overview data";
   }
 
-  return source === "loading" ? "Loading API demo seed" : "Fallback demo seed";
+  return source === "loading" ? "Loading overview API" : "Overview API unavailable";
 }
 
 export function PlatformOverview() {
-  const [overview, setOverview] = useState<ManufacturingOverview>(defaultManufacturingOverview);
+  const [overview, setOverview] = useState<ManufacturingOverview | null>(null);
   const [source, setSource] = useState<OverviewSource>("loading");
   const apiBaseUrl = getApiBaseUrl();
 
@@ -55,8 +55,8 @@ export function PlatformOverview() {
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setOverview(defaultManufacturingOverview);
-          setSource("fallback");
+          setOverview(null);
+          setSource("unavailable");
         }
       }
     }
@@ -65,6 +65,19 @@ export function PlatformOverview() {
 
     return () => controller.abort();
   }, [apiBaseUrl]);
+
+  if (!overview) {
+    return (
+      <div className="stack">
+        <ApiRequiredState
+          detail="Axis did not receive API-backed overview records. Local fallback overview records are disabled."
+          endpoint="/demo/manufacturing/overview"
+          title={source === "loading" ? "Loading overview API" : "Overview API unavailable"}
+        />
+        <ApiStatusPanel />
+      </div>
+    );
+  }
 
   return (
     <div className="stack">

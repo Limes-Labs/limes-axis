@@ -52,16 +52,16 @@ JSON bundle:
 
 The `/audit` page first loads persisted events from
 `/demo/manufacturing/audit/events`. If the query returns no rows, it uses the
-synthetic seed endpoint. When the API is unavailable, the page falls back to the
-local synthetic audit seed.
+synthetic seed endpoint served by the API. When the API is unavailable, the page
+shows an API-required state and does not render local audit records.
 
 The page supports local filters for tenant, event type and scope. Filtering is
 browser-local after the initial tenant-scoped API query.
 
 The page also loads `/demo/manufacturing/audit/export` to show the current
 export manifest, retention enforcement status and integrity proof. If the
-export endpoint is not available, the page displays a local public-safe
-fallback bundle.
+export endpoint is not available, the page displays an API-required export
+state instead of constructing a local bundle.
 
 ## Governance Boundary
 
@@ -102,6 +102,6 @@ The slice is covered by:
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;
 - OpenAPI schema export/check;
-- web unit tests for local fallback filtering, export metadata and integrity
+- web unit tests for filtering, export metadata and integrity
   fields;
-- Playwright smoke tests for audit rendering and filters on desktop and mobile.
+- Playwright smoke tests for API-required audit behavior on desktop and mobile.

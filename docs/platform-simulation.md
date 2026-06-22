@@ -109,7 +109,7 @@ audit event type `connector.promotion_policy_set.simulated_diff`. It does not
 activate a policy set or execute connector mutation.
 
 Artifacts expose redacted metadata only. Raw action payloads are not returned in
-the replay response or console fallback seed.
+the replay response, and the console requires API-backed replay artifacts.
 
 Future Platform work should connect this contract to:
 
@@ -127,7 +127,6 @@ The slice is covered by:
 - API unit tests for persisted output write, permission and idempotency;
 - API unit tests for replay retention filtering and legal-hold bypass;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for fallback artifacts, persisted outputs, policy-set diffs and
+- web unit tests for replay artifacts, persisted outputs, policy-set diffs and
   persisted-data selection;
-- Playwright smoke tests for `/simulation` rendering, including policy-set diff
-  metadata, replay retention window metadata and persisted output evidence.
+- Playwright smoke tests for `/simulation` API-required behavior.

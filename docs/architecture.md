@@ -158,7 +158,7 @@ Axis is OIDC-first. The API can validate bearer tokens against configurable
 issuer, audience, algorithms and JWKS settings, with Keycloak/self-hosted OIDC
 as the default local path. Token claims provide the authenticated tenant, actor
 and scopes used by mutation endpoints. Demo request-body actor fields remain
-available only as standalone fallback metadata when OIDC auth is optional and no
+available only as optional request metadata when OIDC auth is optional and no
 bearer token is supplied.
 
 The governance console currently includes a local session bridge that stores a

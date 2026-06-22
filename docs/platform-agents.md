@@ -52,9 +52,10 @@ model router and audit ledger boundaries.
 ## Acceptance Notes
 
 - The endpoint is covered by API tests and OpenAPI generation.
-- The web fallback seed mirrors the API contract for offline demo rendering.
-- The web unit tests cover filtering, fallback lookup, public-safety checks and
+- The web console shows an API-required state when agent records are unavailable.
+- The web unit tests cover filtering, safe lookup, public-safety checks and
   policy-boundary invariants.
-- Playwright smoke tests cover the mobile navigation path and domain filtering.
+- Playwright smoke tests cover the mobile navigation path and API-required agent
+  behavior.
 - Public documentation avoids customer data, personal names, contacts, pricing,
   credentials and deployment secrets.

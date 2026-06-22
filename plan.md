@@ -79,7 +79,8 @@ Foundation acceptance is tracked in
 - [x] Build the model routing and cost observability layer.
 - [x] Add the Postgres persistence foundation for approvals, actions and audit events.
 - [x] Add API-backed approval decisions with audit writes.
-- [x] Connect the approval console to persisted decision submission with local fallback.
+- [x] Connect the approval console to persisted decision submission without local
+  decision fallback.
 - [x] Enforce demo approval decision permissions before persistence.
 - [x] Signal approval decisions through the workflow runtime adapter.
 - [x] Persist typed action run requests with idempotency enforcement.
@@ -109,7 +110,7 @@ Foundation acceptance is tracked in
 - [x] Author connector promotion policies before required enforcement.
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.
-- [x] Add connector console policy authoring controls with API/local preview.
+- [x] Add connector console policy authoring controls with API persistence only.
 - [x] Add connector promotion policy enablement workflow with audit evidence.
 - [x] Add versioned connector promotion policy sets for multi-policy required gates.
 - [x] Add governed connector promotion policy set replacement and rollback evidence.
@@ -124,6 +125,7 @@ Foundation acceptance is tracked in
 - [x] Add secret reference resolver evidence hardening for external DB live-query preflight.
 - [x] Persist tenant-scoped egress policy records for external DB preflight.
 - [x] Make the connector console API-required instead of using local fallback data.
+- [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -154,8 +156,8 @@ workflow mutation controls remain Platform work.
 
 The approval queue is still read-only for listing. A demo decision endpoint now
 persists approval decisions and appends audit events, and the web console
-submits reviewer decisions to it when available while keeping a standalone local
-fallback. The decision endpoint enforces the required demo approval scope before
+submits reviewer decisions to it without creating a standalone local decision
+preview when persistence fails. The decision endpoint enforces the required demo approval scope before
 persistence and signals the workflow runtime adapter. When a bearer token is
 present, or when OIDC auth is required by configuration, the endpoint validates
 the token against configurable OIDC/JWKS settings and derives tenant, actor and
@@ -314,10 +316,10 @@ blocked operations, tenant configuration, credential handle posture, connector
 run evidence, deferred execution metadata, persisted ontology proposal
 evidence, promotion evidence, manual import decision evidence, promotion policy
 authoring/enforcement evidence, versioned policy-set evidence and schema
-mapping with an offline fallback seed.
+mapping from API-backed records only.
 It can author promotion policies through the API when available, enable them
-with approval/workflow evidence or record local public-safe previews when the API
-is offline.
+with approval/workflow evidence and reports API persistence errors without
+recording local public-safe previews when the API is offline.
 Manifest lifecycle transitions beyond preview-only registration,
 provider-specific Vault/KMS adapters, provider-specific scheduled live sync
 beyond the self-hosted execution boundary, live external database adapters and

@@ -45,8 +45,8 @@ Delivered:
 - blocked external route visibility;
 - local and approved-provider route examples;
 - synthetic token and cost estimates;
-- API and frontend fallback contracts;
-- Playwright smoke coverage.
+- API response contracts;
+- Playwright smoke coverage for API-required behavior.
 
 Still Platform work:
 

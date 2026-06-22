@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Database, Network, RadioTower, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import { buildAxisAuthInit } from "@/lib/oidc-session";
 import {
-  buildOntologyEntityDetail,
-  defaultManufacturingOntology,
   formatNodeType,
   type ManufacturingOntologyEntityDetail,
 } from "@/lib/ontology-demo";
@@ -19,18 +18,18 @@ import {
 } from "@/lib/platform-overview";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
-type EntitySource = "loading" | "api" | "fallback" | "missing";
+type EntitySource = "loading" | "api" | "unavailable" | "missing";
 
 function sourceLabel(source: EntitySource): string {
   if (source === "api") {
-    return "Live entity seed";
+    return "API entity detail";
   }
 
   if (source === "missing") {
     return "Entity not found";
   }
 
-  return source === "loading" ? "Loading entity seed" : "Fallback entity seed";
+  return source === "loading" ? "Loading entity API" : "Entity API unavailable";
 }
 
 function TagList({ items, emptyLabel }: { items: string[]; emptyLabel: string }) {
@@ -50,14 +49,8 @@ function TagList({ items, emptyLabel }: { items: string[]; emptyLabel: string })
 }
 
 export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
-  const fallbackDetail = useMemo(
-    () => buildOntologyEntityDetail(defaultManufacturingOntology, nodeId),
-    [nodeId],
-  );
-  const [detail, setDetail] = useState<ManufacturingOntologyEntityDetail | null>(
-    fallbackDetail,
-  );
-  const [source, setSource] = useState<EntitySource>(fallbackDetail ? "loading" : "missing");
+  const [detail, setDetail] = useState<ManufacturingOntologyEntityDetail | null>(null);
+  const [source, setSource] = useState<EntitySource>("loading");
   const apiBaseUrl = getApiBaseUrl();
   const { session } = useOidcConsoleSession();
 
@@ -77,6 +70,12 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
           ),
         );
 
+        if (response.status === 404) {
+          setDetail(null);
+          setSource("missing");
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`Ontology entity request failed with ${response.status}`);
         }
@@ -85,8 +84,8 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setDetail(fallbackDetail);
-          setSource(fallbackDetail ? "fallback" : "missing");
+          setDetail(null);
+          setSource("unavailable");
         }
       }
     }
@@ -94,9 +93,19 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     void fetchEntity();
 
     return () => controller.abort();
-  }, [apiBaseUrl, fallbackDetail, nodeId, session]);
+  }, [apiBaseUrl, nodeId, session]);
 
   if (!detail) {
+    if (source !== "missing") {
+      return (
+        <ApiRequiredState
+          detail="Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled."
+          endpoint={`/demo/manufacturing/ontology/entities/${nodeId}`}
+          title={source === "loading" ? "Loading entity API" : "Entity API unavailable"}
+        />
+      );
+    }
+
     return (
       <div className="stack">
         <section className="panel overview-context">

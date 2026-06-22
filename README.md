@@ -57,8 +57,8 @@ persistence foundation adds Postgres schema and repository methods for approval
 records, action runs and append-only audit events. The approval persistence
 slice adds an API-backed decision endpoint that records approval decisions and
 audit events. The approval console persistence slice submits reviewer decisions
-to that endpoint when the API is reachable and keeps a local preview fallback
-when the console runs standalone. The approval permission slice enforces the
+to that endpoint and reports API persistence errors instead of creating local
+decision previews when the console runs standalone. The approval permission slice enforces the
 required demo approval scope before decision persistence and returns a 403 when
 the actor scopes are insufficient. The workflow signal slice sends approval
 decisions through the Axis workflow runtime port to Temporal when the runtime is
@@ -82,7 +82,8 @@ reads now pass through an Axis query runtime boundary that can filter returned
 relationships by OIDC-derived scopes and can be switched from the deferred seed
 runtime to a TypeDB read boundary independently from graph mutations. The audit
 query slice reads persisted `audit_events` through a tenant-scoped API endpoint
-and keeps the synthetic seed as a fallback. The audit retention/export slice adds a demo
+and the web console now requires API-backed audit/export records instead of
+constructing local fallback bundles. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews,
 retention-window enforcement and a deterministic hash-chain integrity proof.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline

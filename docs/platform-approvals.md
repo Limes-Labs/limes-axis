@@ -6,7 +6,7 @@ governance surface for the manufacturing reference demo.
 It is intentionally public-safe and synthetic. The queue endpoint is read-only,
 while the decision endpoint can persist a demo approval decision and append an
 audit event. The web console submits reviewer decisions to the endpoint when the
-API is reachable and falls back to a local preview when it is not.
+API is reachable and reports persistence errors when it is not.
 
 ## Demo Endpoint
 
@@ -44,17 +44,18 @@ workflow signal status.
 ## Console Behavior
 
 The `/approvals` page loads the endpoint from `NEXT_PUBLIC_AXIS_API_BASE_URL`.
-When the API is not reachable, the page falls back to the local synthetic seed.
+When the API is not reachable, the page shows an API-required state and does not
+render local approval records.
 
 The page lets a reviewer select approval proposals and submit a decision. The
 console sends a typed `decision`, `actor_id`, `actor_scopes` and note payload to
 the demo API. In authenticated deployments, the API treats those actor fields as
-demo fallback metadata and binds persistence to the bearer token principal
+demo request metadata and binds persistence to the bearer token principal
 instead. When an OIDC session is attached in the console toolbar, approval
 fetches and decision submissions include the bearer token. When the request
 succeeds, the panel shows the persisted audit event, permission result and
 workflow signal result returned by the API. When the request fails, the panel
-keeps a browser-local preview so the standalone console remains usable.
+keeps the approval pending and shows the API persistence error.
 
 ## Governance Boundary
 
@@ -82,4 +83,4 @@ The slice is covered by:
 - API unit tests for workflow signal success and degraded runtime paths;
 - OpenAPI schema export/check;
 - web unit tests for the persisted decision payload contract;
-- Playwright smoke tests for queue rendering and standalone local fallback.
+- Playwright smoke tests for API-required approval behavior.

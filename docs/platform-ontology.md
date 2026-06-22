@@ -104,6 +104,5 @@ Covered by:
   endpoint exposure;
 - web unit tests for OIDC session token parsing and authorization headers;
 - generated OpenAPI drift check;
-- web unit tests for fallback graph integrity and local detail building;
-- Playwright smoke tests for desktop and mobile rendering, including entity
-  navigation.
+- web unit tests for graph integrity and detail building contracts;
+- Playwright smoke tests for API-required ontology and entity behavior.

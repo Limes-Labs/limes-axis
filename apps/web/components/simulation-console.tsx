@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, GitBranch, History, RadioTower, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
-  defaultManufacturingReplaySimulation,
   findReplayArtifactById,
   formatSimulationLabel,
   shouldUsePersistedReplayData,
@@ -19,14 +19,14 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type SimulationSource = "loading" | "persisted" | "fallback";
+type SimulationSource = "loading" | "persisted" | "unavailable";
 
 function sourceLabel(source: SimulationSource): string {
   if (source === "persisted") {
     return "Persisted replay artifacts";
   }
 
-  return source === "loading" ? "Loading replay artifacts" : "Fallback replay seed";
+  return source === "loading" ? "Loading replay API" : "Replay API unavailable";
 }
 
 function formatReplayTime(value: string): string {
@@ -39,13 +39,9 @@ function formatReplayTime(value: string): string {
 }
 
 export function SimulationConsole() {
-  const [simulationData, setSimulationData] = useState<ManufacturingReplaySimulation>(
-    defaultManufacturingReplaySimulation,
-  );
+  const [simulationData, setSimulationData] = useState<ManufacturingReplaySimulation | null>(null);
   const [source, setSource] = useState<SimulationSource>("loading");
-  const [selectedArtifactId, setSelectedArtifactId] = useState(
-    defaultManufacturingReplaySimulation.artifacts[0].artifact_id,
-  );
+  const [selectedArtifactId, setSelectedArtifactId] = useState("");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -72,19 +68,19 @@ export function SimulationConsole() {
         const data = await fetchReplaySimulation();
         if (shouldUsePersistedReplayData(data)) {
           setSimulationData(data);
-          setSelectedArtifactId(data.artifacts[0].artifact_id);
+          setSelectedArtifactId(data.artifacts[0]?.artifact_id ?? "");
           setSource("persisted");
           return;
         }
 
-        setSimulationData(defaultManufacturingReplaySimulation);
-        setSelectedArtifactId(defaultManufacturingReplaySimulation.artifacts[0].artifact_id);
-        setSource("fallback");
+        setSimulationData(data);
+        setSelectedArtifactId(data.artifacts[0]?.artifact_id ?? "");
+        setSource("persisted");
       } catch {
         if (!controller.signal.aborted) {
-          setSimulationData(defaultManufacturingReplaySimulation);
-          setSelectedArtifactId(defaultManufacturingReplaySimulation.artifacts[0].artifact_id);
-          setSource("fallback");
+          setSimulationData(null);
+          setSelectedArtifactId("");
+          setSource("unavailable");
         }
       }
     }
@@ -95,11 +91,35 @@ export function SimulationConsole() {
   }, [apiBaseUrl]);
 
   const selectedArtifact = useMemo(
-    () => findReplayArtifactById(simulationData, selectedArtifactId),
+    () =>
+      simulationData && simulationData.artifacts.length > 0
+        ? findReplayArtifactById(simulationData, selectedArtifactId)
+        : null,
     [simulationData, selectedArtifactId],
   );
-  const changedPolicies = countChangedPolicyResults(simulationData);
-  const changedPolicySetDiffs = countChangedPolicySetDiffs(simulationData);
+  const changedPolicies = simulationData ? countChangedPolicyResults(simulationData) : 0;
+  const changedPolicySetDiffs = simulationData ? countChangedPolicySetDiffs(simulationData) : 0;
+
+  if (!simulationData) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed replay artifacts. Local fallback replay records are disabled."
+        endpoint="/demo/manufacturing/simulation/replay"
+        title={source === "loading" ? "Loading replay API" : "Replay API unavailable"}
+      />
+    );
+  }
+
+  if (!selectedArtifact) {
+    return (
+      <ApiRequiredState
+        detail="The replay API responded without simulation artifacts for this tenant."
+        endpoint="/demo/manufacturing/simulation/replay"
+        title="Replay API returned no artifacts"
+      />
+    );
+  }
+
   const primaryPolicy = selectedArtifact.policy_results[0];
   const primaryPolicySetDiff = (selectedArtifact.policy_set_diffs ?? [])[0];
   const persistedOutputs = simulationData.persisted_outputs ?? [];

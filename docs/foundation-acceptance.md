@@ -128,10 +128,11 @@ Desktop and mobile renders were checked for non-empty content and no document
 level horizontal overflow.
 
 The console overview now reads `/health` and `/ready` and shows a public-safe
-API availability summary. The fallback state was verified with the API stopped.
+API availability summary. The API-required state was verified with the API
+stopped.
 
-The Playwright smoke suite covers desktop and mobile rendering, overview API
-status fallback, main navigation and autonomy level visibility.
+The Playwright smoke suite covers desktop and mobile API-required rendering,
+main navigation and absence of local fallback records.
 
 ## CI Gate
 

@@ -36,8 +36,8 @@ Both endpoints return the same workflow console contract:
 
 The `/workflows` page first loads persisted workflow runs from
 `/demo/manufacturing/workflows/runs`. If that query returns no rows, it uses the
-synthetic seed endpoint. When the API is unavailable, the page falls back to the
-local synthetic workflow seed.
+synthetic seed endpoint served by the API. When the API is unavailable, the page
+shows an API-required state and does not render local workflow records.
 
 The page is read-only. It lets an operator inspect workflow runs, pending
 signals and history preview data, but it does not signal Temporal, mutate state
@@ -77,5 +77,5 @@ The slice is covered by:
 - API unit tests for the manufacturing workflow console seed and endpoint;
 - API unit tests for persisted workflow run state and tenant-scoped history;
 - OpenAPI schema export/check;
-- web unit tests for the local fallback and persisted-data selection contract;
-- Playwright smoke tests for workflow rendering on desktop and mobile.
+- web unit tests for the persisted-data selection contract;
+- Playwright smoke tests for API-required workflow behavior on desktop and mobile.
