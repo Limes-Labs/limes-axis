@@ -13,6 +13,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorRun,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
     utc_now,
@@ -136,6 +137,22 @@ class ConnectorCredentialRotationCreate(BaseModel):
     rotated_at: datetime
     evidence_ref: str = Field(min_length=1)
     status: str = Field(default="rotated", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorRunCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    status: str = Field(default="recorded_preview_only", min_length=1)
+    execution_mode: str = Field(default="preview", min_length=1)
+    runtime_boundary: str = Field(default="axis-connector-sandbox", min_length=1)
+    requested_by: str = Field(min_length=1)
+    credential_handle_ids: list[str] = Field(default_factory=list)
+    input_summary: dict = Field(default_factory=dict)
+    result_summary: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.run.recorded", min_length=1)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -508,4 +525,48 @@ class AxisPersistenceRepository:
             )
             .limit(limit)
         )
+        return list(self.session.scalars(statement))
+
+    def create_connector_run(
+        self,
+        record: ConnectorRunCreate,
+    ) -> ConnectorRun:
+        connector_run = ConnectorRun(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            run_id=record.run_id,
+            status=record.status,
+            execution_mode=record.execution_mode,
+            runtime_boundary=record.runtime_boundary,
+            requested_by=record.requested_by,
+            credential_handle_ids=record.credential_handle_ids,
+            input_summary=record.input_summary,
+            result_summary=record.result_summary,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(connector_run)
+        self.session.flush()
+        return connector_run
+
+    def list_connector_runs(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorRun]:
+        statement: Select[tuple[ConnectorRun]] = select(ConnectorRun).where(
+            ConnectorRun.tenant_id == tenant_id
+        )
+        if connector_id is not None:
+            statement = statement.where(ConnectorRun.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorRun.status == status)
+
+        statement = statement.order_by(
+            ConnectorRun.created_at.desc(),
+            ConnectorRun.id.desc(),
+        ).limit(limit)
         return list(self.session.scalars(statement))

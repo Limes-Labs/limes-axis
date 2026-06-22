@@ -40,6 +40,11 @@ The fifth Alembic migration adds:
 - `connector_credential_rotations`: append-only rotation history metadata for
   credential handles.
 
+The sixth Alembic migration adds:
+
+- `connector_runs`: tenant-scoped metadata-only connector run records with
+  redacted input/result summaries and linked audit event ids.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -56,6 +61,7 @@ The fifth Alembic migration adds:
 - connector configuration creation and tenant-scoped listing.
 - connector credential handle creation and tenant-scoped listing.
 - connector credential rotation recording and tenant-scoped history listing.
+- connector run creation and tenant-scoped listing.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
@@ -98,10 +104,12 @@ Delivered:
   setup, with raw credential fields rejected before persistence.
 - metadata-only connector credential handles with external secret references
   and rotation history, without storing raw credential values.
+- metadata-only connector run records with append-only
+  `connector.run.recorded` audit writes and raw payload field rejection.
 
 Still Platform work:
 
-- connector run records and append-only audit writes from connector execution;
+- connector execution from persisted run records;
 - production vault/KMS integration, secret leasing and automated rotation;
 - scheduled connector sync lifecycle;
 - production connector mutations from action runtime paths;

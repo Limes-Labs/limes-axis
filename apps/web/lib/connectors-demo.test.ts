@@ -5,6 +5,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorRunRegistry,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
   findConnectorById,
@@ -132,6 +133,26 @@ describe("manufacturing connector demo contract", () => {
       "api_key",
     );
     expect(JSON.stringify(defaultConnectorCredentialHandleRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
+  });
+
+  it("keeps connector run fallback audit-backed and redacted", () => {
+    expect(defaultConnectorRunRegistry.tenant_id).toBe("tenant_demo_manufacturing");
+    expect(defaultConnectorRunRegistry.runs).toHaveLength(1);
+    expect(defaultConnectorRunRegistry.metrics[0]).toMatchObject({
+      label: "Connector Runs",
+      value: "1",
+    });
+
+    const run = defaultConnectorRunRegistry.runs[0];
+    expect(run.run_id).toBe("run_file_csv_assets_preview_20260622");
+    expect(run.status).toBe("recorded_preview_only");
+    expect(run.audit_event_type).toBe("connector.run.recorded");
+    expect(run.credential_handle_ids).toEqual(["cred_file_csv_readonly"]);
+    expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("csv_content");
+    expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain(
       "credential_value",
     );
   });

@@ -190,6 +190,38 @@ export type ManufacturingConnectorCredentialHandleRegistry = {
   handle_notes: string[];
 };
 
+export type ConnectorRunRecord = {
+  tenant_id: string;
+  connector_id: string;
+  run_id: string;
+  status: string;
+  execution_mode: string;
+  runtime_boundary: string;
+  requested_by: string;
+  credential_handle_ids: string[];
+  input_summary: Record<string, string>;
+  result_summary: Record<string, string>;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorRunRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  runs: ConnectorRunRecord[];
+  run_notes: string[];
+};
+
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -490,6 +522,63 @@ export const defaultConnectorCredentialHandleRegistry: ManufacturingConnectorCre
     "Credential handles point to external secret managers or local dev refs.",
     "Rotation updates metadata and history without storing raw credential values.",
     "Connector run execution remains future work.",
+  ],
+};
+
+export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [
+    {
+      label: "Connector Runs",
+      value: "1",
+      detail: "Metadata-only connector run records",
+      status: "ready",
+    },
+    {
+      label: "Audit Writes",
+      value: "1",
+      detail: "Append-only audit events linked to run records",
+      status: "ready",
+    },
+    {
+      label: "Live Sync",
+      value: "Disabled",
+      detail: "Run records do not execute connector sync",
+      status: "watch",
+    },
+  ],
+  runs: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      run_id: "run_file_csv_assets_preview_20260622",
+      status: "recorded_preview_only",
+      execution_mode: "preview",
+      runtime_boundary: "axis-connector-sandbox",
+      requested_by: "plant-operations-owner-role",
+      credential_handle_ids: ["cred_file_csv_readonly"],
+      input_summary: {
+        file_name: "manufacturing-assets-demo.csv",
+        record_count: "2",
+      },
+      result_summary: {
+        accepted_record_count: "2",
+        rejected_record_count: "0",
+      },
+      audit_event_id: "audit_connector_run_demo_20260622",
+      audit_event_type: "connector.run.recorded",
+      notes: ["Run record only; no connector execution occurred."],
+      created_at: "2026-06-22T00:00:00Z",
+    },
+  ],
+  run_notes: [
+    "Connector run records are metadata-only evidence.",
+    "Creating a run record writes an append-only audit event.",
+    "Raw payloads, file content and credential material are never stored.",
+    "Live sync and connector-backed production actions remain future work.",
   ],
 };
 
