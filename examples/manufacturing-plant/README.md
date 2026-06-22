@@ -33,6 +33,8 @@ POST /demo/manufacturing/connectors/configurations
 GET /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles/{handle_id}/rotations
+GET /demo/manufacturing/connectors/runs
+POST /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -90,6 +92,8 @@ It includes:
   with raw credential fields rejected before persistence.
 - metadata-only connector credential handles with external secret references
   and rotation history, without storing raw credential values.
+- metadata-only connector run records with redacted summaries and append-only
+  `connector.run.recorded` audit writes.
 - Postgres persistence foundation for approval records, action runs and
   append-only audit events.
 
@@ -112,5 +116,5 @@ The reference demo should grow into an end-to-end Platform scenario:
   and OpenTelemetry spans;
 - persisted connector manifest management beyond the demo seed, production
   vault/KMS integration, scheduled sync, database connectors, connector run
-  audit writes and connector-backed actions behind policy gates;
+  execution and connector-backed actions behind policy gates;
 - persisted replay and simulation artifacts.

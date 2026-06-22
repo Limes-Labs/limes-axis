@@ -37,6 +37,7 @@ def test_postgres_migration_creates_foundation_tables() -> None:
         "connector_configurations",
         "connector_credential_handles",
         "connector_credential_rotations",
+        "connector_runs",
     }.issubset(tables)
 
 

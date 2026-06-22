@@ -48,6 +48,15 @@ from axis_api.connector_credential_handles import (
     record_demo_connector_credential_handle,
     record_demo_connector_credential_rotation,
 )
+from axis_api.connector_runs import (
+    ConnectorRunCreateRequest,
+    ConnectorRunQuery,
+    ConnectorRunRecord,
+    ConnectorRunValidationError,
+    ManufacturingConnectorRunRegistry,
+    build_connector_run_registry,
+    record_demo_connector_run,
+)
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorCsvPreviewResult,
@@ -465,6 +474,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return record_demo_connector_credential_rotation(repository, handle_id, rotation)
         except ConnectorCredentialHandleValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/runs",
+        response_model=ManufacturingConnectorRunRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_runs(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorRunRegistry:
+        return build_connector_run_registry(
+            repository,
+            ConnectorRunQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/runs",
+        response_model=ConnectorRunRecord,
+        responses={422: {"description": "Connector run validation failed"}},
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_run_create(
+        connector_run: ConnectorRunCreateRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorRunRecord:
+        try:
+            return record_demo_connector_run(repository, connector_run)
+        except ConnectorRunValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

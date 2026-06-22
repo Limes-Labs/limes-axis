@@ -14,6 +14,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorRun,
 )
 from axis_api.persistence import (
     ActionRunCreate,
@@ -24,6 +25,7 @@ from axis_api.persistence import (
     ConnectorConfigurationCreate,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialRotationCreate,
+    ConnectorRunCreate,
     PersistenceRecordNotFound,
 )
 
@@ -46,6 +48,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "connector_configurations",
         "connector_credential_handles",
         "connector_credential_rotations",
+        "connector_runs",
     }.issubset(Base.metadata.tables.keys())
     assert ApprovalRecord.__table__.c.tenant_id.index is True
     assert ActionRun.__table__.c.idempotency_key.index is True
@@ -53,6 +56,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorConfiguration.__table__.c.connector_id.index is True
     assert ConnectorCredentialHandle.__table__.c.handle_id.index is True
     assert ConnectorCredentialRotation.__table__.c.handle_id.index is True
+    assert ConnectorRun.__table__.c.run_id.index is True
 
 
 def test_repository_appends_audit_events_without_cross_tenant_leakage(session: Session) -> None:
@@ -293,3 +297,60 @@ def test_repository_records_connector_credential_handles_and_rotations(
     assert handles[0].labels == {"environment": "demo"}
     assert rotations == [rotation]
     assert rotations[0].evidence_ref == "change-window-2026-06-22"
+
+
+def test_repository_records_connector_runs_tenant_scoped(session: Session) -> None:
+    repository = AxisPersistenceRepository(session)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="connector-runtime-adapter",
+            event_type="connector.run.recorded",
+            payload={
+                "connector_id": "file_csv_manufacturing_assets",
+                "run_id": "run_file_csv_assets_preview_20260622",
+                "execution_mode": "preview",
+            },
+        )
+    )
+    created = repository.create_connector_run(
+        ConnectorRunCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            run_id="run_file_csv_assets_preview_20260622",
+            status="recorded_preview_only",
+            execution_mode="preview",
+            runtime_boundary="axis-connector-sandbox",
+            requested_by="plant-operations-owner-role",
+            credential_handle_ids=["cred_file_csv_readonly"],
+            input_summary={"file_name": "manufacturing-assets-demo.csv", "record_count": "2"},
+            result_summary={"accepted_record_count": "2", "rejected_record_count": "0"},
+            audit_event_id=audit_event.id,
+            notes=["Run record only; no connector execution occurred."],
+        )
+    )
+    repository.create_connector_run(
+        ConnectorRunCreate(
+            tenant_id="tenant_other",
+            connector_id="file_csv_manufacturing_assets",
+            run_id="run_other",
+            status="recorded_preview_only",
+            execution_mode="preview",
+            runtime_boundary="axis-connector-sandbox",
+            requested_by="other-owner-role",
+            input_summary={"file_name": "other.csv"},
+            result_summary={},
+            audit_event_id=audit_event.id,
+        )
+    )
+
+    records = repository.list_connector_runs("tenant_demo_manufacturing")
+
+    assert records == [created]
+    assert records[0].run_id == "run_file_csv_assets_preview_20260622"
+    assert records[0].audit_event_id == audit_event.id
+    assert records[0].credential_handle_ids == ["cred_file_csv_readonly"]
+    assert records[0].input_summary == {
+        "file_name": "manufacturing-assets-demo.csv",
+        "record_count": "2",
+    }

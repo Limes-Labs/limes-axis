@@ -8,6 +8,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorRunRegistry,
   defaultManufacturingConnectorPreview,
   defaultManufacturingConnectorRegistry,
   findConnectorById,
@@ -15,6 +16,7 @@ import {
   type ConnectorCsvPreviewResult,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
+  type ManufacturingConnectorRunRegistry,
   type ManufacturingConnectorRegistry,
 } from "@/lib/connectors-demo";
 import {
@@ -48,6 +50,8 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorCredentialHandleRegistry>(
       defaultConnectorCredentialHandleRegistry,
     );
+  const [runRegistry, setRunRegistry] =
+    useState<ManufacturingConnectorRunRegistry>(defaultConnectorRunRegistry);
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -77,7 +81,7 @@ export function ConnectorConsole() {
 
     async function loadConnectors() {
       try {
-        const [registryData, previewData, configurationData, credentialHandleData] =
+        const [registryData, previewData, configurationData, credentialHandleData, runData] =
           await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
@@ -93,11 +97,13 @@ export function ConnectorConsole() {
           fetchJson<ManufacturingConnectorCredentialHandleRegistry>(
             "/demo/manufacturing/connectors/credential-handles",
           ),
+          fetchJson<ManufacturingConnectorRunRegistry>("/demo/manufacturing/connectors/runs"),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
           setConfigurationRegistry(configurationData);
           setCredentialHandleRegistry(credentialHandleData);
+          setRunRegistry(runData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -110,6 +116,7 @@ export function ConnectorConsole() {
           setRegistry(defaultManufacturingConnectorRegistry);
           setConfigurationRegistry(defaultConnectorConfigurationRegistry);
           setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
+          setRunRegistry(defaultConnectorRunRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -142,6 +149,10 @@ export function ConnectorConsole() {
       ),
     [credentialHandleRegistry.handles, selectedConnectorId],
   );
+  const selectedRuns = useMemo(
+    () => runRegistry.runs.filter((run) => run.connector_id === selectedConnectorId),
+    [runRegistry.runs, selectedConnectorId],
+  );
   const manifest = selectedConnector.manifest;
 
   return (
@@ -171,6 +182,7 @@ export function ConnectorConsole() {
         {registry.metrics
           .concat(configurationRegistry.metrics)
           .concat(credentialHandleRegistry.metrics)
+          .concat(runRegistry.metrics)
           .map((metric) => (
           <article className="metric-card compact-card" key={metric.label}>
             <div className="row">
@@ -382,6 +394,52 @@ export function ConnectorConsole() {
           <section className="audit-payload">
             <div className="audit-payload-header">
               <div>
+                <p className="section-label">Connector Runs</p>
+                <h3 className="subsection-title">{selectedRuns.length} audit-backed record</h3>
+                <p className="row-detail">metadata-only evidence</p>
+              </div>
+              <Cable size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedRuns.map((run) => (
+                <div className="payload-row" key={run.run_id}>
+                  <span>
+                    <span className="metric-label">{run.run_id}</span>
+                    <span className="row-detail">{run.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{run.status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedRuns.map((run) => (
+              <div className="audit-detail-grid" key={`${run.run_id}-summary`}>
+                <div>
+                  <p className="metric-label">Execution</p>
+                  <p className="row-title">{formatConnectorLabel(run.execution_mode)}</p>
+                  <p className="row-detail">{run.runtime_boundary}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Requested By</p>
+                  <p className="row-title">{run.requested_by}</p>
+                  <p className="row-detail">{run.created_at}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Audit Event</p>
+                  <p className="row-title">{run.audit_event_type}</p>
+                  <p className="row-detail">{run.audit_event_id ?? "pending"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Credential Handles</p>
+                  <p className="row-title">{run.credential_handle_ids.length}</p>
+                  <p className="row-detail">referenced by id only</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
                 <p className="section-label">Schema Mapping</p>
                 <h3 className="subsection-title">{selectedConnector.preview_sample.file_name}</h3>
               </div>
@@ -419,8 +477,10 @@ export function ConnectorConsole() {
             {registry.connector_notes
               .concat(configurationRegistry.configuration_notes)
               .concat(credentialHandleRegistry.handle_notes)
+              .concat(runRegistry.run_notes)
               .concat(selectedConfiguration?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
+              .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(preview.preview_notes)
               .map((note) => (
               <p className="row-detail" key={note}>

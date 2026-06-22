@@ -68,9 +68,10 @@ calling external systems or mutating the graph. Tenant-scoped connector
 configuration records are persisted separately from connector runs and reject
 raw credential fields. Credential handle records persist external secret
 references, rotation metadata and rotation history without storing raw
-credential values. Future connector execution must use those handles with
-tenant-scoped permissions, append-only audit writes and no external egress by
-default.
+credential values. Connector run records persist redacted input/result summaries
+and link to append-only `connector.run.recorded` audit events without executing
+sync. Future connector execution must use those handles with tenant-scoped
+permissions, append-only audit writes and no external egress by default.
 
 ## Identity Boundaries
 

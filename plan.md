@@ -155,13 +155,15 @@ queries tenant-scoped preview connector configuration through
 fields in configuration payloads. The API now also stores metadata-only
 credential handles and rotation history through
 `/demo/manufacturing/connectors/credential-handles`, using external secret
-references instead of raw credential values. The `/connectors` console shows
-runtime boundaries, required permissions, blocked operations, tenant
-configuration, credential handle posture and schema mapping with an offline
-fallback seed. Persisted connector manifest management beyond the demo seed,
-credential vault integration, scheduled sync, external database connectors,
-connector run audit writes, live graph mutation and connector-backed
-production actions remain Platform work.
+references instead of raw credential values. Connector run records can now be
+written through `/demo/manufacturing/connectors/runs`; each record stores only
+redacted summaries and links to an append-only `connector.run.recorded` audit
+event. The `/connectors` console shows runtime boundaries, required
+permissions, blocked operations, tenant configuration, credential handle
+posture, connector run evidence and schema mapping with an offline fallback
+seed. Persisted connector manifest management beyond the demo seed, credential
+vault integration, scheduled sync, external database connectors, live graph
+mutation and connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,

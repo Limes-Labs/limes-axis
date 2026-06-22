@@ -255,3 +255,36 @@ class ConnectorCredentialRotation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+
+
+class ConnectorRun(Base):
+    __tablename__ = "connector_runs"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    execution_mode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    runtime_boundary: Mapped[str] = mapped_column(String(160), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    credential_handle_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    input_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "run_id",
+            name="uq_connector_runs_tenant_run",
+        ),
+    )

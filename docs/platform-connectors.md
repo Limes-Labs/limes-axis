@@ -6,7 +6,8 @@ external data sources into Axis without enabling live production mutation.
 This slice defines connector manifests, runtime policy boundaries, schema
 mapping metadata and a first preview-only file/CSV connector for the
 manufacturing reference demo. It also adds the first tenant-scoped connector
-configuration records, while keeping connector runs and live sync disabled.
+configuration records and metadata-only connector run records, while keeping
+connector execution and live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
 future connector execution, without storing raw credential material in Axis.
 
@@ -19,6 +20,8 @@ POST /demo/manufacturing/connectors/configurations
 GET /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles/{handle_id}/rotations
+GET /demo/manufacturing/connectors/runs
+POST /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -59,8 +62,8 @@ configuration records. A configuration includes:
 
 Configuration payloads reject raw credential fields such as passwords, API keys
 and credential values. The current configuration status is
-`configured_preview_only`; scheduled sync, connector run records and audit
-writes from connector runs remain future Platform work.
+`configured_preview_only`; scheduled sync and connector execution remain future
+Platform work.
 
 The credential handle endpoints store and query tenant-scoped metadata for
 external secret references. A handle includes:
@@ -83,6 +86,26 @@ rejects inline values that do not look like external references. Rotation
 records update handle metadata and append rotation history. Axis does not
 retrieve, store or return raw credential values.
 
+The connector run endpoints store and query tenant-scoped run evidence. A run
+record includes:
+
+- tenant id;
+- connector id;
+- run id;
+- preview/manual-import-record execution mode;
+- runtime boundary;
+- requester role/system id;
+- credential handle ids;
+- redacted input and result summaries;
+- linked audit event id and type;
+- run notes.
+
+Creating a run record writes an append-only `connector.run.recorded` audit event
+with the same redacted metadata. The endpoint rejects raw payload fields such as
+`csv_content`, raw file content, passwords, API keys, tokens and secret refs.
+Run records do not execute connector sync, call external systems or mutate the
+ontology graph.
+
 ## Manufacturing CSV Manifest
 
 The first connector is `file_csv_manufacturing_assets`.
@@ -104,9 +127,10 @@ raw `csv_content` field is not returned.
 The `/connectors` page loads the connector registry and preview result from the
 API when available. It also loads tenant-scoped connector configurations from
 `/demo/manufacturing/connectors/configurations` and metadata-only credential
-handles from `/demo/manufacturing/connectors/credential-handles`. If the API is
-unavailable, it uses the same public-safe fallback seed so the page remains
-useful in frontend-only development.
+handles from `/demo/manufacturing/connectors/credential-handles`, plus run
+records from `/demo/manufacturing/connectors/runs`. If the API is unavailable,
+it uses the same public-safe fallback seed so the page remains useful in
+frontend-only development.
 
 The console displays:
 
@@ -116,12 +140,13 @@ The console displays:
 - blocked operations;
 - tenant-scoped preview configuration;
 - credential handle references and rotation posture;
+- audit-backed connector run records;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.
 
 The page is read-only for operators. It does not upload files to storage,
-persist connector runs, capture credentials or trigger live sync.
+execute connector runs, capture credentials or trigger live sync.
 
 ## Governance Boundary
 
@@ -134,15 +159,14 @@ contract keeps these boundaries visible:
 - rotation metadata before production vault integration;
 - no external egress by default;
 - redacted preview payloads;
-- audit event preview before future audit writes;
-- tenant-scoped configuration before future connector run records;
+- audit event preview before future connector execution;
+- tenant-scoped run records before future connector execution;
 - ontology proposal generation before future graph mutation.
 
 Future Platform work should add:
 
 - persisted connector manifest management beyond the demo seed;
 - production vault/KMS integration and secret lease automation;
-- connector run records and append-only audit writes;
 - scheduled sync lifecycle;
 - Postgres or external database demo connector;
 - connector-backed action invocation behind policy and approval gates.
@@ -160,8 +184,10 @@ The slice is covered by:
   credential field rejection;
 - API unit tests for credential handle metadata, secret reference guardrails
   and rotation history;
+- API unit tests for connector run records, audit writes and raw payload
+  rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for fallback registry, configuration, credential handle and
-  preview contracts;
+- web unit tests for fallback registry, configuration, credential handle, run
+  record and preview contracts;
 - Playwright smoke tests for `/connectors` rendering.
