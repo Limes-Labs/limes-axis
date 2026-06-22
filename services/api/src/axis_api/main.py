@@ -2148,10 +2148,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/actions/{action_id}/runs",
         response_model=ActionRunPersistenceResult,
         responses={
-            404: {"description": "Action or action registry reference record not found"},
+            404: {
+                "description": (
+                    "Action, action registry reference, or ontology reference record not found"
+                )
+            },
             403: {"description": "Action run permission denied"},
             409: {"description": "Action run idempotency conflict"},
-            422: {"description": "Action payload validation failed"},
+            422: {
+                "description": (
+                    "Action payload, action registry reference, or ontology reference invalid"
+                )
+            },
         },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
@@ -2185,6 +2193,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "code": AxisErrorCode.VALIDATION_FAILED.value,
                     "message": "Manufacturing action registry reference payload is invalid.",
                     "surface": "actions",
+                },
+            ) from exc
+        except OntologyReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing ontology reference record not found.",
+                    "surface": "ontology",
+                },
+            ) from exc
+        except OntologyReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing ontology reference payload is invalid.",
+                    "surface": "ontology",
                 },
             ) from exc
         except ActionPermissionDenied as exc:

@@ -9509,13 +9509,13 @@
             "description": "Action run permission denied"
           },
           "404": {
-            "description": "Action or action registry reference record not found"
+            "description": "Action, action registry reference, or ontology reference record not found"
           },
           "409": {
             "description": "Action run idempotency conflict"
           },
           "422": {
-            "description": "Action payload validation failed"
+            "description": "Action payload, action registry reference, or ontology reference invalid"
           }
         },
         "summary": "Manufacturing Action Run",

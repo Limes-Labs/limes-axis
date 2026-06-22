@@ -21,6 +21,7 @@ from axis_api.db import session_scope
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import ActionRun, AuditEvent, Base
+from axis_api.ontology_reference import OntologyReferenceRecordNotFound
 from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
 from axis_api.workflow_runtime import WorkflowSignalError, WorkflowSignalResult
 
@@ -70,6 +71,21 @@ def session_factory() -> sessionmaker[Session]:
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     seed_action_registry_reference(factory)
+    seed_ontology_reference(factory)
+    yield factory
+    engine.dispose()
+
+
+@pytest.fixture
+def action_registry_only_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_action_registry_reference(factory)
     yield factory
     engine.dispose()
 
@@ -90,6 +106,11 @@ def empty_session_factory() -> sessionmaker[Session]:
 def action_registry_payload() -> dict:
     migration = run_path("migrations/versions/0025_action_registry_reference.py")
     return deepcopy(migration["ACTION_REGISTRY_PAYLOAD"])
+
+
+def ontology_reference_payload() -> dict:
+    migration = run_path("migrations/versions/0030_ontology_reference.py")
+    return deepcopy(migration["ONTOLOGY_PAYLOAD"])
 
 
 def persisted_only_action_registry_payload() -> dict:
@@ -132,6 +153,25 @@ def seed_action_registry_reference(
         )
 
 
+def seed_ontology_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    ontology_payload = deepcopy(payload or ontology_reference_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="ontology",
+                reference_id="manufacturing-ontology",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=ontology_payload,
+            )
+        )
+
+
 def supplier_action_request(
     *,
     idempotency_key: str = "tenant_demo_manufacturing:request_supplier_expedite:test",
@@ -168,6 +208,12 @@ def test_action_run_path_does_not_load_demo_action_registry_seed() -> None:
     assert "get_manufacturing_action_registry" not in source
 
 
+def test_action_run_path_does_not_load_demo_ontology_seed() -> None:
+    source = Path("src/axis_api/action_runs.py").read_text()
+
+    assert "get_manufacturing_ontology" not in source
+
+
 async def test_record_demo_action_run_reads_persisted_action_registry_reference(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -196,6 +242,19 @@ async def test_record_demo_action_run_requires_persisted_action_registry_referen
     with session_scope(empty_session_factory) as session:
         repository = AxisPersistenceRepository(session)
         with pytest.raises(ActionReferenceRecordNotFound):
+            await record_demo_action_run(
+                repository,
+                "request_supplier_expedite",
+                supplier_action_request(),
+            )
+
+
+async def test_record_demo_action_run_requires_persisted_ontology_reference(
+    action_registry_only_session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(action_registry_only_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(OntologyReferenceRecordNotFound):
             await record_demo_action_run(
                 repository,
                 "request_supplier_expedite",
@@ -241,6 +300,37 @@ async def test_record_demo_action_run_persists_run_and_audit_event(
         "supplier_batch_id",
         "target_arrival",
     ]
+
+
+async def test_record_demo_action_run_uses_persisted_ontology_relationship_scopes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_payload = ontology_reference_payload()
+    for relationship in ontology_payload["relationships"]:
+        if relationship["relationship_id"] == "rel_supplier_batch_impacts_line":
+            relationship["permission_scope"] = "persisted:supply:read"
+    seed_ontology_reference(session_factory, ontology_payload)
+    request = supplier_action_request()
+    request.actor_scopes = [
+        "supply:read",
+        "persisted:supply:read",
+        "approvals:supply:request",
+    ]
+    request.idempotency_key = "persisted-ontology-scope"
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        result = await record_demo_action_run(
+            repository,
+            "request_supplier_expedite",
+            request,
+        )
+
+    with session_factory() as session:
+        audit_event = session.scalars(select(AuditEvent)).one()
+
+    assert result.permission_decision.allowed is True
+    assert audit_event.payload["relationship_scopes"] == ["persisted:supply:read"]
 
 
 async def test_record_demo_action_run_signals_bound_workflow_after_persistence(
@@ -550,6 +640,26 @@ def test_action_run_endpoint_reports_missing_action_registry_reference(
         "code": "NOT_FOUND",
         "message": "Manufacturing action registry reference record not found.",
         "surface": "actions",
+    }
+
+
+def test_action_run_endpoint_reports_missing_ontology_reference(
+    action_registry_only_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = action_registry_only_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/actions/request_supplier_expedite/runs",
+        json=supplier_action_request().model_dump(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing ontology reference record not found.",
+        "surface": "ontology",
     }
 
 

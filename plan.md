@@ -166,7 +166,9 @@ also reads from `surface=agents` and
 `reference_id=manufacturing-agent-registry`. The action registry endpoint reads
 from `surface=actions` and `reference_id=manufacturing-action-registry`; action
 run requests validate their action definitions against that same persisted
-record before writing action/audit state.
+record and derive ontology resource relationship scopes from
+`surface=ontology/reference_id=manufacturing-ontology` before writing
+action/audit state.
 The workflow console reference endpoint reads from `surface=workflows` and
 `reference_id=manufacturing-workflow-console`, while
 `/demo/manufacturing/workflows/runs` continues to query operational workflow run
@@ -406,10 +408,10 @@ the runtime is unavailable. When a bearer token is present, or when OIDC auth is
 required by configuration, action run creation derives tenant, actor and scopes
 from token claims and rejects actor impersonation before persistence. Action
 payload fields marked as ontology references also require the scopes attached to
-their connected ontology relationships, preventing cross-domain resource
-references from bypassing the typed action permission check. Live production
-execution, connector invocation and broader relationship-aware permission
-enforcement remain Platform work.
+their connected ontology relationships from the persisted ontology reference
+record, preventing cross-domain resource references from bypassing the typed
+action permission check. Live production execution, connector invocation and
+broader relationship-aware permission enforcement remain Platform work.
 
 The model routing and cost observability layer is currently read-only and API
 required. The browser no longer carries local route telemetry fallback records,
