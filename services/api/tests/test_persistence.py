@@ -20,6 +20,7 @@ from axis_api.models import (
     ConnectorOntologyProposal,
     ConnectorPromotionPolicy,
     ConnectorRun,
+    DemoReferenceRecord,
 )
 from axis_api.persistence import (
     ActionRunCreate,
@@ -38,6 +39,7 @@ from axis_api.persistence import (
     ConnectorOntologyProposalCreate,
     ConnectorPromotionPolicyCreate,
     ConnectorRunCreate,
+    DemoReferenceRecordCreate,
     PersistenceRecordNotFound,
 )
 
@@ -66,6 +68,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "connector_ontology_promotions",
         "connector_promotion_policies",
         "connector_manual_import_requests",
+        "demo_reference_records",
     }.issubset(Base.metadata.tables.keys())
     assert ApprovalRecord.__table__.c.tenant_id.index is True
     assert ActionRun.__table__.c.idempotency_key.index is True
@@ -89,6 +92,144 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorManualImportRequest.__table__.c.idempotency_key.index is True
     assert ConnectorManualImportRequest.__table__.c.decision.index is True
     assert ConnectorManualImportRequest.__table__.c.decision_actor_id.index is True
+    assert DemoReferenceRecord.__table__.c.tenant_id.index is True
+    assert DemoReferenceRecord.__table__.c.surface.index is True
+    assert DemoReferenceRecord.__table__.c.status.index is True
+
+
+def test_repository_persists_demo_reference_records_by_surface(session: Session) -> None:
+    repository = AxisPersistenceRepository(session)
+    created = repository.upsert_demo_reference_record(
+        DemoReferenceRecordCreate(
+            tenant_id="tenant_demo_manufacturing",
+            surface="overview",
+            reference_id="manufacturing-overview",
+            status="active",
+            source="bootstrap",
+            version="2026-06-22",
+            payload={
+                "tenant_id": "tenant_demo_manufacturing",
+                "plant_name": "Persisted Plant",
+                "scenario": "Persisted Overview",
+                "as_of": "2026-06-22T10:00:00+02:00",
+                "metrics": [
+                    {
+                        "label": "Persisted Metric",
+                        "value": "1",
+                        "detail": "Loaded from the repository.",
+                        "status": "ready",
+                    }
+                ],
+                "risk_signals": [
+                    {
+                        "title": "Persisted risk",
+                        "domain": "Operations",
+                        "severity": "watch",
+                        "owner_role": "operations-owner",
+                        "evidence": "Persisted risk evidence.",
+                        "related_asset": "asset_persisted",
+                    }
+                ],
+                "workflows": [
+                    {
+                        "workflow_id": "wf_persisted",
+                        "name": "Persisted Workflow",
+                        "state": "ready",
+                        "owner_role": "operations-owner",
+                        "blocker": None,
+                        "eta": "Today",
+                    }
+                ],
+                "approvals": [
+                    {
+                        "approval_id": "appr_persisted",
+                        "action": "Persisted approval",
+                        "risk_level": "low",
+                        "requested_by": "axis-bootstrap",
+                        "owner_role": "operations-owner",
+                        "due": "Today",
+                    }
+                ],
+                "agents": [
+                    {
+                        "agent_id": "agent_persisted",
+                        "name": "Persisted Agent",
+                        "autonomy_level": "L1",
+                        "status": "ready",
+                        "proposals_pending": 0,
+                        "model_policy": "local-only",
+                    }
+                ],
+                "audit_events": [
+                    {
+                        "event": "overview.loaded",
+                        "actor": "axis-bootstrap",
+                        "scope": "overview",
+                        "result": "persisted",
+                    }
+                ],
+            },
+        )
+    )
+
+    loaded = repository.get_demo_reference_record(
+        tenant_id="tenant_demo_manufacturing",
+        surface="overview",
+        reference_id="manufacturing-overview",
+    )
+
+    assert loaded is not None
+    assert loaded.id == created.id
+    assert loaded.payload["plant_name"] == "Persisted Plant"
+    assert loaded.source == "bootstrap"
+
+    inactive_payload = dict(loaded.payload)
+    inactive_payload["plant_name"] = "Inactive Persisted Plant"
+    inactive = repository.upsert_demo_reference_record(
+        DemoReferenceRecordCreate(
+            tenant_id="tenant_demo_manufacturing",
+            surface="overview",
+            reference_id="manufacturing-overview",
+            status="inactive",
+            source="bootstrap",
+            version="2026-06-23",
+            payload=inactive_payload,
+        )
+    )
+
+    assert inactive.id == created.id
+    assert (
+        repository.get_demo_reference_record(
+            tenant_id="tenant_demo_manufacturing",
+            surface="overview",
+            reference_id="manufacturing-overview",
+        )
+        is None
+    )
+
+    reactivated_payload = dict(inactive.payload)
+    reactivated_payload["plant_name"] = "Reactivated Persisted Plant"
+    reactivated = repository.upsert_demo_reference_record(
+        DemoReferenceRecordCreate(
+            tenant_id="tenant_demo_manufacturing",
+            surface="overview",
+            reference_id="manufacturing-overview",
+            status="active",
+            source="bootstrap",
+            version="2026-06-24",
+            payload=reactivated_payload,
+        )
+    )
+    loaded = repository.get_demo_reference_record(
+        tenant_id="tenant_demo_manufacturing",
+        surface="overview",
+        reference_id="manufacturing-overview",
+    )
+
+    assert reactivated.id == created.id
+    assert loaded is not None
+    assert loaded.payload["plant_name"] == "Reactivated Persisted Plant"
+    assert loaded.version == "2026-06-24"
 
 
 def test_repository_appends_audit_events_without_cross_tenant_leakage(session: Session) -> None:

@@ -11970,6 +11970,19 @@
     "/demo/manufacturing/overview": {
       "get": {
         "operationId": "manufacturing_overview_demo_manufacturing_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -11980,6 +11993,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Manufacturing overview reference record not found"
+          },
+          "422": {
+            "description": "Manufacturing overview reference payload invalid"
           }
         },
         "summary": "Manufacturing Overview",

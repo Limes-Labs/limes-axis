@@ -5,9 +5,11 @@ API-backed operational demo surface.
 
 ## Demo Scope
 
-The manufacturing reference records are API-owned and public-safe. They use
-roles, system IDs and demo tenant IDs rather than personal names or customer
-data. The browser does not carry local overview records.
+The manufacturing overview reference is API-owned, public-safe and persisted as
+a tenant-scoped bootstrap record. It uses roles, system IDs and demo tenant IDs
+rather than personal names or customer data. The browser does not carry local
+overview records, and the API no longer defines the overview as a runtime seed
+function.
 
 It models the first Plant Operations Cockpit scenario:
 
@@ -25,7 +27,10 @@ The FastAPI service exposes:
 GET /demo/manufacturing/overview
 ```
 
-The endpoint returns a typed overview for the demo tenant:
+The endpoint reads the active `demo_reference_records` row for
+`tenant_demo_manufacturing`, `surface=overview` and
+`reference_id=manufacturing-overview`, then returns a typed overview for the
+demo tenant:
 
 - summary metrics;
 - risk signals;
@@ -35,7 +40,17 @@ The endpoint returns a typed overview for the demo tenant:
 - recent audit evidence.
 
 The schema is included in `docs/openapi.json` and checked by CI through
-`make openapi-check`.
+`make openapi-check`. The endpoint returns 404 when the persisted reference
+record is missing and 422 when the persisted payload fails the overview
+contract.
+
+## Persistence Boundary
+
+Alembic migration `0022_demo_reference_records` creates the
+`demo_reference_records` table and inserts the public-safe manufacturing
+overview bootstrap record. The table is tenant-scoped, keyed by surface and
+reference id, and designed for future extraction of demo/reference content out
+of runtime code without moving browser fallback data back into the console.
 
 ## Console Behavior
 
@@ -52,6 +67,8 @@ authenticated API surfaces backed by Postgres, TypeDB and workflow state.
 Covered by:
 
 - API unit tests for the manufacturing overview reference endpoint;
+- repository tests for tenant-scoped demo reference records;
+- migration payload validation against the `ManufacturingOverview` contract;
 - generated OpenAPI drift check;
 - web unit tests for the API response contract;
 - Playwright smoke tests for API-required overview behavior on desktop and mobile.

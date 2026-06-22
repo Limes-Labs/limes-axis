@@ -1,8 +1,17 @@
+from pathlib import Path
+from runpy import run_path
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
+from axis_api.db import session_scope
 from axis_api.demo import (
     ApprovalDecision,
+    ManufacturingOverview,
     OntologyNodeType,
     OverviewStatus,
     get_manufacturing_action_registry,
@@ -12,11 +21,90 @@ from axis_api.demo import (
     get_manufacturing_model_routing,
     get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
-    get_manufacturing_overview,
     get_manufacturing_workflow_console,
 )
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
+from axis_api.models import Base
+from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+
+
+def persisted_overview_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Plant Operations Cockpit",
+        "as_of": "2026-06-22T10:00:00+02:00",
+        "metrics": [
+            {
+                "label": "Persisted Workflow Load",
+                "value": "2 active",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "risk_signals": [
+            {
+                "title": "Persisted supply risk",
+                "domain": "Supply",
+                "severity": "watch",
+                "owner_role": "supply-owner",
+                "evidence": "Persisted supply evidence.",
+                "related_asset": "asset_persisted_batch",
+            }
+        ],
+        "workflows": [
+            {
+                "workflow_id": "wf_persisted_overview",
+                "name": "Persisted Overview Workflow",
+                "state": "ready",
+                "owner_role": "operations-owner",
+                "blocker": None,
+                "eta": "Today",
+            }
+        ],
+        "approvals": [
+            {
+                "approval_id": "appr_persisted_overview",
+                "action": "Review persisted overview",
+                "risk_level": "low",
+                "requested_by": "axis-bootstrap",
+                "owner_role": "operations-owner",
+                "due": "Today",
+            }
+        ],
+        "agents": [
+            {
+                "agent_id": "agent_persisted_overview",
+                "name": "Persisted Overview Agent",
+                "autonomy_level": "L1",
+                "status": "ready",
+                "proposals_pending": 0,
+                "model_policy": "local-only",
+            }
+        ],
+        "audit_events": [
+            {
+                "event": "overview.loaded",
+                "actor": "axis-bootstrap",
+                "scope": "overview",
+                "result": "persisted",
+            }
+        ],
+    }
+
+
+@pytest.fixture
+def overview_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
 
 
 class StaticIdentityVerifier:
@@ -28,30 +116,99 @@ class StaticIdentityVerifier:
         return self.principal
 
 
-def test_manufacturing_overview_seed_is_valid_and_actionable() -> None:
-    overview = get_manufacturing_overview()
+def test_manufacturing_overview_reference_contract_is_valid_and_actionable() -> None:
+    overview = ManufacturingOverview.model_validate(persisted_overview_payload())
 
-    assert overview.scenario == "Plant Operations Cockpit"
-    assert overview.plant_name == "Ravenna Works"
-    assert any(metric.label == "Approvals" for metric in overview.metrics)
-    assert any(
-        signal.severity == OverviewStatus.ACTION_REQUIRED for signal in overview.risk_signals
-    )
-    assert any(approval.risk_level == "high" for approval in overview.approvals)
+    assert overview.scenario == "Persisted Plant Operations Cockpit"
+    assert overview.plant_name == "Persisted Ravenna Works"
+    assert any(metric.label == "Persisted Workflow Load" for metric in overview.metrics)
+    assert any(signal.severity == OverviewStatus.WATCH for signal in overview.risk_signals)
+    assert any(approval.risk_level == "low" for approval in overview.approvals)
     assert all("@" not in item.owner_role for item in overview.approvals)
 
 
-def test_manufacturing_overview_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_overview_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0022_demo_reference_records.py")
+
+    overview = ManufacturingOverview.model_validate(migration["MANUFACTURING_OVERVIEW_PAYLOAD"])
+
+    assert overview.tenant_id == "tenant_demo_manufacturing"
+    assert overview.scenario == "Plant Operations Cockpit"
+    assert any(agent.autonomy_level == "L2" for agent in overview.agents)
+
+
+def test_manufacturing_overview_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_overview" not in source
+
+
+def test_manufacturing_overview_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="overview",
+                reference_id="manufacturing-overview",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_overview_payload(),
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/overview")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["scenario"] == "Plant Operations Cockpit"
-    assert body["metrics"][0]["label"] == "Workflow Load"
-    assert body["approvals"][0]["approval_id"] == "appr_expedite_supplier_batch"
+    assert body["scenario"] == "Persisted Plant Operations Cockpit"
+    assert body["plant_name"] == "Persisted Ravenna Works"
+    assert body["metrics"][0]["label"] == "Persisted Workflow Load"
+    assert body["approvals"][0]["approval_id"] == "appr_persisted_overview"
     assert "password" not in str(body).lower()
+
+
+def test_manufacturing_overview_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/overview")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_overview_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_overview_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="overview",
+                reference_id="manufacturing-overview",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/overview")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_openapi_exposes_manufacturing_overview_endpoint() -> None:
