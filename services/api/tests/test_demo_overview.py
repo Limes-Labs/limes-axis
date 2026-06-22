@@ -14,6 +14,7 @@ from axis_api.demo import (
     ManufacturingActionRegistry,
     ManufacturingAgentRegistry,
     ManufacturingApprovalInbox,
+    ManufacturingAuditExplorer,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
     OntologyNodeType,
@@ -211,6 +212,56 @@ def persisted_approval_inbox_payload() -> dict:
                 ],
             }
         ],
+    }
+
+
+def persisted_audit_explorer_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Audit Explorer",
+        "as_of": "2026-06-22T11:30:00+02:00",
+        "ledger_status": "watch",
+        "metrics": [
+            {
+                "label": "Persisted Audit Events",
+                "value": "1",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "filter_options": {
+            "tenants": ["tenant_demo_manufacturing"],
+            "event_types": ["audit.reference.persisted"],
+            "scopes": ["audit_reference"],
+            "actors": ["axis-bootstrap"],
+            "categories": ["audit"],
+        },
+        "events": [
+            {
+                "audit_event_id": "audit_persisted_reference",
+                "occurred_at": "2026-06-22T11:30:00+02:00",
+                "tenant_id": "tenant_demo_manufacturing",
+                "actor_id": "axis-bootstrap",
+                "actor_type": "service",
+                "event_type": "audit.reference.persisted",
+                "category": "audit",
+                "domain": "Operations",
+                "scope": "audit_reference",
+                "result": "persisted",
+                "severity": "ready",
+                "source": "Axis Audit",
+                "summary": "Persisted audit explorer reference loaded by the API.",
+                "permission_scope": "audit:read",
+                "data_classification": "public-demo",
+                "evidence_refs": ["demo_reference_records"],
+                "payload_preview": {
+                    "surface": "audit",
+                    "reference_id": "manufacturing-audit-explorer",
+                },
+            }
+        ],
+        "retention_notes": ["Persisted audit explorer reference."],
     }
 
 
@@ -1058,18 +1109,103 @@ def test_manufacturing_audit_explorer_seed_is_filterable() -> None:
     assert "@" not in explorer.model_dump_json()
 
 
-def test_manufacturing_audit_explorer_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_audit_explorer_reference_contract_is_valid() -> None:
+    explorer = ManufacturingAuditExplorer.model_validate(persisted_audit_explorer_payload())
+
+    assert explorer.tenant_id == "tenant_demo_manufacturing"
+    assert explorer.scenario == "Persisted Audit Explorer"
+    assert explorer.events[0].audit_event_id == "audit_persisted_reference"
+    assert explorer.filter_options.event_types == ["audit.reference.persisted"]
+
+
+def test_manufacturing_audit_explorer_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0028_audit_explorer_reference.py")
+
+    explorer = ManufacturingAuditExplorer.model_validate(migration["AUDIT_EXPLORER_PAYLOAD"])
+
+    assert explorer.tenant_id == "tenant_demo_manufacturing"
+    assert explorer.scenario == "Plant Operations Cockpit"
+    assert len(explorer.events) == 9
+    assert explorer.events[0].event_type == "workflow.started"
+    serialized = explorer.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_audit_explorer_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_audit_explorer()" not in source
+
+
+def test_manufacturing_audit_explorer_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="audit",
+                reference_id="manufacturing-audit-explorer",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_audit_explorer_payload(),
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/audit")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["events"][0]["event_type"] == "workflow.started"
-    assert body["events"][1]["related_approval_id"] == "appr_expedite_supplier_batch"
-    assert "agent.proposal.created" in body["filter_options"]["event_types"]
-    assert "retention policy enforcement" in body["retention_notes"][3]
+    assert body["scenario"] == "Persisted Audit Explorer"
+    assert body["events"][0]["audit_event_id"] == "audit_persisted_reference"
+    assert body["events"][0]["event_type"] == "audit.reference.persisted"
+    assert body["filter_options"]["event_types"] == ["audit.reference.persisted"]
+    assert "Persisted audit explorer reference." in body["retention_notes"][0]
     assert "password" not in str(body).lower()
+
+
+def test_manufacturing_audit_explorer_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/audit")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_audit_explorer_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_audit_explorer_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="audit",
+                reference_id="manufacturing-audit-explorer",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/audit")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_openapi_exposes_manufacturing_audit_explorer_endpoint() -> None:

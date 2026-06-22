@@ -147,6 +147,13 @@ The twenty-seventh Alembic migration adds:
   permissions and workflow references used by
   `GET /demo/manufacturing/approvals` and the approval decision endpoint.
 
+The twenty-eighth Alembic migration adds:
+
+- a persisted manufacturing audit explorer bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe reference audit events, filter options, redacted payload
+  previews and retention notes used by `GET /demo/manufacturing/audit`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -285,6 +292,11 @@ Delivered:
   `surface=approvals/reference_id=manufacturing-approval-inbox`, approval
   decisions validating against the same persisted inbox record and both paths
   returning 404/422 for missing or invalid persisted payloads.
+- persisted manufacturing audit explorer reference records through
+  `demo_reference_records`, with the API reading
+  `surface=audit/reference_id=manufacturing-audit-explorer` while the separate
+  `/demo/manufacturing/audit/events` and `/demo/manufacturing/audit/export`
+  endpoints continue to query persisted `audit_events`.
 
 Still Platform work:
 

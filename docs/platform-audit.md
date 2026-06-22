@@ -17,7 +17,10 @@ GET /demo/manufacturing/audit/events
 GET /demo/manufacturing/audit/export
 ```
 
-The reference endpoint returns a typed audit explorer for the demo tenant. The
+The reference endpoint returns a typed audit explorer for the demo tenant. It
+reads the active `demo_reference_records` row for `surface=audit` and
+`reference_id=manufacturing-audit-explorer`; missing or invalid persisted
+payloads return 404/422 instead of falling back to route-owned seed data. The
 persisted endpoint queries Postgres `audit_events` with tenant-scoped filters:
 
 - `tenant_id`;
@@ -65,9 +68,11 @@ state instead of constructing a local bundle.
 
 ## Governance Boundary
 
-This slice demonstrates the audit contract and explorer surface. It does not
-yet implement physical retention deletion jobs, legal hold workflow, WORM/KMS
-storage hardening or deterministic Temporal replay.
+This slice demonstrates the audit contract and explorer surface. Alembic
+migration `0028_audit_explorer_reference` inserts the public-safe reference
+explorer payload. It does not yet implement physical retention deletion jobs,
+legal hold workflow, WORM/KMS storage hardening or deterministic Temporal
+replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
@@ -97,7 +102,8 @@ deletion jobs and production legal-hold workflows remain future work.
 
 The slice is covered by:
 
-- API unit tests for the manufacturing audit explorer reference endpoint;
+- API unit tests for the manufacturing audit explorer persisted reference
+  endpoint, bootstrap payload and missing/invalid record handling;
 - API unit tests for persisted audit event query mapping and filters;
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;

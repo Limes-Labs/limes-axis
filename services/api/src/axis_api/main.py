@@ -42,6 +42,11 @@ from axis_api.audit_queries import (
     export_persisted_audit_events,
     query_persisted_audit_events,
 )
+from axis_api.audit_reference import (
+    AuditReferenceRecordInvalid,
+    AuditReferenceRecordNotFound,
+    get_persisted_manufacturing_audit_explorer,
+)
 from axis_api.config import Settings
 from axis_api.connector_configurations import (
     ConnectorConfigurationCreateRequest,
@@ -212,7 +217,6 @@ from axis_api.demo import (
     ManufacturingOntologyEntityDetail,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
-    get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
     get_manufacturing_ontology_entity_detail,
 )
@@ -2303,10 +2307,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/audit",
         response_model=ManufacturingAuditExplorer,
+        responses={
+            404: {"description": "Audit explorer reference record not found"},
+            422: {"description": "Audit explorer reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_audit_explorer() -> ManufacturingAuditExplorer:
-        return get_manufacturing_audit_explorer()
+    def manufacturing_audit_explorer(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingAuditExplorer:
+        try:
+            return get_persisted_manufacturing_audit_explorer(
+                repository,
+                tenant_id=tenant_id,
+            )
+        except AuditReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing audit explorer reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "audit",
+                },
+            ) from exc
+        except AuditReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing audit explorer reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "audit",
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/audit/events",

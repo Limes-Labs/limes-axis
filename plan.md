@@ -142,9 +142,11 @@ Foundation acceptance is tracked in
   bootstrap record.
 - [x] Persist the manufacturing approval inbox reference as a tenant-scoped
   bootstrap record.
+- [x] Persist the manufacturing audit explorer reference as a tenant-scoped
+  bootstrap record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
-  console, approval inbox, connector registry, agent registry and action
-  registry with persisted, tenant-scoped bootstrap records.
+  console, approval inbox, audit explorer, connector registry, agent registry
+  and action registry with persisted, tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -167,7 +169,10 @@ state and tenant-scoped timeline events. The approval inbox endpoint reads from
 `surface=approvals` and `reference_id=manufacturing-approval-inbox`; approval
 decision submissions validate approval ids, workflow ids and required
 permissions against that same persisted record before writing approval, audit
-or workflow-signal evidence. Remaining API-owned reference records are a
+or workflow-signal evidence. The audit explorer reference endpoint reads from
+`surface=audit` and `reference_id=manufacturing-audit-explorer`; the separate
+audit events and export endpoints continue to query persisted `audit_events`.
+Remaining API-owned reference records are a
 bootstrap boundary and must be moved to persisted tenant-scoped records before
 production use. The full manufacturing reference demo remains open until it has
 ontology relationships, approval actions, workflow execution and replay backed
@@ -207,11 +212,12 @@ the token against configurable OIDC/JWKS settings and derives tenant, actor and
 scopes from token claims before persistence. Broader relationship-aware
 permission enforcement remains Platform work.
 
-The audit explorer is API required and can query persisted `audit_events`
-through the demo API when records exist. The browser no longer carries audit
-fallback records. The demo API can also return a redacted JSON export bundle
-with manifest checksum, applied filters, retention-window enforcement and
-hash-chain integrity proof.
+The audit explorer is API required, its reference view is now loaded from a
+persisted tenant-scoped bootstrap row, and it can query persisted
+`audit_events` through the demo API when records exist. The browser no longer
+carries audit fallback records. The demo API can also return a redacted JSON
+export bundle with manifest checksum, applied filters, retention-window
+enforcement and hash-chain integrity proof.
 Retention deletion execution, legal hold workflow and production-grade
 tenant-scoped query permissions remain Platform work.
 
