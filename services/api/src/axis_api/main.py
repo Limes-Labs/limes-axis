@@ -57,7 +57,10 @@ from axis_api.connector_credential_leases import (
     ConnectorCredentialLeaseRequest,
     ConnectorCredentialLeaseRevokeRequest,
     ConnectorCredentialLeaseValidationError,
+    CredentialLeaseRuntime,
+    DeferredCredentialLeaseRuntime,
     ManufacturingConnectorCredentialLeaseRegistry,
+    SelfHostedVaultKmsLeaseRuntime,
     build_connector_credential_lease_registry,
     record_demo_connector_credential_lease,
     renew_demo_connector_credential_lease,
@@ -267,6 +270,16 @@ def connector_execution_runtime(request: Request) -> ConnectorExecutionRuntime:
 ConnectorExecutionRuntimeDependency = Annotated[
     ConnectorExecutionRuntime,
     Depends(connector_execution_runtime),
+]
+
+
+def credential_lease_runtime(request: Request) -> CredentialLeaseRuntime:
+    return request.app.state.credential_lease_runtime
+
+
+CredentialLeaseRuntimeDependency = Annotated[
+    CredentialLeaseRuntime,
+    Depends(credential_lease_runtime),
 ]
 
 
@@ -596,6 +609,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else DeferredOntologyQueryRuntime()
     )
     app.state.connector_execution_runtime = DeferredConnectorExecutionRuntime()
+    app.state.credential_lease_runtime = (
+        SelfHostedVaultKmsLeaseRuntime()
+        if resolved_settings.credential_lease_execution_enabled
+        else DeferredCredentialLeaseRuntime()
+    )
     app.state.identity_verifier = RemoteJwksOidcVerifier(
         issuer=resolved_settings.oidc_issuer,
         audience=resolved_settings.oidc_audience,
@@ -974,9 +992,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def manufacturing_connector_credential_lease_create(
         lease_request: ConnectorCredentialLeaseRequest,
         repository: PersistenceRepository,
+        lease_runtime: CredentialLeaseRuntimeDependency,
     ) -> ConnectorCredentialLeaseRecord:
         try:
-            return record_demo_connector_credential_lease(repository, lease_request)
+            return record_demo_connector_credential_lease(
+                repository,
+                lease_request,
+                lease_runtime,
+            )
         except ConnectorCredentialLeasePermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -1021,9 +1044,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lease_id: str,
         renew_request: ConnectorCredentialLeaseRenewRequest,
         repository: PersistenceRepository,
+        lease_runtime: CredentialLeaseRuntimeDependency,
     ) -> ConnectorCredentialLeaseRecord:
         try:
-            return renew_demo_connector_credential_lease(repository, lease_id, renew_request)
+            return renew_demo_connector_credential_lease(
+                repository,
+                lease_id,
+                renew_request,
+                lease_runtime,
+            )
         except ConnectorCredentialLeasePermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -1058,9 +1087,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lease_id: str,
         revoke_request: ConnectorCredentialLeaseRevokeRequest,
         repository: PersistenceRepository,
+        lease_runtime: CredentialLeaseRuntimeDependency,
     ) -> ConnectorCredentialLeaseRecord:
         try:
-            return revoke_demo_connector_credential_lease(repository, lease_id, revoke_request)
+            return revoke_demo_connector_credential_lease(
+                repository,
+                lease_id,
+                revoke_request,
+                lease_runtime,
+            )
         except ConnectorCredentialLeasePermissionDenied as exc:
             raise HTTPException(
                 status_code=403,

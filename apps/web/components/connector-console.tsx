@@ -707,7 +707,7 @@ export function ConnectorConsole() {
                 <div>
                   <p className="metric-label">Adapter</p>
                   <p className="row-title">{lease.lease_result.adapter}</p>
-                  <p className="row-detail">{lease.runtime_boundary}</p>
+                  <p className="row-detail">{lease.lease_result.provider_mode}</p>
                 </div>
                 <div>
                   <p className="metric-label">Lease Window</p>
@@ -717,7 +717,7 @@ export function ConnectorConsole() {
                 <div>
                   <p className="metric-label">Evidence</p>
                   <p className="row-title">{lease.audit_event_type}</p>
-                  <p className="row-detail">{lease.requested_by}</p>
+                  <p className="row-detail">{lease.lease_result.provider_lease_ref}</p>
                 </div>
                 <div>
                   <p className="metric-label">Secret Material</p>
