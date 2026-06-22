@@ -92,9 +92,9 @@ Foundation acceptance is tracked in
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests and retention policy metadata.
 - [x] Persist workflow run state and tenant-scoped history views.
+- [x] Build replay and simulation foundations.
 - [ ] Build the connector framework.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Build replay and simulation foundations.
 
 The governance console overview is backed by the first public-safe synthetic
 manufacturing seed. The full manufacturing reference demo remains open until it
@@ -133,8 +133,15 @@ The audit explorer is backed by the synthetic manufacturing audit seed and can
 query persisted `audit_events` through the demo API when records exist. The demo
 API can also return a redacted JSON export bundle with manifest checksum,
 applied filters and retention policy metadata. Retention deletion enforcement,
-legal hold workflow, production-grade tenant-scoped query permissions and replay
-remain Platform work.
+legal hold workflow and production-grade tenant-scoped query permissions remain
+Platform work.
+
+The replay/simulation foundation derives public-safe replay artifacts from
+workflow run history, timeline events and redacted audit evidence. The
+`/simulation` page shows baseline versus simulated policy decisions for the
+manufacturing demo. Temporal deterministic replay, arbitrary policy diffing,
+retention-aware replay windows and persisted simulation outputs remain Platform
+and Enterprise work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,

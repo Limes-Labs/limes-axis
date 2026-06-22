@@ -2198,6 +2198,63 @@
         "title": "ManufacturingOverview",
         "type": "object"
       },
+      "ManufacturingReplaySimulation": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ReplayArtifact"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulation_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Simulation Notes",
+            "type": "array"
+          },
+          "simulation_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "simulation_status"
+        ],
+        "title": "ManufacturingReplaySimulation",
+        "type": "object"
+      },
       "ManufacturingWorkflowConsole": {
         "properties": {
           "as_of": {
@@ -2720,6 +2777,145 @@
           "reason"
         ],
         "title": "PermissionDecision",
+        "type": "object"
+      },
+      "PolicySimulationResult": {
+        "properties": {
+          "baseline_decision": {
+            "minLength": 1,
+            "title": "Baseline Decision",
+            "type": "string"
+          },
+          "changed_outcome": {
+            "title": "Changed Outcome",
+            "type": "boolean"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "policy_id": {
+            "minLength": 1,
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "policy_name": {
+            "minLength": 1,
+            "title": "Policy Name",
+            "type": "string"
+          },
+          "simulated_decision": {
+            "minLength": 1,
+            "title": "Simulated Decision",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_name",
+          "baseline_decision",
+          "simulated_decision",
+          "changed_outcome",
+          "summary"
+        ],
+        "title": "PolicySimulationResult",
+        "type": "object"
+      },
+      "ReplayArtifact": {
+        "properties": {
+          "artifact_id": {
+            "minLength": 1,
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "audit_event_count": {
+            "minimum": 0.0,
+            "title": "Audit Event Count",
+            "type": "integer"
+          },
+          "audit_events": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLedgerEvent"
+            },
+            "title": "Audit Events",
+            "type": "array"
+          },
+          "audit_scope": {
+            "minLength": 1,
+            "title": "Audit Scope",
+            "type": "string"
+          },
+          "determinism_status": {
+            "minLength": 1,
+            "title": "Determinism Status",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "policy_results": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySimulationResult"
+            },
+            "title": "Policy Results",
+            "type": "array"
+          },
+          "replay_mode": {
+            "minLength": 1,
+            "title": "Replay Mode",
+            "type": "string"
+          },
+          "replay_ready": {
+            "title": "Replay Ready",
+            "type": "boolean"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTimelineEvent"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "timeline_event_count": {
+            "minimum": 0.0,
+            "title": "Timeline Event Count",
+            "type": "integer"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          },
+          "workflow_name": {
+            "minLength": 1,
+            "title": "Workflow Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "workflow_id",
+          "workflow_name",
+          "audit_scope",
+          "replay_mode",
+          "replay_ready",
+          "determinism_status",
+          "timeline_event_count",
+          "audit_event_count"
+        ],
+        "title": "ReplayArtifact",
         "type": "object"
       },
       "RiskSignal": {
@@ -3739,6 +3935,79 @@
           }
         },
         "summary": "Manufacturing Overview",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/simulation/replay": {
+      "get": {
+        "operationId": "manufacturing_replay_simulation_demo_manufacturing_simulation_replay_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workflow_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingReplaySimulation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Replay Simulation",
         "tags": [
           "demo"
         ]

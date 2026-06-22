@@ -83,7 +83,9 @@ the synthetic seed as a fallback. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews and
 retention policy metadata. The workflow persistence slice adds Postgres-backed
 workflow runs and timeline events, with the workflow console preferring
-persisted state when records exist.
+persisted state when records exist. The replay/simulation foundation derives
+public-safe replay artifacts from workflow history and audit events, and adds a
+read-only `/simulation` console for policy preview inspection.
 
 ## Architecture Defaults
 
@@ -204,6 +206,7 @@ Architecture and acceptance notes:
 - [`docs/platform-actions.md`](./docs/platform-actions.md)
 - [`docs/platform-persistence.md`](./docs/platform-persistence.md)
 - [`docs/platform-model-routing.md`](./docs/platform-model-routing.md)
+- [`docs/platform-simulation.md`](./docs/platform-simulation.md)
 
 Reference examples:
 

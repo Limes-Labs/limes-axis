@@ -85,7 +85,7 @@ export const defaultManufacturingWorkflowConsole: ManufacturingWorkflowConsole =
     {
       label: "Replay",
       value: "Preview",
-      detail: "History preview exists; deterministic replay remains Platform work",
+      detail: "Replay preview artifacts are available in the simulation console",
       status: "watch",
     },
   ],
@@ -93,7 +93,7 @@ export const defaultManufacturingWorkflowConsole: ManufacturingWorkflowConsole =
     "The public workflow console seed is read-only and synthetic.",
     "Temporal remains behind the Axis workflow runtime adapter boundary.",
     "Signals shown here are pending governance signals, not live production mutations.",
-    "Durable replay, persisted history views and workflow signal execution remain Platform work.",
+    "Replay previews are available; durable replay and workflow mutation controls remain Platform work.",
   ],
   workflow_runs: [
     {

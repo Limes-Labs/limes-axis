@@ -102,8 +102,8 @@ def _metrics(runs: list[WorkflowRun]) -> list[OverviewMetric]:
         ),
         OverviewMetric(
             label="Replay",
-            value="Pending",
-            detail="History is queryable, but deterministic replay is not implemented yet",
+            value="Preview",
+            detail="Replay preview artifacts are available through the simulation endpoint",
             status=OverviewStatus.WATCH,
         ),
     ]
@@ -140,6 +140,7 @@ def query_persisted_workflow_runs(
             "This view is backed by persisted workflow run state.",
             "Timeline events are tenant-scoped before optional state filters.",
             "Temporal remains behind the Axis workflow runtime adapter boundary.",
-            "Deterministic replay and production history retention remain Platform work.",
+            "Replay previews are available; deterministic replay and production history "
+            "retention remain Platform work.",
         ],
     )
