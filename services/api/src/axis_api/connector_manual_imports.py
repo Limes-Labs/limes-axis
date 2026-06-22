@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import ApprovalDecision, OverviewMetric, OverviewStatus
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
@@ -230,7 +230,7 @@ def record_demo_connector_manual_import(
     repository: AxisPersistenceRepository,
     request: ConnectorManualImportCreateRequest,
 ) -> ConnectorManualImportRecord:
-    manifest = _manifest_for_connector(request.connector_id)
+    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_import_mode(request.import_mode)
     _validate_redacted_summary(request.import_summary)
 
@@ -502,8 +502,12 @@ def _manual_import_status_for_decision(decision: ApprovalDecision) -> str:
     return "changes_requested"
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest

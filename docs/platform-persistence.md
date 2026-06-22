@@ -303,6 +303,10 @@ Delivered:
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
   connector runtime boundary metadata before run rows or audit events are
   written.
+- connector manual import request creation now reads
+  `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
+  connector runtime boundary metadata before approval-gated import rows or
+  audit events are written.
 - persisted manufacturing agent registry reference records through
   `demo_reference_records`, with the API reading
   `surface=agents/reference_id=manufacturing-agent-registry` and returning
