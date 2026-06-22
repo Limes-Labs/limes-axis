@@ -102,7 +102,8 @@ The registry endpoint is still a bootstrap reference surface, but it is no
 longer constructed inside the FastAPI route. The bootstrap record is inserted
 by Alembic migration `0023_connector_registry_reference`, validated against the
 `ManufacturingConnectorRegistry` contract and queried through the persistence
-repository.
+repository. The API runtime no longer defines a connector registry seed
+factory; tests validate the bootstrap payload directly from the migration.
 
 Connector configuration creation reads that same persisted registry reference
 to resolve the connector manifest and runtime boundary for the requested

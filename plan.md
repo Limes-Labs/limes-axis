@@ -136,6 +136,7 @@ Foundation acceptance is tracked in
   bootstrap record.
 - [x] Persist the manufacturing connector registry reference as a
   tenant-scoped bootstrap record.
+- [x] Remove the connector registry runtime seed factory from the API module.
 - [x] Use the persisted connector registry reference for manual import request
   creation.
 - [x] Use the persisted connector registry reference for promotion policy
@@ -261,6 +262,8 @@ rows, map them to ontology entity proposals and return a redacted audit event
 preview through `/demo/manufacturing/connectors/file-csv/preview`. The registry
 returned by `/demo/manufacturing/connectors` now reads from the tenant-scoped
 `demo_reference_records` bootstrap row instead of a route-owned runtime seed.
+The API module no longer defines a connector registry factory; tests validate
+the Alembic bootstrap payload directly against the registry schema.
 Connector configuration creation resolves connector manifests and runtime
 boundaries from that persisted registry reference before storing tenant
 configuration state.
