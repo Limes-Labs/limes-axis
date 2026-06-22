@@ -2,10 +2,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.action_reference import get_persisted_manufacturing_action_registry
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import (
     ActionRegistryEntry,
-    get_manufacturing_action_registry,
     get_manufacturing_ontology,
 )
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
@@ -70,11 +70,14 @@ class ActionRunPersistenceResult(BaseModel):
     workflow_signal_status: str = Field(default="not_required", min_length=1)
 
 
-def _find_demo_action(action_id: str) -> tuple[str, ActionRegistryEntry]:
-    registry = get_manufacturing_action_registry()
+def _find_demo_action(
+    repository: AxisPersistenceRepository,
+    action_id: str,
+) -> tuple[str, ActionRegistryEntry, str]:
+    registry = get_persisted_manufacturing_action_registry(repository)
     for action in registry.actions:
         if action.definition.action_id == action_id:
-            return registry.tenant_id, action
+            return registry.tenant_id, action, registry.schema_version
 
     raise DemoActionNotFound("Action not found")
 
@@ -197,18 +200,21 @@ def _idempotency_key(
     return f"{tenant_id}:{action.definition.action_id}:{request.actor_id}:preview"
 
 
-def _stored_payload(action: ActionRegistryEntry, request: ActionRunRequest) -> dict:
+def _stored_payload(
+    action: ActionRegistryEntry,
+    request: ActionRunRequest,
+    schema_version: str,
+) -> dict:
     return {
         "input": request.payload,
-        "schema_version": get_manufacturing_action_registry().schema_version,
+        "schema_version": schema_version,
         "dry_run": action.policy.dry_run_supported,
     }
 
 
 def _should_signal_workflow(action: ActionRegistryEntry) -> bool:
     return (
-        bool(action.workflow_bindings)
-        and action.policy.runtime_adapter == "axis-temporal-adapter"
+        bool(action.workflow_bindings) and action.policy.runtime_adapter == "axis-temporal-adapter"
     )
 
 
@@ -288,11 +294,11 @@ async def record_demo_action_run(
     request: ActionRunRequest,
     workflow_runtime: WorkflowSignalRuntime | None = None,
 ) -> ActionRunPersistenceResult:
-    tenant_id, action = _find_demo_action(action_id)
+    tenant_id, action, schema_version = _find_demo_action(repository, action_id)
     _validate_payload(action, request.payload)
     permission_decision = _evaluate_action_permission(tenant_id, action, request)
     idempotency_key = _idempotency_key(tenant_id, action, request)
-    payload = _stored_payload(action, request)
+    payload = _stored_payload(action, request, schema_version)
     runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
 
     existing = repository.get_action_run_by_idempotency_key(

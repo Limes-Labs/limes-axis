@@ -4,6 +4,11 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from axis_api.action_reference import (
+    ActionReferenceRecordInvalid,
+    ActionReferenceRecordNotFound,
+    get_persisted_manufacturing_action_registry,
+)
 from axis_api.action_runs import (
     ActionPayloadValidationError,
     ActionPermissionDenied,
@@ -202,7 +207,6 @@ from axis_api.demo import (
     ManufacturingOntologyEntityDetail,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
-    get_manufacturing_action_registry,
     get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
@@ -906,10 +910,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/actions",
         response_model=ManufacturingActionRegistry,
+        responses={
+            404: {"description": "Action registry reference record not found"},
+            422: {"description": "Action registry reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_action_registry() -> ManufacturingActionRegistry:
-        return get_manufacturing_action_registry()
+    def manufacturing_action_registry(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingActionRegistry:
+        try:
+            return get_persisted_manufacturing_action_registry(
+                repository,
+                tenant_id=tenant_id,
+            )
+        except ActionReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing action registry reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "actions",
+                },
+            ) from exc
+        except ActionReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing action registry reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "actions",
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/connectors",
@@ -2061,6 +2096,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/actions/{action_id}/runs",
         response_model=ActionRunPersistenceResult,
         responses={
+            404: {"description": "Action or action registry reference record not found"},
             403: {"description": "Action run permission denied"},
             409: {"description": "Action run idempotency conflict"},
             422: {"description": "Action payload validation failed"},
@@ -2081,6 +2117,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result = await record_demo_action_run(repository, action_id, bound_action_run, runtime)
         except DemoActionNotFound as exc:
             raise HTTPException(status_code=404, detail="Action not found") from exc
+        except ActionReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing action registry reference record not found.",
+                    "surface": "actions",
+                },
+            ) from exc
+        except ActionReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing action registry reference payload is invalid.",
+                    "surface": "actions",
+                },
+            ) from exc
         except ActionPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,

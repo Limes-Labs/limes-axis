@@ -125,6 +125,13 @@ The twenty-fourth Alembic migration adds:
 - the public-safe L1-L2 agent registry, policy boundaries, proposals and
   evidence references used by `GET /demo/manufacturing/agents`.
 
+The twenty-fifth Alembic migration adds:
+
+- a persisted manufacturing action registry bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe typed action catalog, schemas, policy boundaries, guardrails
+  and dry-run sample payloads used by `GET /demo/manufacturing/actions`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -247,6 +254,11 @@ Delivered:
 - persisted manufacturing agent registry reference records through
   `demo_reference_records`, with the API reading
   `surface=agents/reference_id=manufacturing-agent-registry` and returning
+  404/422 for missing or invalid persisted payloads.
+- persisted manufacturing action registry reference records through
+  `demo_reference_records`, with the API reading
+  `surface=actions/reference_id=manufacturing-action-registry`, action run
+  creation validating against that persisted record and both paths returning
   404/422 for missing or invalid persisted payloads.
 
 Still Platform work:
