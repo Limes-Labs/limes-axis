@@ -260,6 +260,8 @@ boundaries from that persisted registry reference before storing tenant
 configuration state.
 Credential handle creation uses the same persisted registry reference to
 validate connector manifests before storing external secret reference metadata.
+Ontology proposal creation also resolves connector runtime boundary metadata
+from that persisted registry reference before writing proposal/audit state.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
@@ -331,7 +333,9 @@ unavailable it shows an API-required empty state instead of rendering local
 connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
-audit-backed and initially marked with `graph_mutation_status=not_applied`.
+audit-backed, initially marked with `graph_mutation_status=not_applied` and
+fails explicitly when the persisted connector registry reference is missing or
+invalid.
 Manual connector import requests can now be recorded through
 `/demo/manufacturing/connectors/manual-imports`; each request is tenant-scoped,
 idempotent, approval-gated, workflow-referenced and audit-backed with

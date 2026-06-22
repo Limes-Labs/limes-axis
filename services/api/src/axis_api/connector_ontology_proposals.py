@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.persistence import AxisPersistenceRepository, ConnectorOntologyProposalCreate
 
@@ -162,7 +162,7 @@ def record_demo_connector_ontology_proposals(
     repository: AxisPersistenceRepository,
     request: ConnectorOntologyProposalCreateRequest,
 ) -> ManufacturingConnectorOntologyProposalRegistry:
-    manifest = _manifest_for_connector(request.connector_id)
+    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_write_mode(request.write_mode)
     for entity in request.proposed_entities:
         _validate_redacted_summary(entity.field_summary)
@@ -250,8 +250,12 @@ def _proposal_from_record(record) -> ConnectorOntologyProposalRecord:
     )
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest

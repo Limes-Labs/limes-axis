@@ -295,6 +295,10 @@ Delivered:
 - connector credential handle creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to validate
   connector ids before external secret reference metadata is written.
+- connector ontology proposal creation now reads
+  `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
+  connector runtime boundary metadata before proposal rows or audit events are
+  written.
 - persisted manufacturing agent registry reference records through
   `demo_reference_records`, with the API reading
   `surface=agents/reference_id=manufacturing-agent-registry` and returning
