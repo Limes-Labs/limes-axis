@@ -77,9 +77,12 @@ to reject action payloads that reference cross-domain ontology resources without
 the required relationship scope. The governance console session bridge lets a
 user attach a bearer token for local OIDC-backed API calls, so approval submits,
 action run requests and ontology entity detail reads can exercise the same
-token-bound API paths without a full production login flow. The audit query slice
-reads persisted `audit_events` through a tenant-scoped API endpoint and keeps
-the synthetic seed as a fallback. The audit retention/export slice adds a demo
+token-bound API paths without a full production login flow. Ontology graph list
+reads now pass through an Axis query runtime boundary that can filter returned
+relationships by OIDC-derived scopes and can be switched from the deferred seed
+runtime to a TypeDB read boundary independently from graph mutations. The audit
+query slice reads persisted `audit_events` through a tenant-scoped API endpoint
+and keeps the synthetic seed as a fallback. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews,
 retention-window enforcement and a deterministic hash-chain integrity proof.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline

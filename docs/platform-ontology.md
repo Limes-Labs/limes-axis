@@ -33,7 +33,10 @@ The graph endpoint returns:
 - node list;
 - relationship list;
 - source-system list;
-- permission notes.
+- permission notes;
+- graph query metadata with adapter, source, query mode, actor, tenant,
+  permission decision, returned counts, denied relationship count and generated
+  TypeQL.
 
 The entity detail endpoint returns:
 
@@ -44,11 +47,19 @@ The entity detail endpoint returns:
 - related workflows, approvals and agents;
 - public-safe data access summaries and detail notes.
 
-In standalone demo mode, the entity detail endpoint remains readable without a
-token. When a bearer token is present, or when OIDC auth is required by
-configuration, the endpoint evaluates the token-derived scopes against the
-relationship scopes connected to the requested node. Missing relationship scope
-coverage returns 403 before the graph detail is returned.
+In standalone demo mode, graph and entity detail reads remain readable without a
+token. Graph reads pass through the Axis ontology query runtime. The default
+runtime serves the public seed through `axis-deferred-ontology-query-adapter`.
+When a bearer token is present, or when OIDC auth is required by configuration,
+the graph endpoint derives actor, tenant and scopes from the principal, rejects
+tenant mismatch, filters relationships by token-derived relationship scopes and
+returns query metadata that records the filtering decision. `AXIS_ONTOLOGY_QUERIES_ENABLED=true`
+switches the boundary to the TypeDB query runtime while keeping response
+mapping and permission filtering behind the same Axis adapter contract.
+
+Entity detail reads evaluate the token-derived scopes against the relationship
+scopes connected to the requested node. Missing relationship scope coverage
+returns 403 before the graph detail is returned.
 
 The schema is included in `docs/openapi.json` and checked by CI.
 
@@ -64,10 +75,12 @@ When an OIDC session is attached in the console toolbar, entity detail fetches
 include the bearer token so relationship-scope denials can be exercised from
 the console.
 
-The current graph and detail pages are read-only. Future Platform work should
-add tenant-scoped TypeDB-backed graph queries, persisted relationship metadata
-and broader graph authorization beyond the current demo relationship-scope
-checks.
+The current graph and detail pages are read-only. The ontology page now exposes
+the active graph query adapter, mode, source, returned counts, denied
+relationship count and permission decision. Future Platform work should map
+live TypeDB query answers into the full response shape, persist relationship
+metadata and broaden graph authorization beyond the current demo
+relationship-scope checks.
 
 Connector-driven ontology mutation is handled outside the read-only explorer.
 The connector promotion endpoint can promote an approved proposal through the
@@ -85,6 +98,8 @@ asset attributes needed by the promotion path: `axis_id`, `display_name`,
 Covered by:
 
 - API tests for graph integrity and endpoint exposure;
+- API tests for the ontology query runtime, OIDC principal binding, tenant
+  mismatch rejection and relationship-scope filtering;
 - API tests for entity detail, 404 handling, relationship-scope enforcement and
   endpoint exposure;
 - web unit tests for OIDC session token parsing and authorization headers;

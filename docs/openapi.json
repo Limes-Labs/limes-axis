@@ -5810,11 +5810,13 @@
             "title": "As Of",
             "type": "string"
           },
+          "graph_query": {
+            "$ref": "#/components/schemas/OntologyGraphQueryMetadata"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/OntologyNode"
             },
-            "minItems": 1,
             "title": "Nodes",
             "type": "array"
           },
@@ -5835,7 +5837,6 @@
             "items": {
               "$ref": "#/components/schemas/OntologyRelationship"
             },
-            "minItems": 1,
             "title": "Relationships",
             "type": "array"
           },
@@ -5863,8 +5864,6 @@
           "plant_name",
           "scenario",
           "as_of",
-          "nodes",
-          "relationships",
           "source_systems",
           "permission_notes"
         ],
@@ -6503,6 +6502,98 @@
           "peer_node"
         ],
         "title": "OntologyEntityRelationship",
+        "type": "object"
+      },
+      "OntologyGraphQueryMetadata": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "applied_relationship_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applied Relationship Scopes",
+            "type": "array"
+          },
+          "denied_relationship_count": {
+            "minimum": 0.0,
+            "title": "Denied Relationship Count",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "query_mode": {
+            "minLength": 1,
+            "title": "Query Mode",
+            "type": "string"
+          },
+          "requested_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requested Scopes",
+            "type": "array"
+          },
+          "returned_node_count": {
+            "minimum": 0.0,
+            "title": "Returned Node Count",
+            "type": "integer"
+          },
+          "returned_relationship_count": {
+            "minimum": 0.0,
+            "title": "Returned Relationship Count",
+            "type": "integer"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "typeql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typeql"
+          }
+        },
+        "required": [
+          "adapter",
+          "source",
+          "query_mode",
+          "tenant_id",
+          "actor_id",
+          "permission_decision",
+          "denied_relationship_count",
+          "returned_node_count",
+          "returned_relationship_count"
+        ],
+        "title": "OntologyGraphQueryMetadata",
         "type": "object"
       },
       "OntologyMutationResult": {
@@ -9485,6 +9576,47 @@
     "/demo/manufacturing/ontology": {
       "get": {
         "operationId": "manufacturing_ontology_demo_manufacturing_ontology_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9495,6 +9627,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Manufacturing Ontology",

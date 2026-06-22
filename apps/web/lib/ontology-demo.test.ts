@@ -13,6 +13,13 @@ describe("manufacturing ontology demo contract", () => {
     const labels = nodeLabelById(defaultManufacturingOntology);
 
     expect(labels.get("asset_line_2_packaging")).toBe("Line 2 Packaging");
+    expect(defaultManufacturingOntology.graph_query).toMatchObject({
+      adapter: "axis-deferred-ontology-query-adapter",
+      source: "demo-seed",
+      query_mode: "unfiltered_public_seed",
+      returned_node_count: defaultManufacturingOntology.nodes.length,
+      returned_relationship_count: defaultManufacturingOntology.relationships.length,
+    });
     expect(
       defaultManufacturingOntology.relationships.every(
         (relationship) =>

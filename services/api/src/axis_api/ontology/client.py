@@ -72,6 +72,19 @@ class OntologyClient:
                 transaction.rollback()
             raise
 
+    def execute_read(self, query_text: str) -> list[str]:
+        if not query_text.strip():
+            raise ValueError("TypeDB read query cannot be empty.")
+        from typedb.driver import TransactionType
+
+        self.ensure_database()
+        transaction = self._driver.transaction(self.config.database, TransactionType.READ)
+        try:
+            return [str(answer) for answer in transaction.query(query_text).resolve()]
+        finally:
+            if transaction.is_open():
+                transaction.close()
+
     def schema(self) -> str:
         self.ensure_database()
         return self._driver.databases.get(self.config.database).schema()

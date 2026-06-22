@@ -113,6 +113,8 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Operational knowledge model" })).toBeVisible();
     await expect(page.getByText("Fallback ontology seed")).toBeVisible();
+    await expect(page.getByText("Graph Query")).toBeVisible();
+    await expect(page.getByText("unfiltered_public_seed")).toBeVisible();
     await expect(page.getByRole("row", { name: "Line 2 Packaging Packaging" })).toBeVisible();
     await expect(
       page.getByRole("row", { name: "requires_approval Workflow cannot execute" }),

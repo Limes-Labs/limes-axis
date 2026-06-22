@@ -44,6 +44,10 @@ Postgres owns operational records that need transactional semantics: tenants,
 actors, approval records, action runs and append-only audit events. TypeDB owns
 the operational ontology: actors, organizations, assets, processes, workflows,
 operations, policies, approvals, audit evidence and relationship primitives.
+Ontology graph reads go through an Axis query runtime boundary. The deferred
+runtime serves the public manufacturing seed; the TypeDB query runtime can be
+enabled separately from graph mutations and keeps TypeQL execution, response
+mapping and relationship-scope filtering behind the same contract.
 
 Search starts from Postgres and remains behind an adapter until a specialized
 engine is justified.
@@ -133,7 +137,9 @@ permission checks before persistence. Entity detail reads and typed action
 payloads can also derive required scopes from the synthetic ontology
 relationships attached to referenced resources, so cross-domain graph context
 cannot be read or proposed through an action without the matching relationship
-scope.
+scope. The graph list endpoint also binds to OIDC principals when present,
+rejects tenant mismatch and filters returned relationships by the principal's
+relationship scopes before returning query metadata.
 
 ## Expansion Rule
 

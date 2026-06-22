@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Database, Network } from "lucide-react";
+import { Database, Network, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
@@ -103,6 +103,29 @@ export function OntologyExplorer() {
               </span>
             ))}
           </div>
+        </section>
+
+        <section className="panel">
+          <p className="section-label">Graph Query</p>
+          <h2 className="panel-title">{ontology.graph_query.adapter}</h2>
+          <div className="overview-meta" aria-label="Ontology graph query metadata">
+            <span className="status-pill signal-ready">
+              <ShieldCheck size={15} />
+              {ontology.graph_query.query_mode}
+            </span>
+            <span className="mono">{ontology.graph_query.source}</span>
+            <span className="mono">
+              {ontology.graph_query.denied_relationship_count} denied relationships
+            </span>
+          </div>
+          <p className="row-detail">
+            {ontology.graph_query.returned_node_count} nodes /{" "}
+            {ontology.graph_query.returned_relationship_count} relationships returned for{" "}
+            {ontology.graph_query.actor_id}
+          </p>
+          <p className="row-detail">
+            Permission decision: {ontology.graph_query.permission_decision.reason}
+          </p>
         </section>
 
         <section className="panel">

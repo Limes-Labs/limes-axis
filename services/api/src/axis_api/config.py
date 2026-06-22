@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_ONTOLOGY_MUTATIONS_ENABLED",
     )
+    ontology_queries_enabled: bool = Field(
+        default=False,
+        alias="AXIS_ONTOLOGY_QUERIES_ENABLED",
+    )
     temporal_address: str = Field(default="localhost:7233", alias="AXIS_TEMPORAL_ADDRESS")
     temporal_namespace: str = Field(default="default", alias="AXIS_TEMPORAL_NAMESPACE")
     temporal_signal_timeout_seconds: float = Field(
