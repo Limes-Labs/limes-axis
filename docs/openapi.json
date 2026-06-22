@@ -1234,6 +1234,9 @@
             "title": "Format",
             "type": "string"
           },
+          "integrity_proof": {
+            "$ref": "#/components/schemas/AuditIntegrityProof"
+          },
           "manifest": {
             "$ref": "#/components/schemas/AuditExportManifest"
           },
@@ -1265,7 +1268,8 @@
           "export_reason",
           "filters",
           "retention_policy",
-          "manifest"
+          "manifest",
+          "integrity_proof"
         ],
         "title": "AuditExportBundle",
         "type": "object"
@@ -1277,6 +1281,11 @@
             "minLength": 64,
             "title": "Checksum Sha256",
             "type": "string"
+          },
+          "excluded_record_count": {
+            "minimum": 0.0,
+            "title": "Excluded Record Count",
+            "type": "integer"
           },
           "export_id": {
             "minLength": 1,
@@ -1293,6 +1302,12 @@
             "title": "Generated At",
             "type": "string"
           },
+          "integrity_chain_tip_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Integrity Chain Tip Sha256",
+            "type": "string"
+          },
           "record_count": {
             "minimum": 0.0,
             "title": "Record Count",
@@ -1303,9 +1318,18 @@
             "title": "Redaction Policy",
             "type": "string"
           },
+          "retention_enforced": {
+            "title": "Retention Enforced",
+            "type": "boolean"
+          },
           "retention_policy_id": {
             "minLength": 1,
             "title": "Retention Policy Id",
+            "type": "string"
+          },
+          "retention_window_start": {
+            "minLength": 1,
+            "title": "Retention Window Start",
             "type": "string"
           },
           "tenant_id": {
@@ -1322,7 +1346,11 @@
           "format",
           "redaction_policy",
           "retention_policy_id",
-          "checksum_sha256"
+          "checksum_sha256",
+          "integrity_chain_tip_sha256",
+          "retention_enforced",
+          "retention_window_start",
+          "excluded_record_count"
         ],
         "title": "AuditExportManifest",
         "type": "object"
@@ -1370,6 +1398,46 @@
           "tenants"
         ],
         "title": "AuditFilterOptions",
+        "type": "object"
+      },
+      "AuditIntegrityProof": {
+        "properties": {
+          "algorithm": {
+            "minLength": 1,
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "chain_tip_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Chain Tip Sha256",
+            "type": "string"
+          },
+          "event_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Event Hashes",
+            "type": "array"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "verification_status": {
+            "minLength": 1,
+            "title": "Verification Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "verification_status",
+          "record_count",
+          "chain_tip_sha256"
+        ],
+        "title": "AuditIntegrityProof",
         "type": "object"
       },
       "AuditLedgerEvent": {

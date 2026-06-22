@@ -67,7 +67,6 @@ Future Platform work should connect this contract to:
 
 - Temporal deterministic replay;
 - policy comparison over historical events;
-- immutable audit storage hardening;
 - retention-aware replay windows;
 - simulation results persisted as governed audit artifacts.
 

@@ -90,7 +90,7 @@ Foundation acceptance is tracked in
   action payload resource references.
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.
 - [x] Query persisted audit events from the audit explorer.
-- [x] Add demo audit export manifests and retention policy metadata.
+- [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [ ] Build the connector framework.
@@ -132,9 +132,9 @@ permission enforcement remains Platform work.
 The audit explorer is backed by the synthetic manufacturing audit seed and can
 query persisted `audit_events` through the demo API when records exist. The demo
 API can also return a redacted JSON export bundle with manifest checksum,
-applied filters and retention policy metadata. Retention deletion enforcement,
-legal hold workflow and production-grade tenant-scoped query permissions remain
-Platform work.
+applied filters, retention-window enforcement and hash-chain integrity proof.
+Retention deletion execution, legal hold workflow and production-grade
+tenant-scoped query permissions remain Platform work.
 
 The replay/simulation foundation derives public-safe replay artifacts from
 workflow run history, timeline events and redacted audit evidence. The
@@ -174,7 +174,8 @@ decisions remain Platform work.
 - [ ] Add on-prem/private cloud reference architecture.
 - [ ] Add Helm charts and production deployment guides.
 - [ ] Add backup and restore procedures.
-- [ ] Add advanced audit export.
+- [ ] Add enterprise-grade audit export workflows beyond the current retention
+  and integrity controls.
 - [ ] Add enterprise identity and SSO hardening.
 - [ ] Add security review and threat model documentation.
 - [ ] Add support and operations runbooks.

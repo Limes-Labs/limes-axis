@@ -218,6 +218,10 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Export Controls")).toBeVisible();
     await expect(page.getByText("audit-export-local-seed")).toBeVisible();
     await expect(page.getByText("365 days")).toBeVisible();
+    await expect(page.getByText("Retention Enforced")).toBeVisible();
+    await expect(page.getByText("0 excluded")).toBeVisible();
+    await expect(page.getByText("Hash Chain", { exact: true })).toBeVisible();
+    await expect(page.getByText("sha256-hash-chain-v1")).toBeVisible();
 
     await page.getByRole("button", { name: "Reset filters" }).click();
 

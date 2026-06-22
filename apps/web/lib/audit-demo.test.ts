@@ -75,6 +75,12 @@ describe("manufacturing audit explorer demo contract", () => {
     );
     expect(defaultAuditExportBundle.retention_policy.retention_days).toBe(365);
     expect(defaultAuditExportBundle.retention_policy.export_requires_review).toBe(true);
+    expect(defaultAuditExportBundle.manifest.retention_enforced).toBe(true);
+    expect(defaultAuditExportBundle.manifest.excluded_record_count).toBe(0);
+    expect(defaultAuditExportBundle.integrity_proof.algorithm).toBe("sha256-hash-chain-v1");
+    expect(defaultAuditExportBundle.manifest.integrity_chain_tip_sha256).toBe(
+      defaultAuditExportBundle.integrity_proof.chain_tip_sha256,
+    );
     expect(JSON.stringify(defaultAuditExportBundle)).not.toContain("@");
     expect(JSON.stringify(defaultAuditExportBundle).toLowerCase()).not.toContain("secret");
   });

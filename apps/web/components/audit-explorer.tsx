@@ -426,6 +426,22 @@ export function AuditExplorer() {
             </p>
             <p className="row-detail">{auditExport.manifest.format}</p>
           </div>
+          <div>
+            <p className="metric-label">Retention Enforced</p>
+            <p className="row-title">
+              {auditExport.manifest.retention_enforced ? "Yes" : "No"}
+            </p>
+            <p className="row-detail">
+              {auditExport.manifest.excluded_record_count} excluded
+            </p>
+          </div>
+          <div>
+            <p className="metric-label">Hash Chain</p>
+            <p className="row-title mono">
+              {auditExport.manifest.integrity_chain_tip_sha256.slice(0, 12)}
+            </p>
+            <p className="row-detail">{auditExport.integrity_proof.algorithm}</p>
+          </div>
         </div>
 
         <div className="stack">

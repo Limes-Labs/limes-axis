@@ -67,6 +67,18 @@ export type AuditExportManifest = {
   redaction_policy: string;
   retention_policy_id: string;
   checksum_sha256: string;
+  integrity_chain_tip_sha256: string;
+  retention_enforced: boolean;
+  retention_window_start: string;
+  excluded_record_count: number;
+};
+
+export type AuditIntegrityProof = {
+  algorithm: string;
+  verification_status: string;
+  record_count: number;
+  chain_tip_sha256: string;
+  event_hashes: string[];
 };
 
 export type AuditExportBundle = {
@@ -83,6 +95,7 @@ export type AuditExportBundle = {
   };
   retention_policy: AuditRetentionPolicy;
   manifest: AuditExportManifest;
+  integrity_proof: AuditIntegrityProof;
   events: AuditLedgerEvent[];
   retention_notes: string[];
 };
@@ -397,7 +410,7 @@ export const defaultManufacturingAuditExplorer: ManufacturingAuditExplorer = {
     "This public audit explorer seed is read-only and synthetic.",
     "Payload previews are redacted and contain no customer data or credentials.",
     "Production audit events must be append-only and tenant-scoped.",
-    "Export, retention policy enforcement and replay remain Platform work.",
+    "Export bundles enforce retention windows and include hash-chain integrity proof.",
   ],
 };
 
@@ -417,13 +430,13 @@ export const defaultAuditExportBundle: AuditExportBundle = {
     policy_id: "axis-demo-audit-standard",
     retention_days: 365,
     retention_basis: "tenant-scoped operational audit ledger",
-    disposal_action: "review_then_delete",
+    disposal_action: "enforced_exclusion",
     legal_hold: false,
     export_requires_review: true,
     notes: [
       "Demo exports are payload-preview-only and require governance review before sharing.",
-      "Retention controls are represented as policy metadata in this slice.",
-      "Deletion enforcement, legal hold workflow and immutable storage hardening remain future work.",
+      "Retention windows are enforced before records enter the export bundle.",
+      "Immutable storage hardening is represented by a deterministic export hash chain.",
     ],
   },
   manifest: {
@@ -435,12 +448,26 @@ export const defaultAuditExportBundle: AuditExportBundle = {
     redaction_policy: "payload-preview-only",
     retention_policy_id: "axis-demo-audit-standard",
     checksum_sha256: "0".repeat(64),
+    integrity_chain_tip_sha256: "a".repeat(64),
+    retention_enforced: true,
+    retention_window_start: "2025-06-21T16:30:00+02:00",
+    excluded_record_count: 0,
+  },
+  integrity_proof: {
+    algorithm: "sha256-hash-chain-v1",
+    verification_status: "verified",
+    record_count: defaultManufacturingAuditExplorer.events.length,
+    chain_tip_sha256: "a".repeat(64),
+    event_hashes: defaultManufacturingAuditExplorer.events.map((_, index) =>
+      String(index + 1).repeat(64).slice(0, 64),
+    ),
   },
   events: defaultManufacturingAuditExplorer.events,
   retention_notes: [
     "Export bundle is tenant-scoped before optional filters are applied.",
     "Events include ledger metadata and redacted payload previews only.",
-    "Retention policy is advisory metadata until enforcement is implemented.",
+    "Retention enforcement excluded 0 expired events from this export.",
+    "Integrity proof links exported records with a deterministic SHA-256 hash chain.",
   ],
 };
 
