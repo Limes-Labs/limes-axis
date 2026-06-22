@@ -239,6 +239,8 @@ export type ConnectorOntologyProposalRecord = {
   field_summary: Record<string, string>;
   evidence_refs: string[];
   promotion_id: string | null;
+  policy_id: string | null;
+  policy_decision: ConnectorPromotionPolicyDecision | null;
   promoted_by: string | null;
   promoted_at: string | null;
   ontology_mutation: {
@@ -252,6 +254,17 @@ export type ConnectorOntologyProposalRecord = {
   audit_event_type: string;
   notes: string[];
   created_at: string;
+};
+
+export type ConnectorPromotionPolicyDecision = {
+  status: string;
+  allowed: boolean;
+  policy_id: string | null;
+  policy_version: string | null;
+  enforcement_mode: string;
+  reason: string;
+  required_scopes: string[];
+  matched_constraints: Record<string, string>;
 };
 
 export type ManufacturingConnectorOntologyProposalRegistry = {
@@ -768,6 +781,23 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
         },
         evidence_refs: ["manufacturing-assets-demo.csv", "asset_line_2_packaging"],
         promotion_id: "promote_asset_line_2_packaging_20260622",
+        policy_id: "policy_connector_asset_promotion_v1",
+        policy_decision: {
+          status: "policy_enforced",
+          allowed: true,
+          policy_id: "policy_connector_asset_promotion_v1",
+          policy_version: "2026-06-22",
+          enforcement_mode: "required",
+          reason: "policy_constraints_satisfied",
+          required_scopes: ["connectors:ontology:promote"],
+          matched_constraints: {
+            policy_status: "enabled",
+            manual_import_status: "approval_approved",
+            workflow_signal_status: "manual_import_signal_requested",
+            risk_level: "high",
+            ontology_type: "manufacturing_asset",
+          },
+        },
         promoted_by: "plant-operations-owner-role",
         promoted_at: "2026-06-22T00:00:00Z",
         ontology_mutation: {
@@ -811,6 +841,8 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
         },
         evidence_refs: ["manufacturing-assets-demo.csv", "asset_press_4"],
         promotion_id: null,
+        policy_id: null,
+        policy_decision: null,
         promoted_by: null,
         promoted_at: null,
         ontology_mutation: null,
@@ -932,20 +964,20 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
       {
         label: "Promotion Policies",
         value: "1",
-        detail: "Connector proposal promotion policy drafts",
+        detail: "Connector proposal promotion policies",
         status: "ready",
       },
       {
         label: "Draft Policies",
-        value: "1",
-        detail: "Policies authored but not yet enforced",
-        status: "watch",
+        value: "0",
+        detail: "Policies authored but not enabled",
+        status: "ready",
       },
       {
         label: "Required Gates",
-        value: "0",
-        detail: "No policy is marked required yet",
-        status: "watch",
+        value: "1",
+        detail: "Policy enforced during connector proposal promotion",
+        status: "ready",
       },
     ],
     policies: [
@@ -954,8 +986,8 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
         connector_id: "file_csv_manufacturing_assets",
         policy_id: "policy_connector_asset_promotion_v1",
         policy_version: "2026-06-22",
-        status: "draft",
-        enforcement_mode: "advisory",
+        status: "enabled",
+        enforcement_mode: "required",
         created_by: "platform-governance-owner-role",
         required_authoring_scope: "connectors:promotion_policy:author",
         required_scopes: ["connectors:ontology:promote"],
@@ -970,14 +1002,14 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
         },
         audit_event_id: "audit_connector_promotion_policy_demo_20260622",
         audit_event_type: "connector.promotion_policy.authored",
-        notes: ["Policy draft only; promotion enforcement remains explicit."],
+        notes: ["Required policy enforced during approved ontology promotion."],
         created_at: "2026-06-22T00:00:00Z",
       },
     ],
     policy_notes: [
-      "Promotion policies are governance metadata before enforcement.",
+      "Promotion policies are governance metadata that can become required gates.",
       "Policy authoring records required scopes, import state and workflow signal state.",
-      "Authoring a policy does not execute connector sync or mutate TypeDB.",
+      "Required enabled policies are evaluated before TypeDB mutation execution.",
     ],
   };
 

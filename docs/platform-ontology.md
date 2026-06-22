@@ -73,11 +73,12 @@ Connector-driven ontology mutation is handled outside the read-only explorer.
 The connector promotion endpoint can promote an approved proposal through the
 Axis ontology mutation adapter, guarded by manual import approval evidence,
 workflow signal evidence, `connectors:ontology:promote`, idempotency and
-append-only audit writes. Connector promotion policy drafts can now document
-the required promotion scopes and import/workflow states before full policy
-enforcement. The TypeDB schema includes manufacturing asset attributes needed by
-the promotion path: `axis_id`, `display_name`, `asset_type`, `domain`,
-`source_system_ref` and `risk_level`.
+append-only audit writes. Connector promotion policies can now be attached to a
+promotion request; enabled required policies enforce the required scopes, manual
+import status, workflow signal status, risk levels and ontology types before the
+TypeDB mutation boundary is called. The TypeDB schema includes manufacturing
+asset attributes needed by the promotion path: `axis_id`, `display_name`,
+`asset_type`, `domain`, `source_system_ref` and `risk_level`.
 
 ## Verification
 

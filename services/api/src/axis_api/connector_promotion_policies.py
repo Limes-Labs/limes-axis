@@ -114,7 +114,11 @@ def build_connector_promotion_policy_registry(
     )
     policies = [_policy_from_record(record) for record in records]
     draft_count = sum(1 for policy in policies if policy.status == "draft")
-    required_count = sum(1 for policy in policies if policy.enforcement_mode == "required")
+    required_count = sum(
+        1
+        for policy in policies
+        if policy.status == "enabled" and policy.enforcement_mode == "required"
+    )
     return ManufacturingConnectorPromotionPolicyRegistry(
         tenant_id=tenant_id,
         plant_name="Ravenna Works",
@@ -124,7 +128,7 @@ def build_connector_promotion_policy_registry(
             OverviewMetric(
                 label="Promotion Policies",
                 value=str(len(policies)),
-                detail="Connector promotion policy drafts",
+                detail="Connector promotion policies",
                 status=OverviewStatus.READY if policies else OverviewStatus.WATCH,
             ),
             OverviewMetric(
@@ -136,13 +140,13 @@ def build_connector_promotion_policy_registry(
             OverviewMetric(
                 label="Required Gates",
                 value=str(required_count),
-                detail="Policies marked as required for promotion",
+                detail="Enabled policies marked required for promotion",
                 status=OverviewStatus.READY if required_count else OverviewStatus.WATCH,
             ),
         ],
         policies=policies,
         policy_notes=[
-            "Promotion policies are authored as governance metadata before enforcement.",
+            "Promotion policies are authored as governance metadata before required enforcement.",
             "Policies declare the scopes, import status and workflow signal "
             "required for promotion.",
             "Policy authoring never executes connector sync or TypeDB mutations.",

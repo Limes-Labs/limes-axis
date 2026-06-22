@@ -547,6 +547,22 @@ export function ConnectorConsole() {
                   </p>
                 </div>
                 <div>
+                  <p className="metric-label">Policy</p>
+                  <p className="row-title">{proposal.policy_id ?? "not requested"}</p>
+                  <p className="row-detail">
+                    {proposal.policy_decision?.status ?? "policy_not_requested"}
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">Policy Result</p>
+                  <p className="row-title">
+                    {proposal.policy_decision?.reason ?? "no policy evidence"}
+                  </p>
+                  <p className="row-detail">
+                    {proposal.policy_decision?.enforcement_mode ?? "not enforced"}
+                  </p>
+                </div>
+                <div>
                   <p className="metric-label">Promoted By</p>
                   <p className="row-title">{proposal.promoted_by ?? "unassigned"}</p>
                   <p className="row-detail">
@@ -641,9 +657,9 @@ export function ConnectorConsole() {
               <div>
                 <p className="section-label">Promotion Policies</p>
                 <h3 className="subsection-title">
-                  {selectedPromotionPolicies.length} promotion policy draft
+                  {selectedPromotionPolicies.length} promotion policy
                 </h3>
-                <p className="row-detail">authoring evidence and required scopes recorded</p>
+                <p className="row-detail">authoring and enforcement evidence recorded</p>
               </div>
               <ScrollText size={18} />
             </div>

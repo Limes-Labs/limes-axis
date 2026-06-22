@@ -73,9 +73,11 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorRun.__table__.c.run_id.index is True
     assert ConnectorOntologyProposal.__table__.c.proposal_id.index is True
     assert ConnectorOntologyProposal.__table__.c.promotion_id.index is True
+    assert ConnectorOntologyProposal.__table__.c.policy_id.index is True
     assert ConnectorOntologyProposal.__table__.c.promoted_by.index is True
     assert ConnectorOntologyPromotion.__table__.c.promotion_id.index is True
     assert ConnectorOntologyPromotion.__table__.c.idempotency_key.index is True
+    assert ConnectorOntologyPromotion.__table__.c.policy_id.index is True
     assert ConnectorPromotionPolicy.__table__.c.policy_id.index is True
     assert ConnectorPromotionPolicy.__table__.c.status.index is True
     assert ConnectorPromotionPolicy.__table__.c.created_by.index is True
@@ -507,6 +509,20 @@ def test_repository_records_connector_ontology_promotion_and_updates_proposal(
                 "mutation_ref": "typedb://axis/asset_line_2_packaging",
             },
             permission_decision={"allowed": True, "reason": "allowed"},
+            policy_id="policy_connector_asset_promotion_v1",
+            policy_decision={
+                "status": "policy_enforced",
+                "allowed": True,
+                "policy_id": "policy_connector_asset_promotion_v1",
+                "policy_version": "2026-06-22",
+                "enforcement_mode": "required",
+                "reason": "policy_constraints_satisfied",
+                "required_scopes": ["connectors:ontology:promote"],
+                "matched_constraints": {
+                    "risk_level": "high",
+                    "ontology_type": "manufacturing_asset",
+                },
+            },
             audit_event_id=audit_event.id,
             audit_event_type="connector.ontology_promotion.applied",
             notes=["Promoted in persistence test."],
@@ -523,6 +539,20 @@ def test_repository_records_connector_ontology_promotion_and_updates_proposal(
             ontology_mutation={
                 "status": "type_db_mutation_applied",
                 "mutation_ref": "typedb://axis/asset_line_2_packaging",
+            },
+            policy_id="policy_connector_asset_promotion_v1",
+            policy_decision={
+                "status": "policy_enforced",
+                "allowed": True,
+                "policy_id": "policy_connector_asset_promotion_v1",
+                "policy_version": "2026-06-22",
+                "enforcement_mode": "required",
+                "reason": "policy_constraints_satisfied",
+                "required_scopes": ["connectors:ontology:promote"],
+                "matched_constraints": {
+                    "risk_level": "high",
+                    "ontology_type": "manufacturing_asset",
+                },
             },
             audit_event_id=audit_event.id,
             audit_event_type="connector.ontology_promotion.applied",
@@ -546,6 +576,11 @@ def test_repository_records_connector_ontology_promotion_and_updates_proposal(
     assert updated_proposal.promoted_by == "plant-operations-owner-role"
     assert updated_proposal.promoted_at is not None
     assert updated_proposal.ontology_mutation["status"] == "type_db_mutation_applied"
+    assert updated_proposal.policy_id == "policy_connector_asset_promotion_v1"
+    assert updated_proposal.policy_decision["status"] == "policy_enforced"
+    assert updated_proposal.policy_decision["matched_constraints"]["risk_level"] == "high"
+    assert promotion.policy_id == "policy_connector_asset_promotion_v1"
+    assert promotion.policy_decision["reason"] == "policy_constraints_satisfied"
     assert promotion.audit_event_id == audit_event.id
 
 

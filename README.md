@@ -103,10 +103,11 @@ decisions now record approval outcomes, workflow signal evidence and
 `connector.manual_import.decision_recorded` audit events. Approved proposals can
 now be promoted through a controlled TypeDB ontology mutation boundary with
 `connector.ontology_promotion.applied` audit evidence, while still avoiding
-connector execution and external sync. Connector promotion policy drafts can
-now be authored as tenant-scoped governance metadata with
-`connector.promotion_policy.authored` audit evidence, making promotion
-requirements visible before full policy enforcement.
+connector execution and external sync. Connector promotion policies can now be
+authored as tenant-scoped governance metadata with
+`connector.promotion_policy.authored` audit evidence. Enabled required policies
+can now be enforced during controlled ontology promotion before the TypeDB
+mutation boundary is called.
 
 ## Architecture Defaults
 

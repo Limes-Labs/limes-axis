@@ -177,6 +177,8 @@ class ConnectorOntologyProposalCreate(BaseModel):
     field_summary: dict = Field(default_factory=dict)
     evidence_refs: list[str] = Field(default_factory=list)
     promotion_id: str | None = None
+    policy_id: str | None = None
+    policy_decision: dict | None = None
     promoted_by: str | None = None
     ontology_mutation: dict | None = None
     audit_event_id: UUID | None = None
@@ -197,6 +199,8 @@ class ConnectorOntologyPromotionCreate(BaseModel):
     graph_mutation_status: str = Field(min_length=1)
     ontology_mutation: dict = Field(default_factory=dict)
     permission_decision: dict = Field(default_factory=dict)
+    policy_id: str | None = None
+    policy_decision: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.ontology_promotion.applied", min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -210,6 +214,8 @@ class ConnectorOntologyPromotionResultRecord(BaseModel):
     promotion_id: str = Field(min_length=1)
     promoted_by: str = Field(min_length=1)
     ontology_mutation: dict = Field(default_factory=dict)
+    policy_id: str | None = None
+    policy_decision: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str | None = None
 
@@ -713,6 +719,8 @@ class AxisPersistenceRepository:
             field_summary=record.field_summary,
             evidence_refs=record.evidence_refs,
             promotion_id=record.promotion_id,
+            policy_id=record.policy_id,
+            policy_decision=record.policy_decision,
             promoted_by=record.promoted_by,
             ontology_mutation=record.ontology_mutation,
             audit_event_id=record.audit_event_id,
@@ -772,6 +780,8 @@ class AxisPersistenceRepository:
             graph_mutation_status=record.graph_mutation_status,
             ontology_mutation=record.ontology_mutation,
             permission_decision=record.permission_decision,
+            policy_id=record.policy_id,
+            policy_decision=record.policy_decision,
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
             notes=record.notes,
@@ -823,6 +833,8 @@ class AxisPersistenceRepository:
         proposal.status = record.status
         proposal.graph_mutation_status = record.graph_mutation_status
         proposal.promotion_id = record.promotion_id
+        proposal.policy_id = record.policy_id
+        proposal.policy_decision = record.policy_decision
         proposal.promoted_by = record.promoted_by
         proposal.promoted_at = utc_now()
         proposal.ontology_mutation = record.ontology_mutation
