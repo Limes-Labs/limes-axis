@@ -30,6 +30,9 @@ GET /demo/manufacturing/model-routing
 GET /demo/manufacturing/connectors
 GET /demo/manufacturing/connectors/configurations
 POST /demo/manufacturing/connectors/configurations
+GET /demo/manufacturing/connectors/credential-handles
+POST /demo/manufacturing/connectors/credential-handles
+POST /demo/manufacturing/connectors/credential-handles/{handle_id}/rotations
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -85,6 +88,8 @@ It includes:
   schema validation, ontology proposal mapping and redacted audit event preview.
 - tenant-scoped preview connector configuration for manufacturing asset intake,
   with raw credential fields rejected before persistence.
+- metadata-only connector credential handles with external secret references
+  and rotation history, without storing raw credential values.
 - Postgres persistence foundation for approval records, action runs and
   append-only audit events.
 
@@ -105,7 +110,7 @@ The reference demo should grow into an end-to-end Platform scenario:
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;
-- persisted connector manifest management beyond the demo seed, credential
-  handles, scheduled sync, database connectors, connector run audit writes and
-  connector-backed actions behind policy gates;
+- persisted connector manifest management beyond the demo seed, production
+  vault/KMS integration, scheduled sync, database connectors, connector run
+  audit writes and connector-backed actions behind policy gates;
 - persisted replay and simulation artifacts.

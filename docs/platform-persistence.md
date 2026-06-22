@@ -33,6 +33,13 @@ The fourth Alembic migration adds:
   connector id, sync mode, runtime boundary, creator, public-safe configuration
   payload and credential reference ids.
 
+The fifth Alembic migration adds:
+
+- `connector_credential_handles`: tenant-scoped external secret references,
+  rotation metadata, purpose, labels and notes for connector credentials.
+- `connector_credential_rotations`: append-only rotation history metadata for
+  credential handles.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -47,6 +54,8 @@ The fourth Alembic migration adds:
 - workflow run creation and tenant-scoped listing;
 - workflow timeline event append and tenant-scoped history listing.
 - connector configuration creation and tenant-scoped listing.
+- connector credential handle creation and tenant-scoped listing.
+- connector credential rotation recording and tenant-scoped history listing.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
@@ -87,11 +96,13 @@ Delivered:
 - persisted workflow run state and tenant-scoped history views.
 - tenant-scoped connector configuration records for preview-only connector
   setup, with raw credential fields rejected before persistence.
+- metadata-only connector credential handles with external secret references
+  and rotation history, without storing raw credential values.
 
 Still Platform work:
 
 - connector run records and append-only audit writes from connector execution;
-- credential handle storage and rotation;
+- production vault/KMS integration, secret leasing and automated rotation;
 - scheduled connector sync lifecycle;
 - production connector mutations from action runtime paths;
 - broader relationship-aware permission enforcement beyond the current demo

@@ -1744,6 +1744,217 @@
         "title": "ConnectorConfigurationCreateRequest",
         "type": "object"
       },
+      "ConnectorCredentialHandleCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "connector_id": {
+            "default": "file_csv_manufacturing_assets",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "handle_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Handle Id",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "purpose": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "rotation_interval_days": {
+            "default": 30,
+            "maximum": 3660.0,
+            "minimum": 1.0,
+            "title": "Rotation Interval Days",
+            "type": "integer"
+          },
+          "secret_provider": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Secret Provider",
+            "type": "string"
+          },
+          "secret_ref": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Secret Ref",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle_id",
+          "display_name",
+          "secret_provider",
+          "secret_ref",
+          "purpose",
+          "created_by"
+        ],
+        "title": "ConnectorCredentialHandleCreateRequest",
+        "type": "object"
+      },
+      "ConnectorCredentialHandleRecord": {
+        "properties": {
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_by": {
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "handle_id": {
+            "minLength": 1,
+            "title": "Handle Id",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "last_rotated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Rotated At"
+          },
+          "last_rotation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorCredentialRotationRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_rotation_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Rotation Due At"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "purpose": {
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "rotation_count": {
+            "title": "Rotation Count",
+            "type": "integer"
+          },
+          "rotation_interval_days": {
+            "title": "Rotation Interval Days",
+            "type": "integer"
+          },
+          "rotation_status": {
+            "minLength": 1,
+            "title": "Rotation Status",
+            "type": "string"
+          },
+          "secret_provider": {
+            "minLength": 1,
+            "title": "Secret Provider",
+            "type": "string"
+          },
+          "secret_ref": {
+            "minLength": 1,
+            "title": "Secret Ref",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "handle_id",
+          "display_name",
+          "status",
+          "secret_provider",
+          "secret_ref",
+          "purpose",
+          "rotation_interval_days",
+          "rotation_status",
+          "rotation_count",
+          "created_by"
+        ],
+        "title": "ConnectorCredentialHandleRecord",
+        "type": "object"
+      },
       "ConnectorCredentialRequirements": {
         "properties": {
           "notes": {
@@ -1770,6 +1981,105 @@
           "storage"
         ],
         "title": "ConnectorCredentialRequirements",
+        "type": "object"
+      },
+      "ConnectorCredentialRotationRecord": {
+        "properties": {
+          "evidence_ref": {
+            "minLength": 1,
+            "title": "Evidence Ref",
+            "type": "string"
+          },
+          "handle_id": {
+            "minLength": 1,
+            "title": "Handle Id",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "rotated_at": {
+            "format": "date-time",
+            "title": "Rotated At",
+            "type": "string"
+          },
+          "rotated_by": {
+            "minLength": 1,
+            "title": "Rotated By",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "handle_id",
+          "rotated_by",
+          "rotated_at",
+          "evidence_ref",
+          "status"
+        ],
+        "title": "ConnectorCredentialRotationRecord",
+        "type": "object"
+      },
+      "ConnectorCredentialRotationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ref": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Evidence Ref",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "rotated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated At"
+          },
+          "rotated_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Rotated By",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rotated_by",
+          "evidence_ref"
+        ],
+        "title": "ConnectorCredentialRotationRequest",
         "type": "object"
       },
       "ConnectorCsvPreviewRequest": {
@@ -2504,6 +2814,57 @@
           "registry_status"
         ],
         "title": "ManufacturingConnectorConfigurationRegistry",
+        "type": "object"
+      },
+      "ManufacturingConnectorCredentialHandleRegistry": {
+        "properties": {
+          "handle_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Handle Notes",
+            "type": "array"
+          },
+          "handles": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorCredentialHandleRecord"
+            },
+            "title": "Handles",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorCredentialHandleRegistry",
         "type": "object"
       },
       "ManufacturingConnectorRegistry": {
@@ -4714,6 +5075,173 @@
           }
         },
         "summary": "Manufacturing Connector Configuration Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/credential-handles": {
+      "get": {
+        "operationId": "manufacturing_connector_credential_handles_demo_manufacturing_connectors_credential_handles_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorCredentialHandleRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Handles",
+        "tags": [
+          "demo"
+        ]
+      },
+      "post": {
+        "operationId": "manufacturing_connector_credential_handle_create_demo_manufacturing_connectors_credential_handles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCredentialHandleCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCredentialHandleRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Connector credential handle validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Handle Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/credential-handles/{handle_id}/rotations": {
+      "post": {
+        "operationId": "manufacturing_connector_credential_handle_rotation_demo_manufacturing_connectors_credential_handles__handle_id__rotations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle_id",
+            "required": true,
+            "schema": {
+              "title": "Handle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCredentialRotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCredentialHandleRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Connector credential rotation validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Handle Rotation",
         "tags": [
           "demo"
         ]

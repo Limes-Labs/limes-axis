@@ -66,7 +66,9 @@ that validates rows, maps them to ontology proposals and returns redacted audit
 preview metadata without persisting raw file content, storing credentials,
 calling external systems or mutating the graph. Tenant-scoped connector
 configuration records are persisted separately from connector runs and reject
-raw credential fields. Future connector execution must use credential handles,
+raw credential fields. Credential handle records persist external secret
+references, rotation metadata and rotation history without storing raw
+credential values. Future connector execution must use those handles with
 tenant-scoped permissions, append-only audit writes and no external egress by
 default.
 

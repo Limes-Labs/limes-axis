@@ -260,7 +260,14 @@ test.describe("Axis console smoke", () => {
     await expect(page.locator(".workflow-detail-header").getByText("axis-connector-sandbox")).toBeVisible();
     await expect(page.getByText("connectors:file_csv:preview")).toBeVisible();
     await expect(page.getByText("Configured Connectors")).toBeVisible();
+    await expect(
+      page.locator(".metric-card").getByText("Credential Handles", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("configured_preview_only")).toBeVisible();
+    await expect(page.getByText("cred_file_csv_readonly")).toBeVisible();
+    await expect(page.getByText("vault://axis/demo/connectors/file-csv-readonly")).toBeVisible();
+    await expect(page.getByText("change-window-2026-06-22")).toBeVisible();
+    await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();
     await expect(page.getByText("connector.preview.generated")).toBeVisible();
     await expect(page.getByText("asset_line_2_packaging").first()).toBeVisible();

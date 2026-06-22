@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Cable, Database, FileText, ShieldCheck } from "lucide-react";
+import { Cable, Database, FileText, KeyRound, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
+  defaultConnectorCredentialHandleRegistry,
   defaultManufacturingConnectorPreview,
   defaultManufacturingConnectorRegistry,
   findConnectorById,
   formatConnectorLabel,
   type ConnectorCsvPreviewResult,
   type ManufacturingConnectorConfigurationRegistry,
+  type ManufacturingConnectorCredentialHandleRegistry,
   type ManufacturingConnectorRegistry,
 } from "@/lib/connectors-demo";
 import {
@@ -41,6 +43,10 @@ export function ConnectorConsole() {
   const [configurationRegistry, setConfigurationRegistry] =
     useState<ManufacturingConnectorConfigurationRegistry>(
       defaultConnectorConfigurationRegistry,
+    );
+  const [credentialHandleRegistry, setCredentialHandleRegistry] =
+    useState<ManufacturingConnectorCredentialHandleRegistry>(
+      defaultConnectorCredentialHandleRegistry,
     );
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
@@ -71,7 +77,8 @@ export function ConnectorConsole() {
 
     async function loadConnectors() {
       try {
-        const [registryData, previewData, configurationData] = await Promise.all([
+        const [registryData, previewData, configurationData, credentialHandleData] =
+          await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
             "/demo/manufacturing/connectors/file-csv/preview",
@@ -83,10 +90,14 @@ export function ConnectorConsole() {
           fetchJson<ManufacturingConnectorConfigurationRegistry>(
             "/demo/manufacturing/connectors/configurations",
           ),
+          fetchJson<ManufacturingConnectorCredentialHandleRegistry>(
+            "/demo/manufacturing/connectors/credential-handles",
+          ),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
           setConfigurationRegistry(configurationData);
+          setCredentialHandleRegistry(credentialHandleData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -98,6 +109,7 @@ export function ConnectorConsole() {
         if (!controller.signal.aborted) {
           setRegistry(defaultManufacturingConnectorRegistry);
           setConfigurationRegistry(defaultConnectorConfigurationRegistry);
+          setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -122,6 +134,13 @@ export function ConnectorConsole() {
         (configuration) => configuration.connector_id === selectedConnectorId,
       ) ?? configurationRegistry.configurations[0],
     [configurationRegistry.configurations, selectedConnectorId],
+  );
+  const selectedCredentialHandles = useMemo(
+    () =>
+      credentialHandleRegistry.handles.filter(
+        (handle) => handle.connector_id === selectedConnectorId,
+      ),
+    [credentialHandleRegistry.handles, selectedConnectorId],
   );
   const manifest = selectedConnector.manifest;
 
@@ -149,7 +168,10 @@ export function ConnectorConsole() {
       </section>
 
       <div className="metric-grid">
-        {registry.metrics.concat(configurationRegistry.metrics).map((metric) => (
+        {registry.metrics
+          .concat(configurationRegistry.metrics)
+          .concat(credentialHandleRegistry.metrics)
+          .map((metric) => (
           <article className="metric-card compact-card" key={metric.label}>
             <div className="row">
               <p className="metric-label">{metric.label}</p>
@@ -160,7 +182,7 @@ export function ConnectorConsole() {
             <p className="metric-value">{metric.value}</p>
             <p className="metric-detail">{metric.detail}</p>
           </article>
-        ))}
+          ))}
       </div>
 
       <div className="simulation-layout">
@@ -312,6 +334,54 @@ export function ConnectorConsole() {
           <section className="audit-payload">
             <div className="audit-payload-header">
               <div>
+                <p className="section-label">Credential Handles</p>
+                <h3 className="subsection-title">
+                  {selectedCredentialHandles.length} metadata reference
+                </h3>
+                <p className="row-detail">external secret refs only</p>
+              </div>
+              <KeyRound size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedCredentialHandles.map((handle) => (
+                <div className="payload-row" key={handle.handle_id}>
+                  <span>
+                    <span className="metric-label">{handle.handle_id}</span>
+                    <span className="row-detail">{handle.secret_provider}</span>
+                  </span>
+                  <span className="mono">{formatConnectorLabel(handle.rotation_status)}</span>
+                </div>
+              ))}
+            </div>
+            {selectedCredentialHandles.map((handle) => (
+              <div className="audit-detail-grid" key={`${handle.handle_id}-rotation`}>
+                <div>
+                  <p className="metric-label">Reference</p>
+                  <p className="row-title">{handle.secret_ref}</p>
+                  <p className="row-detail">{handle.purpose}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Rotation</p>
+                  <p className="row-title">{handle.rotation_interval_days} days</p>
+                  <p className="row-detail">{handle.next_rotation_due_at ?? "not scheduled"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Last Evidence</p>
+                  <p className="row-title">{handle.last_rotation?.evidence_ref ?? "none"}</p>
+                  <p className="row-detail">{handle.last_rotation?.rotated_by ?? handle.created_by}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Raw Value</p>
+                  <p className="row-title">Never Stored</p>
+                  <p className="row-detail">{handle.rotation_count} rotation records</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
                 <p className="section-label">Schema Mapping</p>
                 <h3 className="subsection-title">{selectedConnector.preview_sample.file_name}</h3>
               </div>
@@ -348,7 +418,9 @@ export function ConnectorConsole() {
           <div className="stack">
             {registry.connector_notes
               .concat(configurationRegistry.configuration_notes)
+              .concat(credentialHandleRegistry.handle_notes)
               .concat(selectedConfiguration?.notes ?? [])
+              .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(preview.preview_notes)
               .map((note) => (
               <p className="row-detail" key={note}>

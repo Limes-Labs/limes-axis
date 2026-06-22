@@ -201,3 +201,57 @@ class ConnectorConfiguration(Base):
             name="uq_connector_configurations_tenant_connector",
         ),
     )
+
+
+class ConnectorCredentialHandle(Base):
+    __tablename__ = "connector_credential_handles"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    handle_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    secret_provider: Mapped[str] = mapped_column(String(120), nullable=False)
+    secret_ref: Mapped[str] = mapped_column(String(500), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(160), nullable=False)
+    rotation_interval_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_rotation_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+    created_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    labels: Mapped[dict] = mapped_column(JSON, nullable=False)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "handle_id",
+            name="uq_connector_credential_handles_tenant_handle",
+        ),
+    )
+
+
+class ConnectorCredentialRotation(Base):
+    __tablename__ = "connector_credential_rotations"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    handle_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    rotated_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    rotated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence_ref: Mapped[str] = mapped_column(String(240), nullable=False)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )

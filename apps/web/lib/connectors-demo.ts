@@ -145,6 +145,51 @@ export type ManufacturingConnectorConfigurationRegistry = {
   configuration_notes: string[];
 };
 
+export type ConnectorCredentialRotation = {
+  tenant_id: string;
+  handle_id: string;
+  rotated_by: string;
+  rotated_at: string;
+  evidence_ref: string;
+  status: string;
+  notes: string[];
+};
+
+export type ConnectorCredentialHandle = {
+  tenant_id: string;
+  connector_id: string;
+  handle_id: string;
+  display_name: string;
+  status: string;
+  secret_provider: string;
+  secret_ref: string;
+  purpose: string;
+  rotation_interval_days: number;
+  rotation_status: string;
+  rotation_count: number;
+  last_rotated_at: string | null;
+  next_rotation_due_at: string | null;
+  created_by: string;
+  labels: Record<string, string>;
+  notes: string[];
+  last_rotation: ConnectorCredentialRotation | null;
+};
+
+export type ManufacturingConnectorCredentialHandleRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  handles: ConnectorCredentialHandle[];
+  handle_notes: string[];
+};
+
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -382,6 +427,69 @@ export const defaultConnectorConfigurationRegistry: ManufacturingConnectorConfig
     "Connector configurations are tenant-scoped and preview-only.",
     "Raw credential values are rejected; future work must use credential handles.",
     "Persisted connector runs, scheduled sync and audit writes remain future work.",
+  ],
+};
+
+export const defaultConnectorCredentialHandleRegistry: ManufacturingConnectorCredentialHandleRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [
+    {
+      label: "Credential Handles",
+      value: "1",
+      detail: "External secret references stored as metadata only",
+      status: "ready",
+    },
+    {
+      label: "Rotation Due",
+      value: "0",
+      detail: "Handles needing rotation review",
+      status: "ready",
+    },
+    {
+      label: "Raw Values",
+      value: "Never Stored",
+      detail: "Axis stores references, not credential material",
+      status: "ready",
+    },
+  ],
+  handles: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      handle_id: "cred_file_csv_readonly",
+      display_name: "File CSV readonly vault reference",
+      status: "active",
+      secret_provider: "external_vault",
+      secret_ref: "vault://axis/demo/connectors/file-csv-readonly",
+      purpose: "preview_import_readonly",
+      rotation_interval_days: 30,
+      rotation_status: "healthy",
+      rotation_count: 1,
+      last_rotated_at: "2026-06-22T00:00:00Z",
+      next_rotation_due_at: "2026-07-22T00:00:00Z",
+      created_by: "plant-operations-owner-role",
+      labels: {
+        environment: "demo",
+      },
+      notes: ["Metadata-only handle; no raw credential value is stored."],
+      last_rotation: {
+        tenant_id: "tenant_demo_manufacturing",
+        handle_id: "cred_file_csv_readonly",
+        rotated_by: "security-operations-role",
+        rotated_at: "2026-06-22T00:00:00Z",
+        evidence_ref: "change-window-2026-06-22",
+        status: "rotated",
+        notes: ["Reference rotated in external vault; Axis stored metadata only."],
+      },
+    },
+  ],
+  handle_notes: [
+    "Credential handles point to external secret managers or local dev refs.",
+    "Rotation updates metadata and history without storing raw credential values.",
+    "Connector run execution remains future work.",
   ],
 };
 
