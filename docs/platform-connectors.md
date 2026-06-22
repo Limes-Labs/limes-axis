@@ -6,8 +6,9 @@ external data sources into Axis without enabling live production mutation.
 This slice defines connector manifests, runtime policy boundaries, schema
 mapping metadata, a preview-only file/CSV connector and a metadata-only
 external database preview connector for the manufacturing reference demo. It
-also adds the first tenant-scoped connector configuration records and
-metadata-only connector run records. Governed
+also adds tenant-scoped persisted connector manifest records, the first
+tenant-scoped connector configuration records and metadata-only connector run
+records. Governed
 dry-run execution now passes through a deferred Axis connector execution
 adapter while keeping live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
@@ -24,6 +25,8 @@ before ontology mutation execution.
 
 ```text
 GET /demo/manufacturing/connectors
+GET /demo/manufacturing/connectors/manifests
+POST /demo/manufacturing/connectors/manifests
 GET /demo/manufacturing/connectors/configurations
 POST /demo/manufacturing/connectors/configurations
 GET /demo/manufacturing/connectors/credential-handles
@@ -53,6 +56,26 @@ The registry endpoint returns:
 - schema fields and ontology mapping targets;
 - allowed and blocked runtime operations;
 - preview sample metadata.
+
+The manifest management endpoints store and query tenant-scoped connector
+manifest records. A manifest record includes:
+
+- tenant id;
+- connector id, display name, type, source type and version;
+- preview-only registration status;
+- runtime boundary;
+- registering role/system id;
+- public-safe manifest payload;
+- runtime policy metadata;
+- preview sample metadata;
+- linked audit event id and type;
+- notes.
+
+Creating a manifest record writes append-only
+`connector.manifest.registered` audit evidence. It does not enable live sync,
+retrieve credentials, execute connector code or mutate the ontology graph. The
+create endpoint rejects raw connection fields, DSNs, SQL/query text and raw
+credential material before persisting the record.
 
 The CSV preview endpoint accepts a demo CSV payload and returns:
 
@@ -395,6 +418,7 @@ contract keeps these boundaries visible:
 - no external egress by default;
 - redacted preview payloads;
 - audit event preview before live connector execution;
+- tenant-scoped persisted manifest records before scheduled sync exists;
 - tenant-scoped run records with deferred execution evidence;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
@@ -405,7 +429,7 @@ contract keeps these boundaries visible:
 
 Future Platform work should add:
 
-- persisted connector manifest management beyond the demo seed;
+- manifest lifecycle transitions beyond preview-only registration;
 - production vault/KMS integration and secret lease automation;
 - scheduled sync lifecycle;
 - live external database adapters behind the Axis connector runtime boundary;
@@ -419,8 +443,8 @@ integrations, separate ownership or substantial runtime/deployment concerns.
 
 The slice is covered by:
 
-- API unit tests for manifest shape, public-safety checks, CSV mapping and
-  metadata-only external DB preview;
+- API unit tests for manifest shape, public-safety checks, manifest persistence,
+  audit evidence, CSV mapping and metadata-only external DB preview;
 - API unit tests for tenant-scoped connector configuration persistence and raw
   credential field rejection;
 - API unit tests for credential handle metadata, secret reference guardrails
@@ -434,7 +458,7 @@ The slice is covered by:
   rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for fallback registry, configuration, credential handle, run
-  record, ontology proposal, manual import, CSV preview and external DB preview
-  contracts;
+- web unit tests for fallback registry, persisted manifest registry,
+  configuration, credential handle, run record, ontology proposal, manual import,
+  CSV preview and external DB preview contracts;
 - Playwright smoke tests for `/connectors` rendering.

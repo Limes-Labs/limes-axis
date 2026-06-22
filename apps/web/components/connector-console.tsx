@@ -10,6 +10,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorManifestRegistry,
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
   defaultConnectorPromotionPolicyRegistry,
@@ -27,6 +28,7 @@ import {
   type ConnectorPromotionPolicyRecord,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
+  type ManufacturingConnectorManifestRegistry,
   type ManufacturingConnectorManualImportRegistry,
   type ManufacturingConnectorOntologyProposalRegistry,
   type ManufacturingConnectorPromotionPolicyRegistry,
@@ -63,6 +65,9 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorConfigurationRegistry>(
       defaultConnectorConfigurationRegistry,
     );
+  const [manifestRegistry, setManifestRegistry] = useState<ManufacturingConnectorManifestRegistry>(
+    defaultConnectorManifestRegistry,
+  );
   const [credentialHandleRegistry, setCredentialHandleRegistry] =
     useState<ManufacturingConnectorCredentialHandleRegistry>(
       defaultConnectorCredentialHandleRegistry,
@@ -127,6 +132,7 @@ export function ConnectorConsole() {
         const [
           registryData,
           previewData,
+          manifestData,
           configurationData,
           credentialHandleData,
           runData,
@@ -142,6 +148,9 @@ export function ConnectorConsole() {
               body: JSON.stringify(buildDefaultCsvPreviewRequest()),
               method: "POST",
             },
+          ),
+          fetchJson<ManufacturingConnectorManifestRegistry>(
+            "/demo/manufacturing/connectors/manifests",
           ),
           fetchJson<ManufacturingConnectorConfigurationRegistry>(
             "/demo/manufacturing/connectors/configurations",
@@ -165,6 +174,7 @@ export function ConnectorConsole() {
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
+          setManifestRegistry(manifestData);
           setConfigurationRegistry(configurationData);
           setCredentialHandleRegistry(credentialHandleData);
           setRunRegistry(runData);
@@ -182,6 +192,7 @@ export function ConnectorConsole() {
       } catch {
         if (!controller.signal.aborted) {
           setRegistry(defaultManufacturingConnectorRegistry);
+          setManifestRegistry(defaultConnectorManifestRegistry);
           setConfigurationRegistry(defaultConnectorConfigurationRegistry);
           setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
           setRunRegistry(defaultConnectorRunRegistry);
@@ -213,6 +224,13 @@ export function ConnectorConsole() {
         (configuration) => configuration.connector_id === selectedConnectorId,
       ) ?? configurationRegistry.configurations[0],
     [configurationRegistry.configurations, selectedConnectorId],
+  );
+  const selectedManifestRecord = useMemo(
+    () =>
+      manifestRegistry.manifests.find(
+        (manifestRecord) => manifestRecord.connector_id === selectedConnectorId,
+      ),
+    [manifestRegistry.manifests, selectedConnectorId],
   );
   const selectedCredentialHandles = useMemo(
     () =>
@@ -395,6 +413,7 @@ export function ConnectorConsole() {
 
       <div className="metric-grid">
         {registry.metrics
+          .concat(manifestRegistry.metrics)
           .concat(configurationRegistry.metrics)
           .concat(credentialHandleRegistry.metrics)
           .concat(runRegistry.metrics)
@@ -559,6 +578,36 @@ export function ConnectorConsole() {
                     <span className="mono">{value}</span>
                   </div>
                 ))}
+              </div>
+            </section>
+          ) : null}
+
+          {selectedManifestRecord ? (
+            <section className="audit-payload">
+              <div className="audit-payload-header">
+                <div>
+                  <p className="section-label">Persisted Manifest</p>
+                  <h3 className="subsection-title">{selectedManifestRecord.status}</h3>
+                  <p className="row-detail mono">{selectedManifestRecord.manifest_id}</p>
+                </div>
+                <ScrollText size={18} />
+              </div>
+              <div className="audit-detail-grid">
+                <div>
+                  <p className="metric-label">Registered By</p>
+                  <p className="row-title">{selectedManifestRecord.registered_by}</p>
+                  <p className="row-detail">{selectedManifestRecord.audit_event_type}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Manifest Type</p>
+                  <p className="row-title">{formatConnectorLabel(selectedManifestRecord.connector_type)}</p>
+                  <p className="row-detail">{selectedManifestRecord.source_type}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Runtime</p>
+                  <p className="row-title">{selectedManifestRecord.runtime_boundary}</p>
+                  <p className="row-detail">{selectedManifestRecord.version}</p>
+                </div>
               </div>
             </section>
           ) : null}
@@ -1136,6 +1185,7 @@ export function ConnectorConsole() {
 
           <div className="stack">
             {registry.connector_notes
+              .concat(manifestRegistry.manifest_notes)
               .concat(configurationRegistry.configuration_notes)
               .concat(credentialHandleRegistry.handle_notes)
               .concat(runRegistry.run_notes)
@@ -1144,6 +1194,7 @@ export function ConnectorConsole() {
               .concat(promotionPolicyRegistry.policy_notes)
               .concat(promotionPolicySetRegistry.policy_set_notes)
               .concat(selectedConfiguration?.notes ?? [])
+              .concat(selectedManifestRecord?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))

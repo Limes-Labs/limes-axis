@@ -14,6 +14,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorManifestRecord,
     ConnectorManualImportRequest,
     ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
@@ -29,6 +30,7 @@ from axis_api.persistence import (
     ConnectorConfigurationCreate,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialRotationCreate,
+    ConnectorManifestCreate,
     ConnectorManualImportDecisionRecord,
     ConnectorManualImportRequestCreate,
     ConnectorOntologyPromotionCreate,
@@ -56,6 +58,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "approval_records",
         "action_runs",
         "connector_configurations",
+        "connector_manifests",
         "connector_credential_handles",
         "connector_credential_rotations",
         "connector_runs",
@@ -68,6 +71,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ActionRun.__table__.c.idempotency_key.index is True
     assert AuditEvent.__table__.c.event_type.index is True
     assert ConnectorConfiguration.__table__.c.connector_id.index is True
+    assert ConnectorManifestRecord.__table__.c.connector_id.index is True
     assert ConnectorCredentialHandle.__table__.c.handle_id.index is True
     assert ConnectorCredentialRotation.__table__.c.handle_id.index is True
     assert ConnectorRun.__table__.c.run_id.index is True
@@ -260,6 +264,56 @@ def test_repository_records_connector_configurations_tenant_scoped(
     }
     assert records[0].credential_ref_ids == []
     assert records[0].status == "configured_preview_only"
+
+
+def test_repository_records_connector_manifests_tenant_scoped(session: Session) -> None:
+    repository = AxisPersistenceRepository(session)
+    created = repository.create_connector_manifest(
+        ConnectorManifestCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_shift_orders",
+            display_name="Shift orders database mirror",
+            connector_type="external_db",
+            source_type="database",
+            version="2026-06-22",
+            status="registered_preview_only",
+            runtime_boundary="axis-connector-sandbox",
+            registered_by="platform-connector-owner-role",
+            manifest_payload={"connector_id": "external_db_shift_orders"},
+            runtime_policy={"blocked_operations": ["live_query"]},
+            preview_sample={"record_count": 1},
+            audit_event_id=None,
+            audit_event_type="connector.manifest.registered",
+            notes=["Manifest is public-safe."],
+        )
+    )
+    repository.create_connector_manifest(
+        ConnectorManifestCreate(
+            tenant_id="tenant_other",
+            connector_id="external_db_shift_orders",
+            display_name="Other tenant database mirror",
+            connector_type="external_db",
+            source_type="database",
+            version="2026-06-22",
+            status="registered_preview_only",
+            runtime_boundary="axis-connector-sandbox",
+            registered_by="other-owner-role",
+            manifest_payload={"connector_id": "external_db_shift_orders"},
+            runtime_policy={},
+            preview_sample={},
+            audit_event_id=None,
+            audit_event_type="connector.manifest.registered",
+            notes=[],
+        )
+    )
+
+    records = repository.list_connector_manifests("tenant_demo_manufacturing")
+
+    assert records == [created]
+    assert records[0].connector_id == "external_db_shift_orders"
+    assert records[0].manifest_payload == {"connector_id": "external_db_shift_orders"}
+    assert records[0].runtime_policy == {"blocked_operations": ["live_query"]}
+    assert records[0].status == "registered_preview_only"
 
 
 def test_repository_records_connector_credential_handles_and_rotations(

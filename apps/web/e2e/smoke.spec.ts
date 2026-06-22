@@ -306,6 +306,8 @@ test.describe("Axis console smoke", () => {
     });
     await expect(externalDbConnectorButton).toBeVisible();
     await expect(page.getByText("external_db_operational_mirror").first()).toBeVisible();
+    await expect(page.getByText("Persisted Manifests")).toBeVisible();
+    await expect(page.getByText("connector.manifest.registered").first()).toBeVisible();
     await externalDbConnectorButton.click();
     await expect(page.getByText("connectors:external_db:preview")).toBeVisible();
     await expect(page.getByText("live_query")).toBeVisible();

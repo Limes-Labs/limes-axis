@@ -101,7 +101,9 @@ boundaries, tenant-scoped preview configuration and redacted ontology proposal
 previews without enabling live sync or connector mutation. The external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
-credential handles while blocking raw DSNs, SQL text and live queries. Draft connector
+credential handles while blocking raw DSNs, SQL text and live queries.
+Persisted connector manifests can now be registered tenant-scoped with
+`connector.manifest.registered` audit evidence without enabling live sync. Draft connector
 promotion policies can now be revised append-only with idempotency evidence,
 while enabled required policies remain immutable until a governed policy-set
 transition adopts a future version. The credential handle slice adds
