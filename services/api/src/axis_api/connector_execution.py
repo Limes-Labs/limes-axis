@@ -373,8 +373,22 @@ class SelfHostedConnectorSyncExecutionRuntime:
             and egress_policy_evidence_valid
             and credential_access_mode == "lease_scoped_secret_ref"
         )
+        secret_reference_evidence = _secret_reference_evidence(
+            connector_id=request.connector_id,
+            connection_profile_id=connection_profile_id,
+            credential_access_mode=credential_access_mode,
+            credential_lease_ref=credential_lease_ref,
+            secret_material_returned=credential_lease_secret_returned,
+            policy_preflight_passed=policy_preflight_passed,
+        )
+        secret_reference_evidence_valid = (
+            secret_reference_evidence["secret_reference_evidence_status"]
+            == "validated"
+        )
         preflight_passed = (
-            policy_preflight_passed and credential_lease_evidence_valid
+            policy_preflight_passed
+            and credential_lease_evidence_valid
+            and secret_reference_evidence_valid
         )
         status = (
             "sync_execution_preflight_passed"
@@ -414,6 +428,7 @@ class SelfHostedConnectorSyncExecutionRuntime:
                 _secret_retrieval_decision(
                     preflight_enabled=self.external_db_live_query_preflight_enabled,
                     policy_preflight_passed=policy_preflight_passed,
+                    secret_reference_evidence_valid=secret_reference_evidence_valid,
                     lease_evidence_valid=credential_lease_evidence_valid,
                     secret_material_returned=credential_lease_secret_returned,
                 )
@@ -442,6 +457,7 @@ class SelfHostedConnectorSyncExecutionRuntime:
             result_summary["credential_lease_secret_material_returned"] = (
                 credential_lease_secret_returned
             )
+            result_summary.update(secret_reference_evidence)
         return ConnectorSyncExecutionResult(
             adapter=self.external_db_adapter_name,
             status=status,
@@ -503,6 +519,54 @@ def _external_db_egress_policy_evidence(
     }
 
 
+def _secret_reference_evidence(
+    *,
+    connector_id: str,
+    connection_profile_id: str,
+    credential_access_mode: str,
+    credential_lease_ref: str,
+    secret_material_returned: str,
+    policy_preflight_passed: bool,
+) -> dict[str, str]:
+    scope = f"{connector_id}:{connection_profile_id}"
+    base = {
+        "secret_reference_runtime_boundary": "axis-secret-reference-resolver",
+        "secret_reference_scope": scope,
+        "secret_reference_access_mode": credential_access_mode,
+        "secret_reference_lease_ref": credential_lease_ref,
+        "secret_reference_material_returned": secret_material_returned,
+    }
+    if not policy_preflight_passed:
+        return {
+            **base,
+            "secret_reference_evidence_status": "not_started",
+            "secret_reference_result_status": "policy_preflight_not_passed",
+        }
+    if credential_access_mode != "lease_scoped_secret_ref":
+        return {
+            **base,
+            "secret_reference_evidence_status": "failed",
+            "secret_reference_result_status": "unsupported_secret_access_mode",
+        }
+    if secret_material_returned == "true":
+        return {
+            **base,
+            "secret_reference_evidence_status": "failed",
+            "secret_reference_result_status": "secret_material_returned",
+        }
+    if not credential_lease_ref:
+        return {
+            **base,
+            "secret_reference_evidence_status": "failed",
+            "secret_reference_result_status": "secret_reference_missing_lease_ref",
+        }
+    return {
+        **base,
+        "secret_reference_evidence_status": "validated",
+        "secret_reference_result_status": "secret_reference_validated",
+    }
+
+
 def _egress_policy_decision(
     *,
     preflight_enabled: bool,
@@ -528,6 +592,7 @@ def _secret_retrieval_decision(
     *,
     preflight_enabled: bool,
     policy_preflight_passed: bool,
+    secret_reference_evidence_valid: bool,
     lease_evidence_valid: bool,
     secret_material_returned: str,
 ) -> str:
@@ -535,8 +600,10 @@ def _secret_retrieval_decision(
         return "not_started"
     if not policy_preflight_passed:
         return "not_started"
-    if lease_evidence_valid:
-        return "lease_scoped_reference_only"
     if secret_material_returned == "true":
         return "blocked_secret_material_returned"
+    if not secret_reference_evidence_valid:
+        return "blocked_secret_reference_evidence"
+    if lease_evidence_valid:
+        return "lease_scoped_reference_only"
     return "blocked_credential_lease_evidence"

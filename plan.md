@@ -121,6 +121,7 @@ Foundation acceptance is tracked in
 - [x] Add external DB live-query preflight policy evidence without live query execution.
 - [x] Add credential lease evidence hardening for external DB live-query preflight.
 - [x] Add egress policy evidence hardening for external DB live-query preflight.
+- [x] Add secret reference resolver evidence hardening for external DB live-query preflight.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -243,9 +244,10 @@ depends on validated egress policy evidence from the self-hosted policy boundary
 and the validated credential lease result: the runtime records policy
 runtime/ref/scope/private-endpoint evidence, blocks unknown policies before
 secret retrieval is considered, records lease id/mode/runtime/result
-status/reference evidence and blocks the path if the lease evidence says secret
-material was returned. Network policy enforcement and real query execution stay
-outside this slice.
+status/reference evidence, records reference-only secret resolver evidence and
+blocks the path if the lease reference is missing or if the lease evidence says
+secret material was returned. Network policy enforcement, real secret retrieval
+and real query execution stay outside this slice.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.

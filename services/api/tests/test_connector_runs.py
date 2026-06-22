@@ -180,6 +180,10 @@ def seed_external_db_credential_lease(
     repository: AxisPersistenceRepository,
     *,
     secret_material_returned: bool = False,
+    provider_lease_ref: str | None = (
+        "self-hosted-vault-kms://tenant_demo_manufacturing/"
+        "lease_external_db_readonly_20260622"
+    ),
 ) -> None:
     now = utc_now()
     repository.create_connector_credential_lease(
@@ -200,10 +204,7 @@ def seed_external_db_credential_lease(
             lease_result={
                 "adapter": "axis-self-hosted-vault-kms-lease-adapter",
                 "status": "lease_executed",
-                "provider_lease_ref": (
-                    "self-hosted-vault-kms://tenant_demo_manufacturing/"
-                    "lease_external_db_readonly_20260622"
-                ),
+                "provider_lease_ref": provider_lease_ref or "",
                 "secret_material_returned": secret_material_returned,
             },
             granted_at=now,
@@ -1273,6 +1274,18 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
             "lease_external_db_readonly_20260622"
         ),
         "credential_lease_secret_material_returned": "false",
+        "secret_reference_evidence_status": "validated",
+        "secret_reference_runtime_boundary": "axis-secret-reference-resolver",
+        "secret_reference_result_status": "secret_reference_validated",
+        "secret_reference_scope": (
+            "external_db_operational_mirror:profile_postgres_ops_readonly"
+        ),
+        "secret_reference_access_mode": "lease_scoped_secret_ref",
+        "secret_reference_lease_ref": (
+            "self-hosted-vault-kms://tenant_demo_manufacturing/"
+            "lease_external_db_readonly_20260622"
+        ),
+        "secret_reference_material_returned": "false",
         "records_read": "0",
         "records_accepted": "0",
         "records_rejected": "0",
@@ -1447,6 +1460,88 @@ def test_execute_external_db_live_query_preflight_blocks_unknown_egress_policy(
     assert result_summary["egress_policy_decision"] == "blocked_policy_not_found"
     assert result_summary["secret_retrieval_decision"] == "not_started"
     assert result_summary["credential_lease_evidence_status"] == "validated"
+    assert result_summary["external_query_started"] == "false"
+    assert result_summary["credential_material_returned"] == "false"
+    assert result_summary["graph_mutation_started"] == "false"
+    assert "vault://" not in str(body).lower()
+    assert "password" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+
+def test_execute_external_db_live_query_preflight_blocks_missing_secret_reference(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository, provider_lease_ref=None)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_preflight_missing_ref_20260622",
+        dispatch_id="dispatch_external_db_orders_live_preflight_missing_ref_20260622_1400",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_missing_ref_20260622_1400"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_preflight_missing_ref_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": (
+                "sync_exec_external_db_orders_live_preflight_missing_ref_20260622_1400"
+            ),
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_preflight_missing_ref_20260622_1400"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_preflight_blocked"
+    assert body["audit_event_type"] == "connector.run.sync_execution_preflight_blocked"
+    result_summary = body["sync_execution_result"]["result_summary"]
+    assert result_summary["egress_policy_evidence_status"] == "validated"
+    assert result_summary["credential_lease_evidence_status"] == "failed"
+    assert result_summary["credential_lease_ref"] == ""
+    assert result_summary["secret_reference_evidence_status"] == "failed"
+    assert (
+        result_summary["secret_reference_result_status"]
+        == "secret_reference_missing_lease_ref"
+    )
+    assert result_summary["secret_reference_lease_ref"] == ""
+    assert result_summary["secret_retrieval_decision"] == "blocked_secret_reference_evidence"
     assert result_summary["external_query_started"] == "false"
     assert result_summary["credential_material_returned"] == "false"
     assert result_summary["graph_mutation_started"] == "false"

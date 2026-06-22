@@ -252,9 +252,13 @@ egress policies write `connector.run.sync_execution_preflight_blocked` with
 `egress_policy_decision=blocked_policy_not_found` before secret retrieval is
 considered. Passing preflight also requires the already validated credential
 lease result to include a lease reference, an executed/renewed lease status and
-`secret_material_returned=false`. If the lease evidence says secret material was
-returned, the runtime writes `connector.run.sync_execution_preflight_blocked`
-with `secret_retrieval_decision=blocked_secret_material_returned`. The preflight
+`secret_material_returned=false`. The secret reference resolver then records its
+own runtime boundary, scope, access mode, lease reference and
+`secret_reference_material_returned=false` without fetching credential
+material. Missing lease references write
+`secret_retrieval_decision=blocked_secret_reference_evidence`; lease evidence
+that says secret material was returned writes
+`secret_retrieval_decision=blocked_secret_material_returned`. The preflight
 still does not start a database query, return credential material or mutate the
 graph.
 

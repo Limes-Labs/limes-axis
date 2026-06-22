@@ -108,10 +108,12 @@ passed only when the self-hosted egress policy boundary validates the known
 private-endpoint policy for the connector profile and the run uses a
 lease-scoped secret reference; the slice still records
 `external_query_started=false` and returns no credential material. The preflight
-records redacted egress policy evidence plus the already validated credential
-lease result, blocks unknown egress policies before secret retrieval is
-considered and also blocks if the lease result says secret material was
-returned. Connector ontology
+records redacted egress policy evidence, the already validated credential lease
+result and secret reference resolver evidence. Unknown egress policies are
+blocked before secret retrieval is considered; missing lease references and
+lease results that say secret material was returned are also blocked. The
+resolver remains reference-only and does not return credential material.
+Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records

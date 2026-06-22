@@ -1724,6 +1724,15 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
           "self-hosted-vault-kms://tenant_demo_manufacturing/" +
           "lease_external_db_readonly_20260622",
         credential_lease_secret_material_returned: "false",
+        secret_reference_evidence_status: "validated",
+        secret_reference_runtime_boundary: "axis-secret-reference-resolver",
+        secret_reference_result_status: "secret_reference_validated",
+        secret_reference_scope: "external_db_operational_mirror:profile_postgres_ops_readonly",
+        secret_reference_access_mode: "lease_scoped_secret_ref",
+        secret_reference_lease_ref:
+          "self-hosted-vault-kms://tenant_demo_manufacturing/" +
+          "lease_external_db_readonly_20260622",
+        secret_reference_material_returned: "false",
         records_read: "0",
         records_accepted: "0",
         records_rejected: "0",
@@ -1823,6 +1832,16 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
             "self-hosted-vault-kms://tenant_demo_manufacturing/" +
             "lease_external_db_readonly_20260622",
           credential_lease_secret_material_returned: "false",
+          secret_reference_evidence_status: "validated",
+          secret_reference_runtime_boundary: "axis-secret-reference-resolver",
+          secret_reference_result_status: "secret_reference_validated",
+          secret_reference_scope:
+            "external_db_operational_mirror:profile_postgres_ops_readonly",
+          secret_reference_access_mode: "lease_scoped_secret_ref",
+          secret_reference_lease_ref:
+            "self-hosted-vault-kms://tenant_demo_manufacturing/" +
+            "lease_external_db_readonly_20260622",
+          secret_reference_material_returned: "false",
           records_read: "0",
           records_accepted: "0",
           records_rejected: "0",
