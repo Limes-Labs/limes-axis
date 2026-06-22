@@ -27,6 +27,7 @@ import {
   type ConnectorPromotionPolicyCreateRequest,
   type ConnectorPromotionPolicyEnableRequest,
   type ConnectorPromotionPolicyRecord,
+  type ConnectorRunRecord,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
   type ManufacturingConnectorCredentialLeaseRegistry,
@@ -54,6 +55,27 @@ function sourceLabel(source: ConnectorSource): string {
   }
 
   return source === "loading" ? "Loading connectors" : "Fallback connector seed";
+}
+
+function connectorRunRuntimeAdapter(run: ConnectorRunRecord): string {
+  return run.schedule_result?.adapter ?? run.execution_result?.adapter ?? "not requested";
+}
+
+function connectorRunRuntimeStatus(run: ConnectorRunRecord): string {
+  return run.schedule_result?.status ?? run.execution_result?.status ?? "record-only evidence";
+}
+
+function connectorRunExternalSyncStarted(run: ConnectorRunRecord): boolean {
+  return Boolean(run.schedule_result?.external_sync_started ?? run.execution_result?.external_sync_started);
+}
+
+function connectorRunRuntimeEvidence(run: ConnectorRunRecord): string {
+  return (
+    run.schedule_result?.schedule_ref ??
+    run.schedule_result?.idempotency_key ??
+    run.execution_result?.idempotency_key ??
+    "no runtime idempotency key"
+  );
 }
 
 export function ConnectorConsole() {
@@ -832,20 +854,16 @@ export function ConnectorConsole() {
                   <p className="row-detail">{run.runtime_boundary}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Execution Adapter</p>
-                  <p className="row-title">{run.execution_result?.adapter ?? "not requested"}</p>
-                  <p className="row-detail">
-                    {run.execution_result?.status ?? "record-only evidence"}
-                  </p>
+                  <p className="metric-label">Runtime Adapter</p>
+                  <p className="row-title">{connectorRunRuntimeAdapter(run)}</p>
+                  <p className="row-detail">{connectorRunRuntimeStatus(run)}</p>
                 </div>
                 <div>
                   <p className="metric-label">External Sync</p>
                   <p className="row-title">
-                    {run.execution_result?.external_sync_started ? "started" : "not started"}
+                    {connectorRunExternalSyncStarted(run) ? "started" : "not started"}
                   </p>
-                  <p className="row-detail">
-                    {run.execution_result?.idempotency_key ?? "no execution idempotency key"}
-                  </p>
+                  <p className="row-detail">{connectorRunRuntimeEvidence(run)}</p>
                 </div>
                 <div>
                   <p className="metric-label">Requested By</p>

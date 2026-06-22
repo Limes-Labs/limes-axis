@@ -5614,6 +5614,19 @@
             "title": "Credential Handle Ids",
             "type": "array"
           },
+          "credential_lease_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Lease Id"
+          },
           "execution_mode": {
             "default": "preview",
             "maxLength": 80,
@@ -5627,6 +5640,18 @@
             },
             "title": "Input Summary",
             "type": "object"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
           },
           "notes": {
             "items": {
@@ -5654,6 +5679,45 @@
             "pattern": "^[a-z0-9][a-z0-9_-]*$",
             "title": "Run Id",
             "type": "string"
+          },
+          "schedule_cadence": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Cadence"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "schedule_timezone": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Timezone"
           },
           "tenant_id": {
             "default": "tenant_demo_manufacturing",
@@ -5753,6 +5817,16 @@
             "minLength": 1,
             "title": "Runtime Boundary",
             "type": "string"
+          },
+          "schedule_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorSyncScheduleResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "minLength": 1,
@@ -5866,6 +5940,57 @@
           "description"
         ],
         "title": "ConnectorSchemaField",
+        "type": "object"
+      },
+      "ConnectorSyncScheduleResult": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "external_sync_started": {
+            "title": "External Sync Started",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "result_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Result Summary",
+            "type": "object"
+          },
+          "schedule_ref": {
+            "minLength": 1,
+            "title": "Schedule Ref",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter",
+          "status",
+          "schedule_ref",
+          "external_sync_started",
+          "idempotency_key"
+        ],
+        "title": "ConnectorSyncScheduleResult",
         "type": "object"
       },
       "ConnectorTenantConfiguration": {

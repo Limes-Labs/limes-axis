@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,10 +8,15 @@ from axis_api.connector_execution import (
     ConnectorExecutionRequest,
     ConnectorExecutionResult,
     ConnectorExecutionRuntime,
+    ConnectorSyncScheduleRequest,
+    ConnectorSyncScheduleResult,
+    ConnectorSyncSchedulerRuntime,
     DeferredConnectorExecutionRuntime,
+    DeferredConnectorSyncSchedulerRuntime,
 )
 from axis_api.connectors import get_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
+from axis_api.models import utc_now
 from axis_api.persistence import AxisPersistenceRepository, ConnectorRunCreate
 
 
@@ -38,6 +43,11 @@ class ConnectorRunCreateRequest(BaseModel):
     execution_mode: str = Field(default="preview", min_length=1, max_length=80)
     requested_by: str = Field(min_length=1, max_length=160)
     credential_handle_ids: list[str] = Field(default_factory=list)
+    credential_lease_id: str | None = Field(default=None, min_length=1, max_length=180)
+    schedule_id: str | None = Field(default=None, min_length=1, max_length=180)
+    schedule_cadence: str | None = Field(default=None, min_length=1, max_length=80)
+    schedule_timezone: str | None = Field(default=None, min_length=1, max_length=80)
+    next_run_at: datetime | None = None
     input_summary: dict[str, str] = Field(default_factory=dict)
     result_summary: dict[str, str] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
@@ -55,6 +65,7 @@ class ConnectorRunRecord(BaseModel):
     input_summary: dict[str, str] = Field(default_factory=dict)
     result_summary: dict = Field(default_factory=dict)
     execution_result: ConnectorExecutionResult | None = None
+    schedule_result: ConnectorSyncScheduleResult | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -73,8 +84,15 @@ class ManufacturingConnectorRunRegistry(BaseModel):
 
 AUDIT_EVENT_TYPE = "connector.run.recorded"
 EXECUTION_AUDIT_EVENT_TYPE = "connector.run.execution_deferred"
+SYNC_SCHEDULE_AUDIT_EVENT_TYPE = "connector.run.sync_scheduled"
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
-ALLOWED_EXECUTION_MODES = {"preview", "manual_import_record", GOVERNED_EXECUTION_MODE}
+SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
+ALLOWED_EXECUTION_MODES = {
+    "preview",
+    "manual_import_record",
+    GOVERNED_EXECUTION_MODE,
+    SCHEDULED_SYNC_PLAN_MODE,
+}
 RAW_PAYLOAD_FIELD_NAMES = {
     "api_key",
     "client_secret",
@@ -140,26 +158,37 @@ def record_demo_connector_run(
     repository: AxisPersistenceRepository,
     request: ConnectorRunCreateRequest,
     execution_runtime: ConnectorExecutionRuntime | None = None,
+    sync_scheduler_runtime: ConnectorSyncSchedulerRuntime | None = None,
 ) -> ConnectorRunRecord:
     manifest = _manifest_for_connector(request.connector_id)
     _validate_execution_mode(request.execution_mode)
     _validate_redacted_summary(request.input_summary)
     _validate_redacted_summary(request.result_summary)
+    schedule_result = _schedule_connector_sync(
+        repository,
+        request,
+        runtime_boundary=manifest.runtime_boundary,
+        sync_scheduler_runtime=sync_scheduler_runtime or DeferredConnectorSyncSchedulerRuntime(),
+    )
     execution_result = _execute_connector_run(
         repository,
         request,
         runtime_boundary=manifest.runtime_boundary,
         execution_runtime=execution_runtime or DeferredConnectorExecutionRuntime(),
     )
-    status = (
-        execution_result.status
-        if execution_result is not None
-        else _status_for_execution_mode(request.execution_mode)
-    )
-    audit_event_type = (
-        EXECUTION_AUDIT_EVENT_TYPE if execution_result is not None else AUDIT_EVENT_TYPE
-    )
+    if schedule_result is not None:
+        status = schedule_result.status
+        audit_event_type = SYNC_SCHEDULE_AUDIT_EVENT_TYPE
+    elif execution_result is not None:
+        status = execution_result.status
+        audit_event_type = EXECUTION_AUDIT_EVENT_TYPE
+    else:
+        status = _status_for_execution_mode(request.execution_mode)
+        audit_event_type = AUDIT_EVENT_TYPE
     result_summary = dict(request.result_summary)
+    if schedule_result is not None:
+        result_summary.update(schedule_result.result_summary)
+        result_summary["sync_schedule_result"] = schedule_result.model_dump(mode="json")
     if execution_result is not None:
         result_summary.update(execution_result.result_summary)
         result_summary["execution_result"] = execution_result.model_dump(mode="json")
@@ -175,11 +204,21 @@ def record_demo_connector_run(
                 "status": status,
                 "execution_mode": request.execution_mode,
                 "credential_handle_ids": request.credential_handle_ids,
+                "credential_lease_id": request.credential_lease_id,
+                "schedule_id": request.schedule_id,
+                "schedule_cadence": request.schedule_cadence,
+                "schedule_timezone": request.schedule_timezone,
+                "next_run_at": _datetime_as_utc_string(request.next_run_at),
                 "input_summary": request.input_summary,
                 "result_summary": result_summary,
                 "execution_result": (
                     execution_result.model_dump(mode="json")
                     if execution_result is not None
+                    else None
+                ),
+                "schedule_result": (
+                    schedule_result.model_dump(mode="json")
+                    if schedule_result is not None
                     else None
                 ),
                 "runtime_boundary": manifest.runtime_boundary,
@@ -219,6 +258,7 @@ def _run_from_record(record) -> ConnectorRunRecord:
         input_summary=record.input_summary,
         result_summary=record.result_summary,
         execution_result=_execution_result_from_summary(record.result_summary),
+        schedule_result=_schedule_result_from_summary(record.result_summary),
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
@@ -241,7 +281,10 @@ def _validate_execution_mode(execution_mode: str) -> None:
     if execution_mode in ALLOWED_EXECUTION_MODES:
         return
     raise ConnectorRunValidationError(
-        "Only preview, manual_import_record and governed_dry_run records are supported.",
+        (
+            "Only preview, manual_import_record, governed_dry_run and "
+            "scheduled_sync_plan records are supported."
+        ),
         "unsupported_execution_mode",
     )
 
@@ -259,6 +302,39 @@ def _status_for_execution_mode(execution_mode: str) -> str:
     if execution_mode == "manual_import_record":
         return "recorded_manual_import_only"
     return "recorded_preview_only"
+
+
+def _schedule_connector_sync(
+    repository: AxisPersistenceRepository,
+    request: ConnectorRunCreateRequest,
+    *,
+    runtime_boundary: str,
+    sync_scheduler_runtime: ConnectorSyncSchedulerRuntime,
+) -> ConnectorSyncScheduleResult | None:
+    if request.execution_mode != SCHEDULED_SYNC_PLAN_MODE:
+        return None
+
+    _validate_governed_execution_credentials(repository, request)
+    _validate_schedule_request(request)
+    _validate_active_credential_lease(repository, request)
+
+    return sync_scheduler_runtime.schedule(
+        ConnectorSyncScheduleRequest(
+            tenant_id=request.tenant_id,
+            connector_id=request.connector_id,
+            run_id=request.run_id,
+            execution_mode=request.execution_mode,
+            runtime_boundary=runtime_boundary,
+            requested_by=request.requested_by,
+            credential_handle_ids=request.credential_handle_ids,
+            credential_lease_id=request.credential_lease_id or "",
+            schedule_id=request.schedule_id or "",
+            schedule_cadence=request.schedule_cadence or "",
+            schedule_timezone=request.schedule_timezone or "",
+            next_run_at=_datetime_as_utc_string(request.next_run_at) or "",
+            input_summary=request.input_summary,
+        )
+    )
 
 
 def _execute_connector_run(
@@ -284,6 +360,57 @@ def _execute_connector_run(
             input_summary=request.input_summary,
         )
     )
+
+
+def _validate_schedule_request(request: ConnectorRunCreateRequest) -> None:
+    required_fields = {
+        "credential_lease_id": request.credential_lease_id,
+        "schedule_id": request.schedule_id,
+        "schedule_cadence": request.schedule_cadence,
+        "schedule_timezone": request.schedule_timezone,
+        "next_run_at": request.next_run_at,
+    }
+    for field_name, value in required_fields.items():
+        if value is None:
+            raise ConnectorRunValidationError(
+                f"Scheduled connector sync requires {field_name}.",
+                f"{field_name}_required",
+            )
+
+
+def _validate_active_credential_lease(
+    repository: AxisPersistenceRepository,
+    request: ConnectorRunCreateRequest,
+) -> None:
+    lease = repository.get_connector_credential_lease(
+        request.tenant_id,
+        request.credential_lease_id or "",
+    )
+    if lease is None:
+        raise ConnectorRunValidationError(
+            "Connector credential lease not found.",
+            "credential_lease_not_found",
+        )
+    if lease.connector_id != request.connector_id:
+        raise ConnectorRunValidationError(
+            "Connector credential lease belongs to a different connector.",
+            "credential_lease_connector_mismatch",
+        )
+    if lease.handle_id not in request.credential_handle_ids:
+        raise ConnectorRunValidationError(
+            "Connector credential lease must match one requested credential handle.",
+            "credential_lease_handle_mismatch",
+        )
+    if lease.status != "active":
+        raise ConnectorRunValidationError(
+            "Connector credential lease must be active.",
+            "credential_lease_inactive",
+        )
+    if _ensure_timezone(lease.expires_at) <= utc_now():
+        raise ConnectorRunValidationError(
+            "Connector credential lease is expired.",
+            "credential_lease_expired",
+        )
 
 
 def _validate_governed_execution_credentials(
@@ -315,8 +442,27 @@ def _validate_governed_execution_credentials(
             )
 
 
+def _datetime_as_utc_string(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return _ensure_timezone(value).astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _ensure_timezone(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
 def _execution_result_from_summary(result_summary: dict) -> ConnectorExecutionResult | None:
     raw_result = result_summary.get("execution_result")
     if not isinstance(raw_result, dict):
         return None
     return ConnectorExecutionResult.model_validate(raw_result)
+
+
+def _schedule_result_from_summary(result_summary: dict) -> ConnectorSyncScheduleResult | None:
+    raw_result = result_summary.get("sync_schedule_result")
+    if not isinstance(raw_result, dict):
+        return None
+    return ConnectorSyncScheduleResult.model_validate(raw_result)

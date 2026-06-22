@@ -68,7 +68,9 @@ from axis_api.connector_credential_leases import (
 )
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
+    ConnectorSyncSchedulerRuntime,
     DeferredConnectorExecutionRuntime,
+    DeferredConnectorSyncSchedulerRuntime,
 )
 from axis_api.connector_manifests import (
     ConnectorManifestConflict,
@@ -270,6 +272,16 @@ def connector_execution_runtime(request: Request) -> ConnectorExecutionRuntime:
 ConnectorExecutionRuntimeDependency = Annotated[
     ConnectorExecutionRuntime,
     Depends(connector_execution_runtime),
+]
+
+
+def connector_sync_scheduler_runtime(request: Request) -> ConnectorSyncSchedulerRuntime:
+    return request.app.state.connector_sync_scheduler_runtime
+
+
+ConnectorSyncSchedulerRuntimeDependency = Annotated[
+    ConnectorSyncSchedulerRuntime,
+    Depends(connector_sync_scheduler_runtime),
 ]
 
 
@@ -609,6 +621,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else DeferredOntologyQueryRuntime()
     )
     app.state.connector_execution_runtime = DeferredConnectorExecutionRuntime()
+    app.state.connector_sync_scheduler_runtime = DeferredConnectorSyncSchedulerRuntime()
     app.state.credential_lease_runtime = (
         SelfHostedVaultKmsLeaseRuntime()
         if resolved_settings.credential_lease_execution_enabled
@@ -1150,9 +1163,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         connector_run: ConnectorRunCreateRequest,
         repository: PersistenceRepository,
         execution_runtime: ConnectorExecutionRuntimeDependency,
+        sync_scheduler_runtime: ConnectorSyncSchedulerRuntimeDependency,
     ) -> ConnectorRunRecord:
         try:
-            return record_demo_connector_run(repository, connector_run, execution_runtime)
+            return record_demo_connector_run(
+                repository,
+                connector_run,
+                execution_runtime,
+                sync_scheduler_runtime,
+            )
         except ConnectorRunValidationError as exc:
             raise HTTPException(
                 status_code=422,

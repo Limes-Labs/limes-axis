@@ -114,6 +114,7 @@ Foundation acceptance is tracked in
 - [x] Add versioned connector promotion policy sets for multi-policy required gates.
 - [x] Add governed connector promotion policy set replacement and rollback evidence.
 - [x] Add atomic adoption of approved draft policy revisions during policy-set replacement.
+- [x] Add deferred scheduled connector sync planning from run records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -203,7 +204,11 @@ summaries and links to an append-only
 calls the deferred Axis
 connector execution adapter, requires credential handle ids, writes
 `connector.run.execution_deferred` audit evidence and still does not start live
-sync. Preview-derived ontology proposals can now be persisted through
+sync. Scheduled sync plans can now be recorded through the same run endpoint
+with `execution_mode=scheduled_sync_plan`, active credential lease evidence,
+schedule metadata and `connector.run.sync_scheduled` audit evidence, while the
+deferred scheduler adapter keeps `external_sync_started=false`.
+Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.
 Manual connector import requests can now be recorded through
@@ -267,8 +272,9 @@ It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
 Manifest lifecycle transitions beyond preview-only registration,
-provider-specific Vault/KMS adapters, scheduled live sync, live external database adapters
-and connector-backed production actions remain Platform work.
+provider-specific Vault/KMS adapters, scheduled live sync execution, live
+external database adapters and connector-backed production actions remain
+Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
