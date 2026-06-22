@@ -308,57 +308,6 @@ def _external_db_manifest() -> ConnectorManifest:
     )
 
 
-def _runtime_policy() -> ConnectorRuntimePolicy:
-    return ConnectorRuntimePolicy(
-        allowed_operations=["schema_validate", "preview_mapping", "dry_run_diff"],
-        blocked_operations=["live_write", "credential_capture", "external_egress"],
-        egress_policy="no-external-egress",
-        max_file_size_mb=5,
-        row_limit=500,
-        payload_policy="redacted-preview-only",
-    )
-
-
-def _external_db_runtime_policy() -> ConnectorRuntimePolicy:
-    return ConnectorRuntimePolicy(
-        allowed_operations=["schema_validate", "metadata_preview", "dry_run_diff"],
-        blocked_operations=[
-            "live_query",
-            "live_write",
-            "credential_capture",
-            "external_egress",
-        ],
-        egress_policy="no-external-egress",
-        max_file_size_mb=5,
-        row_limit=100,
-        payload_policy="metadata-only-redacted-preview",
-    )
-
-
-def _sample_preview() -> ConnectorPreviewSample:
-    return ConnectorPreviewSample(
-        file_name="manufacturing-assets-demo.csv",
-        record_count=3,
-        headers=["asset_id", "asset_name", "domain", "station", "risk_level"],
-        sample_rows=[
-            {
-                "asset_id": "asset_line_2_packaging",
-                "asset_name": "Line 2 Packaging",
-                "domain": "Operations",
-                "station": "Line 2",
-                "risk_level": "high",
-            },
-            {
-                "asset_id": "asset_press_4",
-                "asset_name": "Press 4",
-                "domain": "Maintenance",
-                "station": "Press 4",
-                "risk_level": "medium",
-            },
-        ],
-    )
-
-
 def _external_db_sample_preview() -> ConnectorPreviewSample:
     return ConnectorPreviewSample(
         file_name="profile_postgres_ops_readonly:operations.production_orders",
@@ -379,61 +328,6 @@ def _external_db_sample_preview() -> ConnectorPreviewSample:
                 "status": "scheduled",
                 "risk_level": "medium",
             },
-        ],
-    )
-
-
-def get_manufacturing_connector_registry() -> ManufacturingConnectorRegistry:
-    connector = ConnectorRegistryItem(
-        manifest=_file_csv_manifest(),
-        runtime_policy=_runtime_policy(),
-        preview_sample=_sample_preview(),
-        connector_status=OverviewStatus.WATCH,
-    )
-    external_db_connector = ConnectorRegistryItem(
-        manifest=_external_db_manifest(),
-        runtime_policy=_external_db_runtime_policy(),
-        preview_sample=_external_db_sample_preview(),
-        connector_status=OverviewStatus.WATCH,
-    )
-    return ManufacturingConnectorRegistry(
-        tenant_id="tenant_demo_manufacturing",
-        plant_name="Ravenna Works",
-        scenario="Plant Operations Cockpit",
-        registry_status=OverviewStatus.WATCH,
-        metrics=[
-            OverviewMetric(
-                label="Connector Manifests",
-                value="2",
-                detail="Public-safe connector manifests available for preview",
-                status=OverviewStatus.READY,
-            ),
-            OverviewMetric(
-                label="CSV Preview",
-                value="Ready",
-                detail="File connector can validate and map local CSV rows",
-                status=OverviewStatus.READY,
-            ),
-            OverviewMetric(
-                label="External DB Preview",
-                value="Metadata Only",
-                detail="Database connector preview uses profile ids and handles only",
-                status=OverviewStatus.READY,
-            ),
-            OverviewMetric(
-                label="Live Sync",
-                value="Blocked",
-                detail="No live connector mutation is enabled in this foundation slice",
-                status=OverviewStatus.WATCH,
-            ),
-        ],
-        connectors=[connector, external_db_connector],
-        connector_notes=[
-            "Connector manifests are public-safe and preview-only.",
-            "The file/CSV connector maps rows to ontology proposals without writing data.",
-            "The external DB connector previews declared metadata without live SQL.",
-            "Credential retrieval, scheduled sync and production connector runs remain "
-            "future work.",
         ],
     )
 

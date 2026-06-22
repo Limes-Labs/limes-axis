@@ -288,6 +288,9 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=connectors/reference_id=manufacturing-connector-registry` and
   returning 404/422 for missing or invalid persisted payloads.
+- the connector registry runtime seed factory has been removed from the API
+  module; registry contract tests now validate the Alembic bootstrap payload
+  directly.
 - connector configuration creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
   connector manifests and runtime boundaries before tenant configuration state

@@ -12,7 +12,6 @@ from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorExternalDbPreviewRequest,
     ManufacturingConnectorRegistry,
-    get_manufacturing_connector_registry,
     preview_external_db_connector,
     preview_file_csv_connector,
 )
@@ -85,6 +84,13 @@ def persisted_connector_registry_payload() -> dict:
     }
 
 
+def bootstrap_connector_registry() -> ManufacturingConnectorRegistry:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return ManufacturingConnectorRegistry.model_validate(
+        migration["CONNECTOR_REGISTRY_PAYLOAD"]
+    )
+
+
 @pytest.fixture
 def connector_session_factory() -> sessionmaker[Session]:
     engine = create_engine(
@@ -98,8 +104,14 @@ def connector_session_factory() -> sessionmaker[Session]:
     engine.dispose()
 
 
+def test_connector_runtime_module_does_not_define_registry_seed() -> None:
+    source = Path("src/axis_api/connectors.py").read_text()
+
+    assert "def get_manufacturing_connector_registry" not in source
+
+
 def test_manufacturing_connector_registry_exposes_file_csv_manifest() -> None:
-    registry = get_manufacturing_connector_registry()
+    registry = bootstrap_connector_registry()
 
     assert registry.tenant_id == "tenant_demo_manufacturing"
     assert registry.registry_status == "watch"
@@ -132,7 +144,7 @@ def test_manufacturing_connector_registry_exposes_file_csv_manifest() -> None:
 
 
 def test_manufacturing_connector_registry_exposes_external_db_manifest() -> None:
-    registry = get_manufacturing_connector_registry()
+    registry = bootstrap_connector_registry()
 
     connector = registry.connectors[1]
     assert connector.manifest.connector_id == "external_db_operational_mirror"
@@ -177,11 +189,7 @@ def test_connector_registry_reference_contract_is_valid_and_actionable() -> None
 
 
 def test_connector_registry_bootstrap_payload_matches_contract() -> None:
-    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
-
-    registry = ManufacturingConnectorRegistry.model_validate(
-        migration["CONNECTOR_REGISTRY_PAYLOAD"]
-    )
+    registry = bootstrap_connector_registry()
 
     assert registry.tenant_id == "tenant_demo_manufacturing"
     assert registry.scenario == "Plant Operations Cockpit"
