@@ -285,6 +285,8 @@ textarea {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .metric-value {
@@ -978,6 +980,10 @@ textarea {
   align-items: start;
   border-top: 1px solid var(--line);
   padding-top: 8px;
+}
+
+.payload-row > * {
+  min-width: 0;
 }
 
 .payload-row:first-child {
