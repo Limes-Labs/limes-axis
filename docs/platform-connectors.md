@@ -231,9 +231,16 @@ omits `policy_id`, then enforces the required scopes, manual import status,
 workflow signal status, allowed risk levels and allowed ontology types before
 calling the TypeDB mutation adapter. Draft or advisory policies remain visible
 governance evidence without blocking promotion. If more than one enabled
-required policy matches the same connector, Axis rejects auto-selection with
-`promotion_policy_selection_ambiguous` until a versioned policy-set workflow is
-introduced.
+required policy matches the same connector, Axis requires a versioned active
+policy set. `POST /demo/manufacturing/connectors/promotion-policy-sets`
+requires `connectors:promotion_policy_set:activate`, verifies every referenced
+policy is enabled and required, writes
+`connector.promotion_policy_set.activated` audit evidence and allows the
+promotion endpoint to evaluate all policies in the set with
+`policy_set_enforced` evidence. When a policy set is active, explicit single
+`policy_id` selection is rejected so callers cannot evaluate only part of the
+required-gate set. Without an active set, multi-policy auto-selection is
+rejected with `promotion_policy_selection_ambiguous`.
 
 The connector console includes a compact promotion policy authoring control for
 policy id, status and enforcement mode. When the API is available, the control
@@ -241,9 +248,9 @@ posts to `POST /demo/manufacturing/connectors/promotion-policies`; when the API
 is unavailable, it records a local public-safe preview and refreshes the policy
 metrics. It also includes a compact enablement control that posts approval and
 workflow evidence to the enable endpoint or records a local public-safe preview.
-This does not add implicit policy set versioning; auto-selection is limited to
-active enabled required promotion policies and rejects ambiguous required policy
-sets.
+It also shows versioned policy-set evidence so reviewers can inspect the active
+required-gate set before promotion. This does not add policy update/rollback or
+connector execution; policy-set activation is append-only in this slice.
 
 ## Manufacturing CSV Manifest
 

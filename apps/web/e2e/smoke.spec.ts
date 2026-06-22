@@ -289,9 +289,9 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("proposal_asset_line_2_packaging").first()).toBeVisible();
     await expect(page.getByText("import_assets_manual_20260622").first()).toBeVisible();
     await expect(page.getByText("policy_connector_asset_promotion_v1").first()).toBeVisible();
-    await expect(page.getByText("policy_enforced").first()).toBeVisible();
-    await expect(page.getByText("policy_constraints_satisfied").first()).toBeVisible();
-    await expect(page.getByText("auto_required").first()).toBeVisible();
+    await expect(page.getByText("policy_set_enforced").first()).toBeVisible();
+    await expect(page.getByText("policy_set_constraints_satisfied").first()).toBeVisible();
+    await expect(page.getByText("active_policy_set").first()).toBeVisible();
     await page.getByLabel("Policy ID", { exact: true }).fill(
       "policy_connector_asset_promotion_ui_v1",
     );
@@ -329,6 +329,10 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("connectors:promotion_policy:author").first()).toBeVisible();
     await expect(page.getByText("connector.promotion_policy.authored").first()).toBeVisible();
     await expect(page.getByText("connector.promotion_policy.enabled").first()).toBeVisible();
+    await expect(page.getByText("policy_set_connector_asset_required_20260622").first())
+      .toBeVisible();
+    await expect(page.getByText("connector.promotion_policy_set.activated").first())
+      .toBeVisible();
     await expect(page.getByText("not_applied").first()).toBeVisible();
     await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();

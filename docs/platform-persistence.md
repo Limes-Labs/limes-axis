@@ -186,6 +186,10 @@ Delivered:
   records, approval/workflow-gated enablement evidence and append-only
   `connector.promotion_policy.authored` plus `connector.promotion_policy.enabled`
   audit writes.
+- connector promotion policy sets with versioned active-set metadata, required
+  policy references, activation permission evidence, append-only
+  `connector.promotion_policy_set.activated` audit writes and `policy_set_id` /
+  `policy_ids` evidence on connector ontology promotions and proposals.
 
 Still Platform work:
 

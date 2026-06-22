@@ -89,11 +89,14 @@ audit evidence. Enabling a policy is a separate approval/workflow-gated
 transition requiring `connectors:promotion_policy:enable` and writing
 `connector.promotion_policy.enabled`; enabled required policies are
 auto-selected when omitted from the promotion request and checked before TypeDB
-mutation execution. Ambiguous required policy sets are rejected until a
-versioned active set exists. The TypeDB adapter is deferred by default and must be
-explicitly enabled for graph writes. Future connector execution must use those
-handles with tenant-scoped permissions, append-only audit writes and no external
-egress by default.
+mutation execution. Versioned policy sets add
+`connectors:promotion_policy_set:activate` and
+`connector.promotion_policy_set.activated` evidence so one active set can define
+multi-policy required gates for a connector; promotions persist `policy_set_id`
+and `policy_ids` before TypeDB mutation execution. The TypeDB adapter is
+deferred by default and must be explicitly enabled for graph writes. Future
+connector execution must use those handles with tenant-scoped permissions,
+append-only audit writes and no external egress by default.
 
 ## Identity Boundaries
 

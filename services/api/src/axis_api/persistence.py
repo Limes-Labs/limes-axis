@@ -17,6 +17,7 @@ from axis_api.models import (
     ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
     ConnectorPromotionPolicy,
+    ConnectorPromotionPolicySet,
     ConnectorRun,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -178,6 +179,8 @@ class ConnectorOntologyProposalCreate(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     promotion_id: str | None = None
     policy_id: str | None = None
+    policy_set_id: str | None = None
+    policy_ids: list[str] | None = None
     policy_decision: dict | None = None
     promoted_by: str | None = None
     ontology_mutation: dict | None = None
@@ -200,6 +203,8 @@ class ConnectorOntologyPromotionCreate(BaseModel):
     ontology_mutation: dict = Field(default_factory=dict)
     permission_decision: dict = Field(default_factory=dict)
     policy_id: str | None = None
+    policy_set_id: str | None = None
+    policy_ids: list[str] | None = None
     policy_decision: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.ontology_promotion.applied", min_length=1)
@@ -215,6 +220,8 @@ class ConnectorOntologyPromotionResultRecord(BaseModel):
     promoted_by: str = Field(min_length=1)
     ontology_mutation: dict = Field(default_factory=dict)
     policy_id: str | None = None
+    policy_set_id: str | None = None
+    policy_ids: list[str] | None = None
     policy_decision: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str | None = None
@@ -253,6 +260,28 @@ class ConnectorPromotionPolicyEnableRecord(BaseModel):
     audit_event_id: UUID
     audit_event_type: str = Field(default="connector.promotion_policy.enabled", min_length=1)
     note: str | None = None
+
+
+class ConnectorPromotionPolicySetCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    policy_set_id: str = Field(min_length=1)
+    policy_set_version: str = Field(min_length=1)
+    status: str = Field(default="active", min_length=1)
+    activated_by: str = Field(min_length=1)
+    activation_scope: str = Field(
+        default="connectors:promotion_policy_set:activate",
+        min_length=1,
+    )
+    policy_ids: list[str] = Field(min_length=1)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.promotion_policy_set.activated",
+        min_length=1,
+    )
+    activation_reason: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorManualImportRequestCreate(BaseModel):
@@ -731,6 +760,8 @@ class AxisPersistenceRepository:
             evidence_refs=record.evidence_refs,
             promotion_id=record.promotion_id,
             policy_id=record.policy_id,
+            policy_set_id=record.policy_set_id,
+            policy_ids=record.policy_ids,
             policy_decision=record.policy_decision,
             promoted_by=record.promoted_by,
             ontology_mutation=record.ontology_mutation,
@@ -792,6 +823,8 @@ class AxisPersistenceRepository:
             ontology_mutation=record.ontology_mutation,
             permission_decision=record.permission_decision,
             policy_id=record.policy_id,
+            policy_set_id=record.policy_set_id,
+            policy_ids=record.policy_ids,
             policy_decision=record.policy_decision,
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
@@ -845,6 +878,8 @@ class AxisPersistenceRepository:
         proposal.graph_mutation_status = record.graph_mutation_status
         proposal.promotion_id = record.promotion_id
         proposal.policy_id = record.policy_id
+        proposal.policy_set_id = record.policy_set_id
+        proposal.policy_ids = record.policy_ids
         proposal.policy_decision = record.policy_decision
         proposal.promoted_by = record.promoted_by
         proposal.promoted_at = utc_now()
@@ -935,6 +970,73 @@ class AxisPersistenceRepository:
             ConnectorPromotionPolicy.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
+
+    def create_connector_promotion_policy_set(
+        self,
+        record: ConnectorPromotionPolicySetCreate,
+    ) -> ConnectorPromotionPolicySet:
+        policy_set = ConnectorPromotionPolicySet(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            policy_set_id=record.policy_set_id,
+            policy_set_version=record.policy_set_version,
+            status=record.status,
+            activated_by=record.activated_by,
+            activation_scope=record.activation_scope,
+            policy_ids=record.policy_ids,
+            permission_decision=record.permission_decision,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            activation_reason=record.activation_reason,
+            notes=record.notes,
+        )
+        self.session.add(policy_set)
+        self.session.flush()
+        return policy_set
+
+    def get_connector_promotion_policy_set(
+        self,
+        tenant_id: str,
+        policy_set_id: str,
+    ) -> ConnectorPromotionPolicySet | None:
+        statement = select(ConnectorPromotionPolicySet).where(
+            ConnectorPromotionPolicySet.tenant_id == tenant_id,
+            ConnectorPromotionPolicySet.policy_set_id == policy_set_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_promotion_policy_sets(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorPromotionPolicySet]:
+        statement: Select[tuple[ConnectorPromotionPolicySet]] = select(
+            ConnectorPromotionPolicySet
+        ).where(ConnectorPromotionPolicySet.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorPromotionPolicySet.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorPromotionPolicySet.status == status)
+
+        statement = statement.order_by(
+            ConnectorPromotionPolicySet.created_at.desc(),
+            ConnectorPromotionPolicySet.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_active_connector_promotion_policy_sets(
+        self,
+        tenant_id: str,
+        connector_id: str,
+    ) -> list[ConnectorPromotionPolicySet]:
+        return self.list_connector_promotion_policy_sets(
+            tenant_id=tenant_id,
+            connector_id=connector_id,
+            status="active",
+            limit=20,
+        )
 
     def create_connector_manual_import_request(
         self,

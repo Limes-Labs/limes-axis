@@ -110,9 +110,13 @@ separate approval/workflow-gated transition with
 `connector.promotion_policy.enabled` evidence. Enabled required policies are
 now auto-selected during controlled ontology promotion when `policy_id` is
 omitted, so required gates cannot be bypassed before the TypeDB mutation
-boundary is called. Ambiguous required policy sets are rejected until policy-set
-versioning exists. The connector console now includes compact policy authoring
-and enablement controls that can post to the API or keep local public-safe
+boundary is called. Versioned promotion policy sets can now activate a single
+required-gate set per connector, so multiple enabled required policies are
+evaluated together with `connector.promotion_policy_set.activated` evidence
+instead of being selected implicitly; once a set is active, single-policy
+`policy_id` selection is rejected to avoid partial gate evaluation. The
+connector console now includes compact policy authoring, enablement and
+policy-set evidence controls that can post to the API or keep local public-safe
 previews when the API is unavailable.
 
 ## Architecture Defaults

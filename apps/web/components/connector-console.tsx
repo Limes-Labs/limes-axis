@@ -13,6 +13,7 @@ import {
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
   defaultConnectorPromotionPolicyRegistry,
+  defaultConnectorPromotionPolicySetRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorPreview,
   defaultManufacturingConnectorRegistry,
@@ -29,6 +30,7 @@ import {
   type ManufacturingConnectorManualImportRegistry,
   type ManufacturingConnectorOntologyProposalRegistry,
   type ManufacturingConnectorPromotionPolicyRegistry,
+  type ManufacturingConnectorPromotionPolicySetRegistry,
   type ManufacturingConnectorRunRegistry,
   type ManufacturingConnectorRegistry,
 } from "@/lib/connectors-demo";
@@ -79,6 +81,10 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorPromotionPolicyRegistry>(
       defaultConnectorPromotionPolicyRegistry,
     );
+  const [promotionPolicySetRegistry, setPromotionPolicySetRegistry] =
+    useState<ManufacturingConnectorPromotionPolicySetRegistry>(
+      defaultConnectorPromotionPolicySetRegistry,
+    );
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -127,6 +133,7 @@ export function ConnectorConsole() {
           ontologyProposalData,
           manualImportData,
           promotionPolicyData,
+          promotionPolicySetData,
         ] = await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
@@ -152,6 +159,9 @@ export function ConnectorConsole() {
           fetchJson<ManufacturingConnectorPromotionPolicyRegistry>(
             "/demo/manufacturing/connectors/promotion-policies",
           ),
+          fetchJson<ManufacturingConnectorPromotionPolicySetRegistry>(
+            "/demo/manufacturing/connectors/promotion-policy-sets",
+          ),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
@@ -161,6 +171,7 @@ export function ConnectorConsole() {
           setOntologyProposalRegistry(ontologyProposalData);
           setManualImportRegistry(manualImportData);
           setPromotionPolicyRegistry(promotionPolicyData);
+          setPromotionPolicySetRegistry(promotionPolicySetData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -177,6 +188,7 @@ export function ConnectorConsole() {
           setOntologyProposalRegistry(defaultConnectorOntologyProposalRegistry);
           setManualImportRegistry(defaultConnectorManualImportRegistry);
           setPromotionPolicyRegistry(defaultConnectorPromotionPolicyRegistry);
+          setPromotionPolicySetRegistry(defaultConnectorPromotionPolicySetRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -233,6 +245,13 @@ export function ConnectorConsole() {
         (policy) => policy.connector_id === selectedConnectorId,
       ),
     [promotionPolicyRegistry.policies, selectedConnectorId],
+  );
+  const selectedPromotionPolicySets = useMemo(
+    () =>
+      promotionPolicySetRegistry.policy_sets.filter(
+        (policySet) => policySet.connector_id === selectedConnectorId,
+      ),
+    [promotionPolicySetRegistry.policy_sets, selectedConnectorId],
   );
   const manifest = selectedConnector.manifest;
 
@@ -368,6 +387,7 @@ export function ConnectorConsole() {
           .concat(ontologyProposalRegistry.metrics)
           .concat(manualImportRegistry.metrics)
           .concat(promotionPolicyRegistry.metrics)
+          .concat(promotionPolicySetRegistry.metrics)
           .map((metric) => (
           <article
             className="metric-card compact-card"
@@ -574,6 +594,54 @@ export function ConnectorConsole() {
                   <p className="metric-label">Raw Value</p>
                   <p className="row-title">Never Stored</p>
                   <p className="row-detail">{handle.rotation_count} rotation records</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Policy Sets</p>
+                <h3 className="subsection-title">
+                  {selectedPromotionPolicySets.length} active policy set
+                </h3>
+                <p className="row-detail">versioned required gate selection</p>
+              </div>
+              <ShieldCheck size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedPromotionPolicySets.map((policySet) => (
+                <div className="payload-row" key={policySet.policy_set_id}>
+                  <span>
+                    <span className="metric-label">{policySet.policy_set_id}</span>
+                    <span className="row-detail">{policySet.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{policySet.status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedPromotionPolicySets.map((policySet) => (
+              <div className="audit-detail-grid" key={`${policySet.policy_set_id}-summary`}>
+                <div>
+                  <p className="metric-label">Version</p>
+                  <p className="row-title">{policySet.policy_set_version}</p>
+                  <p className="row-detail">{policySet.activation_scope}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Policies</p>
+                  <p className="row-title">{policySet.policy_ids.length} required</p>
+                  <p className="row-detail">{policySet.policy_ids.join(", ")}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Activated By</p>
+                  <p className="row-title">{policySet.activated_by}</p>
+                  <p className="row-detail">{policySet.permission_decision.reason}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Audit Event</p>
+                  <p className="row-title">{policySet.audit_event_type}</p>
+                  <p className="row-detail">{policySet.audit_event_id ?? "pending"}</p>
                 </div>
               </div>
             ))}
@@ -1004,12 +1072,14 @@ export function ConnectorConsole() {
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
               .concat(promotionPolicyRegistry.policy_notes)
+              .concat(promotionPolicySetRegistry.policy_set_notes)
               .concat(selectedConfiguration?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))
               .concat(selectedPromotionPolicies.flatMap((policy) => policy.notes))
+              .concat(selectedPromotionPolicySets.flatMap((policySet) => policySet.notes))
               .concat(preview.preview_notes)
               .map((note, index) => (
               <p className="row-detail" key={`${note}-${index}`}>
