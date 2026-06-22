@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Cable, Database, FileText, KeyRound, ShieldCheck } from "lucide-react";
+import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
@@ -10,6 +10,7 @@ import {
   defaultConnectorCredentialHandleRegistry,
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
+  defaultConnectorPromotionPolicyRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorPreview,
   defaultManufacturingConnectorRegistry,
@@ -20,6 +21,7 @@ import {
   type ManufacturingConnectorCredentialHandleRegistry,
   type ManufacturingConnectorManualImportRegistry,
   type ManufacturingConnectorOntologyProposalRegistry,
+  type ManufacturingConnectorPromotionPolicyRegistry,
   type ManufacturingConnectorRunRegistry,
   type ManufacturingConnectorRegistry,
 } from "@/lib/connectors-demo";
@@ -64,6 +66,10 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorManualImportRegistry>(
       defaultConnectorManualImportRegistry,
     );
+  const [promotionPolicyRegistry, setPromotionPolicyRegistry] =
+    useState<ManufacturingConnectorPromotionPolicyRegistry>(
+      defaultConnectorPromotionPolicyRegistry,
+    );
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -101,6 +107,7 @@ export function ConnectorConsole() {
           runData,
           ontologyProposalData,
           manualImportData,
+          promotionPolicyData,
         ] = await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
@@ -123,6 +130,9 @@ export function ConnectorConsole() {
           fetchJson<ManufacturingConnectorManualImportRegistry>(
             "/demo/manufacturing/connectors/manual-imports",
           ),
+          fetchJson<ManufacturingConnectorPromotionPolicyRegistry>(
+            "/demo/manufacturing/connectors/promotion-policies",
+          ),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
@@ -131,6 +141,7 @@ export function ConnectorConsole() {
           setRunRegistry(runData);
           setOntologyProposalRegistry(ontologyProposalData);
           setManualImportRegistry(manualImportData);
+          setPromotionPolicyRegistry(promotionPolicyData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -146,6 +157,7 @@ export function ConnectorConsole() {
           setRunRegistry(defaultConnectorRunRegistry);
           setOntologyProposalRegistry(defaultConnectorOntologyProposalRegistry);
           setManualImportRegistry(defaultConnectorManualImportRegistry);
+          setPromotionPolicyRegistry(defaultConnectorPromotionPolicyRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -196,6 +208,13 @@ export function ConnectorConsole() {
       ),
     [manualImportRegistry.imports, selectedConnectorId],
   );
+  const selectedPromotionPolicies = useMemo(
+    () =>
+      promotionPolicyRegistry.policies.filter(
+        (policy) => policy.connector_id === selectedConnectorId,
+      ),
+    [promotionPolicyRegistry.policies, selectedConnectorId],
+  );
   const manifest = selectedConnector.manifest;
 
   return (
@@ -228,6 +247,7 @@ export function ConnectorConsole() {
           .concat(runRegistry.metrics)
           .concat(ontologyProposalRegistry.metrics)
           .concat(manualImportRegistry.metrics)
+          .concat(promotionPolicyRegistry.metrics)
           .map((metric) => (
           <article
             className="metric-card compact-card"
@@ -619,6 +639,64 @@ export function ConnectorConsole() {
           <section className="audit-payload">
             <div className="audit-payload-header">
               <div>
+                <p className="section-label">Promotion Policies</p>
+                <h3 className="subsection-title">
+                  {selectedPromotionPolicies.length} promotion policy draft
+                </h3>
+                <p className="row-detail">authoring evidence and required scopes recorded</p>
+              </div>
+              <ScrollText size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedPromotionPolicies.map((policy) => (
+                <div className="payload-row" key={policy.policy_id}>
+                  <span>
+                    <span className="metric-label">{policy.policy_id}</span>
+                    <span className="row-detail">{policy.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{policy.status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedPromotionPolicies.map((policy) => (
+              <div className="audit-detail-grid" key={`${policy.policy_id}-summary`}>
+                <div>
+                  <p className="metric-label">Authoring</p>
+                  <p className="row-title">{policy.created_by}</p>
+                  <p className="row-detail">{policy.required_authoring_scope}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Promotion Scope</p>
+                  <p className="row-title">{policy.required_scopes.join(", ")}</p>
+                  <p className="row-detail">{policy.enforcement_mode}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Manual Import</p>
+                  <p className="row-title">{policy.required_manual_import_status}</p>
+                  <p className="row-detail">{policy.required_workflow_signal_status}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Risk</p>
+                  <p className="row-title">{policy.allowed_risk_levels.join(", ")}</p>
+                  <p className="row-detail">{policy.allowed_ontology_types.join(", ")}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Review Window</p>
+                  <p className="row-title">{policy.review_window_hours}h</p>
+                  <p className="row-detail">{policy.permission_decision.reason}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Audit Event</p>
+                  <p className="row-title">{policy.audit_event_type}</p>
+                  <p className="row-detail">{policy.audit_event_id ?? "pending"}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
                 <p className="section-label">Schema Mapping</p>
                 <h3 className="subsection-title">{selectedConnector.preview_sample.file_name}</h3>
               </div>
@@ -659,11 +737,13 @@ export function ConnectorConsole() {
               .concat(runRegistry.run_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
+              .concat(promotionPolicyRegistry.policy_notes)
               .concat(selectedConfiguration?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))
+              .concat(selectedPromotionPolicies.flatMap((policy) => policy.notes))
               .concat(preview.preview_notes)
               .map((note, index) => (
               <p className="row-detail" key={`${note}-${index}`}>

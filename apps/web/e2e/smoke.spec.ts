@@ -276,9 +276,13 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.locator(".metric-card").getByText("Manual Imports", { exact: true }),
     ).toBeVisible();
+    await expect(
+      page.locator(".metric-card").getByText("Promotion Policies", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("run_file_csv_assets_preview_20260622").first()).toBeVisible();
     await expect(page.getByText("proposal_asset_line_2_packaging").first()).toBeVisible();
     await expect(page.getByText("import_assets_manual_20260622").first()).toBeVisible();
+    await expect(page.getByText("policy_connector_asset_promotion_v1").first()).toBeVisible();
     await expect(
       page.locator(".audit-detail-grid").getByText("connector.run.recorded", { exact: true }),
     ).toBeVisible();
@@ -302,6 +306,8 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("manual_import_signal_requested").first()).toBeVisible();
     await expect(page.getByText("connector_manual_import_decided").first()).toBeVisible();
     await expect(page.getByText("approve").first()).toBeVisible();
+    await expect(page.getByText("connectors:promotion_policy:author").first()).toBeVisible();
+    await expect(page.getByText("connector.promotion_policy.authored").first()).toBeVisible();
     await expect(page.getByText("not_applied").first()).toBeVisible();
     await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();

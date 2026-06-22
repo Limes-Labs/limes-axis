@@ -75,6 +75,19 @@ The tenth Alembic migration adds controlled ontology promotion evidence:
 - indexes for promotion, proposal, manual import, status and graph mutation
   filtering.
 
+The eleventh Alembic migration adds connector promotion policy authoring
+evidence:
+
+- `connector_promotion_policies`: tenant-scoped policy drafts for connector
+  proposal promotion governance;
+- unique constraint for `(tenant_id, policy_id)`;
+- required authoring scope, required promotion scopes, manual import status,
+  workflow signal status, allowed risk levels, allowed ontology types and review
+  window metadata;
+- linked append-only `connector.promotion_policy.authored` audit event;
+- indexes for connector, policy, version, status, enforcement mode and author
+  filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -95,6 +108,7 @@ The tenth Alembic migration adds controlled ontology promotion evidence:
 - connector ontology proposal creation and tenant-scoped listing.
 - connector ontology promotion creation, idempotency lookup, tenant-scoped
   listing and proposal promotion update.
+- connector promotion policy creation, policy lookup and tenant-scoped listing.
 - connector manual import request creation, idempotency lookup and
   tenant-scoped listing.
 - connector manual import decision recording with workflow signal evidence.
@@ -157,6 +171,9 @@ Delivered:
   evidence, TypeDB mutation adapter result, idempotency enforcement,
   append-only `connector.ontology_promotion.*` audit writes and latest
   promotion evidence on the proposal record.
+- connector promotion policy drafts with authoring permission evidence,
+  required promotion scopes, required manual-import/workflow states and
+  append-only `connector.promotion_policy.authored` audit writes.
 
 Still Platform work:
 

@@ -372,6 +372,44 @@ class ConnectorOntologyPromotion(Base):
     )
 
 
+class ConnectorPromotionPolicy(Base):
+    __tablename__ = "connector_promotion_policies"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    policy_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    policy_version: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    enforcement_mode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    created_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    required_authoring_scope: Mapped[str] = mapped_column(String(160), nullable=False)
+    required_scopes: Mapped[list] = mapped_column(JSON, nullable=False)
+    required_manual_import_status: Mapped[str] = mapped_column(String(80), nullable=False)
+    required_workflow_signal_status: Mapped[str] = mapped_column(String(80), nullable=False)
+    allowed_risk_levels: Mapped[list] = mapped_column(JSON, nullable=False)
+    allowed_ontology_types: Mapped[list] = mapped_column(JSON, nullable=False)
+    review_window_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "policy_id",
+            name="uq_connector_promotion_policies_tenant_policy",
+        ),
+    )
+
+
 class ConnectorManualImportRequest(Base):
     __tablename__ = "connector_manual_import_requests"
 

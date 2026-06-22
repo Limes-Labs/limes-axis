@@ -14,7 +14,8 @@ Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
 gates without executing a connector import, and approved proposals can be
-promoted through the ontology mutation adapter.
+promoted through the ontology mutation adapter. Promotion policy drafts can now
+be authored as metadata before enforcement.
 
 ## Current Scope
 
@@ -30,6 +31,8 @@ POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals/promotions
+GET /demo/manufacturing/connectors/promotion-policies
+POST /demo/manufacturing/connectors/promotion-policies
 GET /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/manual-imports/{import_id}/decision
@@ -203,6 +206,22 @@ without mutating the graph. Runtime failures are recorded as
 `connector.ontology_promotion.*` audit evidence and never stores raw CSV
 content or credential material.
 
+Promotion policy drafts are authored through
+`POST /demo/manufacturing/connectors/promotion-policies` and listed through
+`GET /demo/manufacturing/connectors/promotion-policies`. Policy authoring
+requires `connectors:promotion_policy:author` and records:
+
+- policy id, version, status and enforcement mode;
+- required promotion scopes, including `connectors:ontology:promote`;
+- required manual import and workflow signal states;
+- allowed risk levels and ontology types;
+- review window metadata;
+- append-only `connector.promotion_policy.authored` audit evidence.
+
+Authoring a policy does not execute a connector, approve a proposal or mutate
+TypeDB. It makes the governance requirements visible before full policy
+enforcement and policy authoring UI mature.
+
 ## Manufacturing CSV Manifest
 
 The first connector is `file_csv_manufacturing_assets`.
@@ -228,8 +247,9 @@ handles from `/demo/manufacturing/connectors/credential-handles`, plus run
 records from `/demo/manufacturing/connectors/runs` and review-only ontology
 proposal records from `/demo/manufacturing/connectors/ontology-proposals`, plus
 manual import request gates from
-`/demo/manufacturing/connectors/manual-imports`. If the API is unavailable, it
-uses the same public-safe fallback seed so the page remains useful in
+`/demo/manufacturing/connectors/manual-imports` and promotion policy drafts from
+`/demo/manufacturing/connectors/promotion-policies`. If the API is unavailable,
+it uses the same public-safe fallback seed so the page remains useful in
 frontend-only development.
 
 The console displays:
@@ -244,6 +264,7 @@ The console displays:
 - review-only ontology proposal records with graph mutation status;
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
+- promotion policy drafts with required scopes and audit evidence;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.
@@ -267,6 +288,7 @@ contract keeps these boundaries visible:
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
+- promotion policy drafts before enforcement;
 - TypeDB ontology mutation adapter, deferred by default unless explicitly
   enabled.
 

@@ -7,6 +7,7 @@ import {
   defaultConnectorCredentialHandleRegistry,
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
+  defaultConnectorPromotionPolicyRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
@@ -242,6 +243,43 @@ describe("manufacturing connector demo contract", () => {
       "password",
     );
     expect(JSON.stringify(defaultConnectorManualImportRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
+  });
+
+  it("keeps connector promotion policy fallback scoped and audit-backed", () => {
+    expect(defaultConnectorPromotionPolicyRegistry.tenant_id).toBe(
+      "tenant_demo_manufacturing",
+    );
+    expect(defaultConnectorPromotionPolicyRegistry.policies).toHaveLength(1);
+    expect(defaultConnectorPromotionPolicyRegistry.metrics[0]).toMatchObject({
+      label: "Promotion Policies",
+      value: "1",
+    });
+    expect(defaultConnectorPromotionPolicyRegistry.metrics[1]).toMatchObject({
+      label: "Draft Policies",
+      value: "1",
+    });
+
+    const policy = defaultConnectorPromotionPolicyRegistry.policies[0];
+    expect(policy.policy_id).toBe("policy_connector_asset_promotion_v1");
+    expect(policy.status).toBe("draft");
+    expect(policy.enforcement_mode).toBe("advisory");
+    expect(policy.created_by).toBe("platform-governance-owner-role");
+    expect(policy.required_authoring_scope).toBe("connectors:promotion_policy:author");
+    expect(policy.required_scopes).toEqual(["connectors:ontology:promote"]);
+    expect(policy.required_manual_import_status).toBe("approval_approved");
+    expect(policy.required_workflow_signal_status).toBe("manual_import_signal_requested");
+    expect(policy.allowed_risk_levels).toEqual(["high", "medium"]);
+    expect(policy.allowed_ontology_types).toEqual(["manufacturing_asset"]);
+    expect(policy.audit_event_type).toBe("connector.promotion_policy.authored");
+    expect(JSON.stringify(defaultConnectorPromotionPolicyRegistry).toLowerCase()).not.toContain(
+      "csv_content",
+    );
+    expect(JSON.stringify(defaultConnectorPromotionPolicyRegistry).toLowerCase()).not.toContain(
+      "password",
+    );
+    expect(JSON.stringify(defaultConnectorPromotionPolicyRegistry).toLowerCase()).not.toContain(
       "credential_value",
     );
   });

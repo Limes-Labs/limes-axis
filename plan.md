@@ -98,6 +98,7 @@ Foundation acceptance is tracked in
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
+- [x] Author connector promotion policy drafts before enforcement.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -179,11 +180,17 @@ requires approval evidence, workflow signal evidence, idempotency and
 through the Axis ontology mutation adapter with append-only
 `connector.ontology_promotion.*` audit evidence. Replays with the same
 idempotency key and payload return the existing request or promotion instead of
-writing duplicate audit events.
+writing duplicate audit events. Connector promotion policy drafts can now be
+authored through `/demo/manufacturing/connectors/promotion-policies`; each
+policy records the authoring permission, required promotion scopes, approved
+manual import state, workflow signal state, allowed risk levels and
+`connector.promotion_policy.authored` audit evidence without executing
+connectors or mutating TypeDB.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
 run evidence, persisted ontology proposal evidence, promotion evidence, manual
-import decision evidence and schema mapping with an offline fallback seed.
+import decision evidence, promotion policy drafts and schema mapping with an
+offline fallback seed.
 Persisted connector manifest management beyond the demo seed, credential vault
 integration, scheduled sync, external database connectors and connector-backed
 production actions remain Platform work.
