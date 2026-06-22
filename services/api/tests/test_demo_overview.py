@@ -28,7 +28,6 @@ from axis_api.demo import (
     get_manufacturing_model_routing,
     get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
-    get_manufacturing_workflow_console,
 )
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
@@ -661,8 +660,9 @@ def test_openapi_exposes_manufacturing_overview_endpoint() -> None:
     assert "/demo/manufacturing/overview" in response.json()["paths"]
 
 
-def test_manufacturing_workflow_console_seed_is_inspectable() -> None:
-    console = get_manufacturing_workflow_console()
+def test_manufacturing_workflow_console_bootstrap_seed_is_inspectable() -> None:
+    migration = run_path("migrations/versions/0026_workflow_console_reference.py")
+    console = ManufacturingWorkflowConsole.model_validate(migration["WORKFLOW_CONSOLE_PAYLOAD"])
 
     assert console.scenario == "Plant Operations Cockpit"
     assert console.runtime_status == OverviewStatus.WATCH
@@ -706,6 +706,12 @@ def test_manufacturing_workflow_console_endpoint_is_not_defined_as_runtime_seed(
     source = Path("src/axis_api/main.py").read_text()
 
     assert "return get_manufacturing_workflow_console()" not in source
+
+
+def test_manufacturing_workflow_console_runtime_module_does_not_define_seed() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_workflow_console" not in source
 
 
 def test_manufacturing_workflow_console_endpoint_returns_persisted_reference_data(

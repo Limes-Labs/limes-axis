@@ -336,7 +336,9 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=workflows/reference_id=manufacturing-workflow-console` while the
   separate `/demo/manufacturing/workflows/runs` endpoint continues to query
-  operational workflow run and timeline tables.
+  operational workflow run and timeline tables; the runtime seed factory has
+  been removed from the API module and tests validate the Alembic bootstrap
+  payload directly.
 - persisted manufacturing approval inbox reference records through
   `demo_reference_records`, with the API reading
   `surface=approvals/reference_id=manufacturing-approval-inbox`, approval

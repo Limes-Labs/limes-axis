@@ -134,6 +134,7 @@ Foundation acceptance is tracked in
   record.
 - [x] Persist the manufacturing workflow console reference as a tenant-scoped
   bootstrap record.
+- [x] Remove the workflow console runtime seed factory from the API module.
 - [x] Persist the manufacturing connector registry reference as a
   tenant-scoped bootstrap record.
 - [x] Remove the connector registry runtime seed factory from the API module.
@@ -181,7 +182,9 @@ action/audit state.
 The workflow console reference endpoint reads from `surface=workflows` and
 `reference_id=manufacturing-workflow-console`, while
 `/demo/manufacturing/workflows/runs` continues to query operational workflow run
-state and tenant-scoped timeline events. The approval inbox endpoint reads from
+state and tenant-scoped timeline events. The API module no longer defines a
+workflow console runtime seed factory; tests validate the Alembic bootstrap
+payload directly. The approval inbox endpoint reads from
 `surface=approvals` and `reference_id=manufacturing-approval-inbox`; approval
 decision submissions validate approval ids, workflow ids and required
 permissions against that same persisted record before writing approval, audit

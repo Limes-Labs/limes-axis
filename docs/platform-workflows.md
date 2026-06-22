@@ -60,7 +60,9 @@ The reference workflow console is a bootstrap reference surface, but it is no
 longer constructed inside the FastAPI route. Alembic migration
 `0026_workflow_console_reference` inserts the public-safe workflow console
 reference payload, and the API validates it against the
-`ManufacturingWorkflowConsole` contract before returning it.
+`ManufacturingWorkflowConsole` contract before returning it. The API runtime no
+longer defines a workflow console seed factory; tests validate the bootstrap
+payload directly from the migration.
 
 Typed action run persistence now also uses this boundary for approval-gated
 action payloads. The API sends an `action_requested` signal after the action run
