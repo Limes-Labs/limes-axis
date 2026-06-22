@@ -16,7 +16,7 @@ GET /demo/manufacturing/model-routing
 The endpoint returns:
 
 - tenant, plant, scenario and timestamp metadata;
-- top-level metrics for route decisions, blocked egress, synthetic spend and
+- top-level metrics for route decisions, blocked egress, estimated spend and
   agent coverage;
 - provider options with hosting boundary, egress mode, cost basis and allowed
   policies;
@@ -41,10 +41,10 @@ The `/model-routing` page shows:
 
 Delivered:
 
-- synthetic read-only route telemetry;
+- read-only reference route telemetry;
 - blocked external route visibility;
 - local and approved-provider route examples;
-- synthetic token and cost estimates;
+- token and cost estimates;
 - API response contracts;
 - Playwright smoke coverage for API-required behavior.
 

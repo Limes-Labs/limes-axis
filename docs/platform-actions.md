@@ -10,7 +10,7 @@ slice does not execute production actions.
 
 ## Current Scope
 
-- `GET /demo/manufacturing/actions` returns a synthetic manufacturing action
+- `GET /demo/manufacturing/actions` returns a manufacturing action reference
   registry.
 - `POST /demo/manufacturing/actions/{action_id}/runs` records a typed dry-run
   or proposal request with action idempotency enforcement and append-only audit.
@@ -27,14 +27,14 @@ slice does not execute production actions.
   status.
 - Each action exposes its typed input and output schemas, required permissions,
   owner role, runtime adapter, autonomy ceiling, model egress policy, workflow
-  bindings, approval references, guardrails, blocked conditions and synthetic
+  bindings, approval references, guardrails, blocked conditions and reference
   dry-run payload previews.
 - High-risk demo actions require owner approval.
 - Live runtime execution is disabled in the public demo.
 
 ## Demo Actions
 
-The seed currently includes:
+The reference registry currently includes:
 
 - Generate daily plant brief: low-risk read-only summary generation.
 - Request supplier expedite: high-risk supply action proposal gated by owner
@@ -87,9 +87,8 @@ approval inbox and append-only audit ledger boundaries.
 - Web unit tests cover the OIDC session bridge token parsing and authorization
   header construction.
 - The web console shows an API-required state when action records are unavailable.
-- The web unit tests cover filtering, safe lookup, schema formatting,
-  public-safety checks, action run request building and approval-gating
-  invariants.
+- The web unit tests cover filtering, safe lookup, schema formatting, action run
+  request building and approval-gating helpers with local test fixtures only.
 - Playwright smoke tests cover the mobile navigation path and API-required
   action behavior.
 - Public documentation avoids customer data, personal names, contacts, pricing,

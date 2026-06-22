@@ -3,7 +3,7 @@
 The workflow console slice turns the static `/workflows` shell into an
 API-backed, read-only view of the manufacturing reference workflow runs.
 
-It is synthetic and public-safe. The console shows workflow state, runtime
+It is public-safe. The console shows workflow state, runtime
 adapter metadata, pending governance signals, timeline evidence and control
 metadata without executing live workflow mutations.
 
@@ -14,7 +14,7 @@ GET /demo/manufacturing/workflows
 GET /demo/manufacturing/workflows/runs
 ```
 
-The seed endpoint returns a typed workflow console for the demo tenant. The
+The reference endpoint returns a typed workflow console for the demo tenant. The
 persisted endpoint reads Postgres workflow run state and tenant-scoped timeline
 events with optional filters:
 
@@ -36,7 +36,7 @@ Both endpoints return the same workflow console contract:
 
 The `/workflows` page first loads persisted workflow runs from
 `/demo/manufacturing/workflows/runs`. If that query returns no rows, it uses the
-synthetic seed endpoint served by the API. When the API is unavailable, the page
+reference endpoint served by the API. When the API is unavailable, the page
 shows an API-required state and does not render local workflow records.
 
 The page is read-only. It lets an operator inspect workflow runs, pending
@@ -74,7 +74,7 @@ work.
 
 The slice is covered by:
 
-- API unit tests for the manufacturing workflow console seed and endpoint;
+- API unit tests for the manufacturing workflow console reference endpoint;
 - API unit tests for persisted workflow run state and tenant-scoped history;
 - OpenAPI schema export/check;
 - web unit tests for the persisted-data selection contract;
