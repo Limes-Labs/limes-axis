@@ -98,7 +98,10 @@ legal-hold bypass for governance review. The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal
-previews without enabling live sync or connector mutation. Draft connector
+previews without enabling live sync or connector mutation. The external DB
+preview slice adds a metadata-only Postgres operational mirror manifest and
+`/demo/manufacturing/connectors/external-db/preview`, using profile ids and
+credential handles while blocking raw DSNs, SQL text and live queries. Draft connector
 promotion policies can now be revised append-only with idempotency evidence,
 while enabled required policies remain immutable until a governed policy-set
 transition adopts a future version. The credential handle slice adds

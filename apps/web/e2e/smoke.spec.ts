@@ -298,8 +298,18 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Connector intake" })).toBeVisible();
     await expect(page.getByText("Fallback connector seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toBeVisible();
+    const csvConnectorButton = page.getByRole("button", { name: /Manufacturing assets CSV/ });
+    await expect(csvConnectorButton).toBeVisible();
     await expect(page.getByText("file_csv_manufacturing_assets").first()).toBeVisible();
+    const externalDbConnectorButton = page.getByRole("button", {
+      name: /Postgres operational mirror/,
+    });
+    await expect(externalDbConnectorButton).toBeVisible();
+    await expect(page.getByText("external_db_operational_mirror").first()).toBeVisible();
+    await externalDbConnectorButton.click();
+    await expect(page.getByText("connectors:external_db:preview")).toBeVisible();
+    await expect(page.getByText("live_query")).toBeVisible();
+    await csvConnectorButton.click();
     await expect(page.locator(".workflow-detail-header").getByText("axis-connector-sandbox")).toBeVisible();
     await expect(page.getByText("connectors:file_csv:preview")).toBeVisible();
     await expect(page.getByText("Configured Connectors")).toBeVisible();

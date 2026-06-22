@@ -123,8 +123,11 @@ from axis_api.connector_runs import (
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorCsvPreviewResult,
+    ConnectorExternalDbPreviewRequest,
+    ConnectorExternalDbPreviewResult,
     ManufacturingConnectorRegistry,
     get_manufacturing_connector_registry,
+    preview_external_db_connector,
     preview_file_csv_connector,
 )
 from axis_api.db import create_session_factory, session_scope
@@ -1436,6 +1439,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         preview_request: ConnectorCsvPreviewRequest,
     ) -> ConnectorCsvPreviewResult:
         return preview_file_csv_connector(preview_request)
+
+    @app.post(
+        "/demo/manufacturing/connectors/external-db/preview",
+        response_model=ConnectorExternalDbPreviewResult,
+        tags=["demo"],
+    )
+    def manufacturing_external_db_connector_preview(
+        preview_request: ConnectorExternalDbPreviewRequest,
+    ) -> ConnectorExternalDbPreviewResult:
+        return preview_external_db_connector(preview_request)
 
     @app.post(
         "/demo/manufacturing/actions/{action_id}/runs",

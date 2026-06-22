@@ -98,6 +98,7 @@ Foundation acceptance is tracked in
 - [x] Persist replay simulation outputs as governed audit artifacts.
 - [x] Add retention-aware replay windows for simulation responses.
 - [x] Add connector manifest foundation and file/CSV preview.
+- [x] Add metadata-only external database connector preview.
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
@@ -167,11 +168,16 @@ records, with a legal-hold bypass for governance review. Temporal deterministic
 replay, arbitrary policy diffing, physical deletion jobs and production legal
 hold workflows remain Platform and Enterprise work.
 
-The connector foundation exposes a public-safe manifest registry and a
-preview-only file/CSV connector for manufacturing asset intake. The API can
-validate CSV rows, map them to ontology entity proposals and return a redacted
-audit event preview through `/demo/manufacturing/connectors` and
-`/demo/manufacturing/connectors/file-csv/preview`. The API also stores and
+The connector foundation exposes a public-safe manifest registry, a
+preview-only file/CSV connector for manufacturing asset intake and a
+metadata-only external database preview connector. The API can validate CSV
+rows, map them to ontology entity proposals and return a redacted audit event
+preview through `/demo/manufacturing/connectors` and
+`/demo/manufacturing/connectors/file-csv/preview`. It can also preview declared
+external DB table metadata through
+`/demo/manufacturing/connectors/external-db/preview`, using profile ids and
+credential handles while blocking raw connection material, SQL text and live
+queries. The API also stores and
 queries tenant-scoped preview connector configuration through
 `/demo/manufacturing/connectors/configurations`, rejecting raw credential
 fields in configuration payloads. The API now also stores metadata-only
@@ -247,8 +253,8 @@ It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
 Persisted connector manifest management beyond the demo seed, production
-credential vault integration, scheduled live sync, external database connectors
-and connector-backed production actions remain Platform work.
+credential vault integration, scheduled live sync, live external database
+adapters and connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,

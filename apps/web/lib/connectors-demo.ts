@@ -74,6 +74,18 @@ export type ConnectorCsvPreviewRequest = {
   csv_content: string;
 };
 
+export type ConnectorExternalDbPreviewRequest = {
+  tenant_id: string;
+  connector_id: string;
+  connection_profile_id: string;
+  schema_name: string;
+  table_name: string;
+  selected_columns: string[];
+  sample_limit: number;
+  credential_handle_id: string;
+  metadata: Record<string, string>;
+};
+
 export type ConnectorConfigurationCreateRequest = {
   tenant_id: string;
   connector_id: string;
@@ -112,6 +124,39 @@ export type ConnectorCsvPreviewResult = {
   accepted_record_count: number;
   rejected_record_count: number;
   validation_issues: string[];
+  proposed_entities: ProposedOntologyEntity[];
+  audit_event_preview: ConnectorAuditEventPreview;
+  preview_notes: string[];
+};
+
+export type ConnectorExternalDbColumnPreview = {
+  source_column: string;
+  target_field: string;
+  ontology_target: string;
+  data_type: string;
+  nullable: boolean;
+};
+
+export type ConnectorExternalDbTablePreview = {
+  schema_name: string;
+  table_name: string;
+  table_ref: string;
+  record_count_estimate: string;
+  sample_limit: number;
+  columns: ConnectorExternalDbColumnPreview[];
+  sample_rows: Record<string, string>[];
+};
+
+export type ConnectorExternalDbPreviewResult = {
+  tenant_id: string;
+  connector_id: string;
+  connection_profile_id: string;
+  source_type: string;
+  preview_status: string;
+  sync_mode: string;
+  live_query_executed: boolean;
+  validation_issues: string[];
+  inspected_table: ConnectorExternalDbTablePreview;
   proposed_entities: ProposedOntologyEntity[];
   audit_event_preview: ConnectorAuditEventPreview;
   preview_notes: string[];
@@ -489,14 +534,20 @@ export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegist
   metrics: [
     {
       label: "Connector Manifests",
-      value: "1",
-      detail: "Public-safe connector manifest available for preview",
+      value: "2",
+      detail: "Public-safe connector manifests available for preview",
       status: "ready",
     },
     {
       label: "CSV Preview",
       value: "Ready",
       detail: "File connector can validate and map local CSV rows",
+      status: "ready",
+    },
+    {
+      label: "External DB Preview",
+      value: "Metadata Only",
+      detail: "Database connector preview uses profile ids and handles only",
       status: "ready",
     },
     {
@@ -604,11 +655,114 @@ export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegist
         ],
       },
     },
+    {
+      connector_status: "watch",
+      manifest: {
+        connector_id: "external_db_operational_mirror",
+        display_name: "Postgres operational mirror",
+        connector_type: "external_db",
+        version: "2026-06-22",
+        source_type: "database",
+        sync_modes: ["schema_preview", "manual_import"],
+        runtime_boundary: "axis-connector-sandbox",
+        required_permissions: ["connectors:read", "connectors:external_db:preview"],
+        credential_requirements: {
+          storage: "external_reference",
+          required_secret_refs: ["cred_external_db_readonly"],
+          notes: [
+            "Database preview uses credential handles and profile ids only.",
+            "Raw DSNs, SQL text and credential values are rejected.",
+          ],
+        },
+        schema_fields: [
+          {
+            source_column: "order_id",
+            target_field: "node_id",
+            ontology_target: "production_order",
+            data_type: "string",
+            required: true,
+            description: "Stable production order identifier from the source table.",
+          },
+          {
+            source_column: "asset_id",
+            target_field: "asset_ref",
+            ontology_target: "production_order",
+            data_type: "string",
+            required: true,
+            description: "Manufacturing asset reference linked by policy-aware import.",
+          },
+          {
+            source_column: "work_center",
+            target_field: "source_system_ref",
+            ontology_target: "production_order",
+            data_type: "string",
+            required: true,
+            description: "Operational work center or line reference.",
+          },
+          {
+            source_column: "status",
+            target_field: "operational_status",
+            ontology_target: "production_order",
+            data_type: "string",
+            required: true,
+            description: "Public-safe order status used for preview mapping.",
+          },
+          {
+            source_column: "risk_level",
+            target_field: "risk_level",
+            ontology_target: "production_order",
+            data_type: "string",
+            required: true,
+            description: "Governance risk posture used for import controls.",
+          },
+        ],
+        mapping_notes: [
+          "Database preview inspects declared metadata only; no live SQL is executed.",
+          "Imports remain proposal-only until approval, workflow and policy gates pass.",
+          "Connection details stay outside Axis as credential handles and profiles.",
+        ],
+      },
+      runtime_policy: {
+        allowed_operations: ["schema_validate", "metadata_preview", "dry_run_diff"],
+        blocked_operations: [
+          "live_query",
+          "live_write",
+          "credential_capture",
+          "external_egress",
+        ],
+        egress_policy: "no-external-egress",
+        max_file_size_mb: 5,
+        row_limit: 100,
+        payload_policy: "metadata-only-redacted-preview",
+      },
+      preview_sample: {
+        file_name: "profile_postgres_ops_readonly:operations.production_orders",
+        record_count: 2,
+        headers: ["order_id", "asset_id", "work_center", "status", "risk_level"],
+        sample_rows: [
+          {
+            order_id: "order_po_10045",
+            asset_id: "asset_line_2_packaging",
+            work_center: "Line 2",
+            status: "blocked",
+            risk_level: "high",
+          },
+          {
+            order_id: "order_po_10046",
+            asset_id: "asset_press_4",
+            work_center: "Press 4",
+            status: "scheduled",
+            risk_level: "medium",
+          },
+        ],
+      },
+    },
   ],
   connector_notes: [
     "Connector manifests are public-safe and preview-only.",
     "The file/CSV connector maps rows to ontology proposals without writing data.",
-    "Credential storage, scheduled sync and production connector runs remain future work.",
+    "The external DB connector previews declared metadata without live SQL.",
+    "Credential retrieval, scheduled sync and production connector runs remain future work.",
   ],
 };
 
@@ -665,6 +819,133 @@ export const defaultManufacturingConnectorPreview: ConnectorCsvPreviewResult = {
     "CSV content is parsed only for preview and is not persisted.",
     "Mapped rows become ontology proposals, not live graph mutations.",
     "Connector execution and scheduled sync remain outside preview boundaries.",
+  ],
+};
+
+export const defaultExternalDbConnectorPreview: ConnectorExternalDbPreviewResult = {
+  tenant_id: "tenant_demo_manufacturing",
+  connector_id: "external_db_operational_mirror",
+  connection_profile_id: "profile_postgres_ops_readonly",
+  source_type: "database",
+  preview_status: "ready",
+  sync_mode: "schema_preview_only",
+  live_query_executed: false,
+  validation_issues: [],
+  inspected_table: {
+    schema_name: "operations",
+    table_name: "production_orders",
+    table_ref: "operations.production_orders",
+    record_count_estimate: "not_queried",
+    sample_limit: 2,
+    columns: [
+      {
+        source_column: "order_id",
+        target_field: "node_id",
+        ontology_target: "production_order",
+        data_type: "string",
+        nullable: false,
+      },
+      {
+        source_column: "asset_id",
+        target_field: "asset_ref",
+        ontology_target: "production_order",
+        data_type: "string",
+        nullable: false,
+      },
+      {
+        source_column: "work_center",
+        target_field: "source_system_ref",
+        ontology_target: "production_order",
+        data_type: "string",
+        nullable: false,
+      },
+      {
+        source_column: "status",
+        target_field: "operational_status",
+        ontology_target: "production_order",
+        data_type: "string",
+        nullable: false,
+      },
+      {
+        source_column: "risk_level",
+        target_field: "risk_level",
+        ontology_target: "production_order",
+        data_type: "string",
+        nullable: false,
+      },
+    ],
+    sample_rows: [
+      {
+        order_id: "order_po_10045",
+        asset_id: "asset_line_2_packaging",
+        work_center: "Line 2",
+        status: "blocked",
+        risk_level: "high",
+      },
+      {
+        order_id: "order_po_10046",
+        asset_id: "asset_press_4",
+        work_center: "Press 4",
+        status: "scheduled",
+        risk_level: "medium",
+      },
+    ],
+  },
+  proposed_entities: [
+    {
+      node_id: "order_po_10045",
+      node_type: "work_order",
+      ontology_type: "production_order",
+      field_summary: {
+        asset_id: "asset_line_2_packaging",
+        work_center: "Line 2",
+        status: "blocked",
+        risk_level: "high",
+      },
+      evidence_refs: [
+        "profile_postgres_ops_readonly",
+        "operations.production_orders",
+        "order_po_10045",
+      ],
+    },
+    {
+      node_id: "order_po_10046",
+      node_type: "work_order",
+      ontology_type: "production_order",
+      field_summary: {
+        asset_id: "asset_press_4",
+        work_center: "Press 4",
+        status: "scheduled",
+        risk_level: "medium",
+      },
+      evidence_refs: [
+        "profile_postgres_ops_readonly",
+        "operations.production_orders",
+        "order_po_10046",
+      ],
+    },
+  ],
+  audit_event_preview: {
+    event_type: "connector.external_db.previewed",
+    scope: "external_db_operational_mirror",
+    actor_id: "connector-preview-service",
+    result: "ready",
+    evidence_refs: [
+      "profile_postgres_ops_readonly",
+      "operations.production_orders",
+      "cred_external_db_readonly",
+    ],
+    payload_preview: {
+      connection_profile_id: "profile_postgres_ops_readonly",
+      table_ref: "operations.production_orders",
+      live_query_executed: "false",
+      credential_handle_id: "cred_external_db_readonly",
+    },
+  },
+  preview_notes: [
+    "External DB preview is metadata-only and does not execute SQL.",
+    "Connection details remain outside Axis behind profile ids and credential handles.",
+    "Mapped rows become ontology proposals, not live graph mutations.",
   ],
 };
 
@@ -1366,6 +1647,20 @@ export function buildDefaultCsvPreviewRequest(): ConnectorCsvPreviewRequest {
       "asset_id,asset_name,domain,station,risk_level\n" +
       "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n" +
       "asset_press_4,Press 4,Maintenance,Press 4,medium\n",
+  };
+}
+
+export function buildDefaultExternalDbPreviewRequest(): ConnectorExternalDbPreviewRequest {
+  return {
+    tenant_id: "tenant_demo_manufacturing",
+    connector_id: "external_db_operational_mirror",
+    connection_profile_id: "profile_postgres_ops_readonly",
+    schema_name: "operations",
+    table_name: "production_orders",
+    selected_columns: ["order_id", "asset_id", "work_center", "status", "risk_level"],
+    sample_limit: 2,
+    credential_handle_id: "cred_external_db_readonly",
+    metadata: {},
   };
 }
 
