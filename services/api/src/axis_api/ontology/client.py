@@ -57,6 +57,21 @@ class OntologyClient:
                 transaction.rollback()
             raise
 
+    def execute_write(self, query_text: str) -> None:
+        if not query_text.strip():
+            raise ValueError("TypeDB write query cannot be empty.")
+        from typedb.driver import TransactionType
+
+        self.ensure_database()
+        transaction = self._driver.transaction(self.config.database, TransactionType.WRITE)
+        try:
+            transaction.query(query_text).resolve()
+            transaction.commit()
+        except Exception:
+            if transaction.is_open():
+                transaction.rollback()
+            raise
+
     def schema(self) -> str:
         self.ensure_database()
         return self._driver.databases.get(self.config.database).schema()

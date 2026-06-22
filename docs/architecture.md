@@ -79,9 +79,13 @@ keep graph mutation explicitly `not_applied`. Manual import decisions require
 the connector approval scope, record approval outcome metadata, signal the Axis
 workflow runtime with `connector_manual_import_decided`, link to
 `connector.manual_import.decision_recorded` audit events and still avoid
-connector execution or ontology mutation. Future connector execution must use
-those handles with tenant-scoped permissions, append-only audit writes and no
-external egress by default.
+connector execution. Controlled ontology promotions require approved manual
+import evidence, workflow signal evidence, `connectors:ontology:promote`,
+idempotency and append-only `connector.ontology_promotion.*` audit writes before
+calling the Axis TypeDB mutation adapter. The adapter is deferred by default and
+must be explicitly enabled for TypeDB graph writes. Future connector execution
+must use those handles with tenant-scoped permissions, append-only audit writes
+and no external egress by default.
 
 ## Identity Boundaries
 

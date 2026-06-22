@@ -64,6 +64,17 @@ The ninth Alembic migration adds decision evidence to manual import requests:
 - nullable workflow signal JSON evidence;
 - indexes for decision and decision actor filtering.
 
+The tenth Alembic migration adds controlled ontology promotion evidence:
+
+- nullable latest promotion fields on `connector_ontology_proposals`;
+- `connector_ontology_promotions`: tenant-scoped, idempotent promotion records
+  that link a proposal, approved manual import, actor, permission decision,
+  ontology mutation result and append-only audit event;
+- unique constraints for `(tenant_id, promotion_id)` and
+  `(tenant_id, idempotency_key)`;
+- indexes for promotion, proposal, manual import, status and graph mutation
+  filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -82,6 +93,8 @@ The ninth Alembic migration adds decision evidence to manual import requests:
 - connector credential rotation recording and tenant-scoped history listing.
 - connector run creation and tenant-scoped listing.
 - connector ontology proposal creation and tenant-scoped listing.
+- connector ontology promotion creation, idempotency lookup, tenant-scoped
+  listing and proposal promotion update.
 - connector manual import request creation, idempotency lookup and
   tenant-scoped listing.
 - connector manual import decision recording with workflow signal evidence.
@@ -140,12 +153,14 @@ Delivered:
   workflow signal evidence and append-only
   `connector.manual_import.decision_recorded` audit writes, while graph
   mutation remains `not_applied`.
+- controlled connector ontology promotions with approval/manual-import
+  evidence, TypeDB mutation adapter result, idempotency enforcement,
+  append-only `connector.ontology_promotion.*` audit writes and latest
+  promotion evidence on the proposal record.
 
 Still Platform work:
 
 - connector execution from persisted run records;
-- promotion workflow from persisted ontology proposals and manual import
-  requests into graph mutation;
 - production vault/KMS integration, secret leasing and automated rotation;
 - scheduled connector sync lifecycle;
 - production connector mutations from action runtime paths;

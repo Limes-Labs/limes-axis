@@ -10,10 +10,11 @@ configuration records and metadata-only connector run records, while keeping
 connector execution and live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
 future connector execution, without storing raw credential material in Axis.
-Preview-derived ontology proposal records are now persisted for review only,
-with graph mutation kept explicitly disabled. Manual import requests can now be
-recorded behind approval, workflow and idempotency gates without executing a
-connector import.
+Preview-derived ontology proposal records are now persisted for review, with
+graph mutation disabled until a controlled promotion is requested. Manual
+import requests can now be recorded behind approval, workflow and idempotency
+gates without executing a connector import, and approved proposals can be
+promoted through the ontology mutation adapter.
 
 ## Current Scope
 
@@ -28,8 +29,10 @@ GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals
+POST /demo/manufacturing/connectors/ontology-proposals/promotions
 GET /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/manual-imports
+POST /demo/manufacturing/connectors/manual-imports/{import_id}/decision
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -182,6 +185,24 @@ event. A runtime outage is captured as `runtime_signal_unavailable` instead of
 executing the connector. The graph remains `not_applied`; the decision only
 moves governance metadata forward.
 
+Approved ontology proposals can be promoted through
+`POST /demo/manufacturing/connectors/ontology-proposals/promotions`. The
+promotion endpoint requires:
+
+- a persisted proposal still waiting for promotion;
+- an approved manual import that references the proposal;
+- workflow signal evidence from the manual import decision;
+- a tenant-scoped idempotency key;
+- actor scope `connectors:ontology:promote`.
+
+Successful promotions write through the Axis ontology mutation runtime adapter
+and record `type_db_mutation_applied` on the proposal. If the TypeDB mutation
+runtime is disabled, the default adapter records `type_db_mutation_deferred`
+without mutating the graph. Runtime failures are recorded as
+`type_db_mutation_unavailable`. Every promotion attempt writes append-only
+`connector.ontology_promotion.*` audit evidence and never stores raw CSV
+content or credential material.
+
 ## Manufacturing CSV Manifest
 
 The first connector is `file_csv_manufacturing_assets`.
@@ -221,6 +242,7 @@ The console displays:
 - credential handle references and rotation posture;
 - audit-backed connector run records;
 - review-only ontology proposal records with graph mutation status;
+- controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
 - public-safe configuration payload fields;
 - schema mapping;
@@ -242,9 +264,11 @@ contract keeps these boundaries visible:
 - redacted preview payloads;
 - audit event preview before future connector execution;
 - tenant-scoped run records before future connector execution;
-- persisted ontology proposal records before future graph mutation.
-- approval/workflow/idempotency-gated manual import requests before future
-  graph mutation.
+- persisted ontology proposal records before controlled graph mutation;
+- approval/workflow/idempotency-gated manual import requests before controlled
+  promotion;
+- TypeDB ontology mutation adapter, deferred by default unless explicitly
+  enabled.
 
 Future Platform work should add:
 

@@ -520,6 +520,20 @@ export function ConnectorConsole() {
                   <p className="row-detail">{proposal.status}</p>
                 </div>
                 <div>
+                  <p className="metric-label">Promotion</p>
+                  <p className="row-title">{proposal.promotion_id ?? "pending"}</p>
+                  <p className="row-detail">
+                    {proposal.ontology_mutation?.status ?? proposal.graph_mutation_status}
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">Promoted By</p>
+                  <p className="row-title">{proposal.promoted_by ?? "unassigned"}</p>
+                  <p className="row-detail">
+                    {proposal.ontology_mutation?.mutation_ref ?? "no graph mutation"}
+                  </p>
+                </div>
+                <div>
                   <p className="metric-label">Audit Event</p>
                   <p className="row-title">{proposal.audit_event_type}</p>
                   <p className="row-detail">{proposal.audit_event_id ?? "pending"}</p>

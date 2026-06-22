@@ -14,6 +14,7 @@ from axis_api.models import (
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
     ConnectorManualImportRequest,
+    ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
     ConnectorRun,
     WorkflowRunRecord,
@@ -174,9 +175,42 @@ class ConnectorOntologyProposalCreate(BaseModel):
     ontology_type: str = Field(min_length=1)
     field_summary: dict = Field(default_factory=dict)
     evidence_refs: list[str] = Field(default_factory=list)
+    promotion_id: str | None = None
+    promoted_by: str | None = None
+    ontology_mutation: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.ontology_proposals.recorded", min_length=1)
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorOntologyPromotionCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    promotion_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    proposal_id: str = Field(min_length=1)
+    manual_import_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    promotion_mode: str = Field(default="approved_manual_import", min_length=1)
+    requested_by: str = Field(min_length=1)
+    graph_mutation_status: str = Field(min_length=1)
+    ontology_mutation: dict = Field(default_factory=dict)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.ontology_promotion.applied", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorOntologyPromotionResultRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    proposal_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    graph_mutation_status: str = Field(min_length=1)
+    promotion_id: str = Field(min_length=1)
+    promoted_by: str = Field(min_length=1)
+    ontology_mutation: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
 
 
 class ConnectorManualImportRequestCreate(BaseModel):
@@ -653,6 +687,9 @@ class AxisPersistenceRepository:
             ontology_type=record.ontology_type,
             field_summary=record.field_summary,
             evidence_refs=record.evidence_refs,
+            promotion_id=record.promotion_id,
+            promoted_by=record.promoted_by,
+            ontology_mutation=record.ontology_mutation,
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
             notes=record.notes,
@@ -660,6 +697,17 @@ class AxisPersistenceRepository:
         self.session.add(proposal)
         self.session.flush()
         return proposal
+
+    def get_connector_ontology_proposal(
+        self,
+        tenant_id: str,
+        proposal_id: str,
+    ) -> ConnectorOntologyProposal | None:
+        statement = select(ConnectorOntologyProposal).where(
+            ConnectorOntologyProposal.tenant_id == tenant_id,
+            ConnectorOntologyProposal.proposal_id == proposal_id,
+        )
+        return self.session.scalars(statement).first()
 
     def list_connector_ontology_proposals(
         self,
@@ -681,6 +729,85 @@ class AxisPersistenceRepository:
             ConnectorOntologyProposal.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
+
+    def create_connector_ontology_promotion(
+        self,
+        record: ConnectorOntologyPromotionCreate,
+    ) -> ConnectorOntologyPromotion:
+        promotion = ConnectorOntologyPromotion(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            promotion_id=record.promotion_id,
+            idempotency_key=record.idempotency_key,
+            proposal_id=record.proposal_id,
+            manual_import_id=record.manual_import_id,
+            status=record.status,
+            promotion_mode=record.promotion_mode,
+            requested_by=record.requested_by,
+            graph_mutation_status=record.graph_mutation_status,
+            ontology_mutation=record.ontology_mutation,
+            permission_decision=record.permission_decision,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(promotion)
+        self.session.flush()
+        return promotion
+
+    def get_connector_ontology_promotion_by_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ConnectorOntologyPromotion | None:
+        statement = select(ConnectorOntologyPromotion).where(
+            ConnectorOntologyPromotion.tenant_id == tenant_id,
+            ConnectorOntologyPromotion.idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_ontology_promotions(
+        self,
+        tenant_id: str,
+        proposal_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorOntologyPromotion]:
+        statement: Select[tuple[ConnectorOntologyPromotion]] = select(
+            ConnectorOntologyPromotion
+        ).where(ConnectorOntologyPromotion.tenant_id == tenant_id)
+        if proposal_id is not None:
+            statement = statement.where(ConnectorOntologyPromotion.proposal_id == proposal_id)
+        if status is not None:
+            statement = statement.where(ConnectorOntologyPromotion.status == status)
+
+        statement = statement.order_by(
+            ConnectorOntologyPromotion.created_at.desc(),
+            ConnectorOntologyPromotion.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def record_connector_ontology_proposal_promotion(
+        self,
+        record: ConnectorOntologyPromotionResultRecord,
+    ) -> ConnectorOntologyProposal:
+        proposal = self.get_connector_ontology_proposal(record.tenant_id, record.proposal_id)
+        if proposal is None:
+            raise PersistenceRecordNotFound("Connector ontology proposal not found")
+
+        proposal.status = record.status
+        proposal.graph_mutation_status = record.graph_mutation_status
+        proposal.promotion_id = record.promotion_id
+        proposal.promoted_by = record.promoted_by
+        proposal.promoted_at = utc_now()
+        proposal.ontology_mutation = record.ontology_mutation
+        if record.audit_event_id is not None:
+            proposal.audit_event_id = record.audit_event_id
+        if record.audit_event_type is not None:
+            proposal.audit_event_type = record.audit_event_type
+        proposal.updated_at = utc_now()
+        self.session.flush()
+        return proposal
 
     def create_connector_manual_import_request(
         self,

@@ -64,6 +64,10 @@ class ConnectorOntologyProposalRecord(BaseModel):
     ontology_type: str = Field(min_length=1)
     field_summary: dict[str, str] = Field(default_factory=dict)
     evidence_refs: list[str] = Field(default_factory=list)
+    promotion_id: str | None = None
+    promoted_by: str | None = None
+    promoted_at: datetime | None = None
+    ontology_mutation: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -109,7 +113,9 @@ def build_connector_ontology_proposal_registry(
     proposals = [_proposal_from_record(record) for record in records]
     pending_review = sum(1 for proposal in proposals if proposal.status == "proposed_from_preview")
     graph_mutations = sum(
-        1 for proposal in proposals if proposal.graph_mutation_status != "not_applied"
+        1
+        for proposal in proposals
+        if proposal.graph_mutation_status == "type_db_mutation_applied"
     )
     return ManufacturingConnectorOntologyProposalRegistry(
         tenant_id=query.tenant_id,
@@ -132,18 +138,18 @@ def build_connector_ontology_proposal_registry(
             OverviewMetric(
                 label="Graph Mutations",
                 value=str(graph_mutations),
-                detail="No connector proposal writes to the ontology graph automatically",
+                detail="Connector proposals promoted through controlled graph mutation",
                 status=OverviewStatus.READY
-                if graph_mutations == 0
+                if graph_mutations <= len(proposals)
                 else OverviewStatus.ACTION_REQUIRED,
             ),
         ],
         proposals=proposals,
         proposal_notes=[
-            "Connector ontology proposals are persisted for review only.",
-            "Graph mutation is not applied by connector preview records.",
+            "Connector ontology proposals are persisted before any graph mutation.",
+            "Graph mutation is applied only by the controlled promotion endpoint.",
             "Raw CSV content, payloads and credential material are never stored.",
-            "Promotion to ontology graph requires future approval and workflow controls.",
+            "Promotion to ontology graph requires approval, workflow evidence and audit writes.",
         ],
     )
 
@@ -227,6 +233,10 @@ def _proposal_from_record(record) -> ConnectorOntologyProposalRecord:
         ontology_type=record.ontology_type,
         field_summary=record.field_summary,
         evidence_refs=record.evidence_refs,
+        promotion_id=record.promotion_id,
+        promoted_by=record.promoted_by,
+        promoted_at=record.promoted_at,
+        ontology_mutation=record.ontology_mutation,
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
