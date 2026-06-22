@@ -121,7 +121,11 @@ sync plans can also be recorded through run records with
 `connector.run.sync_scheduled` audit evidence and a deferred scheduler adapter,
 still without starting external sync. Scheduled plans can now be dispatch-claimed
 with `connector.run.sync_dispatch_deferred` evidence, idempotency replay and a
-deferred dispatch adapter, still without connector egress. The
+deferred dispatch adapter, still without connector egress. Dispatch-claimed
+plans can now receive a sync execution attempt through a deferred execution
+adapter, or through the self-hosted demo executor when
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true`; both paths keep raw credentials,
+external egress and graph mutation out of the default boundary. The
 connector ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

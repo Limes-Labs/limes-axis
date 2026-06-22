@@ -204,6 +204,7 @@ record includes:
 - optional execution result metadata;
 - optional schedule result metadata;
 - optional dispatch result metadata;
+- optional sync execution result metadata;
 - linked audit event id and type;
 - run notes.
 
@@ -225,6 +226,15 @@ requires `connectors:sync:dispatch`, an active credential lease id and an
 idempotency key. Dispatch writes `connector.run.sync_dispatch_deferred`, stores
 a deferred dispatch result on the run record and replays the same idempotency
 key without duplicate audit events. It still does not start external sync.
+Dispatch-claimed plans can then receive a sync execution attempt through
+`POST /demo/manufacturing/connectors/runs/{run_id}/execute-sync`, which requires
+`connectors:sync:execute`, an active credential lease id and an idempotency key.
+The default runtime writes `connector.run.sync_execution_deferred` with
+`external_sync_started=false`. Setting
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true` switches the boundary to the
+self-hosted demo executor, which can complete the run with
+`connector.run.sync_execution_completed` while still avoiding external egress,
+credential material retrieval and graph mutation.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:
@@ -458,7 +468,9 @@ The console displays:
 The page is read-only for operators. It does not upload files to storage,
 capture credentials or trigger live sync. Governed connector dry-runs are shown
 as deferred runtime evidence, and scheduled sync plans are shown as deferred
-scheduler/dispatch evidence, not as live connector execution.
+scheduler/dispatch/execution evidence. The self-hosted sync executor is opt-in
+for local/demo execution and does not represent provider-specific production
+egress.
 
 ## Governance Boundary
 
@@ -475,6 +487,7 @@ contract keeps these boundaries visible:
 - audit event preview before live connector execution;
 - tenant-scoped persisted manifest records before scheduled sync exists;
 - tenant-scoped run records with deferred execution evidence;
+- scheduled sync execution boundary with opt-in self-hosted demo runtime;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -486,7 +499,7 @@ Future Platform work should add:
 
 - manifest lifecycle transitions beyond preview-only registration;
 - provider-specific Vault/KMS adapters beyond the self-hosted lease boundary;
-- scheduled live sync execution beyond deferred schedule and dispatch claims;
+- provider-specific scheduled live sync beyond the self-hosted execution boundary;
 - live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.
 

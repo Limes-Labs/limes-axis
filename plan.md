@@ -116,6 +116,7 @@ Foundation acceptance is tracked in
 - [x] Add atomic adoption of approved draft policy revisions during policy-set replacement.
 - [x] Add deferred scheduled connector sync planning from run records.
 - [x] Add idempotent deferred dispatch claims for scheduled connector sync.
+- [x] Add scheduled connector sync execution boundary with opt-in self-hosted runtime.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -214,6 +215,14 @@ Scheduled plans can now be dispatch-claimed through
 `connectors:sync:dispatch`, active lease evidence and an idempotency key. The
 dispatch boundary writes `connector.run.sync_dispatch_deferred` and still keeps
 `external_sync_started=false`.
+Dispatch-claimed plans can now receive a sync execution attempt through
+`/demo/manufacturing/connectors/runs/{run_id}/execute-sync`, requiring
+`connectors:sync:execute`, active lease evidence and an idempotency key. The
+default execution runtime writes `connector.run.sync_execution_deferred`; the
+opt-in self-hosted demo runtime, enabled with
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true`, can write
+`connector.run.sync_execution_completed` without external egress, credential
+material retrieval or graph mutation.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.
@@ -278,9 +287,9 @@ It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
 Manifest lifecycle transitions beyond preview-only registration,
-provider-specific Vault/KMS adapters, scheduled live sync execution beyond
-deferred dispatch claims, live external database adapters and connector-backed
-production actions remain Platform work.
+provider-specific Vault/KMS adapters, provider-specific scheduled live sync
+beyond the self-hosted execution boundary, live external database adapters and
+connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,
