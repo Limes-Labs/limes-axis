@@ -27,6 +27,7 @@ from axis_api.persistence import (
     ConnectorConfigurationCreate,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialRotationCreate,
+    ConnectorManualImportDecisionRecord,
     ConnectorManualImportRequestCreate,
     ConnectorOntologyProposalCreate,
     ConnectorRunCreate,
@@ -66,6 +67,8 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorOntologyProposal.__table__.c.proposal_id.index is True
     assert ConnectorManualImportRequest.__table__.c.import_id.index is True
     assert ConnectorManualImportRequest.__table__.c.idempotency_key.index is True
+    assert ConnectorManualImportRequest.__table__.c.decision.index is True
+    assert ConnectorManualImportRequest.__table__.c.decision_actor_id.index is True
 
 
 def test_repository_appends_audit_events_without_cross_tenant_leakage(session: Session) -> None:
@@ -524,6 +527,8 @@ def test_repository_records_connector_manual_import_requests_tenant_scoped_and_i
     assert records[0].graph_mutation_status == "not_applied"
     assert records[0].workflow_signal_status == "pending_approval_decision"
     assert records[0].audit_event_id == audit_event.id
+    assert records[0].decision is None
+    assert records[0].workflow_signal is None
 
 
 def test_connector_manual_import_idempotency_is_unique_per_tenant(session: Session) -> None:
@@ -545,3 +550,54 @@ def test_connector_manual_import_idempotency_is_unique_per_tenant(session: Sessi
 
     with pytest.raises(IntegrityError):
         repository.create_connector_manual_import_request(payload)
+
+
+def test_repository_records_connector_manual_import_decision_and_signal(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    created = repository.create_connector_manual_import_request(
+        ConnectorManualImportRequestCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            import_id="import_assets_manual_20260622",
+            idempotency_key="manual-import-assets-20260622",
+            requested_by="plant-operations-owner-role",
+            owner_role="plant-operations-owner",
+            risk_level="high",
+            approval_id="appr_connector_import_assets_20260622",
+            workflow_id="wf_connector_manual_import_review",
+            proposal_ids=["proposal_asset_line_2_packaging"],
+        )
+    )
+
+    updated = repository.record_connector_manual_import_decision(
+        ConnectorManualImportDecisionRecord(
+            tenant_id="tenant_demo_manufacturing",
+            import_id="import_assets_manual_20260622",
+            status="approval_approved",
+            decision="approve",
+            decision_actor_id="plant-operations-owner-role",
+            decision_note="Approved in persistence test.",
+            workflow_signal_status="manual_import_signal_requested",
+            workflow_signal={
+                "workflow_id": "wf_connector_manual_import_review",
+                "status": "manual_import_signal_requested",
+                "signal_name": "connector_manual_import_decided",
+            },
+        )
+    )
+    found = repository.get_connector_manual_import_request(
+        "tenant_demo_manufacturing",
+        "import_assets_manual_20260622",
+    )
+
+    assert found == updated
+    assert updated.id == created.id
+    assert updated.status == "approval_approved"
+    assert updated.decision == "approve"
+    assert updated.decision_actor_id == "plant-operations-owner-role"
+    assert updated.decision_note == "Approved in persistence test."
+    assert updated.decided_at is not None
+    assert updated.workflow_signal_status == "manual_import_signal_requested"
+    assert updated.workflow_signal["signal_name"] == "connector_manual_import_decided"

@@ -172,7 +172,7 @@ def _file_csv_manifest() -> ConnectorManifest:
         ],
         mapping_notes=[
             "CSV preview maps rows to ontology entity proposals only.",
-            "Manual import remains disabled until connector permissions and audit writes mature.",
+            "Manual import remains approval-gated and workflow-signaled before execution.",
             "Raw file content is never returned in API responses.",
         ],
     )

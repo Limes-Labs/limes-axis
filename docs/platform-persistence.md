@@ -58,6 +58,12 @@ The eighth Alembic migration adds:
   redacted import summaries, linked audit event ids and
   `graph_mutation_status=not_applied`.
 
+The ninth Alembic migration adds decision evidence to manual import requests:
+
+- nullable decision, decision actor, note and timestamp columns;
+- nullable workflow signal JSON evidence;
+- indexes for decision and decision actor filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -78,6 +84,7 @@ The eighth Alembic migration adds:
 - connector ontology proposal creation and tenant-scoped listing.
 - connector manual import request creation, idempotency lookup and
   tenant-scoped listing.
+- connector manual import decision recording with workflow signal evidence.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
@@ -129,6 +136,10 @@ Delivered:
   append-only `connector.manual_import.requested` audit writes, idempotent
   replay, conflict detection, graph-write rejection and raw payload field
   rejection.
+- connector manual import decisions with approval outcome persistence,
+  workflow signal evidence and append-only
+  `connector.manual_import.decision_recorded` audit writes, while graph
+  mutation remains `not_applied`.
 
 Still Platform work:
 

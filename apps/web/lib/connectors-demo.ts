@@ -276,6 +276,17 @@ export type ConnectorManualImportRecord = {
   controls: string[];
   graph_mutation_status: string;
   workflow_signal_status: string;
+  decision: string | null;
+  decision_actor_id: string | null;
+  decision_note: string | null;
+  decided_at: string | null;
+  workflow_signal: {
+    workflow_id: string;
+    status: string;
+    adapter: string;
+    signal_name: string;
+    payload: Record<string, unknown>;
+  } | null;
   audit_event_id: string | null;
   audit_event_type: string;
   notes: string[];
@@ -387,7 +398,7 @@ export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegist
         ],
         mapping_notes: [
           "CSV preview maps rows to ontology entity proposals only.",
-          "Manual import remains disabled until connector permissions and audit writes mature.",
+          "Manual import remains approval-gated and workflow-signaled before execution.",
           "Raw file content is never returned in API responses.",
         ],
       },
@@ -761,9 +772,15 @@ export const defaultConnectorManualImportRegistry: ManufacturingConnectorManualI
       },
       {
         label: "Approval Required",
-        value: "1",
+        value: "0",
         detail: "Manual imports waiting for human decision",
-        status: "watch",
+        status: "ready",
+      },
+      {
+        label: "Workflow Signals",
+        value: "1",
+        detail: "Manual import decisions signaled to the workflow runtime",
+        status: "ready",
       },
       {
         label: "Graph Mutations",
@@ -778,7 +795,7 @@ export const defaultConnectorManualImportRegistry: ManufacturingConnectorManualI
         connector_id: "file_csv_manufacturing_assets",
         import_id: "import_assets_manual_20260622",
         idempotency_key: "manual-import-assets-20260622",
-        status: "approval_required",
+        status: "approval_approved",
         import_mode: "manual_import_request",
         requested_by: "plant-operations-owner-role",
         owner_role: "plant-operations-owner",
@@ -796,9 +813,31 @@ export const defaultConnectorManualImportRegistry: ManufacturingConnectorManualI
           "idempotency_enforced",
         ],
         graph_mutation_status: "not_applied",
-        workflow_signal_status: "pending_approval_decision",
+        workflow_signal_status: "manual_import_signal_requested",
+        decision: "approve",
+        decision_actor_id: "plant-operations-owner-role",
+        decision_note: "Approved import request; graph mutation remains gated.",
+        decided_at: "2026-06-22T00:00:00Z",
+        workflow_signal: {
+          workflow_id: "wf_connector_manual_import_review",
+          status: "manual_import_signal_requested",
+          adapter: "axis-deferred-workflow-adapter",
+          signal_name: "connector_manual_import_decided",
+          payload: {
+            connector_id: "file_csv_manufacturing_assets",
+            import_id: "import_assets_manual_20260622",
+            idempotency_key: "manual-import-assets-20260622",
+            approval_id: "appr_connector_import_assets_20260622",
+            import_mode: "manual_import_request",
+            decision: "approve",
+            approved: true,
+            proposal_ids: ["proposal_asset_line_2_packaging"],
+            proposal_count: 1,
+            graph_mutation_status: "not_applied",
+          },
+        },
         audit_event_id: "audit_connector_manual_import_demo_20260622",
-        audit_event_type: "connector.manual_import.requested",
+        audit_event_type: "connector.manual_import.decision_recorded",
         notes: ["Manual import request only; graph mutation is not applied."],
         created_at: "2026-06-22T00:00:00Z",
         idempotent_replay: false,

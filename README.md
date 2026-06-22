@@ -99,8 +99,10 @@ ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events and keeps graph mutation
 explicitly `not_applied`. The manual import request slice records approval,
 workflow and idempotency gates for proposal import requests with
-`connector.manual_import.requested` audit events, while still avoiding connector
-execution, external sync and ontology graph mutation.
+`connector.manual_import.requested` audit events. Manual import decisions now
+record approval outcomes, workflow signal evidence and
+`connector.manual_import.decision_recorded` audit events, while still avoiding
+connector execution, external sync and ontology graph mutation.
 
 ## Architecture Defaults
 

@@ -1,19 +1,53 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.connector_manual_imports import (
+    ConnectorManualImportDecisionRequest,
     ConnectorManualImportQuery,
     build_connector_manual_import_registry,
+    record_demo_connector_manual_import_decision,
 )
 from axis_api.db import session_scope
+from axis_api.demo import ApprovalDecision
 from axis_api.main import create_app
-from axis_api.models import Base
+from axis_api.models import ApprovalRecord, AuditEvent, Base, ConnectorManualImportRequest
 from axis_api.persistence import AxisPersistenceRepository, ConnectorManualImportRequestCreate
+from axis_api.workflow_runtime import (
+    WorkflowConnectorManualImportSignalRequest,
+    WorkflowSignalError,
+    WorkflowSignalResult,
+)
+
+
+class RecordingManualImportWorkflowRuntime:
+    def __init__(self) -> None:
+        self.requests: list[WorkflowConnectorManualImportSignalRequest] = []
+
+    async def signal_connector_manual_import(
+        self,
+        request: WorkflowConnectorManualImportSignalRequest,
+    ) -> WorkflowSignalResult:
+        self.requests.append(request)
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="manual_import_signal_requested",
+            adapter="axis-test-workflow-adapter",
+            signal_name=request.signal_name,
+            payload=request.audit_payload,
+        )
+
+
+class FailingManualImportWorkflowRuntime:
+    async def signal_connector_manual_import(
+        self,
+        request: WorkflowConnectorManualImportSignalRequest,
+    ) -> WorkflowSignalResult:
+        raise WorkflowSignalError("synthetic_manual_import_runtime_down")
 
 
 @pytest.fixture
@@ -136,12 +170,16 @@ def test_build_connector_manual_import_registry_maps_persisted_requests(
     assert registry.metrics[0].value == "1"
     assert registry.metrics[1].label == "Approval Required"
     assert registry.metrics[1].value == "1"
-    assert registry.metrics[2].label == "Graph Mutations"
+    assert registry.metrics[2].label == "Workflow Signals"
     assert registry.metrics[2].value == "0"
+    assert registry.metrics[3].label == "Graph Mutations"
+    assert registry.metrics[3].value == "0"
     assert registry.imports[0].import_id == "import_assets_manual_20260622"
     assert registry.imports[0].proposal_ids == ["proposal_asset_line_2_packaging"]
     assert registry.imports[0].graph_mutation_status == "not_applied"
     assert registry.imports[0].workflow_signal_status == "pending_approval_decision"
+    assert registry.imports[0].decision is None
+    assert registry.imports[0].workflow_signal is None
     assert registry.imports[0].audit_event_type == "connector.manual_import.requested"
     assert "tenant_other" not in registry.model_dump_json()
     assert "csv_content" not in registry.model_dump_json().lower()
@@ -167,7 +205,7 @@ def test_connector_manual_imports_endpoint_returns_tenant_scoped_records(
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
     assert body["metrics"][0]["value"] == "1"
-    assert body["metrics"][2]["value"] == "0"
+    assert body["metrics"][3]["value"] == "0"
     assert body["imports"][0]["import_id"] == "import_assets_manual_20260622"
     assert body["imports"][0]["approval_id"] == "appr_connector_import_assets_20260622"
     assert body["imports"][0]["workflow_id"] == "wf_connector_manual_import_review"
@@ -220,6 +258,167 @@ def test_create_connector_manual_import_records_audit_event(
     assert events[0].payload["graph_mutation_status"] == "not_applied"
     assert events[0].payload["workflow_signal_status"] == "pending_approval_decision"
     assert "csv_content" not in str(events[0].payload).lower()
+
+
+async def test_record_connector_manual_import_decision_signals_workflow_and_updates_request(
+    session_factory: sessionmaker[Session],
+) -> None:
+    workflow_runtime = RecordingManualImportWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_manual_imports(repository)
+        result = await record_demo_connector_manual_import_decision(
+            repository,
+            "import_assets_manual_20260622",
+            ConnectorManualImportDecisionRequest(
+                decision=ApprovalDecision.APPROVE,
+                actor_id="plant-operations-owner-role",
+                actor_scopes=["approvals:connectors:decide"],
+                note="Approved import request; graph mutation remains gated.",
+            ),
+            workflow_runtime,
+        )
+
+    with session_factory() as session:
+        approval = session.scalars(select(ApprovalRecord)).one()
+        manual_import = session.scalars(
+            select(ConnectorManualImportRequest).where(
+                ConnectorManualImportRequest.import_id == "import_assets_manual_20260622"
+            )
+        ).one()
+        decision_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.manual_import.decision_recorded"
+            )
+        ).one()
+
+    assert result.manual_import.import_id == "import_assets_manual_20260622"
+    assert result.manual_import.status == "approval_approved"
+    assert result.manual_import.decision == "approve"
+    assert result.manual_import.decision_actor_id == "plant-operations-owner-role"
+    assert result.manual_import.workflow_signal_status == "manual_import_signal_requested"
+    assert result.manual_import.graph_mutation_status == "not_applied"
+    assert result.workflow_signal.status == "manual_import_signal_requested"
+    assert result.workflow_signal.payload["import_id"] == "import_assets_manual_20260622"
+    assert result.workflow_signal.payload["idempotency_key"] == "manual-import-assets-20260622"
+    assert result.workflow_signal.payload["approval_id"] == "appr_connector_import_assets_20260622"
+    assert result.workflow_signal.payload["decision"] == "approve"
+    assert result.workflow_signal.payload["graph_mutation_status"] == "not_applied"
+    assert result.permission_decision.model_dump() == {"allowed": True, "reason": "allowed"}
+    assert result.audit_event_type == "connector.manual_import.decision_recorded"
+    assert approval.approval_id == "appr_connector_import_assets_20260622"
+    assert approval.action_id == "connector_manual_import:file_csv_manufacturing_assets"
+    assert approval.status == "approve"
+    assert approval.decision_actor_id == "plant-operations-owner-role"
+    assert manual_import.status == "approval_approved"
+    assert manual_import.decision == "approve"
+    assert manual_import.workflow_signal_status == "manual_import_signal_requested"
+    assert manual_import.workflow_signal["status"] == "manual_import_signal_requested"
+    assert decision_event.payload["import_id"] == "import_assets_manual_20260622"
+    assert decision_event.payload["decision"] == "approve"
+    assert decision_event.payload["workflow_signal"]["status"] == "manual_import_signal_requested"
+    assert decision_event.payload["graph_mutation_status"] == "not_applied"
+    assert workflow_runtime.requests[0].signal_name == "connector_manual_import_decided"
+    assert workflow_runtime.requests[0].runtime_payload["proposal_ids"] == [
+        "proposal_asset_line_2_packaging"
+    ]
+
+
+def test_connector_manual_import_decision_endpoint_signals_workflow(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    app.state.workflow_runtime = RecordingManualImportWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        seed_connector_manual_imports(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manual-imports/import_assets_manual_20260622/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["approvals:connectors:decide"],
+            "note": "Approved inside endpoint test.",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["manual_import"]["status"] == "approval_approved"
+    assert body["manual_import"]["decision"] == "approve"
+    assert body["manual_import"]["workflow_signal_status"] == "manual_import_signal_requested"
+    assert body["workflow_signal"]["signal_name"] == "connector_manual_import_decided"
+    assert body["workflow_signal"]["payload"]["graph_mutation_status"] == "not_applied"
+    assert body["audit_event_type"] == "connector.manual_import.decision_recorded"
+
+
+def test_connector_manual_import_decision_endpoint_rejects_missing_permission(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_connector_manual_imports(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manual-imports/import_assets_manual_20260622/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": [],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+
+
+def test_connector_manual_import_decision_endpoint_returns_runtime_unavailable_status(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    app.state.workflow_runtime = FailingManualImportWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        seed_connector_manual_imports(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manual-imports/import_assets_manual_20260622/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["approvals:connectors:decide"],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["workflow_signal_status"] == "runtime_signal_unavailable"
+    assert body["manual_import"]["workflow_signal_status"] == "runtime_signal_unavailable"
+    assert body["workflow_signal"]["payload"]["reason"] == "synthetic_manual_import_runtime_down"
+
+
+def test_connector_manual_import_decision_endpoint_handles_missing_import(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manual-imports/missing_import/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["approvals:connectors:decide"],
+        },
+    )
+
+    assert response.status_code == 404
 
 
 def test_create_connector_manual_import_is_idempotent_for_same_payload(
@@ -321,3 +520,4 @@ def test_openapi_exposes_connector_manual_import_endpoints() -> None:
     assert response.status_code == 200
     paths = response.json()["paths"]
     assert "/demo/manufacturing/connectors/manual-imports" in paths
+    assert "/demo/manufacturing/connectors/manual-imports/{import_id}/decision" in paths

@@ -50,13 +50,18 @@ from axis_api.connector_credential_handles import (
 )
 from axis_api.connector_manual_imports import (
     ConnectorManualImportCreateRequest,
+    ConnectorManualImportDecisionRequest,
+    ConnectorManualImportDecisionResult,
     ConnectorManualImportIdempotencyConflict,
+    ConnectorManualImportNotFound,
+    ConnectorManualImportPermissionDenied,
     ConnectorManualImportQuery,
     ConnectorManualImportRecord,
     ConnectorManualImportValidationError,
     ManufacturingConnectorManualImportRegistry,
     build_connector_manual_import_registry,
     record_demo_connector_manual_import,
+    record_demo_connector_manual_import_decision,
 )
 from axis_api.connector_ontology_proposals import (
     ConnectorOntologyProposalCreateRequest,
@@ -654,6 +659,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response.status_code = status.HTTP_200_OK
 
         return result
+
+    @app.post(
+        "/demo/manufacturing/connectors/manual-imports/{import_id}/decision",
+        response_model=ConnectorManualImportDecisionResult,
+        responses={
+            403: {"description": "Connector manual import decision permission denied"},
+            404: {"description": "Connector manual import request not found"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    async def manufacturing_connector_manual_import_decision(
+        import_id: str,
+        decision: ConnectorManualImportDecisionRequest,
+        repository: PersistenceRepository,
+        runtime: WorkflowRuntime,
+        principal: OidcPrincipalDependency,
+    ) -> ConnectorManualImportDecisionResult:
+        try:
+            bound_decision = _bind_demo_actor(decision, principal)
+            return await record_demo_connector_manual_import_decision(
+                repository,
+                import_id,
+                bound_decision,
+                runtime,
+            )
+        except ConnectorManualImportNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Connector manual import not found",
+            ) from exc
+        except ConnectorManualImportPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot decide this connector manual import.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/connectors/file-csv/preview",
