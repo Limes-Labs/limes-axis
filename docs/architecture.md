@@ -78,8 +78,11 @@ execution. Tenant-scoped connector configuration records are persisted
 separately from connector runs and reject raw credential fields. Credential
 handle records persist external secret
 references, rotation metadata and rotation history without storing raw
-credential values. Connector run records persist redacted input/result summaries
-and link to append-only `connector.run.recorded` audit events. Governed dry-run
+credential values. Credential lease records add a Vault/KMS lease boundary with
+request, renew and revoke audit evidence, permission decisions and deferred
+adapter results while never returning secret material. Connector run records
+persist redacted input/result summaries and link to append-only
+`connector.run.recorded` audit events. Governed dry-run
 connector execution now calls a deferred Axis connector execution adapter,
 requires credential handle ids and writes `connector.run.execution_deferred`
 evidence while keeping `external_sync_started=false`. Connector ontology

@@ -12,6 +12,7 @@ from axis_api.models import (
     AuditEvent,
     ConnectorConfiguration,
     ConnectorCredentialHandle,
+    ConnectorCredentialLease,
     ConnectorCredentialRotation,
     ConnectorManifestRecord,
     ConnectorManualImportRequest,
@@ -185,6 +186,53 @@ class ConnectorCredentialRotationCreate(BaseModel):
     evidence_ref: str = Field(min_length=1)
     status: str = Field(default="rotated", min_length=1)
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorCredentialLeaseCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    handle_id: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    status: str = Field(default="active", min_length=1)
+    lease_mode: str = Field(default="deferred_vault_kms_lease", min_length=1)
+    runtime_boundary: str = Field(default="axis-credential-lease-broker", min_length=1)
+    requested_by: str = Field(min_length=1)
+    lease_purpose: str = Field(min_length=1)
+    secret_provider: str = Field(min_length=1)
+    secret_ref: str = Field(min_length=1)
+    vault_kms_policy: dict = Field(default_factory=dict)
+    permission_decision: dict = Field(default_factory=dict)
+    lease_result: dict = Field(default_factory=dict)
+    granted_at: datetime
+    expires_at: datetime
+    renewal_due_at: datetime
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.credential_lease.requested", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorCredentialLeaseRenewalRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    renewed_by: str = Field(min_length=1)
+    renewed_at: datetime
+    expires_at: datetime
+    renewal_due_at: datetime
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.credential_lease.renewed", min_length=1)
+    lease_result: dict = Field(default_factory=dict)
+    note: str | None = None
+
+
+class ConnectorCredentialLeaseRevocationRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    revoked_by: str = Field(min_length=1)
+    revoked_at: datetime
+    revocation_reason: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.credential_lease.revoked", min_length=1)
+    lease_result: dict = Field(default_factory=dict)
 
 
 class ConnectorRunCreate(BaseModel):
@@ -878,6 +926,117 @@ class AxisPersistenceRepository:
             .limit(limit)
         )
         return list(self.session.scalars(statement))
+
+    def create_connector_credential_lease(
+        self,
+        record: ConnectorCredentialLeaseCreate,
+    ) -> ConnectorCredentialLease:
+        lease = ConnectorCredentialLease(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            handle_id=record.handle_id,
+            lease_id=record.lease_id,
+            status=record.status,
+            lease_mode=record.lease_mode,
+            runtime_boundary=record.runtime_boundary,
+            requested_by=record.requested_by,
+            lease_purpose=record.lease_purpose,
+            secret_provider=record.secret_provider,
+            secret_ref=record.secret_ref,
+            vault_kms_policy=record.vault_kms_policy,
+            permission_decision=record.permission_decision,
+            lease_result=record.lease_result,
+            granted_at=record.granted_at,
+            expires_at=record.expires_at,
+            renewal_due_at=record.renewal_due_at,
+            renewed_at=None,
+            renewed_by=None,
+            renewal_count=0,
+            revoked_at=None,
+            revoked_by=None,
+            revocation_reason=None,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(lease)
+        self.session.flush()
+        return lease
+
+    def get_connector_credential_lease(
+        self,
+        tenant_id: str,
+        lease_id: str,
+    ) -> ConnectorCredentialLease | None:
+        statement = select(ConnectorCredentialLease).where(
+            ConnectorCredentialLease.tenant_id == tenant_id,
+            ConnectorCredentialLease.lease_id == lease_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_credential_leases(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        handle_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorCredentialLease]:
+        statement: Select[tuple[ConnectorCredentialLease]] = select(
+            ConnectorCredentialLease
+        ).where(ConnectorCredentialLease.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorCredentialLease.connector_id == connector_id)
+        if handle_id is not None:
+            statement = statement.where(ConnectorCredentialLease.handle_id == handle_id)
+        if status is not None:
+            statement = statement.where(ConnectorCredentialLease.status == status)
+
+        statement = statement.order_by(
+            ConnectorCredentialLease.created_at.desc(),
+            ConnectorCredentialLease.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def renew_connector_credential_lease(
+        self,
+        record: ConnectorCredentialLeaseRenewalRecord,
+    ) -> ConnectorCredentialLease:
+        lease = self.get_connector_credential_lease(record.tenant_id, record.lease_id)
+        if lease is None:
+            raise PersistenceRecordNotFound("Connector credential lease not found")
+        lease.status = "active"
+        lease.renewed_at = record.renewed_at
+        lease.renewed_by = record.renewed_by
+        lease.renewal_count += 1
+        lease.expires_at = record.expires_at
+        lease.renewal_due_at = record.renewal_due_at
+        lease.audit_event_id = record.audit_event_id
+        lease.audit_event_type = record.audit_event_type
+        lease.lease_result = record.lease_result
+        if record.note is not None:
+            lease.notes = [*lease.notes, record.note]
+        lease.updated_at = utc_now()
+        self.session.flush()
+        return lease
+
+    def revoke_connector_credential_lease(
+        self,
+        record: ConnectorCredentialLeaseRevocationRecord,
+    ) -> ConnectorCredentialLease:
+        lease = self.get_connector_credential_lease(record.tenant_id, record.lease_id)
+        if lease is None:
+            raise PersistenceRecordNotFound("Connector credential lease not found")
+        lease.status = "revoked"
+        lease.revoked_at = record.revoked_at
+        lease.revoked_by = record.revoked_by
+        lease.revocation_reason = record.revocation_reason
+        lease.audit_event_id = record.audit_event_id
+        lease.audit_event_type = record.audit_event_type
+        lease.lease_result = record.lease_result
+        lease.updated_at = utc_now()
+        self.session.flush()
+        return lease
 
     def create_connector_run(
         self,

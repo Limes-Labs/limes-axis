@@ -108,7 +108,10 @@ promotion policies can now be revised append-only with idempotency evidence,
 while enabled required policies remain immutable until a governed policy-set
 transition adopts a future version. The credential handle slice adds
 metadata-only external secret references and rotation history for connector
-credentials, while still refusing to store raw credential values.
+credentials, while still refusing to store raw credential values. Credential
+leases can now be requested, renewed and revoked with Vault/KMS policy metadata,
+permission decisions and deferred adapter evidence, without returning secret
+material.
 The connector run record slice adds metadata-only run records linked to
 append-only audit events, and governed connector dry-runs now pass through a
 deferred execution adapter that writes `connector.run.execution_deferred`

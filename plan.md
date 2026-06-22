@@ -104,6 +104,7 @@ Foundation acceptance is tracked in
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
+- [x] Add Vault/KMS credential lease records with renew/revoke evidence.
 - [x] Author connector promotion policies before required enforcement.
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.
@@ -187,10 +188,15 @@ queries tenant-scoped preview connector configuration through
 fields in configuration payloads. The API now also stores metadata-only
 credential handles and rotation history through
 `/demo/manufacturing/connectors/credential-handles`, using external secret
-references instead of raw credential values. Connector run records can now be
-written through `/demo/manufacturing/connectors/runs`; each record stores only
-redacted summaries and links to an append-only `connector.run.recorded` audit
-event. Governed dry-run connector execution now calls the deferred Axis
+references instead of raw credential values. Short-lived credential leases can
+now be requested, renewed and revoked through
+`/demo/manufacturing/connectors/credential-leases`, writing
+`connector.credential_lease.*` audit evidence while returning only references,
+timestamps, permission decisions and deferred adapter evidence. Connector run
+records can now be written through `/demo/manufacturing/connectors/runs`; each
+record stores only redacted summaries and links to an append-only
+`connector.run.recorded` audit event. Governed dry-run connector execution now
+calls the deferred Axis
 connector execution adapter, requires credential handle ids, writes
 `connector.run.execution_deferred` audit evidence and still does not start live
 sync. Preview-derived ontology proposals can now be persisted through
@@ -257,8 +263,8 @@ It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
 Manifest lifecycle transitions beyond preview-only registration, production
-credential vault integration, scheduled live sync, live external database
-adapters and connector-backed production actions remain Platform work.
+live vault/KMS adapters, scheduled live sync, live external database adapters
+and connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,

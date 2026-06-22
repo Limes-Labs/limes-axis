@@ -11,8 +11,9 @@ tenant-scoped connector configuration records and metadata-only connector run
 records. Governed
 dry-run execution now passes through a deferred Axis connector execution
 adapter while keeping live sync disabled.
-It also introduces metadata-only credential handles and rotation history for
-future connector execution, without storing raw credential material in Axis.
+It also introduces metadata-only credential handles, rotation history and
+short-lived Vault/KMS lease records for future connector execution, without
+storing or returning raw credential material in Axis.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -32,6 +33,10 @@ POST /demo/manufacturing/connectors/configurations
 GET /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles/{handle_id}/rotations
+GET /demo/manufacturing/connectors/credential-leases
+POST /demo/manufacturing/connectors/credential-leases
+POST /demo/manufacturing/connectors/credential-leases/{lease_id}/renew
+POST /demo/manufacturing/connectors/credential-leases/{lease_id}/revoke
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/ontology-proposals
@@ -149,6 +154,38 @@ The create endpoint accepts references such as `vault://...`,
 rejects inline values that do not look like external references. Rotation
 records update handle metadata and append rotation history. Axis does not
 retrieve, store or return raw credential values.
+
+The credential lease endpoints store and query tenant-scoped Vault/KMS lease
+records for connector execution. A lease includes:
+
+- tenant id;
+- connector id;
+- credential handle id;
+- lease id;
+- active/revoked status;
+- lease mode and runtime boundary;
+- requester role/system id;
+- purpose;
+- external secret provider and reference;
+- Vault/KMS policy metadata;
+- permission decision;
+- deferred adapter result;
+- granted, expiry and renewal timestamps;
+- renewal/revocation evidence;
+- linked audit event id and type;
+- lease notes.
+
+Creating a lease requires `connectors:credential_lease:request`, an active
+credential handle in the same tenant and connector, and public-safe Vault/KMS
+policy metadata. It writes `connector.credential_lease.requested` audit
+evidence and returns only references, timestamps, decisions and adapter
+evidence. Renewing and revoking leases require
+`connectors:credential_lease:renew` and
+`connectors:credential_lease:revoke` respectively, writing
+`connector.credential_lease.renewed` and
+`connector.credential_lease.revoked`. The default adapter is deferred and does
+not retrieve secret material, call an external vault, start live sync or mutate
+the ontology graph.
 
 The connector run endpoints store and query tenant-scoped run evidence. A run
 record includes:
@@ -392,6 +429,7 @@ The console displays:
 - blocked operations;
 - tenant-scoped preview configuration;
 - credential handle references and rotation posture;
+- credential lease posture with deferred Vault/KMS adapter evidence;
 - audit-backed connector run records and deferred execution metadata;
 - review-only ontology proposal records with graph mutation status;
 - controlled ontology promotion evidence and TypeDB mutation status;
@@ -414,7 +452,8 @@ contract keeps these boundaries visible:
 - connector runtime sandbox;
 - typed permission requirements;
 - credential handles instead of raw credential values;
-- rotation metadata before production vault integration;
+- rotation metadata and short-lived credential lease records before live vault
+  adapters;
 - no external egress by default;
 - redacted preview payloads;
 - audit event preview before live connector execution;
@@ -430,7 +469,7 @@ contract keeps these boundaries visible:
 Future Platform work should add:
 
 - manifest lifecycle transitions beyond preview-only registration;
-- production vault/KMS integration and secret lease automation;
+- live production vault/KMS adapters behind the lease runtime boundary;
 - scheduled sync lifecycle;
 - live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.
@@ -449,6 +488,8 @@ The slice is covered by:
   credential field rejection;
 - API unit tests for credential handle metadata, secret reference guardrails
   and rotation history;
+- API unit tests for credential lease request, renewal, revocation, permission
+  checks and raw secret material rejection;
 - API unit tests for connector run records, audit writes and raw payload
   rejection;
 - API unit tests for connector ontology proposal persistence, audit writes,
@@ -459,6 +500,6 @@ The slice is covered by:
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for fallback registry, persisted manifest registry,
-  configuration, credential handle, run record, ontology proposal, manual import,
-  CSV preview and external DB preview contracts;
+  configuration, credential handle, credential lease, run record, ontology
+  proposal, manual import, CSV preview and external DB preview contracts;
 - Playwright smoke tests for `/connectors` rendering.

@@ -340,6 +340,60 @@ class ConnectorCredentialRotation(Base):
     )
 
 
+class ConnectorCredentialLease(Base):
+    __tablename__ = "connector_credential_leases"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    handle_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    lease_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    lease_mode: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    runtime_boundary: Mapped[str] = mapped_column(String(160), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    lease_purpose: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    secret_provider: Mapped[str] = mapped_column(String(120), nullable=False)
+    secret_ref: Mapped[str] = mapped_column(String(500), nullable=False)
+    vault_kms_policy: Mapped[dict] = mapped_column(JSON, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    lease_result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+    )
+    renewal_due_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+    )
+    renewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    renewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    renewal_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    revocation_reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "lease_id",
+            name="uq_connector_credential_leases_tenant_lease",
+        ),
+    )
+
+
 class ConnectorRun(Base):
     __tablename__ = "connector_runs"
 

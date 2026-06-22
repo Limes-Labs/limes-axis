@@ -8,6 +8,7 @@ import {
   buildDefaultExternalDbPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorCredentialLeaseRegistry,
   defaultConnectorManifestRegistry,
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
@@ -232,6 +233,39 @@ describe("manufacturing connector demo contract", () => {
     );
     expect(JSON.stringify(defaultConnectorCredentialHandleRegistry).toLowerCase()).not.toContain(
       "credential_value",
+    );
+  });
+
+  it("keeps credential lease fallback vault/kms-aware and public-safe", () => {
+    expect(defaultConnectorCredentialLeaseRegistry.tenant_id).toBe("tenant_demo_manufacturing");
+    expect(defaultConnectorCredentialLeaseRegistry.leases).toHaveLength(1);
+    expect(defaultConnectorCredentialLeaseRegistry.metrics[0]).toMatchObject({
+      label: "Credential Leases",
+      value: "1",
+    });
+
+    const lease = defaultConnectorCredentialLeaseRegistry.leases[0];
+    expect(lease.lease_id).toBe("lease_file_csv_readonly_20260622");
+    expect(lease.handle_id).toBe("cred_file_csv_readonly");
+    expect(lease.status).toBe("active");
+    expect(lease.lease_mode).toBe("deferred_vault_kms_lease");
+    expect(lease.lease_result).toMatchObject({
+      adapter: "axis-deferred-vault-kms-lease-adapter",
+      external_secret_read: "false",
+      secret_material_returned: "false",
+    });
+    expect(lease.audit_event_type).toBe("connector.credential_lease.requested");
+    expect(JSON.stringify(defaultConnectorCredentialLeaseRegistry).toLowerCase()).not.toContain(
+      "password",
+    );
+    expect(JSON.stringify(defaultConnectorCredentialLeaseRegistry).toLowerCase()).not.toContain(
+      "api_key",
+    );
+    expect(JSON.stringify(defaultConnectorCredentialLeaseRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
+    expect(JSON.stringify(defaultConnectorCredentialLeaseRegistry).toLowerCase()).not.toContain(
+      "secret_value",
     );
   });
 

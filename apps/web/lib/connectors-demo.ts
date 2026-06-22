@@ -270,6 +270,54 @@ export type ManufacturingConnectorCredentialHandleRegistry = {
   handle_notes: string[];
 };
 
+export type ConnectorCredentialLeaseRecord = {
+  tenant_id: string;
+  connector_id: string;
+  handle_id: string;
+  lease_id: string;
+  status: string;
+  lease_mode: string;
+  runtime_boundary: string;
+  requested_by: string;
+  lease_purpose: string;
+  secret_provider: string;
+  secret_ref: string;
+  vault_kms_policy: Record<string, string>;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  lease_result: Record<string, string>;
+  granted_at: string;
+  expires_at: string;
+  renewal_due_at: string;
+  renewed_at: string | null;
+  renewed_by: string | null;
+  renewal_count: number;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revocation_reason: string | null;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorCredentialLeaseRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  leases: ConnectorCredentialLeaseRecord[];
+  lease_notes: string[];
+};
+
 export type ConnectorRunRecord = {
   tenant_id: string;
   connector_id: string;
@@ -1154,6 +1202,87 @@ export const defaultConnectorCredentialHandleRegistry: ManufacturingConnectorCre
     "Credential handles point to external secret managers or local dev refs.",
     "Rotation updates metadata and history without storing raw credential values.",
     "Connector run execution remains future work.",
+  ],
+};
+
+export const defaultConnectorCredentialLeaseRegistry: ManufacturingConnectorCredentialLeaseRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [
+    {
+      label: "Credential Leases",
+      value: "1",
+      detail: "Vault/KMS lease records for connector execution",
+      status: "ready",
+    },
+    {
+      label: "Renewal Due",
+      value: "0",
+      detail: "Active leases at or past renewal window",
+      status: "ready",
+    },
+    {
+      label: "Secret Material",
+      value: "Never Returned",
+      detail: "Lease adapter returns refs and evidence only",
+      status: "ready",
+    },
+  ],
+  leases: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      handle_id: "cred_file_csv_readonly",
+      lease_id: "lease_file_csv_readonly_20260622",
+      status: "active",
+      lease_mode: "deferred_vault_kms_lease",
+      runtime_boundary: "axis-credential-lease-broker",
+      requested_by: "axis-connector-runtime-role",
+      lease_purpose: "governed_dry_run",
+      secret_provider: "external_vault",
+      secret_ref: "vault://axis/demo/connectors/file-csv-readonly",
+      vault_kms_policy: {
+        provider_mode: "self_hosted_vault",
+        lease_path: "axis/demo/connectors/file-csv-readonly",
+        kms_key_ref: "kms://axis/demo/connectors",
+      },
+      permission_decision: {
+        allowed: true,
+        reason: "allowed",
+      },
+      lease_result: {
+        adapter: "axis-deferred-vault-kms-lease-adapter",
+        status: "lease_deferred",
+        lease_id: "lease_file_csv_readonly_20260622",
+        action: "request",
+        external_secret_read: "false",
+        secret_material_returned: "false",
+        evidence_ref: "lease:lease_file_csv_readonly_20260622",
+      },
+      granted_at: "2026-06-22T09:30:00Z",
+      expires_at: "2026-06-22T09:45:00Z",
+      renewal_due_at: "2026-06-22T09:40:00Z",
+      renewed_at: null,
+      renewed_by: null,
+      renewal_count: 0,
+      revoked_at: null,
+      revoked_by: null,
+      revocation_reason: null,
+      audit_event_id: null,
+      audit_event_type: "connector.credential_lease.requested",
+      notes: [
+        "Vault/KMS lease is deferred and returns metadata evidence only.",
+        "Secret material is never returned to the console or API response.",
+      ],
+      created_at: "2026-06-22T09:30:00Z",
+    },
+  ],
+  lease_notes: [
+    "Credential leases are short-lived records for connector execution.",
+    "The default adapter is deferred and never returns secret material.",
+    "Renewal and revocation write audit evidence before live sync is enabled.",
   ],
 };
 

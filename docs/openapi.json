@@ -1955,6 +1955,459 @@
         "title": "ConnectorCredentialHandleRecord",
         "type": "object"
       },
+      "ConnectorCredentialLeaseRecord": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "granted_at": {
+            "format": "date-time",
+            "title": "Granted At",
+            "type": "string"
+          },
+          "handle_id": {
+            "minLength": 1,
+            "title": "Handle Id",
+            "type": "string"
+          },
+          "lease_id": {
+            "minLength": 1,
+            "title": "Lease Id",
+            "type": "string"
+          },
+          "lease_mode": {
+            "minLength": 1,
+            "title": "Lease Mode",
+            "type": "string"
+          },
+          "lease_purpose": {
+            "minLength": 1,
+            "title": "Lease Purpose",
+            "type": "string"
+          },
+          "lease_result": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Lease Result",
+            "type": "object"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "permission_decision": {
+            "additionalProperties": true,
+            "title": "Permission Decision",
+            "type": "object"
+          },
+          "renewal_count": {
+            "title": "Renewal Count",
+            "type": "integer"
+          },
+          "renewal_due_at": {
+            "format": "date-time",
+            "title": "Renewal Due At",
+            "type": "string"
+          },
+          "renewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed At"
+          },
+          "renewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed By"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "revoked_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By"
+          },
+          "runtime_boundary": {
+            "minLength": 1,
+            "title": "Runtime Boundary",
+            "type": "string"
+          },
+          "secret_provider": {
+            "minLength": 1,
+            "title": "Secret Provider",
+            "type": "string"
+          },
+          "secret_ref": {
+            "minLength": 1,
+            "title": "Secret Ref",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "vault_kms_policy": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Vault Kms Policy",
+            "type": "object"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "handle_id",
+          "lease_id",
+          "status",
+          "lease_mode",
+          "runtime_boundary",
+          "requested_by",
+          "lease_purpose",
+          "secret_provider",
+          "secret_ref",
+          "granted_at",
+          "expires_at",
+          "renewal_due_at",
+          "renewal_count",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorCredentialLeaseRecord",
+        "type": "object"
+      },
+      "ConnectorCredentialLeaseRenewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "evidence_ref": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Evidence Ref",
+            "type": "string"
+          },
+          "extend_seconds": {
+            "default": 900,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Extend Seconds",
+            "type": "integer"
+          },
+          "renewal_reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Renewal Reason",
+            "type": "string"
+          },
+          "renewal_window_seconds": {
+            "default": 300,
+            "maximum": 3600.0,
+            "minimum": 30.0,
+            "title": "Renewal Window Seconds",
+            "type": "integer"
+          },
+          "renewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed At"
+          },
+          "renewed_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Renewed By",
+            "type": "string"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Scopes",
+            "type": "array"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "renewed_by",
+          "renewal_reason",
+          "evidence_ref"
+        ],
+        "title": "ConnectorCredentialLeaseRenewRequest",
+        "type": "object"
+      },
+      "ConnectorCredentialLeaseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "connector_id": {
+            "default": "file_csv_manufacturing_assets",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "handle_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Handle Id",
+            "type": "string"
+          },
+          "lease_duration_seconds": {
+            "default": 900,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Lease Duration Seconds",
+            "type": "integer"
+          },
+          "lease_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Lease Id",
+            "type": "string"
+          },
+          "lease_purpose": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Lease Purpose",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "renewal_window_seconds": {
+            "default": 300,
+            "maximum": 3600.0,
+            "minimum": 30.0,
+            "title": "Renewal Window Seconds",
+            "type": "integer"
+          },
+          "requested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested At"
+          },
+          "requested_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Scopes",
+            "type": "array"
+          },
+          "runtime_boundary": {
+            "default": "axis-credential-lease-broker",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Runtime Boundary",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "vault_kms_policy": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Vault Kms Policy",
+            "type": "object"
+          }
+        },
+        "required": [
+          "handle_id",
+          "lease_id",
+          "requested_by",
+          "lease_purpose"
+        ],
+        "title": "ConnectorCredentialLeaseRequest",
+        "type": "object"
+      },
+      "ConnectorCredentialLeaseRevokeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "evidence_ref": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Evidence Ref",
+            "type": "string"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Scopes",
+            "type": "array"
+          },
+          "revocation_reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Revocation Reason",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "revoked_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Revoked By",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revoked_by",
+          "revocation_reason",
+          "evidence_ref"
+        ],
+        "title": "ConnectorCredentialLeaseRevokeRequest",
+        "type": "object"
+      },
       "ConnectorCredentialRequirements": {
         "properties": {
           "notes": {
@@ -5860,6 +6313,57 @@
         "title": "ManufacturingConnectorCredentialHandleRegistry",
         "type": "object"
       },
+      "ManufacturingConnectorCredentialLeaseRegistry": {
+        "properties": {
+          "lease_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lease Notes",
+            "type": "array"
+          },
+          "leases": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorCredentialLeaseRecord"
+            },
+            "title": "Leases",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorCredentialLeaseRegistry",
+        "type": "object"
+      },
       "ManufacturingConnectorManifestRegistry": {
         "properties": {
           "manifest_notes": {
@@ -9072,6 +9576,247 @@
           }
         },
         "summary": "Manufacturing Connector Credential Handle Rotation",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/credential-leases": {
+      "get": {
+        "operationId": "manufacturing_connector_credential_leases_demo_manufacturing_connectors_credential_leases_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "handle_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Handle Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorCredentialLeaseRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Leases",
+        "tags": [
+          "demo"
+        ]
+      },
+      "post": {
+        "operationId": "manufacturing_connector_credential_lease_create_demo_manufacturing_connectors_credential_leases_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCredentialLeaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCredentialLeaseRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential lease permission denied"
+          },
+          "409": {
+            "description": "Connector credential lease already exists"
+          },
+          "422": {
+            "description": "Connector credential lease validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Lease Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/credential-leases/{lease_id}/renew": {
+      "post": {
+        "operationId": "manufacturing_connector_credential_lease_renew_demo_manufacturing_connectors_credential_leases__lease_id__renew_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lease_id",
+            "required": true,
+            "schema": {
+              "title": "Lease Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCredentialLeaseRenewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCredentialLeaseRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential lease permission denied"
+          },
+          "422": {
+            "description": "Connector credential lease renewal validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Lease Renew",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/credential-leases/{lease_id}/revoke": {
+      "post": {
+        "operationId": "manufacturing_connector_credential_lease_revoke_demo_manufacturing_connectors_credential_leases__lease_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lease_id",
+            "required": true,
+            "schema": {
+              "title": "Lease Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCredentialLeaseRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCredentialLeaseRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential lease permission denied"
+          },
+          "422": {
+            "description": "Connector credential lease revocation validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Credential Lease Revoke",
         "tags": [
           "demo"
         ]
