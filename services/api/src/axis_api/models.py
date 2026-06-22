@@ -766,3 +766,36 @@ class ConnectorManualImportRequest(Base):
             name="uq_connector_manual_import_requests_tenant_idempotency",
         ),
     )
+
+
+class ManufacturingOperationRecord(Base):
+    __tablename__ = "manufacturing_operation_records"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    record_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    domain: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    record_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    source_system: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    owner_role: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    related_asset: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    workflow_id: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    risk_level: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "record_id",
+            name="uq_manufacturing_operation_records_tenant_record",
+        ),
+    )

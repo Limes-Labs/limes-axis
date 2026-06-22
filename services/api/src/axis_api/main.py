@@ -231,6 +231,11 @@ from axis_api.identity import (
     RemoteJwksOidcVerifier,
     bind_request_actor,
 )
+from axis_api.manufacturing_operations import (
+    ManufacturingOperationQuery,
+    ManufacturingOperationsDataset,
+    query_manufacturing_operations_dataset,
+)
 from axis_api.model_routing_reference import (
     ModelRoutingReferenceRecordInvalid,
     ModelRoutingReferenceRecordNotFound,
@@ -919,6 +924,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if result.idempotent_replay:
             response.status_code = status.HTTP_200_OK
         return result
+
+    @app.get(
+        "/demo/manufacturing/operations",
+        response_model=ManufacturingOperationsDataset,
+        tags=["demo"],
+    )
+    def manufacturing_operations_dataset(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        domain: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        record_type: str | None = Query(default=None, min_length=1),
+        source_system: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingOperationsDataset:
+        return query_manufacturing_operations_dataset(
+            repository,
+            ManufacturingOperationQuery(
+                tenant_id=tenant_id,
+                domain=domain,
+                status=status,
+                record_type=record_type,
+                source_system=source_system,
+                limit=limit,
+            ),
+        )
 
     @app.get(
         "/demo/manufacturing/agents",
