@@ -132,15 +132,17 @@ Foundation acceptance is tracked in
   reintroduction.
 - [x] Persist the manufacturing overview reference as a tenant-scoped bootstrap
   record.
+- [x] Persist the manufacturing workflow console reference as a tenant-scoped
+  bootstrap record.
 - [x] Persist the manufacturing connector registry reference as a
   tenant-scoped bootstrap record.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
   bootstrap record.
-- [ ] Replace remaining API-owned reference endpoints beyond overview,
-  connector registry, agent registry and action registry with persisted,
-  tenant-scoped bootstrap records.
+- [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
+  console, connector registry, agent registry and action registry with
+  persisted, tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -156,11 +158,14 @@ also reads from `surface=agents` and
 from `surface=actions` and `reference_id=manufacturing-action-registry`; action
 run requests validate their action definitions against that same persisted
 record before writing action/audit state.
-Remaining API-owned reference records are a bootstrap boundary and must be moved
-to persisted tenant-scoped records before production use. The full
-manufacturing reference demo remains open until it has ontology relationships,
-approval actions, workflow execution and replay backed by real persistence
-paths.
+The workflow console reference endpoint reads from `surface=workflows` and
+`reference_id=manufacturing-workflow-console`, while
+`/demo/manufacturing/workflows/runs` continues to query operational workflow run
+state and tenant-scoped timeline events. Remaining API-owned reference records
+are a bootstrap boundary and must be moved to persisted tenant-scoped records
+before production use. The full manufacturing reference demo remains open until
+it has ontology relationships, approval actions, workflow execution and replay
+backed by real persistence paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;

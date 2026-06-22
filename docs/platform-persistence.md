@@ -132,6 +132,13 @@ The twenty-fifth Alembic migration adds:
 - the public-safe typed action catalog, schemas, policy boundaries, guardrails
   and dry-run sample payloads used by `GET /demo/manufacturing/actions`.
 
+The twenty-sixth Alembic migration adds:
+
+- a persisted manufacturing workflow console bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe workflow reference runs, pending governance signals, timeline
+  evidence and runtime notes used by `GET /demo/manufacturing/workflows`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -260,6 +267,11 @@ Delivered:
   `surface=actions/reference_id=manufacturing-action-registry`, action run
   creation validating against that persisted record and both paths returning
   404/422 for missing or invalid persisted payloads.
+- persisted manufacturing workflow console reference records through
+  `demo_reference_records`, with the API reading
+  `surface=workflows/reference_id=manufacturing-workflow-console` while the
+  separate `/demo/manufacturing/workflows/runs` endpoint continues to query
+  operational workflow run and timeline tables.
 
 Still Platform work:
 

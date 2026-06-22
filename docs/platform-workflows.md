@@ -14,9 +14,11 @@ GET /demo/manufacturing/workflows
 GET /demo/manufacturing/workflows/runs
 ```
 
-The reference endpoint returns a typed workflow console for the demo tenant. The
-persisted endpoint reads Postgres workflow run state and tenant-scoped timeline
-events with optional filters:
+The reference endpoint returns a typed workflow console for the demo tenant. It
+reads the active `demo_reference_records` row for `surface=workflows` and
+`reference_id=manufacturing-workflow-console`; missing or invalid persisted
+records return explicit API errors. The persisted endpoint reads Postgres
+workflow run state and tenant-scoped timeline events with optional filters:
 
 - `tenant_id`;
 - `state`;
@@ -54,6 +56,12 @@ matching workflow when Temporal is available. The workflow console itself stays
 read-only: it shows persisted run state and history views without exposing live
 mutation controls.
 
+The reference workflow console is a bootstrap reference surface, but it is no
+longer constructed inside the FastAPI route. Alembic migration
+`0026_workflow_console_reference` inserts the public-safe workflow console
+reference payload, and the API validates it against the
+`ManufacturingWorkflowConsole` contract before returning it.
+
 Typed action run persistence now also uses this boundary for approval-gated
 action payloads. The API sends an `action_requested` signal after the action run
 is persisted and records either the adapter result or an explicit degraded
@@ -75,6 +83,7 @@ work.
 The slice is covered by:
 
 - API unit tests for the manufacturing workflow console reference endpoint;
+- contract tests for the persisted workflow console bootstrap payload;
 - API unit tests for persisted workflow run state and tenant-scoped history;
 - OpenAPI schema export/check;
 - web unit tests for the persisted-data selection contract;

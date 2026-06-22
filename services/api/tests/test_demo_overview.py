@@ -14,6 +14,7 @@ from axis_api.demo import (
     ManufacturingActionRegistry,
     ManufacturingAgentRegistry,
     ManufacturingOverview,
+    ManufacturingWorkflowConsole,
     OntologyNodeType,
     OverviewStatus,
     get_manufacturing_action_registry,
@@ -93,6 +94,67 @@ def persisted_overview_payload() -> dict:
                 "result": "persisted",
             }
         ],
+    }
+
+
+def persisted_workflow_console_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Workflow Console",
+        "as_of": "2026-06-22T11:00:00+02:00",
+        "runtime_status": "ready",
+        "metrics": [
+            {
+                "label": "Persisted Reference Runs",
+                "value": "1",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "workflow_runs": [
+            {
+                "workflow_id": "wf_persisted_reference",
+                "name": "Persisted Reference Workflow",
+                "domain": "Operations",
+                "state": "waiting_for_approval",
+                "status": "action_required",
+                "owner_role": "plant-operations-owner",
+                "runtime": "Temporal OSS",
+                "adapter": "axis-temporal-adapter",
+                "autonomy_level": "L2",
+                "started_at": "2026-06-22T10:45:00+02:00",
+                "eta": "Today 13:00",
+                "blocker": "Owner approval required",
+                "objective": "Validate persisted workflow reference path.",
+                "current_step": "Approval gate",
+                "related_risk": "risk_persisted_workflow",
+                "related_assets": ["asset_persisted_line"],
+                "inputs": ["Persisted workflow input"],
+                "proposed_outputs": ["Persisted workflow output"],
+                "pending_signals": [
+                    {
+                        "signal": "approval.decision",
+                        "required_role": "plant-operations-owner",
+                        "status": "waiting",
+                        "approval_id": "appr_persisted_workflow",
+                    }
+                ],
+                "controls": ["approvals:operations:decide"],
+                "timeline": [
+                    {
+                        "event": "workflow.reference.loaded",
+                        "at": "2026-06-22T10:45:00+02:00",
+                        "actor": "axis-bootstrap",
+                        "result": "loaded",
+                        "summary": "Workflow reference loaded from persistence.",
+                    }
+                ],
+                "audit_scope": "wf_persisted_reference",
+                "replay_ready": False,
+            }
+        ],
+        "runtime_notes": ["Persisted workflow console reference."],
     }
 
 
@@ -360,20 +422,105 @@ def test_manufacturing_workflow_console_seed_is_inspectable() -> None:
     assert "@" not in console.model_dump_json()
 
 
-def test_manufacturing_workflow_console_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_workflow_console_reference_contract_is_valid() -> None:
+    console = ManufacturingWorkflowConsole.model_validate(persisted_workflow_console_payload())
+
+    assert console.tenant_id == "tenant_demo_manufacturing"
+    assert console.scenario == "Persisted Workflow Console"
+    assert console.workflow_runs[0].workflow_id == "wf_persisted_reference"
+    assert console.workflow_runs[0].timeline[0].event == "workflow.reference.loaded"
+
+
+def test_manufacturing_workflow_console_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0026_workflow_console_reference.py")
+
+    console = ManufacturingWorkflowConsole.model_validate(migration["WORKFLOW_CONSOLE_PAYLOAD"])
+
+    assert console.tenant_id == "tenant_demo_manufacturing"
+    assert console.scenario == "Plant Operations Cockpit"
+    assert len(console.workflow_runs) == 3
+    assert any(run.workflow_id == "wf_supplier_delay_review" for run in console.workflow_runs)
+    serialized = console.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_workflow_console_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_workflow_console()" not in source
+
+
+def test_manufacturing_workflow_console_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="workflows",
+                reference_id="manufacturing-workflow-console",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_workflow_console_payload(),
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/workflows")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["workflow_runs"][0]["workflow_id"] == "wf_supplier_delay_review"
+    assert body["scenario"] == "Persisted Workflow Console"
+    assert body["workflow_runs"][0]["workflow_id"] == "wf_persisted_reference"
     assert body["workflow_runs"][0]["pending_signals"][0]["approval_id"] == (
-        "appr_expedite_supplier_batch"
+        "appr_persisted_workflow"
     )
-    assert body["workflow_runs"][0]["controls"][0] == "approvals:supply:decide"
-    assert "Approval decisions can signal the runtime" in body["runtime_notes"][3]
+    assert body["workflow_runs"][0]["controls"][0] == "approvals:operations:decide"
+    assert "Persisted workflow console reference." in body["runtime_notes"][0]
     assert "password" not in str(body).lower()
+
+
+def test_manufacturing_workflow_console_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/workflows")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_workflow_console_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_workflow_console_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="workflows",
+                reference_id="manufacturing-workflow-console",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/workflows")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_openapi_exposes_manufacturing_workflow_console_endpoint() -> None:
