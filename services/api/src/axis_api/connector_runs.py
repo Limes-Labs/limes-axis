@@ -445,6 +445,7 @@ def execute_demo_connector_sync(
         run,
         request.credential_lease_id,
     )
+    egress_policy_evidence = _egress_policy_evidence_for_run(repository, run)
 
     execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
     sync_execution_result = execution_runtime.execute(
@@ -460,6 +461,7 @@ def execute_demo_connector_sync(
             credential_lease_mode=credential_lease.lease_mode,
             credential_lease_runtime_boundary=credential_lease.runtime_boundary,
             credential_lease_result=credential_lease.lease_result,
+            egress_policy_evidence=egress_policy_evidence,
             schedule_id=schedule_result.result_summary.get("schedule_id", "unknown_schedule"),
             schedule_ref=schedule_result.schedule_ref,
             dispatch_id=run.result_summary.get("dispatch_id", "unknown_dispatch"),
@@ -753,6 +755,85 @@ def _validate_active_credential_lease_for_run(
             "credential_lease_expired",
         )
     return lease
+
+
+def _egress_policy_evidence_for_run(
+    repository: AxisPersistenceRepository,
+    run_record,
+) -> dict[str, str]:
+    if (
+        run_record.connector_id != "external_db_operational_mirror"
+        or run_record.input_summary.get("live_query_requested", "false").lower() != "true"
+    ):
+        return {}
+
+    policy_id = run_record.input_summary.get("egress_policy_id", "")
+    connection_profile_id = run_record.input_summary.get(
+        "connection_profile_id",
+        "unknown_profile",
+    )
+    requested_boundary = run_record.input_summary.get("egress_boundary", "")
+    requested_scope = f"{run_record.connector_id}:{connection_profile_id}"
+    missing_evidence = {
+        "egress_policy_evidence_status": "missing",
+        "egress_policy_runtime_boundary": "axis-egress-policy-enforcer",
+        "egress_policy_result_status": "egress_policy_not_found",
+        "egress_policy_ref": (
+            f"self-hosted-egress-policy://{run_record.tenant_id}/"
+            f"{policy_id or 'missing'}"
+        ),
+        "egress_policy_scope": requested_scope,
+        "egress_policy_mode": "unknown",
+        "egress_policy_private_endpoint_ref": "",
+    }
+    if not policy_id:
+        return missing_evidence
+
+    policy = repository.get_connector_egress_policy(run_record.tenant_id, policy_id)
+    if policy is None:
+        return missing_evidence
+
+    evidence = {
+        "egress_policy_runtime_boundary": policy.runtime_boundary,
+        "egress_policy_ref": (
+            f"self-hosted-egress-policy://{policy.tenant_id}/{policy.policy_id}"
+        ),
+        "egress_policy_scope": f"{policy.connector_id}:{policy.connection_profile_id}",
+        "egress_policy_mode": policy.policy_mode,
+        "egress_policy_private_endpoint_ref": policy.private_endpoint_ref,
+    }
+    if policy.status != "active":
+        return {
+            **evidence,
+            "egress_policy_evidence_status": "failed",
+            "egress_policy_result_status": "egress_policy_inactive",
+        }
+    if policy.connector_id != run_record.connector_id:
+        return {
+            **evidence,
+            "egress_policy_evidence_status": "failed",
+            "egress_policy_result_status": "egress_policy_connector_mismatch",
+        }
+    if policy.connection_profile_id != connection_profile_id:
+        return {
+            **evidence,
+            "egress_policy_evidence_status": "failed",
+            "egress_policy_result_status": "egress_policy_profile_mismatch",
+        }
+    if (
+        policy.egress_boundary != requested_boundary
+        or policy.policy_mode != "approved_private_endpoint"
+    ):
+        return {
+            **evidence,
+            "egress_policy_evidence_status": "failed",
+            "egress_policy_result_status": "egress_policy_boundary_mismatch",
+        }
+    return {
+        **evidence,
+        "egress_policy_evidence_status": "validated",
+        "egress_policy_result_status": "egress_policy_approved",
+    }
 
 
 def _validate_governed_execution_credentials(
