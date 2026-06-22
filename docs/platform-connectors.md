@@ -203,6 +203,7 @@ record includes:
 - redacted input and result summaries;
 - optional execution result metadata;
 - optional schedule result metadata;
+- optional dispatch result metadata;
 - linked audit event id and type;
 - run notes.
 
@@ -218,7 +219,12 @@ ontology graph. When `execution_mode=scheduled_sync_plan`, the endpoint also
 requires an active credential lease id, schedule id, cadence, timezone and
 next-run timestamp. It writes `connector.run.sync_scheduled`, returns a
 deferred scheduler result with `external_sync_started=false` and persists only
-public-safe schedule references.
+public-safe schedule references. Scheduled plans can then be dispatch-claimed
+through `POST /demo/manufacturing/connectors/runs/{run_id}/dispatch`, which
+requires `connectors:sync:dispatch`, an active credential lease id and an
+idempotency key. Dispatch writes `connector.run.sync_dispatch_deferred`, stores
+a deferred dispatch result on the run record and replays the same idempotency
+key without duplicate audit events. It still does not start external sync.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:
@@ -439,7 +445,7 @@ The console displays:
 - credential handle references and rotation posture;
 - credential lease posture with deferred Vault/KMS adapter evidence;
 - audit-backed connector run records, deferred execution metadata and scheduled
-  sync plan evidence;
+  sync plan/dispatch evidence;
 - review-only ontology proposal records with graph mutation status;
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
@@ -452,7 +458,7 @@ The console displays:
 The page is read-only for operators. It does not upload files to storage,
 capture credentials or trigger live sync. Governed connector dry-runs are shown
 as deferred runtime evidence, and scheduled sync plans are shown as deferred
-scheduler evidence, not as live connector execution.
+scheduler/dispatch evidence, not as live connector execution.
 
 ## Governance Boundary
 
@@ -480,7 +486,7 @@ Future Platform work should add:
 
 - manifest lifecycle transitions beyond preview-only registration;
 - provider-specific Vault/KMS adapters beyond the self-hosted lease boundary;
-- scheduled live sync execution beyond deferred schedule plans;
+- scheduled live sync execution beyond deferred schedule and dispatch claims;
 - live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.
 

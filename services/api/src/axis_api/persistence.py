@@ -251,6 +251,16 @@ class ConnectorRunCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorRunUpdateRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    result_summary: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.run.recorded", min_length=1)
+    notes: list[str] | None = None
+
+
 class ConnectorOntologyProposalCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -1081,6 +1091,30 @@ class AxisPersistenceRepository:
             ConnectorRun.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
+
+    def get_connector_run(self, tenant_id: str, run_id: str) -> ConnectorRun | None:
+        statement = select(ConnectorRun).where(
+            ConnectorRun.tenant_id == tenant_id,
+            ConnectorRun.run_id == run_id,
+        )
+        return self.session.scalar(statement)
+
+    def update_connector_run(
+        self,
+        record: ConnectorRunUpdateRecord,
+    ) -> ConnectorRun:
+        connector_run = self.get_connector_run(record.tenant_id, record.run_id)
+        if connector_run is None:
+            raise PersistenceRecordNotFound("Connector run not found")
+        connector_run.status = record.status
+        connector_run.result_summary = record.result_summary
+        connector_run.audit_event_id = record.audit_event_id
+        connector_run.audit_event_type = record.audit_event_type
+        if record.notes is not None:
+            connector_run.notes = record.notes
+        connector_run.updated_at = utc_now()
+        self.session.flush()
+        return connector_run
 
     def create_connector_ontology_proposal(
         self,

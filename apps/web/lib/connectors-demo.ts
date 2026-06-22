@@ -331,6 +331,7 @@ export type ConnectorRunRecord = {
   result_summary: Record<string, unknown>;
   execution_result: ConnectorExecutionResult | null;
   schedule_result: ConnectorSyncScheduleResult | null;
+  dispatch_result: ConnectorSyncDispatchResult | null;
   audit_event_id: string | null;
   audit_event_type: string;
   notes: string[];
@@ -350,6 +351,16 @@ export type ConnectorSyncScheduleResult = {
   adapter: string;
   status: string;
   schedule_ref: string;
+  external_sync_started: boolean;
+  idempotency_key: string;
+  result_summary: Record<string, string>;
+  notes: string[];
+};
+
+export type ConnectorSyncDispatchResult = {
+  adapter: string;
+  status: string;
+  dispatch_ref: string;
   external_sync_started: boolean;
   idempotency_key: string;
   result_summary: Record<string, string>;
@@ -1362,6 +1373,7 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
         ],
       },
       schedule_result: null,
+      dispatch_result: null,
       audit_event_id: "audit_connector_run_demo_20260622",
       audit_event_type: "connector.run.execution_deferred",
       notes: ["Governed dry-run stayed deferred behind the connector runtime adapter."],
@@ -1371,7 +1383,7 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
       tenant_id: "tenant_demo_manufacturing",
       connector_id: "file_csv_manufacturing_assets",
       run_id: "run_file_csv_assets_scheduled_20260622",
-      status: "sync_schedule_deferred",
+      status: "sync_dispatch_deferred",
       execution_mode: "scheduled_sync_plan",
       runtime_boundary: "axis-connector-sandbox",
       requested_by: "plant-operations-owner-role",
@@ -1408,6 +1420,28 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
             "No external sync, credential retrieval or graph mutation was started.",
           ],
         },
+        dispatch_id: "dispatch_file_csv_assets_hourly_20260622_1400",
+        sync_dispatch_result: {
+          adapter: "axis-deferred-connector-sync-dispatcher",
+          status: "sync_dispatch_deferred",
+          dispatch_ref:
+            "deferred-sync-dispatch://tenant_demo_manufacturing/" +
+            "run_file_csv_assets_scheduled_20260622/" +
+            "dispatch_file_csv_assets_hourly_20260622_1400",
+          external_sync_started: false,
+          idempotency_key: "idem_dispatch_file_csv_assets_hourly_20260622_1400",
+          result_summary: {
+            runtime_status: "dispatch_deferred",
+            external_sync_started: "false",
+            connector_id: "file_csv_manufacturing_assets",
+            schedule_id: "schedule_file_csv_assets_hourly",
+            dispatch_id: "dispatch_file_csv_assets_hourly_20260622_1400",
+          },
+          notes: [
+            "Connector sync dispatch is deferred by the Axis runtime adapter.",
+            "No external sync, credential retrieval or graph mutation was started.",
+          ],
+        },
       },
       execution_result: null,
       schedule_result: {
@@ -1431,9 +1465,30 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
           "No external sync, credential retrieval or graph mutation was started.",
         ],
       },
-      audit_event_id: "audit_connector_sync_schedule_demo_20260622",
-      audit_event_type: "connector.run.sync_scheduled",
-      notes: ["Scheduled sync remains deferred until a live connector runtime is enabled."],
+      dispatch_result: {
+        adapter: "axis-deferred-connector-sync-dispatcher",
+        status: "sync_dispatch_deferred",
+        dispatch_ref:
+          "deferred-sync-dispatch://tenant_demo_manufacturing/" +
+          "run_file_csv_assets_scheduled_20260622/" +
+          "dispatch_file_csv_assets_hourly_20260622_1400",
+        external_sync_started: false,
+        idempotency_key: "idem_dispatch_file_csv_assets_hourly_20260622_1400",
+        result_summary: {
+          runtime_status: "dispatch_deferred",
+          external_sync_started: "false",
+          connector_id: "file_csv_manufacturing_assets",
+          schedule_id: "schedule_file_csv_assets_hourly",
+          dispatch_id: "dispatch_file_csv_assets_hourly_20260622_1400",
+        },
+        notes: [
+          "Connector sync dispatch is deferred by the Axis runtime adapter.",
+          "No external sync, credential retrieval or graph mutation was started.",
+        ],
+      },
+      audit_event_id: "audit_connector_sync_dispatch_demo_20260622",
+      audit_event_type: "connector.run.sync_dispatch_deferred",
+      notes: ["Scheduled sync dispatch stayed deferred behind the runtime adapter."],
       created_at: "2026-06-22T00:05:00Z",
     },
   ],
@@ -1441,6 +1496,7 @@ export const defaultConnectorRunRegistry: ManufacturingConnectorRunRegistry = {
     "Connector run records are metadata-only evidence.",
     "Governed dry-runs write append-only audit evidence before live sync exists.",
     "Scheduled sync plans write audit evidence without starting external sync.",
+    "Dispatch claims are idempotent and still do not start external sync.",
     "Raw payloads, file content and credential material are never stored.",
     "External sync and connector-backed production actions remain future work.",
   ],
