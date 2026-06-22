@@ -3806,6 +3806,11 @@
             "title": "Enforcement Mode",
             "type": "string"
           },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -3825,6 +3830,17 @@
             "minLength": 1,
             "title": "Policy Version",
             "type": "string"
+          },
+          "replaced_by_policy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Policy Id"
           },
           "required_authoring_scope": {
             "minLength": 1,
@@ -3853,6 +3869,61 @@
             "minimum": 1.0,
             "title": "Review Window Hours",
             "type": "integer"
+          },
+          "revises_policy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revises Policy Id"
+          },
+          "revision_approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Approval Id"
+          },
+          "revision_decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Decision"
+          },
+          "revision_idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Idempotency Key"
+          },
+          "revision_workflow_signal_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Workflow Signal Status"
           },
           "status": {
             "minLength": 1,
@@ -3885,6 +3956,153 @@
           "created_at"
         ],
         "title": "ConnectorPromotionPolicyRecord",
+        "type": "object"
+      },
+      "ConnectorPromotionPolicyReviseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "allowed_ontology_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Ontology Types",
+            "type": "array"
+          },
+          "allowed_risk_levels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Risk Levels",
+            "type": "array"
+          },
+          "connector_id": {
+            "default": "file_csv_manufacturing_assets",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "enforcement_mode": {
+            "default": "advisory",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Enforcement Mode",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "policy_version": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "required_manual_import_status": {
+            "default": "approval_approved",
+            "minLength": 1,
+            "title": "Required Manual Import Status",
+            "type": "string"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Scopes",
+            "type": "array"
+          },
+          "required_workflow_signal_status": {
+            "default": "manual_import_signal_requested",
+            "minLength": 1,
+            "title": "Required Workflow Signal Status",
+            "type": "string"
+          },
+          "review_window_hours": {
+            "default": 24,
+            "maximum": 720.0,
+            "minimum": 1.0,
+            "title": "Review Window Hours",
+            "type": "integer"
+          },
+          "revises_policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Revises Policy Id",
+            "type": "string"
+          },
+          "revision_approval_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Revision Approval Id",
+            "type": "string"
+          },
+          "revision_decision": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Revision Decision",
+            "type": "string"
+          },
+          "revision_workflow_signal_status": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Revision Workflow Signal Status",
+            "type": "string"
+          },
+          "status": {
+            "default": "draft",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "updated_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Updated By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "updated_by",
+          "idempotency_key",
+          "revises_policy_id",
+          "revision_approval_id",
+          "revision_decision",
+          "revision_workflow_signal_status"
+        ],
+        "title": "ConnectorPromotionPolicyReviseRequest",
         "type": "object"
       },
       "ConnectorPromotionPolicySetActivateRequest": {
@@ -8433,6 +8651,76 @@
           }
         },
         "summary": "Manufacturing Connector Promotion Policy Enable",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/promotion-policies/{policy_id}/revise": {
+      "post": {
+        "operationId": "manufacturing_connector_promotion_policy_revise_demo_manufacturing_connectors_promotion_policies__policy_id__revise_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPromotionPolicyReviseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorPromotionPolicyRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector promotion policy revision permission denied"
+          },
+          "404": {
+            "description": "Connector promotion policy not found"
+          },
+          "409": {
+            "description": "Connector promotion policy revision conflict"
+          },
+          "422": {
+            "description": "Connector promotion policy revision validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Promotion Policy Revise",
         "tags": [
           "demo"
         ]

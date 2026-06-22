@@ -185,8 +185,10 @@ Delivered:
   promotion scopes, required manual-import/workflow states, enforcement evidence
   on promotions, auto-selected required policy ids on promotion/proposal
   records, approval/workflow-gated enablement evidence and append-only
-  `connector.promotion_policy.authored` plus `connector.promotion_policy.enabled`
-  audit writes.
+  `connector.promotion_policy.authored`, `connector.promotion_policy.enabled`
+  and `connector.promotion_policy.revised` audit writes. Draft revisions carry
+  revision lineage, approval/workflow evidence and a tenant-scoped idempotency
+  key; enabled required policies are not rewritten in place.
 - connector promotion policy sets with versioned active-set metadata, required
   policy references, activation permission evidence, append-only
   `connector.promotion_policy_set.activated` and

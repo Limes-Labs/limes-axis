@@ -265,21 +265,42 @@ describe("manufacturing connector demo contract", () => {
     expect(defaultConnectorPromotionPolicyRegistry.tenant_id).toBe(
       "tenant_demo_manufacturing",
     );
-    expect(defaultConnectorPromotionPolicyRegistry.policies).toHaveLength(1);
+    expect(defaultConnectorPromotionPolicyRegistry.policies).toHaveLength(3);
     expect(defaultConnectorPromotionPolicyRegistry.metrics[0]).toMatchObject({
       label: "Promotion Policies",
-      value: "1",
+      value: "3",
     });
     expect(defaultConnectorPromotionPolicyRegistry.metrics[1]).toMatchObject({
       label: "Draft Policies",
-      value: "0",
+      value: "1",
     });
     expect(defaultConnectorPromotionPolicyRegistry.metrics[2]).toMatchObject({
       label: "Required Gates",
       value: "1",
     });
 
-    const policy = defaultConnectorPromotionPolicyRegistry.policies[0];
+    const supersededDraft = defaultConnectorPromotionPolicyRegistry.policies[0];
+    expect(supersededDraft.policy_id).toBe("policy_connector_asset_promotion_draft_20260622");
+    expect(supersededDraft.status).toBe("superseded");
+    expect(supersededDraft.replaced_by_policy_id).toBe(
+      "policy_connector_asset_promotion_draft_20260622_v2",
+    );
+
+    const revisedDraft = defaultConnectorPromotionPolicyRegistry.policies[1];
+    expect(revisedDraft.policy_id).toBe("policy_connector_asset_promotion_draft_20260622_v2");
+    expect(revisedDraft.status).toBe("draft");
+    expect(revisedDraft.audit_event_type).toBe("connector.promotion_policy.revised");
+    expect(revisedDraft.revises_policy_id).toBe(
+      "policy_connector_asset_promotion_draft_20260622",
+    );
+    expect(revisedDraft.revision_idempotency_key).toBe(
+      "idem_policy_revision_asset_promotion_v2",
+    );
+    expect(revisedDraft.revision_workflow_signal_status).toBe(
+      "policy_revision_signal_recorded",
+    );
+
+    const policy = defaultConnectorPromotionPolicyRegistry.policies[2];
     expect(policy.policy_id).toBe("policy_connector_asset_promotion_v1");
     expect(policy.status).toBe("enabled");
     expect(policy.enforcement_mode).toBe("required");
@@ -416,9 +437,9 @@ describe("manufacturing connector demo contract", () => {
       request,
     );
 
-    expect(registry.policies).toHaveLength(2);
-    expect(registry.metrics[0]).toMatchObject({ label: "Promotion Policies", value: "2" });
-    expect(registry.metrics[1]).toMatchObject({ label: "Draft Policies", value: "1" });
+    expect(registry.policies).toHaveLength(4);
+    expect(registry.metrics[0]).toMatchObject({ label: "Promotion Policies", value: "4" });
+    expect(registry.metrics[1]).toMatchObject({ label: "Draft Policies", value: "2" });
     expect(registry.metrics[2]).toMatchObject({ label: "Required Gates", value: "1" });
     expect(registry.policies[0]).toMatchObject({
       policy_id: "policy_connector_asset_promotion_ui_v1",
@@ -466,7 +487,7 @@ describe("manufacturing connector demo contract", () => {
       }),
     );
 
-    expect(registry.metrics[1]).toMatchObject({ label: "Draft Policies", value: "0" });
+    expect(registry.metrics[1]).toMatchObject({ label: "Draft Policies", value: "1" });
     expect(registry.metrics[2]).toMatchObject({ label: "Required Gates", value: "2" });
     expect(registry.policies[0]).toMatchObject({
       policy_id: "policy_connector_asset_promotion_ui_v1",

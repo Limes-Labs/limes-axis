@@ -1038,6 +1038,20 @@ export function ConnectorConsole() {
                   <p className="row-title">{policy.audit_event_type}</p>
                   <p className="row-detail">{policy.audit_event_id ?? "pending"}</p>
                 </div>
+                <div>
+                  <p className="metric-label">Revision Lineage</p>
+                  <p className="row-title">
+                    {policy.revises_policy_id ?? policy.replaced_by_policy_id ?? "none"}
+                  </p>
+                  <p className="row-detail">{policy.revision_idempotency_key ?? "not replayed"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Revision Evidence</p>
+                  <p className="row-title">{policy.revision_workflow_signal_status ?? "none"}</p>
+                  <p className="row-detail">
+                    {policy.revision_approval_id ?? policy.revision_decision ?? "not required"}
+                  </p>
+                </div>
               </div>
             ))}
           </section>

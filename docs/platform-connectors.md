@@ -225,12 +225,19 @@ enabled through
 `POST /demo/manufacturing/connectors/promotion-policies/{policy_id}/enable`.
 Enablement requires `connectors:promotion_policy:enable`, an approved decision,
 workflow signal evidence and writes append-only
-`connector.promotion_policy.enabled` audit evidence. When an enabled required
-policy exists for the connector, Axis auto-selects it if the promotion request
-omits `policy_id`, then enforces the required scopes, manual import status,
-workflow signal status, allowed risk levels and allowed ontology types before
-calling the TypeDB mutation adapter. Draft or advisory policies remain visible
-governance evidence without blocking promotion. If more than one enabled
+`connector.promotion_policy.enabled` audit evidence. Draft policies can be
+revised through
+`POST /demo/manufacturing/connectors/promotion-policies/{policy_id}/revise`.
+Revision requires `connectors:promotion_policy:revise`, an approved revision
+decision, `policy_revision_signal_recorded` workflow evidence and an
+idempotency key. The target must still be `draft`; enabled required policies are
+not revised in place, which keeps active policy sets and historical replay
+stable until a future governed policy-set transition adopts a new version. When
+an enabled required policy exists for the connector, Axis auto-selects it if the
+promotion request omits `policy_id`, then enforces the required scopes, manual
+import status, workflow signal status, allowed risk levels and allowed ontology
+types before calling the TypeDB mutation adapter. Draft or advisory policies
+remain visible governance evidence without blocking promotion. If more than one enabled
 required policy matches the same connector, Axis requires a versioned active
 policy set. `POST /demo/manufacturing/connectors/promotion-policy-sets`
 requires `connectors:promotion_policy_set:activate`, verifies every referenced
