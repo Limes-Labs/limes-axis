@@ -94,7 +94,12 @@ lease evidence and call a deferred Axis connector sync scheduler adapter that
 writes `connector.run.sync_scheduled` without starting external sync. Scheduled
 plans can be dispatch-claimed with `connectors:sync:dispatch`, active lease
 evidence, idempotency replay and `connector.run.sync_dispatch_deferred`, still
-without connector egress. Connector ontology
+without connector egress. Dispatch-claimed plans can receive a governed sync
+execution attempt with `connectors:sync:execute`; the default runtime records
+`connector.run.sync_execution_deferred`, while
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true` switches to a self-hosted demo
+executor that completes the run without external egress, credential material or
+graph mutation. Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records

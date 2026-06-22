@@ -58,5 +58,9 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED",
     )
+    connector_sync_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)

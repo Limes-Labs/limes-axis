@@ -88,6 +88,38 @@ class ConnectorSyncDispatchRuntime(Protocol):
         ...
 
 
+class ConnectorSyncExecutionRequest(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    execution_id: str = Field(min_length=1)
+    runtime_boundary: str = Field(min_length=1)
+    executed_by: str = Field(min_length=1)
+    credential_handle_ids: list[str] = Field(default_factory=list)
+    credential_lease_id: str = Field(min_length=1)
+    schedule_id: str = Field(min_length=1)
+    schedule_ref: str = Field(min_length=1)
+    dispatch_id: str = Field(min_length=1)
+    dispatch_ref: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    input_summary: dict[str, str] = Field(default_factory=dict)
+
+
+class ConnectorSyncExecutionResult(BaseModel):
+    adapter: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    sync_ref: str = Field(min_length=1)
+    external_sync_started: bool
+    idempotency_key: str = Field(min_length=1)
+    result_summary: dict[str, str] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorSyncExecutionRuntime(Protocol):
+    def execute(self, request: ConnectorSyncExecutionRequest) -> ConnectorSyncExecutionResult:
+        ...
+
+
 class DeferredConnectorExecutionRuntime:
     adapter_name = "axis-deferred-connector-execution-adapter"
 
@@ -161,5 +193,67 @@ class DeferredConnectorSyncDispatchRuntime:
             notes=[
                 "Connector sync dispatch is deferred by the Axis runtime adapter.",
                 "No external sync, credential retrieval or graph mutation was started.",
+            ],
+        )
+
+
+class DeferredConnectorSyncExecutionRuntime:
+    adapter_name = "axis-deferred-connector-sync-executor"
+
+    def execute(self, request: ConnectorSyncExecutionRequest) -> ConnectorSyncExecutionResult:
+        return ConnectorSyncExecutionResult(
+            adapter=self.adapter_name,
+            status="sync_execution_deferred",
+            sync_ref=(
+                f"deferred-sync-execution://{request.tenant_id}/"
+                f"{request.run_id}/{request.execution_id}"
+            ),
+            external_sync_started=False,
+            idempotency_key=request.idempotency_key,
+            result_summary={
+                "runtime_status": "sync_execution_deferred",
+                "external_sync_started": "false",
+                "connector_id": request.connector_id,
+                "schedule_id": request.schedule_id,
+                "dispatch_id": request.dispatch_id,
+                "execution_id": request.execution_id,
+            },
+            notes=[
+                "Connector sync execution is deferred by the Axis runtime adapter.",
+                "No external sync, credential retrieval or graph mutation was started.",
+            ],
+        )
+
+
+class SelfHostedConnectorSyncExecutionRuntime:
+    adapter_name = "axis-self-hosted-connector-sync-executor"
+
+    def execute(self, request: ConnectorSyncExecutionRequest) -> ConnectorSyncExecutionResult:
+        records_read = request.input_summary.get("record_count", "0")
+        return ConnectorSyncExecutionResult(
+            adapter=self.adapter_name,
+            status="sync_execution_completed",
+            sync_ref=(
+                f"self-hosted-sync-execution://{request.tenant_id}/"
+                f"{request.run_id}/{request.execution_id}"
+            ),
+            external_sync_started=False,
+            idempotency_key=request.idempotency_key,
+            result_summary={
+                "runtime_status": "sync_execution_completed",
+                "external_sync_started": "false",
+                "connector_id": request.connector_id,
+                "schedule_id": request.schedule_id,
+                "dispatch_id": request.dispatch_id,
+                "execution_id": request.execution_id,
+                "records_read": records_read,
+                "records_accepted": records_read,
+                "records_rejected": "0",
+                "graph_mutation_started": "false",
+                "source_mode": "self_hosted_demo",
+            },
+            notes=[
+                "Connector sync executed through the self-hosted demo runtime.",
+                "No external egress, credential material or graph mutation was started.",
             ],
         )

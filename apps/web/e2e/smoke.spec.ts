@@ -375,7 +375,12 @@ test.describe("Axis console smoke", () => {
         .getByText("connector.manual_import.decision_recorded", { exact: true })
         .first(),
     ).toBeVisible();
-    await expect(page.locator(".payload-row .mono").getByText("execution_deferred")).toBeVisible();
+    await expect(
+      page.locator(".payload-row .mono").getByText("execution_deferred", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".payload-row .mono").getByText("sync_execution_deferred", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("axis-deferred-connector-execution-adapter").first()).toBeVisible();
     await expect(page.getByText("promoted_to_graph").first()).toBeVisible();
     await expect(page.getByText("type_db_mutation_applied").first()).toBeVisible();

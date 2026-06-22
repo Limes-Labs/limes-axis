@@ -59,6 +59,7 @@ function sourceLabel(source: ConnectorSource): string {
 
 function connectorRunRuntimeAdapter(run: ConnectorRunRecord): string {
   return (
+    run.sync_execution_result?.adapter ??
     run.dispatch_result?.adapter ??
     run.schedule_result?.adapter ??
     run.execution_result?.adapter ??
@@ -68,6 +69,7 @@ function connectorRunRuntimeAdapter(run: ConnectorRunRecord): string {
 
 function connectorRunRuntimeStatus(run: ConnectorRunRecord): string {
   return (
+    run.sync_execution_result?.status ??
     run.dispatch_result?.status ??
     run.schedule_result?.status ??
     run.execution_result?.status ??
@@ -77,7 +79,8 @@ function connectorRunRuntimeStatus(run: ConnectorRunRecord): string {
 
 function connectorRunExternalSyncStarted(run: ConnectorRunRecord): boolean {
   return Boolean(
-    run.dispatch_result?.external_sync_started ??
+    run.sync_execution_result?.external_sync_started ??
+      run.dispatch_result?.external_sync_started ??
       run.schedule_result?.external_sync_started ??
       run.execution_result?.external_sync_started,
   );
@@ -85,6 +88,8 @@ function connectorRunExternalSyncStarted(run: ConnectorRunRecord): boolean {
 
 function connectorRunRuntimeEvidence(run: ConnectorRunRecord): string {
   return (
+    run.sync_execution_result?.sync_ref ??
+    run.sync_execution_result?.idempotency_key ??
     run.dispatch_result?.dispatch_ref ??
     run.dispatch_result?.idempotency_key ??
     run.schedule_result?.schedule_ref ??

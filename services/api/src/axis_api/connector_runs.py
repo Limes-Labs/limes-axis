@@ -11,11 +11,15 @@ from axis_api.connector_execution import (
     ConnectorSyncDispatchRequest,
     ConnectorSyncDispatchResult,
     ConnectorSyncDispatchRuntime,
+    ConnectorSyncExecutionRequest,
+    ConnectorSyncExecutionResult,
+    ConnectorSyncExecutionRuntime,
     ConnectorSyncScheduleRequest,
     ConnectorSyncScheduleResult,
     ConnectorSyncSchedulerRuntime,
     DeferredConnectorExecutionRuntime,
     DeferredConnectorSyncDispatchRuntime,
+    DeferredConnectorSyncExecutionRuntime,
     DeferredConnectorSyncSchedulerRuntime,
 )
 from axis_api.connectors import get_manufacturing_connector_registry
@@ -48,6 +52,12 @@ class ConnectorRunPermissionDenied(PermissionError):
 class ConnectorRunDispatchConflict(ValueError):
     def __init__(self, reason: str) -> None:
         super().__init__("Connector run dispatch conflict")
+        self.reason = reason
+
+
+class ConnectorRunSyncExecutionConflict(ValueError):
+    def __init__(self, reason: str) -> None:
+        super().__init__("Connector run sync execution conflict")
         self.reason = reason
 
 
@@ -89,6 +99,18 @@ class ConnectorRunDispatchRequest(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorRunSyncExecutionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    execution_id: str = Field(min_length=1, max_length=180, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    executed_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    credential_lease_id: str = Field(min_length=1, max_length=180)
+    idempotency_key: str = Field(min_length=1, max_length=220)
+    notes: list[str] = Field(default_factory=list)
+
+
 class ConnectorRunRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -103,6 +125,7 @@ class ConnectorRunRecord(BaseModel):
     execution_result: ConnectorExecutionResult | None = None
     schedule_result: ConnectorSyncScheduleResult | None = None
     dispatch_result: ConnectorSyncDispatchResult | None = None
+    sync_execution_result: ConnectorSyncExecutionResult | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -123,7 +146,10 @@ AUDIT_EVENT_TYPE = "connector.run.recorded"
 EXECUTION_AUDIT_EVENT_TYPE = "connector.run.execution_deferred"
 SYNC_SCHEDULE_AUDIT_EVENT_TYPE = "connector.run.sync_scheduled"
 SYNC_DISPATCH_AUDIT_EVENT_TYPE = "connector.run.sync_dispatch_deferred"
+SYNC_EXECUTION_DEFERRED_AUDIT_EVENT_TYPE = "connector.run.sync_execution_deferred"
+SYNC_EXECUTION_COMPLETED_AUDIT_EVENT_TYPE = "connector.run.sync_execution_completed"
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
+SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
 SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
 ALLOWED_EXECUTION_MODES = {
@@ -375,6 +401,108 @@ def dispatch_demo_connector_sync(
     return _run_from_record(updated)
 
 
+def execute_demo_connector_sync(
+    repository: AxisPersistenceRepository,
+    run_id: str,
+    request: ConnectorRunSyncExecutionRequest,
+    sync_execution_runtime: ConnectorSyncExecutionRuntime | None = None,
+) -> ConnectorRunRecord:
+    _validate_sync_execution_scope(request)
+    run = repository.get_connector_run(request.tenant_id, run_id)
+    if run is None:
+        raise ConnectorRunNotFound()
+
+    existing_execution = _sync_execution_result_from_summary(run.result_summary)
+    if existing_execution is not None:
+        if (
+            existing_execution.idempotency_key == request.idempotency_key
+            and run.result_summary.get("sync_execution_id") == request.execution_id
+        ):
+            return _run_from_record(run)
+        raise ConnectorRunSyncExecutionConflict("sync_execution_idempotency_conflict")
+
+    _validate_executable_scheduled_run(run)
+    schedule_result = _schedule_result_from_summary(run.result_summary)
+    dispatch_result = _dispatch_result_from_summary(run.result_summary)
+    if schedule_result is None:
+        raise ConnectorRunValidationError(
+            "Scheduled connector sync execution requires schedule result evidence.",
+            "schedule_result_required",
+        )
+    if dispatch_result is None:
+        raise ConnectorRunValidationError(
+            "Scheduled connector sync execution requires dispatch result evidence.",
+            "dispatch_result_required",
+        )
+    _validate_active_credential_lease_for_run(
+        repository,
+        run,
+        request.credential_lease_id,
+    )
+
+    execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
+    sync_execution_result = execution_runtime.execute(
+        ConnectorSyncExecutionRequest(
+            tenant_id=run.tenant_id,
+            connector_id=run.connector_id,
+            run_id=run.run_id,
+            execution_id=request.execution_id,
+            runtime_boundary=run.runtime_boundary,
+            executed_by=request.executed_by,
+            credential_handle_ids=run.credential_handle_ids,
+            credential_lease_id=request.credential_lease_id,
+            schedule_id=schedule_result.result_summary.get("schedule_id", "unknown_schedule"),
+            schedule_ref=schedule_result.schedule_ref,
+            dispatch_id=run.result_summary.get("dispatch_id", "unknown_dispatch"),
+            dispatch_ref=dispatch_result.dispatch_ref,
+            idempotency_key=request.idempotency_key,
+            input_summary=run.input_summary,
+        )
+    )
+
+    result_summary = dict(run.result_summary)
+    result_summary.update(sync_execution_result.result_summary)
+    result_summary["sync_execution_id"] = request.execution_id
+    result_summary["sync_execution_result"] = sync_execution_result.model_dump(mode="json")
+    audit_event_type = _sync_execution_audit_event_type(sync_execution_result)
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=run.tenant_id,
+            actor_id=request.executed_by,
+            event_type=audit_event_type,
+            payload={
+                "connector_id": run.connector_id,
+                "run_id": run.run_id,
+                "execution_id": request.execution_id,
+                "status": sync_execution_result.status,
+                "execution_mode": run.execution_mode,
+                "credential_handle_ids": run.credential_handle_ids,
+                "credential_lease_id": request.credential_lease_id,
+                "schedule_result": schedule_result.model_dump(mode="json"),
+                "dispatch_result": dispatch_result.model_dump(mode="json"),
+                "sync_execution_result": sync_execution_result.model_dump(mode="json"),
+                "idempotency_key": request.idempotency_key,
+                "runtime_boundary": run.runtime_boundary,
+                "external_sync_started": sync_execution_result.external_sync_started,
+            },
+        )
+    )
+
+    updated = repository.update_connector_run(
+        ConnectorRunUpdateRecord(
+            tenant_id=run.tenant_id,
+            run_id=run.run_id,
+            status=sync_execution_result.status,
+            result_summary=result_summary,
+            audit_event_id=audit_event.id,
+            audit_event_type=audit_event_type,
+            notes=[*run.notes, *request.notes],
+        )
+    )
+    return _run_from_record(updated)
+
+
 def _run_from_record(record) -> ConnectorRunRecord:
     return ConnectorRunRecord(
         tenant_id=record.tenant_id,
@@ -390,6 +518,7 @@ def _run_from_record(record) -> ConnectorRunRecord:
         execution_result=_execution_result_from_summary(record.result_summary),
         schedule_result=_schedule_result_from_summary(record.result_summary),
         dispatch_result=_dispatch_result_from_summary(record.result_summary),
+        sync_execution_result=_sync_execution_result_from_summary(record.result_summary),
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
@@ -549,6 +678,11 @@ def _validate_dispatch_scope(request: ConnectorRunDispatchRequest) -> None:
         raise ConnectorRunPermissionDenied(SYNC_DISPATCH_SCOPE)
 
 
+def _validate_sync_execution_scope(request: ConnectorRunSyncExecutionRequest) -> None:
+    if SYNC_EXECUTION_SCOPE not in request.actor_scopes:
+        raise ConnectorRunPermissionDenied(SYNC_EXECUTION_SCOPE)
+
+
 def _validate_dispatchable_scheduled_run(record) -> None:
     if record.execution_mode != SCHEDULED_SYNC_PLAN_MODE:
         raise ConnectorRunValidationError(
@@ -559,6 +693,19 @@ def _validate_dispatchable_scheduled_run(record) -> None:
         raise ConnectorRunValidationError(
             "Connector sync run is not waiting for dispatch.",
             "connector_run_not_dispatchable",
+        )
+
+
+def _validate_executable_scheduled_run(record) -> None:
+    if record.execution_mode != SCHEDULED_SYNC_PLAN_MODE:
+        raise ConnectorRunValidationError(
+            "Only scheduled sync plan run records can be executed.",
+            "unsupported_sync_execution_mode",
+        )
+    if record.status != "sync_dispatch_deferred":
+        raise ConnectorRunValidationError(
+            "Connector sync run is not waiting for execution.",
+            "connector_run_not_executable",
         )
 
 
@@ -658,3 +805,18 @@ def _dispatch_result_from_summary(result_summary: dict) -> ConnectorSyncDispatch
     if not isinstance(raw_result, dict):
         return None
     return ConnectorSyncDispatchResult.model_validate(raw_result)
+
+
+def _sync_execution_result_from_summary(
+    result_summary: dict,
+) -> ConnectorSyncExecutionResult | None:
+    raw_result = result_summary.get("sync_execution_result")
+    if not isinstance(raw_result, dict):
+        return None
+    return ConnectorSyncExecutionResult.model_validate(raw_result)
+
+
+def _sync_execution_audit_event_type(result: ConnectorSyncExecutionResult) -> str:
+    if result.status == "sync_execution_completed":
+        return SYNC_EXECUTION_COMPLETED_AUDIT_EVENT_TYPE
+    return SYNC_EXECUTION_DEFERRED_AUDIT_EVENT_TYPE

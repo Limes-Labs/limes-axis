@@ -289,8 +289,8 @@ describe("manufacturing connector demo contract", () => {
     });
     const scheduledRun = defaultConnectorRunRegistry.runs[1];
     expect(scheduledRun.run_id).toBe("run_file_csv_assets_scheduled_20260622");
-    expect(scheduledRun.status).toBe("sync_dispatch_deferred");
-    expect(scheduledRun.audit_event_type).toBe("connector.run.sync_dispatch_deferred");
+    expect(scheduledRun.status).toBe("sync_execution_deferred");
+    expect(scheduledRun.audit_event_type).toBe("connector.run.sync_execution_deferred");
     expect(scheduledRun.schedule_result).toMatchObject({
       adapter: "axis-deferred-connector-sync-scheduler",
       status: "sync_schedule_deferred",
@@ -304,6 +304,14 @@ describe("manufacturing connector demo contract", () => {
       dispatch_ref:
         "deferred-sync-dispatch://tenant_demo_manufacturing/" +
         "run_file_csv_assets_scheduled_20260622/dispatch_file_csv_assets_hourly_20260622_1400",
+    });
+    expect(scheduledRun.sync_execution_result).toMatchObject({
+      adapter: "axis-deferred-connector-sync-executor",
+      status: "sync_execution_deferred",
+      external_sync_started: false,
+      sync_ref:
+        "deferred-sync-execution://tenant_demo_manufacturing/" +
+        "run_file_csv_assets_scheduled_20260622/sync_exec_file_csv_assets_20260622_1400",
     });
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("csv_content");
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("password");

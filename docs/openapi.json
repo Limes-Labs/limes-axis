@@ -5901,6 +5901,16 @@
             "title": "Status",
             "type": "string"
           },
+          "sync_execution_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorSyncExecutionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tenant_id": {
             "minLength": 1,
             "title": "Tenant Id",
@@ -5919,6 +5929,64 @@
           "created_at"
         ],
         "title": "ConnectorRunRecord",
+        "type": "object"
+      },
+      "ConnectorRunSyncExecutionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "credential_lease_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Credential Lease Id",
+            "type": "string"
+          },
+          "executed_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Executed By",
+            "type": "string"
+          },
+          "execution_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 220,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_id",
+          "executed_by",
+          "credential_lease_id",
+          "idempotency_key"
+        ],
+        "title": "ConnectorRunSyncExecutionRequest",
         "type": "object"
       },
       "ConnectorRuntimePolicy": {
@@ -6059,6 +6127,57 @@
           "idempotency_key"
         ],
         "title": "ConnectorSyncDispatchResult",
+        "type": "object"
+      },
+      "ConnectorSyncExecutionResult": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "external_sync_started": {
+            "title": "External Sync Started",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "result_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Result Summary",
+            "type": "object"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_ref": {
+            "minLength": 1,
+            "title": "Sync Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter",
+          "status",
+          "sync_ref",
+          "external_sync_started",
+          "idempotency_key"
+        ],
+        "title": "ConnectorSyncExecutionResult",
         "type": "object"
       },
       "ConnectorSyncScheduleResult": {
@@ -11255,6 +11374,60 @@
           }
         },
         "summary": "Manufacturing Connector Run Dispatch",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/runs/{run_id}/execute-sync": {
+      "post": {
+        "operationId": "manufacturing_connector_run_execute_sync_demo_manufacturing_connectors_runs__run_id__execute_sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorRunSyncExecutionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorRunRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector sync execution permission denied"
+          },
+          "404": {
+            "description": "Connector run not found"
+          },
+          "409": {
+            "description": "Connector sync execution idempotency conflict"
+          },
+          "422": {
+            "description": "Connector sync execution validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Run Execute Sync",
         "tags": [
           "demo"
         ]

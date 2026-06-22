@@ -69,10 +69,13 @@ from axis_api.connector_credential_leases import (
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
     ConnectorSyncDispatchRuntime,
+    ConnectorSyncExecutionRuntime,
     ConnectorSyncSchedulerRuntime,
     DeferredConnectorExecutionRuntime,
     DeferredConnectorSyncDispatchRuntime,
+    DeferredConnectorSyncExecutionRuntime,
     DeferredConnectorSyncSchedulerRuntime,
+    SelfHostedConnectorSyncExecutionRuntime,
 )
 from axis_api.connector_manifests import (
     ConnectorManifestConflict,
@@ -151,10 +154,13 @@ from axis_api.connector_runs import (
     ConnectorRunPermissionDenied,
     ConnectorRunQuery,
     ConnectorRunRecord,
+    ConnectorRunSyncExecutionConflict,
+    ConnectorRunSyncExecutionRequest,
     ConnectorRunValidationError,
     ManufacturingConnectorRunRegistry,
     build_connector_run_registry,
     dispatch_demo_connector_sync,
+    execute_demo_connector_sync,
     record_demo_connector_run,
 )
 from axis_api.connectors import (
@@ -299,6 +305,16 @@ def connector_sync_dispatch_runtime(request: Request) -> ConnectorSyncDispatchRu
 ConnectorSyncDispatchRuntimeDependency = Annotated[
     ConnectorSyncDispatchRuntime,
     Depends(connector_sync_dispatch_runtime),
+]
+
+
+def connector_sync_execution_runtime(request: Request) -> ConnectorSyncExecutionRuntime:
+    return request.app.state.connector_sync_execution_runtime
+
+
+ConnectorSyncExecutionRuntimeDependency = Annotated[
+    ConnectorSyncExecutionRuntime,
+    Depends(connector_sync_execution_runtime),
 ]
 
 
@@ -640,6 +656,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.connector_execution_runtime = DeferredConnectorExecutionRuntime()
     app.state.connector_sync_scheduler_runtime = DeferredConnectorSyncSchedulerRuntime()
     app.state.connector_sync_dispatch_runtime = DeferredConnectorSyncDispatchRuntime()
+    app.state.connector_sync_execution_runtime = (
+        SelfHostedConnectorSyncExecutionRuntime()
+        if resolved_settings.connector_sync_execution_enabled
+        else DeferredConnectorSyncExecutionRuntime()
+    )
     app.state.credential_lease_runtime = (
         SelfHostedVaultKmsLeaseRuntime()
         if resolved_settings.credential_lease_execution_enabled
@@ -1249,6 +1270,68 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail={
                     "code": AxisErrorCode.CONFLICT.value,
                     "message": "The connector sync dispatch conflicts with existing evidence.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/runs/{run_id}/execute-sync",
+        response_model=ConnectorRunRecord,
+        responses={
+            403: {"description": "Connector sync execution permission denied"},
+            404: {"description": "Connector run not found"},
+            409: {"description": "Connector sync execution idempotency conflict"},
+            422: {"description": "Connector sync execution validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_run_execute_sync(
+        run_id: str,
+        execution_request: ConnectorRunSyncExecutionRequest,
+        repository: PersistenceRepository,
+        sync_execution_runtime: ConnectorSyncExecutionRuntimeDependency,
+    ) -> ConnectorRunRecord:
+        try:
+            return execute_demo_connector_sync(
+                repository,
+                run_id,
+                execution_request,
+                sync_execution_runtime,
+            )
+        except ConnectorRunPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot execute scheduled connector sync.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                },
+            ) from exc
+        except ConnectorRunNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The connector run was not found.",
+                    "reason": "connector_run_not_found",
+                },
+            ) from exc
+        except ConnectorRunSyncExecutionConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": "The connector sync execution conflicts with existing evidence.",
                     "reason": exc.reason,
                 },
             ) from exc

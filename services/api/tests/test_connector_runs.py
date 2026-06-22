@@ -154,6 +154,47 @@ def seed_connector_credential_lease(repository: AxisPersistenceRepository) -> No
     )
 
 
+def create_dispatched_scheduled_sync(
+    client: TestClient,
+    *,
+    run_id: str,
+    dispatch_id: str,
+    dispatch_idempotency_key: str,
+) -> None:
+    create_response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": run_id,
+            "execution_mode": "scheduled_sync_plan",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "schedule_timezone": "Europe/Rome",
+            "next_run_at": "2026-06-22T14:00:00Z",
+            "input_summary": {"source": "manufacturing-assets-demo.csv", "record_count": "2"},
+            "result_summary": {},
+        },
+    )
+    assert create_response.status_code == 201
+
+    dispatch_response = client.post(
+        f"/demo/manufacturing/connectors/runs/{run_id}/dispatch",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "dispatch_id": dispatch_id,
+            "dispatched_by": "axis-scheduler-role",
+            "actor_scopes": ["connectors:sync:dispatch"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": dispatch_idempotency_key,
+        },
+    )
+    assert dispatch_response.status_code == 200
+
+
 def test_build_connector_run_registry_maps_persisted_runs(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -644,6 +685,250 @@ def test_dispatch_scheduled_connector_sync_requires_dispatch_scope(
     assert response.json()["detail"]["required_permission"] == "connectors:sync:dispatch"
 
 
+def test_execute_scheduled_connector_sync_defaults_to_deferred_without_external_sync(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_file_csv_assets_scheduled_execute_20260622",
+        dispatch_id="dispatch_file_csv_assets_execute_20260622_1400",
+        dispatch_idempotency_key="idem_dispatch_file_csv_assets_execute_20260622_1400",
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_file_csv_assets_scheduled_execute_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_file_csv_assets_20260622_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_file_csv_assets_20260622_1400",
+            "notes": ["Execution request remains deferred until the runtime flag is enabled."],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_deferred"
+    assert body["audit_event_type"] == "connector.run.sync_execution_deferred"
+    assert body["schedule_result"]["external_sync_started"] is False
+    assert body["dispatch_result"]["external_sync_started"] is False
+    assert body["sync_execution_result"] == {
+        "adapter": "axis-deferred-connector-sync-executor",
+        "status": "sync_execution_deferred",
+        "sync_ref": (
+            "deferred-sync-execution://tenant_demo_manufacturing/"
+            "run_file_csv_assets_scheduled_execute_20260622/"
+            "sync_exec_file_csv_assets_20260622_1400"
+        ),
+        "external_sync_started": False,
+        "idempotency_key": "idem_sync_exec_file_csv_assets_20260622_1400",
+        "result_summary": {
+            "runtime_status": "sync_execution_deferred",
+            "external_sync_started": "false",
+            "connector_id": "file_csv_manufacturing_assets",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "dispatch_id": "dispatch_file_csv_assets_execute_20260622_1400",
+            "execution_id": "sync_exec_file_csv_assets_20260622_1400",
+        },
+        "notes": [
+            "Connector sync execution is deferred by the Axis runtime adapter.",
+            "No external sync, credential retrieval or graph mutation was started.",
+        ],
+    }
+    assert body["result_summary"]["sync_execution_result"]["external_sync_started"] is False
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_deferred",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["sync_execution_result"]["external_sync_started"] is False
+    assert events[0].payload["credential_lease_id"] == "lease_file_csv_readonly_20260622"
+    assert "vault://" not in str(events[0].payload).lower()
+    assert "credential_value" not in str(events[0].payload).lower()
+
+
+def test_execute_scheduled_connector_sync_self_hosted_runtime_when_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_file_csv_assets_scheduled_live_20260622",
+        dispatch_id="dispatch_file_csv_assets_live_20260622_1400",
+        dispatch_idempotency_key="idem_dispatch_file_csv_assets_live_20260622_1400",
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_file_csv_assets_scheduled_live_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_file_csv_assets_live_20260622_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_file_csv_assets_live_20260622_1400",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_completed"
+    assert body["audit_event_type"] == "connector.run.sync_execution_completed"
+    assert body["sync_execution_result"] == {
+        "adapter": "axis-self-hosted-connector-sync-executor",
+        "status": "sync_execution_completed",
+        "sync_ref": (
+            "self-hosted-sync-execution://tenant_demo_manufacturing/"
+            "run_file_csv_assets_scheduled_live_20260622/"
+            "sync_exec_file_csv_assets_live_20260622_1400"
+        ),
+        "external_sync_started": False,
+        "idempotency_key": "idem_sync_exec_file_csv_assets_live_20260622_1400",
+        "result_summary": {
+            "runtime_status": "sync_execution_completed",
+            "external_sync_started": "false",
+            "connector_id": "file_csv_manufacturing_assets",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "dispatch_id": "dispatch_file_csv_assets_live_20260622_1400",
+            "execution_id": "sync_exec_file_csv_assets_live_20260622_1400",
+            "records_read": "2",
+            "records_accepted": "2",
+            "records_rejected": "0",
+            "graph_mutation_started": "false",
+            "source_mode": "self_hosted_demo",
+        },
+        "notes": [
+            "Connector sync executed through the self-hosted demo runtime.",
+            "No external egress, credential material or graph mutation was started.",
+        ],
+    }
+    assert body["result_summary"]["graph_mutation_started"] == "false"
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_completed",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["sync_execution_result"]["external_sync_started"] is False
+    assert events[0].payload["sync_execution_result"]["result_summary"]["records_read"] == "2"
+
+
+def test_execute_scheduled_connector_sync_replays_same_idempotency_key(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_file_csv_assets_scheduled_execute_replay",
+        dispatch_id="dispatch_file_csv_assets_execute_replay",
+        dispatch_idempotency_key="idem_dispatch_file_csv_assets_execute_replay",
+    )
+    payload = {
+        "tenant_id": "tenant_demo_manufacturing",
+        "execution_id": "sync_exec_file_csv_assets_execute_replay",
+        "executed_by": "axis-sync-worker-role",
+        "actor_scopes": ["connectors:sync:execute"],
+        "credential_lease_id": "lease_file_csv_readonly_20260622",
+        "idempotency_key": "idem_sync_exec_file_csv_assets_execute_replay",
+    }
+
+    first = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_file_csv_assets_scheduled_execute_replay/execute-sync",
+        json=payload,
+    )
+    second = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_file_csv_assets_scheduled_execute_replay/execute-sync",
+        json=payload,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["audit_event_id"] == first.json()["audit_event_id"]
+    assert second.json()["sync_execution_result"]["idempotency_key"] == payload["idempotency_key"]
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_deferred",
+        )
+
+    assert len(events) == 1
+
+
+def test_execute_scheduled_connector_sync_requires_execute_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_file_csv_assets_scheduled_execute_missing_scope",
+        dispatch_id="dispatch_file_csv_assets_execute_missing_scope",
+        dispatch_idempotency_key="idem_dispatch_file_csv_assets_execute_missing_scope",
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_file_csv_assets_scheduled_execute_missing_scope/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_file_csv_assets_missing_scope",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": [],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_file_csv_assets_missing_scope",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+    assert response.json()["detail"]["required_permission"] == "connectors:sync:execute"
+
+
 def test_create_connector_run_requires_credential_handle_for_governed_execution(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -700,3 +985,5 @@ def test_openapi_exposes_connector_run_endpoints() -> None:
     assert response.status_code == 200
     paths = response.json()["paths"]
     assert "/demo/manufacturing/connectors/runs" in paths
+    assert "/demo/manufacturing/connectors/runs/{run_id}/dispatch" in paths
+    assert "/demo/manufacturing/connectors/runs/{run_id}/execute-sync" in paths
