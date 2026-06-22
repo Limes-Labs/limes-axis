@@ -7,6 +7,7 @@ const runtimeLibFiles = [
   "agent-demo.ts",
   "approval-demo.ts",
   "audit-demo.ts",
+  "connectors-demo.ts",
   "model-routing-demo.ts",
   "ontology-demo.ts",
   "platform-overview.ts",
@@ -16,6 +17,7 @@ const runtimeLibFiles = [
 
 const forbiddenRuntimeSeedPatterns = [
   /defaultManufacturing[A-Za-z0-9_]+/,
+  /defaultConnector[A-Za-z0-9_]+/,
   /defaultAuditExportBundle/,
   /defaultArtifacts/,
   /defaultPersistedOutputs/,

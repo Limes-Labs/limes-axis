@@ -19,6 +19,8 @@ External DB live-query preflight now reads tenant-scoped persisted egress policy
 records instead of a local policy catalog before secret reference resolution.
 The `/connectors` console now requires the Axis API for connector records and
 shows an API-required empty state instead of local fallback connector data.
+The browser runtime no longer exports connector registry, preview, credential,
+run, proposal, import, promotion policy or policy-set default records.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -480,6 +482,8 @@ manual import request gates from
 `/demo/manufacturing/connectors/manual-imports` and promotion policies from
 `/demo/manufacturing/connectors/promotion-policies`. If the API is unavailable,
 it shows an API-required state and does not render local connector records.
+The runtime library keeps connector types, request builders and formatting
+helpers only; fixture data lives in tests and is not exported to product code.
 
 The console displays:
 
@@ -568,8 +572,7 @@ The slice is covered by:
   rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for registry contracts, persisted manifest registry,
-  configuration, credential handle, credential lease, run record, ontology
-  proposal, manual import, CSV preview and external DB preview contracts;
+- web unit tests for connector helper contracts and regression coverage that
+  forbids default connector seed records in runtime libraries;
 - Playwright smoke tests for `/connectors` API-required behavior when the
   backend is unavailable.

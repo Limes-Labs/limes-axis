@@ -5,8 +5,8 @@ import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lu
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
-  buildDefaultConnectorPromotionPolicyEnableRequest,
-  buildDefaultConnectorPromotionPolicyRequest,
+  buildConnectorPromotionPolicyDraftRequest,
+  buildConnectorPromotionPolicyEnableRequest,
   formatConnectorLabel,
   type ConnectorCsvPreviewResult,
   type ConnectorPromotionPolicyCreateRequest,
@@ -348,11 +348,11 @@ export function ConnectorConsole() {
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState("");
   const [policyForm, setPolicyForm] = useState<ConnectorPromotionPolicyCreateRequest>(() =>
-    buildDefaultConnectorPromotionPolicyRequest(),
+    buildConnectorPromotionPolicyDraftRequest(),
   );
   const [policyEnableForm, setPolicyEnableForm] =
     useState<ConnectorPromotionPolicyEnableRequest>(() =>
-      buildDefaultConnectorPromotionPolicyEnableRequest(),
+      buildConnectorPromotionPolicyEnableRequest(),
     );
   const [policyAuthoringStatus, setPolicyAuthoringStatus] =
     useState<PolicyAuthoringStatus>("idle");
@@ -518,7 +518,7 @@ export function ConnectorConsole() {
       );
       await refreshConnectorData();
       setPolicyEnableForm(
-        buildDefaultConnectorPromotionPolicyEnableRequest({
+        buildConnectorPromotionPolicyEnableRequest({
           policy_id: request.policy_id,
         }),
       );
