@@ -166,170 +166,35 @@ class ConnectorExternalDbPreviewResult(BaseModel):
     preview_notes: list[str] = Field(default_factory=list)
 
 
-def _file_csv_manifest() -> ConnectorManifest:
-    return ConnectorManifest(
-        connector_id="file_csv_manufacturing_assets",
-        display_name="Manufacturing assets CSV",
-        connector_type="file_csv",
-        version="2026-06-22",
-        source_type="file",
-        sync_modes=["preview", "manual_import"],
-        runtime_boundary="axis-connector-sandbox",
-        required_permissions=[
-            "connectors:read",
-            "connectors:file_csv:preview",
-        ],
-        credential_requirements=ConnectorCredentialRequirements(
-            storage="none",
-            required_secret_refs=[],
-            notes=[
-                "Local CSV preview does not require stored credentials.",
-                "Future connector runs must reference credential handles, not raw values.",
-            ],
+def _connector_item_for_type(
+    registry: ManufacturingConnectorRegistry,
+    connector_id: str,
+    connector_type: str,
+) -> ConnectorRegistryItem | None:
+    return next(
+        (
+            connector
+            for connector in registry.connectors
+            if connector.manifest.connector_id == connector_id
+            and connector.manifest.connector_type == connector_type
         ),
-        schema_fields=[
-            ConnectorSchemaField(
-                source_column="asset_id",
-                target_field="node_id",
-                ontology_target="manufacturing_asset",
-                data_type="string",
-                required=True,
-                description="Stable asset identifier used as the ontology node id.",
-            ),
-            ConnectorSchemaField(
-                source_column="asset_name",
-                target_field="display_name",
-                ontology_target="manufacturing_asset",
-                data_type="string",
-                required=True,
-                description="Human-readable manufacturing asset name.",
-            ),
-            ConnectorSchemaField(
-                source_column="domain",
-                target_field="domain",
-                ontology_target="manufacturing_asset",
-                data_type="string",
-                required=True,
-                description="Operational domain such as Operations, Quality or Maintenance.",
-            ),
-            ConnectorSchemaField(
-                source_column="station",
-                target_field="source_system_ref",
-                ontology_target="manufacturing_asset",
-                data_type="string",
-                required=True,
-                description="Plant station, line or source-system reference.",
-            ),
-            ConnectorSchemaField(
-                source_column="risk_level",
-                target_field="risk_level",
-                ontology_target="manufacturing_asset",
-                data_type="string",
-                required=True,
-                description="Public-safe risk posture used for demo governance checks.",
-            ),
-        ],
-        mapping_notes=[
-            "CSV preview maps rows to ontology entity proposals only.",
-            "Manual import remains approval-gated and workflow-signaled before execution.",
-            "Raw file content is never returned in API responses.",
-        ],
+        None,
     )
 
 
-def _external_db_manifest() -> ConnectorManifest:
-    return ConnectorManifest(
-        connector_id="external_db_operational_mirror",
-        display_name="Postgres operational mirror",
-        connector_type="external_db",
-        version="2026-06-22",
-        source_type="database",
-        sync_modes=["schema_preview", "manual_import"],
-        runtime_boundary="axis-connector-sandbox",
-        required_permissions=[
-            "connectors:read",
-            "connectors:external_db:preview",
-        ],
-        credential_requirements=ConnectorCredentialRequirements(
-            storage="external_reference",
-            required_secret_refs=["cred_external_db_readonly"],
-            notes=[
-                "Database preview uses credential handles and profile ids only.",
-                "Raw DSNs, SQL text and credential values are rejected.",
-            ],
-        ),
-        schema_fields=[
-            ConnectorSchemaField(
-                source_column="order_id",
-                target_field="node_id",
-                ontology_target="production_order",
-                data_type="string",
-                required=True,
-                description="Stable production order identifier from the source table.",
-            ),
-            ConnectorSchemaField(
-                source_column="asset_id",
-                target_field="asset_ref",
-                ontology_target="production_order",
-                data_type="string",
-                required=True,
-                description="Manufacturing asset reference linked by policy-aware import.",
-            ),
-            ConnectorSchemaField(
-                source_column="work_center",
-                target_field="source_system_ref",
-                ontology_target="production_order",
-                data_type="string",
-                required=True,
-                description="Operational work center or line reference.",
-            ),
-            ConnectorSchemaField(
-                source_column="status",
-                target_field="operational_status",
-                ontology_target="production_order",
-                data_type="string",
-                required=True,
-                description="Public-safe order status used for preview mapping.",
-            ),
-            ConnectorSchemaField(
-                source_column="risk_level",
-                target_field="risk_level",
-                ontology_target="production_order",
-                data_type="string",
-                required=True,
-                description="Governance risk posture used for import controls.",
-            ),
-        ],
-        mapping_notes=[
-            "Database preview inspects declared metadata only; no live SQL is executed.",
-            "Imports remain proposal-only until approval, workflow and policy gates pass.",
-            "Connection details stay outside Axis as credential handles and profiles.",
-        ],
+def _node_field(schema_fields: list[ConnectorSchemaField]) -> ConnectorSchemaField:
+    return next(
+        (field for field in schema_fields if field.target_field == "node_id"),
+        schema_fields[0],
     )
 
 
-def _external_db_sample_preview() -> ConnectorPreviewSample:
-    return ConnectorPreviewSample(
-        file_name="profile_postgres_ops_readonly:operations.production_orders",
-        record_count=2,
-        headers=["order_id", "asset_id", "work_center", "status", "risk_level"],
-        sample_rows=[
-            {
-                "order_id": "order_po_10045",
-                "asset_id": "asset_line_2_packaging",
-                "work_center": "Line 2",
-                "status": "blocked",
-                "risk_level": "high",
-            },
-            {
-                "order_id": "order_po_10046",
-                "asset_id": "asset_press_4",
-                "work_center": "Press 4",
-                "status": "scheduled",
-                "risk_level": "medium",
-            },
-        ],
-    )
+def _node_type_from_ontology(ontology_target: str) -> str:
+    if ontology_target.endswith("_asset"):
+        return "asset"
+    if ontology_target.endswith("_order"):
+        return "work_order"
+    return ontology_target
 
 
 def _csv_rows(csv_content: str) -> tuple[list[str], list[dict[str, str]]]:
@@ -342,14 +207,22 @@ def _csv_rows(csv_content: str) -> tuple[list[str], list[dict[str, str]]]:
     return headers, rows
 
 
-def _required_columns() -> list[str]:
-    return [field.source_column for field in _file_csv_manifest().schema_fields if field.required]
+def _required_columns(manifest: ConnectorManifest) -> list[str]:
+    return [field.source_column for field in manifest.schema_fields if field.required]
 
 
-def _validation_issues(headers: list[str], rows: list[dict[str, str]]) -> list[str]:
+def _validation_issues(
+    manifest: ConnectorManifest | None,
+    headers: list[str],
+    rows: list[dict[str, str]],
+) -> list[str]:
+    if manifest is None:
+        return []
+    if not manifest.schema_fields:
+        return ["Connector manifest must declare schema fields."]
     issues = [
         f"Missing required column: {column}"
-        for column in _required_columns()
+        for column in _required_columns(manifest)
         if column not in headers
     ]
     if not rows:
@@ -357,36 +230,49 @@ def _validation_issues(headers: list[str], rows: list[dict[str, str]]) -> list[s
     return issues
 
 
-def _connector_issues(request: ConnectorCsvPreviewRequest) -> list[str]:
-    supported_connector_id = _file_csv_manifest().connector_id
-    if request.connector_id == supported_connector_id:
+def _connector_issues(connector: ConnectorRegistryItem | None, connector_id: str) -> list[str]:
+    if connector is not None:
         return []
-    return [f"Unsupported connector_id: {request.connector_id}"]
+    return [f"Unsupported connector_id: {connector_id}"]
 
 
-def _entity_from_row(row: dict[str, str], file_name: str) -> ProposedOntologyEntity:
+def _entity_from_row(
+    manifest: ConnectorManifest,
+    row: dict[str, str],
+    file_name: str,
+) -> ProposedOntologyEntity:
+    node_field = _node_field(manifest.schema_fields)
+    field_summary = {
+        field.source_column: row[field.source_column]
+        for field in manifest.schema_fields
+        if field.source_column in row and field.target_field != "node_id"
+    }
     return ProposedOntologyEntity(
-        node_id=row["asset_id"],
-        node_type="asset",
-        ontology_type="manufacturing_asset",
-        field_summary={
-            "asset_name": row["asset_name"],
-            "domain": row["domain"],
-            "station": row["station"],
-            "risk_level": row["risk_level"],
-        },
-        evidence_refs=[file_name, row["asset_id"]],
+        node_id=row[node_field.source_column],
+        node_type=_node_type_from_ontology(node_field.ontology_target),
+        ontology_type=node_field.ontology_target,
+        field_summary=field_summary,
+        evidence_refs=[file_name, row[node_field.source_column]],
     )
 
 
 def preview_file_csv_connector(
+    registry: ManufacturingConnectorRegistry,
     request: ConnectorCsvPreviewRequest,
 ) -> ConnectorCsvPreviewResult:
+    connector = _connector_item_for_type(registry, request.connector_id, "file_csv")
+    manifest = connector.manifest if connector is not None else None
     headers, rows = _csv_rows(request.csv_content)
-    issues = [*_connector_issues(request), *_validation_issues(headers, rows)]
-    proposed_entities = [] if issues else [
-        _entity_from_row(row, request.file_name) for row in rows[:500]
+    issues = [
+        *_connector_issues(connector, request.connector_id),
+        *_validation_issues(manifest, headers, rows),
     ]
+    row_limit = connector.runtime_policy.row_limit if connector is not None else 0
+    proposed_entities = (
+        []
+        if issues or manifest is None
+        else [_entity_from_row(manifest, row, request.file_name) for row in rows[:row_limit]]
+    )
     accepted_count = len(proposed_entities)
     rejected_count = len(rows) if issues else max(len(rows) - accepted_count, 0)
     preview_status = "ready" if not issues else "blocked"
@@ -432,12 +318,14 @@ def _external_db_requested_values(request: ConnectorExternalDbPreviewRequest) ->
 
 
 def _external_db_validation_issues(
+    connector: ConnectorRegistryItem | None,
     request: ConnectorExternalDbPreviewRequest,
 ) -> list[str]:
     issues: list[str] = []
-    supported_connector_id = _external_db_manifest().connector_id
-    if request.connector_id != supported_connector_id:
+    if connector is None:
         issues.append(f"Unsupported connector_id: {request.connector_id}")
+    elif not connector.manifest.schema_fields:
+        issues.append("Connector manifest must declare schema fields.")
 
     keys = _external_db_requested_keys(request)
     values = _external_db_requested_values(request)
@@ -451,9 +339,7 @@ def _external_db_validation_issues(
 
     query_keys = {"raw_sql", "sql", "query", "statement", "where_clause"}
     query_markers = ("select ", "insert ", "update ", "delete ", "drop ")
-    has_raw_query_value = any(
-        marker in value for marker in query_markers for value in values
-    )
+    has_raw_query_value = any(marker in value for marker in query_markers for value in values)
     if keys.intersection(query_keys) or has_raw_query_value:
         issues.append("Raw SQL or query text is not accepted in external DB preview.")
 
@@ -461,26 +347,26 @@ def _external_db_validation_issues(
     if keys.intersection(credential_keys):
         issues.append("Raw credential material is not accepted in external DB preview.")
 
-    supported_columns = {field.source_column for field in _external_db_manifest().schema_fields}
-    unsupported_columns = [
-        column for column in request.selected_columns if column not in supported_columns
-    ]
-    if unsupported_columns:
-        issues.append(f"Unsupported metadata column(s): {', '.join(unsupported_columns)}")
+    if connector is not None:
+        supported_columns = {field.source_column for field in connector.manifest.schema_fields}
+        unsupported_columns = [
+            column for column in request.selected_columns if column not in supported_columns
+        ]
+        if unsupported_columns:
+            issues.append(f"Unsupported metadata column(s): {', '.join(unsupported_columns)}")
 
     return issues
 
 
 def _external_db_columns(
+    connector: ConnectorRegistryItem | None,
     request: ConnectorExternalDbPreviewRequest,
     issues: list[str],
 ) -> list[ConnectorExternalDbColumnPreview]:
-    if issues:
+    if issues or connector is None:
         return []
 
-    schema_by_column = {
-        field.source_column: field for field in _external_db_manifest().schema_fields
-    }
+    schema_by_column = {field.source_column: field for field in connector.manifest.schema_fields}
     selected_columns = request.selected_columns or list(schema_by_column)
     return [
         ConnectorExternalDbColumnPreview(
@@ -496,46 +382,59 @@ def _external_db_columns(
 
 
 def _external_db_sample_rows(
+    connector: ConnectorRegistryItem | None,
     request: ConnectorExternalDbPreviewRequest,
     issues: list[str],
 ) -> list[dict[str, str]]:
-    if issues:
+    if issues or connector is None:
         return []
-    return _external_db_sample_preview().sample_rows[: request.sample_limit]
+    return connector.preview_sample.sample_rows[: request.sample_limit]
+
+
+def _external_db_entity_from_row(
+    manifest: ConnectorManifest,
+    request: ConnectorExternalDbPreviewRequest,
+    row: dict[str, str],
+) -> ProposedOntologyEntity:
+    node_field = _node_field(manifest.schema_fields)
+    field_summary = {
+        field.source_column: row[field.source_column]
+        for field in manifest.schema_fields
+        if field.source_column in row and field.target_field != "node_id"
+    }
+    return ProposedOntologyEntity(
+        node_id=row[node_field.source_column],
+        node_type=_node_type_from_ontology(node_field.ontology_target),
+        ontology_type=node_field.ontology_target,
+        field_summary=field_summary,
+        evidence_refs=[
+            request.connection_profile_id,
+            f"{request.schema_name}.{request.table_name}",
+            row[node_field.source_column],
+        ],
+    )
 
 
 def _external_db_proposed_entities(
+    connector: ConnectorRegistryItem | None,
     request: ConnectorExternalDbPreviewRequest,
     issues: list[str],
 ) -> list[ProposedOntologyEntity]:
-    if issues:
+    if issues or connector is None:
         return []
 
     return [
-        ProposedOntologyEntity(
-            node_id=row["order_id"],
-            node_type="work_order",
-            ontology_type="production_order",
-            field_summary={
-                "asset_id": row["asset_id"],
-                "work_center": row["work_center"],
-                "status": row["status"],
-                "risk_level": row["risk_level"],
-            },
-            evidence_refs=[
-                request.connection_profile_id,
-                f"{request.schema_name}.{request.table_name}",
-                row["order_id"],
-            ],
-        )
-        for row in _external_db_sample_rows(request, issues)
+        _external_db_entity_from_row(connector.manifest, request, row)
+        for row in _external_db_sample_rows(connector, request, issues)
     ]
 
 
 def preview_external_db_connector(
+    registry: ManufacturingConnectorRegistry,
     request: ConnectorExternalDbPreviewRequest,
 ) -> ConnectorExternalDbPreviewResult:
-    issues = _external_db_validation_issues(request)
+    connector = _connector_item_for_type(registry, request.connector_id, "external_db")
+    issues = _external_db_validation_issues(connector, request)
     table_ref = f"{request.schema_name}.{request.table_name}"
     preview_status = "ready" if not issues else "blocked"
 
@@ -554,10 +453,10 @@ def preview_external_db_connector(
             table_ref=table_ref,
             record_count_estimate="not_queried",
             sample_limit=request.sample_limit,
-            columns=_external_db_columns(request, issues),
-            sample_rows=_external_db_sample_rows(request, issues),
+            columns=_external_db_columns(connector, request, issues),
+            sample_rows=_external_db_sample_rows(connector, request, issues),
         ),
-        proposed_entities=_external_db_proposed_entities(request, issues),
+        proposed_entities=_external_db_proposed_entities(connector, request, issues),
         audit_event_preview=ConnectorAuditEventPreview(
             event_type="connector.external_db.previewed",
             scope=request.connector_id,

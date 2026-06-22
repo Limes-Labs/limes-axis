@@ -2308,22 +2308,78 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/demo/manufacturing/connectors/file-csv/preview",
         response_model=ConnectorCsvPreviewResult,
+        responses={
+            404: {"description": "Connector registry reference record not found"},
+            422: {"description": "Connector registry reference payload invalid"},
+        },
         tags=["demo"],
     )
     def manufacturing_file_csv_connector_preview(
         preview_request: ConnectorCsvPreviewRequest,
+        repository: PersistenceRepository,
     ) -> ConnectorCsvPreviewResult:
-        return preview_file_csv_connector(preview_request)
+        try:
+            registry = get_persisted_manufacturing_connector_registry(
+                repository,
+                tenant_id=preview_request.tenant_id,
+            )
+            return preview_file_csv_connector(registry, preview_request)
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/connectors/external-db/preview",
         response_model=ConnectorExternalDbPreviewResult,
+        responses={
+            404: {"description": "Connector registry reference record not found"},
+            422: {"description": "Connector registry reference payload invalid"},
+        },
         tags=["demo"],
     )
     def manufacturing_external_db_connector_preview(
         preview_request: ConnectorExternalDbPreviewRequest,
+        repository: PersistenceRepository,
     ) -> ConnectorExternalDbPreviewResult:
-        return preview_external_db_connector(preview_request)
+        try:
+            registry = get_persisted_manufacturing_connector_registry(
+                repository,
+                tenant_id=preview_request.tenant_id,
+            )
+            return preview_external_db_connector(registry, preview_request)
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/actions/{action_id}/runs",

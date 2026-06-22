@@ -143,6 +143,8 @@ Foundation acceptance is tracked in
   authoring, enablement and revision.
 - [x] Use the persisted connector registry reference for promotion policy set
   activation, replacement and rollback.
+- [x] Use the persisted connector registry reference for file/CSV and external
+  DB preview.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
@@ -414,6 +416,11 @@ policy-set promotion rejections write
 `connector.ontology_promotion.rejected` audit evidence with the effective
 policy context before the API returns 422. If multiple required policies exist
 without an active set, Axis still rejects implicit selection.
+The file/CSV and external DB preview endpoints now resolve connector ids,
+schema fields, runtime row limits and public-safe sample rows through the same
+persisted connector registry reference before returning preview output. Missing
+or invalid registry references return explicit 404/422 responses before any
+preview mapping is generated.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
 run evidence from persisted registry-backed run creation, deferred execution metadata,

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 from runpy import run_path
 
@@ -84,11 +85,42 @@ def persisted_connector_registry_payload() -> dict:
     }
 
 
-def bootstrap_connector_registry() -> ManufacturingConnectorRegistry:
+def connector_registry_payload() -> dict:
     migration = run_path("migrations/versions/0023_connector_registry_reference.py")
-    return ManufacturingConnectorRegistry.model_validate(
-        migration["CONNECTOR_REGISTRY_PAYLOAD"]
-    )
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def bootstrap_connector_registry() -> ManufacturingConnectorRegistry:
+    return ManufacturingConnectorRegistry.model_validate(connector_registry_payload())
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload or connector_registry_payload(),
+            )
+        )
+
+
+def preview_registry_with_connector_ids(
+    *,
+    file_csv_connector_id: str = "file_csv_manufacturing_assets",
+    external_db_connector_id: str = "external_db_operational_mirror",
+) -> ManufacturingConnectorRegistry:
+    payload = connector_registry_payload()
+    payload["connectors"][0]["manifest"]["connector_id"] = file_csv_connector_id
+    payload["connectors"][1]["manifest"]["connector_id"] = external_db_connector_id
+    return ManufacturingConnectorRegistry.model_validate(payload)
 
 
 @pytest.fixture
@@ -276,6 +308,7 @@ def test_connector_registry_endpoint_rejects_invalid_reference_payload(
 
 def test_file_csv_connector_preview_maps_rows_to_ontology_entities() -> None:
     preview = preview_file_csv_connector(
+        bootstrap_connector_registry(),
         ConnectorCsvPreviewRequest(
             tenant_id="tenant_demo_manufacturing",
             connector_id="file_csv_manufacturing_assets",
@@ -285,7 +318,7 @@ def test_file_csv_connector_preview_maps_rows_to_ontology_entities() -> None:
                 "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n"
                 "asset_press_4,Press 4,Maintenance,Press 4,medium\n"
             ),
-        )
+        ),
     )
 
     assert preview.connector_id == "file_csv_manufacturing_assets"
@@ -315,6 +348,7 @@ def test_file_csv_connector_preview_maps_rows_to_ontology_entities() -> None:
 
 def test_file_csv_connector_preview_blocks_missing_required_columns() -> None:
     preview = preview_file_csv_connector(
+        bootstrap_connector_registry(),
         ConnectorCsvPreviewRequest(
             tenant_id="tenant_demo_manufacturing",
             connector_id="file_csv_manufacturing_assets",
@@ -323,7 +357,7 @@ def test_file_csv_connector_preview_blocks_missing_required_columns() -> None:
                 "asset_id,asset_name,domain,risk_level\n"
                 "asset_line_2_packaging,Line 2 Packaging,Operations,high\n"
             ),
-        )
+        ),
     )
 
     assert preview.preview_status == "blocked"
@@ -338,6 +372,7 @@ def test_file_csv_connector_preview_blocks_missing_required_columns() -> None:
 
 def test_file_csv_connector_preview_blocks_unsupported_connector_ids() -> None:
     preview = preview_file_csv_connector(
+        bootstrap_connector_registry(),
         ConnectorCsvPreviewRequest(
             tenant_id="tenant_demo_manufacturing",
             connector_id="unknown_connector",
@@ -346,7 +381,7 @@ def test_file_csv_connector_preview_blocks_unsupported_connector_ids() -> None:
                 "asset_id,asset_name,domain,station,risk_level\n"
                 "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n"
             ),
-        )
+        ),
     )
 
     assert preview.preview_status == "blocked"
@@ -358,8 +393,28 @@ def test_file_csv_connector_preview_blocks_unsupported_connector_ids() -> None:
     ]
 
 
+def test_file_csv_connector_preview_accepts_persisted_manifest_connector_id() -> None:
+    preview = preview_file_csv_connector(
+        preview_registry_with_connector_ids(file_csv_connector_id="persisted_file_csv_preview"),
+        ConnectorCsvPreviewRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="persisted_file_csv_preview",
+            file_name="assets.csv",
+            csv_content=(
+                "asset_id,asset_name,domain,station,risk_level\n"
+                "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n"
+            ),
+        ),
+    )
+
+    assert preview.connector_id == "persisted_file_csv_preview"
+    assert preview.preview_status == "ready"
+    assert preview.accepted_record_count == 1
+
+
 def test_external_db_connector_preview_returns_metadata_only_mapping() -> None:
     preview = preview_external_db_connector(
+        bootstrap_connector_registry(),
         ConnectorExternalDbPreviewRequest(
             tenant_id="tenant_demo_manufacturing",
             connector_id="external_db_operational_mirror",
@@ -375,7 +430,7 @@ def test_external_db_connector_preview_returns_metadata_only_mapping() -> None:
             ],
             sample_limit=2,
             credential_handle_id="cred_external_db_readonly",
-        )
+        ),
     )
 
     assert preview.connector_id == "external_db_operational_mirror"
@@ -410,6 +465,7 @@ def test_external_db_connector_preview_returns_metadata_only_mapping() -> None:
 
 def test_external_db_connector_preview_blocks_raw_connection_and_query_material() -> None:
     preview = preview_external_db_connector(
+        bootstrap_connector_registry(),
         ConnectorExternalDbPreviewRequest(
             tenant_id="tenant_demo_manufacturing",
             connector_id="external_db_operational_mirror",
@@ -423,7 +479,7 @@ def test_external_db_connector_preview_blocks_raw_connection_and_query_material(
                 "connection_string": "postgres://user:password@example.local/db",
                 "raw_sql": "select * from production_orders",
             },
-        )
+        ),
     )
 
     assert preview.preview_status == "blocked"
@@ -440,24 +496,39 @@ def test_external_db_connector_preview_blocks_raw_connection_and_query_material(
     assert "password" not in serialized
 
 
+def test_external_db_connector_preview_accepts_persisted_manifest_connector_id() -> None:
+    preview = preview_external_db_connector(
+        preview_registry_with_connector_ids(
+            external_db_connector_id="persisted_external_db_preview"
+        ),
+        ConnectorExternalDbPreviewRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="persisted_external_db_preview",
+            connection_profile_id="profile_postgres_ops_readonly",
+            schema_name="operations",
+            table_name="production_orders",
+            selected_columns=["order_id", "asset_id", "status"],
+            sample_limit=2,
+            credential_handle_id="cred_external_db_readonly",
+        ),
+    )
+
+    assert preview.connector_id == "persisted_external_db_preview"
+    assert preview.preview_status == "ready"
+    assert preview.live_query_executed is False
+    assert [column.source_column for column in preview.inspected_table.columns] == [
+        "order_id",
+        "asset_id",
+        "status",
+    ]
+
+
 def test_connector_registry_endpoint_returns_bootstrap_public_manifest(
     connector_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = connector_session_factory
-    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
-    with session_scope(connector_session_factory) as session:
-        AxisPersistenceRepository(session).upsert_demo_reference_record(
-            DemoReferenceRecordCreate(
-                tenant_id="tenant_demo_manufacturing",
-                surface="connectors",
-                reference_id="manufacturing-connector-registry",
-                status="active",
-                source="bootstrap",
-                version="2026-06-22",
-                payload=migration["CONNECTOR_REGISTRY_PAYLOAD"],
-            )
-        )
+    seed_connector_registry_reference(connector_session_factory)
     client = TestClient(app)
 
     response = client.get("/demo/manufacturing/connectors")
@@ -473,8 +544,13 @@ def test_connector_registry_endpoint_returns_bootstrap_public_manifest(
     assert "credential_value" not in str(body).lower()
 
 
-def test_connector_file_csv_preview_endpoint_returns_redacted_mapping_preview() -> None:
-    client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
+def test_connector_file_csv_preview_endpoint_returns_redacted_mapping_preview(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    seed_connector_registry_reference(connector_session_factory)
+    client = TestClient(app)
 
     response = client.post(
         "/demo/manufacturing/connectors/file-csv/preview",
@@ -498,8 +574,68 @@ def test_connector_file_csv_preview_endpoint_returns_redacted_mapping_preview() 
     assert "csv_content" not in str(body)
 
 
-def test_connector_external_db_preview_endpoint_returns_metadata_only_preview() -> None:
-    client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
+def test_connector_file_csv_preview_endpoint_reports_missing_registry_reference(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/file-csv/preview",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "file_name": "assets.csv",
+            "csv_content": (
+                "asset_id,asset_name,domain,station,risk_level\n"
+                "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n"
+            ),
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
+
+
+def test_connector_file_csv_preview_endpoint_uses_persisted_registry_reference(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][0]["manifest"]["connector_id"] = "persisted_file_csv_preview"
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    seed_connector_registry_reference(connector_session_factory, payload)
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/file-csv/preview",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "persisted_file_csv_preview",
+            "file_name": "assets.csv",
+            "csv_content": (
+                "asset_id,asset_name,domain,station,risk_level\n"
+                "asset_line_2_packaging,Line 2 Packaging,Operations,Line 2,high\n"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["preview_status"] == "ready"
+
+
+def test_connector_external_db_preview_endpoint_returns_metadata_only_preview(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    seed_connector_registry_reference(connector_session_factory)
+    client = TestClient(app)
 
     response = client.post(
         "/demo/manufacturing/connectors/external-db/preview",
@@ -524,6 +660,63 @@ def test_connector_external_db_preview_endpoint_returns_metadata_only_preview() 
     assert "connection_string" not in str(body).lower()
     assert "postgres://" not in str(body).lower()
     assert "password" not in str(body).lower()
+
+
+def test_connector_external_db_preview_endpoint_reports_missing_registry_reference(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/external-db/preview",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "external_db_operational_mirror",
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": ["order_id", "asset_id", "status"],
+            "sample_limit": 2,
+            "credential_handle_id": "cred_external_db_readonly",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
+
+
+def test_connector_external_db_preview_endpoint_uses_persisted_registry_reference(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][1]["manifest"]["connector_id"] = "persisted_external_db_preview"
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    seed_connector_registry_reference(connector_session_factory, payload)
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/external-db/preview",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "persisted_external_db_preview",
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": ["order_id", "asset_id", "status"],
+            "sample_limit": 2,
+            "credential_handle_id": "cred_external_db_readonly",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["preview_status"] == "ready"
 
 
 def test_openapi_exposes_connector_endpoints() -> None:
