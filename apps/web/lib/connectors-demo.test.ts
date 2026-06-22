@@ -186,6 +186,10 @@ describe("manufacturing connector demo contract", () => {
     expect(proposal.audit_event_type).toBe("connector.ontology_promotion.applied");
     expect(proposal.promotion_id).toBe("promote_asset_line_2_packaging_20260622");
     expect(proposal.promoted_by).toBe("plant-operations-owner-role");
+    expect(proposal.policy_id).toBe("policy_connector_asset_promotion_v1");
+    expect(proposal.policy_decision?.status).toBe("policy_enforced");
+    expect(proposal.policy_decision?.reason).toBe("policy_constraints_satisfied");
+    expect(proposal.policy_decision?.matched_constraints.risk_level).toBe("high");
     expect(proposal.ontology_mutation?.status).toBe("type_db_mutation_applied");
     expect(proposal.ontology_mutation?.payload.manual_import_id).toBe(
       "import_assets_manual_20260622",
@@ -258,13 +262,17 @@ describe("manufacturing connector demo contract", () => {
     });
     expect(defaultConnectorPromotionPolicyRegistry.metrics[1]).toMatchObject({
       label: "Draft Policies",
+      value: "0",
+    });
+    expect(defaultConnectorPromotionPolicyRegistry.metrics[2]).toMatchObject({
+      label: "Required Gates",
       value: "1",
     });
 
     const policy = defaultConnectorPromotionPolicyRegistry.policies[0];
     expect(policy.policy_id).toBe("policy_connector_asset_promotion_v1");
-    expect(policy.status).toBe("draft");
-    expect(policy.enforcement_mode).toBe("advisory");
+    expect(policy.status).toBe("enabled");
+    expect(policy.enforcement_mode).toBe("required");
     expect(policy.created_by).toBe("platform-governance-owner-role");
     expect(policy.required_authoring_scope).toBe("connectors:promotion_policy:author");
     expect(policy.required_scopes).toEqual(["connectors:ontology:promote"]);

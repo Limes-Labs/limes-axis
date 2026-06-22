@@ -27,6 +27,7 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorManualImportRequestCreate,
     ConnectorOntologyProposalCreate,
+    ConnectorPromotionPolicyCreate,
 )
 
 
@@ -168,6 +169,52 @@ def seed_promotable_connector_proposal(repository: AxisPersistenceRepository) ->
     )
 
 
+def seed_required_promotion_policy(
+    repository: AxisPersistenceRepository,
+    *,
+    policy_id: str = "policy_connector_asset_promotion_v1",
+    allowed_risk_levels: list[str] | None = None,
+    allowed_ontology_types: list[str] | None = None,
+    status: str = "enabled",
+    enforcement_mode: str = "required",
+) -> None:
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="platform-governance-owner-role",
+            event_type="connector.promotion_policy.authored",
+            payload={
+                "connector_id": "file_csv_manufacturing_assets",
+                "policy_id": policy_id,
+                "status": status,
+                "enforcement_mode": enforcement_mode,
+                "required_scopes": ["connectors:ontology:promote"],
+            },
+        )
+    )
+    repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            policy_id=policy_id,
+            policy_version="2026-06-22",
+            status=status,
+            enforcement_mode=enforcement_mode,
+            created_by="platform-governance-owner-role",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status="approval_approved",
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=allowed_risk_levels or ["high", "medium"],
+            allowed_ontology_types=allowed_ontology_types or ["manufacturing_asset"],
+            review_window_hours=24,
+            permission_decision={"allowed": True, "reason": "allowed"},
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.promotion_policy.authored",
+            notes=["Required policy for connector ontology promotion."],
+        )
+    )
+
+
 def promotion_payload() -> dict:
     return {
         "tenant_id": "tenant_demo_manufacturing",
@@ -179,6 +226,12 @@ def promotion_payload() -> dict:
         "actor_scopes": ["connectors:ontology:promote"],
         "note": "Promote approved proposal into TypeDB asset graph.",
     }
+
+
+def promotion_payload_with_policy() -> dict:
+    payload = promotion_payload()
+    payload["policy_id"] = "policy_connector_asset_promotion_v1"
+    return payload
 
 
 def test_record_connector_ontology_promotion_applies_mutation_and_updates_records(
@@ -231,6 +284,48 @@ def test_record_connector_ontology_promotion_applies_mutation_and_updates_record
     assert "axis_asset" in ontology_runtime.requests[0].typeql
     assert "asset_line_2_packaging" in ontology_runtime.requests[0].typeql
     assert "csv_content" not in str(audit_event.payload).lower()
+
+
+def test_record_connector_ontology_promotion_enforces_required_policy_and_persists_evidence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository)
+        result = record_demo_connector_ontology_promotion(
+            repository,
+            ConnectorOntologyPromotionRequest(**promotion_payload_with_policy()),
+            ontology_runtime,
+        )
+
+    with session_factory() as session:
+        promotion = session.scalars(select(ConnectorOntologyPromotion)).one()
+        proposal = session.scalars(select(ConnectorOntologyProposal)).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.ontology_promotion.applied"
+            )
+        ).one()
+
+    assert result.policy_decision is not None
+    assert result.policy_decision.status == "policy_enforced"
+    assert result.policy_decision.allowed is True
+    assert result.policy_decision.policy_id == "policy_connector_asset_promotion_v1"
+    assert result.policy_decision.policy_version == "2026-06-22"
+    assert result.policy_decision.enforcement_mode == "required"
+    assert result.policy_decision.reason == "policy_constraints_satisfied"
+    assert result.policy_decision.matched_constraints["risk_level"] == "high"
+    assert result.policy_decision.matched_constraints["ontology_type"] == "manufacturing_asset"
+    assert promotion.policy_id == "policy_connector_asset_promotion_v1"
+    assert promotion.policy_decision["status"] == "policy_enforced"
+    assert proposal.policy_id == "policy_connector_asset_promotion_v1"
+    assert proposal.policy_decision["reason"] == "policy_constraints_satisfied"
+    assert audit_event.payload["policy_id"] == "policy_connector_asset_promotion_v1"
+    assert audit_event.payload["policy_decision"]["status"] == "policy_enforced"
+    matched_constraints = audit_event.payload["policy_decision"]["matched_constraints"]
+    assert matched_constraints["workflow_signal_status"] == "manual_import_signal_requested"
 
 
 def test_connector_ontology_promotion_endpoint_applies_mutation(
@@ -302,6 +397,46 @@ def test_connector_ontology_promotion_endpoint_requires_approved_manual_import(
 
     assert response.status_code == 422
     assert response.json()["detail"]["reason"] == "manual_import_not_approved"
+
+
+def test_connector_ontology_promotion_endpoint_rejects_missing_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_promotable_connector_proposal(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload_with_policy(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "promotion_policy_not_found"
+
+
+def test_connector_ontology_promotion_endpoint_rejects_policy_risk_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository, allowed_risk_levels=["low"])
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload_with_policy(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "promotion_policy_rejected"
+    with session_factory() as session:
+        assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
 
 
 def test_connector_ontology_promotion_endpoint_records_runtime_unavailable(

@@ -82,10 +82,11 @@ workflow runtime with `connector_manual_import_decided`, link to
 connector execution. Controlled ontology promotions require approved manual
 import evidence, workflow signal evidence, `connectors:ontology:promote`,
 idempotency and append-only `connector.ontology_promotion.*` audit writes before
-calling the Axis TypeDB mutation adapter. Promotion policy drafts add a separate
-authoring boundary with `connectors:promotion_policy:author`, required promotion
-scope metadata and `connector.promotion_policy.authored` audit evidence before
-full enforcement. The TypeDB adapter is deferred by default and must be
+calling the Axis TypeDB mutation adapter. Promotion policies add a separate
+authoring and enforcement boundary with `connectors:promotion_policy:author`,
+required promotion scope metadata and `connector.promotion_policy.authored`
+audit evidence; enabled required policies are checked before TypeDB mutation
+execution. The TypeDB adapter is deferred by default and must be
 explicitly enabled for graph writes. Future connector execution must use those
 handles with tenant-scoped permissions, append-only audit writes and no external
 egress by default.

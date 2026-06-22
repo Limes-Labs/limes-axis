@@ -56,7 +56,19 @@ class ConnectorOntologyPromotionRequest(BaseModel):
     actor_id: str = Field(min_length=1, max_length=160)
     actor_scopes: list[str] = Field(default_factory=list)
     promotion_mode: str = Field(default="approved_manual_import", min_length=1, max_length=80)
+    policy_id: str | None = Field(default=None, min_length=1, max_length=180)
     note: str | None = Field(default=None, max_length=600)
+
+
+class ConnectorPromotionPolicyDecision(BaseModel):
+    status: str = Field(min_length=1)
+    allowed: bool
+    policy_id: str | None = None
+    policy_version: str | None = None
+    enforcement_mode: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    required_scopes: list[str] = Field(default_factory=list)
+    matched_constraints: dict[str, str] = Field(default_factory=dict)
 
 
 class ConnectorOntologyPromotionRecord(BaseModel):
@@ -71,6 +83,8 @@ class ConnectorOntologyPromotionRecord(BaseModel):
     requested_by: str = Field(min_length=1)
     graph_mutation_status: str = Field(min_length=1)
     ontology_mutation: OntologyMutationResult
+    policy_id: str | None = None
+    policy_decision: ConnectorPromotionPolicyDecision | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -90,6 +104,8 @@ class ConnectorOntologyPromotionResult(BaseModel):
     promotion: ConnectorOntologyPromotionRecord
     permission_decision: PermissionDecision
     ontology_mutation: OntologyMutationResult
+    policy_id: str | None = None
+    policy_decision: ConnectorPromotionPolicyDecision | None = None
     audit_event_id: UUID
     audit_event_type: str = Field(min_length=1)
     idempotent_replay: bool = False
@@ -138,6 +154,7 @@ def record_demo_connector_ontology_promotion(
     )
     _validate_manual_import_for_promotion(manual_import, request.proposal_id)
     permission_decision = _evaluate_promotion_permission(request, proposal, manual_import)
+    policy_decision = _evaluate_promotion_policy(repository, request, proposal, manual_import)
 
     mutation_request = OntologyMutationRequest(
         tenant_id=proposal.tenant_id,
@@ -171,6 +188,8 @@ def record_demo_connector_ontology_promotion(
                 "proposal_id": proposal.proposal_id,
                 "manual_import_id": manual_import.import_id,
                 "promotion_mode": request.promotion_mode,
+                "policy_id": request.policy_id,
+                "policy_decision": policy_decision.model_dump() if policy_decision else None,
                 "status": promotion_status,
                 "graph_mutation_status": ontology_mutation.status,
                 "required_permission": REQUIRED_PROMOTION_SCOPE,
@@ -198,6 +217,8 @@ def record_demo_connector_ontology_promotion(
             graph_mutation_status=ontology_mutation.status,
             ontology_mutation=ontology_mutation.model_dump(),
             permission_decision=permission_decision.model_dump(),
+            policy_id=request.policy_id,
+            policy_decision=policy_decision.model_dump() if policy_decision else None,
             audit_event_id=audit_event.id,
             audit_event_type=audit_event.event_type,
             notes=[request.note] if request.note else [],
@@ -214,6 +235,8 @@ def record_demo_connector_ontology_promotion(
                 promotion_id=request.promotion_id,
                 promoted_by=request.actor_id,
                 ontology_mutation=ontology_mutation.model_dump(),
+                policy_id=request.policy_id,
+                policy_decision=policy_decision.model_dump() if policy_decision else None,
                 audit_event_id=audit_event.id,
                 audit_event_type=audit_event.event_type,
             )
@@ -232,6 +255,8 @@ def record_demo_connector_ontology_promotion(
         promotion=_promotion_from_record(promotion),
         permission_decision=permission_decision,
         ontology_mutation=ontology_mutation,
+        policy_id=request.policy_id,
+        policy_decision=policy_decision,
         audit_event_id=audit_event.id,
         audit_event_type=audit_event.event_type,
         idempotent_replay=False,
@@ -307,6 +332,76 @@ def _evaluate_promotion_permission(request, proposal, manual_import) -> Permissi
     return decision
 
 
+def _evaluate_promotion_policy(
+    repository: AxisPersistenceRepository,
+    request: ConnectorOntologyPromotionRequest,
+    proposal,
+    manual_import,
+) -> ConnectorPromotionPolicyDecision | None:
+    if request.policy_id is None:
+        return None
+
+    policy = repository.get_connector_promotion_policy(request.tenant_id, request.policy_id)
+    if policy is None:
+        raise ConnectorOntologyPromotionValidationError(
+            "Connector promotion policy was not found for this tenant.",
+            "promotion_policy_not_found",
+        )
+    if policy.connector_id != proposal.connector_id:
+        raise ConnectorOntologyPromotionValidationError(
+            "Connector promotion policy does not apply to this connector.",
+            "promotion_policy_connector_mismatch",
+        )
+
+    matched_constraints = {
+        "policy_status": policy.status,
+        "manual_import_status": manual_import.status,
+        "workflow_signal_status": manual_import.workflow_signal_status,
+        "risk_level": manual_import.risk_level,
+        "ontology_type": proposal.ontology_type,
+    }
+    if policy.status != "enabled" or policy.enforcement_mode != "required":
+        return ConnectorPromotionPolicyDecision(
+            status="policy_advisory",
+            allowed=True,
+            policy_id=policy.policy_id,
+            policy_version=policy.policy_version,
+            enforcement_mode=policy.enforcement_mode,
+            reason="policy_not_enforced",
+            required_scopes=policy.required_scopes,
+            matched_constraints=matched_constraints,
+        )
+
+    violations: list[str] = []
+    missing_scopes = sorted(set(policy.required_scopes) - set(request.actor_scopes))
+    violations.extend(f"missing_scope:{scope}" for scope in missing_scopes)
+    if manual_import.status != policy.required_manual_import_status:
+        violations.append("manual_import_status_mismatch")
+    if manual_import.workflow_signal_status != policy.required_workflow_signal_status:
+        violations.append("workflow_signal_status_mismatch")
+    if manual_import.risk_level not in policy.allowed_risk_levels:
+        violations.append("risk_level_not_allowed")
+    if proposal.ontology_type not in policy.allowed_ontology_types:
+        violations.append("ontology_type_not_allowed")
+
+    if violations:
+        raise ConnectorOntologyPromotionValidationError(
+            "Connector promotion policy rejected this promotion.",
+            "promotion_policy_rejected",
+        )
+
+    return ConnectorPromotionPolicyDecision(
+        status="policy_enforced",
+        allowed=True,
+        policy_id=policy.policy_id,
+        policy_version=policy.policy_version,
+        enforcement_mode=policy.enforcement_mode,
+        reason="policy_constraints_satisfied",
+        required_scopes=policy.required_scopes,
+        matched_constraints=matched_constraints,
+    )
+
+
 def _promotion_status(ontology_mutation: OntologyMutationResult) -> str:
     if ontology_mutation.status == "type_db_mutation_applied":
         return "promoted_to_graph"
@@ -341,6 +436,8 @@ def _proposal_from_record(record) -> ConnectorOntologyProposalRecord:
         field_summary=record.field_summary,
         evidence_refs=record.evidence_refs,
         promotion_id=record.promotion_id,
+        policy_id=record.policy_id,
+        policy_decision=record.policy_decision,
         promoted_by=record.promoted_by,
         promoted_at=record.promoted_at,
         ontology_mutation=record.ontology_mutation,
@@ -364,6 +461,12 @@ def _promotion_from_record(record) -> ConnectorOntologyPromotionRecord:
         requested_by=record.requested_by,
         graph_mutation_status=record.graph_mutation_status,
         ontology_mutation=record.ontology_mutation,
+        policy_id=record.policy_id,
+        policy_decision=(
+            ConnectorPromotionPolicyDecision.model_validate(record.policy_decision)
+            if record.policy_decision
+            else None
+        ),
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
@@ -388,6 +491,12 @@ def _result_from_existing(
         promotion=_promotion_from_record(existing),
         permission_decision=PermissionDecision.model_validate(existing.permission_decision),
         ontology_mutation=ontology_mutation,
+        policy_id=existing.policy_id,
+        policy_decision=(
+            ConnectorPromotionPolicyDecision.model_validate(existing.policy_decision)
+            if existing.policy_decision
+            else None
+        ),
         audit_event_id=existing.audit_event_id,
         audit_event_type=existing.audit_event_type,
         idempotent_replay=idempotent_replay,
@@ -400,6 +509,7 @@ def _fingerprint_from_request(request: ConnectorOntologyPromotionRequest) -> dic
         "proposal_id": request.proposal_id,
         "manual_import_id": request.manual_import_id,
         "promotion_mode": request.promotion_mode,
+        "policy_id": request.policy_id,
         "requested_by": request.actor_id,
         "notes": [request.note] if request.note else [],
     }
@@ -411,6 +521,7 @@ def _fingerprint_from_existing(record) -> dict:
         "proposal_id": record.proposal_id,
         "manual_import_id": record.manual_import_id,
         "promotion_mode": record.promotion_mode,
+        "policy_id": record.policy_id,
         "requested_by": record.requested_by,
         "notes": record.notes,
     }

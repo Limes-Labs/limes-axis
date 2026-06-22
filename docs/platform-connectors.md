@@ -14,8 +14,9 @@ Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
 gates without executing a connector import, and approved proposals can be
-promoted through the ontology mutation adapter. Promotion policy drafts can now
-be authored as metadata before enforcement.
+promoted through the ontology mutation adapter. Promotion policies can now be
+authored as metadata, and enabled required policies can be enforced
+before ontology mutation execution.
 
 ## Current Scope
 
@@ -206,7 +207,7 @@ without mutating the graph. Runtime failures are recorded as
 `connector.ontology_promotion.*` audit evidence and never stores raw CSV
 content or credential material.
 
-Promotion policy drafts are authored through
+Promotion policies are authored through
 `POST /demo/manufacturing/connectors/promotion-policies` and listed through
 `GET /demo/manufacturing/connectors/promotion-policies`. Policy authoring
 requires `connectors:promotion_policy:author` and records:
@@ -219,8 +220,11 @@ requires `connectors:promotion_policy:author` and records:
 - append-only `connector.promotion_policy.authored` audit evidence.
 
 Authoring a policy does not execute a connector, approve a proposal or mutate
-TypeDB. It makes the governance requirements visible before full policy
-enforcement and policy authoring UI mature.
+TypeDB. When a promotion request references an enabled required policy, Axis
+enforces the required scopes, manual import status, workflow signal status,
+allowed risk levels and allowed ontology types before calling the TypeDB
+mutation adapter. Draft or advisory policies remain visible governance evidence
+without blocking promotion.
 
 ## Manufacturing CSV Manifest
 
@@ -247,7 +251,7 @@ handles from `/demo/manufacturing/connectors/credential-handles`, plus run
 records from `/demo/manufacturing/connectors/runs` and review-only ontology
 proposal records from `/demo/manufacturing/connectors/ontology-proposals`, plus
 manual import request gates from
-`/demo/manufacturing/connectors/manual-imports` and promotion policy drafts from
+`/demo/manufacturing/connectors/manual-imports` and promotion policies from
 `/demo/manufacturing/connectors/promotion-policies`. If the API is unavailable,
 it uses the same public-safe fallback seed so the page remains useful in
 frontend-only development.
@@ -264,7 +268,7 @@ The console displays:
 - review-only ontology proposal records with graph mutation status;
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
-- promotion policy drafts with required scopes and audit evidence;
+- promotion policy authoring and enforcement evidence;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.
@@ -288,7 +292,7 @@ contract keeps these boundaries visible:
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
-- promotion policy drafts before enforcement;
+- promotion policy authoring before required enforcement;
 - TypeDB ontology mutation adapter, deferred by default unless explicitly
   enabled.
 

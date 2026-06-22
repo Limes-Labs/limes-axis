@@ -65,6 +65,8 @@ class ConnectorOntologyProposalRecord(BaseModel):
     field_summary: dict[str, str] = Field(default_factory=dict)
     evidence_refs: list[str] = Field(default_factory=list)
     promotion_id: str | None = None
+    policy_id: str | None = None
+    policy_decision: dict | None = None
     promoted_by: str | None = None
     promoted_at: datetime | None = None
     ontology_mutation: dict | None = None
@@ -234,6 +236,8 @@ def _proposal_from_record(record) -> ConnectorOntologyProposalRecord:
         field_summary=record.field_summary,
         evidence_refs=record.evidence_refs,
         promotion_id=record.promotion_id,
+        policy_id=record.policy_id,
+        policy_decision=record.policy_decision,
         promoted_by=record.promoted_by,
         promoted_at=record.promoted_at,
         ontology_mutation=record.ontology_mutation,

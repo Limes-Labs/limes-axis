@@ -88,6 +88,15 @@ evidence:
 - indexes for connector, policy, version, status, enforcement mode and author
   filtering.
 
+The twelfth Alembic migration adds connector promotion policy enforcement
+evidence:
+
+- nullable `policy_id` and `policy_decision` fields on connector ontology
+  promotions;
+- nullable `policy_id` and `policy_decision` fields on connector ontology
+  proposals for latest promotion evidence;
+- indexes for policy-linked proposal and promotion filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -171,9 +180,10 @@ Delivered:
   evidence, TypeDB mutation adapter result, idempotency enforcement,
   append-only `connector.ontology_promotion.*` audit writes and latest
   promotion evidence on the proposal record.
-- connector promotion policy drafts with authoring permission evidence,
-  required promotion scopes, required manual-import/workflow states and
-  append-only `connector.promotion_policy.authored` audit writes.
+- connector promotion policies with authoring permission evidence, required
+  promotion scopes, required manual-import/workflow states, enforcement evidence
+  on promotions and append-only `connector.promotion_policy.authored` audit
+  writes.
 
 Still Platform work:
 
