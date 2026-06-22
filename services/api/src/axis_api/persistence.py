@@ -13,6 +13,7 @@ from axis_api.models import (
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
+    ConnectorOntologyProposal,
     ConnectorRun,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -153,6 +154,27 @@ class ConnectorRunCreate(BaseModel):
     result_summary: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.run.recorded", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorOntologyProposalCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    proposal_id: str = Field(min_length=1)
+    source_run_id: str | None = None
+    source_file_name: str = Field(min_length=1)
+    mapping_profile: str = Field(min_length=1)
+    status: str = Field(default="proposed_from_preview", min_length=1)
+    write_mode: str = Field(default="proposal_only", min_length=1)
+    graph_mutation_status: str = Field(default="not_applied", min_length=1)
+    proposed_by: str = Field(min_length=1)
+    node_id: str = Field(min_length=1)
+    node_type: str = Field(min_length=1)
+    ontology_type: str = Field(min_length=1)
+    field_summary: dict = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.ontology_proposals.recorded", min_length=1)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -568,5 +590,54 @@ class AxisPersistenceRepository:
         statement = statement.order_by(
             ConnectorRun.created_at.desc(),
             ConnectorRun.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_connector_ontology_proposal(
+        self,
+        record: ConnectorOntologyProposalCreate,
+    ) -> ConnectorOntologyProposal:
+        proposal = ConnectorOntologyProposal(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            proposal_id=record.proposal_id,
+            source_run_id=record.source_run_id,
+            source_file_name=record.source_file_name,
+            mapping_profile=record.mapping_profile,
+            status=record.status,
+            write_mode=record.write_mode,
+            graph_mutation_status=record.graph_mutation_status,
+            proposed_by=record.proposed_by,
+            node_id=record.node_id,
+            node_type=record.node_type,
+            ontology_type=record.ontology_type,
+            field_summary=record.field_summary,
+            evidence_refs=record.evidence_refs,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(proposal)
+        self.session.flush()
+        return proposal
+
+    def list_connector_ontology_proposals(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorOntologyProposal]:
+        statement: Select[tuple[ConnectorOntologyProposal]] = select(
+            ConnectorOntologyProposal
+        ).where(ConnectorOntologyProposal.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorOntologyProposal.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorOntologyProposal.status == status)
+
+        statement = statement.order_by(
+            ConnectorOntologyProposal.created_at.desc(),
+            ConnectorOntologyProposal.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))

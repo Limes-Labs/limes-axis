@@ -10,6 +10,8 @@ configuration records and metadata-only connector run records, while keeping
 connector execution and live sync disabled.
 It also introduces metadata-only credential handles and rotation history for
 future connector execution, without storing raw credential material in Axis.
+Preview-derived ontology proposal records are now persisted for review only,
+with graph mutation kept explicitly disabled.
 
 ## Current Scope
 
@@ -22,6 +24,8 @@ POST /demo/manufacturing/connectors/credential-handles
 POST /demo/manufacturing/connectors/credential-handles/{handle_id}/rotations
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
+GET /demo/manufacturing/connectors/ontology-proposals
+POST /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -106,6 +110,31 @@ with the same redacted metadata. The endpoint rejects raw payload fields such as
 Run records do not execute connector sync, call external systems or mutate the
 ontology graph.
 
+The ontology proposal endpoints store and query tenant-scoped proposals derived
+from connector preview output. A proposal includes:
+
+- tenant id;
+- connector id;
+- proposal id;
+- optional source run id;
+- source file name;
+- mapping profile;
+- proposal-only write mode;
+- graph mutation status;
+- proposer role/system id;
+- proposed node id, node type and ontology type;
+- redacted field summary;
+- evidence refs;
+- linked audit event id and type;
+- proposal notes.
+
+Creating proposal records writes an append-only
+`connector.ontology_proposals.recorded` audit event with redacted batch
+metadata. The endpoint rejects raw payload fields such as `csv_content`, raw
+file content, passwords, API keys, tokens and secret refs. It also rejects graph
+write modes; persisted proposals remain review-only with
+`graph_mutation_status=not_applied`.
+
 ## Manufacturing CSV Manifest
 
 The first connector is `file_csv_manufacturing_assets`.
@@ -128,9 +157,10 @@ The `/connectors` page loads the connector registry and preview result from the
 API when available. It also loads tenant-scoped connector configurations from
 `/demo/manufacturing/connectors/configurations` and metadata-only credential
 handles from `/demo/manufacturing/connectors/credential-handles`, plus run
-records from `/demo/manufacturing/connectors/runs`. If the API is unavailable,
-it uses the same public-safe fallback seed so the page remains useful in
-frontend-only development.
+records from `/demo/manufacturing/connectors/runs` and review-only ontology
+proposal records from `/demo/manufacturing/connectors/ontology-proposals`. If
+the API is unavailable, it uses the same public-safe fallback seed so the page
+remains useful in frontend-only development.
 
 The console displays:
 
@@ -141,6 +171,7 @@ The console displays:
 - tenant-scoped preview configuration;
 - credential handle references and rotation posture;
 - audit-backed connector run records;
+- review-only ontology proposal records with graph mutation status;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.
@@ -161,7 +192,7 @@ contract keeps these boundaries visible:
 - redacted preview payloads;
 - audit event preview before future connector execution;
 - tenant-scoped run records before future connector execution;
-- ontology proposal generation before future graph mutation.
+- persisted ontology proposal records before future graph mutation.
 
 Future Platform work should add:
 
@@ -186,8 +217,10 @@ The slice is covered by:
   and rotation history;
 - API unit tests for connector run records, audit writes and raw payload
   rejection;
+- API unit tests for connector ontology proposal persistence, audit writes,
+  graph-write rejection and raw payload rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for fallback registry, configuration, credential handle, run
-  record and preview contracts;
+  record, ontology proposal and preview contracts;
 - Playwright smoke tests for `/connectors` rendering.

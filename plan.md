@@ -95,6 +95,7 @@ Foundation acceptance is tracked in
 - [x] Build replay and simulation foundations.
 - [x] Add connector manifest foundation and file/CSV preview.
 - [x] Add tenant-scoped connector configuration persistence.
+- [x] Persist connector ontology proposals without graph mutation.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -158,12 +159,16 @@ credential handles and rotation history through
 references instead of raw credential values. Connector run records can now be
 written through `/demo/manufacturing/connectors/runs`; each record stores only
 redacted summaries and links to an append-only `connector.run.recorded` audit
-event. The `/connectors` console shows runtime boundaries, required
-permissions, blocked operations, tenant configuration, credential handle
-posture, connector run evidence and schema mapping with an offline fallback
-seed. Persisted connector manifest management beyond the demo seed, credential
-vault integration, scheduled sync, external database connectors, live graph
-mutation and connector-backed production actions remain Platform work.
+event. Preview-derived ontology proposals can now be persisted through
+`/demo/manufacturing/connectors/ontology-proposals`; each proposal is
+review-only, audit-backed and marked with `graph_mutation_status=not_applied`.
+The `/connectors` console shows runtime boundaries, required permissions,
+blocked operations, tenant configuration, credential handle posture, connector
+run evidence, persisted ontology proposal evidence and schema mapping with an
+offline fallback seed. Persisted connector manifest management beyond the demo
+seed, credential vault integration, scheduled sync, external database
+connectors, live graph mutation and connector-backed production actions remain
+Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,

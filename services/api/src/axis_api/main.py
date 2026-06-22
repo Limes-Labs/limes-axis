@@ -48,6 +48,14 @@ from axis_api.connector_credential_handles import (
     record_demo_connector_credential_handle,
     record_demo_connector_credential_rotation,
 )
+from axis_api.connector_ontology_proposals import (
+    ConnectorOntologyProposalCreateRequest,
+    ConnectorOntologyProposalQuery,
+    ConnectorOntologyProposalValidationError,
+    ManufacturingConnectorOntologyProposalRegistry,
+    build_connector_ontology_proposal_registry,
+    record_demo_connector_ontology_proposals,
+)
 from axis_api.connector_runs import (
     ConnectorRunCreateRequest,
     ConnectorRunQuery,
@@ -519,6 +527,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return record_demo_connector_run(repository, connector_run)
         except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/ontology-proposals",
+        response_model=ManufacturingConnectorOntologyProposalRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_ontology_proposals(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorOntologyProposalRegistry:
+        return build_connector_ontology_proposal_registry(
+            repository,
+            ConnectorOntologyProposalQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/ontology-proposals",
+        response_model=ManufacturingConnectorOntologyProposalRegistry,
+        responses={422: {"description": "Connector ontology proposal validation failed"}},
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_ontology_proposal_create(
+        proposal_request: ConnectorOntologyProposalCreateRequest,
+        repository: PersistenceRepository,
+    ) -> ManufacturingConnectorOntologyProposalRegistry:
+        try:
+            return record_demo_connector_ontology_proposals(repository, proposal_request)
+        except ConnectorOntologyProposalValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

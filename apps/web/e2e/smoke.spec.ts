@@ -270,11 +270,22 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.locator(".metric-card").getByText("Connector Runs", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("run_file_csv_assets_preview_20260622")).toBeVisible();
+    await expect(
+      page.locator(".metric-card").getByText("Ontology Proposals", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("run_file_csv_assets_preview_20260622").first()).toBeVisible();
+    await expect(page.getByText("proposal_asset_line_2_packaging").first()).toBeVisible();
     await expect(
       page.locator(".audit-detail-grid").getByText("connector.run.recorded", { exact: true }),
     ).toBeVisible();
+    await expect(
+      page
+        .locator(".audit-detail-grid")
+        .getByText("connector.ontology_proposals.recorded", { exact: true })
+        .first(),
+    ).toBeVisible();
     await expect(page.getByText("recorded_preview_only")).toBeVisible();
+    await expect(page.getByText("not_applied").first()).toBeVisible();
     await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();
     await expect(page.getByText("connector.preview.generated")).toBeVisible();

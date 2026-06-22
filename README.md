@@ -94,7 +94,10 @@ previews without enabling live sync or connector mutation. The credential
 handle slice adds metadata-only external secret references and rotation history
 for connector credentials, while still refusing to store raw credential values.
 The connector run record slice adds metadata-only run records linked to
-append-only audit events, without executing connector sync.
+append-only audit events, without executing connector sync. The connector
+ontology proposal slice persists preview-derived proposals for review with
+`connector.ontology_proposals.recorded` audit events and keeps graph mutation
+explicitly `not_applied`.
 
 ## Architecture Defaults
 

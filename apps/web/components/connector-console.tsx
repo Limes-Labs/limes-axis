@@ -8,6 +8,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorOntologyProposalRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorPreview,
   defaultManufacturingConnectorRegistry,
@@ -16,6 +17,7 @@ import {
   type ConnectorCsvPreviewResult,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
+  type ManufacturingConnectorOntologyProposalRegistry,
   type ManufacturingConnectorRunRegistry,
   type ManufacturingConnectorRegistry,
 } from "@/lib/connectors-demo";
@@ -52,6 +54,10 @@ export function ConnectorConsole() {
     );
   const [runRegistry, setRunRegistry] =
     useState<ManufacturingConnectorRunRegistry>(defaultConnectorRunRegistry);
+  const [ontologyProposalRegistry, setOntologyProposalRegistry] =
+    useState<ManufacturingConnectorOntologyProposalRegistry>(
+      defaultConnectorOntologyProposalRegistry,
+    );
   const [source, setSource] = useState<ConnectorSource>("loading");
   const [selectedConnectorId, setSelectedConnectorId] = useState(
     defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -81,8 +87,14 @@ export function ConnectorConsole() {
 
     async function loadConnectors() {
       try {
-        const [registryData, previewData, configurationData, credentialHandleData, runData] =
-          await Promise.all([
+        const [
+          registryData,
+          previewData,
+          configurationData,
+          credentialHandleData,
+          runData,
+          ontologyProposalData,
+        ] = await Promise.all([
           fetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors"),
           fetchJson<ConnectorCsvPreviewResult>(
             "/demo/manufacturing/connectors/file-csv/preview",
@@ -98,12 +110,16 @@ export function ConnectorConsole() {
             "/demo/manufacturing/connectors/credential-handles",
           ),
           fetchJson<ManufacturingConnectorRunRegistry>("/demo/manufacturing/connectors/runs"),
+          fetchJson<ManufacturingConnectorOntologyProposalRegistry>(
+            "/demo/manufacturing/connectors/ontology-proposals",
+          ),
         ]);
         if (registryData.connectors.length > 0) {
           setRegistry(registryData);
           setConfigurationRegistry(configurationData);
           setCredentialHandleRegistry(credentialHandleData);
           setRunRegistry(runData);
+          setOntologyProposalRegistry(ontologyProposalData);
           setSelectedConnectorId(registryData.connectors[0].manifest.connector_id);
           setPreview(previewData);
           setSource("api");
@@ -117,6 +133,7 @@ export function ConnectorConsole() {
           setConfigurationRegistry(defaultConnectorConfigurationRegistry);
           setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
           setRunRegistry(defaultConnectorRunRegistry);
+          setOntologyProposalRegistry(defaultConnectorOntologyProposalRegistry);
           setPreview(defaultManufacturingConnectorPreview);
           setSelectedConnectorId(
             defaultManufacturingConnectorRegistry.connectors[0].manifest.connector_id,
@@ -153,6 +170,13 @@ export function ConnectorConsole() {
     () => runRegistry.runs.filter((run) => run.connector_id === selectedConnectorId),
     [runRegistry.runs, selectedConnectorId],
   );
+  const selectedOntologyProposals = useMemo(
+    () =>
+      ontologyProposalRegistry.proposals.filter(
+        (proposal) => proposal.connector_id === selectedConnectorId,
+      ),
+    [ontologyProposalRegistry.proposals, selectedConnectorId],
+  );
   const manifest = selectedConnector.manifest;
 
   return (
@@ -183,8 +207,12 @@ export function ConnectorConsole() {
           .concat(configurationRegistry.metrics)
           .concat(credentialHandleRegistry.metrics)
           .concat(runRegistry.metrics)
+          .concat(ontologyProposalRegistry.metrics)
           .map((metric) => (
-          <article className="metric-card compact-card" key={metric.label}>
+          <article
+            className="metric-card compact-card"
+            key={`${metric.label}-${metric.detail}`}
+          >
             <div className="row">
               <p className="metric-label">{metric.label}</p>
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
@@ -440,6 +468,54 @@ export function ConnectorConsole() {
           <section className="audit-payload">
             <div className="audit-payload-header">
               <div>
+                <p className="section-label">Ontology Proposals</p>
+                <h3 className="subsection-title">
+                  {selectedOntologyProposals.length} review-only proposal
+                </h3>
+                <p className="row-detail">no graph mutation applied</p>
+              </div>
+              <Database size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedOntologyProposals.map((proposal) => (
+                <div className="payload-row" key={proposal.proposal_id}>
+                  <span>
+                    <span className="metric-label">{proposal.proposal_id}</span>
+                    <span className="row-detail">{proposal.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{proposal.graph_mutation_status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedOntologyProposals.map((proposal) => (
+              <div className="audit-detail-grid" key={`${proposal.proposal_id}-summary`}>
+                <div>
+                  <p className="metric-label">Node</p>
+                  <p className="row-title">{proposal.node_id}</p>
+                  <p className="row-detail">{proposal.ontology_type}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Write Mode</p>
+                  <p className="row-title">{proposal.write_mode}</p>
+                  <p className="row-detail">{proposal.status}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Audit Event</p>
+                  <p className="row-title">{proposal.audit_event_type}</p>
+                  <p className="row-detail">{proposal.audit_event_id ?? "pending"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Source</p>
+                  <p className="row-title">{proposal.source_file_name}</p>
+                  <p className="row-detail">{proposal.source_run_id ?? "preview only"}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
                 <p className="section-label">Schema Mapping</p>
                 <h3 className="subsection-title">{selectedConnector.preview_sample.file_name}</h3>
               </div>
@@ -478,12 +554,14 @@ export function ConnectorConsole() {
               .concat(configurationRegistry.configuration_notes)
               .concat(credentialHandleRegistry.handle_notes)
               .concat(runRegistry.run_notes)
+              .concat(ontologyProposalRegistry.proposal_notes)
               .concat(selectedConfiguration?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
+              .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(preview.preview_notes)
-              .map((note) => (
-              <p className="row-detail" key={note}>
+              .map((note, index) => (
+              <p className="row-detail" key={`${note}-${index}`}>
                 {note}
               </p>
               ))}
