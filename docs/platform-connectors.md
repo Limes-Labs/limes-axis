@@ -41,6 +41,10 @@ from a service-local connector seed.
 Manual import request creation also uses the persisted registry reference
 before writing approval-gated import rows or audit evidence, so import runtime
 boundary evidence no longer comes from a service-local connector seed.
+Promotion policy authoring, enablement and revision paths also use the
+persisted registry reference before writing policy rows or audit evidence, so
+policy governance no longer validates connector ids against a service-local
+connector seed.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -122,6 +126,12 @@ Manual import request creation reads the same registry reference to resolve the
 connector runtime boundary stored in audit evidence. Missing or invalid
 registry references return explicit 404/422 errors before any manual import row
 or audit event is written.
+
+Promotion policy authoring, enablement and revision read the same registry
+reference to validate connector ids before writing policy rows or audit
+evidence. Missing or invalid registry references return explicit 404/422 errors
+before any policy row, revision row, enablement update or audit event is
+written.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -428,19 +438,24 @@ requires `connectors:promotion_policy:author` and records:
 - append-only `connector.promotion_policy.authored` audit evidence.
 
 Authoring a policy does not execute a connector, approve a proposal or mutate
-TypeDB. Creating a policy with `enabled` status is rejected; policies must be
-enabled through
+TypeDB. It validates the connector id through the persisted registry reference
+and returns explicit 404/422 errors before writing policy/audit state if that
+reference is missing or invalid. Creating a policy with `enabled` status is
+rejected; policies must be enabled through
 `POST /demo/manufacturing/connectors/promotion-policies/{policy_id}/enable`.
 Enablement requires `connectors:promotion_policy:enable`, an approved decision,
 workflow signal evidence and writes append-only
-`connector.promotion_policy.enabled` audit evidence. Draft policies can be
-revised through
+`connector.promotion_policy.enabled` audit evidence. Enablement revalidates the
+policy connector through the persisted registry reference before updating state.
+Draft policies can be revised through
 `POST /demo/manufacturing/connectors/promotion-policies/{policy_id}/revise`.
 Revision requires `connectors:promotion_policy:revise`, an approved revision
 decision, `policy_revision_signal_recorded` workflow evidence and an
-idempotency key. The target must still be `draft`; enabled required policies are
-not revised in place, which keeps active policy sets and historical replay
-stable until a future governed policy-set transition adopts a new version. When
+idempotency key. It validates the requested connector through the persisted
+registry reference before writing the new draft or revision audit evidence. The
+target must still be `draft`; enabled required policies are not revised in
+place, which keeps active policy sets and historical replay stable until a
+future governed policy-set transition adopts a new version. When
 an enabled required policy exists for the connector, Axis auto-selects it if the
 promotion request omits `policy_id`, then enforces the required scopes, manual
 import status, workflow signal status, allowed risk levels and allowed ontology

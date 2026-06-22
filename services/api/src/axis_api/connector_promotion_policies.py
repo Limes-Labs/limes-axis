@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
@@ -225,7 +225,7 @@ def record_demo_connector_promotion_policy(
     repository: AxisPersistenceRepository,
     request: ConnectorPromotionPolicyCreateRequest,
 ) -> ConnectorPromotionPolicyRecord:
-    _manifest_for_connector(request.connector_id)
+    _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_policy_status(request.status)
     _validate_enforcement_mode(request.enforcement_mode)
     _validate_required_scopes(request.required_scopes)
@@ -291,7 +291,7 @@ def enable_demo_connector_promotion_policy(
     policy = repository.get_connector_promotion_policy(request.tenant_id, request.policy_id)
     if policy is None:
         raise ConnectorPromotionPolicyNotFound()
-    _manifest_for_connector(policy.connector_id)
+    _manifest_for_connector(repository, request.tenant_id, policy.connector_id)
     _validate_enable_request(request)
     permission_decision = _evaluate_enable_permission(request, policy.connector_id)
     audit_event = repository.append_audit_event(
@@ -335,7 +335,7 @@ def revise_demo_connector_promotion_policy(
     repository: AxisPersistenceRepository,
     request: ConnectorPromotionPolicyReviseRequest,
 ) -> ConnectorPromotionPolicyRecord:
-    _manifest_for_connector(request.connector_id)
+    _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_policy_revision_request(request)
     existing_replay = repository.get_connector_promotion_policy_by_revision_idempotency_key(
         request.tenant_id,
@@ -536,8 +536,12 @@ def _validate_policy_revision_request(request: ConnectorPromotionPolicyReviseReq
     _validate_required_scopes(request.required_scopes)
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest

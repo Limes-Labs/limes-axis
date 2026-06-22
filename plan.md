@@ -138,6 +138,8 @@ Foundation acceptance is tracked in
   tenant-scoped bootstrap record.
 - [x] Use the persisted connector registry reference for manual import request
   creation.
+- [x] Use the persisted connector registry reference for promotion policy
+  authoring, enablement and revision.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
@@ -268,6 +270,8 @@ Connector run creation uses the same persisted registry reference before
 writing run/audit runtime boundary metadata.
 Manual import request creation also uses the same persisted registry reference
 before writing approval-gated import audit evidence.
+Promotion policy authoring, enablement and revision also use that persisted
+registry reference before writing policy/audit evidence.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
@@ -365,16 +369,21 @@ authored through `/demo/manufacturing/connectors/promotion-policies`; each
 policy records the authoring permission, required promotion scopes, approved
 manual import state, workflow signal state, allowed risk levels and
 `connector.promotion_policy.authored` audit evidence without executing
-connectors or mutating TypeDB. Policies are enabled through
+connectors or mutating TypeDB. Authoring validates connector ids through the
+persisted registry reference and fails explicitly if that reference is missing
+or invalid before writing rows or audit events. Policies are enabled through
 `/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable`, which
 requires `connectors:promotion_policy:enable`, an approved decision, workflow
-signal evidence and writes `connector.promotion_policy.enabled`. Draft policies
-can be revised append-only through
+signal evidence and writes `connector.promotion_policy.enabled`; enablement
+revalidates the policy connector through the persisted registry reference
+before updating state. Draft policies can be revised append-only through
 `/demo/manufacturing/connectors/promotion-policies/{policy_id}/revise`, which
 requires `connectors:promotion_policy:revise`, approved revision evidence,
-workflow signal evidence and an idempotency key. Enabled required policies are
-not revised in place; future versions must be adopted through a governed
-policy-set transition. Enabled required policies are auto-selected when a
+workflow signal evidence and an idempotency key. Revisions validate the
+requested connector through the persisted registry reference before writing the
+new draft or audit evidence. Enabled required policies are not revised in
+place; future versions must be adopted through a governed policy-set
+transition. Enabled required policies are auto-selected when a
 promotion request omits `policy_id` and are enforced before the TypeDB mutation
 adapter is called. When more than one enabled required policy applies,
 `/demo/manufacturing/connectors/promotion-policy-sets`
