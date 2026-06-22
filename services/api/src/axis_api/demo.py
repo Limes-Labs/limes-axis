@@ -514,7 +514,10 @@ def _ontology_detail_overrides() -> dict[str, dict[str, list[str]]]:
                 "workflow blocker summary",
             ],
             "detail_notes": [
-                "Risk detail is derived from TypeDB-shaped relationships in the demo seed.",
+                (
+                    "Risk detail is derived from TypeDB-shaped relationships in the "
+                    "persisted reference graph."
+                ),
                 "The risk can drive action proposals, but does not execute actions directly.",
             ],
         },

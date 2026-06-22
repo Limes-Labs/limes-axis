@@ -5,10 +5,10 @@ governed operational state.
 
 It is intentionally narrow: schema, ORM models, repository methods, a demo
 approval decision endpoint, web console submission, demo permission enforcement,
-workflow signal execution, action run creation and tests. It has started moving
-public demo reference content into persisted tenant-scoped bootstrap records,
-but does not yet replace all public demo seeds or implement deterministic
-workflow replay.
+workflow signal execution, action run creation and tests. Public demo reference
+content now comes from persisted tenant-scoped bootstrap records for the main
+reference surfaces, while production-grade reference storage and deterministic
+workflow replay remain separate Platform work.
 
 ## Tables
 

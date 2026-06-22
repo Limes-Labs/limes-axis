@@ -59,7 +59,7 @@ reference graph. Graph reads pass through the Axis ontology query runtime. The
 default runtime serves the persisted public reference graph through
 `axis-deferred-ontology-query-adapter`.
 Entity detail responses are derived by a builder that receives the persisted
-ontology graph; it does not load a local demo seed.
+ontology graph; it does not load a local runtime seed.
 When a bearer token is present, or when OIDC auth is required by configuration,
 the graph endpoint derives actor, tenant and scopes from the principal, rejects
 tenant mismatch, filters relationships by token-derived relationship scopes and
