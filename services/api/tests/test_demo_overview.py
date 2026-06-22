@@ -15,6 +15,7 @@ from axis_api.demo import (
     ManufacturingAgentRegistry,
     ManufacturingApprovalInbox,
     ManufacturingAuditExplorer,
+    ManufacturingModelRouting,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
     OntologyNodeType,
@@ -262,6 +263,74 @@ def persisted_audit_explorer_payload() -> dict:
             }
         ],
         "retention_notes": ["Persisted audit explorer reference."],
+    }
+
+
+def persisted_model_routing_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Model Routing",
+        "as_of": "2026-06-22T11:45:00+02:00",
+        "routing_status": "watch",
+        "metrics": [
+            {
+                "label": "Persisted Route Decisions",
+                "value": "1",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "filter_options": {
+            "domains": ["Operations"],
+            "providers": ["local-vllm"],
+            "model_policies": ["local-or-approved-provider"],
+            "egress_decisions": ["local_allowed"],
+            "statuses": ["ready"],
+        },
+        "provider_options": [
+            {
+                "provider_id": "local-vllm",
+                "display_name": "Local vLLM Gateway",
+                "provider_type": "self-hosted",
+                "hosting_boundary": "tenant-private-runtime",
+                "status": "available",
+                "egress_mode": "no-external-egress",
+                "cost_basis": "infrastructure-metered",
+                "allowed_policies": ["local-or-approved-provider"],
+                "notes": ["Persisted local provider reference."],
+            }
+        ],
+        "routes": [
+            {
+                "route_id": "route_persisted_reference",
+                "agent_id": "agent_persisted_daily_brief",
+                "agent_name": "Persisted Daily Brief Agent",
+                "domain": "Operations",
+                "provider_id": "local-vllm",
+                "provider_name": "Local vLLM Gateway",
+                "model": "axis-local-brief-7b",
+                "model_policy": "local-or-approved-provider",
+                "prompt_classification": "operational-summary",
+                "data_boundary": "tenant-private-runtime",
+                "external_egress_requested": False,
+                "external_egress_allowed": False,
+                "egress_decision": "local_allowed",
+                "decision_reason": "Persisted local route satisfies tenant policy.",
+                "route_status": "ready",
+                "input_tokens": 100,
+                "output_tokens": 24,
+                "estimated_cost_eur": 0.01,
+                "latency_ms": 120,
+                "cost_center": "plant-operations",
+                "required_permissions": ["agents:read"],
+                "evidence_refs": ["demo_reference_records"],
+                "audit_event_id": "audit_persisted_model_route",
+                "observability_events": ["model.route.selected"],
+            }
+        ],
+        "budget_notes": ["Persisted model routing reference."],
+        "observability_notes": ["Persisted model route telemetry."],
     }
 
 
@@ -1239,19 +1308,103 @@ def test_manufacturing_model_routing_seed_is_observable() -> None:
     assert "@" not in routing.model_dump_json()
 
 
-def test_manufacturing_model_routing_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_model_routing_reference_contract_is_valid() -> None:
+    routing = ManufacturingModelRouting.model_validate(persisted_model_routing_payload())
+
+    assert routing.tenant_id == "tenant_demo_manufacturing"
+    assert routing.scenario == "Persisted Model Routing"
+    assert routing.routes[0].route_id == "route_persisted_reference"
+    assert routing.routes[0].external_egress_allowed is False
+
+
+def test_manufacturing_model_routing_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0029_model_routing_reference.py")
+
+    routing = ManufacturingModelRouting.model_validate(migration["MODEL_ROUTING_PAYLOAD"])
+
+    assert routing.tenant_id == "tenant_demo_manufacturing"
+    assert routing.scenario == "Plant Operations Cockpit"
+    assert len(routing.routes) == 4
+    assert any(route.route_id == "route_quality_external_blocked" for route in routing.routes)
+    serialized = routing.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_model_routing_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_model_routing()" not in source
+
+
+def test_manufacturing_model_routing_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="model-routing",
+                reference_id="manufacturing-model-routing",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_model_routing_payload(),
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/model-routing")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["routes"][2]["route_id"] == "route_quality_external_blocked"
-    assert body["routes"][2]["egress_decision"] == "blocked_by_default"
-    assert body["routes"][2]["estimated_cost_eur"] == 0
+    assert body["scenario"] == "Persisted Model Routing"
+    assert body["routes"][0]["route_id"] == "route_persisted_reference"
+    assert body["routes"][0]["egress_decision"] == "local_allowed"
     assert body["provider_options"][0]["provider_id"] == "local-vllm"
-    assert "not product pricing" in body["budget_notes"][0]
+    assert "Persisted model routing reference." in body["budget_notes"][0]
     assert "password" not in str(body).lower()
+
+
+def test_manufacturing_model_routing_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/model-routing")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_model_routing_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_model_routing_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="model-routing",
+                reference_id="manufacturing-model-routing",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/model-routing")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_openapi_exposes_manufacturing_model_routing_endpoint() -> None:

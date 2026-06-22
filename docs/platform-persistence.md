@@ -154,6 +154,13 @@ The twenty-eighth Alembic migration adds:
 - the public-safe reference audit events, filter options, redacted payload
   previews and retention notes used by `GET /demo/manufacturing/audit`.
 
+The twenty-ninth Alembic migration adds:
+
+- a persisted manufacturing model routing bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe provider options, egress decisions, route telemetry, token
+  estimates and cost posture used by `GET /demo/manufacturing/model-routing`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -297,6 +304,10 @@ Delivered:
   `surface=audit/reference_id=manufacturing-audit-explorer` while the separate
   `/demo/manufacturing/audit/events` and `/demo/manufacturing/audit/export`
   endpoints continue to query persisted `audit_events`.
+- persisted manufacturing model routing reference records through
+  `demo_reference_records`, with the API reading
+  `surface=model-routing/reference_id=manufacturing-model-routing` while live
+  provider routing, usage metering and billing adapters remain out of scope.
 
 Still Platform work:
 
