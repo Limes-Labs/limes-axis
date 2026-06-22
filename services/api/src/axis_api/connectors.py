@@ -340,6 +340,6 @@ def preview_file_csv_connector(
         preview_notes=[
             "CSV content is parsed only for preview and is not persisted.",
             "Mapped rows become ontology proposals, not live graph mutations.",
-            "Connector sync, credential handles and audit writes remain future work.",
+            "Connector execution and scheduled sync remain outside preview boundaries.",
         ],
     )

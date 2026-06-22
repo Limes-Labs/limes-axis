@@ -285,7 +285,7 @@ test.describe("Axis console smoke", () => {
     await expect(
       page
         .locator(".audit-detail-grid")
-        .getByText("connector.ontology_proposals.recorded", { exact: true })
+        .getByText("connector.ontology_promotion.applied", { exact: true })
         .first(),
     ).toBeVisible();
     await expect(
@@ -295,6 +295,9 @@ test.describe("Axis console smoke", () => {
         .first(),
     ).toBeVisible();
     await expect(page.getByText("recorded_preview_only")).toBeVisible();
+    await expect(page.getByText("promoted_to_graph").first()).toBeVisible();
+    await expect(page.getByText("type_db_mutation_applied").first()).toBeVisible();
+    await expect(page.getByText("promote_asset_line_2_packaging_20260622").first()).toBeVisible();
     await expect(page.getByText("approval_approved").first()).toBeVisible();
     await expect(page.getByText("manual_import_signal_requested").first()).toBeVisible();
     await expect(page.getByText("connector_manual_import_decided").first()).toBeVisible();

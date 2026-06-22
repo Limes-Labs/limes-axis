@@ -4,6 +4,8 @@ attribute axis_id, value string;
 attribute display_name, value string;
 attribute actor_type, value string;
 attribute asset_type, value string;
+attribute domain, value string;
+attribute source_system_ref, value string;
 attribute workflow_status, value string;
 attribute event_type, value string;
 attribute decision_status, value string;
@@ -27,6 +29,9 @@ entity axis_asset,
   owns axis_id,
   owns display_name,
   owns asset_type,
+  owns domain,
+  owns source_system_ref,
+  owns risk_level,
   plays axis_owns_relation:owned,
   plays axis_uses_relation:used;
 

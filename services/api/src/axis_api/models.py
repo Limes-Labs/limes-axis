@@ -309,6 +309,10 @@ class ConnectorOntologyProposal(Base):
     ontology_type: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     field_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
     evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    promotion_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    promoted_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ontology_mutation: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     notes: Mapped[list] = mapped_column(JSON, nullable=False)
@@ -324,6 +328,46 @@ class ConnectorOntologyProposal(Base):
             "tenant_id",
             "proposal_id",
             name="uq_connector_ontology_proposals_tenant_proposal",
+        ),
+    )
+
+
+class ConnectorOntologyPromotion(Base):
+    __tablename__ = "connector_ontology_promotions"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    promotion_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    proposal_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    manual_import_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    promotion_mode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    graph_mutation_status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    ontology_mutation: Mapped[dict] = mapped_column(JSON, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "promotion_id",
+            name="uq_connector_ontology_promotions_tenant_promotion",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_connector_ontology_promotions_tenant_idempotency",
         ),
     )
 

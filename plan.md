@@ -163,7 +163,7 @@ written through `/demo/manufacturing/connectors/runs`; each record stores only
 redacted summaries and links to an append-only `connector.run.recorded` audit
 event. Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
-review-only, audit-backed and marked with `graph_mutation_status=not_applied`.
+audit-backed and initially marked with `graph_mutation_status=not_applied`.
 Manual connector import requests can now be recorded through
 `/demo/manufacturing/connectors/manual-imports`; each request is tenant-scoped,
 idempotent, approval-gated, workflow-referenced and audit-backed with
@@ -172,15 +172,21 @@ idempotent, approval-gated, workflow-referenced and audit-backed with
 `/demo/manufacturing/connectors/manual-imports/{import_id}/decision`; each
 decision stores the approval outcome, workflow signal status and
 `connector.manual_import.decision_recorded` audit evidence without executing
-the connector. Replays with the same idempotency key and payload return the
-existing request instead of writing duplicate request audit events.
+the connector. Approved proposal promotion can now be requested through
+`/demo/manufacturing/connectors/ontology-proposals/promotions`; each promotion
+requires approval evidence, workflow signal evidence, idempotency and
+`connectors:ontology:promote`, then applies or defers the TypeDB graph mutation
+through the Axis ontology mutation adapter with append-only
+`connector.ontology_promotion.*` audit evidence. Replays with the same
+idempotency key and payload return the existing request or promotion instead of
+writing duplicate audit events.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
-run evidence, persisted ontology proposal evidence, manual import decision
-evidence and schema mapping with an offline fallback seed. Persisted connector
-manifest management beyond the demo seed, credential vault integration,
-scheduled sync, external database connectors, live graph mutation and
-connector-backed production actions remain Platform work.
+run evidence, persisted ontology proposal evidence, promotion evidence, manual
+import decision evidence and schema mapping with an offline fallback seed.
+Persisted connector manifest management beyond the demo seed, credential vault
+integration, scheduled sync, external database connectors and connector-backed
+production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic
 manufacturing agent seed. Production action execution, persisted agent state,

@@ -15,6 +15,7 @@ from axis_api.models import (
     ConnectorCredentialHandle,
     ConnectorCredentialRotation,
     ConnectorManualImportRequest,
+    ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
     ConnectorRun,
 )
@@ -29,6 +30,8 @@ from axis_api.persistence import (
     ConnectorCredentialRotationCreate,
     ConnectorManualImportDecisionRecord,
     ConnectorManualImportRequestCreate,
+    ConnectorOntologyPromotionCreate,
+    ConnectorOntologyPromotionResultRecord,
     ConnectorOntologyProposalCreate,
     ConnectorRunCreate,
     PersistenceRecordNotFound,
@@ -55,6 +58,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "connector_credential_rotations",
         "connector_runs",
         "connector_ontology_proposals",
+        "connector_ontology_promotions",
         "connector_manual_import_requests",
     }.issubset(Base.metadata.tables.keys())
     assert ApprovalRecord.__table__.c.tenant_id.index is True
@@ -65,6 +69,10 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorCredentialRotation.__table__.c.handle_id.index is True
     assert ConnectorRun.__table__.c.run_id.index is True
     assert ConnectorOntologyProposal.__table__.c.proposal_id.index is True
+    assert ConnectorOntologyProposal.__table__.c.promotion_id.index is True
+    assert ConnectorOntologyProposal.__table__.c.promoted_by.index is True
+    assert ConnectorOntologyPromotion.__table__.c.promotion_id.index is True
+    assert ConnectorOntologyPromotion.__table__.c.idempotency_key.index is True
     assert ConnectorManualImportRequest.__table__.c.import_id.index is True
     assert ConnectorManualImportRequest.__table__.c.idempotency_key.index is True
     assert ConnectorManualImportRequest.__table__.c.decision.index is True
@@ -441,6 +449,98 @@ def test_repository_records_connector_ontology_proposals_tenant_scoped(
         "station": "Line 2",
         "risk_level": "high",
     }
+    assert records[0].promotion_id is None
+    assert records[0].ontology_mutation is None
+
+
+def test_repository_records_connector_ontology_promotion_and_updates_proposal(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    proposal = repository.create_connector_ontology_proposal(
+        ConnectorOntologyProposalCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            proposal_id="proposal_asset_line_2_packaging",
+            source_run_id="run_file_csv_assets_preview_20260622",
+            source_file_name="manufacturing-assets-demo.csv",
+            mapping_profile="manufacturing_asset_v1",
+            proposed_by="plant-operations-owner-role",
+            node_id="asset_line_2_packaging",
+            node_type="asset",
+            ontology_type="manufacturing_asset",
+            field_summary={"asset_name": "Line 2 Packaging"},
+            evidence_refs=["manufacturing-assets-demo.csv"],
+        )
+    )
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="plant-operations-owner-role",
+            event_type="connector.ontology_promotion.applied",
+            payload={
+                "proposal_id": "proposal_asset_line_2_packaging",
+                "graph_mutation_status": "type_db_mutation_applied",
+            },
+        )
+    )
+    promotion = repository.create_connector_ontology_promotion(
+        ConnectorOntologyPromotionCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            promotion_id="promote_asset_line_2_packaging_20260622",
+            idempotency_key="promote-asset-line-2-packaging-20260622",
+            proposal_id="proposal_asset_line_2_packaging",
+            manual_import_id="import_assets_manual_20260622",
+            status="promoted_to_graph",
+            promotion_mode="approved_manual_import",
+            requested_by="plant-operations-owner-role",
+            graph_mutation_status="type_db_mutation_applied",
+            ontology_mutation={
+                "status": "type_db_mutation_applied",
+                "mutation_ref": "typedb://axis/asset_line_2_packaging",
+            },
+            permission_decision={"allowed": True, "reason": "allowed"},
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.ontology_promotion.applied",
+            notes=["Promoted in persistence test."],
+        )
+    )
+    updated_proposal = repository.record_connector_ontology_proposal_promotion(
+        ConnectorOntologyPromotionResultRecord(
+            tenant_id="tenant_demo_manufacturing",
+            proposal_id="proposal_asset_line_2_packaging",
+            status="promoted_to_graph",
+            graph_mutation_status="type_db_mutation_applied",
+            promotion_id="promote_asset_line_2_packaging_20260622",
+            promoted_by="plant-operations-owner-role",
+            ontology_mutation={
+                "status": "type_db_mutation_applied",
+                "mutation_ref": "typedb://axis/asset_line_2_packaging",
+            },
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.ontology_promotion.applied",
+        )
+    )
+    found_promotion = repository.get_connector_ontology_promotion_by_idempotency_key(
+        "tenant_demo_manufacturing",
+        "promote-asset-line-2-packaging-20260622",
+    )
+    found_proposal = repository.get_connector_ontology_proposal(
+        "tenant_demo_manufacturing",
+        "proposal_asset_line_2_packaging",
+    )
+
+    assert found_promotion == promotion
+    assert found_proposal == updated_proposal
+    assert updated_proposal.id == proposal.id
+    assert updated_proposal.status == "promoted_to_graph"
+    assert updated_proposal.graph_mutation_status == "type_db_mutation_applied"
+    assert updated_proposal.promotion_id == "promote_asset_line_2_packaging_20260622"
+    assert updated_proposal.promoted_by == "plant-operations-owner-role"
+    assert updated_proposal.promoted_at is not None
+    assert updated_proposal.ontology_mutation["status"] == "type_db_mutation_applied"
+    assert promotion.audit_event_id == audit_event.id
 
 
 def test_repository_records_connector_manual_import_requests_tenant_scoped_and_idempotent(

@@ -221,7 +221,7 @@ def build_connector_manual_import_registry(
             "Manual import requests are approval-gated metadata records.",
             "Workflow ids and signal status are recorded before any connector import can run.",
             "Idempotency keys prevent duplicate import requests and duplicate audit events.",
-            "Graph mutation is not applied by this connector foundation slice.",
+            "Graph mutation is only handled by the approved ontology promotion endpoint.",
         ],
     )
 

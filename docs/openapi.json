@@ -2695,6 +2695,275 @@
         "title": "ConnectorManualImportRecord",
         "type": "object"
       },
+      "ConnectorOntologyPromotionRecord": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "graph_mutation_status": {
+            "minLength": 1,
+            "title": "Graph Mutation Status",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "manual_import_id": {
+            "minLength": 1,
+            "title": "Manual Import Id",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "ontology_mutation": {
+            "$ref": "#/components/schemas/OntologyMutationResult"
+          },
+          "promotion_id": {
+            "minLength": 1,
+            "title": "Promotion Id",
+            "type": "string"
+          },
+          "promotion_mode": {
+            "minLength": 1,
+            "title": "Promotion Mode",
+            "type": "string"
+          },
+          "proposal_id": {
+            "minLength": 1,
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "promotion_id",
+          "idempotency_key",
+          "proposal_id",
+          "manual_import_id",
+          "status",
+          "promotion_mode",
+          "requested_by",
+          "graph_mutation_status",
+          "ontology_mutation",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorOntologyPromotionRecord",
+        "type": "object"
+      },
+      "ConnectorOntologyPromotionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "manual_import_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Manual Import Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "promotion_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Promotion Id",
+            "type": "string"
+          },
+          "promotion_mode": {
+            "default": "approved_manual_import",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Promotion Mode",
+            "type": "string"
+          },
+          "proposal_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "promotion_id",
+          "idempotency_key",
+          "proposal_id",
+          "manual_import_id",
+          "actor_id"
+        ],
+        "title": "ConnectorOntologyPromotionRequest",
+        "type": "object"
+      },
+      "ConnectorOntologyPromotionResult": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "format": "uuid",
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "graph_mutation_status": {
+            "minLength": 1,
+            "title": "Graph Mutation Status",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "manual_import_id": {
+            "minLength": 1,
+            "title": "Manual Import Id",
+            "type": "string"
+          },
+          "ontology_mutation": {
+            "$ref": "#/components/schemas/OntologyMutationResult"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "promotion": {
+            "$ref": "#/components/schemas/ConnectorOntologyPromotionRecord"
+          },
+          "promotion_id": {
+            "minLength": 1,
+            "title": "Promotion Id",
+            "type": "string"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/ConnectorOntologyProposalRecord"
+          },
+          "proposal_id": {
+            "minLength": 1,
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "promotion_id",
+          "proposal_id",
+          "manual_import_id",
+          "status",
+          "graph_mutation_status",
+          "actor_id",
+          "proposal",
+          "promotion",
+          "permission_decision",
+          "ontology_mutation",
+          "audit_event_id",
+          "audit_event_type"
+        ],
+        "title": "ConnectorOntologyPromotionResult",
+        "type": "object"
+      },
       "ConnectorOntologyProposalCreateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2895,10 +3164,56 @@
             "title": "Notes",
             "type": "array"
           },
+          "ontology_mutation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ontology Mutation"
+          },
           "ontology_type": {
             "minLength": 1,
             "title": "Ontology Type",
             "type": "string"
+          },
+          "promoted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promoted At"
+          },
+          "promoted_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promoted By"
+          },
+          "promotion_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promotion Id"
           },
           "proposal_id": {
             "minLength": 1,
@@ -4707,6 +5022,53 @@
           "peer_node"
         ],
         "title": "OntologyEntityRelationship",
+        "type": "object"
+      },
+      "OntologyMutationResult": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "mutation_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mutation Ref"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "typeql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typeql"
+          }
+        },
+        "required": [
+          "status",
+          "adapter"
+        ],
+        "title": "OntologyMutationResult",
         "type": "object"
       },
       "OntologyNode": {
@@ -6619,6 +6981,67 @@
           }
         },
         "summary": "Manufacturing Connector Ontology Proposal Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/ontology-proposals/promotions": {
+      "post": {
+        "operationId": "manufacturing_connector_ontology_promotion_demo_manufacturing_connectors_ontology_proposals_promotions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorOntologyPromotionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorOntologyPromotionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector ontology promotion permission denied"
+          },
+          "404": {
+            "description": "Connector ontology proposal not found"
+          },
+          "409": {
+            "description": "Connector ontology promotion idempotency conflict"
+          },
+          "422": {
+            "description": "Connector ontology promotion validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Ontology Promotion",
         "tags": [
           "demo"
         ]

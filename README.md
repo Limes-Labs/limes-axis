@@ -96,13 +96,14 @@ for connector credentials, while still refusing to store raw credential values.
 The connector run record slice adds metadata-only run records linked to
 append-only audit events, without executing connector sync. The connector
 ontology proposal slice persists preview-derived proposals for review with
-`connector.ontology_proposals.recorded` audit events and keeps graph mutation
-explicitly `not_applied`. The manual import request slice records approval,
-workflow and idempotency gates for proposal import requests with
-`connector.manual_import.requested` audit events. Manual import decisions now
-record approval outcomes, workflow signal evidence and
-`connector.manual_import.decision_recorded` audit events, while still avoiding
-connector execution, external sync and ontology graph mutation.
+`connector.ontology_proposals.recorded` audit events. The manual import request
+slice records approval, workflow and idempotency gates for proposal import
+requests with `connector.manual_import.requested` audit events. Manual import
+decisions now record approval outcomes, workflow signal evidence and
+`connector.manual_import.decision_recorded` audit events. Approved proposals can
+now be promoted through a controlled TypeDB ontology mutation boundary with
+`connector.ontology_promotion.applied` audit evidence, while still avoiding
+connector execution and external sync.
 
 ## Architecture Defaults
 

@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     typedb_address: str = Field(default="localhost:1729", alias="AXIS_TYPEDB_ADDRESS")
     typedb_username: str = Field(default="admin", alias="AXIS_TYPEDB_USERNAME")
     typedb_password: str = Field(default="password", alias="AXIS_TYPEDB_PASSWORD")
+    typedb_database: str = Field(default="axis", alias="AXIS_TYPEDB_DATABASE")
+    ontology_mutations_enabled: bool = Field(
+        default=False,
+        alias="AXIS_ONTOLOGY_MUTATIONS_ENABLED",
+    )
     temporal_address: str = Field(default="localhost:7233", alias="AXIS_TEMPORAL_ADDRESS")
     temporal_namespace: str = Field(default="default", alias="AXIS_TEMPORAL_NAMESPACE")
     temporal_signal_timeout_seconds: float = Field(

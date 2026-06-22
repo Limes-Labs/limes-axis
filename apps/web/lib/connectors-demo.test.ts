@@ -168,17 +168,27 @@ describe("manufacturing connector demo contract", () => {
       label: "Ontology Proposals",
       value: "2",
     });
+    expect(defaultConnectorOntologyProposalRegistry.metrics[1]).toMatchObject({
+      label: "Pending Review",
+      value: "1",
+    });
     expect(defaultConnectorOntologyProposalRegistry.metrics[2]).toMatchObject({
       label: "Graph Mutations",
-      value: "0",
+      value: "1",
     });
 
     const proposal = defaultConnectorOntologyProposalRegistry.proposals[0];
     expect(proposal.proposal_id).toBe("proposal_asset_line_2_packaging");
-    expect(proposal.status).toBe("proposed_from_preview");
+    expect(proposal.status).toBe("promoted_to_graph");
     expect(proposal.write_mode).toBe("proposal_only");
-    expect(proposal.graph_mutation_status).toBe("not_applied");
-    expect(proposal.audit_event_type).toBe("connector.ontology_proposals.recorded");
+    expect(proposal.graph_mutation_status).toBe("type_db_mutation_applied");
+    expect(proposal.audit_event_type).toBe("connector.ontology_promotion.applied");
+    expect(proposal.promotion_id).toBe("promote_asset_line_2_packaging_20260622");
+    expect(proposal.promoted_by).toBe("plant-operations-owner-role");
+    expect(proposal.ontology_mutation?.status).toBe("type_db_mutation_applied");
+    expect(proposal.ontology_mutation?.payload.manual_import_id).toBe(
+      "import_assets_manual_20260622",
+    );
     expect(JSON.stringify(defaultConnectorOntologyProposalRegistry).toLowerCase()).not.toContain(
       "csv_content",
     );

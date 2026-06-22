@@ -69,6 +69,14 @@ add tenant-scoped TypeDB-backed graph queries, persisted relationship metadata
 and broader graph authorization beyond the current demo relationship-scope
 checks.
 
+Connector-driven ontology mutation is handled outside the read-only explorer.
+The connector promotion endpoint can promote an approved proposal through the
+Axis ontology mutation adapter, guarded by manual import approval evidence,
+workflow signal evidence, `connectors:ontology:promote`, idempotency and
+append-only audit writes. The TypeDB schema includes manufacturing asset
+attributes needed by the promotion path: `axis_id`, `display_name`,
+`asset_type`, `domain`, `source_system_ref` and `risk_level`.
+
 ## Verification
 
 Covered by:

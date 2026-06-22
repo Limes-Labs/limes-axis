@@ -63,6 +63,15 @@ from axis_api.connector_manual_imports import (
     record_demo_connector_manual_import,
     record_demo_connector_manual_import_decision,
 )
+from axis_api.connector_ontology_promotions import (
+    ConnectorOntologyPromotionIdempotencyConflict,
+    ConnectorOntologyPromotionNotFound,
+    ConnectorOntologyPromotionPermissionDenied,
+    ConnectorOntologyPromotionRequest,
+    ConnectorOntologyPromotionResult,
+    ConnectorOntologyPromotionValidationError,
+    record_demo_connector_ontology_promotion,
+)
 from axis_api.connector_ontology_proposals import (
     ConnectorOntologyProposalCreateRequest,
     ConnectorOntologyProposalQuery,
@@ -116,6 +125,12 @@ from axis_api.identity import (
     RemoteJwksOidcVerifier,
     bind_request_actor,
 )
+from axis_api.ontology.mutations import (
+    DeferredOntologyMutationRuntime,
+    OntologyMutationRuntime,
+    TypeDBOntologyMutationConfig,
+    TypeDBOntologyMutationRuntime,
+)
 from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
 from axis_api.replay_simulation import (
@@ -150,6 +165,16 @@ def workflow_runtime(request: Request) -> WorkflowSignalRuntime:
 WorkflowRuntime = Annotated[
     WorkflowSignalRuntime,
     Depends(workflow_runtime),
+]
+
+
+def ontology_mutation_runtime(request: Request) -> OntologyMutationRuntime:
+    return request.app.state.ontology_mutation_runtime
+
+
+OntologyMutationRuntimeDependency = Annotated[
+    OntologyMutationRuntime,
+    Depends(ontology_mutation_runtime),
 ]
 
 
@@ -288,6 +313,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if resolved_settings.workflow_signals_enabled
         else DeferredWorkflowSignalRuntime()
+    )
+    app.state.ontology_mutation_runtime = (
+        TypeDBOntologyMutationRuntime(
+            TypeDBOntologyMutationConfig(
+                address=resolved_settings.typedb_address,
+                username=resolved_settings.typedb_username,
+                password=resolved_settings.typedb_password,
+                database=resolved_settings.typedb_database,
+            )
+        )
+        if resolved_settings.ontology_mutations_enabled
+        else DeferredOntologyMutationRuntime()
     )
     app.state.identity_verifier = RemoteJwksOidcVerifier(
         issuer=resolved_settings.oidc_issuer,
@@ -595,6 +632,78 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.reason,
                 },
             ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        response_model=ConnectorOntologyPromotionResult,
+        responses={
+            403: {"description": "Connector ontology promotion permission denied"},
+            404: {"description": "Connector ontology proposal not found"},
+            409: {"description": "Connector ontology promotion idempotency conflict"},
+            422: {"description": "Connector ontology promotion validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_ontology_promotion(
+        promotion_request: ConnectorOntologyPromotionRequest,
+        repository: PersistenceRepository,
+        ontology_runtime: OntologyMutationRuntimeDependency,
+        principal: OidcPrincipalDependency,
+        response: Response,
+    ) -> ConnectorOntologyPromotionResult:
+        try:
+            bound_promotion = _bind_demo_actor(promotion_request, principal)
+            result = record_demo_connector_ontology_promotion(
+                repository,
+                bound_promotion,
+                ontology_runtime,
+            )
+        except ConnectorOntologyPromotionNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Connector ontology proposal not found",
+            ) from exc
+        except ConnectorOntologyPromotionPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot promote this connector ontology proposal.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ConnectorOntologyPromotionIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The idempotency key already exists with a different payload.",
+                    "reason": "idempotency_conflict",
+                    "promotion_id": exc.promotion_id,
+                },
+            ) from exc
+        except ConnectorOntologyPromotionValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+
+        return result
 
     @app.get(
         "/demo/manufacturing/connectors/manual-imports",
