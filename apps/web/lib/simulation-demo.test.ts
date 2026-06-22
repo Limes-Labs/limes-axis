@@ -40,6 +40,23 @@ describe("manufacturing replay simulation demo contract", () => {
         (metric) => metric.label === "Persisted Outputs",
       ),
     ).toMatchObject({ value: "1" });
+    expect(
+      defaultManufacturingReplaySimulation.metrics.find(
+        (metric) => metric.label === "Replay Window",
+      ),
+    ).toMatchObject({ value: "365d" });
+    expect(
+      defaultManufacturingReplaySimulation.metrics.find(
+        (metric) => metric.label === "Retention Excluded",
+      ),
+    ).toMatchObject({ value: "0" });
+    expect(defaultManufacturingReplaySimulation.retention_window).toMatchObject({
+      policy_id: "axis-demo-replay-retention",
+      retention_days: 365,
+      retention_enforced: true,
+      disposal_action: "enforced_exclusion",
+      excluded_output_count: 0,
+    });
     expect(defaultManufacturingReplaySimulation.persisted_outputs[0]).toMatchObject({
       simulation_output_id: "replay_output_supplier_delay_review_20260622",
       audit_event_type: "simulation.replay_output.persisted",
@@ -51,6 +68,9 @@ describe("manufacturing replay simulation demo contract", () => {
     );
     expect(defaultManufacturingReplaySimulation.simulation_notes).toContain(
       "Persisted simulation outputs are governed audit artifacts with retention metadata.",
+    );
+    expect(defaultManufacturingReplaySimulation.simulation_notes).toContain(
+      "Replay retention windows are enforced at query time; legal hold suspends exclusion.",
     );
     expect(JSON.stringify(defaultManufacturingReplaySimulation).toLowerCase()).not.toContain(
       "secret",

@@ -593,6 +593,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         workflow_id: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=20, ge=1, le=100),
+        retention_days: int = Query(default=365, ge=1, le=3650),
+        legal_hold: bool = Query(default=False),
     ) -> ManufacturingReplaySimulation:
         return build_replay_simulation(
             repository,
@@ -600,6 +602,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 tenant_id=tenant_id,
                 workflow_id=workflow_id,
                 limit=limit,
+                retention_days=retention_days,
+                legal_hold=legal_hold,
             ),
         )
 

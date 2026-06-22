@@ -6109,6 +6109,9 @@
             "title": "Plant Name",
             "type": "string"
           },
+          "retention_window": {
+            "$ref": "#/components/schemas/ReplayRetentionWindow"
+          },
           "scenario": {
             "minLength": 1,
             "title": "Scenario",
@@ -6135,7 +6138,8 @@
           "plant_name",
           "scenario",
           "as_of",
-          "simulation_status"
+          "simulation_status",
+          "retention_window"
         ],
         "title": "ManufacturingReplaySimulation",
         "type": "object"
@@ -6994,6 +6998,73 @@
           "audit_event_count"
         ],
         "title": "ReplayArtifact",
+        "type": "object"
+      },
+      "ReplayRetentionWindow": {
+        "properties": {
+          "disposal_action": {
+            "minLength": 1,
+            "title": "Disposal Action",
+            "type": "string"
+          },
+          "excluded_audit_event_count": {
+            "minimum": 0.0,
+            "title": "Excluded Audit Event Count",
+            "type": "integer"
+          },
+          "excluded_output_count": {
+            "minimum": 0.0,
+            "title": "Excluded Output Count",
+            "type": "integer"
+          },
+          "excluded_timeline_event_count": {
+            "minimum": 0.0,
+            "title": "Excluded Timeline Event Count",
+            "type": "integer"
+          },
+          "legal_hold": {
+            "title": "Legal Hold",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "policy_id": {
+            "minLength": 1,
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "retention_days": {
+            "minimum": 1.0,
+            "title": "Retention Days",
+            "type": "integer"
+          },
+          "retention_enforced": {
+            "title": "Retention Enforced",
+            "type": "boolean"
+          },
+          "retention_window_start": {
+            "minLength": 1,
+            "title": "Retention Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "retention_days",
+          "legal_hold",
+          "retention_enforced",
+          "retention_window_start",
+          "disposal_action",
+          "excluded_timeline_event_count",
+          "excluded_audit_event_count",
+          "excluded_output_count"
+        ],
+        "title": "ReplayRetentionWindow",
         "type": "object"
       },
       "ReplaySimulationOutputPersistRequest": {
@@ -9553,6 +9624,28 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "retention_days",
+            "required": false,
+            "schema": {
+              "default": 365,
+              "maximum": 3650,
+              "minimum": 1,
+              "title": "Retention Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "legal_hold",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Legal Hold",
+              "type": "boolean"
             }
           }
         ],

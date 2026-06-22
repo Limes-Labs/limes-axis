@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -243,6 +243,58 @@ def test_build_replay_simulation_includes_policy_set_version_diff_preview(
     assert "credential_secret" not in diff.model_dump_json()
 
 
+def test_build_replay_simulation_enforces_retention_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        repository.append_workflow_timeline_event(
+            WorkflowTimelineEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                workflow_id="wf_supplier_delay_review",
+                sequence=3,
+                event="workflow.legacy_checkpoint",
+                occurred_at=datetime.now(UTC) - timedelta(days=90),
+                actor="axis-temporal-adapter",
+                result="expired_checkpoint",
+                summary="Legacy checkpoint outside replay retention.",
+            )
+        )
+        old_audit = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="workflow-runtime",
+                event_type="workflow.legacy_checkpoint.recorded",
+                payload={
+                    "workflow_id": "wf_supplier_delay_review",
+                    "status": "expired_checkpoint",
+                },
+            )
+        )
+        old_audit.created_at = datetime.now(UTC) - timedelta(days=90)
+        simulation = build_replay_simulation(
+            repository,
+            ReplaySimulationQuery(
+                tenant_id="tenant_demo_manufacturing",
+                retention_days=30,
+            ),
+        )
+
+    artifact = simulation.artifacts[0]
+    assert artifact.timeline_event_count == 2
+    assert artifact.audit_event_count == 2
+    assert simulation.retention_window.retention_days == 30
+    assert simulation.retention_window.retention_enforced is True
+    assert simulation.retention_window.excluded_timeline_event_count == 1
+    assert simulation.retention_window.excluded_audit_event_count == 1
+    assert simulation.retention_window.excluded_output_count == 0
+    assert "workflow.legacy_checkpoint" not in simulation.model_dump_json()
+    assert next(
+        metric for metric in simulation.metrics if metric.label == "Retention Excluded"
+    ).value == "2"
+
+
 def test_replay_simulation_output_endpoint_persists_artifact_and_audit(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -379,6 +431,82 @@ def test_replay_simulation_endpoint_includes_persisted_outputs(
     assert next(metric for metric in body["metrics"] if metric["label"] == "Persisted Outputs")[
         "value"
     ] == "1"
+    assert body["retention_window"]["retention_enforced"] is True
+    assert body["retention_window"]["excluded_output_count"] == 0
+
+
+def test_replay_simulation_endpoint_excludes_expired_persisted_outputs(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_replay_history(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    assert client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=replay_output_payload(),
+    ).status_code == 201
+    with session_factory() as session:
+        output = session.scalars(select(ReplaySimulationOutput)).one()
+        output.created_at = datetime.now(UTC) - timedelta(days=90)
+        session.commit()
+
+    response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "retention_days": 30,
+        },
+    )
+
+    client.close()
+    assert response.status_code == 200
+    body = response.json()
+    assert body["persisted_outputs"] == []
+    assert body["retention_window"]["retention_days"] == 30
+    assert body["retention_window"]["retention_enforced"] is True
+    assert body["retention_window"]["excluded_output_count"] == 1
+    assert next(
+        metric for metric in body["metrics"] if metric["label"] == "Retention Excluded"
+    )["value"] == "1"
+
+
+def test_replay_simulation_endpoint_keeps_expired_outputs_under_legal_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_replay_history(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    assert client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=replay_output_payload(),
+    ).status_code == 201
+    with session_factory() as session:
+        output = session.scalars(select(ReplaySimulationOutput)).one()
+        output.created_at = datetime.now(UTC) - timedelta(days=90)
+        session.commit()
+
+    response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "retention_days": 30,
+            "legal_hold": True,
+        },
+    )
+
+    client.close()
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["persisted_outputs"]) == 1
+    assert body["retention_window"]["retention_enforced"] is False
+    assert body["retention_window"]["excluded_output_count"] == 0
+    assert body["retention_window"]["legal_hold"] is True
 
 
 def test_build_replay_simulation_filters_by_workflow_id(

@@ -103,6 +103,11 @@ export function SimulationConsole() {
   const primaryPolicy = selectedArtifact.policy_results[0];
   const primaryPolicySetDiff = (selectedArtifact.policy_set_diffs ?? [])[0];
   const persistedOutputs = simulationData.persisted_outputs ?? [];
+  const retentionWindow = simulationData.retention_window;
+  const excludedReplayRecords =
+    retentionWindow.excluded_timeline_event_count +
+    retentionWindow.excluded_audit_event_count +
+    retentionWindow.excluded_output_count;
 
   return (
     <div className="stack">
@@ -141,6 +146,48 @@ export function SimulationConsole() {
           </article>
         ))}
       </div>
+
+      <section className="panel">
+        <div className="audit-list-header">
+          <div>
+            <p className="section-label">Replay Window</p>
+            <h2 className="panel-title">{retentionWindow.retention_days} day retention</h2>
+            <p className="row-detail mono">
+              {retentionWindow.policy_id} / {retentionWindow.disposal_action}
+            </p>
+          </div>
+          <span
+            className={`status-pill ${
+              retentionWindow.legal_hold ? "signal-watch" : "signal-ready"
+            }`}
+          >
+            <ShieldCheck size={15} />
+            {retentionWindow.legal_hold ? "legal hold" : "enforced"}
+          </span>
+        </div>
+        <div className="simulation-detail-grid">
+          <div>
+            <p className="metric-label">Window Start</p>
+            <p className="row-title">{formatReplayTime(retentionWindow.retention_window_start)}</p>
+            <p className="row-detail">{retentionWindow.retention_enforced ? "active" : "held"}</p>
+          </div>
+          <div>
+            <p className="metric-label">Timeline</p>
+            <p className="row-title">{retentionWindow.excluded_timeline_event_count} excluded</p>
+            <p className="row-detail">history events</p>
+          </div>
+          <div>
+            <p className="metric-label">Audit</p>
+            <p className="row-title">{retentionWindow.excluded_audit_event_count} excluded</p>
+            <p className="row-detail">ledger events</p>
+          </div>
+          <div>
+            <p className="metric-label">Outputs</p>
+            <p className="row-title">{retentionWindow.excluded_output_count} excluded</p>
+            <p className="row-detail">{excludedReplayRecords} total excluded</p>
+          </div>
+        </div>
+      </section>
 
       <div className="simulation-layout">
         <section className="panel">
