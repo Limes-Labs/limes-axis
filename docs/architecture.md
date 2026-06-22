@@ -16,10 +16,12 @@ flowchart LR
   API --> TypeDB["TypeDB ontology store"]
   API --> Router["Model router"]
   API --> Registry["Typed action registry"]
+  API --> Connectors["Connector manifests"]
   API --> Audit["Append-only audit ledger"]
   API --> WorkflowPort["Workflow runtime port"]
   WorkflowPort --> Temporal["Temporal OSS adapter"]
   Registry --> Permissions["RBAC, ABAC and relationship-aware checks"]
+  Connectors --> Permissions
   Permissions --> Audit
   Router --> LocalModel["Local or approved provider"]
   Router -. "blocked by default" .-> ExternalModel["External provider"]
@@ -57,6 +59,14 @@ default and must be explicitly enabled by policy. The current public Platform
 slice exposes read-only model route telemetry and synthetic cost estimates; live
 provider adapters, persisted usage records, budget enforcement and
 OpenTelemetry-emitted route spans remain behind the runtime boundary.
+
+Connector manifests sit behind an Axis connector runtime boundary. The current
+public Platform slice exposes a preview-only file/CSV manufacturing connector
+that validates rows, maps them to ontology proposals and returns redacted audit
+preview metadata without persisting raw file content, storing credentials,
+calling external systems or mutating the graph. Future connector execution must
+use credential handles, tenant-scoped permissions, append-only audit writes and
+no external egress by default.
 
 ## Identity Boundaries
 

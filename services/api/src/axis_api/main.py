@@ -28,6 +28,13 @@ from axis_api.audit_queries import (
     query_persisted_audit_events,
 )
 from axis_api.config import Settings
+from axis_api.connectors import (
+    ConnectorCsvPreviewRequest,
+    ConnectorCsvPreviewResult,
+    ManufacturingConnectorRegistry,
+    get_manufacturing_connector_registry,
+    preview_file_csv_connector,
+)
 from axis_api.db import create_session_factory, session_scope
 from axis_api.demo import (
     ManufacturingActionRegistry,
@@ -324,6 +331,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_action_registry() -> ManufacturingActionRegistry:
         return get_manufacturing_action_registry()
+
+    @app.get(
+        "/demo/manufacturing/connectors",
+        response_model=ManufacturingConnectorRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_registry() -> ManufacturingConnectorRegistry:
+        return get_manufacturing_connector_registry()
+
+    @app.post(
+        "/demo/manufacturing/connectors/file-csv/preview",
+        response_model=ConnectorCsvPreviewResult,
+        tags=["demo"],
+    )
+    def manufacturing_file_csv_connector_preview(
+        preview_request: ConnectorCsvPreviewRequest,
+    ) -> ConnectorCsvPreviewResult:
+        return preview_file_csv_connector(preview_request)
 
     @app.post(
         "/demo/manufacturing/actions/{action_id}/runs",

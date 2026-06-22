@@ -86,7 +86,11 @@ The workflow persistence slice adds Postgres-backed workflow runs and timeline
 events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts
 from workflow history and audit events, and adds a read-only `/simulation`
-console for policy preview inspection.
+console for policy preview inspection. The connector foundation adds a
+public-safe connector manifest registry, a preview-only manufacturing file/CSV
+connector and a `/connectors` console for schema mapping, permissions, runtime
+boundaries and redacted ontology proposal previews without enabling live sync
+or connector mutation.
 
 ## Architecture Defaults
 
@@ -208,6 +212,7 @@ Architecture and acceptance notes:
 - [`docs/platform-persistence.md`](./docs/platform-persistence.md)
 - [`docs/platform-model-routing.md`](./docs/platform-model-routing.md)
 - [`docs/platform-simulation.md`](./docs/platform-simulation.md)
+- [`docs/platform-connectors.md`](./docs/platform-connectors.md)
 
 Reference examples:
 

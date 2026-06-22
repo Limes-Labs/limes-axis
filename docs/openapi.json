@@ -1636,6 +1636,420 @@
         "title": "AuditRetentionPolicy",
         "type": "object"
       },
+      "ConnectorAuditEventPreview": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "event_type": {
+            "minLength": 1,
+            "title": "Event Type",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "payload_preview": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Payload Preview",
+            "type": "object"
+          },
+          "result": {
+            "minLength": 1,
+            "title": "Result",
+            "type": "string"
+          },
+          "scope": {
+            "minLength": 1,
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_type",
+          "scope",
+          "actor_id",
+          "result"
+        ],
+        "title": "ConnectorAuditEventPreview",
+        "type": "object"
+      },
+      "ConnectorCredentialRequirements": {
+        "properties": {
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "required_secret_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Secret Refs",
+            "type": "array"
+          },
+          "storage": {
+            "minLength": 1,
+            "title": "Storage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "storage"
+        ],
+        "title": "ConnectorCredentialRequirements",
+        "type": "object"
+      },
+      "ConnectorCsvPreviewRequest": {
+        "properties": {
+          "connector_id": {
+            "default": "file_csv_manufacturing_assets",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "csv_content": {
+            "minLength": 1,
+            "title": "Csv Content",
+            "type": "string"
+          },
+          "file_name": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "File Name",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_name",
+          "csv_content"
+        ],
+        "title": "ConnectorCsvPreviewRequest",
+        "type": "object"
+      },
+      "ConnectorCsvPreviewResult": {
+        "properties": {
+          "accepted_record_count": {
+            "minimum": 0.0,
+            "title": "Accepted Record Count",
+            "type": "integer"
+          },
+          "audit_event_preview": {
+            "$ref": "#/components/schemas/ConnectorAuditEventPreview"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "file_name": {
+            "minLength": 1,
+            "title": "File Name",
+            "type": "string"
+          },
+          "preview_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Preview Notes",
+            "type": "array"
+          },
+          "preview_status": {
+            "minLength": 1,
+            "title": "Preview Status",
+            "type": "string"
+          },
+          "proposed_entities": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedOntologyEntity"
+            },
+            "title": "Proposed Entities",
+            "type": "array"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "rejected_record_count": {
+            "minimum": 0.0,
+            "title": "Rejected Record Count",
+            "type": "integer"
+          },
+          "sync_mode": {
+            "minLength": 1,
+            "title": "Sync Mode",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "validation_issues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validation Issues",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "file_name",
+          "preview_status",
+          "sync_mode",
+          "record_count",
+          "accepted_record_count",
+          "rejected_record_count",
+          "audit_event_preview"
+        ],
+        "title": "ConnectorCsvPreviewResult",
+        "type": "object"
+      },
+      "ConnectorManifest": {
+        "properties": {
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "connector_type": {
+            "minLength": 1,
+            "title": "Connector Type",
+            "type": "string"
+          },
+          "credential_requirements": {
+            "$ref": "#/components/schemas/ConnectorCredentialRequirements"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "mapping_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Mapping Notes",
+            "type": "array"
+          },
+          "required_permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Permissions",
+            "type": "array"
+          },
+          "runtime_boundary": {
+            "minLength": 1,
+            "title": "Runtime Boundary",
+            "type": "string"
+          },
+          "schema_fields": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorSchemaField"
+            },
+            "title": "Schema Fields",
+            "type": "array"
+          },
+          "source_type": {
+            "minLength": 1,
+            "title": "Source Type",
+            "type": "string"
+          },
+          "sync_modes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sync Modes",
+            "type": "array"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connector_id",
+          "display_name",
+          "connector_type",
+          "version",
+          "source_type",
+          "runtime_boundary",
+          "credential_requirements"
+        ],
+        "title": "ConnectorManifest",
+        "type": "object"
+      },
+      "ConnectorPreviewSample": {
+        "properties": {
+          "file_name": {
+            "minLength": 1,
+            "title": "File Name",
+            "type": "string"
+          },
+          "headers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Headers",
+            "type": "array"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "sample_rows": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Sample Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "file_name",
+          "record_count"
+        ],
+        "title": "ConnectorPreviewSample",
+        "type": "object"
+      },
+      "ConnectorRegistryItem": {
+        "properties": {
+          "connector_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ConnectorManifest"
+          },
+          "preview_sample": {
+            "$ref": "#/components/schemas/ConnectorPreviewSample"
+          },
+          "runtime_policy": {
+            "$ref": "#/components/schemas/ConnectorRuntimePolicy"
+          }
+        },
+        "required": [
+          "manifest",
+          "runtime_policy",
+          "preview_sample",
+          "connector_status"
+        ],
+        "title": "ConnectorRegistryItem",
+        "type": "object"
+      },
+      "ConnectorRuntimePolicy": {
+        "properties": {
+          "allowed_operations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Operations",
+            "type": "array"
+          },
+          "blocked_operations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked Operations",
+            "type": "array"
+          },
+          "egress_policy": {
+            "minLength": 1,
+            "title": "Egress Policy",
+            "type": "string"
+          },
+          "max_file_size_mb": {
+            "minimum": 1.0,
+            "title": "Max File Size Mb",
+            "type": "integer"
+          },
+          "payload_policy": {
+            "minLength": 1,
+            "title": "Payload Policy",
+            "type": "string"
+          },
+          "row_limit": {
+            "minimum": 1.0,
+            "title": "Row Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "egress_policy",
+          "max_file_size_mb",
+          "row_limit",
+          "payload_policy"
+        ],
+        "title": "ConnectorRuntimePolicy",
+        "type": "object"
+      },
+      "ConnectorSchemaField": {
+        "properties": {
+          "data_type": {
+            "minLength": 1,
+            "title": "Data Type",
+            "type": "string"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "ontology_target": {
+            "minLength": 1,
+            "title": "Ontology Target",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "source_column": {
+            "minLength": 1,
+            "title": "Source Column",
+            "type": "string"
+          },
+          "target_field": {
+            "minLength": 1,
+            "title": "Target Field",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_column",
+          "target_field",
+          "ontology_target",
+          "data_type",
+          "required",
+          "description"
+        ],
+        "title": "ConnectorSchemaField",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1906,6 +2320,57 @@
           "retention_notes"
         ],
         "title": "ManufacturingAuditExplorer",
+        "type": "object"
+      },
+      "ManufacturingConnectorRegistry": {
+        "properties": {
+          "connector_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Connector Notes",
+            "type": "array"
+          },
+          "connectors": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorRegistryItem"
+            },
+            "title": "Connectors",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorRegistry",
         "type": "object"
       },
       "ManufacturingModelRouting": {
@@ -2897,6 +3362,46 @@
         "title": "PolicySimulationResult",
         "type": "object"
       },
+      "ProposedOntologyEntity": {
+        "properties": {
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "field_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Field Summary",
+            "type": "object"
+          },
+          "node_id": {
+            "minLength": 1,
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_type": {
+            "minLength": 1,
+            "title": "Node Type",
+            "type": "string"
+          },
+          "ontology_type": {
+            "minLength": 1,
+            "title": "Ontology Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "node_type",
+          "ontology_type"
+        ],
+        "title": "ProposedOntologyEntity",
+        "type": "object"
+      },
       "ReplayArtifact": {
         "properties": {
           "artifact_id": {
@@ -3882,6 +4387,68 @@
           }
         },
         "summary": "Manufacturing Persisted Audit Export",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors": {
+      "get": {
+        "operationId": "manufacturing_connector_registry_demo_manufacturing_connectors_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manufacturing Connector Registry",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/file-csv/preview": {
+      "post": {
+        "operationId": "manufacturing_file_csv_connector_preview_demo_manufacturing_connectors_file_csv_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCsvPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCsvPreviewResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing File Csv Connector Preview",
         "tags": [
           "demo"
         ]

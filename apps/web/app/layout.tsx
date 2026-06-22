@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 import {
   Bot,
+  Cable,
   Gauge,
   Network,
   ReceiptText,
@@ -26,6 +27,7 @@ const iconMap: Record<NavigationItem["icon"], ComponentType<{ size?: number }>> 
   bot: Bot,
   shield: ShieldCheck,
   receipt: ReceiptText,
+  cable: Cable,
 };
 
 function Navigation() {
