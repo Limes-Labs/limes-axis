@@ -7,7 +7,11 @@ from axis_api.audit import AuditEventCreate
 from axis_api.connectors import get_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
-from axis_api.persistence import AxisPersistenceRepository, ConnectorPromotionPolicyCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorPromotionPolicyCreate,
+    ConnectorPromotionPolicyEnableRecord,
+)
 
 
 class ConnectorPromotionPolicyValidationError(ValueError):
@@ -28,6 +32,10 @@ class ConnectorPromotionPolicyConflict(ValueError):
     def __init__(self, policy_id: str) -> None:
         super().__init__("Connector promotion policy already exists")
         self.policy_id = policy_id
+
+
+class ConnectorPromotionPolicyNotFound(LookupError):
+    pass
 
 
 class ConnectorPromotionPolicyQuery(BaseModel):
@@ -58,6 +66,19 @@ class ConnectorPromotionPolicyCreateRequest(BaseModel):
     allowed_ontology_types: list[str] = Field(default_factory=lambda: ["manufacturing_asset"])
     review_window_hours: int = Field(default=24, ge=1, le=24 * 30)
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorPromotionPolicyEnableRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    policy_id: str = Field(min_length=1, max_length=180, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    enabled_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    approval_id: str = Field(min_length=1, max_length=180)
+    approval_decision: str = Field(min_length=1, max_length=80)
+    workflow_signal_status: str = Field(min_length=1, max_length=120)
+    note: str | None = Field(default=None, max_length=600)
 
 
 class ConnectorPromotionPolicyRecord(BaseModel):
@@ -93,10 +114,13 @@ class ManufacturingConnectorPromotionPolicyRegistry(BaseModel):
 
 
 REQUIRED_AUTHORING_SCOPE = "connectors:promotion_policy:author"
+REQUIRED_ENABLE_SCOPE = "connectors:promotion_policy:enable"
 REQUIRED_PROMOTION_SCOPE = "connectors:ontology:promote"
 AUDIT_EVENT_TYPE = "connector.promotion_policy.authored"
+ENABLE_AUDIT_EVENT_TYPE = "connector.promotion_policy.enabled"
 SUPPORTED_POLICY_STATUSES = {"draft", "enabled"}
 SUPPORTED_ENFORCEMENT_MODES = {"advisory", "required"}
+SUPPORTED_ENABLE_WORKFLOW_SIGNAL_STATUS = "policy_enable_signal_recorded"
 
 
 def build_connector_promotion_policy_registry(
@@ -217,6 +241,53 @@ def record_demo_connector_promotion_policy(
     return _policy_from_record(policy)
 
 
+def enable_demo_connector_promotion_policy(
+    repository: AxisPersistenceRepository,
+    request: ConnectorPromotionPolicyEnableRequest,
+) -> ConnectorPromotionPolicyRecord:
+    policy = repository.get_connector_promotion_policy(request.tenant_id, request.policy_id)
+    if policy is None:
+        raise ConnectorPromotionPolicyNotFound()
+    _manifest_for_connector(policy.connector_id)
+    _validate_enable_request(request)
+    permission_decision = _evaluate_enable_permission(request, policy.connector_id)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.enabled_by,
+            event_type=ENABLE_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": policy.connector_id,
+                "policy_id": policy.policy_id,
+                "policy_version": policy.policy_version,
+                "previous_status": policy.status,
+                "previous_enforcement_mode": policy.enforcement_mode,
+                "status": "enabled",
+                "enforcement_mode": "required",
+                "approval_id": request.approval_id,
+                "approval_decision": request.approval_decision,
+                "workflow_signal_status": request.workflow_signal_status,
+                "required_enable_scope": REQUIRED_ENABLE_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+                "note_recorded": str(request.note is not None).lower(),
+            },
+        )
+    )
+    enabled_policy = repository.enable_connector_promotion_policy(
+        ConnectorPromotionPolicyEnableRecord(
+            tenant_id=request.tenant_id,
+            policy_id=request.policy_id,
+            status="enabled",
+            enforcement_mode="required",
+            permission_decision=permission_decision.model_dump(),
+            audit_event_id=audit_event.id,
+            audit_event_type=audit_event.event_type,
+            note=request.note,
+        )
+    )
+    return _policy_from_record(enabled_policy)
+
+
 def _evaluate_authoring_permission(
     request: ConnectorPromotionPolicyCreateRequest,
 ) -> PermissionDecision:
@@ -238,6 +309,42 @@ def _evaluate_authoring_permission(
     return decision
 
 
+def _evaluate_enable_permission(
+    request: ConnectorPromotionPolicyEnableRequest,
+    connector_id: str,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.enabled_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[REQUIRED_ENABLE_SCOPE],
+            attributes={
+                "connector_id": connector_id,
+                "policy_id": request.policy_id,
+                "approval_id": request.approval_id,
+                "workflow_signal_status": request.workflow_signal_status,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ConnectorPromotionPolicyPermissionDenied(REQUIRED_ENABLE_SCOPE, decision)
+    return decision
+
+
+def _validate_enable_request(request: ConnectorPromotionPolicyEnableRequest) -> None:
+    if request.approval_decision != "approve":
+        raise ConnectorPromotionPolicyValidationError(
+            "Connector promotion policy enablement requires an approved decision.",
+            "policy_enable_not_approved",
+        )
+    if request.workflow_signal_status != SUPPORTED_ENABLE_WORKFLOW_SIGNAL_STATUS:
+        raise ConnectorPromotionPolicyValidationError(
+            "Connector promotion policy enablement requires workflow signal evidence.",
+            "policy_enable_signal_missing",
+        )
+
+
 def _manifest_for_connector(connector_id: str):
     registry = get_manufacturing_connector_registry()
     for connector in registry.connectors:
@@ -251,6 +358,11 @@ def _manifest_for_connector(connector_id: str):
 
 def _validate_policy_status(status: str) -> None:
     if status in SUPPORTED_POLICY_STATUSES:
+        if status == "enabled":
+            raise ConnectorPromotionPolicyValidationError(
+                "Connector promotion policies must be enabled through the approval workflow.",
+                "policy_enable_requires_workflow",
+            )
         return
     raise ConnectorPromotionPolicyValidationError(
         "Connector promotion policy status must be draft or enabled.",

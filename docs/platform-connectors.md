@@ -220,22 +220,30 @@ requires `connectors:promotion_policy:author` and records:
 - append-only `connector.promotion_policy.authored` audit evidence.
 
 Authoring a policy does not execute a connector, approve a proposal or mutate
-TypeDB. When an enabled required policy exists for the connector, Axis
-auto-selects it if the promotion request omits `policy_id`, then enforces the
-required scopes, manual import status, workflow signal status, allowed risk
-levels and allowed ontology types before calling the TypeDB mutation adapter.
-Draft or advisory policies remain visible governance evidence without blocking
-promotion. If more than one enabled required policy matches the same connector,
-Axis rejects auto-selection with `promotion_policy_selection_ambiguous` until a
-versioned policy-set workflow is introduced.
+TypeDB. Creating a policy with `enabled` status is rejected; policies must be
+enabled through
+`POST /demo/manufacturing/connectors/promotion-policies/{policy_id}/enable`.
+Enablement requires `connectors:promotion_policy:enable`, an approved decision,
+workflow signal evidence and writes append-only
+`connector.promotion_policy.enabled` audit evidence. When an enabled required
+policy exists for the connector, Axis auto-selects it if the promotion request
+omits `policy_id`, then enforces the required scopes, manual import status,
+workflow signal status, allowed risk levels and allowed ontology types before
+calling the TypeDB mutation adapter. Draft or advisory policies remain visible
+governance evidence without blocking promotion. If more than one enabled
+required policy matches the same connector, Axis rejects auto-selection with
+`promotion_policy_selection_ambiguous` until a versioned policy-set workflow is
+introduced.
 
 The connector console includes a compact promotion policy authoring control for
 policy id, status and enforcement mode. When the API is available, the control
 posts to `POST /demo/manufacturing/connectors/promotion-policies`; when the API
 is unavailable, it records a local public-safe preview and refreshes the policy
-metrics. This does not add a policy approval workflow or implicit policy set
-versioning workflow; auto-selection is limited to active enabled required
-promotion policies and rejects ambiguous required policy sets.
+metrics. It also includes a compact enablement control that posts approval and
+workflow evidence to the enable endpoint or records a local public-safe preview.
+This does not add implicit policy set versioning; auto-selection is limited to
+active enabled required promotion policies and rejects ambiguous required policy
+sets.
 
 ## Manufacturing CSV Manifest
 

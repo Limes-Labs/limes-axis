@@ -3569,6 +3569,76 @@
         "title": "ConnectorPromotionPolicyDecision",
         "type": "object"
       },
+      "ConnectorPromotionPolicyEnableRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "approval_decision": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Approval Decision",
+            "type": "string"
+          },
+          "approval_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "enabled_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Enabled By",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_signal_status": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Workflow Signal Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "enabled_by",
+          "approval_id",
+          "approval_decision",
+          "workflow_signal_status"
+        ],
+        "title": "ConnectorPromotionPolicyEnableRequest",
+        "type": "object"
+      },
       "ConnectorPromotionPolicyRecord": {
         "properties": {
           "allowed_ontology_types": {
@@ -7631,6 +7701,73 @@
           }
         },
         "summary": "Manufacturing Connector Promotion Policy Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable": {
+      "post": {
+        "operationId": "manufacturing_connector_promotion_policy_enable_demo_manufacturing_connectors_promotion_policies__policy_id__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPromotionPolicyEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorPromotionPolicyRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector promotion policy enable permission denied"
+          },
+          "404": {
+            "description": "Connector promotion policy not found"
+          },
+          "422": {
+            "description": "Connector promotion policy enable validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Promotion Policy Enable",
         "tags": [
           "demo"
         ]

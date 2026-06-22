@@ -83,12 +83,15 @@ from axis_api.connector_ontology_proposals import (
 from axis_api.connector_promotion_policies import (
     ConnectorPromotionPolicyConflict,
     ConnectorPromotionPolicyCreateRequest,
+    ConnectorPromotionPolicyEnableRequest,
+    ConnectorPromotionPolicyNotFound,
     ConnectorPromotionPolicyPermissionDenied,
     ConnectorPromotionPolicyQuery,
     ConnectorPromotionPolicyRecord,
     ConnectorPromotionPolicyValidationError,
     ManufacturingConnectorPromotionPolicyRegistry,
     build_connector_promotion_policy_registry,
+    enable_demo_connector_promotion_policy,
     record_demo_connector_promotion_policy,
 )
 from axis_api.connector_runs import (
@@ -277,6 +280,39 @@ def _bind_demo_created_by(request_model, principal: OidcPrincipal | None):
     return request_model.model_copy(
         update={
             "created_by": principal.actor_id,
+            "actor_scopes": principal.scopes,
+        }
+    )
+
+
+def _bind_demo_enabled_by(request_model, principal: OidcPrincipal | None):
+    if principal is None:
+        return request_model
+
+    if principal.tenant_id != "tenant_demo_manufacturing":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    request_actor = getattr(request_model, "enabled_by", None)
+    if request_actor and request_actor != principal.actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The request actor does not match the authenticated OIDC actor.",
+                "reason": "actor_mismatch",
+            },
+        )
+
+    return request_model.model_copy(
+        update={
+            "enabled_by": principal.actor_id,
             "actor_scopes": principal.scopes,
         }
     )
@@ -818,6 +854,65 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "message": "The connector promotion policy already exists.",
                     "reason": "policy_already_exists",
                     "policy_id": exc.policy_id,
+                },
+            ) from exc
+        except ConnectorPromotionPolicyValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable",
+        response_model=ConnectorPromotionPolicyRecord,
+        responses={
+            403: {"description": "Connector promotion policy enable permission denied"},
+            404: {"description": "Connector promotion policy not found"},
+            422: {"description": "Connector promotion policy enable validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_promotion_policy_enable(
+        policy_id: str,
+        enable_request: ConnectorPromotionPolicyEnableRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> ConnectorPromotionPolicyRecord:
+        if policy_id != enable_request.policy_id:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The path policy_id must match the request policy_id.",
+                    "reason": "policy_id_mismatch",
+                },
+            )
+        try:
+            bound_request = _bind_demo_enabled_by(enable_request, principal)
+            return enable_demo_connector_promotion_policy(repository, bound_request)
+        except ConnectorPromotionPolicyNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Connector promotion policy not found",
+            ) from exc
+        except ConnectorPromotionPolicyPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot enable connector promotion policies.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
                 },
             ) from exc
         except ConnectorPromotionPolicyValidationError as exc:

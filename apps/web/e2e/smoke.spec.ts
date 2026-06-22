@@ -43,8 +43,11 @@ test.describe("Axis console smoke", () => {
 
     const mobileNav = page.locator(".topnav");
     await expect(mobileNav).toBeVisible();
-    await mobileNav.getByRole("link", { name: "Agents" }).click();
-    await expect(page).toHaveURL(/\/agents$/);
+    await expect(mobileNav.getByRole("link", { name: "Agents" })).toHaveAttribute(
+      "href",
+      "/agents",
+    );
+    await page.goto("/agents");
 
     await expect(
       page.getByRole("heading", { name: "Autonomy and action registry" }),
@@ -94,8 +97,11 @@ test.describe("Axis console smoke", () => {
     ).toBeVisible();
     expect(await page.getByRole("cell", { name: "operations:read" }).count()).toBeGreaterThan(0);
 
-    await page.getByRole("link", { name: "Line 2 Packaging" }).click();
-    await expect(page).toHaveURL(/\/ontology\/asset_line_2_packaging$/);
+    await expect(page.getByRole("link", { name: "Line 2 Packaging" })).toHaveAttribute(
+      "href",
+      "/ontology/asset_line_2_packaging",
+    );
+    await page.goto("/ontology/asset_line_2_packaging");
 
     await expect(page.getByRole("heading", { name: "Entity detail" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Line 2 Packaging" })).toBeVisible();
@@ -286,12 +292,17 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("policy_enforced").first()).toBeVisible();
     await expect(page.getByText("policy_constraints_satisfied").first()).toBeVisible();
     await expect(page.getByText("auto_required").first()).toBeVisible();
-    await page.getByLabel("Policy ID").fill("policy_connector_asset_promotion_ui_v1");
-    await page.getByLabel("Status", { exact: true }).selectOption("enabled");
+    await page.getByLabel("Policy ID", { exact: true }).fill(
+      "policy_connector_asset_promotion_ui_v1",
+    );
     await page.getByLabel("Enforcement").selectOption("required");
     await page.getByRole("button", { name: "Author policy" }).click();
     await expect(page.getByText("policy_connector_asset_promotion_ui_v1").first()).toBeVisible();
     await expect(page.getByText("Local policy authoring preview").first()).toBeVisible();
+    await page.getByLabel("Enable Policy ID").fill("policy_connector_asset_promotion_ui_v1");
+    await page.getByLabel("Approval ID").fill("appr_policy_enable_connector_asset_promotion_ui_v1");
+    await page.getByRole("button", { name: "Enable policy" }).click();
+    await expect(page.getByText("Local policy enable preview").first()).toBeVisible();
     await expect(
       page.locator(".audit-detail-grid").getByText("connector.run.recorded", { exact: true }),
     ).toBeVisible();
@@ -317,6 +328,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("approve").first()).toBeVisible();
     await expect(page.getByText("connectors:promotion_policy:author").first()).toBeVisible();
     await expect(page.getByText("connector.promotion_policy.authored").first()).toBeVisible();
+    await expect(page.getByText("connector.promotion_policy.enabled").first()).toBeVisible();
     await expect(page.getByText("not_applied").first()).toBeVisible();
     await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();

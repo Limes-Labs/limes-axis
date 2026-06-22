@@ -183,7 +183,9 @@ Delivered:
 - connector promotion policies with authoring permission evidence, required
   promotion scopes, required manual-import/workflow states, enforcement evidence
   on promotions, auto-selected required policy ids on promotion/proposal
-  records and append-only `connector.promotion_policy.authored` audit writes.
+  records, approval/workflow-gated enablement evidence and append-only
+  `connector.promotion_policy.authored` plus `connector.promotion_policy.enabled`
+  audit writes.
 
 Still Platform work:
 

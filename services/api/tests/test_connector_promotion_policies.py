@@ -6,7 +6,9 @@ from sqlalchemy.pool import StaticPool
 from axis_api.config import Settings
 from axis_api.connector_promotion_policies import (
     ConnectorPromotionPolicyCreateRequest,
+    ConnectorPromotionPolicyEnableRequest,
     build_connector_promotion_policy_registry,
+    enable_demo_connector_promotion_policy,
     record_demo_connector_promotion_policy,
 )
 from axis_api.db import session_scope
@@ -32,6 +34,19 @@ def policy_payload() -> dict:
         "allowed_ontology_types": ["manufacturing_asset"],
         "review_window_hours": 24,
         "notes": ["Policy draft for connector proposal promotion review."],
+    }
+
+
+def enable_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "policy_id": "policy_connector_asset_promotion_v1",
+        "enabled_by": "platform-governance-owner-role",
+        "actor_scopes": ["connectors:promotion_policy:enable"],
+        "approval_id": "appr_policy_enable_connector_asset_promotion_v1",
+        "approval_decision": "approve",
+        "workflow_signal_status": "policy_enable_signal_recorded",
+        "note": "Enable required policy after governance review.",
     }
 
 
@@ -104,6 +119,135 @@ def test_connector_promotion_policy_endpoint_creates_policy() -> None:
     assert policy_count == 1
 
 
+def test_enable_connector_promotion_policy_requires_approval_and_writes_audit() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_promotion_policy(
+            repository,
+            ConnectorPromotionPolicyCreateRequest(**policy_payload()),
+        )
+        enabled_policy = enable_demo_connector_promotion_policy(
+            repository,
+            ConnectorPromotionPolicyEnableRequest(**enable_payload()),
+        )
+
+    with factory() as session:
+        persisted_policy = session.scalars(select(ConnectorPromotionPolicy)).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy.enabled"
+            )
+        ).one()
+        registry = build_connector_promotion_policy_registry(
+            AxisPersistenceRepository(session),
+            tenant_id="tenant_demo_manufacturing",
+        )
+
+    client.close()
+    assert enabled_policy.status == "enabled"
+    assert enabled_policy.enforcement_mode == "required"
+    assert enabled_policy.audit_event_type == "connector.promotion_policy.enabled"
+    assert persisted_policy.status == "enabled"
+    assert persisted_policy.enforcement_mode == "required"
+    assert persisted_policy.audit_event_id == audit_event.id
+    assert audit_event.payload["approval_id"] == "appr_policy_enable_connector_asset_promotion_v1"
+    assert audit_event.payload["approval_decision"] == "approve"
+    assert audit_event.payload["workflow_signal_status"] == "policy_enable_signal_recorded"
+    assert audit_event.payload["required_enable_scope"] == "connectors:promotion_policy:enable"
+    assert registry.metrics[1].value == "0"
+    assert registry.metrics[2].value == "1"
+
+
+def test_connector_promotion_policy_enable_endpoint_updates_policy() -> None:
+    client, factory = build_test_client()
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/enable",
+        json=enable_payload(),
+    )
+
+    with factory() as session:
+        policy = session.scalars(select(ConnectorPromotionPolicy)).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy.enabled"
+            )
+        ).one()
+
+    client.close()
+    assert response.status_code == 200
+    assert response.json()["status"] == "enabled"
+    assert response.json()["enforcement_mode"] == "required"
+    assert response.json()["audit_event_type"] == "connector.promotion_policy.enabled"
+    assert policy.status == "enabled"
+    assert policy.audit_event_id == audit_event.id
+
+
+def test_connector_promotion_policy_enable_endpoint_rejects_missing_permission() -> None:
+    client, _ = build_test_client()
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+    payload = enable_payload()
+    payload["actor_scopes"] = []
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/enable",
+        json=payload,
+    )
+
+    client.close()
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+    assert response.json()["detail"]["required_permission"] == (
+        "connectors:promotion_policy:enable"
+    )
+
+
+def test_connector_promotion_policy_enable_endpoint_rejects_non_approved_decision() -> None:
+    client, _ = build_test_client()
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+    payload = enable_payload()
+    payload["approval_decision"] = "reject"
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/enable",
+        json=payload,
+    )
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_enable_not_approved"
+
+
+def test_connector_promotion_policy_enable_endpoint_rejects_path_body_mismatch() -> None:
+    client, _ = build_test_client()
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+    payload = enable_payload()
+    payload["policy_id"] = "policy_other"
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/enable",
+        json=payload,
+    )
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_id_mismatch"
+
+
 def test_connector_promotion_policy_endpoint_rejects_missing_permission() -> None:
     client, _ = build_test_client()
     payload = policy_payload()
@@ -138,6 +282,21 @@ def test_connector_promotion_policy_endpoint_rejects_duplicate_policy() -> None:
     assert first.status_code == 201
     assert second.status_code == 409
     assert second.json()["detail"]["reason"] == "policy_already_exists"
+
+
+def test_connector_promotion_policy_endpoint_rejects_direct_enabled_authoring() -> None:
+    client, _ = build_test_client()
+    payload = policy_payload()
+    payload["status"] = "enabled"
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=payload,
+    )
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_enable_requires_workflow"
 
 
 def test_connector_promotion_policy_endpoint_rejects_unsupported_connector() -> None:
@@ -180,3 +339,10 @@ def test_openapi_exposes_connector_promotion_policy_endpoints() -> None:
     assert "/demo/manufacturing/connectors/promotion-policies" in paths
     assert "get" in paths["/demo/manufacturing/connectors/promotion-policies"]
     assert "post" in paths["/demo/manufacturing/connectors/promotion-policies"]
+    assert (
+        "/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable" in paths
+    )
+    assert (
+        "post"
+        in paths["/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable"]
+    )
