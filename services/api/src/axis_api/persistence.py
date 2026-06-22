@@ -23,6 +23,7 @@ from axis_api.models import (
     ConnectorPromotionPolicySet,
     ConnectorRun,
     DemoReferenceRecord,
+    ManufacturingOperationRecord,
     ReplaySimulationOutput,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -469,6 +470,22 @@ class ConnectorManualImportDecisionRecord(BaseModel):
     workflow_signal: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str | None = None
+
+
+class ManufacturingOperationRecordCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    record_id: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    record_type: str = Field(min_length=1)
+    source_system: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    occurred_at: datetime
+    payload: dict = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    related_asset: str | None = None
+    workflow_id: str | None = None
+    risk_level: str | None = None
 
 
 class AxisPersistenceRepository:
@@ -1745,3 +1762,57 @@ class AxisPersistenceRepository:
         manual_import.updated_at = utc_now()
         self.session.flush()
         return manual_import
+
+    def create_manufacturing_operation_record(
+        self,
+        record: ManufacturingOperationRecordCreate,
+    ) -> ManufacturingOperationRecord:
+        operation_record = ManufacturingOperationRecord(
+            tenant_id=record.tenant_id,
+            record_id=record.record_id,
+            domain=record.domain,
+            record_type=record.record_type,
+            source_system=record.source_system,
+            status=record.status,
+            owner_role=record.owner_role,
+            related_asset=record.related_asset,
+            workflow_id=record.workflow_id,
+            risk_level=record.risk_level,
+            occurred_at=record.occurred_at,
+            payload=record.payload,
+            evidence_refs=record.evidence_refs,
+        )
+        self.session.add(operation_record)
+        self.session.flush()
+        return operation_record
+
+    def list_manufacturing_operation_records(
+        self,
+        tenant_id: str,
+        domain: str | None = None,
+        status: str | None = None,
+        record_type: str | None = None,
+        source_system: str | None = None,
+        limit: int = 100,
+    ) -> list[ManufacturingOperationRecord]:
+        statement: Select[tuple[ManufacturingOperationRecord]] = select(
+            ManufacturingOperationRecord
+        ).where(ManufacturingOperationRecord.tenant_id == tenant_id)
+        if domain is not None:
+            statement = statement.where(ManufacturingOperationRecord.domain == domain)
+        if status is not None:
+            statement = statement.where(ManufacturingOperationRecord.status == status)
+        if record_type is not None:
+            statement = statement.where(
+                ManufacturingOperationRecord.record_type == record_type
+            )
+        if source_system is not None:
+            statement = statement.where(
+                ManufacturingOperationRecord.source_system == source_system
+            )
+
+        statement = statement.order_by(
+            ManufacturingOperationRecord.occurred_at.desc(),
+            ManufacturingOperationRecord.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))

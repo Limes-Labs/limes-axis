@@ -166,6 +166,8 @@ Foundation acceptance is tracked in
 - [x] Remove the ontology graph/detail runtime seed factory from the API module.
 - [x] Add a module-level guard against reintroducing manufacturing runtime
   reference factories in the API module.
+- [x] Add tenant-scoped manufacturing operation records with a persisted read
+  API for production, supply, quality and maintenance reference data.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -221,6 +223,16 @@ bootstrap boundary and must be moved to persisted tenant-scoped records before
 production use. The full manufacturing reference demo remains open until it has
 live TypeDB graph response mapping, production relationship metadata, approval
 actions, workflow execution and replay backed by real persistence paths.
+
+The manufacturing operations dataset now has a dedicated persisted surface:
+`GET /demo/manufacturing/operations` reads tenant-scoped
+`manufacturing_operation_records` rows and supports server-side filters for
+domain, status, record type and source system. The first bootstrap covers
+production orders, material lots, supplier posture, quality batch evidence,
+machine status and maintenance windows as redacted business metadata from
+ERP/MES/QMS/CMMS/Supplier Portal boundaries. Live source-system queries and
+secret retrieval remain behind connector runtime, credential lease and egress
+policy boundaries.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;

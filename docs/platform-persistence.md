@@ -171,6 +171,15 @@ The thirtieth Alembic migration adds:
   permission notes used by `GET /demo/manufacturing/ontology` and
   `GET /demo/manufacturing/ontology/entities/{node_id}`.
 
+The thirty-first Alembic migration adds:
+
+- `manufacturing_operation_records`: tenant-scoped operational records keyed by
+  tenant and record id;
+- persisted public-safe production, supply, quality and maintenance records for
+  the manufacturing operations reference dataset;
+- indexes for tenant, record, domain, type, source system, status, owner role,
+  related asset, workflow and risk filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -375,6 +384,11 @@ Delivered:
   `surface=ontology/reference_id=manufacturing-ontology` to derive
   relationship scopes for typed payload fields marked as ontology references
   before action/audit state is written.
+- persisted manufacturing operation records through
+  `manufacturing_operation_records`, with
+  `/demo/manufacturing/operations` reading tenant-scoped production order,
+  material lot, supplier posture, quality batch, machine status and maintenance
+  window metadata through repository queries and server-side filters.
 
 Still Platform work:
 
