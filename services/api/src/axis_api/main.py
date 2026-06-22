@@ -211,7 +211,6 @@ from axis_api.demo import (
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
     get_manufacturing_ontology_entity_detail,
-    get_manufacturing_workflow_console,
 )
 from axis_api.demo_reference import (
     DemoReferenceRecordInvalid,
@@ -254,6 +253,11 @@ from axis_api.replay_simulation import (
     persist_replay_simulation_output,
 )
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
+from axis_api.workflow_reference import (
+    WorkflowReferenceRecordInvalid,
+    WorkflowReferenceRecordNotFound,
+    get_persisted_manufacturing_workflow_console,
+)
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     TemporalWorkflowSignalConfig,
@@ -763,10 +767,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/workflows",
         response_model=ManufacturingWorkflowConsole,
+        responses={
+            404: {"description": "Workflow console reference record not found"},
+            422: {"description": "Workflow console reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
-        return get_manufacturing_workflow_console()
+    def manufacturing_workflow_console(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingWorkflowConsole:
+        try:
+            return get_persisted_manufacturing_workflow_console(
+                repository,
+                tenant_id=tenant_id,
+            )
+        except WorkflowReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing workflow console reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "workflows",
+                },
+            ) from exc
+        except WorkflowReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing workflow console reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "workflows",
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/workflows/runs",

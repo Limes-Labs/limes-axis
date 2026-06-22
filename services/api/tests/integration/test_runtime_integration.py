@@ -74,11 +74,20 @@ def test_postgres_migration_creates_foundation_tables() -> None:
                 "AND reference_id = 'manufacturing-action-registry'"
             )
         ).scalar_one()
+        workflow_console_count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM demo_reference_records "
+                "WHERE tenant_id = 'tenant_demo_manufacturing' "
+                "AND surface = 'workflows' "
+                "AND reference_id = 'manufacturing-workflow-console'"
+            )
+        ).scalar_one()
 
     assert overview_count == 1
     assert connector_registry_count == 1
     assert agent_registry_count == 1
     assert action_registry_count == 1
+    assert workflow_console_count == 1
 
 
 def test_typedb_schema_loads_into_fresh_database() -> None:
