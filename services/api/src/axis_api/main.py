@@ -59,6 +59,11 @@ from axis_api.identity import (
 )
 from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
+from axis_api.replay_simulation import (
+    ManufacturingReplaySimulation,
+    ReplaySimulationQuery,
+    build_replay_simulation,
+)
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
@@ -282,6 +287,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return query_persisted_workflow_runs(
             repository,
             WorkflowRunQuery(tenant_id=tenant_id, state=state, limit=limit),
+        )
+
+    @app.get(
+        "/demo/manufacturing/simulation/replay",
+        response_model=ManufacturingReplaySimulation,
+        tags=["demo"],
+    )
+    def manufacturing_replay_simulation(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        workflow_id: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=20, ge=1, le=100),
+    ) -> ManufacturingReplaySimulation:
+        return build_replay_simulation(
+            repository,
+            ReplaySimulationQuery(
+                tenant_id=tenant_id,
+                workflow_id=workflow_id,
+                limit=limit,
+            ),
         )
 
     @app.get(

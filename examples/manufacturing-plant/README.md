@@ -72,6 +72,8 @@ It includes:
   detail reads and action payload resource references.
 - governance console OIDC session bridge for attaching a bearer token to
   approval, action and ontology entity detail API calls.
+- replay/simulation preview artifacts derived from workflow history and redacted
+  audit events.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
 - Postgres persistence foundation for approval records, action runs and
@@ -86,11 +88,11 @@ The reference demo should grow into an end-to-end Platform scenario:
 - TypeDB-backed ontology relationships and permission-aware graph queries;
 - broader API-backed use of Postgres approval/action/audit/workflow state;
 - full OIDC authorization-code login, refresh and secure session management;
-- deterministic workflow replay;
+- deterministic workflow replay and broader policy simulation;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;
 - audit retention deletion enforcement and legal hold workflows;
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;
-- replay and simulation artifacts.
+- persisted replay and simulation artifacts.

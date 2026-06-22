@@ -12,6 +12,7 @@ describe("foundation console contracts", () => {
       "/model-routing",
       "/approvals",
       "/audit",
+      "/simulation",
     ]);
   });
 

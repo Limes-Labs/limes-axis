@@ -225,4 +225,21 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
+
+  test("renders replay simulation artifacts", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/simulation");
+
+    await expect(page.getByRole("heading", { name: "Replay and simulation" })).toBeVisible();
+    await expect(page.getByText("Fallback replay seed")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toBeVisible();
+    await expect(page.getByText("human-approval-required").first()).toBeVisible();
+    await expect(page.getByText("blocked_until_human_approval").first()).toBeVisible();
+    await expect(page.getByText("Raw action payloads are not exposed").first()).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
 });

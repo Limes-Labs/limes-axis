@@ -250,8 +250,8 @@ def _metrics(events: list[AuditLedgerEvent]) -> list[OverviewMetric]:
         ),
         OverviewMetric(
             label="Replay",
-            value="Pending",
-            detail="Events are queryable, but replay is not implemented yet",
+            value="Preview",
+            detail="Redacted audit events can feed replay preview artifacts",
             status=OverviewStatus.WATCH,
         ),
     ]
@@ -295,7 +295,7 @@ def query_persisted_audit_events(
             "Payload previews expose governed field summaries, not raw sensitive payloads.",
             "Queries are tenant-scoped before optional event, actor and scope filters.",
             "Export manifests are available through the retention/export endpoint; "
-            "replay remains Platform work.",
+            "deterministic replay remains Platform work.",
         ],
     )
 

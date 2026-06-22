@@ -817,6 +817,13 @@ textarea {
   align-items: start;
 }
 
+.simulation-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .audit-list-header {
   display: flex;
   align-items: flex-start;
@@ -887,6 +894,29 @@ textarea {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   padding: 14px 0;
+}
+
+.simulation-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.simulation-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.simulation-policy-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.48fr);
+  gap: 16px;
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
 }
 
 .audit-columns {
@@ -1494,6 +1524,9 @@ textarea {
   .audit-layout,
   .audit-detail-grid,
   .audit-columns,
+  .simulation-layout,
+  .simulation-detail-grid,
+  .simulation-policy-band,
   .agent-layout,
   .agent-detail-grid,
   .agent-columns,

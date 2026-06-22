@@ -1293,7 +1293,7 @@ def get_manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
             OverviewMetric(
                 label="Replay",
                 value="Preview",
-                detail="History preview exists; deterministic replay remains Platform work",
+                detail="Replay preview artifacts are available in the simulation console",
                 status=OverviewStatus.WATCH,
             ),
         ],
@@ -1302,8 +1302,8 @@ def get_manufacturing_workflow_console() -> ManufacturingWorkflowConsole:
             "Temporal remains behind the Axis workflow runtime adapter boundary.",
             "Signals shown here are pending governance signals, not live production mutations.",
             (
-                "Approval decisions can signal the runtime; durable replay and persisted "
-                "history views remain Platform work."
+                "Approval decisions can signal the runtime; replay previews are available "
+                "while durable replay remains Platform work."
             ),
         ],
         workflow_runs=[
@@ -1775,8 +1775,8 @@ def get_manufacturing_audit_explorer() -> ManufacturingAuditExplorer:
             ),
             OverviewMetric(
                 label="Replay",
-                value="Pending",
-                detail="Events are shaped for replay, but replay is not implemented yet",
+                value="Preview",
+                detail="Events are shaped for the replay simulation console",
                 status=OverviewStatus.WATCH,
             ),
         ],

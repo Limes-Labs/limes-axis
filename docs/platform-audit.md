@@ -62,7 +62,7 @@ available, the page displays a local public-safe fallback bundle.
 
 This slice demonstrates the audit contract and explorer surface. It does not
 yet implement retention deletion enforcement, legal hold workflow, immutable
-storage hardening or deterministic replay.
+storage hardening or deterministic Temporal replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
@@ -75,8 +75,11 @@ Future Platform work should connect this contract to:
 
 - tenant-scoped query permissions;
 - retention deletion enforcement and legal hold workflows;
-- replay and simulation from audit/history;
 - evidence bundles for security and operations reviews.
+
+The replay/simulation foundation now consumes redacted audit metadata for
+read-only replay preview artifacts. Persisted simulation outputs, immutable
+storage hardening and retention-aware replay windows remain future work.
 
 ## Verification
 

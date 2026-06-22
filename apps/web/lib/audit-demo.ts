@@ -122,8 +122,8 @@ export const defaultManufacturingAuditExplorer: ManufacturingAuditExplorer = {
     },
     {
       label: "Replay",
-      value: "Pending",
-      detail: "Events are shaped for replay, but replay is not implemented yet",
+      value: "Preview",
+      detail: "Events are shaped for the replay simulation console",
       status: "watch",
     },
   ],

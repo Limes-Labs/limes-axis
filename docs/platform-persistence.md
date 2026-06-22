@@ -74,6 +74,8 @@ Delivered:
   event, actor, scope and limit filters.
 - redacted audit export bundles with manifest checksum, applied filters and
   retention policy metadata.
+- replay/simulation preview artifacts derived from `workflow_runs`,
+  `workflow_timeline_events` and redacted `audit_events`.
 - persisted workflow run state and tenant-scoped history views.
 
 Still Platform work:
@@ -83,4 +85,4 @@ Still Platform work:
   ontology-scope checks;
 - immutable storage hardening beyond insert-only repository shape;
 - retention deletion enforcement and legal hold workflows;
-- deterministic replay and simulation from persisted histories.
+- deterministic Temporal replay and persisted simulation outputs.
