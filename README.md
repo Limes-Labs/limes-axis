@@ -116,7 +116,10 @@ Vault/KMS adapter with `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`.
 The connector run record slice adds metadata-only run records linked to
 append-only audit events, and governed connector dry-runs now pass through a
 deferred execution adapter that writes `connector.run.execution_deferred`
-evidence without starting live sync or retrieving credential material. The
+evidence without starting live sync or retrieving credential material. Scheduled
+sync plans can also be recorded through run records with
+`connector.run.sync_scheduled` audit evidence and a deferred scheduler adapter,
+still without starting external sync. The
 connector ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

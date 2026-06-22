@@ -14,6 +14,7 @@ from axis_api.models import Base, utc_now
 from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorCredentialHandleCreate,
+    ConnectorCredentialLeaseCreate,
     ConnectorRunCreate,
 )
 
@@ -115,6 +116,40 @@ def seed_connector_credential_handle(repository: AxisPersistenceRepository) -> N
             created_by="security-owner-role",
             labels={"environment": "demo"},
             notes=["Metadata-only credential handle."],
+        )
+    )
+
+
+def seed_connector_credential_lease(repository: AxisPersistenceRepository) -> None:
+    now = utc_now()
+    repository.create_connector_credential_lease(
+        ConnectorCredentialLeaseCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            handle_id="cred_file_csv_readonly",
+            lease_id="lease_file_csv_readonly_20260622",
+            status="active",
+            lease_mode="self_hosted_vault_kms_lease",
+            runtime_boundary="axis-credential-lease-broker",
+            requested_by="axis-connector-runtime-role",
+            lease_purpose="scheduled_connector_sync",
+            secret_provider="vault-dev",
+            secret_ref="vault://axis/demo/file-csv-readonly",
+            vault_kms_policy={"ttl_seconds": "900", "max_ttl_seconds": "1800"},
+            permission_decision={"allowed": "true", "scope": "connectors:credential_lease:request"},
+            lease_result={
+                "adapter": "axis-self-hosted-vault-kms-lease-adapter",
+                "status": "lease_executed",
+                "provider_lease_ref": (
+                    "self-hosted-vault-kms://tenant_demo_manufacturing/"
+                    "lease_file_csv_readonly_20260622"
+                ),
+                "secret_material_returned": False,
+            },
+            granted_at=now,
+            expires_at=now.replace(year=now.year + 1),
+            renewal_due_at=now,
+            notes=["Active lease for scheduled sync tests."],
         )
     )
 
@@ -298,6 +333,116 @@ def test_create_connector_run_uses_deferred_execution_runtime(
     assert events[0].payload["execution_result"]["external_sync_started"] is False
     assert "vault://" not in str(events[0].payload).lower()
     assert "credential_value" not in str(events[0].payload).lower()
+
+
+def test_create_connector_run_schedules_sync_without_starting_external_sync(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_scheduled_20260622",
+            "execution_mode": "scheduled_sync_plan",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "schedule_timezone": "Europe/Rome",
+            "next_run_at": "2026-06-22T14:00:00Z",
+            "input_summary": {"source": "manufacturing-assets-demo.csv", "record_count": "2"},
+            "result_summary": {},
+            "notes": ["Schedule sync without enabling live connector execution."],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "sync_schedule_deferred"
+    assert body["execution_mode"] == "scheduled_sync_plan"
+    assert body["audit_event_type"] == "connector.run.sync_scheduled"
+    assert body["schedule_result"] == {
+        "adapter": "axis-deferred-connector-sync-scheduler",
+        "status": "sync_schedule_deferred",
+        "schedule_ref": (
+            "deferred-sync://tenant_demo_manufacturing/"
+            "schedule_file_csv_assets_hourly"
+        ),
+        "external_sync_started": False,
+        "idempotency_key": (
+            "tenant_demo_manufacturing:run_file_csv_assets_scheduled_20260622:"
+            "schedule_file_csv_assets_hourly:sync-schedule"
+        ),
+        "result_summary": {
+            "runtime_status": "schedule_deferred",
+            "external_sync_started": "false",
+            "connector_id": "file_csv_manufacturing_assets",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "next_run_at": "2026-06-22T14:00:00Z",
+        },
+        "notes": [
+            "Connector sync scheduling is deferred by the Axis runtime adapter.",
+            "No external sync, credential retrieval or graph mutation was started.",
+        ],
+    }
+    assert body["result_summary"]["sync_schedule_result"]["external_sync_started"] is False
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_scheduled",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["schedule_result"]["external_sync_started"] is False
+    assert events[0].payload["credential_lease_id"] == "lease_file_csv_readonly_20260622"
+    assert "vault://" not in str(events[0].payload).lower()
+    assert "credential_value" not in str(events[0].payload).lower()
+
+
+def test_create_connector_run_scheduled_sync_requires_active_lease(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_connector_credential_handle(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_scheduled_missing_lease",
+            "execution_mode": "scheduled_sync_plan",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "credential_lease_id": "lease_missing",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "schedule_timezone": "Europe/Rome",
+            "next_run_at": "2026-06-22T14:00:00Z",
+            "input_summary": {"source": "manufacturing-assets-demo.csv"},
+            "result_summary": {},
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "credential_lease_not_found"
 
 
 def test_create_connector_run_requires_credential_handle_for_governed_execution(

@@ -28,6 +28,37 @@ class ConnectorExecutionRuntime(Protocol):
         ...
 
 
+class ConnectorSyncScheduleRequest(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    execution_mode: str = Field(min_length=1)
+    runtime_boundary: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    credential_handle_ids: list[str] = Field(default_factory=list)
+    credential_lease_id: str = Field(min_length=1)
+    schedule_id: str = Field(min_length=1)
+    schedule_cadence: str = Field(min_length=1)
+    schedule_timezone: str = Field(min_length=1)
+    next_run_at: str = Field(min_length=1)
+    input_summary: dict[str, str] = Field(default_factory=dict)
+
+
+class ConnectorSyncScheduleResult(BaseModel):
+    adapter: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    schedule_ref: str = Field(min_length=1)
+    external_sync_started: bool
+    idempotency_key: str = Field(min_length=1)
+    result_summary: dict[str, str] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorSyncSchedulerRuntime(Protocol):
+    def schedule(self, request: ConnectorSyncScheduleRequest) -> ConnectorSyncScheduleResult:
+        ...
+
+
 class DeferredConnectorExecutionRuntime:
     adapter_name = "axis-deferred-connector-execution-adapter"
 
@@ -45,6 +76,34 @@ class DeferredConnectorExecutionRuntime:
             },
             notes=[
                 "Connector execution is deferred by the Axis runtime adapter.",
+                "No external sync, credential retrieval or graph mutation was started.",
+            ],
+        )
+
+
+class DeferredConnectorSyncSchedulerRuntime:
+    adapter_name = "axis-deferred-connector-sync-scheduler"
+
+    def schedule(self, request: ConnectorSyncScheduleRequest) -> ConnectorSyncScheduleResult:
+        return ConnectorSyncScheduleResult(
+            adapter=self.adapter_name,
+            status="sync_schedule_deferred",
+            schedule_ref=f"deferred-sync://{request.tenant_id}/{request.schedule_id}",
+            external_sync_started=False,
+            idempotency_key=(
+                f"{request.tenant_id}:{request.run_id}:{request.schedule_id}:"
+                "sync-schedule"
+            ),
+            result_summary={
+                "runtime_status": "schedule_deferred",
+                "external_sync_started": "false",
+                "connector_id": request.connector_id,
+                "schedule_id": request.schedule_id,
+                "schedule_cadence": request.schedule_cadence,
+                "next_run_at": request.next_run_at,
+            },
+            notes=[
+                "Connector sync scheduling is deferred by the Axis runtime adapter.",
                 "No external sync, credential retrieval or graph mutation was started.",
             ],
         )

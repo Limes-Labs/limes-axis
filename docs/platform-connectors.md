@@ -8,9 +8,10 @@ mapping metadata, a preview-only file/CSV connector and a metadata-only
 external database preview connector for the manufacturing reference demo. It
 also adds tenant-scoped persisted connector manifest records, the first
 tenant-scoped connector configuration records and metadata-only connector run
-records. Governed
-dry-run execution now passes through a deferred Axis connector execution
-adapter while keeping live sync disabled.
+records. Governed dry-run execution now passes through a deferred Axis
+connector execution adapter while keeping live sync disabled. Scheduled sync
+plans can now be recorded from run records through a deferred scheduler adapter,
+also without starting external sync.
 It also introduces metadata-only credential handles, rotation history and
 short-lived Vault/KMS lease records for future connector execution, without
 storing or returning raw credential material in Axis.
@@ -195,12 +196,13 @@ record includes:
 - tenant id;
 - connector id;
 - run id;
-- preview/manual-import-record/governed-dry-run execution mode;
+- preview/manual-import-record/governed-dry-run/scheduled-sync-plan execution mode;
 - runtime boundary;
 - requester role/system id;
 - credential handle ids;
 - redacted input and result summaries;
 - optional execution result metadata;
+- optional schedule result metadata;
 - linked audit event id and type;
 - run notes.
 
@@ -212,7 +214,11 @@ handle ids, calls the Axis connector execution runtime adapter, writes
 `connector.run.execution_deferred` audit evidence and records
 `external_sync_started=false`. The deferred adapter does not retrieve
 credential material, call external systems, start live sync or mutate the
-ontology graph.
+ontology graph. When `execution_mode=scheduled_sync_plan`, the endpoint also
+requires an active credential lease id, schedule id, cadence, timezone and
+next-run timestamp. It writes `connector.run.sync_scheduled`, returns a
+deferred scheduler result with `external_sync_started=false` and persists only
+public-safe schedule references.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:
@@ -432,7 +438,8 @@ The console displays:
 - tenant-scoped preview configuration;
 - credential handle references and rotation posture;
 - credential lease posture with deferred Vault/KMS adapter evidence;
-- audit-backed connector run records and deferred execution metadata;
+- audit-backed connector run records, deferred execution metadata and scheduled
+  sync plan evidence;
 - review-only ontology proposal records with graph mutation status;
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
@@ -444,7 +451,8 @@ The console displays:
 
 The page is read-only for operators. It does not upload files to storage,
 capture credentials or trigger live sync. Governed connector dry-runs are shown
-as deferred runtime evidence, not as live connector execution.
+as deferred runtime evidence, and scheduled sync plans are shown as deferred
+scheduler evidence, not as live connector execution.
 
 ## Governance Boundary
 
@@ -472,7 +480,7 @@ Future Platform work should add:
 
 - manifest lifecycle transitions beyond preview-only registration;
 - provider-specific Vault/KMS adapters beyond the self-hosted lease boundary;
-- scheduled sync lifecycle;
+- scheduled live sync execution beyond deferred schedule plans;
 - live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.
 

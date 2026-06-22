@@ -88,7 +88,10 @@ link to append-only
 `connector.run.recorded` audit events. Governed dry-run
 connector execution now calls a deferred Axis connector execution adapter,
 requires credential handle ids and writes `connector.run.execution_deferred`
-evidence while keeping `external_sync_started=false`. Connector ontology
+evidence while keeping `external_sync_started=false`. Scheduled sync plans reuse
+run records with `execution_mode=scheduled_sync_plan`, require active credential
+lease evidence and call a deferred Axis connector sync scheduler adapter that
+writes `connector.run.sync_scheduled` without starting external sync. Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records
