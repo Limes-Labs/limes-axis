@@ -295,7 +295,7 @@ Delivered:
 - persisted manufacturing action registry reference records through
   `demo_reference_records`, with the API reading
   `surface=actions/reference_id=manufacturing-action-registry`, action run
-  creation validating against that persisted record and both paths returning
+  creation validating against that persisted record, and both paths returning
   404/422 for missing or invalid persisted payloads.
 - persisted manufacturing workflow console reference records through
   `demo_reference_records`, with the API reading
@@ -320,6 +320,10 @@ Delivered:
   `demo_reference_records`, with graph and entity detail endpoints reading
   `surface=ontology/reference_id=manufacturing-ontology` before the ontology
   query runtime applies metadata and relationship-scope filtering.
+- action run creation now also reads
+  `surface=ontology/reference_id=manufacturing-ontology` to derive
+  relationship scopes for typed payload fields marked as ontology references
+  before action/audit state is written.
 
 Still Platform work:
 

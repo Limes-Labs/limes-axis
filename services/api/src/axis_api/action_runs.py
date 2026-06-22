@@ -4,10 +4,8 @@ from pydantic import BaseModel, Field
 
 from axis_api.action_reference import get_persisted_manufacturing_action_registry
 from axis_api.audit import AuditEventCreate
-from axis_api.demo import (
-    ActionRegistryEntry,
-    get_manufacturing_ontology,
-)
+from axis_api.demo import ActionRegistryEntry
+from axis_api.ontology_reference import get_persisted_manufacturing_ontology
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import ActionRunCreate, AxisPersistenceRepository
 from axis_api.workflow_runtime import (
@@ -130,12 +128,16 @@ def _payload_ontology_refs(action: ActionRegistryEntry, payload: dict) -> list[s
     return sorted(refs)
 
 
-def _relationship_scopes_for_refs(resource_refs: list[str]) -> list[str]:
+def _relationship_scopes_for_refs(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    resource_refs: list[str],
+) -> list[str]:
     if not resource_refs:
         return []
 
     ref_ids = set(resource_refs)
-    ontology = get_manufacturing_ontology()
+    ontology = get_persisted_manufacturing_ontology(repository, tenant_id=tenant_id)
     return sorted(
         {
             relationship.permission_scope
@@ -146,12 +148,13 @@ def _relationship_scopes_for_refs(resource_refs: list[str]) -> list[str]:
 
 
 def _evaluate_action_permission(
+    repository: AxisPersistenceRepository,
     tenant_id: str,
     action: ActionRegistryEntry,
     request: ActionRunRequest,
-) -> PermissionDecision:
+) -> tuple[PermissionDecision, list[str]]:
     resource_refs = _payload_ontology_refs(action, request.payload)
-    relationship_scopes = _relationship_scopes_for_refs(resource_refs)
+    relationship_scopes = _relationship_scopes_for_refs(repository, tenant_id, resource_refs)
     decision = evaluate_permission(
         PermissionRequest(
             tenant_id=tenant_id,
@@ -177,7 +180,7 @@ def _evaluate_action_permission(
             decision,
         )
 
-    return decision
+    return decision, relationship_scopes
 
 
 def _action_status(action: ActionRegistryEntry) -> str:
@@ -296,7 +299,12 @@ async def record_demo_action_run(
 ) -> ActionRunPersistenceResult:
     tenant_id, action, schema_version = _find_demo_action(repository, action_id)
     _validate_payload(action, request.payload)
-    permission_decision = _evaluate_action_permission(tenant_id, action, request)
+    permission_decision, relationship_scopes = _evaluate_action_permission(
+        repository,
+        tenant_id,
+        action,
+        request,
+    )
     idempotency_key = _idempotency_key(tenant_id, action, request)
     payload = _stored_payload(action, request, schema_version)
     runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
@@ -364,9 +372,7 @@ async def record_demo_action_run(
                 "risk_level": action.definition.risk_level.value,
                 "approval_mode": action.definition.approval_mode.value,
                 "permission_decision": permission_decision.model_dump(),
-                "relationship_scopes": _relationship_scopes_for_refs(
-                    _payload_ontology_refs(action, request.payload)
-                ),
+                "relationship_scopes": relationship_scopes,
                 "payload_field_names": sorted(request.payload.keys()),
                 "payload_recorded": "true",
                 "workflow_signal_status": workflow_signal_status,

@@ -20,6 +20,10 @@ slice does not execute production actions.
 - Action run requests validate action ids, schemas, workflow bindings and policy
   metadata against the same persisted action registry reference record instead
   of an in-route or in-service demo seed.
+- Payload fields marked as ontology resource references derive relationship
+  scopes from the active persisted ontology reference row
+  `surface=ontology/reference_id=manufacturing-ontology`; missing or invalid
+  ontology references return explicit API errors before persistence.
 - When an OIDC bearer token is present, or when auth is required by
   configuration, action run creation derives tenant, actor and scopes from token
   claims and rejects actor impersonation before persistence.
@@ -73,8 +77,8 @@ mode, actor id and scopes can still be supplied in the request body. In
 authenticated deployments, the API binds the action run to the bearer token
 principal instead. Action payloads cannot use an otherwise valid action scope
 to reference cross-domain ontology resources unless the actor also has the
-relationship scope for those resources. The action registry UI requires the API
-for catalog data. When an OIDC session is attached in the
+relationship scope for those resources from the persisted ontology reference.
+The action registry UI requires the API for catalog data. When an OIDC session is attached in the
 console toolbar, action registry fetches and action run requests include the
 bearer token. The UI does not execute production actions or connector
 mutations.
@@ -100,6 +104,8 @@ approval inbox and append-only audit ledger boundaries.
   present only in the persisted registry record.
 - Relationship-scope tests cover cross-domain ontology resource references in
   typed action payloads.
+- Relationship-scope tests also prove action runs use the persisted ontology
+  reference row, not a service-local ontology seed, for payload resource refs.
 - Web unit tests cover the OIDC session bridge token parsing and authorization
   header construction.
 - The web console shows an API-required state when action records are unavailable.
