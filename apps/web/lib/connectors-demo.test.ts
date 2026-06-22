@@ -190,7 +190,7 @@ describe("manufacturing connector demo contract", () => {
     );
   });
 
-  it("keeps connector manual import request fallback approval-gated and idempotent", () => {
+  it("keeps connector manual import request fallback approval-gated and workflow-signaled", () => {
     expect(defaultConnectorManualImportRegistry.tenant_id).toBe("tenant_demo_manufacturing");
     expect(defaultConnectorManualImportRegistry.imports).toHaveLength(1);
     expect(defaultConnectorManualImportRegistry.metrics[0]).toMatchObject({
@@ -199,24 +199,32 @@ describe("manufacturing connector demo contract", () => {
     });
     expect(defaultConnectorManualImportRegistry.metrics[1]).toMatchObject({
       label: "Approval Required",
-      value: "1",
+      value: "0",
     });
     expect(defaultConnectorManualImportRegistry.metrics[2]).toMatchObject({
+      label: "Workflow Signals",
+      value: "1",
+    });
+    expect(defaultConnectorManualImportRegistry.metrics[3]).toMatchObject({
       label: "Graph Mutations",
       value: "0",
     });
 
     const manualImport = defaultConnectorManualImportRegistry.imports[0];
     expect(manualImport.import_id).toBe("import_assets_manual_20260622");
-    expect(manualImport.status).toBe("approval_required");
+    expect(manualImport.status).toBe("approval_approved");
     expect(manualImport.import_mode).toBe("manual_import_request");
     expect(manualImport.idempotency_key).toBe("manual-import-assets-20260622");
     expect(manualImport.approval_id).toBe("appr_connector_import_assets_20260622");
     expect(manualImport.workflow_id).toBe("wf_connector_manual_import_review");
     expect(manualImport.proposal_ids).toEqual(["proposal_asset_line_2_packaging"]);
     expect(manualImport.graph_mutation_status).toBe("not_applied");
-    expect(manualImport.workflow_signal_status).toBe("pending_approval_decision");
-    expect(manualImport.audit_event_type).toBe("connector.manual_import.requested");
+    expect(manualImport.workflow_signal_status).toBe("manual_import_signal_requested");
+    expect(manualImport.audit_event_type).toBe("connector.manual_import.decision_recorded");
+    expect(manualImport.decision).toBe("approve");
+    expect(manualImport.decision_actor_id).toBe("plant-operations-owner-role");
+    expect(manualImport.workflow_signal?.signal_name).toBe("connector_manual_import_decided");
+    expect(manualImport.workflow_signal?.payload.graph_mutation_status).toBe("not_applied");
     expect(JSON.stringify(defaultConnectorManualImportRegistry).toLowerCase()).not.toContain(
       "csv_content",
     );

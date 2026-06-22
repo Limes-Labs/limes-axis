@@ -75,9 +75,13 @@ nodes for review, link to `connector.ontology_proposals.recorded` audit events
 and keep graph mutation explicitly `not_applied`. Manual import request records
 capture approval ids, workflow ids and idempotency keys for future proposal
 promotion, link to `connector.manual_import.requested` audit events and still
-keep graph mutation explicitly `not_applied`. Future connector execution must
-use those handles with tenant-scoped permissions, append-only audit writes and
-no external egress by default.
+keep graph mutation explicitly `not_applied`. Manual import decisions require
+the connector approval scope, record approval outcome metadata, signal the Axis
+workflow runtime with `connector_manual_import_decided`, link to
+`connector.manual_import.decision_recorded` audit events and still avoid
+connector execution or ontology mutation. Future connector execution must use
+those handles with tenant-scoped permissions, append-only audit writes and no
+external egress by default.
 
 ## Identity Boundaries
 

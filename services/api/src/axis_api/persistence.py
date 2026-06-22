@@ -196,9 +196,26 @@ class ConnectorManualImportRequestCreate(BaseModel):
     controls: list[str] = Field(default_factory=list)
     graph_mutation_status: str = Field(default="not_applied", min_length=1)
     workflow_signal_status: str = Field(default="pending_approval_decision", min_length=1)
+    decision: str | None = None
+    decision_actor_id: str | None = None
+    decision_note: str | None = None
+    workflow_signal: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.manual_import.requested", min_length=1)
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorManualImportDecisionRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    import_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    decision: str = Field(min_length=1)
+    decision_actor_id: str = Field(min_length=1)
+    decision_note: str | None = None
+    workflow_signal_status: str = Field(min_length=1)
+    workflow_signal: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
 
 
 class AxisPersistenceRepository:
@@ -686,6 +703,10 @@ class AxisPersistenceRepository:
             controls=record.controls,
             graph_mutation_status=record.graph_mutation_status,
             workflow_signal_status=record.workflow_signal_status,
+            decision=record.decision,
+            decision_actor_id=record.decision_actor_id,
+            decision_note=record.decision_note,
+            workflow_signal=record.workflow_signal,
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
             notes=record.notes,
@@ -693,6 +714,17 @@ class AxisPersistenceRepository:
         self.session.add(manual_import)
         self.session.flush()
         return manual_import
+
+    def get_connector_manual_import_request(
+        self,
+        tenant_id: str,
+        import_id: str,
+    ) -> ConnectorManualImportRequest | None:
+        statement = select(ConnectorManualImportRequest).where(
+            ConnectorManualImportRequest.tenant_id == tenant_id,
+            ConnectorManualImportRequest.import_id == import_id,
+        )
+        return self.session.scalars(statement).first()
 
     def get_connector_manual_import_request_by_idempotency_key(
         self,
@@ -725,3 +757,29 @@ class AxisPersistenceRepository:
             ConnectorManualImportRequest.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
+
+    def record_connector_manual_import_decision(
+        self,
+        record: ConnectorManualImportDecisionRecord,
+    ) -> ConnectorManualImportRequest:
+        manual_import = self.get_connector_manual_import_request(
+            record.tenant_id,
+            record.import_id,
+        )
+        if manual_import is None:
+            raise PersistenceRecordNotFound("Connector manual import request not found")
+
+        manual_import.status = record.status
+        manual_import.decision = record.decision
+        manual_import.decision_actor_id = record.decision_actor_id
+        manual_import.decision_note = record.decision_note
+        manual_import.decided_at = utc_now()
+        manual_import.workflow_signal_status = record.workflow_signal_status
+        manual_import.workflow_signal = record.workflow_signal
+        if record.audit_event_id is not None:
+            manual_import.audit_event_id = record.audit_event_id
+        if record.audit_event_type is not None:
+            manual_import.audit_event_type = record.audit_event_type
+        manual_import.updated_at = utc_now()
+        self.session.flush()
+        return manual_import

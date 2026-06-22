@@ -66,6 +66,54 @@ class WorkflowActionSignalRequest(BaseModel):
         }
 
 
+class WorkflowConnectorManualImportSignalRequest(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    import_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    import_mode: str = Field(min_length=1)
+    decision: ApprovalDecision
+    proposal_ids: list[str] = Field(default_factory=list)
+    graph_mutation_status: str = Field(default="not_applied", min_length=1)
+    signal_name: str = Field(default="connector_manual_import_decided", min_length=1)
+
+    @property
+    def approved(self) -> bool:
+        return self.decision == ApprovalDecision.APPROVE
+
+    @property
+    def runtime_payload(self) -> dict:
+        return {
+            "tenant_id": self.tenant_id,
+            "connector_id": self.connector_id,
+            "import_id": self.import_id,
+            "idempotency_key": self.idempotency_key,
+            "approval_id": self.approval_id,
+            "import_mode": self.import_mode,
+            "decision": self.decision.value,
+            "approved": self.approved,
+            "proposal_ids": self.proposal_ids,
+            "graph_mutation_status": self.graph_mutation_status,
+        }
+
+    @property
+    def audit_payload(self) -> dict:
+        return {
+            "connector_id": self.connector_id,
+            "import_id": self.import_id,
+            "idempotency_key": self.idempotency_key,
+            "approval_id": self.approval_id,
+            "import_mode": self.import_mode,
+            "decision": self.decision.value,
+            "approved": self.approved,
+            "proposal_ids": self.proposal_ids,
+            "proposal_count": len(self.proposal_ids),
+            "graph_mutation_status": self.graph_mutation_status,
+        }
+
+
 class WorkflowSignalRuntime(Protocol):
     async def signal_approval_decision(
         self,
@@ -76,6 +124,12 @@ class WorkflowSignalRuntime(Protocol):
     async def signal_action_run(
         self,
         request: WorkflowActionSignalRequest,
+    ) -> WorkflowSignalResult:
+        ...
+
+    async def signal_connector_manual_import(
+        self,
+        request: WorkflowConnectorManualImportSignalRequest,
     ) -> WorkflowSignalResult:
         ...
 
@@ -156,6 +210,29 @@ class TemporalWorkflowSignalRuntime:
             payload=request.audit_payload,
         )
 
+    async def signal_connector_manual_import(
+        self,
+        request: WorkflowConnectorManualImportSignalRequest,
+    ) -> WorkflowSignalResult:
+        try:
+            client = await self.client()
+            handle = client.get_workflow_handle(request.workflow_id)
+            await handle.signal(
+                request.signal_name,
+                request.runtime_payload,
+                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
+            )
+        except (OSError, RuntimeError, TemporalError, RPCError) as exc:
+            raise WorkflowSignalError(exc.__class__.__name__) from exc
+
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="manual_import_signal_requested",
+            adapter=self.adapter_name,
+            signal_name=request.signal_name,
+            payload=request.audit_payload,
+        )
+
 
 class DeferredWorkflowSignalRuntime:
     adapter_name = "axis-deferred-workflow-adapter"
@@ -188,6 +265,18 @@ class DeferredWorkflowSignalRuntime:
             payload=request.audit_payload,
         )
 
+    async def signal_connector_manual_import(
+        self,
+        request: WorkflowConnectorManualImportSignalRequest,
+    ) -> WorkflowSignalResult:
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="runtime_signal_deferred",
+            adapter=self.adapter_name,
+            signal_name=request.signal_name,
+            payload=request.audit_payload,
+        )
+
 
 def workflow_signal_failure_result(
     request: WorkflowSignalRequest,
@@ -210,6 +299,20 @@ def workflow_signal_failure_result(
 
 def workflow_action_signal_failure_result(
     request: WorkflowActionSignalRequest,
+    reason: str,
+    adapter: str = TemporalWorkflowSignalRuntime.adapter_name,
+) -> WorkflowSignalResult:
+    return WorkflowSignalResult(
+        workflow_id=request.workflow_id,
+        status="runtime_signal_unavailable",
+        adapter=adapter,
+        signal_name=request.signal_name,
+        payload={**request.audit_payload, "reason": reason},
+    )
+
+
+def workflow_connector_manual_import_signal_failure_result(
+    request: WorkflowConnectorManualImportSignalRequest,
     reason: str,
     adapter: str = TemporalWorkflowSignalRuntime.adapter_name,
 ) -> WorkflowSignalResult:

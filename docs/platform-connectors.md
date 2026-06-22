@@ -158,6 +158,8 @@ reviewed connector proposals later. A request includes:
 - required controls;
 - graph mutation status;
 - workflow signal status;
+- optional decision, actor and decision timestamp after approval review;
+- optional workflow signal evidence after the decision is recorded;
 - linked audit event id and type;
 - request notes.
 
@@ -169,6 +171,16 @@ conflict. The endpoint rejects raw payload fields and direct graph-write import
 modes; persisted requests remain approval-gated with
 `graph_mutation_status=not_applied` and
 `workflow_signal_status=pending_approval_decision`.
+
+Manual import decisions are recorded through
+`POST /demo/manufacturing/connectors/manual-imports/{import_id}/decision`.
+The decision endpoint requires `approvals:connectors:decide`, records the
+approval decision, signals the workflow runtime with
+`connector_manual_import_decided`, stores signal evidence on the import request
+and writes an append-only `connector.manual_import.decision_recorded` audit
+event. A runtime outage is captured as `runtime_signal_unavailable` instead of
+executing the connector. The graph remains `not_applied`; the decision only
+moves governance metadata forward.
 
 ## Manufacturing CSV Manifest
 
@@ -209,7 +221,7 @@ The console displays:
 - credential handle references and rotation posture;
 - audit-backed connector run records;
 - review-only ontology proposal records with graph mutation status;
-- manual import requests with approval, workflow and idempotency evidence;
+- manual import requests with approval, decision, workflow signal and idempotency evidence;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.

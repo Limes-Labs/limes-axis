@@ -5,8 +5,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
 from axis_api.connectors import get_manufacturing_connector_registry
-from axis_api.demo import OverviewMetric, OverviewStatus
-from axis_api.persistence import AxisPersistenceRepository, ConnectorManualImportRequestCreate
+from axis_api.demo import ApprovalDecision, OverviewMetric, OverviewStatus
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
+from axis_api.persistence import (
+    ApprovalDecisionRecord,
+    ApprovalRecordCreate,
+    AxisPersistenceRepository,
+    ConnectorManualImportDecisionRecord,
+    ConnectorManualImportRequestCreate,
+)
+from axis_api.workflow_runtime import (
+    DeferredWorkflowSignalRuntime,
+    WorkflowConnectorManualImportSignalRequest,
+    WorkflowSignalError,
+    WorkflowSignalResult,
+    WorkflowSignalRuntime,
+    workflow_connector_manual_import_signal_failure_result,
+)
 
 
 class ConnectorManualImportValidationError(ValueError):
@@ -20,6 +35,17 @@ class ConnectorManualImportIdempotencyConflict(ValueError):
     def __init__(self, import_id: str) -> None:
         super().__init__("Idempotency key already exists with a different payload")
         self.import_id = import_id
+
+
+class ConnectorManualImportNotFound(LookupError):
+    pass
+
+
+class ConnectorManualImportPermissionDenied(PermissionError):
+    def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.required_permission = required_permission
+        self.decision = decision
 
 
 class ConnectorManualImportQuery(BaseModel):
@@ -56,6 +82,15 @@ class ConnectorManualImportCreateRequest(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorManualImportDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: ApprovalDecision
+    actor_id: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    note: str | None = Field(default=None, max_length=600)
+
+
 class ConnectorManualImportRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -73,11 +108,32 @@ class ConnectorManualImportRecord(BaseModel):
     controls: list[str] = Field(default_factory=list)
     graph_mutation_status: str = Field(min_length=1)
     workflow_signal_status: str = Field(min_length=1)
+    decision: str | None = None
+    decision_actor_id: str | None = None
+    decision_note: str | None = None
+    decided_at: datetime | None = None
+    workflow_signal: WorkflowSignalResult | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
     created_at: datetime
     idempotent_replay: bool = False
+
+
+class ConnectorManualImportDecisionResult(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    import_id: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    decision: ApprovalDecision
+    status: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    manual_import: ConnectorManualImportRecord
+    permission_decision: PermissionDecision
+    audit_event_id: UUID
+    audit_event_type: str = Field(min_length=1)
+    workflow_signal: WorkflowSignalResult
+    workflow_signal_status: str = Field(min_length=1)
 
 
 class ManufacturingConnectorManualImportRegistry(BaseModel):
@@ -91,6 +147,8 @@ class ManufacturingConnectorManualImportRegistry(BaseModel):
 
 
 AUDIT_EVENT_TYPE = "connector.manual_import.requested"
+DECISION_AUDIT_EVENT_TYPE = "connector.manual_import.decision_recorded"
+REQUIRED_DECISION_SCOPE = "approvals:connectors:decide"
 ALLOWED_IMPORT_MODES = {"manual_import_request"}
 REQUEST_STATUS = "approval_required"
 GRAPH_MUTATION_STATUS = "not_applied"
@@ -121,6 +179,7 @@ def build_connector_manual_import_registry(
     )
     imports = [_manual_import_from_record(record) for record in records]
     approval_required = sum(1 for item in imports if item.status == REQUEST_STATUS)
+    workflow_signals = sum(1 for item in imports if item.workflow_signal is not None)
     graph_mutations = sum(
         1 for item in imports if item.graph_mutation_status != GRAPH_MUTATION_STATUS
     )
@@ -141,6 +200,12 @@ def build_connector_manual_import_registry(
                 value=str(approval_required),
                 detail="Manual imports waiting for human decision",
                 status=OverviewStatus.WATCH if approval_required else OverviewStatus.READY,
+            ),
+            OverviewMetric(
+                label="Workflow Signals",
+                value=str(workflow_signals),
+                detail="Manual import decisions signaled to the workflow runtime",
+                status=OverviewStatus.READY if workflow_signals else OverviewStatus.WATCH,
             ),
             OverviewMetric(
                 label="Graph Mutations",
@@ -230,6 +295,88 @@ def record_demo_connector_manual_import(
     return _manual_import_from_record(record)
 
 
+async def record_demo_connector_manual_import_decision(
+    repository: AxisPersistenceRepository,
+    import_id: str,
+    request: ConnectorManualImportDecisionRequest,
+    workflow_runtime: WorkflowSignalRuntime | None = None,
+    tenant_id: str = "tenant_demo_manufacturing",
+) -> ConnectorManualImportDecisionResult:
+    manual_import = repository.get_connector_manual_import_request(tenant_id, import_id)
+    if manual_import is None:
+        raise ConnectorManualImportNotFound("Connector manual import request not found")
+
+    permission_decision = _evaluate_decision_permission(manual_import, request)
+    runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
+    _ensure_approval_record(repository, manual_import)
+
+    repository.record_approval_decision(
+        ApprovalDecisionRecord(
+            tenant_id=manual_import.tenant_id,
+            approval_id=manual_import.approval_id,
+            decision=request.decision.value,
+            decision_actor_id=request.actor_id,
+            decision_note=request.note,
+        )
+    )
+    workflow_signal = await _signal_manual_import_workflow(runtime, manual_import, request)
+    status = _manual_import_status_for_decision(request.decision)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=manual_import.tenant_id,
+            actor_id=request.actor_id,
+            event_type=DECISION_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": manual_import.connector_id,
+                "import_id": manual_import.import_id,
+                "idempotency_key": manual_import.idempotency_key,
+                "approval_id": manual_import.approval_id,
+                "workflow_id": manual_import.workflow_id,
+                "import_mode": manual_import.import_mode,
+                "decision": request.decision.value,
+                "status": status,
+                "required_permission": REQUIRED_DECISION_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+                "proposal_ids": manual_import.proposal_ids,
+                "proposal_count": len(manual_import.proposal_ids),
+                "graph_mutation_status": GRAPH_MUTATION_STATUS,
+                "workflow_signal": workflow_signal.model_dump(),
+                "decision_note_recorded": str(request.note is not None).lower(),
+            },
+        )
+    )
+    updated_manual_import = repository.record_connector_manual_import_decision(
+        ConnectorManualImportDecisionRecord(
+            tenant_id=manual_import.tenant_id,
+            import_id=manual_import.import_id,
+            status=status,
+            decision=request.decision.value,
+            decision_actor_id=request.actor_id,
+            decision_note=request.note,
+            workflow_signal_status=workflow_signal.status,
+            workflow_signal=workflow_signal.model_dump(),
+            audit_event_id=audit_event.id,
+            audit_event_type=DECISION_AUDIT_EVENT_TYPE,
+        )
+    )
+
+    return ConnectorManualImportDecisionResult(
+        tenant_id=manual_import.tenant_id,
+        import_id=manual_import.import_id,
+        approval_id=manual_import.approval_id,
+        workflow_id=manual_import.workflow_id,
+        decision=request.decision,
+        status=status,
+        actor_id=request.actor_id,
+        manual_import=_manual_import_from_record(updated_manual_import),
+        permission_decision=permission_decision,
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
+        workflow_signal=workflow_signal,
+        workflow_signal_status=workflow_signal.status,
+    )
+
+
 def _manual_import_from_record(
     record,
     idempotent_replay: bool = False,
@@ -251,12 +398,108 @@ def _manual_import_from_record(
         controls=record.controls,
         graph_mutation_status=record.graph_mutation_status,
         workflow_signal_status=record.workflow_signal_status,
+        decision=record.decision,
+        decision_actor_id=record.decision_actor_id,
+        decision_note=record.decision_note,
+        decided_at=record.decided_at,
+        workflow_signal=record.workflow_signal,
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
         created_at=record.created_at,
         idempotent_replay=idempotent_replay,
     )
+
+
+def _evaluate_decision_permission(
+    manual_import,
+    request: ConnectorManualImportDecisionRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=manual_import.tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[REQUIRED_DECISION_SCOPE],
+            attributes={
+                "connector_id": manual_import.connector_id,
+                "import_id": manual_import.import_id,
+                "approval_id": manual_import.approval_id,
+                "workflow_id": manual_import.workflow_id,
+                "owner_role": manual_import.owner_role,
+                "risk_level": manual_import.risk_level,
+                "proposal_count": len(manual_import.proposal_ids),
+                "graph_mutation_status": manual_import.graph_mutation_status,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ConnectorManualImportPermissionDenied(REQUIRED_DECISION_SCOPE, decision)
+
+    return decision
+
+
+def _ensure_approval_record(repository: AxisPersistenceRepository, manual_import) -> None:
+    existing = repository.get_approval_record(manual_import.tenant_id, manual_import.approval_id)
+    if existing is not None:
+        return
+
+    repository.create_approval_record(
+        ApprovalRecordCreate(
+            tenant_id=manual_import.tenant_id,
+            approval_id=manual_import.approval_id,
+            workflow_id=manual_import.workflow_id,
+            action_id=f"connector_manual_import:{manual_import.connector_id}",
+            requested_by=manual_import.requested_by,
+            owner_role=manual_import.owner_role,
+            risk_level=manual_import.risk_level,
+            payload={
+                "connector_id": manual_import.connector_id,
+                "import_id": manual_import.import_id,
+                "idempotency_key": manual_import.idempotency_key,
+                "import_mode": manual_import.import_mode,
+                "proposal_ids": manual_import.proposal_ids,
+                "proposal_count": len(manual_import.proposal_ids),
+                "required_permission": REQUIRED_DECISION_SCOPE,
+                "graph_mutation_status": manual_import.graph_mutation_status,
+                "import_summary": manual_import.import_summary,
+            },
+        )
+    )
+
+
+async def _signal_manual_import_workflow(
+    workflow_runtime: WorkflowSignalRuntime,
+    manual_import,
+    request: ConnectorManualImportDecisionRequest,
+) -> WorkflowSignalResult:
+    signal_request = WorkflowConnectorManualImportSignalRequest(
+        tenant_id=manual_import.tenant_id,
+        workflow_id=manual_import.workflow_id,
+        connector_id=manual_import.connector_id,
+        import_id=manual_import.import_id,
+        idempotency_key=manual_import.idempotency_key,
+        approval_id=manual_import.approval_id,
+        import_mode=manual_import.import_mode,
+        decision=request.decision,
+        proposal_ids=manual_import.proposal_ids,
+        graph_mutation_status=GRAPH_MUTATION_STATUS,
+    )
+    try:
+        return await workflow_runtime.signal_connector_manual_import(signal_request)
+    except WorkflowSignalError as exc:
+        return workflow_connector_manual_import_signal_failure_result(
+            signal_request,
+            reason=str(exc),
+        )
+
+
+def _manual_import_status_for_decision(decision: ApprovalDecision) -> str:
+    if decision == ApprovalDecision.APPROVE:
+        return "approval_approved"
+    if decision == ApprovalDecision.REJECT:
+        return "approval_rejected"
+    return "changes_requested"
 
 
 def _manifest_for_connector(connector_id: str):

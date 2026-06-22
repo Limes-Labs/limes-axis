@@ -291,12 +291,14 @@ test.describe("Axis console smoke", () => {
     await expect(
       page
         .locator(".audit-detail-grid")
-        .getByText("connector.manual_import.requested", { exact: true })
+        .getByText("connector.manual_import.decision_recorded", { exact: true })
         .first(),
     ).toBeVisible();
     await expect(page.getByText("recorded_preview_only")).toBeVisible();
-    await expect(page.getByText("approval_required").first()).toBeVisible();
-    await expect(page.getByText("pending_approval_decision").first()).toBeVisible();
+    await expect(page.getByText("approval_approved").first()).toBeVisible();
+    await expect(page.getByText("manual_import_signal_requested").first()).toBeVisible();
+    await expect(page.getByText("connector_manual_import_decided").first()).toBeVisible();
+    await expect(page.getByText("approve").first()).toBeVisible();
     await expect(page.getByText("not_applied").first()).toBeVisible();
     await expect(page.getByText("Never Stored").first()).toBeVisible();
     await expect(page.getByText("manufacturing_asset_v1")).toBeVisible();

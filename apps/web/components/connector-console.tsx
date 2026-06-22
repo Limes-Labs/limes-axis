@@ -568,6 +568,20 @@ export function ConnectorConsole() {
                   <p className="row-detail">{manualImport.workflow_signal_status}</p>
                 </div>
                 <div>
+                  <p className="metric-label">Decision</p>
+                  <p className="row-title">{manualImport.decision ?? "pending"}</p>
+                  <p className="row-detail">{manualImport.decision_actor_id ?? "unassigned"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Signal</p>
+                  <p className="row-title">
+                    {manualImport.workflow_signal?.signal_name ?? "pending"}
+                  </p>
+                  <p className="row-detail">
+                    {manualImport.workflow_signal?.adapter ?? "runtime not signaled"}
+                  </p>
+                </div>
+                <div>
                   <p className="metric-label">Idempotency</p>
                   <p className="row-title">{manualImport.idempotency_key}</p>
                   <p className="row-detail">{manualImport.import_mode}</p>
