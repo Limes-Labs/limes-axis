@@ -11805,8 +11805,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "422": {
-            "description": "Connector run validation failed"
+            "description": "Connector run or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Run Create",

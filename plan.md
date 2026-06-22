@@ -262,6 +262,8 @@ Credential handle creation uses the same persisted registry reference to
 validate connector manifests before storing external secret reference metadata.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from that persisted registry reference before writing proposal/audit state.
+Connector run creation uses the same persisted registry reference before
+writing run/audit runtime boundary metadata.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
@@ -389,7 +391,8 @@ policy context before the API returns 422. If multiple required policies exist
 without an active set, Axis still rejects implicit selection.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
-run evidence, deferred execution metadata, persisted ontology proposal
+run evidence from persisted registry-backed run creation, deferred execution metadata,
+persisted ontology proposal
 evidence, promotion evidence, manual import decision evidence, promotion policy
 authoring/enforcement evidence, versioned policy-set evidence and schema
 mapping from API-backed records only.
