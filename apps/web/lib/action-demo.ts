@@ -6,7 +6,10 @@ export type ApprovalMode = "not_required" | "required" | "conditional";
 export type ActionJsonSchema = {
   type: string;
   required?: string[];
-  properties?: Record<string, { type: string; items?: { type: string } }>;
+  properties?: Record<
+    string,
+    { type: string; items?: { type: string }; "x-axis-ontology-ref"?: boolean }
+  >;
 };
 
 export type ActionDefinition = {
@@ -256,7 +259,7 @@ export const defaultManufacturingActionRegistry: ManufacturingActionRegistry = {
           type: "object",
           required: ["supplier_batch_id", "target_arrival", "reason", "cost_ceiling_eur"],
           properties: {
-            supplier_batch_id: { type: "string" },
+            supplier_batch_id: { type: "string", "x-axis-ontology-ref": true },
             target_arrival: { type: "string" },
             reason: { type: "string" },
             cost_ceiling_eur: { type: "string" },
@@ -329,7 +332,7 @@ export const defaultManufacturingActionRegistry: ManufacturingActionRegistry = {
           type: "object",
           required: ["batch_id", "hold_reason", "evidence_refs"],
           properties: {
-            batch_id: { type: "string" },
+            batch_id: { type: "string", "x-axis-ontology-ref": true },
             hold_reason: { type: "string" },
             evidence_refs: { type: "array", items: { type: "string" } },
           },
@@ -399,7 +402,7 @@ export const defaultManufacturingActionRegistry: ManufacturingActionRegistry = {
           type: "object",
           required: ["asset_id", "current_window", "proposed_window", "policy_check_id"],
           properties: {
-            asset_id: { type: "string" },
+            asset_id: { type: "string", "x-axis-ontology-ref": true },
             current_window: { type: "string" },
             proposed_window: { type: "string" },
             policy_check_id: { type: "string" },

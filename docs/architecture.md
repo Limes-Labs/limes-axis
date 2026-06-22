@@ -67,6 +67,12 @@ and scopes used by mutation endpoints. Demo request-body actor fields remain
 available only as standalone fallback metadata when OIDC auth is optional and no
 bearer token is supplied.
 
+The governance console currently includes a local session bridge that stores a
+bearer token in browser session storage, decodes actor, tenant and scopes for
+the toolbar state, and attaches `Authorization: Bearer ...` to protected demo
+API calls. This is a developer/demo bridge, not a replacement for a production
+OIDC authorization-code flow, refresh handling or secure cookie session layer.
+
 ## Permission Boundaries
 
 Axis starts with RBAC, ABAC and relationship-aware permission primitives. The

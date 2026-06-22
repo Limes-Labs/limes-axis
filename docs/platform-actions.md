@@ -61,8 +61,10 @@ authenticated deployments, the API binds the action run to the bearer token
 principal instead. Action payloads cannot use an otherwise valid action scope
 to reference cross-domain ontology resources unless the actor also has the
 relationship scope for those resources. The action registry UI still uses the
-synthetic seed for catalog data and does not execute production actions or
-connector mutations.
+synthetic seed for catalog data. When an OIDC session is attached in the
+console toolbar, action registry fetches and action run requests include the
+bearer token. The UI does not execute production actions or connector
+mutations.
 
 It does not yet include:
 
@@ -82,6 +84,8 @@ approval inbox and append-only audit ledger boundaries.
   OpenAPI generation.
 - Relationship-scope tests cover cross-domain ontology resource references in
   typed action payloads.
+- Web unit tests cover the OIDC session bridge token parsing and authorization
+  header construction.
 - The web fallback seed mirrors the API contract for offline demo rendering.
 - The web unit tests cover filtering, fallback lookup, schema formatting,
   public-safety checks, action run request building and approval-gating

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RadioTower, RotateCcw, Send, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
+import { buildAxisAuthInit } from "@/lib/oidc-session";
 import {
   actionRunWorkflowSignalLabel,
   allActionFilter,
@@ -25,6 +26,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 type ActionSource = "loading" | "api" | "fallback";
 type ActionRunSource = "api" | "local";
@@ -94,16 +96,23 @@ export function ActionRegistry() {
   );
   const [submittingActionId, setSubmittingActionId] = useState<string | null>(null);
   const apiBaseUrl = getApiBaseUrl();
+  const { session } = useOidcConsoleSession();
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function fetchActions() {
       try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/actions`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `${apiBaseUrl}/demo/manufacturing/actions`,
+          buildAxisAuthInit(
+            {
+              signal: controller.signal,
+              cache: "no-store",
+            },
+            session,
+          ),
+        );
 
         if (!response.ok) {
           throw new Error(`Action registry request failed with ${response.status}`);
@@ -125,7 +134,7 @@ export function ActionRegistry() {
     void fetchActions();
 
     return () => controller.abort();
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, session]);
 
   const filteredActions = useMemo(() => filterActions(registry, filters), [registry, filters]);
   const effectiveSelectedActionId = filteredActions.some(
@@ -165,11 +174,14 @@ export function ActionRegistry() {
     try {
       const response = await fetch(
         `${apiBaseUrl}/demo/manufacturing/actions/${action.definition.action_id}/runs`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
-        },
+        buildAxisAuthInit(
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+          },
+          session,
+        ),
       );
 
       if (!response.ok) {

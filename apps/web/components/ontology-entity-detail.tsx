@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Database, Network, RadioTower, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
+import { buildAxisAuthInit } from "@/lib/oidc-session";
 import {
   buildOntologyEntityDetail,
   defaultManufacturingOntology,
@@ -16,6 +17,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 type EntitySource = "loading" | "api" | "fallback" | "missing";
 
@@ -57,6 +59,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   );
   const [source, setSource] = useState<EntitySource>(fallbackDetail ? "loading" : "missing");
   const apiBaseUrl = getApiBaseUrl();
+  const { session } = useOidcConsoleSession();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,10 +68,13 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
       try {
         const response = await fetch(
           `${apiBaseUrl}/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId)}`,
-          {
-            signal: controller.signal,
-            cache: "no-store",
-          },
+          buildAxisAuthInit(
+            {
+              signal: controller.signal,
+              cache: "no-store",
+            },
+            session,
+          ),
         );
 
         if (!response.ok) {
@@ -88,7 +94,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     void fetchEntity();
 
     return () => controller.abort();
-  }, [apiBaseUrl, fallbackDetail, nodeId]);
+  }, [apiBaseUrl, fallbackDetail, nodeId, session]);
 
   if (!detail) {
     return (

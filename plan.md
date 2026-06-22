@@ -88,6 +88,7 @@ Foundation acceptance is tracked in
   and scopes.
 - [x] Enforce relationship-derived ontology scopes on entity detail reads and
   action payload resource references.
+- [x] Add a governance console OIDC session bridge for bearer-token API calls.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests and retention policy metadata.
 - [x] Persist workflow run state and tenant-scoped history views.
@@ -98,6 +99,13 @@ Foundation acceptance is tracked in
 The governance console overview is backed by the first public-safe synthetic
 manufacturing seed. The full manufacturing reference demo remains open until it
 has ontology relationships, approval actions, workflow execution and replay.
+
+The governance console includes a local OIDC session bridge for demo and
+developer workflows. A user can attach a bearer token in the console toolbar;
+the console decodes actor, tenant and scopes for display and sends the token as
+`Authorization: Bearer ...` to approval decision, action run and ontology entity
+detail API calls. Full OIDC authorization-code login, refresh, secure cookie
+session management and provider configuration remain Platform/Enterprise work.
 
 The ontology explorer and entity detail pages are currently read-only and backed
 by the synthetic manufacturing graph. Entity detail reads can enforce

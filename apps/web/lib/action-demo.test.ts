@@ -94,6 +94,11 @@ describe("manufacturing action registry demo contract", () => {
     expect(formatSchemaFields(supplyAction.definition.input_schema)).toContain(
       "supplier_batch_id: string (required)",
     );
+    expect(
+      supplyAction.definition.input_schema.properties?.supplier_batch_id?.[
+        "x-axis-ontology-ref"
+      ],
+    ).toBe(true);
   });
 
   it("builds typed action run requests from sample payloads", () => {

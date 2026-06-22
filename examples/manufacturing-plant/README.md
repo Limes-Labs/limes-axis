@@ -70,6 +70,8 @@ It includes:
   actor/scopes derived from bearer token claims when present or required.
 - relationship-derived permission checks for authenticated ontology entity
   detail reads and action payload resource references.
+- governance console OIDC session bridge for attaching a bearer token to
+  approval, action and ontology entity detail API calls.
 - read-only model routing telemetry with provider boundaries, egress decisions,
   synthetic token/cost estimates, required permissions and audit evidence.
 - Postgres persistence foundation for approval records, action runs and
@@ -83,6 +85,7 @@ The reference demo should grow into an end-to-end Platform scenario:
   entities;
 - TypeDB-backed ontology relationships and permission-aware graph queries;
 - broader API-backed use of Postgres approval/action/audit/workflow state;
+- full OIDC authorization-code login, refresh and secure session management;
 - deterministic workflow replay;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;

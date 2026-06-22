@@ -50,10 +50,11 @@ The page lets a reviewer select approval proposals and submit a decision. The
 console sends a typed `decision`, `actor_id`, `actor_scopes` and note payload to
 the demo API. In authenticated deployments, the API treats those actor fields as
 demo fallback metadata and binds persistence to the bearer token principal
-instead. When the request succeeds, the panel shows the persisted audit event,
-permission result and workflow signal result returned by the API. When the
-request fails, the panel keeps a browser-local preview so the standalone
-console remains usable.
+instead. When an OIDC session is attached in the console toolbar, approval
+fetches and decision submissions include the bearer token. When the request
+succeeds, the panel shows the persisted audit event, permission result and
+workflow signal result returned by the API. When the request fails, the panel
+keeps a browser-local preview so the standalone console remains usable.
 
 ## Governance Boundary
 

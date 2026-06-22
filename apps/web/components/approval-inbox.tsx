@@ -23,7 +23,9 @@ import {
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { getApiBaseUrl } from "@/lib/api-status";
+import { buildAxisAuthInit } from "@/lib/oidc-session";
 import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 type ApprovalSource = "loading" | "api" | "fallback";
 
@@ -88,16 +90,23 @@ export function ApprovalInbox() {
   );
   const [localDecisions, setLocalDecisions] = useState<Record<string, LocalApprovalDecision>>({});
   const apiBaseUrl = getApiBaseUrl();
+  const { session } = useOidcConsoleSession();
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function fetchApprovals() {
       try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/approvals`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `${apiBaseUrl}/demo/manufacturing/approvals`,
+          buildAxisAuthInit(
+            {
+              signal: controller.signal,
+              cache: "no-store",
+            },
+            session,
+          ),
+        );
 
         if (!response.ok) {
           throw new Error(`Approval inbox request failed with ${response.status}`);
@@ -119,7 +128,7 @@ export function ApprovalInbox() {
     void fetchApprovals();
 
     return () => controller.abort();
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, session]);
 
   const selectedApproval = useMemo(
     () => findApprovalById(inbox, selectedApprovalId),
@@ -161,11 +170,14 @@ export function ApprovalInbox() {
     try {
       const response = await fetch(
         `${apiBaseUrl}/demo/manufacturing/approvals/${approvalId}/decision`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildApprovalDecisionPayload(selectedApproval, option.decision)),
-        },
+        buildAxisAuthInit(
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildApprovalDecisionPayload(selectedApproval, option.decision)),
+          },
+          session,
+        ),
       );
 
       if (!response.ok) {

@@ -74,7 +74,10 @@ requests to the authenticated principal when present or required, and rejects
 actor impersonation before persistence. The relationship permission slice uses
 ontology relationship scopes to protect authenticated entity detail reads and
 to reject action payloads that reference cross-domain ontology resources without
-the required relationship scope. The audit query slice
+the required relationship scope. The governance console session bridge lets a
+user attach a bearer token for local OIDC-backed API calls, so approval submits,
+action run requests and ontology entity detail reads can exercise the same
+token-bound API paths without a full production login flow. The audit query slice
 reads persisted `audit_events` through a tenant-scoped API endpoint and keeps
 the synthetic seed as a fallback. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews and
