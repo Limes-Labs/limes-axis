@@ -1,9 +1,14 @@
+from copy import deepcopy
+from pathlib import Path
+from runpy import run_path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from axis_api.action_reference import ActionReferenceRecordNotFound
 from axis_api.action_runs import (
     ActionPayloadValidationError,
     ActionPermissionDenied,
@@ -16,7 +21,7 @@ from axis_api.db import session_scope
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import ActionRun, AuditEvent, Base
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
 from axis_api.workflow_runtime import WorkflowSignalError, WorkflowSignalResult
 
 
@@ -64,8 +69,67 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_action_registry_reference(factory)
     yield factory
     engine.dispose()
+
+
+@pytest.fixture
+def empty_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
+
+
+def action_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0025_action_registry_reference.py")
+    return deepcopy(migration["ACTION_REGISTRY_PAYLOAD"])
+
+
+def persisted_only_action_registry_payload() -> dict:
+    payload = action_registry_payload()
+    action = deepcopy(payload["actions"][0])
+    action["definition"]["action_id"] = "persisted_custom_daily_brief"
+    action["definition"]["display_name"] = "Persisted custom daily brief"
+    action["definition"]["required_permissions"] = ["actions:read"]
+    action["connected_agents"] = ["agent_persisted_daily_brief"]
+    action["workflow_bindings"] = []
+    action["approval_refs"] = []
+    payload["scenario"] = "Persisted action run registry"
+    payload["schema_version"] = "persisted-test-version"
+    payload["actions"] = [action]
+    payload["filter_options"] = {
+        "domains": ["Operations"],
+        "risk_levels": ["low"],
+        "approval_modes": ["not_required"],
+        "statuses": ["available_for_preview"],
+    }
+    return payload
+
+
+def seed_action_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or action_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="actions",
+                reference_id="manufacturing-action-registry",
+                status="active",
+                source="bootstrap",
+                version=registry_payload["schema_version"],
+                payload=registry_payload,
+            )
+        )
 
 
 def supplier_action_request(
@@ -84,6 +148,59 @@ def supplier_action_request(
             "cost_ceiling_eur": "1200",
         },
     )
+
+
+def persisted_only_action_request() -> ActionRunRequest:
+    return ActionRunRequest(
+        actor_id="agent_persisted_daily_brief",
+        actor_scopes=["actions:read"],
+        payload={
+            "tenant_id": "tenant_demo_manufacturing",
+            "scope": "daily_operations",
+            "evidence_refs": ["audit_persisted_reference"],
+        },
+    )
+
+
+def test_action_run_path_does_not_load_demo_action_registry_seed() -> None:
+    source = Path("src/axis_api/action_runs.py").read_text()
+
+    assert "get_manufacturing_action_registry" not in source
+
+
+async def test_record_demo_action_run_reads_persisted_action_registry_reference(
+    session_factory: sessionmaker[Session],
+) -> None:
+    seed_action_registry_reference(session_factory, persisted_only_action_registry_payload())
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        result = await record_demo_action_run(
+            repository,
+            "persisted_custom_daily_brief",
+            persisted_only_action_request(),
+        )
+
+    with session_factory() as session:
+        action_run = session.scalars(select(ActionRun)).one()
+
+    assert result.action_id == "persisted_custom_daily_brief"
+    assert result.status == "preview_generated"
+    assert action_run.payload["schema_version"] == "persisted-test-version"
+    assert action_run.payload["input"]["evidence_refs"] == ["audit_persisted_reference"]
+
+
+async def test_record_demo_action_run_requires_persisted_action_registry_reference(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(empty_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(ActionReferenceRecordNotFound):
+            await record_demo_action_run(
+                repository,
+                "request_supplier_expedite",
+                supplier_action_request(),
+            )
 
 
 async def test_record_demo_action_run_persists_run_and_audit_event(
@@ -414,6 +531,26 @@ def test_action_run_endpoint_binds_actor_and_scopes_from_oidc_token(
     with session_factory() as session:
         audit_event = session.scalars(select(AuditEvent)).one()
     assert audit_event.actor_id == "agent_supply_risk"
+
+
+def test_action_run_endpoint_reports_missing_action_registry_reference(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = empty_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/actions/request_supplier_expedite/runs",
+        json=supplier_action_request().model_dump(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing action registry reference record not found.",
+        "surface": "actions",
+    }
 
 
 def test_action_run_endpoint_returns_validation_and_permission_errors(

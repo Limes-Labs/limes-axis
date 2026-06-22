@@ -136,9 +136,11 @@ Foundation acceptance is tracked in
   tenant-scoped bootstrap record.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
+- [x] Persist the manufacturing action registry reference as a tenant-scoped
+  bootstrap record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview,
-  connector registry and agent registry with persisted, tenant-scoped bootstrap
-  records.
+  connector registry, agent registry and action registry with persisted,
+  tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -150,11 +152,15 @@ record is missing or invalid. The connector registry endpoint follows the same
 pattern with `surface=connectors` and
 `reference_id=manufacturing-connector-registry`. The agent registry endpoint
 also reads from `surface=agents` and
-`reference_id=manufacturing-agent-registry`. Remaining API-owned reference
-records are a bootstrap boundary and must be moved to persisted tenant-scoped
-records before production use. The full manufacturing reference demo remains
-open until it has ontology relationships, approval actions, workflow execution
-and replay backed by real persistence paths.
+`reference_id=manufacturing-agent-registry`. The action registry endpoint reads
+from `surface=actions` and `reference_id=manufacturing-action-registry`; action
+run requests validate their action definitions against that same persisted
+record before writing action/audit state.
+Remaining API-owned reference records are a bootstrap boundary and must be moved
+to persisted tenant-scoped records before production use. The full
+manufacturing reference demo remains open until it has ontology relationships,
+approval actions, workflow execution and replay backed by real persistence
+paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;

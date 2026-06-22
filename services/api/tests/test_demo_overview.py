@@ -11,6 +11,7 @@ from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.demo import (
     ApprovalDecision,
+    ManufacturingActionRegistry,
     ManufacturingAgentRegistry,
     ManufacturingOverview,
     OntologyNodeType,
@@ -144,6 +145,76 @@ def persisted_agent_registry_payload() -> dict:
             }
         ],
         "registry_notes": ["Persisted agent registry reference."],
+    }
+
+
+def persisted_action_registry_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Action Registry",
+        "as_of": "2026-06-22T10:30:00+02:00",
+        "registry_status": "ready",
+        "schema_version": "2026-06-22",
+        "metrics": [
+            {
+                "label": "Persisted Actions",
+                "value": "1 typed",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "filter_options": {
+            "domains": ["Operations"],
+            "risk_levels": ["low"],
+            "approval_modes": ["not_required"],
+            "statuses": ["ready"],
+        },
+        "actions": [
+            {
+                "definition": {
+                    "action_id": "action_persisted_daily_brief",
+                    "display_name": "Persisted daily brief",
+                    "domain": "Operations",
+                    "risk_level": "low",
+                    "approval_mode": "not_required",
+                    "input_schema": {
+                        "type": "object",
+                        "required": ["brief_date"],
+                        "properties": {"brief_date": {"type": "string"}},
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "required": ["brief_id"],
+                        "properties": {"brief_id": {"type": "string"}},
+                    },
+                    "required_permissions": ["actions:read"],
+                },
+                "description": "Persisted read-only action registry fixture.",
+                "owner_role": "plant-operations-owner",
+                "status": "ready",
+                "side_effects": "No production mutation.",
+                "policy": {
+                    "approval_role": "plant-operations-owner",
+                    "autonomy_ceiling": "L1",
+                    "execution_mode": "dry_run_only",
+                    "runtime_adapter": "axis-deferred-action-runtime",
+                    "audit_event_type": "action.preview.generated",
+                    "model_egress_policy": "local-only",
+                    "idempotency_required": True,
+                    "dry_run_supported": True,
+                },
+                "connected_agents": ["agent_persisted_daily_brief"],
+                "workflow_bindings": [],
+                "approval_refs": [],
+                "guardrails": ["No live execution."],
+                "validation_checks": ["brief_date is present"],
+                "blocked_conditions": ["live execution requested"],
+                "sample_input": {"brief_date": "2026-06-22"},
+                "sample_output": {"brief_id": "brief_persisted_20260622"},
+            }
+        ],
+        "registry_notes": ["Persisted action registry reference."],
     }
 
 
@@ -490,8 +561,124 @@ def test_manufacturing_action_registry_seed_is_policy_gated() -> None:
     assert "@" not in registry.model_dump_json()
 
 
-def test_manufacturing_action_registry_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_action_registry_reference_contract_is_valid_and_actionable() -> None:
+    registry = ManufacturingActionRegistry.model_validate(persisted_action_registry_payload())
+
+    assert registry.tenant_id == "tenant_demo_manufacturing"
+    assert registry.scenario == "Persisted Action Registry"
+    assert registry.actions[0].definition.action_id == "action_persisted_daily_brief"
+    assert registry.actions[0].policy.dry_run_supported is True
+
+
+def test_manufacturing_action_registry_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0025_action_registry_reference.py")
+
+    registry = ManufacturingActionRegistry.model_validate(migration["ACTION_REGISTRY_PAYLOAD"])
+
+    assert registry.tenant_id == "tenant_demo_manufacturing"
+    assert registry.scenario == "Plant Operations Cockpit"
+    assert len(registry.actions) == 4
+    assert any(
+        action.definition.action_id == "request_supplier_expedite" for action in registry.actions
+    )
+    serialized = registry.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_action_registry_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_action_registry()" not in source
+
+
+def test_manufacturing_action_registry_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="actions",
+                reference_id="manufacturing-action-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_action_registry_payload(),
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/actions")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["scenario"] == "Persisted Action Registry"
+    assert body["actions"][0]["definition"]["action_id"] == "action_persisted_daily_brief"
+    assert body["actions"][0]["policy"]["dry_run_supported"] is True
+    assert "password" not in str(body).lower()
+
+
+def test_manufacturing_action_registry_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/actions")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_action_registry_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_action_registry_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="actions",
+                reference_id="manufacturing-action-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/actions")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
+
+
+def test_manufacturing_action_registry_endpoint_returns_bootstrap_public_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    migration = run_path("migrations/versions/0025_action_registry_reference.py")
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="actions",
+                reference_id="manufacturing-action-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=migration["ACTION_REGISTRY_PAYLOAD"],
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/actions")
 
     assert response.status_code == 200

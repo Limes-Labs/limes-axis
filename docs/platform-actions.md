@@ -12,8 +12,14 @@ slice does not execute production actions.
 
 - `GET /demo/manufacturing/actions` returns a manufacturing action reference
   registry.
+- The registry endpoint reads the active `demo_reference_records` row for
+  `surface=actions` and `reference_id=manufacturing-action-registry`; missing
+  or invalid persisted records return explicit API errors.
 - `POST /demo/manufacturing/actions/{action_id}/runs` records a typed dry-run
   or proposal request with action idempotency enforcement and append-only audit.
+- Action run requests validate action ids, schemas, workflow bindings and policy
+  metadata against the same persisted action registry reference record instead
+  of an in-route or in-service demo seed.
 - When an OIDC bearer token is present, or when auth is required by
   configuration, action run creation derives tenant, actor and scopes from token
   claims and rejects actor impersonation before persistence.
@@ -52,6 +58,13 @@ audit explorer without enabling live mutation.
 The registry remains read-only at the catalog boundary, while action run
 requests are now persisted as dry-run/proposal records.
 
+The catalog is a bootstrap reference surface, but it is no longer constructed
+inside the FastAPI route or action-run service path. Alembic migration
+`0025_action_registry_reference` inserts the public-safe typed action catalog,
+the API validates it against the `ManufacturingActionRegistry` contract and the
+repository provides the active tenant-scoped record for both reads and action
+run creation.
+
 The Postgres persistence foundation now includes `action_runs`, action
 idempotency uniqueness and repository methods for recording action run results.
 The action run path emits a redacted workflow signal result for approval-gated
@@ -82,6 +95,9 @@ approval inbox and append-only audit ledger boundaries.
 
 - The endpoint is covered by API tests, workflow signal adapter tests and
   OpenAPI generation.
+- The persisted bootstrap payload is covered by a contract test.
+- Action run creation is covered by tests proving it can execute an action
+  present only in the persisted registry record.
 - Relationship-scope tests cover cross-domain ontology resource references in
   typed action payloads.
 - Web unit tests cover the OIDC session bridge token parsing and authorization
