@@ -500,6 +500,7 @@ class ConnectorPromotionPolicySet(Base):
         String(120),
         nullable=True,
     )
+    policy_revision_adoptions: Mapped[list] = mapped_column(JSON, nullable=False)
     notes: Mapped[list] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

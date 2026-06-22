@@ -122,7 +122,11 @@ instead of being selected implicitly; once a set is active, single-policy
 rolling back an active policy set now requires approval and workflow signal
 evidence, writes `connector.promotion_policy_set.replaced` or
 `connector.promotion_policy_set.rolled_back`, and supersedes the prior active
-set. Policy and policy-set promotion rejections now write
+set. Replacement can also adopt approved draft policy revisions atomically:
+the current required policy is superseded, the revised policy becomes
+`enabled` / `required`, `connector.promotion_policy.revision_adopted` is
+written, and the new active set stores the adoption evidence in the same
+transaction. Policy and policy-set promotion rejections now write
 `connector.ontology_promotion.rejected` audit evidence before returning the
 validation response. The connector console now includes compact policy
 authoring, enablement and policy-set evidence controls that can post to the API

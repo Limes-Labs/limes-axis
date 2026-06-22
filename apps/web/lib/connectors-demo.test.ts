@@ -344,6 +344,7 @@ describe("manufacturing connector demo contract", () => {
     expect(policySet.activation_scope).toBe("connectors:promotion_policy_set:activate");
     expect(policySet.policy_ids).toEqual(["policy_connector_asset_promotion_v1"]);
     expect(policySet.audit_event_type).toBe("connector.promotion_policy_set.activated");
+    expect(policySet.policy_revision_adoptions).toEqual([]);
     expect(policySet.replaced_by_policy_set_id).toBe(
       "policy_set_connector_asset_required_20260622_v2",
     );
@@ -365,6 +366,7 @@ describe("manufacturing connector demo contract", () => {
     expect(replacementPolicySet.replacement_workflow_signal_status).toBe(
       "policy_set_rollback_signal_recorded",
     );
+    expect(replacementPolicySet.policy_revision_adoptions).toEqual([]);
 
     const activePolicySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[2];
     expect(activePolicySet.policy_set_id).toBe(
@@ -382,6 +384,10 @@ describe("manufacturing connector demo contract", () => {
     );
     expect(activePolicySet.rollback_workflow_signal_status).toBe(
       "policy_set_rollback_signal_recorded",
+    );
+    expect(activePolicySet.policy_revision_adoptions).toEqual([]);
+    expect(defaultConnectorPromotionPolicySetRegistry.policy_set_notes).toContain(
+      "Replacement can atomically adopt approved draft policy revisions with adoption evidence.",
     );
     expect(policySet.replacement_workflow_signal_status).toBe(
       "policy_set_replacement_signal_recorded",

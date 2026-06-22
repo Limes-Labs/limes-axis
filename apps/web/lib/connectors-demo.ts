@@ -414,6 +414,17 @@ export type ManufacturingConnectorPromotionPolicyRegistry = {
   policy_notes: string[];
 };
 
+export type ConnectorPromotionPolicyRevisionAdoptionRecord = {
+  current_policy_id: string;
+  revised_policy_id: string;
+  revision_idempotency_key: string;
+  adoption_approval_id: string | null;
+  adoption_decision: string | null;
+  adoption_workflow_signal_status: string | null;
+  audit_event_id: string | null;
+  audit_event_type: string | null;
+};
+
 export type ConnectorPromotionPolicySetRecord = {
   tenant_id: string;
   connector_id: string;
@@ -440,6 +451,7 @@ export type ConnectorPromotionPolicySetRecord = {
   rollback_approval_id: string | null;
   rollback_decision: string | null;
   rollback_workflow_signal_status: string | null;
+  policy_revision_adoptions: ConnectorPromotionPolicyRevisionAdoptionRecord[];
   notes: string[];
   created_at: string;
 };
@@ -1244,6 +1256,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
         rollback_approval_id: null,
         rollback_decision: null,
         rollback_workflow_signal_status: null,
+        policy_revision_adoptions: [],
         notes: ["Superseded by a governed replacement policy set."],
         created_at: "2026-06-22T00:00:00Z",
       },
@@ -1273,6 +1286,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
         rollback_approval_id: null,
         rollback_decision: null,
         rollback_workflow_signal_status: null,
+        policy_revision_adoptions: [],
         notes: ["Superseded by a governed rollback after review."],
         created_at: "2026-06-22T01:00:00Z",
       },
@@ -1302,6 +1316,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
         rollback_approval_id: "approval_policy_set_rollback_20260622",
         rollback_decision: "approve",
         rollback_workflow_signal_status: "policy_set_rollback_signal_recorded",
+        policy_revision_adoptions: [],
         notes: ["Active rollback set restores the previous required gate with audit evidence."],
         created_at: "2026-06-22T02:00:00Z",
       },
@@ -1310,6 +1325,7 @@ export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorP
       "Policy sets version the active required gates for connector promotions.",
       "Activation requires policy-set scope and enabled required policy references.",
       "Replacing or rolling back an active set requires approval and workflow signal evidence.",
+      "Replacement can atomically adopt approved draft policy revisions with adoption evidence.",
       "Promotion auto-selection uses the active set before TypeDB mutation execution.",
     ],
   };

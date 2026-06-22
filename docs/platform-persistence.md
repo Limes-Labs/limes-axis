@@ -194,9 +194,10 @@ Delivered:
   `connector.promotion_policy_set.activated` and
   `connector.promotion_policy_set.replaced` /
   `connector.promotion_policy_set.rolled_back` audit writes, replacement and
-  rollback approval/workflow evidence, superseded prior-set records and
-  `policy_set_id` / `policy_ids` evidence on connector ontology promotions and
-  proposals.
+  rollback approval/workflow evidence, atomic approved policy-revision adoption
+  evidence through `connector.promotion_policy.revision_adopted`, superseded
+  prior-set records and `policy_set_id` / `policy_ids` evidence on connector
+  ontology promotions and proposals.
 - connector ontology promotion rejection audit events with
   `connector.ontology_promotion.rejected`, effective policy/policy-set context,
   matched constraints, violations and permission evidence when policy gates

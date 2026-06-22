@@ -640,6 +640,83 @@ def test_repository_records_connector_promotion_policy_authoring(
     assert policy.allowed_ontology_types == ["manufacturing_asset"]
 
 
+def test_repository_adopts_connector_promotion_policy_revision(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    current = repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            policy_id="policy_connector_asset_promotion_v1",
+            policy_version="2026-06-22.1",
+            status="enabled",
+            enforcement_mode="required",
+            created_by="platform-governance-owner-role",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status="approval_approved",
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=["high", "medium"],
+            allowed_ontology_types=["manufacturing_asset"],
+            review_window_hours=24,
+            audit_event_type="connector.promotion_policy.enabled",
+            notes=["Required policy enabled for connector ontology promotion."],
+        )
+    )
+    revised = repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            policy_id="policy_connector_asset_promotion_v2",
+            policy_version="2026-06-22.2",
+            status="draft",
+            enforcement_mode="advisory",
+            created_by="platform-governance-owner-role",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status="approval_approved",
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=["medium"],
+            allowed_ontology_types=["manufacturing_asset"],
+            review_window_hours=24,
+            audit_event_type="connector.promotion_policy.revised",
+            revises_policy_id="policy_connector_asset_promotion_v1",
+            revision_idempotency_key="idem_policy_revision_asset_promotion_v2",
+            revision_approval_id="approval_policy_revision_asset_promotion_v2",
+            revision_decision="approve",
+            revision_workflow_signal_status="policy_revision_signal_recorded",
+            notes=["Approved revision candidate awaiting adoption."],
+        )
+    )
+    adoption_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="platform-governance-owner-role",
+            event_type="connector.promotion_policy.revision_adopted",
+            payload={
+                "current_policy_id": current.policy_id,
+                "revised_policy_id": revised.policy_id,
+            },
+        )
+    )
+
+    adopted = repository.adopt_connector_promotion_policy_revision(
+        current,
+        revised,
+        audit_event_id=adoption_event.id,
+        audit_event_type=adoption_event.event_type,
+        note="Adopted during policy-set replacement.",
+    )
+
+    assert adopted == revised
+    assert current.status == "superseded"
+    assert current.replaced_by_policy_id == "policy_connector_asset_promotion_v2"
+    assert revised.status == "enabled"
+    assert revised.enforcement_mode == "required"
+    assert revised.audit_event_id == adoption_event.id
+    assert revised.audit_event_type == "connector.promotion_policy.revision_adopted"
+    assert "Adopted during policy-set replacement." in revised.notes
+
+
 def test_repository_records_connector_manual_import_requests_tenant_scoped_and_idempotent(
     session: Session,
 ) -> None:

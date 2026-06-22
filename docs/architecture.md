@@ -97,7 +97,10 @@ and `policy_ids` before TypeDB mutation execution. Replacing or rolling back an
 active set requires approval/workflow evidence, writes
 `connector.promotion_policy_set.replaced` or
 `connector.promotion_policy_set.rolled_back`, and supersedes the prior active
-record. Policy and policy-set rejections write
+record. Replacement can atomically adopt approved draft policy revisions,
+writing `connector.promotion_policy.revision_adopted`, superseding the current
+required policy and storing adoption evidence on the new active set. Policy and
+policy-set rejections write
 `connector.ontology_promotion.rejected` evidence before the validation response
 so failed governance checks remain replayable. The TypeDB adapter is deferred
 by default and must be explicitly enabled for graph writes. Future

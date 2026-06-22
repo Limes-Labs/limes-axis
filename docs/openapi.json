@@ -4105,6 +4105,171 @@
         "title": "ConnectorPromotionPolicyReviseRequest",
         "type": "object"
       },
+      "ConnectorPromotionPolicyRevisionAdoption": {
+        "additionalProperties": false,
+        "properties": {
+          "adoption_approval_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adoption Approval Id"
+          },
+          "adoption_decision": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adoption Decision"
+          },
+          "adoption_workflow_signal_status": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adoption Workflow Signal Status"
+          },
+          "current_policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Current Policy Id",
+            "type": "string"
+          },
+          "revised_policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Revised Policy Id",
+            "type": "string"
+          },
+          "revision_idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Revision Idempotency Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_policy_id",
+          "revised_policy_id",
+          "revision_idempotency_key"
+        ],
+        "title": "ConnectorPromotionPolicyRevisionAdoption",
+        "type": "object"
+      },
+      "ConnectorPromotionPolicyRevisionAdoptionRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "adoption_approval_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adoption Approval Id"
+          },
+          "adoption_decision": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adoption Decision"
+          },
+          "adoption_workflow_signal_status": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adoption Workflow Signal Status"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Type"
+          },
+          "current_policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Current Policy Id",
+            "type": "string"
+          },
+          "revised_policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Revised Policy Id",
+            "type": "string"
+          },
+          "revision_idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Revision Idempotency Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_policy_id",
+          "revised_policy_id",
+          "revision_idempotency_key"
+        ],
+        "title": "ConnectorPromotionPolicyRevisionAdoptionRecord",
+        "type": "object"
+      },
       "ConnectorPromotionPolicySetActivateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -4147,6 +4312,14 @@
             "maxItems": 20,
             "minItems": 1,
             "title": "Policy Ids",
+            "type": "array"
+          },
+          "policy_revision_adoptions": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorPromotionPolicyRevisionAdoption"
+            },
+            "maxItems": 20,
+            "title": "Policy Revision Adoptions",
             "type": "array"
           },
           "policy_set_id": {
@@ -4350,6 +4523,13 @@
             },
             "minItems": 1,
             "title": "Policy Ids",
+            "type": "array"
+          },
+          "policy_revision_adoptions": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorPromotionPolicyRevisionAdoptionRecord"
+            },
+            "title": "Policy Revision Adoptions",
             "type": "array"
           },
           "policy_set_id": {
