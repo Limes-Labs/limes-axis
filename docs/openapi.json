@@ -11190,8 +11190,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "422": {
-            "description": "Connector ontology proposal validation failed"
+            "description": "Connector ontology proposal or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Ontology Proposal Create",

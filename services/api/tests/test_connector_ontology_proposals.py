@@ -1,3 +1,7 @@
+from copy import deepcopy
+from pathlib import Path
+from runpy import run_path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,13 +11,21 @@ from sqlalchemy.pool import StaticPool
 from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.connector_ontology_proposals import (
+    ConnectorOntologyProposalCreateRequest,
+    ConnectorOntologyProposalEntity,
     ConnectorOntologyProposalQuery,
     build_connector_ontology_proposal_registry,
+    record_demo_connector_ontology_proposals,
 )
+from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import Base
-from axis_api.persistence import AxisPersistenceRepository, ConnectorOntologyProposalCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorOntologyProposalCreate,
+    DemoReferenceRecordCreate,
+)
 
 
 @pytest.fixture
@@ -25,8 +37,46 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_connector_registry_reference(factory)
     yield factory
     engine.dispose()
+
+
+@pytest.fixture
+def empty_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
+
+
+def connector_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
 
 
 def seed_connector_ontology_proposals(repository: AxisPersistenceRepository) -> None:
@@ -84,6 +134,78 @@ def seed_connector_ontology_proposals(repository: AxisPersistenceRepository) -> 
             audit_event_id=audit_event.id,
         )
     )
+
+
+def connector_ontology_proposal_request() -> ConnectorOntologyProposalCreateRequest:
+    return ConnectorOntologyProposalCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        connector_id="file_csv_manufacturing_assets",
+        source_run_id="run_file_csv_assets_preview_20260622",
+        source_file_name="manufacturing-assets-demo.csv",
+        mapping_profile="manufacturing_asset_v1",
+        write_mode="proposal_only",
+        proposed_by="plant-operations-owner-role",
+        proposed_entities=[
+            ConnectorOntologyProposalEntity(
+                proposal_id="proposal_asset_line_2_packaging",
+                node_id="asset_line_2_packaging",
+                node_type="asset",
+                ontology_type="manufacturing_asset",
+                field_summary={
+                    "asset_name": "Line 2 Packaging",
+                    "domain": "Operations",
+                    "station": "Line 2",
+                    "risk_level": "high",
+                },
+                evidence_refs=[
+                    "manufacturing-assets-demo.csv",
+                    "asset_line_2_packaging",
+                ],
+            )
+        ],
+        notes=["Persist preview proposal only; do not mutate the graph."],
+    )
+
+
+def test_connector_ontology_proposal_path_does_not_load_demo_connector_registry_seed() -> None:
+    source = Path("src/axis_api/connector_ontology_proposals.py").read_text()
+
+    assert "get_manufacturing_connector_registry" not in source
+
+
+def test_record_demo_connector_ontology_proposals_requires_persisted_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(empty_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(ConnectorReferenceRecordNotFound):
+            record_demo_connector_ontology_proposals(
+                repository,
+                connector_ontology_proposal_request(),
+            )
+
+
+def test_record_demo_connector_ontology_proposals_uses_persisted_connector_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][0]["manifest"]["runtime_boundary"] = (
+        "persisted-proposal-runtime-boundary"
+    )
+    seed_connector_registry_reference(session_factory, payload)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_ontology_proposals(
+            repository,
+            connector_ontology_proposal_request(),
+        )
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.ontology_proposals.recorded",
+        )
+
+    assert events[0].payload["runtime_boundary"] == "persisted-proposal-runtime-boundary"
 
 
 def test_build_connector_ontology_proposal_registry_maps_persisted_proposals(
@@ -206,6 +328,26 @@ def test_create_connector_ontology_proposals_records_audit_event(
     assert events[0].payload["write_mode"] == "proposal_only"
     assert events[0].payload["graph_mutation_status"] == "not_applied"
     assert "csv_content" not in str(events[0].payload).lower()
+
+
+def test_create_connector_ontology_proposals_endpoint_reports_missing_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = empty_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals",
+        json=connector_ontology_proposal_request().model_dump(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
 
 
 def test_create_connector_ontology_proposals_rejects_raw_payload_fields(
