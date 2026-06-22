@@ -50,6 +50,23 @@ def replacement_policy_set_payload() -> dict:
     return payload
 
 
+def rollback_policy_set_payload() -> dict:
+    payload = policy_set_payload()
+    payload.update(
+        {
+            "policy_set_id": "policy_set_connector_asset_required_20260622_rollback",
+            "policy_set_version": "2026-06-22.3",
+            "activation_reason": "Rollback active set after governance review.",
+            "replaces_policy_set_id": "policy_set_connector_asset_required_20260622_v2",
+            "rollback_to_policy_set_id": "policy_set_connector_asset_required_20260622",
+            "rollback_approval_id": "approval_policy_set_rollback_20260622",
+            "rollback_decision": "approve",
+            "rollback_workflow_signal_status": "policy_set_rollback_signal_recorded",
+        }
+    )
+    return payload
+
+
 def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
     engine = create_engine(
         "sqlite+pysqlite://",
@@ -272,6 +289,110 @@ def test_connector_promotion_policy_set_endpoint_rejects_replacement_without_app
     assert response.json()["detail"]["reason"] == "policy_set_replacement_approval_required"
     assert len(records) == 1
     assert records[0].status == "active"
+
+
+def test_connector_promotion_policy_set_endpoint_rolls_back_active_set_with_evidence() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        seed_policy_set_dependencies(AxisPersistenceRepository(session))
+
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    ).status_code == 201
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=replacement_policy_set_payload(),
+    ).status_code == 201
+
+    rollback_response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=rollback_policy_set_payload(),
+    )
+
+    with factory() as session:
+        records = {
+            record.policy_set_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicySet)).all()
+        }
+        active_records = [
+            record for record in records.values() if record.status == "active"
+        ]
+        rollback_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy_set.rolled_back"
+            )
+        ).one()
+
+    client.close()
+    assert rollback_response.status_code == 201
+    body = rollback_response.json()
+    assert body["policy_set_id"] == "policy_set_connector_asset_required_20260622_rollback"
+    assert body["status"] == "active"
+    assert body["audit_event_type"] == "connector.promotion_policy_set.rolled_back"
+    assert body["replaces_policy_set_id"] == "policy_set_connector_asset_required_20260622_v2"
+    assert body["rollback_to_policy_set_id"] == "policy_set_connector_asset_required_20260622"
+    assert body["rollback_approval_id"] == "approval_policy_set_rollback_20260622"
+    assert body["rollback_decision"] == "approve"
+    assert body["rollback_workflow_signal_status"] == "policy_set_rollback_signal_recorded"
+    assert len(records) == 3
+    assert len(active_records) == 1
+    assert active_records[0].policy_set_id == (
+        "policy_set_connector_asset_required_20260622_rollback"
+    )
+    assert records["policy_set_connector_asset_required_20260622_v2"].status == "superseded"
+    assert records["policy_set_connector_asset_required_20260622_v2"].replaced_by_policy_set_id == (
+        "policy_set_connector_asset_required_20260622_rollback"
+    )
+    assert records[
+        "policy_set_connector_asset_required_20260622_rollback"
+    ].rollback_to_policy_set_id == "policy_set_connector_asset_required_20260622"
+    assert records[
+        "policy_set_connector_asset_required_20260622_rollback"
+    ].audit_event_id == rollback_event.id
+    assert rollback_event.payload["previous_policy_set_id"] == (
+        "policy_set_connector_asset_required_20260622_v2"
+    )
+    assert rollback_event.payload["rollback_to_policy_set_id"] == (
+        "policy_set_connector_asset_required_20260622"
+    )
+    assert rollback_event.payload["rollback_approval_id"] == (
+        "approval_policy_set_rollback_20260622"
+    )
+    assert rollback_event.payload["rollback_workflow_signal_status"] == (
+        "policy_set_rollback_signal_recorded"
+    )
+
+
+def test_connector_promotion_policy_set_endpoint_rejects_rollback_without_workflow_signal() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        seed_policy_set_dependencies(AxisPersistenceRepository(session))
+
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    ).status_code == 201
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=replacement_policy_set_payload(),
+    ).status_code == 201
+    payload = rollback_policy_set_payload()
+    payload["rollback_workflow_signal_status"] = None
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=payload,
+    )
+
+    with factory() as session:
+        records = session.scalars(select(ConnectorPromotionPolicySet)).all()
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_set_rollback_signal_required"
+    assert len(records) == 2
+    assert [record.status for record in records].count("active") == 1
 
 
 def test_connector_promotion_policy_set_endpoint_rejects_missing_permission() -> None:

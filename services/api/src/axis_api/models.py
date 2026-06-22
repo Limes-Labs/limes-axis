@@ -455,6 +455,21 @@ class ConnectorPromotionPolicySet(Base):
         nullable=True,
     )
     replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rollback_to_policy_set_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    rollback_approval_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    rollback_decision: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    rollback_workflow_signal_status: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
     notes: Mapped[list] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

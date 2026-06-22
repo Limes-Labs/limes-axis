@@ -606,7 +606,7 @@ export function ConnectorConsole() {
                 <h3 className="subsection-title">
                   {selectedPromotionPolicySets.length} versioned policy set
                 </h3>
-                <p className="row-detail">required gate selection and replacement evidence</p>
+                <p className="row-detail">required gate selection and transition evidence</p>
               </div>
               <ShieldCheck size={18} />
             </div>
@@ -644,14 +644,17 @@ export function ConnectorConsole() {
                   <p className="row-detail">{policySet.audit_event_id ?? "pending"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Replacement</p>
+                  <p className="metric-label">Transition</p>
                   <p className="row-title">
-                    {policySet.replaces_policy_set_id ??
+                    {policySet.rollback_to_policy_set_id ??
+                      policySet.replaces_policy_set_id ??
                       policySet.replaced_by_policy_set_id ??
                       "none"}
                   </p>
                   <p className="row-detail">
-                    {policySet.replacement_workflow_signal_status ?? "no replacement signal"}
+                    {policySet.rollback_workflow_signal_status ??
+                      policySet.replacement_workflow_signal_status ??
+                      "no transition signal"}
                   </p>
                 </div>
               </div>

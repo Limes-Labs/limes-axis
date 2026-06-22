@@ -58,6 +58,14 @@ class ConnectorPromotionPolicySetActivateRequest(BaseModel):
         min_length=1,
         max_length=120,
     )
+    rollback_to_policy_set_id: str | None = Field(default=None, min_length=1, max_length=180)
+    rollback_approval_id: str | None = Field(default=None, min_length=1, max_length=180)
+    rollback_decision: str | None = Field(default=None, min_length=1, max_length=40)
+    rollback_workflow_signal_status: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
     notes: list[str] = Field(default_factory=list)
 
 
@@ -80,6 +88,10 @@ class ConnectorPromotionPolicySetRecord(BaseModel):
     replacement_decision: str | None = None
     replacement_workflow_signal_status: str | None = None
     replaced_at: datetime | None = None
+    rollback_to_policy_set_id: str | None = None
+    rollback_approval_id: str | None = None
+    rollback_decision: str | None = None
+    rollback_workflow_signal_status: str | None = None
     notes: list[str] = Field(default_factory=list)
     created_at: datetime
 
@@ -97,7 +109,9 @@ class ManufacturingConnectorPromotionPolicySetRegistry(BaseModel):
 REQUIRED_POLICY_SET_ACTIVATION_SCOPE = "connectors:promotion_policy_set:activate"
 POLICY_SET_AUDIT_EVENT_TYPE = "connector.promotion_policy_set.activated"
 POLICY_SET_REPLACED_AUDIT_EVENT_TYPE = "connector.promotion_policy_set.replaced"
+POLICY_SET_ROLLED_BACK_AUDIT_EVENT_TYPE = "connector.promotion_policy_set.rolled_back"
 REQUIRED_POLICY_SET_REPLACEMENT_SIGNAL = "policy_set_replacement_signal_recorded"
+REQUIRED_POLICY_SET_ROLLBACK_SIGNAL = "policy_set_rollback_signal_recorded"
 SUPPORTED_POLICY_SET_STATUSES = {"active"}
 
 
@@ -146,7 +160,7 @@ def build_connector_promotion_policy_set_registry(
         policy_set_notes=[
             "Policy sets resolve multi-policy required gates without implicit selection.",
             "Activation requires each referenced policy to be enabled and required.",
-            "Active set replacement requires approval and workflow signal evidence.",
+            "Active set replacement and rollback require approval and workflow signal evidence.",
         ],
     )
 
@@ -171,6 +185,17 @@ def record_demo_connector_promotion_policy_set(
         request.tenant_id,
         request.connector_id,
     )
+    rollback_requested = _rollback_requested(request)
+    if rollback_requested and request.rollback_to_policy_set_id is None:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback requires a target policy set.",
+            "policy_set_rollback_target_required",
+        )
+    if rollback_requested and request.replaces_policy_set_id is None:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback requires the active set target.",
+            "policy_set_rollback_active_target_required",
+        )
     active_policy_set = _active_policy_set_for_replacement(active_sets, request)
     if active_sets and active_policy_set is None:
         raise ConnectorPromotionPolicySetConflict(
@@ -182,15 +207,25 @@ def record_demo_connector_promotion_policy_set(
             "Connector promotion policy set replacement target is not active.",
             "policy_set_replacement_target_not_found",
         )
-    if active_policy_set is not None:
+    rollback_target = None
+    if rollback_requested:
+        if active_policy_set is None:
+            raise ConnectorPromotionPolicySetValidationError(
+                "Connector promotion policy set rollback target is not active.",
+                "policy_set_rollback_active_target_not_found",
+            )
+        rollback_target = _rollback_policy_set_for_request(repository, request)
+        _validate_rollback_evidence(request)
+    elif active_policy_set is not None:
         _validate_replacement_evidence(request)
     policies = _validate_referenced_policies(repository, request)
+    if rollback_target is not None and rollback_target.policy_ids != request.policy_ids:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback must restore the target policy ids.",
+            "policy_set_rollback_policy_mismatch",
+        )
     permission_decision = _evaluate_activation_permission(request)
-    audit_event_type = (
-        POLICY_SET_REPLACED_AUDIT_EVENT_TYPE
-        if active_policy_set is not None
-        else POLICY_SET_AUDIT_EVENT_TYPE
-    )
+    audit_event_type = _audit_event_type_for_request(active_policy_set, rollback_target)
     audit_payload = {
         "connector_id": request.connector_id,
         "policy_set_id": request.policy_set_id,
@@ -208,6 +243,21 @@ def record_demo_connector_promotion_policy_set(
                 "previous_policy_set_id": active_policy_set.policy_set_id,
                 "previous_policy_set_version": active_policy_set.policy_set_version,
                 "previous_status": active_policy_set.status,
+            }
+        )
+    if rollback_target is not None:
+        audit_payload.update(
+            {
+                "rollback_to_policy_set_id": rollback_target.policy_set_id,
+                "rollback_to_policy_set_version": rollback_target.policy_set_version,
+                "rollback_approval_id": request.rollback_approval_id,
+                "rollback_decision": request.rollback_decision,
+                "rollback_workflow_signal_status": request.rollback_workflow_signal_status,
+            }
+        )
+    elif active_policy_set is not None:
+        audit_payload.update(
+            {
                 "replacement_approval_id": request.replacement_approval_id,
                 "replacement_decision": request.replacement_decision,
                 "replacement_workflow_signal_status": request.replacement_workflow_signal_status,
@@ -238,6 +288,10 @@ def record_demo_connector_promotion_policy_set(
         replacement_approval_id=request.replacement_approval_id,
         replacement_decision=request.replacement_decision,
         replacement_workflow_signal_status=request.replacement_workflow_signal_status,
+        rollback_to_policy_set_id=request.rollback_to_policy_set_id,
+        rollback_approval_id=request.rollback_approval_id,
+        rollback_decision=request.rollback_decision,
+        rollback_workflow_signal_status=request.rollback_workflow_signal_status,
         notes=request.notes,
     )
     if active_policy_set is None:
@@ -248,6 +302,26 @@ def record_demo_connector_promotion_policy_set(
             create_record,
         )
     return _policy_set_from_record(policy_set)
+
+
+def _rollback_requested(request: ConnectorPromotionPolicySetActivateRequest) -> bool:
+    return any(
+        value is not None
+        for value in (
+            request.rollback_to_policy_set_id,
+            request.rollback_approval_id,
+            request.rollback_decision,
+            request.rollback_workflow_signal_status,
+        )
+    )
+
+
+def _audit_event_type_for_request(active_policy_set, rollback_target) -> str:
+    if rollback_target is not None:
+        return POLICY_SET_ROLLED_BACK_AUDIT_EVENT_TYPE
+    if active_policy_set is not None:
+        return POLICY_SET_REPLACED_AUDIT_EVENT_TYPE
+    return POLICY_SET_AUDIT_EVENT_TYPE
 
 
 def _active_policy_set_for_replacement(
@@ -267,6 +341,32 @@ def _active_policy_set_for_replacement(
     )
 
 
+def _rollback_policy_set_for_request(
+    repository: AxisPersistenceRepository,
+    request: ConnectorPromotionPolicySetActivateRequest,
+):
+    rollback_target = repository.get_connector_promotion_policy_set(
+        request.tenant_id,
+        request.rollback_to_policy_set_id or "",
+    )
+    if rollback_target is None:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback target does not exist.",
+            "policy_set_rollback_target_not_found",
+        )
+    if rollback_target.connector_id != request.connector_id:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback target belongs to another connector.",
+            "policy_set_rollback_connector_mismatch",
+        )
+    if rollback_target.status != "superseded":
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback target must be superseded.",
+            "policy_set_rollback_target_not_superseded",
+        )
+    return rollback_target
+
+
 def _validate_replacement_evidence(request: ConnectorPromotionPolicySetActivateRequest) -> None:
     if request.replacement_approval_id is None:
         raise ConnectorPromotionPolicySetValidationError(
@@ -282,6 +382,24 @@ def _validate_replacement_evidence(request: ConnectorPromotionPolicySetActivateR
         raise ConnectorPromotionPolicySetValidationError(
             "Connector promotion policy set replacement requires workflow signal evidence.",
             "policy_set_replacement_signal_required",
+        )
+
+
+def _validate_rollback_evidence(request: ConnectorPromotionPolicySetActivateRequest) -> None:
+    if request.rollback_approval_id is None:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback requires approval evidence.",
+            "policy_set_rollback_approval_required",
+        )
+    if request.rollback_decision != "approve":
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback requires an approved decision.",
+            "policy_set_rollback_not_approved",
+        )
+    if request.rollback_workflow_signal_status != REQUIRED_POLICY_SET_ROLLBACK_SIGNAL:
+        raise ConnectorPromotionPolicySetValidationError(
+            "Connector promotion policy set rollback requires workflow signal evidence.",
+            "policy_set_rollback_signal_required",
         )
 
 
@@ -384,6 +502,10 @@ def _policy_set_from_record(record) -> ConnectorPromotionPolicySetRecord:
         replacement_decision=record.replacement_decision,
         replacement_workflow_signal_status=record.replacement_workflow_signal_status,
         replaced_at=record.replaced_at,
+        rollback_to_policy_set_id=record.rollback_to_policy_set_id,
+        rollback_approval_id=record.rollback_approval_id,
+        rollback_decision=record.rollback_decision,
+        rollback_workflow_signal_status=record.rollback_workflow_signal_status,
         notes=record.notes,
         created_at=record.created_at,
     )

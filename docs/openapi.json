@@ -3996,6 +3996,58 @@
             ],
             "title": "Replaces Policy Set Id"
           },
+          "rollback_approval_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Approval Id"
+          },
+          "rollback_decision": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Decision"
+          },
+          "rollback_to_policy_set_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback To Policy Set Id"
+          },
+          "rollback_workflow_signal_status": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Workflow Signal Status"
+          },
           "status": {
             "default": "active",
             "maxLength": 80,
@@ -4158,6 +4210,50 @@
               }
             ],
             "title": "Replaces Policy Set Id"
+          },
+          "rollback_approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Approval Id"
+          },
+          "rollback_decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Decision"
+          },
+          "rollback_to_policy_set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback To Policy Set Id"
+          },
+          "rollback_workflow_signal_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Workflow Signal Status"
           },
           "status": {
             "minLength": 1,
