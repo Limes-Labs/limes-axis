@@ -227,8 +227,18 @@ class DeferredConnectorSyncExecutionRuntime:
 
 class SelfHostedConnectorSyncExecutionRuntime:
     adapter_name = "axis-self-hosted-connector-sync-executor"
+    external_db_adapter_name = "axis-postgres-external-db-sync-executor"
+
+    def __init__(self, *, external_db_sync_enabled: bool = False) -> None:
+        self.external_db_sync_enabled = external_db_sync_enabled
 
     def execute(self, request: ConnectorSyncExecutionRequest) -> ConnectorSyncExecutionResult:
+        if (
+            self.external_db_sync_enabled
+            and request.connector_id == "external_db_operational_mirror"
+        ):
+            return self._execute_external_db_sync(request)
+
         records_read = request.input_summary.get("record_count", "0")
         return ConnectorSyncExecutionResult(
             adapter=self.adapter_name,
@@ -255,5 +265,53 @@ class SelfHostedConnectorSyncExecutionRuntime:
             notes=[
                 "Connector sync executed through the self-hosted demo runtime.",
                 "No external egress, credential material or graph mutation was started.",
+            ],
+        )
+
+    def _execute_external_db_sync(
+        self,
+        request: ConnectorSyncExecutionRequest,
+    ) -> ConnectorSyncExecutionResult:
+        records_read = request.input_summary.get("record_count", "0")
+        connection_profile_id = request.input_summary.get(
+            "connection_profile_id",
+            "unknown_profile",
+        )
+        schema_name = request.input_summary.get("schema_name", "unknown_schema")
+        table_name = request.input_summary.get("table_name", "unknown_table")
+        return ConnectorSyncExecutionResult(
+            adapter=self.external_db_adapter_name,
+            status="sync_execution_completed",
+            sync_ref=(
+                f"postgres-external-db-sync://{request.tenant_id}/"
+                f"{connection_profile_id}/{request.run_id}/{request.execution_id}"
+            ),
+            external_sync_started=False,
+            idempotency_key=request.idempotency_key,
+            result_summary={
+                "runtime_status": "sync_execution_completed",
+                "external_sync_started": "false",
+                "connector_id": request.connector_id,
+                "schedule_id": request.schedule_id,
+                "dispatch_id": request.dispatch_id,
+                "execution_id": request.execution_id,
+                "provider": "postgres",
+                "connection_profile_id": connection_profile_id,
+                "schema_name": schema_name,
+                "table_name": table_name,
+                "records_read": records_read,
+                "records_accepted": records_read,
+                "records_rejected": "0",
+                "external_query_started": "false",
+                "credential_material_returned": "false",
+                "graph_mutation_started": "false",
+                "source_mode": "external_db_profile",
+            },
+            notes=[
+                "Postgres external DB sync executed through the profile adapter boundary.",
+                (
+                    "No raw connection string, credential material, external query or "
+                    "graph mutation was started."
+                ),
             ],
         )

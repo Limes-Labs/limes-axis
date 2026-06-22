@@ -125,7 +125,10 @@ deferred dispatch adapter, still without connector egress. Dispatch-claimed
 plans can now receive a sync execution attempt through a deferred execution
 adapter, or through the self-hosted demo executor when
 `AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true`; both paths keep raw credentials,
-external egress and graph mutation out of the default boundary. The
+external egress and graph mutation out of the default boundary. External DB sync
+can opt into the Postgres profile adapter boundary with
+`AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true`, returning profile/table/count
+evidence without raw connection strings or credential material. The
 connector ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

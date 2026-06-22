@@ -235,6 +235,11 @@ The default runtime writes `connector.run.sync_execution_deferred` with
 self-hosted demo executor, which can complete the run with
 `connector.run.sync_execution_completed` while still avoiding external egress,
 credential material retrieval and graph mutation.
+For `external_db_operational_mirror`, setting
+`AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true` selects the Postgres external DB
+profile adapter boundary. That adapter writes provider/profile/table/count
+evidence, keeps `external_query_started=false` in this slice and never returns
+raw connection strings or credential material.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:

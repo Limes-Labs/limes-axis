@@ -99,7 +99,10 @@ execution attempt with `connectors:sync:execute`; the default runtime records
 `connector.run.sync_execution_deferred`, while
 `AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true` switches to a self-hosted demo
 executor that completes the run without external egress, credential material or
-graph mutation. Connector ontology
+graph mutation. `AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true` selects the
+Postgres external DB profile adapter boundary for
+`external_db_operational_mirror`, returning profile/table/count evidence without
+raw connection strings or credential material. Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records

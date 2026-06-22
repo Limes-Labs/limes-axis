@@ -62,5 +62,9 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED",
     )
+    external_db_sync_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
