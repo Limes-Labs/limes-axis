@@ -8,7 +8,9 @@ approval decision endpoint, web console submission, demo permission enforcement,
 workflow signal execution, action run creation and tests. Public demo reference
 content now comes from persisted tenant-scoped bootstrap records for the main
 reference surfaces, while production-grade reference storage and deterministic
-workflow replay remain separate Platform work.
+workflow replay remain separate Platform work. The API test suite includes a
+module-level guard against reintroducing `get_manufacturing_*` runtime
+reference factories in the public demo module.
 
 ## Tables
 
