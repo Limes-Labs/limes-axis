@@ -440,7 +440,7 @@ def execute_demo_connector_sync(
             "Scheduled connector sync execution requires dispatch result evidence.",
             "dispatch_result_required",
         )
-    _validate_active_credential_lease_for_run(
+    credential_lease = _validate_active_credential_lease_for_run(
         repository,
         run,
         request.credential_lease_id,
@@ -457,6 +457,9 @@ def execute_demo_connector_sync(
             executed_by=request.executed_by,
             credential_handle_ids=run.credential_handle_ids,
             credential_lease_id=request.credential_lease_id,
+            credential_lease_mode=credential_lease.lease_mode,
+            credential_lease_runtime_boundary=credential_lease.runtime_boundary,
+            credential_lease_result=credential_lease.lease_result,
             schedule_id=schedule_result.result_summary.get("schedule_id", "unknown_schedule"),
             schedule_ref=schedule_result.schedule_ref,
             dispatch_id=run.result_summary.get("dispatch_id", "unknown_dispatch"),
@@ -719,7 +722,7 @@ def _validate_active_credential_lease_for_run(
     repository: AxisPersistenceRepository,
     run_record,
     credential_lease_id: str,
-) -> None:
+):
     lease = repository.get_connector_credential_lease(
         run_record.tenant_id,
         credential_lease_id,
@@ -749,6 +752,7 @@ def _validate_active_credential_lease_for_run(
             "Connector credential lease is expired.",
             "credential_lease_expired",
         )
+    return lease
 
 
 def _validate_governed_execution_credentials(

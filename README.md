@@ -132,7 +132,9 @@ evidence without raw connection strings or credential material. Live-query
 requests remain preflight-only: `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`
 can mark policy gates as passed for an approved private endpoint and
 lease-scoped secret reference, but still keeps `external_query_started=false`
-and returns no credential material. The
+and returns no credential material. The passed preflight also records redacted
+credential lease evidence from the validated lease result, blocking the path if
+that evidence indicates secret material was returned. The
 connector ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

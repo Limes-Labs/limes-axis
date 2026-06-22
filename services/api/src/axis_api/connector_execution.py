@@ -97,6 +97,9 @@ class ConnectorSyncExecutionRequest(BaseModel):
     executed_by: str = Field(min_length=1)
     credential_handle_ids: list[str] = Field(default_factory=list)
     credential_lease_id: str = Field(min_length=1)
+    credential_lease_mode: str = Field(default="", min_length=0)
+    credential_lease_runtime_boundary: str = Field(default="", min_length=0)
+    credential_lease_result: dict = Field(default_factory=dict)
     schedule_id: str = Field(min_length=1)
     schedule_ref: str = Field(min_length=1)
     dispatch_id: str = Field(min_length=1)
@@ -339,11 +342,26 @@ class SelfHostedConnectorSyncExecutionRuntime:
         egress_policy_id = request.input_summary.get("egress_policy_id", "")
         egress_boundary = request.input_summary.get("egress_boundary", "")
         credential_access_mode = request.input_summary.get("credential_access_mode", "")
-        preflight_passed = (
+        lease_result_status = str(request.credential_lease_result.get("status", "unknown"))
+        credential_lease_ref = str(request.credential_lease_result.get("provider_lease_ref", ""))
+        credential_lease_secret_returned = _bool_as_text(
+            request.credential_lease_result.get("secret_material_returned", True)
+        )
+        credential_lease_evidence_valid = (
+            bool(request.credential_lease_mode)
+            and bool(request.credential_lease_runtime_boundary)
+            and bool(credential_lease_ref)
+            and lease_result_status in {"lease_executed", "lease_renewed"}
+            and credential_lease_secret_returned == "false"
+        )
+        policy_preflight_passed = (
             self.external_db_live_query_preflight_enabled
             and bool(egress_policy_id)
             and egress_boundary == "approved_private_endpoint"
             and credential_access_mode == "lease_scoped_secret_ref"
+        )
+        preflight_passed = (
+            policy_preflight_passed and credential_lease_evidence_valid
         )
         status = (
             "sync_execution_preflight_passed"
@@ -373,10 +391,16 @@ class SelfHostedConnectorSyncExecutionRuntime:
             "live_query_requested": "true",
             "live_query_preflight_status": "passed" if preflight_passed else "blocked",
             "egress_policy_decision": (
-                "approved_private_endpoint" if preflight_passed else "blocked_by_default"
+                "approved_private_endpoint"
+                if policy_preflight_passed
+                else "blocked_by_default"
             ),
             "secret_retrieval_decision": (
-                "lease_scoped_reference_only" if preflight_passed else "not_started"
+                _secret_retrieval_decision(
+                    preflight_enabled=self.external_db_live_query_preflight_enabled,
+                    lease_evidence_valid=credential_lease_evidence_valid,
+                    secret_material_returned=credential_lease_secret_returned,
+                )
             ),
             "external_query_started": "false",
             "credential_material_returned": "false",
@@ -387,6 +411,20 @@ class SelfHostedConnectorSyncExecutionRuntime:
             result_summary["egress_policy_id"] = egress_policy_id
             result_summary["egress_boundary"] = egress_boundary
             result_summary["credential_access_mode"] = credential_access_mode
+        if self.external_db_live_query_preflight_enabled:
+            result_summary["credential_lease_evidence_status"] = (
+                "validated" if credential_lease_evidence_valid else "failed"
+            )
+            result_summary["credential_lease_id"] = request.credential_lease_id
+            result_summary["credential_lease_mode"] = request.credential_lease_mode
+            result_summary["credential_lease_runtime_boundary"] = (
+                request.credential_lease_runtime_boundary
+            )
+            result_summary["credential_lease_result_status"] = lease_result_status
+            result_summary["credential_lease_ref"] = credential_lease_ref
+            result_summary["credential_lease_secret_material_returned"] = (
+                credential_lease_secret_returned
+            )
         return ConnectorSyncExecutionResult(
             adapter=self.external_db_adapter_name,
             status=status,
@@ -405,3 +443,24 @@ class SelfHostedConnectorSyncExecutionRuntime:
                 ),
             ],
         )
+
+
+def _bool_as_text(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value).lower()
+
+
+def _secret_retrieval_decision(
+    *,
+    preflight_enabled: bool,
+    lease_evidence_valid: bool,
+    secret_material_returned: str,
+) -> str:
+    if not preflight_enabled:
+        return "not_started"
+    if lease_evidence_valid:
+        return "lease_scoped_reference_only"
+    if secret_material_returned == "true":
+        return "blocked_secret_material_returned"
+    return "blocked_credential_lease_evidence"

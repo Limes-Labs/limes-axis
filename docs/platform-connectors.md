@@ -246,8 +246,13 @@ a live-query preflight path. By default it writes
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, an approved private
 endpoint egress boundary, an egress policy id and a lease-scoped secret
 reference can write `connector.run.sync_execution_preflight_passed`. Passing
-preflight still does not start a database query, return credential material or
-mutate the graph.
+preflight also requires the already validated credential lease result to include
+a lease reference, an executed/renewed lease status and
+`secret_material_returned=false`. If the lease evidence says secret material was
+returned, the runtime writes `connector.run.sync_execution_preflight_blocked`
+with `secret_retrieval_decision=blocked_secret_material_returned`. The preflight
+still does not start a database query, return credential material or mutate the
+graph.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:
