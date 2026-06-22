@@ -239,8 +239,11 @@ policy is enabled and required, writes
 promotion endpoint to evaluate all policies in the set with
 `policy_set_enforced` evidence. When a policy set is active, explicit single
 `policy_id` selection is rejected so callers cannot evaluate only part of the
-required-gate set. Without an active set, multi-policy auto-selection is
-rejected with `promotion_policy_selection_ambiguous`.
+required-gate set. Policy and policy-set promotion rejections write
+`connector.ontology_promotion.rejected` audit evidence with policy ids,
+matched constraints, violations and permission context before the API returns
+422. Without an active set, multi-policy auto-selection is rejected with
+`promotion_policy_selection_ambiguous`.
 
 The connector console includes a compact promotion policy authoring control for
 policy id, status and enforcement mode. When the API is available, the control

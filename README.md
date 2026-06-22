@@ -114,10 +114,12 @@ boundary is called. Versioned promotion policy sets can now activate a single
 required-gate set per connector, so multiple enabled required policies are
 evaluated together with `connector.promotion_policy_set.activated` evidence
 instead of being selected implicitly; once a set is active, single-policy
-`policy_id` selection is rejected to avoid partial gate evaluation. The
-connector console now includes compact policy authoring, enablement and
-policy-set evidence controls that can post to the API or keep local public-safe
-previews when the API is unavailable.
+`policy_id` selection is rejected to avoid partial gate evaluation. Policy and
+policy-set promotion rejections now write
+`connector.ontology_promotion.rejected` audit evidence before returning the
+validation response. The connector console now includes compact policy
+authoring, enablement and policy-set evidence controls that can post to the API
+or keep local public-safe previews when the API is unavailable.
 
 ## Architecture Defaults
 
