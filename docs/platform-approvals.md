@@ -72,10 +72,11 @@ This slice demonstrates the approval contract and review experience. Alembic
 migration `0027_approval_inbox_reference` inserts the public-safe approval
 inbox reference payload. The API validates that persisted payload against the
 `ManufacturingApprovalInbox` contract before returning it or using it for
-decision persistence. The demo endpoint enforces the approval's required
-permission from supplied demo actor scopes or from OIDC-derived token scopes,
-rejects actor impersonation before persistence and signals the workflow runtime
-adapter.
+decision persistence. The API runtime no longer defines an approval inbox seed
+factory; tests validate the bootstrap payload directly from the migration. The
+demo endpoint enforces the approval's required permission from supplied demo
+actor scopes or from OIDC-derived token scopes, rejects actor impersonation
+before persistence and signals the workflow runtime adapter.
 
 Future Platform work should connect this contract to:
 
