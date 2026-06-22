@@ -258,6 +258,8 @@ returned by `/demo/manufacturing/connectors` now reads from the tenant-scoped
 Connector configuration creation resolves connector manifests and runtime
 boundaries from that persisted registry reference before storing tenant
 configuration state.
+Credential handle creation uses the same persisted registry reference to
+validate connector manifests before storing external secret reference metadata.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
@@ -270,8 +272,9 @@ queries tenant-scoped preview connector configuration through
 fields in configuration payloads. The API now also stores metadata-only
 credential handles and rotation history through
 `/demo/manufacturing/connectors/credential-handles`, using external secret
-references instead of raw credential values. Short-lived credential leases can
-now be requested, renewed and revoked through
+references instead of raw credential values and failing explicitly if the
+persisted connector registry reference is missing or invalid. Short-lived
+credential leases can now be requested, renewed and revoked through
 `/demo/manufacturing/connectors/credential-leases`, writing
 `connector.credential_lease.*` audit evidence while returning only references,
 timestamps, permission decisions and adapter evidence. The lease runtime is

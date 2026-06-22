@@ -29,6 +29,9 @@ seed data.
 Connector configuration creation also resolves connector manifests from that
 persisted registry reference before storing runtime boundary metadata, so
 tenant configuration writes no longer depend on a service-local connector seed.
+Credential handle creation uses the same persisted registry reference before
+storing external secret reference metadata, so credential posture writes also
+avoid service-local connector seeds.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -90,6 +93,11 @@ to resolve the connector manifest and runtime boundary for the requested
 connector id. If the registry reference is missing or invalid, configuration
 creation returns explicit 404/422 errors before storing tenant configuration
 state.
+
+Credential handle creation also reads the persisted registry reference to
+validate the requested connector id before storing external secret reference
+metadata. Missing or invalid registry references return explicit 404/422 errors
+before any credential handle row or audit event is written.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:

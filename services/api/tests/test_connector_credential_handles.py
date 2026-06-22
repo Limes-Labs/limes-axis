@@ -1,4 +1,7 @@
+from copy import deepcopy
 from datetime import UTC, datetime
+from pathlib import Path
+from runpy import run_path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,9 +11,12 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.connector_credential_handles import (
+    ConnectorCredentialHandleCreateRequest,
     ConnectorCredentialHandleQuery,
     build_connector_credential_handle_registry,
+    record_demo_connector_credential_handle,
 )
+from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import Base
@@ -18,6 +24,7 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialRotationCreate,
+    DemoReferenceRecordCreate,
 )
 
 
@@ -30,8 +37,46 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_connector_registry_reference(factory)
     yield factory
     engine.dispose()
+
+
+@pytest.fixture
+def empty_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
+
+
+def connector_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
 
 
 def seed_connector_credential_handles(repository: AxisPersistenceRepository) -> None:
@@ -80,6 +125,61 @@ def seed_connector_credential_handles(repository: AxisPersistenceRepository) -> 
             created_by="other-owner-role",
         )
     )
+
+
+def connector_credential_handle_request(
+    connector_id: str = "file_csv_manufacturing_assets",
+) -> ConnectorCredentialHandleCreateRequest:
+    return ConnectorCredentialHandleCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        connector_id=connector_id,
+        handle_id="cred_file_csv_readonly",
+        display_name="File CSV readonly vault reference",
+        secret_provider="external_vault",
+        secret_ref="vault://axis/demo/connectors/file-csv-readonly",
+        purpose="preview_import_readonly",
+        rotation_interval_days=30,
+        created_by="plant-operations-owner-role",
+        labels={"environment": "demo"},
+        notes=["Metadata-only handle."],
+    )
+
+
+def test_connector_credential_handle_path_does_not_load_demo_connector_registry_seed() -> None:
+    source = Path("src/axis_api/connector_credential_handles.py").read_text()
+
+    assert "get_manufacturing_connector_registry" not in source
+
+
+def test_record_demo_connector_credential_handle_requires_persisted_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(empty_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(ConnectorReferenceRecordNotFound):
+            record_demo_connector_credential_handle(
+                repository,
+                connector_credential_handle_request(),
+            )
+
+
+def test_record_demo_connector_credential_handle_uses_persisted_connector_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][0]["manifest"]["connector_id"] = "persisted_credential_handle_connector"
+    seed_connector_registry_reference(session_factory, payload)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        handle = record_demo_connector_credential_handle(
+            repository,
+            connector_credential_handle_request(
+                connector_id="persisted_credential_handle_connector"
+            ),
+        )
+
+    assert handle.connector_id == "persisted_credential_handle_connector"
 
 
 def test_build_connector_credential_handle_registry_maps_persisted_handles(
@@ -193,6 +293,26 @@ def test_create_connector_credential_handle_persists_external_reference_only(
     assert "password" not in str(body).lower()
     assert "api_key" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
+
+
+def test_create_connector_credential_handle_endpoint_reports_missing_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = empty_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-handles",
+        json=connector_credential_handle_request().model_dump(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
 
 
 def test_rotate_connector_credential_handle_records_rotation_history(
