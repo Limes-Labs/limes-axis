@@ -3,7 +3,8 @@
 The replay and simulation foundation turns existing workflow history and audit
 evidence into public-safe replay preview artifacts and governed policy-set
 version diff previews. Replay outputs can also be persisted as governed audit
-artifacts for later inspection.
+artifacts for later inspection, and replay responses enforce retention-aware
+query windows before returning history or persisted output records.
 
 It is intentionally limited. The slice does not execute Temporal deterministic
 replay, mutate workflow state, compare arbitrary policies or expose raw action
@@ -28,10 +29,13 @@ Query filters:
 - `tenant_id`;
 - `workflow_id`;
 - `limit`.
+- `retention_days`;
+- `legal_hold`.
 
 The response includes:
 
 - simulation status and metrics;
+- replay retention policy, window start, legal-hold state and excluded counts;
 - replay artifact id, workflow id, workflow name and audit scope;
 - replay mode and determinism status;
 - timeline event count and audit event count;
@@ -56,6 +60,19 @@ The write creates `simulation.replay_output.persisted` audit evidence, stores a
 SHA-256 `output_hash`, persists the redacted artifact payload and returns `200`
 on idempotent replay without writing duplicate audit events.
 
+Replay query retention is enforced before artifacts and outputs are returned:
+
+- timeline events are filtered by event occurrence time;
+- audit events are filtered by ledger creation time;
+- persisted outputs use the stricter of the query `retention_days` value and
+  each output's own `retention_window_days`;
+- `legal_hold=true` suspends exclusion and marks the response as not retention
+  enforced;
+- excluded timeline, audit and output counts are returned in `retention_window`.
+
+This is query-time retention enforcement only. It does not delete records,
+operate a production legal-hold workflow or claim immutable archive hardening.
+
 ## Console Behavior
 
 The `/simulation` page first loads
@@ -70,6 +87,7 @@ The page lets an operator inspect:
 - baseline versus simulated decision;
 - baseline versus candidate policy-set version decisions;
 - persisted output hash, retention and audit evidence;
+- replay retention window and excluded record counts;
 - timeline evidence;
 - audit event types and evidence references.
 
@@ -97,7 +115,7 @@ Future Platform work should connect this contract to:
 
 - Temporal deterministic replay;
 - arbitrary policy comparison over historical events;
-- retention-aware replay windows and deletion jobs.
+- physical retention deletion jobs and production legal-hold workflows.
 
 ## Verification
 
@@ -107,8 +125,9 @@ The slice is covered by:
 - API unit tests for workflow filter behavior;
 - API unit tests for policy-set version diff preview construction;
 - API unit tests for persisted output write, permission and idempotency;
+- API unit tests for replay retention filtering and legal-hold bypass;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for fallback artifacts, persisted outputs, policy-set diffs and
   persisted-data selection;
 - Playwright smoke tests for `/simulation` rendering, including policy-set diff
-  metadata and persisted output evidence.
+  metadata, replay retention window metadata and persisted output evidence.

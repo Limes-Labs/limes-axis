@@ -76,6 +76,19 @@ export type ReplaySimulationOutputRecord = {
   created_at: string;
 };
 
+export type ReplayRetentionWindow = {
+  policy_id: string;
+  retention_days: number;
+  legal_hold: boolean;
+  retention_enforced: boolean;
+  retention_window_start: string;
+  disposal_action: string;
+  excluded_timeline_event_count: number;
+  excluded_audit_event_count: number;
+  excluded_output_count: number;
+  notes: string[];
+};
+
 export type ManufacturingReplaySimulation = {
   tenant_id: string;
   plant_name: string;
@@ -88,6 +101,7 @@ export type ManufacturingReplaySimulation = {
     detail: string;
     status: PlatformStatus;
   }[];
+  retention_window: ReplayRetentionWindow;
   artifacts: ReplayArtifact[];
   persisted_outputs: ReplaySimulationOutputRecord[];
   simulation_notes: string[];
@@ -260,12 +274,41 @@ export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation
       status: "ready",
     },
     {
+      label: "Replay Window",
+      value: "365d",
+      detail: "Query-time retention window enforced before replay response",
+      status: "ready",
+    },
+    {
+      label: "Retention Excluded",
+      value: "0",
+      detail: "Timeline, audit and output records outside the replay window",
+      status: "ready",
+    },
+    {
       label: "Deterministic Replay",
       value: "0",
       detail: "Full Temporal replay remains behind a future runtime path",
       status: "watch",
     },
   ],
+  retention_window: {
+    policy_id: "axis-demo-replay-retention",
+    retention_days: 365,
+    legal_hold: false,
+    retention_enforced: true,
+    retention_window_start: "2025-06-21T16:30:00+02:00",
+    disposal_action: "enforced_exclusion",
+    excluded_timeline_event_count: 0,
+    excluded_audit_event_count: 0,
+    excluded_output_count: 0,
+    notes: [
+      "Replay windows are enforced before artifacts and persisted outputs are returned.",
+      "Persisted outputs use the stricter of the query window and the output retention window.",
+      "Replay retention excluded 0 expired records from this response.",
+      "Physical deletion jobs and legal hold workflows remain separate platform work.",
+    ],
+  },
   artifacts: defaultArtifacts,
   persisted_outputs: defaultPersistedOutputs,
   simulation_notes: [
@@ -273,8 +316,9 @@ export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation
     "Policy simulation is deterministic preview logic, not live workflow replay.",
     "Policy-set version diffs compare governed connector policy sets over historical events without activating a new set.",
     "Persisted simulation outputs are governed audit artifacts with retention metadata.",
+    "Replay retention windows are enforced at query time; legal hold suspends exclusion.",
     "Raw action payloads are not exposed in replay artifacts.",
-    "Temporal replay and retention enforcement jobs remain Platform work.",
+    "Temporal replay and physical retention deletion jobs remain Platform work.",
   ],
 };
 

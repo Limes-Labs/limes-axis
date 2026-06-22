@@ -275,6 +275,10 @@ test.describe("Axis console smoke", () => {
     ).toBeVisible();
     await expect(page.getByText("connector.promotion_policy_set.simulated_diff")).toBeVisible();
     await expect(page.getByText("changed_outcome_detected")).toBeVisible();
+    await expect(page.getByText("Replay Window", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("axis-demo-replay-retention")).toBeVisible();
+    await expect(page.getByText("enforced_exclusion")).toBeVisible();
+    await expect(page.getByText("0 total excluded")).toBeVisible();
     await expect(page.getByText("Persisted Outputs", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("simulation.replay_output.persisted")).toBeVisible();
     await expect(page.getByText("simulation:replay:persist")).toBeVisible();
