@@ -108,6 +108,34 @@ class ActionRun(Base):
     )
 
 
+class DemoReferenceRecord(Base):
+    __tablename__ = "demo_reference_records"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    surface: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    reference_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(String(80), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "surface",
+            "reference_id",
+            name="uq_demo_reference_records_tenant_surface_reference",
+        ),
+    )
+
+
 class WorkflowRunRecord(Base):
     __tablename__ = "workflow_runs"
 

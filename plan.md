@@ -128,17 +128,22 @@ Foundation acceptance is tracked in
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
   reintroduction.
-- [ ] Replace remaining API-owned reference endpoints with persisted,
-  tenant-scoped bootstrap records.
+- [x] Persist the manufacturing overview reference as a tenant-scoped bootstrap
+  record.
+- [ ] Replace remaining API-owned reference endpoints beyond overview with
+  persisted, tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
 The browser governance console no longer ships local overview fallback records.
-Visible records must come from Axis API responses or persisted tenant state. Any
-remaining API-owned reference records are a bootstrap boundary and must be moved
-to persisted tenant-scoped records before production use. The full manufacturing
-reference demo remains open until it has ontology relationships, approval
-actions, workflow execution and replay backed by real persistence paths.
+Visible records must come from Axis API responses or persisted tenant state. The
+manufacturing overview endpoint now reads a tenant-scoped
+`demo_reference_records` bootstrap row and returns explicit API errors when the
+record is missing or invalid. Remaining API-owned reference records are a
+bootstrap boundary and must be moved to persisted tenant-scoped records before
+production use. The full manufacturing reference demo remains open until it has
+ontology relationships, approval actions, workflow execution and replay backed
+by real persistence paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;

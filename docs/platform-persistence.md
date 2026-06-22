@@ -5,8 +5,10 @@ governed operational state.
 
 It is intentionally narrow: schema, ORM models, repository methods, a demo
 approval decision endpoint, web console submission, demo permission enforcement,
-workflow signal execution, action run creation and tests. It does not yet
-replace all public demo seeds or implement deterministic workflow replay.
+workflow signal execution, action run creation and tests. It has started moving
+public demo reference content into persisted tenant-scoped bootstrap records,
+but does not yet replace all public demo seeds or implement deterministic
+workflow replay.
 
 ## Tables
 
@@ -97,6 +99,18 @@ evidence:
   proposals for latest promotion evidence;
 - indexes for policy-linked proposal and promotion filtering.
 
+Subsequent connector migrations through `0021` add policy sets, replacement and
+rollback evidence, draft revision adoption, replay simulation outputs,
+connector manifests, credential leases and egress policy records.
+
+The twenty-second Alembic migration adds:
+
+- `demo_reference_records`: tenant-scoped public-safe reference payloads keyed
+  by surface and reference id;
+- a persisted manufacturing overview bootstrap record for
+  `tenant_demo_manufacturing`;
+- indexes for tenant, surface, reference, status and source filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -108,6 +122,8 @@ evidence:
 - idempotency lookup by tenant, action and key;
 - action run result update;
 - action run listing by tenant and optional status.
+- demo reference record upsert and active record lookup by tenant, surface and
+  reference id.
 - workflow run creation and tenant-scoped listing;
 - workflow timeline event append and tenant-scoped history listing.
 - connector configuration creation and tenant-scoped listing.
@@ -207,6 +223,9 @@ Delivered:
   evidence refs, retention metadata and permission decisions.
 - retention-aware replay response filtering across timeline events, audit
   events and persisted simulation outputs, including legal-hold bypass metadata.
+- persisted manufacturing overview reference records through
+  `demo_reference_records`, with the runtime seed function removed and the API
+  returning 404/422 for missing or invalid persisted payloads.
 
 Still Platform work:
 

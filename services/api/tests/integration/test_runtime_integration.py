@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from alembic.command import upgrade
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from axis_api.config import Settings
 from axis_api.ontology.client import OntologyClient, OntologyClientConfig
@@ -39,7 +39,19 @@ def test_postgres_migration_creates_foundation_tables() -> None:
         "connector_credential_handles",
         "connector_credential_rotations",
         "connector_runs",
+        "demo_reference_records",
     }.issubset(tables)
+    with engine.connect() as connection:
+        count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM demo_reference_records "
+                "WHERE tenant_id = 'tenant_demo_manufacturing' "
+                "AND surface = 'overview' "
+                "AND reference_id = 'manufacturing-overview'"
+            )
+        ).scalar_one()
+
+    assert count == 1
 
 
 def test_typedb_schema_loads_into_fresh_database() -> None:

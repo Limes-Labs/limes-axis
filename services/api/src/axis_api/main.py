@@ -199,8 +199,12 @@ from axis_api.demo import (
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
     get_manufacturing_ontology_entity_detail,
-    get_manufacturing_overview,
     get_manufacturing_workflow_console,
+)
+from axis_api.demo_reference import (
+    DemoReferenceRecordInvalid,
+    DemoReferenceRecordNotFound,
+    get_persisted_manufacturing_overview,
 )
 from axis_api.errors import AxisErrorCode
 from axis_api.identity import (
@@ -711,10 +715,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/overview",
         response_model=ManufacturingOverview,
+        responses={
+            404: {"description": "Manufacturing overview reference record not found"},
+            422: {"description": "Manufacturing overview reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_overview() -> ManufacturingOverview:
-        return get_manufacturing_overview()
+    def manufacturing_overview(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingOverview:
+        try:
+            return get_persisted_manufacturing_overview(repository, tenant_id=tenant_id)
+        except DemoReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing overview reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "overview",
+                },
+            ) from exc
+        except DemoReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing overview reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "overview",
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/workflows",

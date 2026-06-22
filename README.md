@@ -36,11 +36,12 @@ migration baseline, TypeDB ontology boundary, workflow runtime port, Temporal
 adapter, typed action registry, model egress guard, permission primitives and a
 Next.js governance console shell. Foundation hardening adds API readiness,
 generated OpenAPI checks, opt-in runtime integration tests, API status in the
-console and Playwright smoke tests in CI. The first Platform slice adds an
-API-backed manufacturing overview reference for the governance console
-overview. The ontology slice adds a read-only manufacturing graph for typed
-nodes, source-system links, relationship mapping, permission scopes and entity
-detail pages. The
+console and Playwright smoke tests in CI. The first Platform slice adds a
+manufacturing overview reference for the governance console overview, now read
+from a persisted tenant-scoped bootstrap record instead of browser fallback or
+runtime seed code. The ontology slice adds a read-only manufacturing graph for
+typed nodes, source-system links, relationship mapping, permission scopes and
+entity detail pages. The
 approval slice adds an API-owned approval inbox with evidence, risk review,
 decision options and local audit preview. The workflow slice adds a read-only
 runtime console for workflow state, pending signals and history preview. The
@@ -100,8 +101,8 @@ legal-hold bypass for governance review.
 The web console runtime libraries no longer export browser-local fallback seed
 records for non-connector surfaces; those pages are API-required and protected
 by a regression test that blocks reintroducing default runtime seed records.
-The remaining API-owned reference records are tracked for migration to
-persisted, tenant-scoped bootstrap records.
+The remaining API-owned reference records beyond the manufacturing overview are
+tracked for migration to persisted, tenant-scoped bootstrap records.
 
 The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV

@@ -22,6 +22,7 @@ from axis_api.models import (
     ConnectorPromotionPolicy,
     ConnectorPromotionPolicySet,
     ConnectorRun,
+    DemoReferenceRecord,
     ReplaySimulationOutput,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -70,6 +71,16 @@ class ActionRunResultRecord(BaseModel):
     action_run_id: UUID
     status: str = Field(min_length=1)
     result_payload: dict = Field(default_factory=dict)
+
+
+class DemoReferenceRecordCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    surface: str = Field(min_length=1)
+    reference_id: str = Field(min_length=1)
+    status: str = Field(default="active", min_length=1)
+    source: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    payload: dict = Field(default_factory=dict)
 
 
 class WorkflowRunCreate(BaseModel):
@@ -606,6 +617,54 @@ class AxisPersistenceRepository:
 
         statement = statement.order_by(ActionRun.created_at.desc()).limit(limit)
         return list(self.session.scalars(statement))
+
+    def upsert_demo_reference_record(
+        self,
+        record: DemoReferenceRecordCreate,
+    ) -> DemoReferenceRecord:
+        existing = self.get_demo_reference_record(
+            tenant_id=record.tenant_id,
+            surface=record.surface,
+            reference_id=record.reference_id,
+            status=None,
+        )
+        if existing is not None:
+            existing.status = record.status
+            existing.source = record.source
+            existing.version = record.version
+            existing.payload = record.payload
+            existing.updated_at = utc_now()
+            self.session.flush()
+            return existing
+
+        reference_record = DemoReferenceRecord(
+            tenant_id=record.tenant_id,
+            surface=record.surface,
+            reference_id=record.reference_id,
+            status=record.status,
+            source=record.source,
+            version=record.version,
+            payload=record.payload,
+        )
+        self.session.add(reference_record)
+        self.session.flush()
+        return reference_record
+
+    def get_demo_reference_record(
+        self,
+        tenant_id: str,
+        surface: str,
+        reference_id: str,
+        status: str | None = "active",
+    ) -> DemoReferenceRecord | None:
+        statement = select(DemoReferenceRecord).where(
+            DemoReferenceRecord.tenant_id == tenant_id,
+            DemoReferenceRecord.surface == surface,
+            DemoReferenceRecord.reference_id == reference_id,
+        )
+        if status is not None:
+            statement = statement.where(DemoReferenceRecord.status == status)
+        return self.session.scalars(statement).first()
 
     def create_workflow_run(self, record: WorkflowRunCreate) -> WorkflowRunRecord:
         workflow_run = WorkflowRunRecord(
