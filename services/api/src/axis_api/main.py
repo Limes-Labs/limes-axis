@@ -162,8 +162,14 @@ from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
+    ReplaySimulationOutputConflict,
+    ReplaySimulationOutputPermissionDenied,
+    ReplaySimulationOutputPersistRequest,
+    ReplaySimulationOutputRecord,
+    ReplaySimulationOutputValidationError,
     ReplaySimulationQuery,
     build_replay_simulation,
+    persist_replay_simulation_output,
 )
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_runtime import (
@@ -397,6 +403,39 @@ def _bind_demo_activated_by(request_model, principal: OidcPrincipal | None):
     )
 
 
+def _bind_demo_requested_by(request_model, principal: OidcPrincipal | None):
+    if principal is None:
+        return request_model
+
+    if principal.tenant_id != "tenant_demo_manufacturing":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    request_actor = getattr(request_model, "requested_by", None)
+    if request_actor and request_actor != principal.actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The request actor does not match the authenticated OIDC actor.",
+                "reason": "actor_mismatch",
+            },
+        )
+
+    return request_model.model_copy(
+        update={
+            "requested_by": principal.actor_id,
+            "actor_scopes": principal.scopes,
+        }
+    )
+
+
 def _authorize_demo_ontology_detail(
     detail: ManufacturingOntologyEntityDetail,
     principal: OidcPrincipal | None,
@@ -563,6 +602,66 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 limit=limit,
             ),
         )
+
+    @app.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        response_model=ReplaySimulationOutputRecord,
+        responses={
+            403: {"description": "Replay simulation output permission denied"},
+            409: {"description": "Replay simulation output already exists or conflicts"},
+            422: {"description": "Replay simulation output validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_replay_simulation_output_create(
+        replay_output_request: ReplaySimulationOutputPersistRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        response: Response,
+    ) -> ReplaySimulationOutputRecord:
+        try:
+            bound_request = _bind_demo_requested_by(replay_output_request, principal)
+            result = persist_replay_simulation_output(repository, bound_request)
+        except ReplaySimulationOutputPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot persist replay simulation outputs.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ReplaySimulationOutputConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The replay simulation output conflicts with existing state.",
+                    "reason": exc.reason,
+                    "simulation_output_id": exc.simulation_output_id,
+                },
+            ) from exc
+        except ReplaySimulationOutputValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
 
     @app.get(
         "/demo/manufacturing/agents",

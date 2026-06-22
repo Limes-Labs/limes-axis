@@ -88,8 +88,9 @@ Future Platform work should connect this contract to:
 
 The replay/simulation foundation now consumes redacted audit metadata for
 read-only replay preview artifacts and governed policy-set version diff
-previews. Persisted simulation outputs and retention-aware replay windows remain
-future work.
+previews. Persisted simulation outputs now write
+`simulation.replay_output.persisted` evidence; retention-aware replay windows
+and deletion jobs remain future work.
 
 ## Verification
 

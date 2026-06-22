@@ -6097,6 +6097,13 @@
             "title": "Metrics",
             "type": "array"
           },
+          "persisted_outputs": {
+            "items": {
+              "$ref": "#/components/schemas/ReplaySimulationOutputRecord"
+            },
+            "title": "Persisted Outputs",
+            "type": "array"
+          },
           "plant_name": {
             "minLength": 1,
             "title": "Plant Name",
@@ -6987,6 +6994,215 @@
           "audit_event_count"
         ],
         "title": "ReplayArtifact",
+        "type": "object"
+      },
+      "ReplaySimulationOutputPersistRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "requested_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "retention_window_days": {
+            "default": 30,
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Retention Window Days",
+            "type": "integer"
+          },
+          "simulation_output_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Simulation Output Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "simulation_output_id",
+          "idempotency_key",
+          "requested_by",
+          "reason"
+        ],
+        "title": "ReplaySimulationOutputPersistRequest",
+        "type": "object"
+      },
+      "ReplaySimulationOutputRecord": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ReplayArtifact"
+          },
+          "artifact_id": {
+            "minLength": 1,
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "determinism_status": {
+            "minLength": 1,
+            "title": "Determinism Status",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "output_hash": {
+            "minLength": 1,
+            "title": "Output Hash",
+            "type": "string"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "replay_mode": {
+            "minLength": 1,
+            "title": "Replay Mode",
+            "type": "string"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "required_scope": {
+            "minLength": 1,
+            "title": "Required Scope",
+            "type": "string"
+          },
+          "retention_window_days": {
+            "minimum": 1.0,
+            "title": "Retention Window Days",
+            "type": "integer"
+          },
+          "simulation_output_id": {
+            "minLength": 1,
+            "title": "Simulation Output Id",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "simulation_output_id",
+          "workflow_id",
+          "artifact_id",
+          "idempotency_key",
+          "status",
+          "requested_by",
+          "required_scope",
+          "replay_mode",
+          "determinism_status",
+          "output_hash",
+          "retention_window_days",
+          "permission_decision",
+          "artifact",
+          "audit_event_type",
+          "reason",
+          "created_at"
+        ],
+        "title": "ReplaySimulationOutputRecord",
         "type": "object"
       },
       "RiskSignal": {
@@ -9363,6 +9579,64 @@
           }
         },
         "summary": "Manufacturing Replay Simulation",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/simulation/replay/outputs": {
+      "post": {
+        "operationId": "manufacturing_replay_simulation_output_create_demo_manufacturing_simulation_replay_outputs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaySimulationOutputPersistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplaySimulationOutputRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Replay simulation output permission denied"
+          },
+          "409": {
+            "description": "Replay simulation output already exists or conflicts"
+          },
+          "422": {
+            "description": "Replay simulation output validation failed"
+          }
+        },
+        "summary": "Manufacturing Replay Simulation Output Create",
         "tags": [
           "demo"
         ]

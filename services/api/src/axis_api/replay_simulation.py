@@ -1,12 +1,16 @@
 import hashlib
 import json
+from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from axis_api.audit import AuditEventCreate
 from axis_api.audit_queries import _audit_event_to_ledger_event
 from axis_api.demo import AuditLedgerEvent, OverviewMetric, OverviewStatus, WorkflowTimelineEvent
 from axis_api.models import AuditEvent, WorkflowRunRecord, WorkflowTimelineRecord
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
+from axis_api.persistence import AxisPersistenceRepository, ReplaySimulationOutputCreate
 from axis_api.workflow_queries import _timeline_event_to_public
 
 
@@ -14,6 +18,45 @@ class ReplaySimulationQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     workflow_id: str | None = Field(default=None, min_length=1)
     limit: int = Field(default=20, ge=1, le=100)
+
+
+class ReplaySimulationOutputValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class ReplaySimulationOutputPermissionDenied(PermissionError):
+    def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.required_permission = required_permission
+        self.decision = decision
+
+
+class ReplaySimulationOutputConflict(ValueError):
+    def __init__(self, simulation_output_id: str, reason: str) -> None:
+        super().__init__("Replay simulation output already exists or conflicts")
+        self.simulation_output_id = simulation_output_id
+        self.reason = reason
+
+
+class ReplaySimulationOutputPersistRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    workflow_id: str = Field(min_length=1, max_length=160)
+    simulation_output_id: str = Field(
+        min_length=1,
+        max_length=180,
+        pattern=r"^[a-z0-9][a-z0-9_-]*$",
+    )
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    requested_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=1, max_length=600)
+    retention_window_days: int = Field(default=30, ge=1, le=3650)
+    notes: list[str] = Field(default_factory=list)
 
 
 class PolicySimulationResult(BaseModel):
@@ -61,6 +104,30 @@ class ReplayArtifact(BaseModel):
     policy_set_diffs: list[PolicySetVersionDiff] = Field(default_factory=list)
 
 
+class ReplaySimulationOutputRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    simulation_output_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    artifact_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    required_scope: str = Field(min_length=1)
+    replay_mode: str = Field(min_length=1)
+    determinism_status: str = Field(min_length=1)
+    output_hash: str = Field(min_length=1)
+    retention_window_days: int = Field(ge=1)
+    permission_decision: PermissionDecision
+    artifact: ReplayArtifact
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+    idempotent_replay: bool = False
+    created_at: datetime
+
+
 class ManufacturingReplaySimulation(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -69,7 +136,12 @@ class ManufacturingReplaySimulation(BaseModel):
     simulation_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     artifacts: list[ReplayArtifact] = Field(default_factory=list)
+    persisted_outputs: list[ReplaySimulationOutputRecord] = Field(default_factory=list)
     simulation_notes: list[str] = Field(default_factory=list)
+
+
+REQUIRED_REPLAY_OUTPUT_SCOPE = "simulation:replay:persist"
+REPLAY_OUTPUT_AUDIT_EVENT_TYPE = "simulation.replay_output.persisted"
 
 
 def build_replay_simulation(
@@ -102,6 +174,14 @@ def build_replay_simulation(
         for workflow in workflow_records
     ]
     artifacts = [artifact for artifact in artifacts if artifact.timeline or artifact.audit_events]
+    persisted_outputs = [
+        _simulation_output_from_record(record)
+        for record in repository.list_replay_simulation_outputs(
+            tenant_id=query.tenant_id,
+            workflow_id=query.workflow_id,
+            limit=query.limit,
+        )
+    ]
 
     return ManufacturingReplaySimulation(
         tenant_id=query.tenant_id,
@@ -109,17 +189,172 @@ def build_replay_simulation(
         scenario="Plant Operations Cockpit",
         as_of=_as_of(artifacts),
         simulation_status=OverviewStatus.READY if artifacts else OverviewStatus.WATCH,
-        metrics=_metrics(artifacts),
+        metrics=_metrics(artifacts, persisted_outputs),
         artifacts=artifacts,
+        persisted_outputs=persisted_outputs,
         simulation_notes=[
             "Replay artifacts are derived from tenant-scoped workflow history and audit events.",
             "Policy simulation is deterministic preview logic, not live workflow replay.",
             "Policy-set version diffs compare governed connector policy sets over historical "
             "events without activating a new set.",
+            "Persisted simulation outputs are governed audit artifacts with retention metadata.",
             "Raw action payloads are not exposed in replay artifacts.",
-            "Temporal replay, persisted simulation outputs and retention enforcement remain "
-            "Platform work.",
+            "Temporal replay and retention enforcement jobs remain Platform work.",
         ],
+    )
+
+
+def persist_replay_simulation_output(
+    repository: AxisPersistenceRepository,
+    request: ReplaySimulationOutputPersistRequest,
+) -> ReplaySimulationOutputRecord:
+    existing_replay = repository.get_replay_simulation_output_by_idempotency_key(
+        request.tenant_id,
+        request.idempotency_key,
+    )
+    if existing_replay is not None:
+        if (
+            existing_replay.simulation_output_id != request.simulation_output_id
+            or existing_replay.workflow_id != request.workflow_id
+        ):
+            raise ReplaySimulationOutputConflict(
+                existing_replay.simulation_output_id,
+                "simulation_output_idempotency_conflict",
+            )
+        return _simulation_output_from_record(existing_replay, idempotent_replay=True)
+
+    existing_output = repository.get_replay_simulation_output(
+        request.tenant_id,
+        request.simulation_output_id,
+    )
+    if existing_output is not None:
+        raise ReplaySimulationOutputConflict(
+            existing_output.simulation_output_id,
+            "simulation_output_already_exists",
+        )
+
+    simulation = build_replay_simulation(
+        repository,
+        ReplaySimulationQuery(
+            tenant_id=request.tenant_id,
+            workflow_id=request.workflow_id,
+            limit=1,
+        ),
+    )
+    if not simulation.artifacts:
+        raise ReplaySimulationOutputValidationError(
+            "Replay simulation output requires an existing replay artifact.",
+            "replay_artifact_not_found",
+        )
+    artifact = simulation.artifacts[0]
+    permission_decision = _evaluate_replay_output_permission(request, artifact)
+    artifact_payload = artifact.model_dump(mode="json")
+    output_hash = _artifact_output_hash(artifact_payload)
+    audit_payload = {
+        "simulation_output_id": request.simulation_output_id,
+        "workflow_id": artifact.workflow_id,
+        "artifact_id": artifact.artifact_id,
+        "output_hash": output_hash,
+        "replay_mode": artifact.replay_mode,
+        "determinism_status": artifact.determinism_status,
+        "retention_window_days": request.retention_window_days,
+        "evidence_refs": artifact.evidence_refs,
+        "policy_result_ids": [result.policy_id for result in artifact.policy_results],
+        "policy_set_diff_ids": [diff.diff_id for diff in artifact.policy_set_diffs],
+        "required_scope": REQUIRED_REPLAY_OUTPUT_SCOPE,
+        "permission_decision": permission_decision.model_dump(),
+        "reason": request.reason,
+    }
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type=REPLAY_OUTPUT_AUDIT_EVENT_TYPE,
+            payload=audit_payload,
+        )
+    )
+    output = repository.create_replay_simulation_output(
+        ReplaySimulationOutputCreate(
+            tenant_id=request.tenant_id,
+            simulation_output_id=request.simulation_output_id,
+            workflow_id=artifact.workflow_id,
+            artifact_id=artifact.artifact_id,
+            idempotency_key=request.idempotency_key,
+            requested_by=request.requested_by,
+            required_scope=REQUIRED_REPLAY_OUTPUT_SCOPE,
+            replay_mode=artifact.replay_mode,
+            determinism_status=artifact.determinism_status,
+            output_hash=output_hash,
+            retention_window_days=request.retention_window_days,
+            permission_decision=permission_decision.model_dump(),
+            artifact_payload=artifact_payload,
+            evidence_refs=artifact.evidence_refs,
+            audit_event_id=audit_event.id,
+            audit_event_type=audit_event.event_type,
+            reason=request.reason,
+            notes=request.notes,
+        )
+    )
+    return _simulation_output_from_record(output)
+
+
+def _evaluate_replay_output_permission(
+    request: ReplaySimulationOutputPersistRequest,
+    artifact: ReplayArtifact,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[REQUIRED_REPLAY_OUTPUT_SCOPE],
+            attributes={
+                "workflow_id": artifact.workflow_id,
+                "artifact_id": artifact.artifact_id,
+                "simulation_output_id": request.simulation_output_id,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ReplaySimulationOutputPermissionDenied(
+            REQUIRED_REPLAY_OUTPUT_SCOPE,
+            decision,
+        )
+    return decision
+
+
+def _artifact_output_hash(artifact_payload: dict) -> str:
+    encoded = json.dumps(artifact_payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _simulation_output_from_record(
+    record,
+    *,
+    idempotent_replay: bool = False,
+) -> ReplaySimulationOutputRecord:
+    return ReplaySimulationOutputRecord(
+        tenant_id=record.tenant_id,
+        simulation_output_id=record.simulation_output_id,
+        workflow_id=record.workflow_id,
+        artifact_id=record.artifact_id,
+        idempotency_key=record.idempotency_key,
+        status=record.status,
+        requested_by=record.requested_by,
+        required_scope=record.required_scope,
+        replay_mode=record.replay_mode,
+        determinism_status=record.determinism_status,
+        output_hash=record.output_hash,
+        retention_window_days=record.retention_window_days,
+        permission_decision=PermissionDecision.model_validate(record.permission_decision),
+        artifact=ReplayArtifact.model_validate(record.artifact_payload),
+        evidence_refs=record.evidence_refs,
+        audit_event_id=record.audit_event_id,
+        audit_event_type=record.audit_event_type,
+        reason=record.reason,
+        notes=record.notes,
+        idempotent_replay=idempotent_replay,
+        created_at=record.created_at,
     )
 
 
@@ -307,7 +542,10 @@ def _as_of(artifacts: list[ReplayArtifact]) -> str:
     return "2026-06-21T16:30:00+02:00"
 
 
-def _metrics(artifacts: list[ReplayArtifact]) -> list[OverviewMetric]:
+def _metrics(
+    artifacts: list[ReplayArtifact],
+    persisted_outputs: list[ReplaySimulationOutputRecord],
+) -> list[OverviewMetric]:
     history_events = sum(
         artifact.timeline_event_count + artifact.audit_event_count for artifact in artifacts
     )
@@ -340,6 +578,12 @@ def _metrics(artifacts: list[ReplayArtifact]) -> list[OverviewMetric]:
             value=str(policy_set_diffs),
             detail="Versioned connector policy-set comparisons over historical events",
             status=OverviewStatus.READY if policy_set_diffs else OverviewStatus.WATCH,
+        ),
+        OverviewMetric(
+            label="Persisted Outputs",
+            value=str(len(persisted_outputs)),
+            detail="Governed replay outputs retained with audit evidence",
+            status=OverviewStatus.READY if persisted_outputs else OverviewStatus.WATCH,
         ),
         OverviewMetric(
             label="Deterministic Replay",

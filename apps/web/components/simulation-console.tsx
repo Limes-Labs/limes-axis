@@ -102,6 +102,7 @@ export function SimulationConsole() {
   const changedPolicySetDiffs = countChangedPolicySetDiffs(simulationData);
   const primaryPolicy = selectedArtifact.policy_results[0];
   const primaryPolicySetDiff = (selectedArtifact.policy_set_diffs ?? [])[0];
+  const persistedOutputs = simulationData.persisted_outputs ?? [];
 
   return (
     <div className="stack">
@@ -341,6 +342,61 @@ export function SimulationConsole() {
           </section>
         </section>
       </div>
+
+      <section className="panel">
+        <div className="audit-list-header">
+          <div>
+            <p className="section-label">Persisted Outputs</p>
+            <h2 className="panel-title">{persistedOutputs.length} governed output</h2>
+          </div>
+          <span className="status-pill signal-ready">
+            <FileText size={15} />
+            audit-backed
+          </span>
+        </div>
+        <div className="payload-grid">
+          {persistedOutputs.length ? (
+            persistedOutputs.map((output) => (
+              <div className="payload-row" key={output.simulation_output_id}>
+                <span>
+                  <span className="metric-label">{output.simulation_output_id}</span>
+                  <span className="row-detail mono">{output.audit_event_type}</span>
+                </span>
+                <span className="mono">{output.output_hash.slice(0, 12)}</span>
+              </div>
+            ))
+          ) : (
+            <div className="payload-row">
+              <span className="metric-label">No persisted output</span>
+              <span className="mono">preview-only</span>
+            </div>
+          )}
+        </div>
+        {persistedOutputs.map((output) => (
+          <div className="simulation-detail-grid" key={`${output.simulation_output_id}-detail`}>
+            <div>
+              <p className="metric-label">Workflow</p>
+              <p className="row-title">{output.workflow_id}</p>
+              <p className="row-detail mono">{output.artifact_id}</p>
+            </div>
+            <div>
+              <p className="metric-label">Retention</p>
+              <p className="row-title">{output.retention_window_days} days</p>
+              <p className="row-detail">{output.status}</p>
+            </div>
+            <div>
+              <p className="metric-label">Requested By</p>
+              <p className="row-title">{output.requested_by}</p>
+              <p className="row-detail">{output.permission_decision.reason}</p>
+            </div>
+            <div>
+              <p className="metric-label">Audit</p>
+              <p className="row-title">{output.audit_event_id ?? "pending"}</p>
+              <p className="row-detail">{output.required_scope}</p>
+            </div>
+          </div>
+        ))}
+      </section>
 
       <section className="panel">
         <p className="section-label">Simulation Notes</p>

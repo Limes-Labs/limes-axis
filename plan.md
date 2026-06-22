@@ -93,6 +93,7 @@ Foundation acceptance is tracked in
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
+- [x] Persist replay simulation outputs as governed audit artifacts.
 - [x] Add connector manifest foundation and file/CSV preview.
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Persist connector ontology proposals without graph mutation.
@@ -153,9 +154,11 @@ The replay/simulation foundation derives public-safe replay artifacts from
 workflow run history, timeline events and redacted audit evidence. The
 `/simulation` page shows baseline versus simulated policy decisions and
 governed connector policy-set version diffs over historical events for the
-manufacturing demo. Temporal deterministic replay, arbitrary policy diffing,
-retention-aware replay windows and persisted simulation outputs remain Platform
-and Enterprise work.
+manufacturing demo. Replay outputs can now be persisted as governed audit
+artifacts with `simulation.replay_output.persisted` evidence, retention
+metadata and idempotency protection. Temporal deterministic replay, arbitrary
+policy diffing and retention enforcement jobs remain Platform and Enterprise
+work.
 
 The connector foundation exposes a public-safe manifest registry and a
 preview-only file/CSV connector for manufacturing asset intake. The API can

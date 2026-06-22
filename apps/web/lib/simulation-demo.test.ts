@@ -35,6 +35,23 @@ describe("manufacturing replay simulation demo contract", () => {
         (metric) => metric.label === "Policy Set Diffs",
       ),
     ).toMatchObject({ value: "3" });
+    expect(
+      defaultManufacturingReplaySimulation.metrics.find(
+        (metric) => metric.label === "Persisted Outputs",
+      ),
+    ).toMatchObject({ value: "1" });
+    expect(defaultManufacturingReplaySimulation.persisted_outputs[0]).toMatchObject({
+      simulation_output_id: "replay_output_supplier_delay_review_20260622",
+      audit_event_type: "simulation.replay_output.persisted",
+      required_scope: "simulation:replay:persist",
+      retention_window_days: 30,
+    });
+    expect(defaultManufacturingReplaySimulation.persisted_outputs[0].artifact.workflow_id).toBe(
+      "wf_supplier_delay_review",
+    );
+    expect(defaultManufacturingReplaySimulation.simulation_notes).toContain(
+      "Persisted simulation outputs are governed audit artifacts with retention metadata.",
+    );
     expect(JSON.stringify(defaultManufacturingReplaySimulation).toLowerCase()).not.toContain(
       "secret",
     );

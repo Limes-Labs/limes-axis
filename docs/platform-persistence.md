@@ -202,6 +202,9 @@ Delivered:
   `connector.ontology_promotion.rejected`, effective policy/policy-set context,
   matched constraints, violations and permission evidence when policy gates
   block the mutation boundary before any promotion record is written.
+- replay simulation outputs with governed `simulation.replay_output.persisted`
+  audit writes, idempotency keys, artifact hashes, redacted artifact payloads,
+  evidence refs, retention metadata and permission decisions.
 
 Still Platform work:
 
@@ -214,4 +217,5 @@ Still Platform work:
 - WORM/KMS-backed immutable storage hardening beyond insert-only repository
   shape and export hash-chain proof;
 - physical retention deletion jobs and legal hold workflows;
-- deterministic Temporal replay and persisted simulation outputs.
+- deterministic Temporal replay and retention deletion jobs for simulation
+  outputs.

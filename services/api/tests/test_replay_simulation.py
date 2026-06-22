@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -10,7 +10,7 @@ from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
-from axis_api.models import Base
+from axis_api.models import AuditEvent, Base, ReplaySimulationOutput
 from axis_api.persistence import (
     AxisPersistenceRepository,
     WorkflowRunCreate,
@@ -161,6 +161,20 @@ def seed_replay_history(repository: AxisPersistenceRepository) -> None:
     )
 
 
+def replay_output_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "workflow_id": "wf_supplier_delay_review",
+        "simulation_output_id": "replay_output_supplier_delay_review_20260622",
+        "idempotency_key": "idem_replay_output_supplier_delay_review_20260622",
+        "requested_by": "simulation-governance-owner-role",
+        "actor_scopes": ["simulation:replay:persist"],
+        "reason": "Persist replay output for governance review.",
+        "retention_window_days": 30,
+        "notes": ["Governed replay output retained for design partner review."],
+    }
+
+
 def test_build_replay_simulation_creates_tenant_scoped_artifacts(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -229,6 +243,144 @@ def test_build_replay_simulation_includes_policy_set_version_diff_preview(
     assert "credential_secret" not in diff.model_dump_json()
 
 
+def test_replay_simulation_output_endpoint_persists_artifact_and_audit(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_replay_history(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=replay_output_payload(),
+    )
+
+    with session_factory() as session:
+        output = session.scalars(select(ReplaySimulationOutput)).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "simulation.replay_output.persisted"
+            )
+        ).one()
+
+    client.close()
+    assert response.status_code == 201
+    body = response.json()
+    assert body["simulation_output_id"] == "replay_output_supplier_delay_review_20260622"
+    assert body["workflow_id"] == "wf_supplier_delay_review"
+    assert body["artifact"]["workflow_id"] == "wf_supplier_delay_review"
+    assert body["artifact_id"] == body["artifact"]["artifact_id"]
+    assert body["status"] == "persisted"
+    assert body["retention_window_days"] == 30
+    assert body["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    assert body["audit_event_type"] == "simulation.replay_output.persisted"
+    assert body["audit_event_id"] == str(audit_event.id)
+    assert body["idempotent_replay"] is False
+    assert len(body["output_hash"]) == 64
+    assert output.audit_event_id == audit_event.id
+    assert output.artifact_payload["workflow_id"] == "wf_supplier_delay_review"
+    assert output.artifact_payload["policy_set_diffs"][0]["diff_status"] == (
+        "changed_outcome_detected"
+    )
+    assert audit_event.payload["simulation_output_id"] == (
+        "replay_output_supplier_delay_review_20260622"
+    )
+    assert "credential_secret" not in str(body)
+    assert "never-export-this-value" not in str(body)
+    assert "credential_secret" not in str(audit_event.payload)
+
+
+def test_replay_simulation_output_endpoint_is_idempotent(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_replay_history(AxisPersistenceRepository(session))
+    client = TestClient(app)
+    payload = replay_output_payload()
+
+    first_response = client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=payload,
+    )
+    replay_response = client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=payload,
+    )
+
+    with session_factory() as session:
+        outputs = session.scalars(select(ReplaySimulationOutput)).all()
+        audit_events = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "simulation.replay_output.persisted"
+            )
+        ).all()
+
+    client.close()
+    assert first_response.status_code == 201
+    assert replay_response.status_code == 200
+    assert replay_response.json()["idempotent_replay"] is True
+    assert len(outputs) == 1
+    assert len(audit_events) == 1
+
+
+def test_replay_simulation_output_endpoint_rejects_missing_permission(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_replay_history(AxisPersistenceRepository(session))
+    client = TestClient(app)
+    payload = replay_output_payload()
+    payload["actor_scopes"] = []
+
+    response = client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=payload,
+    )
+
+    client.close()
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+    assert response.json()["detail"]["required_permission"] == "simulation:replay:persist"
+
+
+def test_replay_simulation_endpoint_includes_persisted_outputs(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_replay_history(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    assert client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=replay_output_payload(),
+    ).status_code == 201
+    response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    client.close()
+    assert response.status_code == 200
+    body = response.json()
+    assert body["persisted_outputs"][0]["simulation_output_id"] == (
+        "replay_output_supplier_delay_review_20260622"
+    )
+    assert body["persisted_outputs"][0]["artifact"]["workflow_id"] == (
+        "wf_supplier_delay_review"
+    )
+    assert next(metric for metric in body["metrics"] if metric["label"] == "Persisted Outputs")[
+        "value"
+    ] == "1"
+
+
 def test_build_replay_simulation_filters_by_workflow_id(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -282,3 +434,4 @@ def test_openapi_exposes_replay_simulation_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/simulation/replay" in response.json()["paths"]
+    assert "/demo/manufacturing/simulation/replay/outputs" in response.json()["paths"]
