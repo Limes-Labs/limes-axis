@@ -271,10 +271,10 @@ describe("manufacturing connector demo contract", () => {
 
   it("keeps connector run fallback audit-backed and redacted", () => {
     expect(defaultConnectorRunRegistry.tenant_id).toBe("tenant_demo_manufacturing");
-    expect(defaultConnectorRunRegistry.runs).toHaveLength(3);
+    expect(defaultConnectorRunRegistry.runs).toHaveLength(4);
     expect(defaultConnectorRunRegistry.metrics[0]).toMatchObject({
       label: "Connector Runs",
-      value: "3",
+      value: "4",
     });
 
     const run = defaultConnectorRunRegistry.runs[0];
@@ -329,6 +329,32 @@ describe("manufacturing connector demo contract", () => {
     expect(externalDbRun.sync_execution_result?.result_summary).toMatchObject({
       provider: "postgres",
       connection_profile_id: "profile_postgres_ops_readonly",
+      external_query_started: "false",
+      credential_material_returned: "false",
+      graph_mutation_started: "false",
+    });
+    const livePreflightRun = defaultConnectorRunRegistry.runs[3];
+    expect(livePreflightRun.run_id).toBe(
+      "run_external_db_orders_live_preflight_passed_20260622",
+    );
+    expect(livePreflightRun.connector_id).toBe("external_db_operational_mirror");
+    expect(livePreflightRun.audit_event_type).toBe(
+      "connector.run.sync_execution_preflight_passed",
+    );
+    expect(livePreflightRun.sync_execution_result).toMatchObject({
+      adapter: "axis-postgres-external-db-sync-executor",
+      status: "sync_execution_preflight_passed",
+      external_sync_started: false,
+      sync_ref:
+        "postgres-external-db-preflight://tenant_demo_manufacturing/" +
+        "profile_postgres_ops_readonly/run_external_db_orders_live_preflight_passed_20260622/" +
+        "sync_exec_external_db_orders_live_preflight_passed_20260622_1400",
+    });
+    expect(livePreflightRun.sync_execution_result?.result_summary).toMatchObject({
+      live_query_requested: "true",
+      live_query_preflight_status: "passed",
+      egress_policy_decision: "approved_private_endpoint",
+      secret_retrieval_decision: "lease_scoped_reference_only",
       external_query_started: "false",
       credential_material_returned: "false",
       graph_mutation_started: "false",

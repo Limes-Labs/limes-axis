@@ -229,8 +229,14 @@ class SelfHostedConnectorSyncExecutionRuntime:
     adapter_name = "axis-self-hosted-connector-sync-executor"
     external_db_adapter_name = "axis-postgres-external-db-sync-executor"
 
-    def __init__(self, *, external_db_sync_enabled: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        external_db_sync_enabled: bool = False,
+        external_db_live_query_preflight_enabled: bool = False,
+    ) -> None:
         self.external_db_sync_enabled = external_db_sync_enabled
+        self.external_db_live_query_preflight_enabled = external_db_live_query_preflight_enabled
 
     def execute(self, request: ConnectorSyncExecutionRequest) -> ConnectorSyncExecutionResult:
         if (
@@ -272,6 +278,9 @@ class SelfHostedConnectorSyncExecutionRuntime:
         self,
         request: ConnectorSyncExecutionRequest,
     ) -> ConnectorSyncExecutionResult:
+        if request.input_summary.get("live_query_requested", "false").lower() == "true":
+            return self._preflight_external_db_live_query(request)
+
         records_read = request.input_summary.get("record_count", "0")
         connection_profile_id = request.input_summary.get(
             "connection_profile_id",
@@ -311,6 +320,87 @@ class SelfHostedConnectorSyncExecutionRuntime:
                 "Postgres external DB sync executed through the profile adapter boundary.",
                 (
                     "No raw connection string, credential material, external query or "
+                    "graph mutation was started."
+                ),
+            ],
+        )
+
+    def _preflight_external_db_live_query(
+        self,
+        request: ConnectorSyncExecutionRequest,
+    ) -> ConnectorSyncExecutionResult:
+        connection_profile_id = request.input_summary.get(
+            "connection_profile_id",
+            "unknown_profile",
+        )
+        schema_name = request.input_summary.get("schema_name", "unknown_schema")
+        table_name = request.input_summary.get("table_name", "unknown_table")
+        query_mode = request.input_summary.get("query_mode", "read_only_snapshot")
+        egress_policy_id = request.input_summary.get("egress_policy_id", "")
+        egress_boundary = request.input_summary.get("egress_boundary", "")
+        credential_access_mode = request.input_summary.get("credential_access_mode", "")
+        preflight_passed = (
+            self.external_db_live_query_preflight_enabled
+            and bool(egress_policy_id)
+            and egress_boundary == "approved_private_endpoint"
+            and credential_access_mode == "lease_scoped_secret_ref"
+        )
+        status = (
+            "sync_execution_preflight_passed"
+            if preflight_passed
+            else "sync_execution_preflight_blocked"
+        )
+        sync_ref_scheme = (
+            "postgres-external-db-preflight"
+            if preflight_passed
+            else "postgres-external-db-preflight-blocked"
+        )
+        result_summary = {
+            "runtime_status": status,
+            "external_sync_started": "false",
+            "connector_id": request.connector_id,
+            "schedule_id": request.schedule_id,
+            "dispatch_id": request.dispatch_id,
+            "execution_id": request.execution_id,
+            "provider": "postgres",
+            "connection_profile_id": connection_profile_id,
+            "schema_name": schema_name,
+            "table_name": table_name,
+            "query_mode": query_mode,
+            "records_read": "0",
+            "records_accepted": "0",
+            "records_rejected": "0",
+            "live_query_requested": "true",
+            "live_query_preflight_status": "passed" if preflight_passed else "blocked",
+            "egress_policy_decision": (
+                "approved_private_endpoint" if preflight_passed else "blocked_by_default"
+            ),
+            "secret_retrieval_decision": (
+                "lease_scoped_reference_only" if preflight_passed else "not_started"
+            ),
+            "external_query_started": "false",
+            "credential_material_returned": "false",
+            "graph_mutation_started": "false",
+            "source_mode": "external_db_live_preflight",
+        }
+        if preflight_passed:
+            result_summary["egress_policy_id"] = egress_policy_id
+            result_summary["egress_boundary"] = egress_boundary
+            result_summary["credential_access_mode"] = credential_access_mode
+        return ConnectorSyncExecutionResult(
+            adapter=self.external_db_adapter_name,
+            status=status,
+            sync_ref=(
+                f"{sync_ref_scheme}://{request.tenant_id}/"
+                f"{connection_profile_id}/{request.run_id}/{request.execution_id}"
+            ),
+            external_sync_started=False,
+            idempotency_key=request.idempotency_key,
+            result_summary=result_summary,
+            notes=[
+                "Postgres external DB live query preflight evaluated policy gates.",
+                (
+                    "No external query, raw connection string, credential material or "
                     "graph mutation was started."
                 ),
             ],

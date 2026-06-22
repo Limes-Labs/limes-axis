@@ -1067,6 +1067,215 @@ def test_execute_external_db_sync_uses_postgres_profile_adapter_when_enabled(
     assert "dsn" not in str(events[0].payload).lower()
 
 
+def test_execute_external_db_live_query_preflight_blocks_by_default(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_preflight_blocked_20260622",
+        dispatch_id="dispatch_external_db_orders_live_preflight_blocked_20260622_1400",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_blocked_20260622_1400"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+        },
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_preflight_blocked_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_live_preflight_blocked_20260622_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_preflight_blocked_20260622_1400"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_preflight_blocked"
+    assert body["audit_event_type"] == "connector.run.sync_execution_preflight_blocked"
+    assert body["sync_execution_result"]["adapter"] == "axis-postgres-external-db-sync-executor"
+    assert body["sync_execution_result"]["external_sync_started"] is False
+    assert body["sync_execution_result"]["sync_ref"] == (
+        "postgres-external-db-preflight-blocked://tenant_demo_manufacturing/"
+        "profile_postgres_ops_readonly/"
+        "run_external_db_orders_live_preflight_blocked_20260622/"
+        "sync_exec_external_db_orders_live_preflight_blocked_20260622_1400"
+    )
+    assert body["sync_execution_result"]["result_summary"] == {
+        "runtime_status": "sync_execution_preflight_blocked",
+        "external_sync_started": "false",
+        "connector_id": "external_db_operational_mirror",
+        "schedule_id": "schedule_file_csv_assets_hourly",
+        "dispatch_id": "dispatch_external_db_orders_live_preflight_blocked_20260622_1400",
+        "execution_id": "sync_exec_external_db_orders_live_preflight_blocked_20260622_1400",
+        "provider": "postgres",
+        "connection_profile_id": "profile_postgres_ops_readonly",
+        "schema_name": "operations",
+        "table_name": "production_orders",
+        "query_mode": "read_only_snapshot",
+        "records_read": "0",
+        "records_accepted": "0",
+        "records_rejected": "0",
+        "live_query_requested": "true",
+        "live_query_preflight_status": "blocked",
+        "egress_policy_decision": "blocked_by_default",
+        "secret_retrieval_decision": "not_started",
+        "external_query_started": "false",
+        "credential_material_returned": "false",
+        "graph_mutation_started": "false",
+        "source_mode": "external_db_live_preflight",
+    }
+    assert "vault://" not in str(body).lower()
+    assert "password" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+
+def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_preflight_passed_20260622",
+        dispatch_id="dispatch_external_db_orders_live_preflight_passed_20260622_1400",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_passed_20260622_1400"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_preflight_passed_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_live_preflight_passed_20260622_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_preflight_passed_20260622_1400"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_preflight_passed"
+    assert body["audit_event_type"] == "connector.run.sync_execution_preflight_passed"
+    assert body["sync_execution_result"]["adapter"] == "axis-postgres-external-db-sync-executor"
+    assert body["sync_execution_result"]["external_sync_started"] is False
+    assert body["sync_execution_result"]["sync_ref"] == (
+        "postgres-external-db-preflight://tenant_demo_manufacturing/"
+        "profile_postgres_ops_readonly/"
+        "run_external_db_orders_live_preflight_passed_20260622/"
+        "sync_exec_external_db_orders_live_preflight_passed_20260622_1400"
+    )
+    assert body["sync_execution_result"]["result_summary"] == {
+        "runtime_status": "sync_execution_preflight_passed",
+        "external_sync_started": "false",
+        "connector_id": "external_db_operational_mirror",
+        "schedule_id": "schedule_file_csv_assets_hourly",
+        "dispatch_id": "dispatch_external_db_orders_live_preflight_passed_20260622_1400",
+        "execution_id": "sync_exec_external_db_orders_live_preflight_passed_20260622_1400",
+        "provider": "postgres",
+        "connection_profile_id": "profile_postgres_ops_readonly",
+        "schema_name": "operations",
+        "table_name": "production_orders",
+        "query_mode": "read_only_snapshot",
+        "egress_policy_id": "egress_policy_private_endpoint_ops",
+        "egress_boundary": "approved_private_endpoint",
+        "credential_access_mode": "lease_scoped_secret_ref",
+        "records_read": "0",
+        "records_accepted": "0",
+        "records_rejected": "0",
+        "live_query_requested": "true",
+        "live_query_preflight_status": "passed",
+        "egress_policy_decision": "approved_private_endpoint",
+        "secret_retrieval_decision": "lease_scoped_reference_only",
+        "external_query_started": "false",
+        "credential_material_returned": "false",
+        "graph_mutation_started": "false",
+        "source_mode": "external_db_live_preflight",
+    }
+    assert "vault://" not in str(body).lower()
+    assert "password" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_preflight_passed",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["sync_execution_result"]["result_summary"][
+        "egress_policy_decision"
+    ] == "approved_private_endpoint"
+    assert "vault://" not in str(events[0].payload).lower()
+    assert "credential_value" not in str(events[0].payload).lower()
+    assert "dsn" not in str(events[0].payload).lower()
+
+
 def test_execute_scheduled_connector_sync_replays_same_idempotency_key(
     session_factory: sessionmaker[Session],
 ) -> None:

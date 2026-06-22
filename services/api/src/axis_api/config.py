@@ -66,5 +66,9 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED",
     )
+    external_db_live_query_preflight_enabled: bool = Field(
+        default=False,
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)

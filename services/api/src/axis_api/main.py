@@ -659,6 +659,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.connector_sync_execution_runtime = (
         SelfHostedConnectorSyncExecutionRuntime(
             external_db_sync_enabled=resolved_settings.external_db_sync_execution_enabled,
+            external_db_live_query_preflight_enabled=(
+                resolved_settings.external_db_live_query_preflight_enabled
+            ),
         )
         if resolved_settings.connector_sync_execution_enabled
         else DeferredConnectorSyncExecutionRuntime()

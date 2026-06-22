@@ -118,6 +118,7 @@ Foundation acceptance is tracked in
 - [x] Add idempotent deferred dispatch claims for scheduled connector sync.
 - [x] Add scheduled connector sync execution boundary with opt-in self-hosted runtime.
 - [x] Add Postgres external DB sync adapter boundary with public-safe profile evidence.
+- [x] Add external DB live-query preflight policy evidence without live query execution.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -228,6 +229,14 @@ External DB sync can opt into the Postgres profile adapter boundary with
 `AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true`, adding public-safe
 provider/profile/table/count evidence while still omitting raw connection
 strings and credential material.
+When an external DB run explicitly requests live query execution, Axis now
+records a separate preflight result instead of starting the query. The default
+decision is `connector.run.sync_execution_preflight_blocked`; setting
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can produce
+`connector.run.sync_execution_preflight_passed` only when the run carries an
+approved private endpoint egress boundary, egress policy id and lease-scoped
+secret reference. This still keeps `external_query_started=false`, returns no
+credential material and performs no graph mutation.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.
