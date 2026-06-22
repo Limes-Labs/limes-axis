@@ -137,8 +137,8 @@ Delivered:
 - idempotency uniqueness for action runs.
 - persisted demo approval decisions with `approval.decision.recorded` audit
   events.
-- web console submission to the persisted decision endpoint, with standalone
-  local fallback when the API is unavailable.
+- web console submission to the persisted decision endpoint, with API
+  persistence errors surfaced instead of local decision fallback.
 - demo approval decision permission checks before persistence.
 - workflow signal execution through the Axis workflow runtime adapter, with
   explicit degraded status when the runtime is unavailable.
@@ -147,8 +147,8 @@ Delivered:
 - workflow signal execution from approval-gated action payloads after action
   run persistence, with redacted signal metadata in audit events.
 - OIDC/JWKS token validation and actor binding for approval decision and action
-  run mutation endpoints, with demo body actor/scopes kept as standalone
-  fallback only.
+  run mutation endpoints, with demo body actor/scopes kept as optional request
+  metadata only when no bearer token is supplied.
 - relationship-derived permission checks for authenticated ontology entity
   detail reads and action payload resource references.
 - API-backed audit explorer queries from persisted `audit_events`, with tenant,

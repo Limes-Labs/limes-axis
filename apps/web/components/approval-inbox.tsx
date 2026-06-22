@@ -10,12 +10,12 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import {
   approvalDecisionLabel,
   approvalDecisionActorId,
   approvalRiskClass,
   buildApprovalDecisionPayload,
-  defaultManufacturingApprovalInbox,
   findApprovalById,
   type ApprovalDecision,
   type ApprovalDecisionOption,
@@ -27,14 +27,14 @@ import { buildAxisAuthInit } from "@/lib/oidc-session";
 import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
-type ApprovalSource = "loading" | "api" | "fallback";
+type ApprovalSource = "loading" | "api" | "unavailable";
 
 type LocalApprovalDecision = {
   decision: ApprovalDecision;
   label: string;
   decidedAt: string;
   auditResult: string;
-  storage: "persisting" | "persisted" | "local";
+  storage: "persisting" | "persisted";
   actorId: string;
   auditEventId?: string;
   workflowSignalStatus?: string;
@@ -45,18 +45,10 @@ type LocalApprovalDecision = {
 
 function sourceLabel(source: ApprovalSource): string {
   if (source === "api") {
-    return "Live approval seed";
+    return "API approval queue";
   }
 
-  return source === "loading" ? "Loading approval seed" : "Fallback approval seed";
-}
-
-function decisionAuditResult(decision: ApprovalDecision): string {
-  if (decision === "approve") {
-    return "approved_preview";
-  }
-
-  return decision === "reject" ? "rejected_preview" : "changes_requested_preview";
+  return source === "loading" ? "Loading approval API" : "Approval API unavailable";
 }
 
 function persistedAuditResult(result: ApprovalDecisionPersistenceResult): string {
@@ -81,14 +73,11 @@ function countLocalDecisions(
 }
 
 export function ApprovalInbox() {
-  const [inbox, setInbox] = useState<ManufacturingApprovalInbox>(
-    defaultManufacturingApprovalInbox,
-  );
+  const [inbox, setInbox] = useState<ManufacturingApprovalInbox | null>(null);
   const [source, setSource] = useState<ApprovalSource>("loading");
-  const [selectedApprovalId, setSelectedApprovalId] = useState(
-    defaultManufacturingApprovalInbox.approvals[0].approval_id,
-  );
+  const [selectedApprovalId, setSelectedApprovalId] = useState("");
   const [localDecisions, setLocalDecisions] = useState<Record<string, LocalApprovalDecision>>({});
+  const [decisionErrors, setDecisionErrors] = useState<Record<string, string>>({});
   const apiBaseUrl = getApiBaseUrl();
   const { session } = useOidcConsoleSession();
 
@@ -114,13 +103,13 @@ export function ApprovalInbox() {
 
         const nextInbox = (await response.json()) as ManufacturingApprovalInbox;
         setInbox(nextInbox);
-        setSelectedApprovalId(nextInbox.approvals[0].approval_id);
+        setSelectedApprovalId(nextInbox.approvals[0]?.approval_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setInbox(defaultManufacturingApprovalInbox);
-          setSelectedApprovalId(defaultManufacturingApprovalInbox.approvals[0].approval_id);
-          setSource("fallback");
+          setInbox(null);
+          setSelectedApprovalId("");
+          setSource("unavailable");
         }
       }
     }
@@ -131,13 +120,21 @@ export function ApprovalInbox() {
   }, [apiBaseUrl, session]);
 
   const selectedApproval = useMemo(
-    () => findApprovalById(inbox, selectedApprovalId),
+    () =>
+      inbox && inbox.approvals.length > 0 ? findApprovalById(inbox, selectedApprovalId) : null,
     [inbox, selectedApprovalId],
   );
-  const selectedDecision = localDecisions[selectedApproval.approval_id];
-  const localDecisionCount = countLocalDecisions(inbox, localDecisions);
-  const pendingCount = inbox.approvals.length - localDecisionCount;
-  const highRiskCount = inbox.approvals.filter((approval) => approval.risk_level === "high").length;
+  const selectedDecision = selectedApproval
+    ? localDecisions[selectedApproval.approval_id]
+    : undefined;
+  const selectedDecisionError = selectedApproval
+    ? decisionErrors[selectedApproval.approval_id]
+    : undefined;
+  const localDecisionCount = inbox ? countLocalDecisions(inbox, localDecisions) : 0;
+  const pendingCount = inbox ? inbox.approvals.length - localDecisionCount : 0;
+  const highRiskCount = inbox
+    ? inbox.approvals.filter((approval) => approval.risk_level === "high").length
+    : 0;
 
   function updateDecisionState(
     approvalId: string,
@@ -150,6 +147,10 @@ export function ApprovalInbox() {
   }
 
   async function recordDecision(option: ApprovalDecisionOption) {
+    if (!selectedApproval) {
+      return;
+    }
+
     const approvalId = selectedApproval.approval_id;
     const decidedAt = new Intl.DateTimeFormat("en", {
       dateStyle: "medium",
@@ -165,6 +166,11 @@ export function ApprovalInbox() {
       storage: "persisting",
       actorId,
       persistenceDetail: "Recording decision through the API.",
+    });
+    setDecisionErrors((current) => {
+      const next = { ...current };
+      delete next[approvalId];
+      return next;
     });
 
     try {
@@ -198,17 +204,40 @@ export function ApprovalInbox() {
         permissionDetail: `Permission ${result.permission_decision.reason}.`,
         workflowSignalDetail: `${result.workflow_signal.adapter} / ${result.workflow_signal.signal_name}`,
       });
-    } catch {
-      updateDecisionState(approvalId, {
-        decision: option.decision,
-        label: option.label,
-        decidedAt,
-        auditResult: decisionAuditResult(option.decision),
-        storage: "local",
-        actorId,
-        persistenceDetail: "Local preview only; API persistence is unavailable.",
+    } catch (error) {
+      setLocalDecisions((current) => {
+        const next = { ...current };
+        delete next[approvalId];
+        return next;
       });
+      setDecisionErrors((current) => ({
+        ...current,
+        [approvalId]:
+          error instanceof Error
+            ? error.message
+            : "Approval decision API persistence is unavailable.",
+      }));
     }
+  }
+
+  if (!inbox) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed approval records. Local fallback approval records are disabled."
+        endpoint="/demo/manufacturing/approvals"
+        title={source === "loading" ? "Loading approval API" : "Approval API unavailable"}
+      />
+    );
+  }
+
+  if (!selectedApproval) {
+    return (
+      <ApiRequiredState
+        detail="The approval API responded without queue records for this tenant."
+        endpoint="/demo/manufacturing/approvals"
+        title="Approval API returned no records"
+      />
+    );
   }
 
   return (
@@ -393,10 +422,11 @@ export function ApprovalInbox() {
                 <p className="row-detail">
                   {selectedDecision.storage === "persisted"
                     ? "Persisted decision"
-                    : selectedDecision.storage === "persisting"
-                      ? "Recording decision"
-                      : "Local preview"}
+                    : "Recording decision"}
                 </p>
+              ) : null}
+              {selectedDecisionError ? (
+                <p className="row-detail">Decision persistence error: {selectedDecisionError}</p>
               ) : null}
             </div>
             <div className="decision-toolbar">
@@ -436,6 +466,9 @@ export function ApprovalInbox() {
               ) : null}
               {selectedDecision?.workflowSignalDetail ? (
                 <p className="row-detail">{selectedDecision.workflowSignalDetail}</p>
+              ) : null}
+              {selectedDecisionError ? (
+                <p className="row-detail">{selectedDecisionError}</p>
               ) : null}
             </div>
           </div>

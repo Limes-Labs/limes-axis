@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allAuditFilter,
-  defaultAuditExportBundle,
-  defaultManufacturingAuditExplorer,
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
@@ -21,7 +20,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type AuditSource = "loading" | "persisted" | "api" | "fallback";
+type AuditSource = "loading" | "persisted" | "api" | "unavailable";
 
 const defaultFilters: AuditFilters = {
   tenant: allAuditFilter,
@@ -35,10 +34,10 @@ function sourceLabel(source: AuditSource): string {
   }
 
   if (source === "api") {
-    return "Live audit seed";
+    return "API audit records";
   }
 
-  return source === "loading" ? "Loading audit seed" : "Fallback audit seed";
+  return source === "loading" ? "Loading audit API" : "Audit API unavailable";
 }
 
 function formatAuditTime(value: string): string {
@@ -51,15 +50,11 @@ function formatAuditTime(value: string): string {
 }
 
 export function AuditExplorer() {
-  const [auditData, setAuditData] = useState<ManufacturingAuditExplorer>(
-    defaultManufacturingAuditExplorer,
-  );
-  const [auditExport, setAuditExport] = useState<AuditExportBundle>(defaultAuditExportBundle);
+  const [auditData, setAuditData] = useState<ManufacturingAuditExplorer | null>(null);
+  const [auditExport, setAuditExport] = useState<AuditExportBundle | null>(null);
   const [source, setSource] = useState<AuditSource>("loading");
   const [filters, setFilters] = useState<AuditFilters>(defaultFilters);
-  const [selectedEventId, setSelectedEventId] = useState(
-    defaultManufacturingAuditExplorer.events[0].audit_event_id,
-  );
+  const [selectedEventId, setSelectedEventId] = useState("");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -104,7 +99,7 @@ export function AuditExplorer() {
         }
       } catch {
         if (!controller.signal.aborted) {
-          setAuditExport(defaultAuditExportBundle);
+          setAuditExport(null);
         }
       }
     }
@@ -117,21 +112,21 @@ export function AuditExplorer() {
         await loadAuditExport();
         if (persistedAuditData.events.length > 0) {
           setAuditData(persistedAuditData);
-          setSelectedEventId(persistedAuditData.events[0].audit_event_id);
+          setSelectedEventId(persistedAuditData.events[0]?.audit_event_id ?? "");
           setSource("persisted");
           return;
         }
 
         const seedAuditData = await fetchAuditData("/demo/manufacturing/audit");
         setAuditData(seedAuditData);
-        setSelectedEventId(seedAuditData.events[0].audit_event_id);
+        setSelectedEventId(seedAuditData.events[0]?.audit_event_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setAuditData(defaultManufacturingAuditExplorer);
-          setAuditExport(defaultAuditExportBundle);
-          setSelectedEventId(defaultManufacturingAuditExplorer.events[0].audit_event_id);
-          setSource("fallback");
+          setAuditData(null);
+          setAuditExport(null);
+          setSelectedEventId("");
+          setSource("unavailable");
         }
       }
     }
@@ -141,15 +136,21 @@ export function AuditExplorer() {
     return () => controller.abort();
   }, [apiBaseUrl]);
 
-  const filteredEvents = useMemo(() => filterAuditEvents(auditData, filters), [auditData, filters]);
+  const filteredEvents = useMemo(
+    () => (auditData ? filterAuditEvents(auditData, filters) : []),
+    [auditData, filters],
+  );
   const effectiveSelectedEventId = filteredEvents.some(
     (event) => event.audit_event_id === selectedEventId,
   )
     ? selectedEventId
-    : (filteredEvents[0]?.audit_event_id ?? auditData.events[0].audit_event_id);
+    : (filteredEvents[0]?.audit_event_id ?? auditData?.events[0]?.audit_event_id ?? "");
 
   const selectedEvent = useMemo(
-    () => findAuditEventById(auditData, effectiveSelectedEventId),
+    () =>
+      auditData && auditData.events.length > 0
+        ? findAuditEventById(auditData, effectiveSelectedEventId)
+        : null,
     [auditData, effectiveSelectedEventId],
   );
 
@@ -162,6 +163,26 @@ export function AuditExplorer() {
 
   function resetFilters() {
     setFilters(defaultFilters);
+  }
+
+  if (!auditData) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed audit records. Local fallback audit records are disabled."
+        endpoint="/demo/manufacturing/audit/events"
+        title={source === "loading" ? "Loading audit API" : "Audit API unavailable"}
+      />
+    );
+  }
+
+  if (!selectedEvent) {
+    return (
+      <ApiRequiredState
+        detail="The audit API responded without ledger records for this tenant."
+        endpoint="/demo/manufacturing/audit/events"
+        title="Audit API returned no records"
+      />
+    );
   }
 
   return (
@@ -388,70 +409,80 @@ export function AuditExplorer() {
         </div>
       </section>
 
-      <section className="panel audit-detail">
-        <div className="audit-detail-header">
-          <div>
-            <p className="section-label">Export Controls</p>
-            <h2 className="panel-title">{auditExport.manifest.export_id}</h2>
-            <p className="row-detail">
-              {auditExport.export_reason} / {auditExport.manifest.redaction_policy}
-            </p>
+      {auditExport ? (
+        <section className="panel audit-detail">
+          <div className="audit-detail-header">
+            <div>
+              <p className="section-label">Export Controls</p>
+              <h2 className="panel-title">{auditExport.manifest.export_id}</h2>
+              <p className="row-detail">
+                {auditExport.export_reason} / {auditExport.manifest.redaction_policy}
+              </p>
+            </div>
+            <span className="status-pill signal-ready">
+              <FileText size={15} />
+              {auditExport.format.toUpperCase()} export
+            </span>
           </div>
-          <span className="status-pill signal-ready">
-            <FileText size={15} />
-            {auditExport.format.toUpperCase()} export
-          </span>
-        </div>
 
-        <div className="audit-detail-grid">
-          <div>
-            <p className="metric-label">Records</p>
-            <p className="row-title">{auditExport.manifest.record_count}</p>
-            <p className="row-detail">{auditExport.manifest.tenant_id}</p>
+          <div className="audit-detail-grid">
+            <div>
+              <p className="metric-label">Records</p>
+              <p className="row-title">{auditExport.manifest.record_count}</p>
+              <p className="row-detail">{auditExport.manifest.tenant_id}</p>
+            </div>
+            <div>
+              <p className="metric-label">Retention</p>
+              <p className="row-title">{auditExport.retention_policy.retention_days} days</p>
+              <p className="row-detail">{auditExport.retention_policy.policy_id}</p>
+            </div>
+            <div>
+              <p className="metric-label">Legal hold</p>
+              <p className="row-title">
+                {auditExport.retention_policy.legal_hold ? "On" : "Off"}
+              </p>
+              <p className="row-detail">{auditExport.retention_policy.disposal_action}</p>
+            </div>
+            <div>
+              <p className="metric-label">Checksum</p>
+              <p className="row-title mono">
+                {auditExport.manifest.checksum_sha256.slice(0, 12)}
+              </p>
+              <p className="row-detail">{auditExport.manifest.format}</p>
+            </div>
+            <div>
+              <p className="metric-label">Retention Enforced</p>
+              <p className="row-title">
+                {auditExport.manifest.retention_enforced ? "Yes" : "No"}
+              </p>
+              <p className="row-detail">
+                {auditExport.manifest.excluded_record_count} excluded
+              </p>
+            </div>
+            <div>
+              <p className="metric-label">Hash Chain</p>
+              <p className="row-title mono">
+                {auditExport.manifest.integrity_chain_tip_sha256.slice(0, 12)}
+              </p>
+              <p className="row-detail">{auditExport.integrity_proof.algorithm}</p>
+            </div>
           </div>
-          <div>
-            <p className="metric-label">Retention</p>
-            <p className="row-title">{auditExport.retention_policy.retention_days} days</p>
-            <p className="row-detail">{auditExport.retention_policy.policy_id}</p>
-          </div>
-          <div>
-            <p className="metric-label">Legal hold</p>
-            <p className="row-title">{auditExport.retention_policy.legal_hold ? "On" : "Off"}</p>
-            <p className="row-detail">{auditExport.retention_policy.disposal_action}</p>
-          </div>
-          <div>
-            <p className="metric-label">Checksum</p>
-            <p className="row-title mono">
-              {auditExport.manifest.checksum_sha256.slice(0, 12)}
-            </p>
-            <p className="row-detail">{auditExport.manifest.format}</p>
-          </div>
-          <div>
-            <p className="metric-label">Retention Enforced</p>
-            <p className="row-title">
-              {auditExport.manifest.retention_enforced ? "Yes" : "No"}
-            </p>
-            <p className="row-detail">
-              {auditExport.manifest.excluded_record_count} excluded
-            </p>
-          </div>
-          <div>
-            <p className="metric-label">Hash Chain</p>
-            <p className="row-title mono">
-              {auditExport.manifest.integrity_chain_tip_sha256.slice(0, 12)}
-            </p>
-            <p className="row-detail">{auditExport.integrity_proof.algorithm}</p>
-          </div>
-        </div>
 
-        <div className="stack">
-          {auditExport.retention_notes.map((note) => (
-            <p className="row-detail" key={note}>
-              {note}
-            </p>
-          ))}
-        </div>
-      </section>
+          <div className="stack">
+            {auditExport.retention_notes.map((note) => (
+              <p className="row-detail" key={note}>
+                {note}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <ApiRequiredState
+          detail="Axis did not receive an API-backed audit export manifest. Local export manifests are disabled."
+          endpoint="/demo/manufacturing/audit/export"
+          title="Audit export API unavailable"
+        />
+      )}
     </div>
   );
 }

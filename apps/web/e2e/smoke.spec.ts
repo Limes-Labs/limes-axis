@@ -1,10 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
 
-function unsignedToken(claims: Record<string, unknown>): string {
-  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
-  return `axis.${payload}.signature`;
-}
-
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
     const root = document.documentElement;
@@ -36,30 +31,31 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 test.describe("Axis console smoke", () => {
-  test("loads the overview with API status fallback", async ({ page }) => {
+  test("requires the overview API instead of local overview data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "Operations control plane" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Ravenna Works" })).toBeVisible();
-    await expect(page.getByText("Plant Operations Cockpit")).toBeVisible();
-    await expect(page.getByText("Supplier Delay Review")).toBeVisible();
-    await expect(page.getByText("Fallback demo seed")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback overview records are disabled.")).toBeVisible();
+    await expect(page.getByText("/demo/manufacturing/overview")).toBeVisible();
+    await expect(page.getByText("Fallback demo seed")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Ravenna Works" })).toHaveCount(0);
     await expect(page.getByText("API Status")).toBeVisible();
     await expect(page.getByText("Control API")).toBeVisible();
-    await expect(page.getByText("Unavailable")).toBeVisible();
+    await expect(page.locator(".api-status-panel").getByText("Unavailable")).toBeVisible();
     await expect(page.getByText("http://localhost:8000")).toBeVisible();
 
     await page.getByRole("button", { name: "Refresh state" }).click();
-    await expect(page.getByText("Unavailable")).toBeVisible();
+    await expect(page.locator(".api-status-panel").getByText("Unavailable")).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
 
-  test("keeps navigation and agent registry usable on mobile", async ({ page }) => {
+  test("keeps navigation and requires agent/action APIs on mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
@@ -74,217 +70,110 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Autonomy and action registry" }),
     ).toBeVisible();
-    await expect(page.getByText("Fallback agent seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Supply Risk Agent/ })).toBeVisible();
-
-    await page.getByLabel("Domain").first().selectOption("Supply");
-
-    await expect(page.getByRole("heading", { name: "1 visible" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Supply Risk Agent" })).toBeVisible();
-    await expect(page.getByText("approvals:supply:request").first()).toBeVisible();
-    await expect(page.getByText("appr_expedite_supplier_batch", { exact: true }).first())
-      .toBeVisible();
-    await expect(page.getByText("no-external-egress")).toBeVisible();
-    await expect(page.getByText("Fallback action seed")).toBeVisible();
-
-    await page.getByLabel("Risk").selectOption("high");
-    await page.getByRole("button", { name: /Request supplier expedite/ }).click();
-
-    await expect(page.getByRole("heading", { name: "Request supplier expedite" })).toBeVisible();
-    await expect(page.getByText("supplier_batch_id: string (required)")).toBeVisible();
-    await expect(page.getByText("Approval Gated Dry Run")).toBeVisible();
-    await expect(page.getByText("approvals:supply:request").first()).toBeVisible();
-
-    await page.getByRole("button", { name: "Request dry-run" }).click();
-    await expect(page.getByRole("heading", { name: "Approval Required" })).toBeVisible();
-    await expect(page.getByText("Local preview only; API persistence is unavailable."))
-      .toBeVisible();
-    await expect(
-      page.getByText(
-        "tenant_demo_manufacturing:request_supplier_expedite:appr_expedite_supplier_batch",
-      ),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agent API unavailable" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Action API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback agent records are disabled.")).toBeVisible();
+    await expect(page.getByText("Local fallback action records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback agent seed")).toHaveCount(0);
+    await expect(page.getByText("Fallback action seed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Supply Risk Agent/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Request supplier expedite/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
   });
 
-  test("renders the read-only ontology explorer", async ({ page }) => {
+  test("requires the ontology APIs instead of local graph data", async ({ page }) => {
     await page.goto("/ontology");
 
     await expect(page.getByRole("heading", { name: "Operational knowledge model" })).toBeVisible();
-    await expect(page.getByText("Fallback ontology seed")).toBeVisible();
-    await expect(page.getByText("Graph Query")).toBeVisible();
-    await expect(page.getByText("unfiltered_public_seed")).toBeVisible();
-    await expect(page.getByRole("row", { name: "Line 2 Packaging Packaging" })).toBeVisible();
-    await expect(
-      page.getByRole("row", { name: "requires_approval Workflow cannot execute" }),
-    ).toBeVisible();
-    expect(await page.getByRole("cell", { name: "operations:read" }).count()).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "Ontology API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback ontology records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback ontology seed")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Line 2 Packaging" })).toHaveCount(0);
 
-    await expect(page.getByRole("link", { name: "Line 2 Packaging" })).toHaveAttribute(
-      "href",
-      "/ontology/asset_line_2_packaging",
-    );
     await page.goto("/ontology/asset_line_2_packaging");
 
     await expect(page.getByRole("heading", { name: "Entity detail" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Line 2 Packaging" })).toBeVisible();
-    await expect(page.getByText("Fallback entity seed")).toBeVisible();
-    await expect(page.getByText("supplier delay risk relationship")).toBeVisible();
-    await expect(page.getByText("risk_supplier_delay").first()).toBeVisible();
-    await expect(page.getByText("supply:read").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Entity API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback entity records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback entity seed")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
   });
 
-  test("renders model routing and cost observability", async ({ page }) => {
+  test("requires the model routing API instead of local routing data", async ({ page }) => {
     await page.goto("/model-routing");
 
     await expect(page.getByRole("heading", { name: "Model routing and spend" })).toBeVisible();
-    await expect(page.getByText("Fallback routing seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Quality Risk Agent/ })).toBeVisible();
-    await expect(page.getByText("EUR 0.76").first()).toBeVisible();
-
-    await page.getByLabel("Decision").selectOption("blocked_by_default");
-
-    await expect(page.getByRole("heading", { name: "1 visible" })).toBeVisible();
-    await page.getByRole("button", { name: /Quality Risk Agent/ }).click();
-
-    await expect(page.getByRole("heading", { name: "Quality Risk Agent" })).toBeVisible();
-    await expect(page.getByText("model.egress.blocked")).toBeVisible();
-    await expect(page.getByText("audit_20260621_133900_egress_blocked").first()).toBeVisible();
-    await expect(page.getByText("no-external-egress").first()).toBeVisible();
-    await expect(page.getByText("EUR 0.00").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Routing API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback routing records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback routing seed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Quality Risk Agent/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
   });
 
-  test("renders the approval inbox with persisted decision fallback", async ({ page }) => {
+  test("requires the approval API instead of local approval decisions", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/approvals");
 
     await expect(page.getByRole("heading", { name: "Policy gate queue" })).toBeVisible();
-    await expect(page.getByText("Fallback approval seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Expedite supplier batch/ })).toBeVisible();
-
-    await page.getByRole("button", { name: "OIDC" }).click();
-    await page.getByLabel("OIDC bearer token").fill(
-      unsignedToken({
-        sub: "plant-operations-owner-role",
-        axis_tenant: "tenant_demo_manufacturing",
-        scope: "approvals:supply:decide supply:read operations:read",
-        scp: ["workflows:read"],
-        exp: 4102444800,
-      }),
-    );
-    await page.getByRole("button", { name: "Connect OIDC session" }).click();
-
-    await expect(page.getByLabel("OIDC session", { exact: true })).toContainText(
-      "plant-operations-owner-role",
-    );
-    await expect(page.getByRole("button", { name: "Clear OIDC session" })).toBeVisible();
-
-    await page.getByRole("button", { name: /Place Batch Q-1842 on quality hold/ }).click();
-
-    await expect(page.getByRole("heading", { name: "Place Batch Q-1842 on quality hold" }))
-      .toBeVisible();
-    await expect(page.getByText("approvals:quality:decide")).toBeVisible();
-
-    await page.getByRole("button", { name: "Approve" }).click();
-
-    await expect(page.getByRole("heading", { name: "Approved" })).toBeVisible();
-    await expect(page.getByText("Local preview", { exact: true })).toBeVisible();
-    await expect(page.getByText("approved_preview")).toBeVisible();
-    await expect(page.getByText("Local preview only; API persistence is unavailable."))
-      .toBeVisible();
+    await expect(page.getByRole("heading", { name: "Approval API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback approval records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback approval seed")).toHaveCount(0);
+    await expect(page.getByText("Local preview")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Expedite supplier batch/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
 
-  test("renders the read-only workflow console", async ({ page }) => {
+  test("requires the workflow API instead of local workflow data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/workflows");
 
     await expect(page.getByRole("heading", { name: "Runtime adapter track" })).toBeVisible();
-    await expect(page.getByText("Fallback workflow seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toBeVisible();
-    await expect(page.getByText("axis-temporal-adapter", { exact: true })).toBeVisible();
-    await expect(page.getByText("approval.decision")).toBeVisible();
-
-    await page.getByRole("button", { name: /Maintenance Reschedule/ }).click();
-
-    await expect(page.getByRole("heading", { name: "Maintenance Reschedule" })).toBeVisible();
-    await expect(page.getByText("maintenance.owner.review")).toBeVisible();
-    await expect(page.getByText("service-window-policy")).toBeVisible();
-    await expect(page.getByText("Replay preview only")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Workflow API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback workflow records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback workflow seed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
 
-  test("renders the read-only audit explorer with filters", async ({ page }) => {
+  test("requires the audit API instead of local audit data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/audit");
 
     await expect(page.getByRole("heading", { name: "Append-only evidence" })).toBeVisible();
-    await expect(page.getByText("Fallback audit seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /workflow.started/ })).toBeVisible();
-    await page.getByLabel("Tenant").selectOption("tenant_demo_manufacturing");
-    await expect(page.getByLabel("Tenant")).toHaveValue("tenant_demo_manufacturing");
+    await expect(page.getByRole("heading", { name: "Audit API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback audit records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback audit seed")).toHaveCount(0);
+    await expect(page.getByText("audit-export-local-seed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /workflow.started/ })).toHaveCount(0);
 
-    await page.getByLabel("Event").selectOption("policy.egress.blocked");
-
-    await expect(page.getByRole("heading", { name: "1 visible" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /policy.egress.blocked/ })).toBeVisible();
-    await expect(page.getByText("blocked_by_default").first()).toBeVisible();
-    await expect(page.getByText("no-external-egress")).toBeVisible();
-    await expect(page.getByText("Export Controls")).toBeVisible();
-    await expect(page.getByText("audit-export-local-seed")).toBeVisible();
-    await expect(page.getByText("365 days")).toBeVisible();
-    await expect(page.getByText("Retention Enforced")).toBeVisible();
-    await expect(page.getByText("0 excluded")).toBeVisible();
-    await expect(page.getByText("Hash Chain", { exact: true })).toBeVisible();
-    await expect(page.getByText("sha256-hash-chain-v1")).toBeVisible();
-
-    await page.getByRole("button", { name: "Reset filters" }).click();
-
-    await expect(page.getByRole("heading", { name: "9 visible" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
 
-  test("renders replay simulation artifacts", async ({ page }) => {
+  test("requires the replay API instead of local replay artifacts", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/simulation");
 
     await expect(page.getByRole("heading", { name: "Replay and simulation" })).toBeVisible();
-    await expect(page.getByText("Fallback replay seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toBeVisible();
-    await expect(page.getByText("human-approval-required").first()).toBeVisible();
-    await expect(page.getByText("blocked_until_human_approval").first()).toBeVisible();
-    await expect(page.getByText("Policy Set Diff", { exact: true })).toBeVisible();
-    await expect(
-      page.getByText("policy_set_connector_asset_required_20260622_rollback").first(),
-    ).toBeVisible();
-    await expect(page.getByText("connector.promotion_policy_set.simulated_diff")).toBeVisible();
-    await expect(page.getByText("changed_outcome_detected")).toBeVisible();
-    await expect(page.getByText("Replay Window", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("axis-demo-replay-retention")).toBeVisible();
-    await expect(page.getByText("enforced_exclusion")).toBeVisible();
-    await expect(page.getByText("0 total excluded")).toBeVisible();
-    await expect(page.getByText("Persisted Outputs", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("simulation.replay_output.persisted")).toBeVisible();
-    await expect(page.getByText("simulation:replay:persist")).toBeVisible();
-    await expect(page.getByText("Raw action payloads are not exposed").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Replay API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback replay records are disabled.")).toBeVisible();
+    await expect(page.getByText("Fallback replay seed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

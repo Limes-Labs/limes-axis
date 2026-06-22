@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { GitBranch, History, RadioTower, Route, TimerReset } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   countWaitingWorkflowSignals,
-  defaultManufacturingWorkflowConsole,
   findWorkflowById,
   formatWorkflowState,
   shouldUsePersistedWorkflowData,
@@ -18,7 +18,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type WorkflowSource = "loading" | "persisted" | "api" | "fallback";
+type WorkflowSource = "loading" | "persisted" | "api" | "unavailable";
 
 function sourceLabel(source: WorkflowSource): string {
   if (source === "persisted") {
@@ -26,10 +26,10 @@ function sourceLabel(source: WorkflowSource): string {
   }
 
   if (source === "api") {
-    return "Live workflow seed";
+    return "API workflow records";
   }
 
-  return source === "loading" ? "Loading workflow seed" : "Fallback workflow seed";
+  return source === "loading" ? "Loading workflow API" : "Workflow API unavailable";
 }
 
 function formatWorkflowTime(value: string): string {
@@ -42,13 +42,9 @@ function formatWorkflowTime(value: string): string {
 }
 
 export function WorkflowConsole() {
-  const [workflowData, setWorkflowData] = useState<ManufacturingWorkflowConsole>(
-    defaultManufacturingWorkflowConsole,
-  );
+  const [workflowData, setWorkflowData] = useState<ManufacturingWorkflowConsole | null>(null);
   const [source, setSource] = useState<WorkflowSource>("loading");
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState(
-    defaultManufacturingWorkflowConsole.workflow_runs[0].workflow_id,
-  );
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -74,20 +70,20 @@ export function WorkflowConsole() {
         );
         if (shouldUsePersistedWorkflowData(persistedWorkflowData)) {
           setWorkflowData(persistedWorkflowData);
-          setSelectedWorkflowId(persistedWorkflowData.workflow_runs[0].workflow_id);
+          setSelectedWorkflowId(persistedWorkflowData.workflow_runs[0]?.workflow_id ?? "");
           setSource("persisted");
           return;
         }
 
         const seedWorkflowData = await fetchWorkflowData("/demo/manufacturing/workflows");
         setWorkflowData(seedWorkflowData);
-        setSelectedWorkflowId(seedWorkflowData.workflow_runs[0].workflow_id);
+        setSelectedWorkflowId(seedWorkflowData.workflow_runs[0]?.workflow_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setWorkflowData(defaultManufacturingWorkflowConsole);
-          setSelectedWorkflowId(defaultManufacturingWorkflowConsole.workflow_runs[0].workflow_id);
-          setSource("fallback");
+          setWorkflowData(null);
+          setSelectedWorkflowId("");
+          setSource("unavailable");
         }
       }
     }
@@ -98,10 +94,33 @@ export function WorkflowConsole() {
   }, [apiBaseUrl]);
 
   const selectedWorkflow = useMemo(
-    () => findWorkflowById(workflowData, selectedWorkflowId),
+    () =>
+      workflowData && workflowData.workflow_runs.length > 0
+        ? findWorkflowById(workflowData, selectedWorkflowId)
+        : null,
     [workflowData, selectedWorkflowId],
   );
-  const waitingSignals = countWaitingWorkflowSignals(workflowData);
+  const waitingSignals = workflowData ? countWaitingWorkflowSignals(workflowData) : 0;
+
+  if (!workflowData) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed workflow records. Local fallback workflow records are disabled."
+        endpoint="/demo/manufacturing/workflows/runs"
+        title={source === "loading" ? "Loading workflow API" : "Workflow API unavailable"}
+      />
+    );
+  }
+
+  if (!selectedWorkflow) {
+    return (
+      <ApiRequiredState
+        detail="The workflow API responded without runtime records for this tenant."
+        endpoint="/demo/manufacturing/workflows/runs"
+        title="Workflow API returned no records"
+      />
+    );
+  }
 
   return (
     <div className="stack">

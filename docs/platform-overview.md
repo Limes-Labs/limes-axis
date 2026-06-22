@@ -40,9 +40,8 @@ The schema is included in `docs/openapi.json` and checked by CI through
 ## Console Behavior
 
 The Next.js overview page loads the demo endpoint from
-`NEXT_PUBLIC_AXIS_API_BASE_URL`. If the API is unavailable, the console falls
-back to the local synthetic seed so the UI remains usable in docs, CI and local
-frontend-only development.
+`NEXT_PUBLIC_AXIS_API_BASE_URL`. If the API is unavailable, the console shows an
+API-required state and does not render local overview records.
 
 This is a demo seed, not a production data loading path. Future Platform work
 will replace it with tenant-scoped, authenticated API surfaces backed by
@@ -54,5 +53,5 @@ Covered by:
 
 - API unit tests for the manufacturing overview seed and endpoint;
 - generated OpenAPI drift check;
-- web unit tests for the fallback demo contract;
-- Playwright smoke tests for overview rendering on desktop and mobile.
+- web unit tests for the API response contract;
+- Playwright smoke tests for API-required overview behavior on desktop and mobile.

@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, Gauge, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
+import { ApiRequiredState } from "@/components/api-required-state";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allModelRoutingFilter,
   countBlockedModelRoutes,
-  defaultManufacturingModelRouting,
   filterModelRoutes,
   findModelRouteById,
   formatEuroCost,
@@ -23,7 +23,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 
-type ModelRoutingSource = "loading" | "api" | "fallback";
+type ModelRoutingSource = "loading" | "api" | "unavailable";
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -33,10 +33,10 @@ const defaultFilters: ModelRoutingFilters = {
 
 function sourceLabel(source: ModelRoutingSource): string {
   if (source === "api") {
-    return "Live routing seed";
+    return "API routing telemetry";
   }
 
-  return source === "loading" ? "Loading routing seed" : "Fallback routing seed";
+  return source === "loading" ? "Loading routing API" : "Routing API unavailable";
 }
 
 function routeDecisionClass(route: ModelRouteTelemetry): string {
@@ -48,14 +48,10 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 }
 
 export function ModelRoutingConsole() {
-  const [routing, setRouting] = useState<ManufacturingModelRouting>(
-    defaultManufacturingModelRouting,
-  );
+  const [routing, setRouting] = useState<ManufacturingModelRouting | null>(null);
   const [source, setSource] = useState<ModelRoutingSource>("loading");
   const [filters, setFilters] = useState<ModelRoutingFilters>(defaultFilters);
-  const [selectedRouteId, setSelectedRouteId] = useState(
-    defaultManufacturingModelRouting.routes[0].route_id,
-  );
+  const [selectedRouteId, setSelectedRouteId] = useState("");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -74,13 +70,13 @@ export function ModelRoutingConsole() {
 
         const nextRouting = (await response.json()) as ManufacturingModelRouting;
         setRouting(nextRouting);
-        setSelectedRouteId(nextRouting.routes[0].route_id);
+        setSelectedRouteId(nextRouting.routes[0]?.route_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
-          setRouting(defaultManufacturingModelRouting);
-          setSelectedRouteId(defaultManufacturingModelRouting.routes[0].route_id);
-          setSource("fallback");
+          setRouting(null);
+          setSelectedRouteId("");
+          setSource("unavailable");
         }
       }
     }
@@ -91,24 +87,30 @@ export function ModelRoutingConsole() {
   }, [apiBaseUrl]);
 
   const filteredRoutes = useMemo(
-    () => filterModelRoutes(routing, filters),
+    () => (routing ? filterModelRoutes(routing, filters) : []),
     [routing, filters],
   );
   const effectiveSelectedRouteId = filteredRoutes.some(
     (route) => route.route_id === selectedRouteId,
   )
     ? selectedRouteId
-    : (filteredRoutes[0]?.route_id ?? routing.routes[0].route_id);
+    : (filteredRoutes[0]?.route_id ?? routing?.routes[0]?.route_id ?? "");
 
   const selectedRoute = useMemo(
-    () => findModelRouteById(routing, effectiveSelectedRouteId),
+    () =>
+      routing && routing.routes.length > 0
+        ? findModelRouteById(routing, effectiveSelectedRouteId)
+        : null,
     [routing, effectiveSelectedRouteId],
   );
   const selectedProvider =
-    routing.provider_options.find((provider) => provider.provider_id === selectedRoute.provider_id)
-    ?? routing.provider_options[0];
-  const blockedRoutes = countBlockedModelRoutes(routing);
-  const estimatedCost = sumEstimatedModelCost(routing);
+    routing && selectedRoute
+      ? (routing.provider_options.find(
+          (provider) => provider.provider_id === selectedRoute.provider_id,
+        ) ?? routing.provider_options[0])
+      : null;
+  const blockedRoutes = routing ? countBlockedModelRoutes(routing) : 0;
+  const estimatedCost = routing ? sumEstimatedModelCost(routing) : 0;
 
   function updateFilter(filterName: keyof ModelRoutingFilters, value: string) {
     setFilters((current) => ({
@@ -119,6 +121,26 @@ export function ModelRoutingConsole() {
 
   function resetFilters() {
     setFilters(defaultFilters);
+  }
+
+  if (!routing) {
+    return (
+      <ApiRequiredState
+        detail="Axis did not receive API-backed model routing records. Local fallback routing records are disabled."
+        endpoint="/demo/manufacturing/model-routing"
+        title={source === "loading" ? "Loading routing API" : "Routing API unavailable"}
+      />
+    );
+  }
+
+  if (!selectedRoute || !selectedProvider) {
+    return (
+      <ApiRequiredState
+        detail="The model routing API responded without route records for this tenant."
+        endpoint="/demo/manufacturing/model-routing"
+        title="Routing API returned no records"
+      />
+    );
   }
 
   return (

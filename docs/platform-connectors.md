@@ -479,8 +479,7 @@ proposal records from `/demo/manufacturing/connectors/ontology-proposals`, plus
 manual import request gates from
 `/demo/manufacturing/connectors/manual-imports` and promotion policies from
 `/demo/manufacturing/connectors/promotion-policies`. If the API is unavailable,
-it uses the same public-safe fallback seed so the page remains useful in
-frontend-only development.
+it shows an API-required state and does not render local connector records.
 
 The console displays:
 
@@ -497,7 +496,7 @@ The console displays:
 - controlled ontology promotion evidence and TypeDB mutation status;
 - manual import requests with approval, decision, workflow signal and idempotency evidence;
 - promotion policy authoring and enforcement evidence;
-- promotion policy authoring controls with API/local preview behavior;
+- promotion policy authoring controls with API persistence only;
 - public-safe configuration payload fields;
 - schema mapping;
 - redacted ontology proposals and audit event preview.
@@ -569,7 +568,7 @@ The slice is covered by:
   rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for fallback registry, persisted manifest registry,
+- web unit tests for registry contracts, persisted manifest registry,
   configuration, credential handle, credential lease, run record, ontology
   proposal, manual import, CSV preview and external DB preview contracts;
 - Playwright smoke tests for `/connectors` API-required behavior when the
