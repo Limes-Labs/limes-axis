@@ -151,6 +151,7 @@ Foundation acceptance is tracked in
 - [x] Remove the agent registry runtime seed factory from the API module.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
   bootstrap record.
+- [x] Remove the action registry runtime seed factory from the API module.
 - [x] Persist the manufacturing approval inbox reference as a tenant-scoped
   bootstrap record.
 - [x] Remove the approval inbox runtime seed factory from the API module.
@@ -181,7 +182,7 @@ also reads from `surface=agents` and
 an agent registry runtime seed factory. The action registry endpoint reads from
 `surface=actions` and `reference_id=manufacturing-action-registry`; action run
 requests validate their action definitions against that same persisted record
-and derive ontology resource relationship scopes from
+instead of a runtime seed factory and derive ontology resource relationship scopes from
 `surface=ontology/reference_id=manufacturing-ontology` before writing
 action/audit state.
 The workflow console reference endpoint reads from `surface=workflows` and
@@ -460,7 +461,8 @@ persisted agent state, tenant-scoped agent configuration, runtime policy
 enforcement and model cost observability remain Platform work.
 
 The action registry UI is API required for catalog browsing. The browser no
-longer carries local action fallback records. Typed dry-run/proposal action
+longer carries local action fallback records, and the API module no longer
+defines an action registry runtime seed factory. Typed dry-run/proposal action
 requests can now be persisted through the demo API with idempotency enforcement
 and append-only audit events. Approval-gated action payloads now signal the Axis
 workflow runtime adapter after persistence, with explicit degraded status when

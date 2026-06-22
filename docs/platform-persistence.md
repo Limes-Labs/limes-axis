@@ -333,7 +333,9 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=actions/reference_id=manufacturing-action-registry`, action run
   creation validating against that persisted record, and both paths returning
-  404/422 for missing or invalid persisted payloads.
+  404/422 for missing or invalid persisted payloads; the runtime seed factory
+  has been removed from the API module and tests validate the Alembic bootstrap
+  payload directly.
 - persisted manufacturing workflow console reference records through
   `demo_reference_records`, with the API reading
   `surface=workflows/reference_id=manufacturing-workflow-console` while the

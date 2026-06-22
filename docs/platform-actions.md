@@ -15,6 +15,8 @@ slice does not execute production actions.
 - The registry endpoint reads the active `demo_reference_records` row for
   `surface=actions` and `reference_id=manufacturing-action-registry`; missing
   or invalid persisted records return explicit API errors.
+- The API module no longer defines an action registry runtime seed factory;
+  tests validate the Alembic bootstrap payload directly.
 - `POST /demo/manufacturing/actions/{action_id}/runs` records a typed dry-run
   or proposal request with action idempotency enforcement and append-only audit.
 - Action run requests validate action ids, schemas, workflow bindings and policy
@@ -63,9 +65,9 @@ The registry remains read-only at the catalog boundary, while action run
 requests are now persisted as dry-run/proposal records.
 
 The catalog is a bootstrap reference surface, but it is no longer constructed
-inside the FastAPI route or action-run service path. Alembic migration
-`0025_action_registry_reference` inserts the public-safe typed action catalog,
-the API validates it against the `ManufacturingActionRegistry` contract and the
+inside the FastAPI route, action-run service path or API demo module. Alembic
+migration `0025_action_registry_reference` inserts the public-safe typed action
+catalog, the API validates it against the `ManufacturingActionRegistry` contract and the
 repository provides the active tenant-scoped record for both reads and action
 run creation.
 

@@ -21,7 +21,6 @@ from axis_api.demo import (
     ManufacturingWorkflowConsole,
     OntologyNodeType,
     OverviewStatus,
-    get_manufacturing_action_registry,
     get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
 )
@@ -950,8 +949,9 @@ def test_openapi_exposes_manufacturing_agent_registry_endpoint() -> None:
     assert "/demo/manufacturing/agents" in response.json()["paths"]
 
 
-def test_manufacturing_action_registry_seed_is_policy_gated() -> None:
-    registry = get_manufacturing_action_registry()
+def test_manufacturing_action_registry_bootstrap_seed_is_policy_gated() -> None:
+    migration = run_path("migrations/versions/0025_action_registry_reference.py")
+    registry = ManufacturingActionRegistry.model_validate(migration["ACTION_REGISTRY_PAYLOAD"])
 
     assert registry.scenario == "Plant Operations Cockpit"
     assert registry.registry_status == OverviewStatus.WATCH
@@ -1003,6 +1003,12 @@ def test_manufacturing_action_registry_endpoint_is_not_defined_as_runtime_seed()
     source = Path("src/axis_api/main.py").read_text()
 
     assert "return get_manufacturing_action_registry()" not in source
+
+
+def test_manufacturing_action_registry_runtime_module_does_not_define_seed() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_action_registry" not in source
 
 
 def test_manufacturing_action_registry_endpoint_returns_persisted_reference_data(
