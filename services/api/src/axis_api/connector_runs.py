@@ -22,7 +22,7 @@ from axis_api.connector_execution import (
     DeferredConnectorSyncExecutionRuntime,
     DeferredConnectorSyncSchedulerRuntime,
 )
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.models import utc_now
 from axis_api.persistence import (
@@ -231,7 +231,7 @@ def record_demo_connector_run(
     execution_runtime: ConnectorExecutionRuntime | None = None,
     sync_scheduler_runtime: ConnectorSyncSchedulerRuntime | None = None,
 ) -> ConnectorRunRecord:
-    manifest = _manifest_for_connector(request.connector_id)
+    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_execution_mode(request.execution_mode)
     _validate_redacted_summary(request.input_summary)
     _validate_redacted_summary(request.result_summary)
@@ -537,8 +537,12 @@ def _run_from_record(record) -> ConnectorRunRecord:
     )
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest

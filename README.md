@@ -124,7 +124,8 @@ reference before storing runtime boundary metadata, and credential handle
 creation uses the same persisted registry before storing external secret
 reference metadata. Ontology proposal writes also resolve connector runtime
 boundary metadata from that persisted registry before recording proposal audit
-evidence. The external DB
+evidence, and connector run creation uses it before storing run/audit runtime
+boundary metadata. The external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.

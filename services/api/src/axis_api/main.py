@@ -1484,7 +1484,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/demo/manufacturing/connectors/runs",
         response_model=ConnectorRunRecord,
-        responses={422: {"description": "Connector run validation failed"}},
+        responses={
+            404: {"description": "Connector registry reference record not found"},
+            422: {"description": "Connector run or registry validation failed"},
+        },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
@@ -1501,6 +1504,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 execution_runtime,
                 sync_scheduler_runtime,
             )
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
         except ConnectorRunValidationError as exc:
             raise HTTPException(
                 status_code=422,

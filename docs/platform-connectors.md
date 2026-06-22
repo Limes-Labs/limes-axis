@@ -35,6 +35,9 @@ avoid service-local connector seeds.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from the persisted registry reference before writing proposal records or audit
 evidence.
+Connector run creation uses that same persisted registry reference before
+writing run records or audit evidence, so run runtime boundaries no longer come
+from a service-local connector seed.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -106,6 +109,11 @@ Ontology proposal creation reads the same registry reference to resolve the
 connector runtime boundary used in audit evidence. Missing or invalid registry
 references return explicit 404/422 errors before any proposal row or audit event
 is written.
+
+Connector run creation reads the same registry reference to resolve the runtime
+boundary stored on run records and audit evidence. Missing or invalid registry
+references return explicit 404/422 errors before any run row or audit event is
+written.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
