@@ -134,7 +134,11 @@ def record_demo_connector_ontology_promotion(
         request.idempotency_key,
     )
     if existing is not None:
-        if _fingerprint_from_existing(existing) != _fingerprint_from_request(request):
+        replay_policy_id = _policy_id_for_idempotency_replay(existing, request)
+        if _fingerprint_from_existing(existing) != _fingerprint_from_request(
+            request,
+            policy_id=replay_policy_id,
+        ):
             raise ConnectorOntologyPromotionIdempotencyConflict(existing.promotion_id)
         proposal = repository.get_connector_ontology_proposal(
             existing.tenant_id,
@@ -155,6 +159,7 @@ def record_demo_connector_ontology_promotion(
     _validate_manual_import_for_promotion(manual_import, request.proposal_id)
     permission_decision = _evaluate_promotion_permission(request, proposal, manual_import)
     policy_decision = _evaluate_promotion_policy(repository, request, proposal, manual_import)
+    effective_policy_id = policy_decision.policy_id if policy_decision else request.policy_id
 
     mutation_request = OntologyMutationRequest(
         tenant_id=proposal.tenant_id,
@@ -188,7 +193,7 @@ def record_demo_connector_ontology_promotion(
                 "proposal_id": proposal.proposal_id,
                 "manual_import_id": manual_import.import_id,
                 "promotion_mode": request.promotion_mode,
-                "policy_id": request.policy_id,
+                "policy_id": effective_policy_id,
                 "policy_decision": policy_decision.model_dump() if policy_decision else None,
                 "status": promotion_status,
                 "graph_mutation_status": ontology_mutation.status,
@@ -217,7 +222,7 @@ def record_demo_connector_ontology_promotion(
             graph_mutation_status=ontology_mutation.status,
             ontology_mutation=ontology_mutation.model_dump(),
             permission_decision=permission_decision.model_dump(),
-            policy_id=request.policy_id,
+            policy_id=effective_policy_id,
             policy_decision=policy_decision.model_dump() if policy_decision else None,
             audit_event_id=audit_event.id,
             audit_event_type=audit_event.event_type,
@@ -235,7 +240,7 @@ def record_demo_connector_ontology_promotion(
                 promotion_id=request.promotion_id,
                 promoted_by=request.actor_id,
                 ontology_mutation=ontology_mutation.model_dump(),
-                policy_id=request.policy_id,
+                policy_id=effective_policy_id,
                 policy_decision=policy_decision.model_dump() if policy_decision else None,
                 audit_event_id=audit_event.id,
                 audit_event_type=audit_event.event_type,
@@ -255,7 +260,7 @@ def record_demo_connector_ontology_promotion(
         promotion=_promotion_from_record(promotion),
         permission_decision=permission_decision,
         ontology_mutation=ontology_mutation,
-        policy_id=request.policy_id,
+        policy_id=effective_policy_id,
         policy_decision=policy_decision,
         audit_event_id=audit_event.id,
         audit_event_type=audit_event.event_type,
@@ -338,10 +343,18 @@ def _evaluate_promotion_policy(
     proposal,
     manual_import,
 ) -> ConnectorPromotionPolicyDecision | None:
+    selection_mode = "explicit"
     if request.policy_id is None:
-        return None
-
-    policy = repository.get_connector_promotion_policy(request.tenant_id, request.policy_id)
+        policy = _select_required_promotion_policy(
+            repository,
+            request.tenant_id,
+            proposal.connector_id,
+        )
+        if policy is None:
+            return None
+        selection_mode = "auto_required"
+    else:
+        policy = repository.get_connector_promotion_policy(request.tenant_id, request.policy_id)
     if policy is None:
         raise ConnectorOntologyPromotionValidationError(
             "Connector promotion policy was not found for this tenant.",
@@ -359,6 +372,7 @@ def _evaluate_promotion_policy(
         "workflow_signal_status": manual_import.workflow_signal_status,
         "risk_level": manual_import.risk_level,
         "ontology_type": proposal.ontology_type,
+        "selection_mode": selection_mode,
     }
     if policy.status != "enabled" or policy.enforcement_mode != "required":
         return ConnectorPromotionPolicyDecision(
@@ -400,6 +414,45 @@ def _evaluate_promotion_policy(
         required_scopes=policy.required_scopes,
         matched_constraints=matched_constraints,
     )
+
+
+def _select_required_promotion_policy(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    policies = repository.list_connector_promotion_policies(
+        tenant_id=tenant_id,
+        connector_id=connector_id,
+        status="enabled",
+    )
+    required_policies = [policy for policy in policies if policy.enforcement_mode == "required"]
+    if not required_policies:
+        return None
+    if len(required_policies) > 1:
+        raise ConnectorOntologyPromotionValidationError(
+            "Multiple enabled required policies match this connector promotion.",
+            "promotion_policy_selection_ambiguous",
+        )
+    return required_policies[0]
+
+
+def _policy_id_for_idempotency_replay(
+    record,
+    request: ConnectorOntologyPromotionRequest,
+) -> str | None:
+    if request.policy_id is not None:
+        return request.policy_id
+    if _policy_selection_mode_from_record(record) == "auto_required":
+        return record.policy_id
+    return None
+
+
+def _policy_selection_mode_from_record(record) -> str | None:
+    if not record.policy_decision:
+        return None
+    matched_constraints = record.policy_decision.get("matched_constraints", {})
+    return matched_constraints.get("selection_mode")
 
 
 def _promotion_status(ontology_mutation: OntologyMutationResult) -> str:
@@ -503,13 +556,18 @@ def _result_from_existing(
     )
 
 
-def _fingerprint_from_request(request: ConnectorOntologyPromotionRequest) -> dict:
+def _fingerprint_from_request(
+    request: ConnectorOntologyPromotionRequest,
+    *,
+    policy_id: str | None = None,
+) -> dict:
+    effective_policy_id = request.policy_id if policy_id is None else policy_id
     return {
         "promotion_id": request.promotion_id,
         "proposal_id": request.proposal_id,
         "manual_import_id": request.manual_import_id,
         "promotion_mode": request.promotion_mode,
-        "policy_id": request.policy_id,
+        "policy_id": effective_policy_id,
         "requested_by": request.actor_id,
         "notes": [request.note] if request.note else [],
     }

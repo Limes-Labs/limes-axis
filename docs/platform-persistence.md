@@ -182,8 +182,8 @@ Delivered:
   promotion evidence on the proposal record.
 - connector promotion policies with authoring permission evidence, required
   promotion scopes, required manual-import/workflow states, enforcement evidence
-  on promotions and append-only `connector.promotion_policy.authored` audit
-  writes.
+  on promotions, auto-selected required policy ids on promotion/proposal
+  records and append-only `connector.promotion_policy.authored` audit writes.
 
 Still Platform work:
 
