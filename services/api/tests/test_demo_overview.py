@@ -23,7 +23,6 @@ from axis_api.demo import (
     OverviewStatus,
     get_manufacturing_action_registry,
     get_manufacturing_agent_registry,
-    get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
     get_manufacturing_ontology,
@@ -1110,8 +1109,9 @@ def test_openapi_exposes_manufacturing_action_registry_endpoint() -> None:
     assert "/demo/manufacturing/actions" in response.json()["paths"]
 
 
-def test_manufacturing_approval_inbox_seed_is_governed() -> None:
-    inbox = get_manufacturing_approval_inbox()
+def test_manufacturing_approval_inbox_bootstrap_seed_is_governed() -> None:
+    migration = run_path("migrations/versions/0027_approval_inbox_reference.py")
+    inbox = ManufacturingApprovalInbox.model_validate(migration["APPROVAL_INBOX_PAYLOAD"])
 
     assert inbox.scenario == "Plant Operations Cockpit"
     assert inbox.queue_status == OverviewStatus.ACTION_REQUIRED
@@ -1166,6 +1166,12 @@ def test_manufacturing_approval_inbox_endpoint_is_not_defined_as_runtime_seed() 
     source = Path("src/axis_api/main.py").read_text()
 
     assert "return get_manufacturing_approval_inbox()" not in source
+
+
+def test_manufacturing_approval_inbox_runtime_module_does_not_define_seed() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_approval_inbox" not in source
 
 
 def test_manufacturing_approval_inbox_endpoint_returns_persisted_reference_data(

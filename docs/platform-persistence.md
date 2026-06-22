@@ -343,7 +343,9 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=approvals/reference_id=manufacturing-approval-inbox`, approval
   decisions validating against the same persisted inbox record and both paths
-  returning 404/422 for missing or invalid persisted payloads.
+  returning 404/422 for missing or invalid persisted payloads; the runtime seed
+  factory has been removed from the API module and tests validate the Alembic
+  bootstrap payload directly.
 - persisted manufacturing audit explorer reference records through
   `demo_reference_records`, with the API reading
   `surface=audit/reference_id=manufacturing-audit-explorer` while the separate
