@@ -195,10 +195,16 @@ manual import state, workflow signal state, allowed risk levels and
 connectors or mutating TypeDB. Policies are enabled through
 `/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable`, which
 requires `connectors:promotion_policy:enable`, an approved decision, workflow
-signal evidence and writes `connector.promotion_policy.enabled`. Enabled
-required policies are auto-selected when a promotion request omits `policy_id`
-and are enforced before the TypeDB mutation adapter is called. When more than
-one enabled required policy applies, `/demo/manufacturing/connectors/promotion-policy-sets`
+signal evidence and writes `connector.promotion_policy.enabled`. Draft policies
+can be revised append-only through
+`/demo/manufacturing/connectors/promotion-policies/{policy_id}/revise`, which
+requires `connectors:promotion_policy:revise`, approved revision evidence,
+workflow signal evidence and an idempotency key. Enabled required policies are
+not revised in place; future versions must be adopted through a governed
+policy-set transition. Enabled required policies are auto-selected when a
+promotion request omits `policy_id` and are enforced before the TypeDB mutation
+adapter is called. When more than one enabled required policy applies,
+`/demo/manufacturing/connectors/promotion-policy-sets`
 can activate a versioned active set with
 `connectors:promotion_policy_set:activate`; the promotion endpoint evaluates all
 policies in that set and stores `policy_set_id`, `policy_ids` and

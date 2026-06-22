@@ -7,9 +7,11 @@ from axis_api.config import Settings
 from axis_api.connector_promotion_policies import (
     ConnectorPromotionPolicyCreateRequest,
     ConnectorPromotionPolicyEnableRequest,
+    ConnectorPromotionPolicyReviseRequest,
     build_connector_promotion_policy_registry,
     enable_demo_connector_promotion_policy,
     record_demo_connector_promotion_policy,
+    revise_demo_connector_promotion_policy,
 )
 from axis_api.db import session_scope
 from axis_api.main import create_app
@@ -47,6 +49,31 @@ def enable_payload() -> dict:
         "approval_decision": "approve",
         "workflow_signal_status": "policy_enable_signal_recorded",
         "note": "Enable required policy after governance review.",
+    }
+
+
+def revision_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "connector_id": "file_csv_manufacturing_assets",
+        "policy_id": "policy_connector_asset_promotion_v2",
+        "policy_version": "2026-06-22.2",
+        "status": "draft",
+        "enforcement_mode": "advisory",
+        "updated_by": "platform-governance-owner-role",
+        "actor_scopes": ["connectors:promotion_policy:revise"],
+        "idempotency_key": "idem_policy_revision_asset_promotion_v2",
+        "revises_policy_id": "policy_connector_asset_promotion_v1",
+        "revision_approval_id": "appr_policy_revision_asset_promotion_v2",
+        "revision_decision": "approve",
+        "revision_workflow_signal_status": "policy_revision_signal_recorded",
+        "required_scopes": ["connectors:ontology:promote"],
+        "required_manual_import_status": "approval_approved",
+        "required_workflow_signal_status": "manual_import_signal_requested",
+        "allowed_risk_levels": ["high", "medium", "low"],
+        "allowed_ontology_types": ["manufacturing_asset"],
+        "review_window_hours": 48,
+        "notes": ["Draft revision widens allowed risk levels after review."],
     }
 
 
@@ -186,6 +213,125 @@ def test_connector_promotion_policy_enable_endpoint_updates_policy() -> None:
     assert response.json()["audit_event_type"] == "connector.promotion_policy.enabled"
     assert policy.status == "enabled"
     assert policy.audit_event_id == audit_event.id
+
+
+def test_revise_connector_promotion_policy_creates_append_only_draft_version() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_promotion_policy(
+            repository,
+            ConnectorPromotionPolicyCreateRequest(**policy_payload()),
+        )
+        revised_policy = revise_demo_connector_promotion_policy(
+            repository,
+            ConnectorPromotionPolicyReviseRequest(**revision_payload()),
+        )
+        replayed_policy = revise_demo_connector_promotion_policy(
+            repository,
+            ConnectorPromotionPolicyReviseRequest(**revision_payload()),
+        )
+
+    with factory() as session:
+        records = {
+            record.policy_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicy)).all()
+        }
+        revision_events = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy.revised"
+            )
+        ).all()
+        registry = build_connector_promotion_policy_registry(
+            AxisPersistenceRepository(session),
+            tenant_id="tenant_demo_manufacturing",
+        )
+
+    client.close()
+    assert revised_policy.policy_id == "policy_connector_asset_promotion_v2"
+    assert revised_policy.policy_version == "2026-06-22.2"
+    assert revised_policy.status == "draft"
+    assert revised_policy.enforcement_mode == "advisory"
+    assert revised_policy.revises_policy_id == "policy_connector_asset_promotion_v1"
+    assert revised_policy.revision_idempotency_key == "idem_policy_revision_asset_promotion_v2"
+    assert revised_policy.idempotent_replay is False
+    assert replayed_policy.policy_id == "policy_connector_asset_promotion_v2"
+    assert replayed_policy.idempotent_replay is True
+    assert len(records) == 2
+    assert records["policy_connector_asset_promotion_v1"].status == "superseded"
+    assert records["policy_connector_asset_promotion_v1"].replaced_by_policy_id == (
+        "policy_connector_asset_promotion_v2"
+    )
+    assert records["policy_connector_asset_promotion_v2"].revises_policy_id == (
+        "policy_connector_asset_promotion_v1"
+    )
+    assert len(revision_events) == 1
+    assert revision_events[0].payload["previous_policy_id"] == (
+        "policy_connector_asset_promotion_v1"
+    )
+    assert revision_events[0].payload["policy_id"] == "policy_connector_asset_promotion_v2"
+    assert revision_events[0].payload["idempotency_key"] == (
+        "idem_policy_revision_asset_promotion_v2"
+    )
+    assert registry.metrics[0].value == "2"
+
+
+def test_connector_promotion_policy_revise_endpoint_is_idempotent() -> None:
+    client, factory = build_test_client()
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+
+    first_response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/revise",
+        json=revision_payload(),
+    )
+    replay_response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/revise",
+        json=revision_payload(),
+    )
+
+    with factory() as session:
+        policy_count = len(session.scalars(select(ConnectorPromotionPolicy)).all())
+        revision_event_count = len(
+            session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.event_type == "connector.promotion_policy.revised"
+                )
+            ).all()
+        )
+
+    client.close()
+    assert first_response.status_code == 201
+    assert first_response.json()["policy_id"] == "policy_connector_asset_promotion_v2"
+    assert first_response.json()["idempotent_replay"] is False
+    assert replay_response.status_code == 200
+    assert replay_response.json()["policy_id"] == "policy_connector_asset_promotion_v2"
+    assert replay_response.json()["idempotent_replay"] is True
+    assert policy_count == 2
+    assert revision_event_count == 1
+
+
+def test_connector_promotion_policy_revise_endpoint_rejects_enabled_target() -> None:
+    client, _ = build_test_client()
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/enable",
+        json=enable_payload(),
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/revise",
+        json=revision_payload(),
+    )
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_revision_target_not_draft"
 
 
 def test_connector_promotion_policy_enable_endpoint_rejects_missing_permission() -> None:
@@ -345,4 +491,11 @@ def test_openapi_exposes_connector_promotion_policy_endpoints() -> None:
     assert (
         "post"
         in paths["/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable"]
+    )
+    assert (
+        "/demo/manufacturing/connectors/promotion-policies/{policy_id}/revise" in paths
+    )
+    assert (
+        "post"
+        in paths["/demo/manufacturing/connectors/promotion-policies/{policy_id}/revise"]
     )

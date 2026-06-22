@@ -401,6 +401,31 @@ class ConnectorPromotionPolicy(Base):
     permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    revises_policy_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    replaced_by_policy_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    revision_idempotency_key: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        index=True,
+    )
+    revision_approval_id: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+        index=True,
+    )
+    revision_decision: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    revision_workflow_signal_status: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
     notes: Mapped[list] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -414,6 +439,11 @@ class ConnectorPromotionPolicy(Base):
             "tenant_id",
             "policy_id",
             name="uq_connector_promotion_policies_tenant_policy",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "revision_idempotency_key",
+            name="uq_connector_promotion_policies_tenant_revision_idempotency",
         ),
     )
 

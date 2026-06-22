@@ -356,6 +356,9 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("approve").first()).toBeVisible();
     await expect(page.getByText("connectors:promotion_policy:author").first()).toBeVisible();
     await expect(page.getByText("connector.promotion_policy.authored").first()).toBeVisible();
+    await expect(page.getByText("connector.promotion_policy.revised").first()).toBeVisible();
+    await expect(page.getByText("idem_policy_revision_asset_promotion_v2").first()).toBeVisible();
+    await expect(page.getByText("policy_revision_signal_recorded").first()).toBeVisible();
     await expect(page.getByText("connector.promotion_policy.enabled").first()).toBeVisible();
     await expect(page.getByText("policy_set_connector_asset_required_20260622").first())
       .toBeVisible();

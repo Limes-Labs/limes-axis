@@ -91,9 +91,12 @@ for policy preview inspection. The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal
-previews without enabling live sync or connector mutation. The credential
-handle slice adds metadata-only external secret references and rotation history
-for connector credentials, while still refusing to store raw credential values.
+previews without enabling live sync or connector mutation. Draft connector
+promotion policies can now be revised append-only with idempotency evidence,
+while enabled required policies remain immutable until a governed policy-set
+transition adopts a future version. The credential handle slice adds
+metadata-only external secret references and rotation history for connector
+credentials, while still refusing to store raw credential values.
 The connector run record slice adds metadata-only run records linked to
 append-only audit events, without executing connector sync. The connector
 ontology proposal slice persists preview-derived proposals for review with

@@ -248,6 +248,12 @@ class ConnectorPromotionPolicyCreate(BaseModel):
     permission_decision: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.promotion_policy.authored", min_length=1)
+    revises_policy_id: str | None = None
+    replaced_by_policy_id: str | None = None
+    revision_idempotency_key: str | None = None
+    revision_approval_id: str | None = None
+    revision_decision: str | None = None
+    revision_workflow_signal_status: str | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -924,6 +930,12 @@ class AxisPersistenceRepository:
             permission_decision=record.permission_decision,
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
+            revises_policy_id=record.revises_policy_id,
+            replaced_by_policy_id=record.replaced_by_policy_id,
+            revision_idempotency_key=record.revision_idempotency_key,
+            revision_approval_id=record.revision_approval_id,
+            revision_decision=record.revision_decision,
+            revision_workflow_signal_status=record.revision_workflow_signal_status,
             notes=record.notes,
         )
         self.session.add(policy)
@@ -940,6 +952,29 @@ class AxisPersistenceRepository:
             ConnectorPromotionPolicy.policy_id == policy_id,
         )
         return self.session.scalars(statement).first()
+
+    def get_connector_promotion_policy_by_revision_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ConnectorPromotionPolicy | None:
+        statement = select(ConnectorPromotionPolicy).where(
+            ConnectorPromotionPolicy.tenant_id == tenant_id,
+            ConnectorPromotionPolicy.revision_idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def revise_connector_promotion_policy(
+        self,
+        policy: ConnectorPromotionPolicy,
+        record: ConnectorPromotionPolicyCreate,
+    ) -> ConnectorPromotionPolicy:
+        policy.status = "superseded"
+        policy.replaced_by_policy_id = record.policy_id
+        policy.updated_at = utc_now()
+        revised_policy = self.create_connector_promotion_policy(record)
+        self.session.flush()
+        return revised_policy
 
     def enable_connector_promotion_policy(
         self,

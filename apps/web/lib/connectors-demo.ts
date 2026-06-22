@@ -359,6 +359,13 @@ export type ConnectorPromotionPolicyRecord = {
   };
   audit_event_id: string | null;
   audit_event_type: string;
+  revises_policy_id: string | null;
+  replaced_by_policy_id: string | null;
+  revision_idempotency_key: string | null;
+  revision_approval_id: string | null;
+  revision_decision: string | null;
+  revision_workflow_signal_status: string | null;
+  idempotent_replay: boolean;
   notes: string[];
   created_at: string;
 };
@@ -1060,15 +1067,15 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
     metrics: [
       {
         label: "Promotion Policies",
-        value: "1",
-        detail: "Connector proposal promotion policies",
+        value: "3",
+        detail: "Connector proposal promotion policy versions",
         status: "ready",
       },
       {
         label: "Draft Policies",
-        value: "0",
+        value: "1",
         detail: "Policies authored but not enabled",
-        status: "ready",
+        status: "watch",
       },
       {
         label: "Required Gates",
@@ -1078,6 +1085,68 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
       },
     ],
     policies: [
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        policy_id: "policy_connector_asset_promotion_draft_20260622",
+        policy_version: "2026-06-22.0",
+        status: "superseded",
+        enforcement_mode: "advisory",
+        created_by: "platform-governance-owner-role",
+        required_authoring_scope: "connectors:promotion_policy:author",
+        required_scopes: ["connectors:ontology:promote"],
+        required_manual_import_status: "approval_approved",
+        required_workflow_signal_status: "manual_import_signal_requested",
+        allowed_risk_levels: ["high", "medium"],
+        allowed_ontology_types: ["manufacturing_asset"],
+        review_window_hours: 24,
+        permission_decision: {
+          allowed: true,
+          reason: "allowed",
+        },
+        audit_event_id: "audit_connector_promotion_policy_draft_demo_20260622",
+        audit_event_type: "connector.promotion_policy.authored",
+        revises_policy_id: null,
+        replaced_by_policy_id: "policy_connector_asset_promotion_draft_20260622_v2",
+        revision_idempotency_key: null,
+        revision_approval_id: null,
+        revision_decision: null,
+        revision_workflow_signal_status: null,
+        idempotent_replay: false,
+        notes: ["Superseded by an append-only draft revision."],
+        created_at: "2026-06-22T00:00:00Z",
+      },
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        policy_id: "policy_connector_asset_promotion_draft_20260622_v2",
+        policy_version: "2026-06-22.0.2",
+        status: "draft",
+        enforcement_mode: "advisory",
+        created_by: "platform-governance-owner-role",
+        required_authoring_scope: "connectors:promotion_policy:revise",
+        required_scopes: ["connectors:ontology:promote"],
+        required_manual_import_status: "approval_approved",
+        required_workflow_signal_status: "manual_import_signal_requested",
+        allowed_risk_levels: ["high", "medium", "low"],
+        allowed_ontology_types: ["manufacturing_asset"],
+        review_window_hours: 48,
+        permission_decision: {
+          allowed: true,
+          reason: "allowed",
+        },
+        audit_event_id: "audit_connector_promotion_policy_revision_demo_20260622",
+        audit_event_type: "connector.promotion_policy.revised",
+        revises_policy_id: "policy_connector_asset_promotion_draft_20260622",
+        replaced_by_policy_id: null,
+        revision_idempotency_key: "idem_policy_revision_asset_promotion_v2",
+        revision_approval_id: "appr_policy_revision_asset_promotion_v2",
+        revision_decision: "approve",
+        revision_workflow_signal_status: "policy_revision_signal_recorded",
+        idempotent_replay: false,
+        notes: ["Draft revision widens risk coverage before enablement."],
+        created_at: "2026-06-22T00:30:00Z",
+      },
       {
         tenant_id: "tenant_demo_manufacturing",
         connector_id: "file_csv_manufacturing_assets",
@@ -1099,6 +1168,13 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
         },
         audit_event_id: "audit_connector_promotion_policy_enable_demo_20260622",
         audit_event_type: "connector.promotion_policy.enabled",
+        revises_policy_id: null,
+        replaced_by_policy_id: null,
+        revision_idempotency_key: null,
+        revision_approval_id: null,
+        revision_decision: null,
+        revision_workflow_signal_status: null,
+        idempotent_replay: false,
         notes: [
           "Policy authored as draft before enablement.",
           "Required policy enabled after approval and workflow signal evidence.",
@@ -1110,6 +1186,7 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
       "Promotion policies are governance metadata that can become required gates.",
       "Policy authoring records required scopes before enablement.",
       "Enablement requires approval and workflow signal evidence.",
+      "Draft revisions are append-only and idempotent; enabled policies remain immutable.",
       "Enabled required policies are auto-selected before TypeDB mutation execution.",
     ],
   };
@@ -1332,6 +1409,13 @@ export function recordLocalConnectorPromotionPolicy(
     },
     audit_event_id: null,
     audit_event_type: "connector.promotion_policy.authored",
+    revises_policy_id: null,
+    replaced_by_policy_id: null,
+    revision_idempotency_key: null,
+    revision_approval_id: null,
+    revision_decision: null,
+    revision_workflow_signal_status: null,
+    idempotent_replay: false,
     notes: request.notes,
     created_at: "2026-06-22T00:00:00Z",
   };
