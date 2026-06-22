@@ -132,8 +132,10 @@ Foundation acceptance is tracked in
   reintroduction.
 - [x] Persist the manufacturing overview reference as a tenant-scoped bootstrap
   record.
-- [ ] Replace remaining API-owned reference endpoints beyond overview with
-  persisted, tenant-scoped bootstrap records.
+- [x] Persist the manufacturing connector registry reference as a
+  tenant-scoped bootstrap record.
+- [ ] Replace remaining API-owned reference endpoints beyond overview and
+  connector registry with persisted, tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -141,11 +143,13 @@ The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
 manufacturing overview endpoint now reads a tenant-scoped
 `demo_reference_records` bootstrap row and returns explicit API errors when the
-record is missing or invalid. Remaining API-owned reference records are a
-bootstrap boundary and must be moved to persisted tenant-scoped records before
-production use. The full manufacturing reference demo remains open until it has
-ontology relationships, approval actions, workflow execution and replay backed
-by real persistence paths.
+record is missing or invalid. The connector registry endpoint follows the same
+pattern with `surface=connectors` and
+`reference_id=manufacturing-connector-registry`. Remaining API-owned reference
+records are a bootstrap boundary and must be moved to persisted tenant-scoped
+records before production use. The full manufacturing reference demo remains
+open until it has ontology relationships, approval actions, workflow execution
+and replay backed by real persistence paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
@@ -204,9 +208,10 @@ The connector foundation exposes a public-safe manifest registry, a
 preview-only file/CSV connector for manufacturing asset intake and a
 metadata-only external database preview connector. The API can validate CSV
 rows, map them to ontology entity proposals and return a redacted audit event
-preview through `/demo/manufacturing/connectors` and
-`/demo/manufacturing/connectors/file-csv/preview`. It can also preview declared
-external DB table metadata through
+preview through `/demo/manufacturing/connectors/file-csv/preview`. The registry
+returned by `/demo/manufacturing/connectors` now reads from the tenant-scoped
+`demo_reference_records` bootstrap row instead of a route-owned runtime seed.
+It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
 queries. Tenant-scoped connector manifests can now be registered through

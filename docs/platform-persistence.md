@@ -111,6 +111,13 @@ The twenty-second Alembic migration adds:
   `tenant_demo_manufacturing`;
 - indexes for tenant, surface, reference, status and source filtering.
 
+The twenty-third Alembic migration adds:
+
+- a persisted manufacturing connector registry bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe connector manifest, runtime policy and preview metadata used
+  by `GET /demo/manufacturing/connectors`.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -225,6 +232,10 @@ Delivered:
   events and persisted simulation outputs, including legal-hold bypass metadata.
 - persisted manufacturing overview reference records through
   `demo_reference_records`, with the runtime seed function removed and the API
+  returning 404/422 for missing or invalid persisted payloads.
+- persisted manufacturing connector registry reference records through
+  `demo_reference_records`, with the API reading
+  `surface=connectors/reference_id=manufacturing-connector-registry` and
   returning 404/422 for missing or invalid persisted payloads.
 
 Still Platform work:

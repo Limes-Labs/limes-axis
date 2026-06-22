@@ -1,14 +1,101 @@
+from pathlib import Path
+from runpy import run_path
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorExternalDbPreviewRequest,
+    ManufacturingConnectorRegistry,
     get_manufacturing_connector_registry,
     preview_external_db_connector,
     preview_file_csv_connector,
 )
+from axis_api.db import session_scope
 from axis_api.main import create_app
+from axis_api.models import Base
+from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+
+
+def persisted_connector_registry_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Connector Cockpit",
+        "registry_status": "ready",
+        "metrics": [
+            {
+                "label": "Persisted Connector Registry",
+                "value": "1",
+                "detail": "Loaded from demo_reference_records.",
+                "status": "ready",
+            }
+        ],
+        "connectors": [
+            {
+                "connector_status": "ready",
+                "manifest": {
+                    "connector_id": "persisted_file_csv_assets",
+                    "display_name": "Persisted manufacturing assets CSV",
+                    "connector_type": "file_csv",
+                    "version": "2026-06-22",
+                    "source_type": "file",
+                    "sync_modes": ["preview"],
+                    "runtime_boundary": "axis-connector-sandbox",
+                    "required_permissions": ["connectors:read"],
+                    "credential_requirements": {
+                        "storage": "none",
+                        "required_secret_refs": [],
+                        "notes": ["No credential material required."],
+                    },
+                    "schema_fields": [
+                        {
+                            "source_column": "asset_id",
+                            "target_field": "node_id",
+                            "ontology_target": "manufacturing_asset",
+                            "data_type": "string",
+                            "required": True,
+                            "description": "Persisted asset identifier.",
+                        }
+                    ],
+                    "mapping_notes": ["Persisted test fixture."],
+                },
+                "runtime_policy": {
+                    "allowed_operations": ["schema_validate"],
+                    "blocked_operations": ["live_sync"],
+                    "egress_policy": "no-external-egress",
+                    "max_file_size_mb": 5,
+                    "row_limit": 500,
+                    "payload_policy": "metadata-only",
+                },
+                "preview_sample": {
+                    "file_name": "persisted-assets.csv",
+                    "record_count": 0,
+                    "headers": ["asset_id"],
+                    "sample_rows": [],
+                },
+            }
+        ],
+        "connector_notes": ["Persisted connector registry reference."],
+    }
+
+
+@pytest.fixture
+def connector_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
 
 
 def test_manufacturing_connector_registry_exposes_file_csv_manifest() -> None:
@@ -78,6 +165,105 @@ def test_manufacturing_connector_registry_exposes_external_db_manifest() -> None
     assert "connection_string" not in serialized
     assert "postgres://" not in serialized
     assert "password" not in serialized
+
+
+def test_connector_registry_reference_contract_is_valid_and_actionable() -> None:
+    registry = ManufacturingConnectorRegistry.model_validate(persisted_connector_registry_payload())
+
+    assert registry.tenant_id == "tenant_demo_manufacturing"
+    assert registry.scenario == "Persisted Connector Cockpit"
+    assert registry.metrics[0].label == "Persisted Connector Registry"
+    assert registry.connectors[0].manifest.connector_id == "persisted_file_csv_assets"
+
+
+def test_connector_registry_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+
+    registry = ManufacturingConnectorRegistry.model_validate(
+        migration["CONNECTOR_REGISTRY_PAYLOAD"]
+    )
+
+    assert registry.tenant_id == "tenant_demo_manufacturing"
+    assert registry.scenario == "Plant Operations Cockpit"
+    assert len(registry.connectors) == 2
+    assert registry.connectors[0].manifest.connector_id == "file_csv_manufacturing_assets"
+    assert registry.connectors[1].manifest.connector_id == "external_db_operational_mirror"
+    serialized = registry.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_connector_registry_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_connector_registry()" not in source
+
+
+def test_connector_registry_endpoint_returns_persisted_reference_data(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    with session_scope(connector_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_connector_registry_payload(),
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/connectors")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["scenario"] == "Persisted Connector Cockpit"
+    assert body["connectors"][0]["manifest"]["connector_id"] == "persisted_file_csv_assets"
+    assert "password" not in str(body).lower()
+
+
+def test_connector_registry_endpoint_reports_missing_reference_record(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/connectors")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_connector_registry_endpoint_rejects_invalid_reference_payload(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    with session_scope(connector_session_factory) as session:
+        payload = persisted_connector_registry_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/connectors")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_file_csv_connector_preview_maps_rows_to_ontology_entities() -> None:
@@ -246,21 +432,34 @@ def test_external_db_connector_preview_blocks_raw_connection_and_query_material(
     assert "password" not in serialized
 
 
-def test_connector_registry_endpoint_returns_public_manifest() -> None:
-    client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
+def test_connector_registry_endpoint_returns_bootstrap_public_manifest(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    with session_scope(connector_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=migration["CONNECTOR_REGISTRY_PAYLOAD"],
+            )
+        )
+    client = TestClient(app)
 
     response = client.get("/demo/manufacturing/connectors")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["connectors"][0]["manifest"]["connector_id"] == (
-        "file_csv_manufacturing_assets"
-    )
+    assert body["connectors"][0]["manifest"]["connector_id"] == ("file_csv_manufacturing_assets")
     assert body["connectors"][0]["manifest"]["credential_requirements"]["storage"] == "none"
-    assert body["connectors"][1]["manifest"]["connector_id"] == (
-        "external_db_operational_mirror"
-    )
+    assert body["connectors"][1]["manifest"]["connector_id"] == ("external_db_operational_mirror")
     assert "password" not in str(body).lower()
     assert "api_key" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
