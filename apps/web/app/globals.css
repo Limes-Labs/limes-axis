@@ -280,6 +280,7 @@ textarea {
 
 .metric-label,
 .section-label {
+  display: block;
   margin: 0;
   color: var(--muted);
   font-size: 12px;
@@ -447,6 +448,7 @@ textarea {
 .stack {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .row {
@@ -925,6 +927,10 @@ textarea {
   padding: 14px 0;
 }
 
+.audit-detail-grid > * {
+  min-width: 0;
+}
+
 .simulation-detail {
   display: grid;
   gap: 18px;
@@ -948,6 +954,10 @@ textarea {
   padding-bottom: 16px;
 }
 
+.simulation-policy-band > * {
+  min-width: 0;
+}
+
 .audit-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -959,6 +969,7 @@ textarea {
   gap: 12px;
   border-top: 1px solid var(--line);
   padding-top: 14px;
+  min-width: 0;
 }
 
 .audit-payload-header {
@@ -971,6 +982,7 @@ textarea {
 .payload-grid {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .payload-row {

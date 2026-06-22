@@ -6,11 +6,33 @@ function unsignedToken(claims: Record<string, unknown>): string {
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
-  const hasOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  );
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    const clientWidth = root.clientWidth;
+    const offenders = Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          className: element.className.toString(),
+          left: Math.floor(rect.left),
+          right: Math.ceil(rect.right),
+          tagName: element.tagName.toLowerCase(),
+          text: element.textContent?.trim().replace(/\s+/g, " ").slice(0, 90) ?? "",
+          width: Math.ceil(rect.width),
+        };
+      })
+      .filter((entry) => entry.right > clientWidth || entry.left < 0 || entry.width > clientWidth)
+      .slice(0, 8);
 
-  expect(hasOverflow).toBe(false);
+    return {
+      clientWidth,
+      hasOverflow: root.scrollWidth > clientWidth,
+      offenders,
+      scrollWidth: root.scrollWidth,
+    };
+  });
+
+  expect(overflow.hasOverflow, JSON.stringify(overflow, null, 2)).toBe(false);
 }
 
 test.describe("Axis console smoke", () => {
