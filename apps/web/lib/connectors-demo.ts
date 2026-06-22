@@ -259,6 +259,45 @@ export type ManufacturingConnectorOntologyProposalRegistry = {
   proposal_notes: string[];
 };
 
+export type ConnectorManualImportRecord = {
+  tenant_id: string;
+  connector_id: string;
+  import_id: string;
+  idempotency_key: string;
+  status: string;
+  import_mode: string;
+  requested_by: string;
+  owner_role: string;
+  risk_level: string;
+  approval_id: string;
+  workflow_id: string;
+  proposal_ids: string[];
+  import_summary: Record<string, string>;
+  controls: string[];
+  graph_mutation_status: string;
+  workflow_signal_status: string;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+  idempotent_replay: boolean;
+};
+
+export type ManufacturingConnectorManualImportRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  imports: ConnectorManualImportRecord[];
+  import_notes: string[];
+};
+
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -704,6 +743,72 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
       "Graph mutation is not applied by connector preview records.",
       "Raw CSV content, payloads and credential material are never stored.",
       "Promotion to ontology graph requires future approval and workflow controls.",
+    ],
+  };
+
+export const defaultConnectorManualImportRegistry: ManufacturingConnectorManualImportRegistry =
+  {
+    tenant_id: "tenant_demo_manufacturing",
+    plant_name: "Ravenna Works",
+    scenario: "Plant Operations Cockpit",
+    registry_status: "ready",
+    metrics: [
+      {
+        label: "Manual Imports",
+        value: "1",
+        detail: "Approval-gated connector import requests",
+        status: "ready",
+      },
+      {
+        label: "Approval Required",
+        value: "1",
+        detail: "Manual imports waiting for human decision",
+        status: "watch",
+      },
+      {
+        label: "Graph Mutations",
+        value: "0",
+        detail: "Manual import requests do not mutate the ontology graph",
+        status: "ready",
+      },
+    ],
+    imports: [
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        import_id: "import_assets_manual_20260622",
+        idempotency_key: "manual-import-assets-20260622",
+        status: "approval_required",
+        import_mode: "manual_import_request",
+        requested_by: "plant-operations-owner-role",
+        owner_role: "plant-operations-owner",
+        risk_level: "high",
+        approval_id: "appr_connector_import_assets_20260622",
+        workflow_id: "wf_connector_manual_import_review",
+        proposal_ids: ["proposal_asset_line_2_packaging"],
+        import_summary: {
+          proposal_count: "1",
+          mapping_profile: "manufacturing_asset_v1",
+        },
+        controls: [
+          "approval_required",
+          "workflow_signal_required",
+          "idempotency_enforced",
+        ],
+        graph_mutation_status: "not_applied",
+        workflow_signal_status: "pending_approval_decision",
+        audit_event_id: "audit_connector_manual_import_demo_20260622",
+        audit_event_type: "connector.manual_import.requested",
+        notes: ["Manual import request only; graph mutation is not applied."],
+        created_at: "2026-06-22T00:00:00Z",
+        idempotent_replay: false,
+      },
+    ],
+    import_notes: [
+      "Manual import requests are approval-gated metadata records.",
+      "Workflow ids and signal status are recorded before any connector import can run.",
+      "Idempotency keys prevent duplicate import requests and duplicate audit events.",
+      "Graph mutation is not applied by this connector foundation slice.",
     ],
   };
 

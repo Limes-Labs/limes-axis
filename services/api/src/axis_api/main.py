@@ -48,6 +48,16 @@ from axis_api.connector_credential_handles import (
     record_demo_connector_credential_handle,
     record_demo_connector_credential_rotation,
 )
+from axis_api.connector_manual_imports import (
+    ConnectorManualImportCreateRequest,
+    ConnectorManualImportIdempotencyConflict,
+    ConnectorManualImportQuery,
+    ConnectorManualImportRecord,
+    ConnectorManualImportValidationError,
+    ManufacturingConnectorManualImportRegistry,
+    build_connector_manual_import_registry,
+    record_demo_connector_manual_import,
+)
 from axis_api.connector_ontology_proposals import (
     ConnectorOntologyProposalCreateRequest,
     ConnectorOntologyProposalQuery,
@@ -580,6 +590,70 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.reason,
                 },
             ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/manual-imports",
+        response_model=ManufacturingConnectorManualImportRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_manual_imports(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorManualImportRegistry:
+        return build_connector_manual_import_registry(
+            repository,
+            ConnectorManualImportQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/manual-imports",
+        response_model=ConnectorManualImportRecord,
+        responses={
+            409: {"description": "Connector manual import idempotency conflict"},
+            422: {"description": "Connector manual import validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_manual_import_create(
+        manual_import_request: ConnectorManualImportCreateRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> ConnectorManualImportRecord:
+        try:
+            result = record_demo_connector_manual_import(repository, manual_import_request)
+        except ConnectorManualImportIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The idempotency key already exists with a different payload.",
+                    "reason": "idempotency_conflict",
+                    "import_id": exc.import_id,
+                },
+            ) from exc
+        except ConnectorManualImportValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+
+        return result
 
     @app.post(
         "/demo/manufacturing/connectors/file-csv/preview",

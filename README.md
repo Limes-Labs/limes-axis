@@ -97,7 +97,10 @@ The connector run record slice adds metadata-only run records linked to
 append-only audit events, without executing connector sync. The connector
 ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events and keeps graph mutation
-explicitly `not_applied`.
+explicitly `not_applied`. The manual import request slice records approval,
+workflow and idempotency gates for proposal import requests with
+`connector.manual_import.requested` audit events, while still avoiding connector
+execution, external sync and ontology graph mutation.
 
 ## Architecture Defaults
 

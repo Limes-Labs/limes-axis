@@ -37,6 +37,8 @@ GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals
+GET /demo/manufacturing/connectors/manual-imports
+POST /demo/manufacturing/connectors/manual-imports
 POST /demo/manufacturing/connectors/file-csv/preview
 ```
 
@@ -99,6 +101,9 @@ It includes:
 - review-only connector ontology proposal records with append-only
   `connector.ontology_proposals.recorded` audit writes and graph mutation
   marked `not_applied`.
+- manual connector import requests with approval ids, workflow ids,
+  idempotency keys, append-only `connector.manual_import.requested` audit writes
+  and graph mutation marked `not_applied`.
 - Postgres persistence foundation for approval records, action runs and
   append-only audit events.
 
