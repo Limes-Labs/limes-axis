@@ -23,7 +23,6 @@ from axis_api.demo import (
     OverviewStatus,
     get_manufacturing_action_registry,
     get_manufacturing_agent_registry,
-    get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
     get_manufacturing_ontology,
     get_manufacturing_ontology_entity_detail,
@@ -1251,8 +1250,9 @@ def test_openapi_exposes_manufacturing_approval_inbox_endpoint() -> None:
     assert "/demo/manufacturing/approvals" in response.json()["paths"]
 
 
-def test_manufacturing_audit_explorer_seed_is_filterable() -> None:
-    explorer = get_manufacturing_audit_explorer()
+def test_manufacturing_audit_explorer_bootstrap_seed_is_filterable() -> None:
+    migration = run_path("migrations/versions/0028_audit_explorer_reference.py")
+    explorer = ManufacturingAuditExplorer.model_validate(migration["AUDIT_EXPLORER_PAYLOAD"])
 
     assert explorer.scenario == "Plant Operations Cockpit"
     assert explorer.ledger_status == OverviewStatus.WATCH
@@ -1298,6 +1298,12 @@ def test_manufacturing_audit_explorer_endpoint_is_not_defined_as_runtime_seed() 
     source = Path("src/axis_api/main.py").read_text()
 
     assert "return get_manufacturing_audit_explorer()" not in source
+
+
+def test_manufacturing_audit_explorer_runtime_module_does_not_define_seed() -> None:
+    source = Path("src/axis_api/demo.py").read_text()
+
+    assert "def get_manufacturing_audit_explorer" not in source
 
 
 def test_manufacturing_audit_explorer_endpoint_returns_persisted_reference_data(

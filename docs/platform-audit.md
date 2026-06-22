@@ -70,9 +70,10 @@ state instead of constructing a local bundle.
 
 This slice demonstrates the audit contract and explorer surface. Alembic
 migration `0028_audit_explorer_reference` inserts the public-safe reference
-explorer payload. It does not yet implement physical retention deletion jobs,
-legal hold workflow, WORM/KMS storage hardening or deterministic Temporal
-replay.
+explorer payload. The API runtime no longer defines an audit explorer seed
+factory; tests validate the bootstrap payload directly from the migration. It
+does not yet implement physical retention deletion jobs, legal hold workflow,
+WORM/KMS storage hardening or deterministic Temporal replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval

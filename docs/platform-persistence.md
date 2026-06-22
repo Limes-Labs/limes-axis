@@ -350,7 +350,9 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=audit/reference_id=manufacturing-audit-explorer` while the separate
   `/demo/manufacturing/audit/events` and `/demo/manufacturing/audit/export`
-  endpoints continue to query persisted `audit_events`.
+  endpoints continue to query persisted `audit_events`; the runtime seed
+  factory has been removed from the API module and tests validate the Alembic
+  bootstrap payload directly.
 - persisted manufacturing model routing reference records through
   `demo_reference_records`, with the API reading
   `surface=model-routing/reference_id=manufacturing-model-routing` while live
