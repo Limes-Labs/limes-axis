@@ -105,6 +105,14 @@ by Alembic migration `0023_connector_registry_reference`, validated against the
 repository. The API runtime no longer defines a connector registry seed
 factory; tests validate the bootstrap payload directly from the migration.
 
+The file/CSV and external DB preview endpoints read that same persisted
+registry reference before generating output. Connector ids, connector type,
+schema fields, runtime row limits and public-safe external DB sample rows are
+resolved from `surface=connectors` and
+`reference_id=manufacturing-connector-registry`; missing or invalid registry
+references return explicit 404/422 errors before any preview mapping is
+generated. The preview runtime does not carry its own manifest or sample seed.
+
 Connector configuration creation reads that same persisted registry reference
 to resolve the connector manifest and runtime boundary for the requested
 connector id. If the registry reference is missing or invalid, configuration
@@ -187,7 +195,7 @@ It returns:
 - preview status;
 - live query flag, always `false` in this slice;
 - inspected table and mapped column metadata;
-- synthetic public-safe sample rows;
+- registry-provided public-safe sample rows;
 - ontology entity proposals;
 - redacted audit event preview;
 - public-safe preview notes.

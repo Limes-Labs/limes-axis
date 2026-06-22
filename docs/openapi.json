@@ -10696,15 +10696,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Connector registry reference payload invalid"
           }
         },
         "summary": "Manufacturing External Db Connector Preview",
@@ -10737,15 +10733,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Connector registry reference payload invalid"
           }
         },
         "summary": "Manufacturing File Csv Connector Preview",

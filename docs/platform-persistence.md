@@ -291,6 +291,11 @@ Delivered:
 - the connector registry runtime seed factory has been removed from the API
   module; registry contract tests now validate the Alembic bootstrap payload
   directly.
+- file/CSV and external DB preview endpoints now read
+  `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
+  connector ids, schema fields, row limits and public-safe sample rows before
+  generating preview output, with 404/422 responses for missing or invalid
+  registry references.
 - connector configuration creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
   connector manifests and runtime boundaries before tenant configuration state
