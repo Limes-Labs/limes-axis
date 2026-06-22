@@ -136,6 +136,8 @@ Foundation acceptance is tracked in
   bootstrap record.
 - [x] Persist the manufacturing connector registry reference as a
   tenant-scoped bootstrap record.
+- [x] Use the persisted connector registry reference for manual import request
+  creation.
 - [x] Persist the manufacturing agent registry reference as a tenant-scoped
   bootstrap record.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
@@ -264,6 +266,8 @@ Ontology proposal creation also resolves connector runtime boundary metadata
 from that persisted registry reference before writing proposal/audit state.
 Connector run creation uses the same persisted registry reference before
 writing run/audit runtime boundary metadata.
+Manual import request creation also uses the same persisted registry reference
+before writing approval-gated import audit evidence.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live
@@ -342,7 +346,10 @@ Manual connector import requests can now be recorded through
 `/demo/manufacturing/connectors/manual-imports`; each request is tenant-scoped,
 idempotent, approval-gated, workflow-referenced and audit-backed with
 `connector.manual_import.requested`, while graph mutation remains
-`not_applied`. Decisions can now be recorded through
+`not_applied`. Creation resolves connector runtime boundary metadata from the
+persisted connector registry reference and fails explicitly if that reference
+is missing or invalid before writing rows or audit events. Decisions can now be
+recorded through
 `/demo/manufacturing/connectors/manual-imports/{import_id}/decision`; each
 decision stores the approval outcome, workflow signal status and
 `connector.manual_import.decision_recorded` audit evidence without executing

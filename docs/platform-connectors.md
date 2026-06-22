@@ -38,6 +38,9 @@ evidence.
 Connector run creation uses that same persisted registry reference before
 writing run records or audit evidence, so run runtime boundaries no longer come
 from a service-local connector seed.
+Manual import request creation also uses the persisted registry reference
+before writing approval-gated import rows or audit evidence, so import runtime
+boundary evidence no longer comes from a service-local connector seed.
 Preview-derived ontology proposal records are now persisted for review, with
 graph mutation disabled until a controlled promotion is requested. Manual
 import requests can now be recorded behind approval, workflow and idempotency
@@ -114,6 +117,11 @@ Connector run creation reads the same registry reference to resolve the runtime
 boundary stored on run records and audit evidence. Missing or invalid registry
 references return explicit 404/422 errors before any run row or audit event is
 written.
+
+Manual import request creation reads the same registry reference to resolve the
+connector runtime boundary stored in audit evidence. Missing or invalid
+registry references return explicit 404/422 errors before any manual import row
+or audit event is written.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -369,11 +377,13 @@ reviewed connector proposals later. A request includes:
 - request notes.
 
 Creating a manual import request writes an append-only
-`connector.manual_import.requested` audit event. Replaying the same request with
+`connector.manual_import.requested` audit event after resolving the connector
+manifest from the persisted registry reference. Replaying the same request with
 the same idempotency key returns the existing record and does not append another
 audit event. Reusing an idempotency key for a different import request returns a
-conflict. The endpoint rejects raw payload fields and direct graph-write import
-modes; persisted requests remain approval-gated with
+conflict. The endpoint returns explicit 404/422 errors when the persisted
+registry reference is missing or invalid, rejects raw payload fields and direct
+graph-write import modes; persisted requests remain approval-gated with
 `graph_mutation_status=not_applied` and
 `workflow_signal_status=pending_approval_decision`.
 

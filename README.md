@@ -124,8 +124,9 @@ reference before storing runtime boundary metadata, and credential handle
 creation uses the same persisted registry before storing external secret
 reference metadata. Ontology proposal writes also resolve connector runtime
 boundary metadata from that persisted registry before recording proposal audit
-evidence, and connector run creation uses it before storing run/audit runtime
-boundary metadata. The external DB
+evidence, connector run creation uses it before storing run/audit runtime
+boundary metadata, and manual import request creation uses it before writing
+approval-gated import audit evidence. The external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.
@@ -171,8 +172,11 @@ does not return credential material.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import
-requests with `connector.manual_import.requested` audit events. Manual import
-decisions now record approval outcomes, workflow signal evidence and
+requests with `connector.manual_import.requested` audit events after resolving
+connector runtime boundary metadata from the persisted registry reference.
+Missing or invalid registry references fail before any manual import row or
+audit event is written. Manual import decisions now record approval outcomes,
+workflow signal evidence and
 `connector.manual_import.decision_recorded` audit events. Approved proposals can
 now be promoted through a controlled TypeDB ontology mutation boundary with
 `connector.ontology_promotion.applied` audit evidence, while still avoiding
