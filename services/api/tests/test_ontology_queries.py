@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.db import session_scope
-from axis_api.demo import ManufacturingOntology, get_manufacturing_ontology
+from axis_api.demo import ManufacturingOntology
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import Base
@@ -42,6 +42,10 @@ def ontology_session_factory() -> sessionmaker[Session]:
 def ontology_bootstrap_payload() -> dict:
     migration = run_path(str(MIGRATIONS_DIR / "0030_ontology_reference.py"))
     return migration["ONTOLOGY_PAYLOAD"]
+
+
+def ontology_bootstrap_model() -> ManufacturingOntology:
+    return ManufacturingOntology.model_validate(ontology_bootstrap_payload())
 
 
 def seed_ontology_reference(factory: sessionmaker[Session]) -> None:
@@ -115,7 +119,7 @@ def test_deferred_ontology_query_runtime_filters_relationships_by_scope() -> Non
             actor_scopes=["operations:read"],
             enforce_relationship_scopes=True,
         ),
-        get_manufacturing_ontology(),
+        ontology_bootstrap_model(),
     )
 
     assert ontology.graph_query.adapter == "axis-deferred-ontology-query-adapter"

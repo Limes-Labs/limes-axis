@@ -366,7 +366,9 @@ Delivered:
 - persisted manufacturing ontology reference records through
   `demo_reference_records`, with graph and entity detail endpoints reading
   `surface=ontology/reference_id=manufacturing-ontology` before the ontology
-  query runtime applies metadata and relationship-scope filtering.
+  query runtime applies metadata and relationship-scope filtering; the runtime
+  seed factory has been removed from the API module and tests validate the
+  Alembic bootstrap payload directly.
 - action run creation now also reads
   `surface=ontology/reference_id=manufacturing-ontology` to derive
   relationship scopes for typed payload fields marked as ontology references
