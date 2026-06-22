@@ -10126,8 +10126,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "422": {
-            "description": "Connector configuration validation failed"
+            "description": "Connector configuration or registry reference validation failed"
           }
         },
         "summary": "Manufacturing Connector Configuration Create",

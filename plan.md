@@ -255,6 +255,9 @@ rows, map them to ontology entity proposals and return a redacted audit event
 preview through `/demo/manufacturing/connectors/file-csv/preview`. The registry
 returned by `/demo/manufacturing/connectors` now reads from the tenant-scoped
 `demo_reference_records` bootstrap row instead of a route-owned runtime seed.
+Connector configuration creation resolves connector manifests and runtime
+boundaries from that persisted registry reference before storing tenant
+configuration state.
 It can also preview declared external DB table metadata through
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw connection material, SQL text and live

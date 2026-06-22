@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.persistence import AxisPersistenceRepository, ConnectorConfigurationCreate
 
@@ -112,7 +112,7 @@ def record_demo_connector_configuration(
     repository: AxisPersistenceRepository,
     request: ConnectorConfigurationCreateRequest,
 ) -> ConnectorTenantConfiguration:
-    manifest = _manifest_for_connector(request.connector_id)
+    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_preview_sync_mode(request.sync_mode)
     _validate_public_safe_payload(request.configuration_payload)
     record = repository.create_connector_configuration(
@@ -147,8 +147,12 @@ def _configuration_from_record(record) -> ConnectorTenantConfiguration:
     )
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest

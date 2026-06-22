@@ -118,7 +118,9 @@ The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal
-previews without enabling live sync or connector mutation. The external DB
+previews without enabling live sync or connector mutation. Connector
+configuration writes resolve manifests from the persisted connector registry
+reference before storing runtime boundary metadata. The external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.

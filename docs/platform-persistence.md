@@ -288,6 +288,10 @@ Delivered:
   `demo_reference_records`, with the API reading
   `surface=connectors/reference_id=manufacturing-connector-registry` and
   returning 404/422 for missing or invalid persisted payloads.
+- connector configuration creation now reads
+  `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
+  connector manifests and runtime boundaries before tenant configuration state
+  is written.
 - persisted manufacturing agent registry reference records through
   `demo_reference_records`, with the API reading
   `surface=agents/reference_id=manufacturing-agent-registry` and returning
