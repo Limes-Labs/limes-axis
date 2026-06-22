@@ -90,7 +90,9 @@ console for policy preview inspection. The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal
-previews without enabling live sync or connector mutation.
+previews without enabling live sync or connector mutation. The credential
+handle slice adds metadata-only external secret references and rotation history
+for connector credentials, while still refusing to store raw credential values.
 
 ## Architecture Defaults
 

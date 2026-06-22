@@ -37,6 +37,17 @@ from axis_api.connector_configurations import (
     build_connector_configuration_registry,
     record_demo_connector_configuration,
 )
+from axis_api.connector_credential_handles import (
+    ConnectorCredentialHandleCreateRequest,
+    ConnectorCredentialHandleQuery,
+    ConnectorCredentialHandleRecord,
+    ConnectorCredentialHandleValidationError,
+    ConnectorCredentialRotationRequest,
+    ManufacturingConnectorCredentialHandleRegistry,
+    build_connector_credential_handle_registry,
+    record_demo_connector_credential_handle,
+    record_demo_connector_credential_rotation,
+)
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorCsvPreviewResult,
@@ -385,6 +396,75 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return record_demo_connector_configuration(repository, configuration)
         except ConnectorConfigurationValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/credential-handles",
+        response_model=ManufacturingConnectorCredentialHandleRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_handles(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorCredentialHandleRegistry:
+        return build_connector_credential_handle_registry(
+            repository,
+            ConnectorCredentialHandleQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/credential-handles",
+        response_model=ConnectorCredentialHandleRecord,
+        responses={422: {"description": "Connector credential handle validation failed"}},
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_handle_create(
+        credential_handle: ConnectorCredentialHandleCreateRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorCredentialHandleRecord:
+        try:
+            return record_demo_connector_credential_handle(repository, credential_handle)
+        except ConnectorCredentialHandleValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/credential-handles/{handle_id}/rotations",
+        response_model=ConnectorCredentialHandleRecord,
+        responses={422: {"description": "Connector credential rotation validation failed"}},
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_handle_rotation(
+        handle_id: str,
+        rotation: ConnectorCredentialRotationRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorCredentialHandleRecord:
+        try:
+            return record_demo_connector_credential_rotation(repository, handle_id, rotation)
+        except ConnectorCredentialHandleValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

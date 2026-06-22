@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -11,6 +11,8 @@ from axis_api.models import (
     ApprovalRecord,
     AuditEvent,
     ConnectorConfiguration,
+    ConnectorCredentialHandle,
+    ConnectorCredentialRotation,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
     utc_now,
@@ -107,6 +109,33 @@ class ConnectorConfigurationCreate(BaseModel):
     created_by: str = Field(min_length=1)
     configuration_payload: dict = Field(default_factory=dict)
     credential_ref_ids: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorCredentialHandleCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    handle_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    status: str = Field(default="active", min_length=1)
+    secret_provider: str = Field(min_length=1)
+    secret_ref: str = Field(min_length=1)
+    purpose: str = Field(min_length=1)
+    rotation_interval_days: int = Field(ge=1, le=3660)
+    last_rotated_at: datetime | None = None
+    next_rotation_due_at: datetime | None = None
+    created_by: str = Field(min_length=1)
+    labels: dict[str, str] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorCredentialRotationCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    handle_id: str = Field(min_length=1)
+    rotated_by: str = Field(min_length=1)
+    rotated_at: datetime
+    evidence_ref: str = Field(min_length=1)
+    status: str = Field(default="rotated", min_length=1)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -376,4 +405,107 @@ class AxisPersistenceRepository:
             ConnectorConfiguration.created_at.desc(),
             ConnectorConfiguration.id.desc(),
         ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_connector_credential_handle(
+        self,
+        record: ConnectorCredentialHandleCreate,
+    ) -> ConnectorCredentialHandle:
+        credential_handle = ConnectorCredentialHandle(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            handle_id=record.handle_id,
+            display_name=record.display_name,
+            status=record.status,
+            secret_provider=record.secret_provider,
+            secret_ref=record.secret_ref,
+            purpose=record.purpose,
+            rotation_interval_days=record.rotation_interval_days,
+            last_rotated_at=record.last_rotated_at,
+            next_rotation_due_at=record.next_rotation_due_at,
+            created_by=record.created_by,
+            labels=record.labels,
+            notes=record.notes,
+        )
+        self.session.add(credential_handle)
+        self.session.flush()
+        return credential_handle
+
+    def get_connector_credential_handle(
+        self,
+        tenant_id: str,
+        handle_id: str,
+    ) -> ConnectorCredentialHandle | None:
+        statement = select(ConnectorCredentialHandle).where(
+            ConnectorCredentialHandle.tenant_id == tenant_id,
+            ConnectorCredentialHandle.handle_id == handle_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_credential_handles(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorCredentialHandle]:
+        statement: Select[tuple[ConnectorCredentialHandle]] = select(
+            ConnectorCredentialHandle
+        ).where(ConnectorCredentialHandle.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorCredentialHandle.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorCredentialHandle.status == status)
+
+        statement = statement.order_by(
+            ConnectorCredentialHandle.created_at.desc(),
+            ConnectorCredentialHandle.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def record_connector_credential_rotation(
+        self,
+        record: ConnectorCredentialRotationCreate,
+    ) -> ConnectorCredentialRotation:
+        handle = self.get_connector_credential_handle(record.tenant_id, record.handle_id)
+        if handle is None:
+            raise PersistenceRecordNotFound("Connector credential handle not found")
+
+        rotation = ConnectorCredentialRotation(
+            tenant_id=record.tenant_id,
+            handle_id=record.handle_id,
+            rotated_by=record.rotated_by,
+            rotated_at=record.rotated_at,
+            evidence_ref=record.evidence_ref,
+            status=record.status,
+            notes=record.notes,
+        )
+        handle.status = "active"
+        handle.last_rotated_at = record.rotated_at
+        handle.next_rotation_due_at = record.rotated_at + timedelta(
+            days=handle.rotation_interval_days
+        )
+        handle.updated_at = utc_now()
+        self.session.add(rotation)
+        self.session.flush()
+        return rotation
+
+    def list_connector_credential_rotations(
+        self,
+        tenant_id: str,
+        handle_id: str,
+        limit: int = 100,
+    ) -> list[ConnectorCredentialRotation]:
+        statement: Select[tuple[ConnectorCredentialRotation]] = (
+            select(ConnectorCredentialRotation)
+            .where(
+                ConnectorCredentialRotation.tenant_id == tenant_id,
+                ConnectorCredentialRotation.handle_id == handle_id,
+            )
+            .order_by(
+                ConnectorCredentialRotation.rotated_at.desc(),
+                ConnectorCredentialRotation.created_at.desc(),
+            )
+            .limit(limit)
+        )
         return list(self.session.scalars(statement))

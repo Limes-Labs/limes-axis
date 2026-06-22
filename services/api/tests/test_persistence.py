@@ -1,10 +1,20 @@
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from axis_api.audit import AuditEventCreate
-from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, Base, ConnectorConfiguration
+from axis_api.models import (
+    ActionRun,
+    ApprovalRecord,
+    AuditEvent,
+    Base,
+    ConnectorConfiguration,
+    ConnectorCredentialHandle,
+    ConnectorCredentialRotation,
+)
 from axis_api.persistence import (
     ActionRunCreate,
     ActionRunResultRecord,
@@ -12,6 +22,8 @@ from axis_api.persistence import (
     ApprovalRecordCreate,
     AxisPersistenceRepository,
     ConnectorConfigurationCreate,
+    ConnectorCredentialHandleCreate,
+    ConnectorCredentialRotationCreate,
     PersistenceRecordNotFound,
 )
 
@@ -27,13 +39,20 @@ def session() -> Session:
 
 
 def test_persistence_metadata_exposes_foundation_tables() -> None:
-    assert {"audit_events", "approval_records", "action_runs", "connector_configurations"}.issubset(
-        Base.metadata.tables.keys()
-    )
+    assert {
+        "audit_events",
+        "approval_records",
+        "action_runs",
+        "connector_configurations",
+        "connector_credential_handles",
+        "connector_credential_rotations",
+    }.issubset(Base.metadata.tables.keys())
     assert ApprovalRecord.__table__.c.tenant_id.index is True
     assert ActionRun.__table__.c.idempotency_key.index is True
     assert AuditEvent.__table__.c.event_type.index is True
     assert ConnectorConfiguration.__table__.c.connector_id.index is True
+    assert ConnectorCredentialHandle.__table__.c.handle_id.index is True
+    assert ConnectorCredentialRotation.__table__.c.handle_id.index is True
 
 
 def test_repository_appends_audit_events_without_cross_tenant_leakage(session: Session) -> None:
@@ -209,3 +228,68 @@ def test_repository_records_connector_configurations_tenant_scoped(
     }
     assert records[0].credential_ref_ids == []
     assert records[0].status == "configured_preview_only"
+
+
+def test_repository_records_connector_credential_handles_and_rotations(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    created = repository.create_connector_credential_handle(
+        ConnectorCredentialHandleCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            handle_id="cred_file_csv_readonly",
+            display_name="File CSV readonly vault reference",
+            status="active",
+            secret_provider="external_vault",
+            secret_ref="vault://axis/demo/connectors/file-csv-readonly",
+            purpose="preview_import_readonly",
+            rotation_interval_days=30,
+            last_rotated_at=datetime(2026, 6, 1, tzinfo=UTC),
+            next_rotation_due_at=datetime(2026, 7, 1, tzinfo=UTC),
+            created_by="plant-operations-owner-role",
+            labels={"environment": "demo"},
+            notes=["Metadata-only handle; no raw credential value is stored."],
+        )
+    )
+    repository.create_connector_credential_handle(
+        ConnectorCredentialHandleCreate(
+            tenant_id="tenant_other",
+            connector_id="file_csv_manufacturing_assets",
+            handle_id="cred_other",
+            display_name="Other tenant handle",
+            status="active",
+            secret_provider="external_vault",
+            secret_ref="vault://axis/demo/connectors/other",
+            purpose="preview_import_readonly",
+            rotation_interval_days=30,
+            last_rotated_at=datetime(2026, 6, 1, tzinfo=UTC),
+            next_rotation_due_at=datetime(2026, 7, 1, tzinfo=UTC),
+            created_by="other-owner-role",
+        )
+    )
+
+    rotation = repository.record_connector_credential_rotation(
+        ConnectorCredentialRotationCreate(
+            tenant_id="tenant_demo_manufacturing",
+            handle_id="cred_file_csv_readonly",
+            rotated_by="security-operations-role",
+            rotated_at=datetime(2026, 6, 22, tzinfo=UTC),
+            evidence_ref="change-window-2026-06-22",
+            status="rotated",
+            notes=["Reference rotated in external vault; Axis stored metadata only."],
+        )
+    )
+
+    handles = repository.list_connector_credential_handles("tenant_demo_manufacturing")
+    rotations = repository.list_connector_credential_rotations(
+        "tenant_demo_manufacturing",
+        "cred_file_csv_readonly",
+    )
+
+    assert handles == [created]
+    assert handles[0].secret_ref == "vault://axis/demo/connectors/file-csv-readonly"
+    assert handles[0].rotation_interval_days == 30
+    assert handles[0].labels == {"environment": "demo"}
+    assert rotations == [rotation]
+    assert rotations[0].evidence_ref == "change-window-2026-06-22"

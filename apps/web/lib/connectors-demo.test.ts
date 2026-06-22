@@ -4,6 +4,7 @@ import {
   buildDefaultConnectorConfigurationRequest,
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
+  defaultConnectorCredentialHandleRegistry,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
   findConnectorById,
@@ -107,6 +108,32 @@ describe("manufacturing connector demo contract", () => {
     expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("api_key");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("keeps credential handle fallback metadata-only and rotation-aware", () => {
+    expect(defaultConnectorCredentialHandleRegistry.tenant_id).toBe("tenant_demo_manufacturing");
+    expect(defaultConnectorCredentialHandleRegistry.handles).toHaveLength(1);
+    expect(defaultConnectorCredentialHandleRegistry.metrics[0]).toMatchObject({
+      label: "Credential Handles",
+      value: "1",
+    });
+
+    const handle = defaultConnectorCredentialHandleRegistry.handles[0];
+    expect(handle.handle_id).toBe("cred_file_csv_readonly");
+    expect(handle.secret_provider).toBe("external_vault");
+    expect(handle.secret_ref).toBe("vault://axis/demo/connectors/file-csv-readonly");
+    expect(handle.rotation_status).toBe("healthy");
+    expect(handle.rotation_count).toBe(1);
+    expect(handle.last_rotation?.evidence_ref).toBe("change-window-2026-06-22");
+    expect(JSON.stringify(defaultConnectorCredentialHandleRegistry).toLowerCase()).not.toContain(
+      "password",
+    );
+    expect(JSON.stringify(defaultConnectorCredentialHandleRegistry).toLowerCase()).not.toContain(
+      "api_key",
+    );
+    expect(JSON.stringify(defaultConnectorCredentialHandleRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
   });
 
   it("finds connectors and formats connector labels", () => {
