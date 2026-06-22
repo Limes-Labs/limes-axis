@@ -188,8 +188,11 @@ authored through `/demo/manufacturing/connectors/promotion-policies`; each
 policy records the authoring permission, required promotion scopes, approved
 manual import state, workflow signal state, allowed risk levels and
 `connector.promotion_policy.authored` audit evidence without executing
-connectors or mutating TypeDB. Enabled required policies can be attached to a
-promotion request and are enforced before the TypeDB mutation adapter is called.
+connectors or mutating TypeDB. Enabled required policies are auto-selected when
+a promotion request omits `policy_id` and are enforced before the TypeDB
+mutation adapter is called. If multiple enabled required policies match the
+same connector, Axis rejects the promotion until policy-set versioning defines a
+single active set.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
 run evidence, persisted ontology proposal evidence, promotion evidence, manual

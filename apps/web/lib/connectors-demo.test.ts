@@ -192,6 +192,7 @@ describe("manufacturing connector demo contract", () => {
     expect(proposal.policy_decision?.status).toBe("policy_enforced");
     expect(proposal.policy_decision?.reason).toBe("policy_constraints_satisfied");
     expect(proposal.policy_decision?.matched_constraints.risk_level).toBe("high");
+    expect(proposal.policy_decision?.matched_constraints.selection_mode).toBe("auto_required");
     expect(proposal.ontology_mutation?.status).toBe("type_db_mutation_applied");
     expect(proposal.ontology_mutation?.payload.manual_import_id).toBe(
       "import_assets_manual_20260622",

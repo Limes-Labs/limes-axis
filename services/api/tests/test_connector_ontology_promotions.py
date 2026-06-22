@@ -328,6 +328,41 @@ def test_record_connector_ontology_promotion_enforces_required_policy_and_persis
     assert matched_constraints["workflow_signal_status"] == "manual_import_signal_requested"
 
 
+def test_record_connector_ontology_promotion_auto_selects_required_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository)
+        result = record_demo_connector_ontology_promotion(
+            repository,
+            ConnectorOntologyPromotionRequest(**promotion_payload()),
+            ontology_runtime,
+        )
+
+    with session_factory() as session:
+        promotion = session.scalars(select(ConnectorOntologyPromotion)).one()
+        proposal = session.scalars(select(ConnectorOntologyProposal)).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.ontology_promotion.applied"
+            )
+        ).one()
+
+    assert result.policy_id == "policy_connector_asset_promotion_v1"
+    assert result.policy_decision is not None
+    assert result.policy_decision.status == "policy_enforced"
+    assert result.policy_decision.reason == "policy_constraints_satisfied"
+    assert result.policy_decision.matched_constraints["selection_mode"] == "auto_required"
+    assert promotion.policy_id == "policy_connector_asset_promotion_v1"
+    assert promotion.policy_decision["matched_constraints"]["selection_mode"] == "auto_required"
+    assert proposal.policy_id == "policy_connector_asset_promotion_v1"
+    assert audit_event.payload["policy_id"] == "policy_connector_asset_promotion_v1"
+    assert audit_event.payload["policy_decision"]["status"] == "policy_enforced"
+
+
 def test_connector_ontology_promotion_endpoint_applies_mutation(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -439,6 +474,51 @@ def test_connector_ontology_promotion_endpoint_rejects_policy_risk_mismatch(
         assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
 
 
+def test_connector_ontology_promotion_endpoint_auto_selects_required_policy_and_rejects_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository, allowed_risk_levels=["low"])
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "promotion_policy_rejected"
+    with session_factory() as session:
+        assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
+
+
+def test_connector_ontology_promotion_rejects_ambiguous_required_policy_selection(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository, policy_id="policy_connector_asset_required_a")
+        seed_required_promotion_policy(repository, policy_id="policy_connector_asset_required_b")
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "promotion_policy_selection_ambiguous"
+    with session_factory() as session:
+        assert list(session.scalars(select(ConnectorOntologyPromotion))) == []
+
+
 def test_connector_ontology_promotion_endpoint_records_runtime_unavailable(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -486,6 +566,61 @@ def test_connector_ontology_promotion_is_idempotent_for_same_payload(
     assert second_response.status_code == 200
     assert second_response.json()["idempotent_replay"] is True
     assert second_response.json()["audit_event_id"] == first_response.json()["audit_event_id"]
+
+
+def test_connector_ontology_promotion_replays_auto_selected_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    app.state.ontology_mutation_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository)
+    client = TestClient(app)
+
+    first_response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload(),
+    )
+    second_response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload(),
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 200
+    assert second_response.json()["idempotent_replay"] is True
+    assert second_response.json()["policy_id"] == "policy_connector_asset_promotion_v1"
+    assert second_response.json()["policy_decision"]["status"] == "policy_enforced"
+    assert second_response.json()["audit_event_id"] == first_response.json()["audit_event_id"]
+
+
+def test_connector_ontology_promotion_rejects_omitted_policy_after_explicit_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    app.state.ontology_mutation_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        seed_required_promotion_policy(repository)
+    client = TestClient(app)
+
+    first_response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload_with_policy(),
+    )
+    second_response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload(),
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 409
+    assert second_response.json()["detail"]["reason"] == "idempotency_conflict"
 
 
 def test_connector_ontology_promotion_rejects_idempotency_conflict(

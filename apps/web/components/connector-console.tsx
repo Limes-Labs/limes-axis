@@ -617,7 +617,9 @@ export function ConnectorConsole() {
                     {proposal.policy_decision?.reason ?? "no policy evidence"}
                   </p>
                   <p className="row-detail">
-                    {proposal.policy_decision?.enforcement_mode ?? "not enforced"}
+                    {proposal.policy_decision?.matched_constraints.selection_mode
+                      ? `${proposal.policy_decision.enforcement_mode} / ${proposal.policy_decision.matched_constraints.selection_mode}`
+                      : (proposal.policy_decision?.enforcement_mode ?? "not enforced")}
                   </p>
                 </div>
                 <div>

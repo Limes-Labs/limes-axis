@@ -814,6 +814,7 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
             workflow_signal_status: "manual_import_signal_requested",
             risk_level: "high",
             ontology_type: "manufacturing_asset",
+            selection_mode: "auto_required",
           },
         },
         promoted_by: "plant-operations-owner-role",
@@ -1027,7 +1028,7 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
     policy_notes: [
       "Promotion policies are governance metadata that can become required gates.",
       "Policy authoring records required scopes, import state and workflow signal state.",
-      "Required enabled policies are evaluated before TypeDB mutation execution.",
+      "Enabled required policies are auto-selected before TypeDB mutation execution.",
     ],
   };
 

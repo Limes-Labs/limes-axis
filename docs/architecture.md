@@ -85,8 +85,10 @@ idempotency and append-only `connector.ontology_promotion.*` audit writes before
 calling the Axis TypeDB mutation adapter. Promotion policies add a separate
 authoring and enforcement boundary with `connectors:promotion_policy:author`,
 required promotion scope metadata and `connector.promotion_policy.authored`
-audit evidence; enabled required policies are checked before TypeDB mutation
-execution. The TypeDB adapter is deferred by default and must be
+audit evidence; enabled required policies are auto-selected when omitted from
+the promotion request and checked before TypeDB mutation execution; ambiguous
+required policy sets are rejected until a versioned active set exists. The
+TypeDB adapter is deferred by default and must be
 explicitly enabled for graph writes. Future connector execution must use those
 handles with tenant-scoped permissions, append-only audit writes and no external
 egress by default.
