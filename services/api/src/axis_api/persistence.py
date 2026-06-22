@@ -16,6 +16,7 @@ from axis_api.models import (
     ConnectorManualImportRequest,
     ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
+    ConnectorPromotionPolicy,
     ConnectorRun,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -211,6 +212,30 @@ class ConnectorOntologyPromotionResultRecord(BaseModel):
     ontology_mutation: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str | None = None
+
+
+class ConnectorPromotionPolicyCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    policy_id: str = Field(min_length=1)
+    policy_version: str = Field(min_length=1)
+    status: str = Field(default="draft", min_length=1)
+    enforcement_mode: str = Field(default="advisory", min_length=1)
+    created_by: str = Field(min_length=1)
+    required_authoring_scope: str = Field(
+        default="connectors:promotion_policy:author",
+        min_length=1,
+    )
+    required_scopes: list[str] = Field(min_length=1)
+    required_manual_import_status: str = Field(min_length=1)
+    required_workflow_signal_status: str = Field(min_length=1)
+    allowed_risk_levels: list[str] = Field(min_length=1)
+    allowed_ontology_types: list[str] = Field(min_length=1)
+    review_window_hours: int = Field(ge=1, le=24 * 30)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="connector.promotion_policy.authored", min_length=1)
+    notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorManualImportRequestCreate(BaseModel):
@@ -808,6 +833,66 @@ class AxisPersistenceRepository:
         proposal.updated_at = utc_now()
         self.session.flush()
         return proposal
+
+    def create_connector_promotion_policy(
+        self,
+        record: ConnectorPromotionPolicyCreate,
+    ) -> ConnectorPromotionPolicy:
+        policy = ConnectorPromotionPolicy(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            policy_id=record.policy_id,
+            policy_version=record.policy_version,
+            status=record.status,
+            enforcement_mode=record.enforcement_mode,
+            created_by=record.created_by,
+            required_authoring_scope=record.required_authoring_scope,
+            required_scopes=record.required_scopes,
+            required_manual_import_status=record.required_manual_import_status,
+            required_workflow_signal_status=record.required_workflow_signal_status,
+            allowed_risk_levels=record.allowed_risk_levels,
+            allowed_ontology_types=record.allowed_ontology_types,
+            review_window_hours=record.review_window_hours,
+            permission_decision=record.permission_decision,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(policy)
+        self.session.flush()
+        return policy
+
+    def get_connector_promotion_policy(
+        self,
+        tenant_id: str,
+        policy_id: str,
+    ) -> ConnectorPromotionPolicy | None:
+        statement = select(ConnectorPromotionPolicy).where(
+            ConnectorPromotionPolicy.tenant_id == tenant_id,
+            ConnectorPromotionPolicy.policy_id == policy_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_connector_promotion_policies(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorPromotionPolicy]:
+        statement: Select[tuple[ConnectorPromotionPolicy]] = select(
+            ConnectorPromotionPolicy
+        ).where(ConnectorPromotionPolicy.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(ConnectorPromotionPolicy.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorPromotionPolicy.status == status)
+
+        statement = statement.order_by(
+            ConnectorPromotionPolicy.created_at.desc(),
+            ConnectorPromotionPolicy.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
 
     def create_connector_manual_import_request(
         self,

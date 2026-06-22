@@ -17,6 +17,7 @@ from axis_api.models import (
     ConnectorManualImportRequest,
     ConnectorOntologyPromotion,
     ConnectorOntologyProposal,
+    ConnectorPromotionPolicy,
     ConnectorRun,
 )
 from axis_api.persistence import (
@@ -33,6 +34,7 @@ from axis_api.persistence import (
     ConnectorOntologyPromotionCreate,
     ConnectorOntologyPromotionResultRecord,
     ConnectorOntologyProposalCreate,
+    ConnectorPromotionPolicyCreate,
     ConnectorRunCreate,
     PersistenceRecordNotFound,
 )
@@ -59,6 +61,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "connector_runs",
         "connector_ontology_proposals",
         "connector_ontology_promotions",
+        "connector_promotion_policies",
         "connector_manual_import_requests",
     }.issubset(Base.metadata.tables.keys())
     assert ApprovalRecord.__table__.c.tenant_id.index is True
@@ -73,6 +76,9 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorOntologyProposal.__table__.c.promoted_by.index is True
     assert ConnectorOntologyPromotion.__table__.c.promotion_id.index is True
     assert ConnectorOntologyPromotion.__table__.c.idempotency_key.index is True
+    assert ConnectorPromotionPolicy.__table__.c.policy_id.index is True
+    assert ConnectorPromotionPolicy.__table__.c.status.index is True
+    assert ConnectorPromotionPolicy.__table__.c.created_by.index is True
     assert ConnectorManualImportRequest.__table__.c.import_id.index is True
     assert ConnectorManualImportRequest.__table__.c.idempotency_key.index is True
     assert ConnectorManualImportRequest.__table__.c.decision.index is True
@@ -541,6 +547,62 @@ def test_repository_records_connector_ontology_promotion_and_updates_proposal(
     assert updated_proposal.promoted_at is not None
     assert updated_proposal.ontology_mutation["status"] == "type_db_mutation_applied"
     assert promotion.audit_event_id == audit_event.id
+
+
+def test_repository_records_connector_promotion_policy_authoring(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="platform-governance-owner-role",
+            event_type="connector.promotion_policy.authored",
+            payload={
+                "connector_id": "file_csv_manufacturing_assets",
+                "policy_id": "policy_connector_asset_promotion_v1",
+                "required_scopes": ["connectors:ontology:promote"],
+            },
+        )
+    )
+
+    policy = repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            policy_id="policy_connector_asset_promotion_v1",
+            policy_version="2026-06-22",
+            status="draft",
+            enforcement_mode="advisory",
+            created_by="platform-governance-owner-role",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status="approval_approved",
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=["high", "medium"],
+            allowed_ontology_types=["manufacturing_asset"],
+            review_window_hours=24,
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.promotion_policy.authored",
+            notes=["Policy draft for connector proposal promotion review."],
+        )
+    )
+
+    found_policy = repository.get_connector_promotion_policy(
+        "tenant_demo_manufacturing",
+        "policy_connector_asset_promotion_v1",
+    )
+    policies = repository.list_connector_promotion_policies(
+        "tenant_demo_manufacturing",
+        connector_id="file_csv_manufacturing_assets",
+    )
+
+    assert found_policy == policy
+    assert policies == [policy]
+    assert policy.audit_event_id == audit_event.id
+    assert policy.required_scopes == ["connectors:ontology:promote"]
+    assert policy.required_manual_import_status == "approval_approved"
+    assert policy.required_workflow_signal_status == "manual_import_signal_requested"
+    assert policy.allowed_ontology_types == ["manufacturing_asset"]
 
 
 def test_repository_records_connector_manual_import_requests_tenant_scoped_and_idempotent(

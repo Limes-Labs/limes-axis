@@ -3313,6 +3313,253 @@
         "title": "ConnectorPreviewSample",
         "type": "object"
       },
+      "ConnectorPromotionPolicyCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "allowed_ontology_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Ontology Types",
+            "type": "array"
+          },
+          "allowed_risk_levels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Risk Levels",
+            "type": "array"
+          },
+          "connector_id": {
+            "default": "file_csv_manufacturing_assets",
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "enforcement_mode": {
+            "default": "advisory",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Enforcement Mode",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "policy_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "policy_version": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "required_manual_import_status": {
+            "default": "approval_approved",
+            "minLength": 1,
+            "title": "Required Manual Import Status",
+            "type": "string"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Scopes",
+            "type": "array"
+          },
+          "required_workflow_signal_status": {
+            "default": "manual_import_signal_requested",
+            "minLength": 1,
+            "title": "Required Workflow Signal Status",
+            "type": "string"
+          },
+          "review_window_hours": {
+            "default": 24,
+            "maximum": 720.0,
+            "minimum": 1.0,
+            "title": "Review Window Hours",
+            "type": "integer"
+          },
+          "status": {
+            "default": "draft",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "created_by"
+        ],
+        "title": "ConnectorPromotionPolicyCreateRequest",
+        "type": "object"
+      },
+      "ConnectorPromotionPolicyRecord": {
+        "properties": {
+          "allowed_ontology_types": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Allowed Ontology Types",
+            "type": "array"
+          },
+          "allowed_risk_levels": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Allowed Risk Levels",
+            "type": "array"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "enforcement_mode": {
+            "minLength": 1,
+            "title": "Enforcement Mode",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "policy_id": {
+            "minLength": 1,
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "policy_version": {
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "required_authoring_scope": {
+            "minLength": 1,
+            "title": "Required Authoring Scope",
+            "type": "string"
+          },
+          "required_manual_import_status": {
+            "minLength": 1,
+            "title": "Required Manual Import Status",
+            "type": "string"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Required Scopes",
+            "type": "array"
+          },
+          "required_workflow_signal_status": {
+            "minLength": 1,
+            "title": "Required Workflow Signal Status",
+            "type": "string"
+          },
+          "review_window_hours": {
+            "minimum": 1.0,
+            "title": "Review Window Hours",
+            "type": "integer"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "policy_id",
+          "policy_version",
+          "status",
+          "enforcement_mode",
+          "created_by",
+          "required_authoring_scope",
+          "required_scopes",
+          "required_manual_import_status",
+          "required_workflow_signal_status",
+          "allowed_risk_levels",
+          "allowed_ontology_types",
+          "review_window_hours",
+          "permission_decision",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorPromotionPolicyRecord",
+        "type": "object"
+      },
       "ConnectorRegistryItem": {
         "properties": {
           "connector_status": {
@@ -4144,6 +4391,57 @@
           "registry_status"
         ],
         "title": "ManufacturingConnectorOntologyProposalRegistry",
+        "type": "object"
+      },
+      "ManufacturingConnectorPromotionPolicyRegistry": {
+        "properties": {
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorPromotionPolicyRecord"
+            },
+            "title": "Policies",
+            "type": "array"
+          },
+          "policy_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Policy Notes",
+            "type": "array"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorPromotionPolicyRegistry",
         "type": "object"
       },
       "ManufacturingConnectorRegistry": {
@@ -7042,6 +7340,152 @@
           }
         },
         "summary": "Manufacturing Connector Ontology Promotion",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/promotion-policies": {
+      "get": {
+        "operationId": "manufacturing_connector_promotion_policies_demo_manufacturing_connectors_promotion_policies_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorPromotionPolicyRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Promotion Policies",
+        "tags": [
+          "demo"
+        ]
+      },
+      "post": {
+        "operationId": "manufacturing_connector_promotion_policy_create_demo_manufacturing_connectors_promotion_policies_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPromotionPolicyCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorPromotionPolicyRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector promotion policy permission denied"
+          },
+          "409": {
+            "description": "Connector promotion policy already exists"
+          },
+          "422": {
+            "description": "Connector promotion policy validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Promotion Policy Create",
         "tags": [
           "demo"
         ]

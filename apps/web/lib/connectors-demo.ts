@@ -319,6 +319,46 @@ export type ManufacturingConnectorManualImportRegistry = {
   import_notes: string[];
 };
 
+export type ConnectorPromotionPolicyRecord = {
+  tenant_id: string;
+  connector_id: string;
+  policy_id: string;
+  policy_version: string;
+  status: string;
+  enforcement_mode: string;
+  created_by: string;
+  required_authoring_scope: string;
+  required_scopes: string[];
+  required_manual_import_status: string;
+  required_workflow_signal_status: string;
+  allowed_risk_levels: string[];
+  allowed_ontology_types: string[];
+  review_window_hours: number;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorPromotionPolicyRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  policies: ConnectorPromotionPolicyRecord[];
+  policy_notes: string[];
+};
+
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
@@ -879,6 +919,65 @@ export const defaultConnectorManualImportRegistry: ManufacturingConnectorManualI
       "Workflow ids and signal status are recorded before any connector import can run.",
       "Idempotency keys prevent duplicate import requests and duplicate audit events.",
       "Graph mutation is only handled by the approved ontology promotion endpoint.",
+    ],
+  };
+
+export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorPromotionPolicyRegistry =
+  {
+    tenant_id: "tenant_demo_manufacturing",
+    plant_name: "Ravenna Works",
+    scenario: "Plant Operations Cockpit",
+    registry_status: "ready",
+    metrics: [
+      {
+        label: "Promotion Policies",
+        value: "1",
+        detail: "Connector proposal promotion policy drafts",
+        status: "ready",
+      },
+      {
+        label: "Draft Policies",
+        value: "1",
+        detail: "Policies authored but not yet enforced",
+        status: "watch",
+      },
+      {
+        label: "Required Gates",
+        value: "0",
+        detail: "No policy is marked required yet",
+        status: "watch",
+      },
+    ],
+    policies: [
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        policy_id: "policy_connector_asset_promotion_v1",
+        policy_version: "2026-06-22",
+        status: "draft",
+        enforcement_mode: "advisory",
+        created_by: "platform-governance-owner-role",
+        required_authoring_scope: "connectors:promotion_policy:author",
+        required_scopes: ["connectors:ontology:promote"],
+        required_manual_import_status: "approval_approved",
+        required_workflow_signal_status: "manual_import_signal_requested",
+        allowed_risk_levels: ["high", "medium"],
+        allowed_ontology_types: ["manufacturing_asset"],
+        review_window_hours: 24,
+        permission_decision: {
+          allowed: true,
+          reason: "allowed",
+        },
+        audit_event_id: "audit_connector_promotion_policy_demo_20260622",
+        audit_event_type: "connector.promotion_policy.authored",
+        notes: ["Policy draft only; promotion enforcement remains explicit."],
+        created_at: "2026-06-22T00:00:00Z",
+      },
+    ],
+    policy_notes: [
+      "Promotion policies are governance metadata before enforcement.",
+      "Policy authoring records required scopes, import state and workflow signal state.",
+      "Authoring a policy does not execute connector sync or mutate TypeDB.",
     ],
   };
 
