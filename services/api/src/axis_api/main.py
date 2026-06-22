@@ -48,6 +48,21 @@ from axis_api.connector_credential_handles import (
     record_demo_connector_credential_handle,
     record_demo_connector_credential_rotation,
 )
+from axis_api.connector_credential_leases import (
+    ConnectorCredentialLeaseConflict,
+    ConnectorCredentialLeasePermissionDenied,
+    ConnectorCredentialLeaseQuery,
+    ConnectorCredentialLeaseRecord,
+    ConnectorCredentialLeaseRenewRequest,
+    ConnectorCredentialLeaseRequest,
+    ConnectorCredentialLeaseRevokeRequest,
+    ConnectorCredentialLeaseValidationError,
+    ManufacturingConnectorCredentialLeaseRegistry,
+    build_connector_credential_lease_registry,
+    record_demo_connector_credential_lease,
+    renew_demo_connector_credential_lease,
+    revoke_demo_connector_credential_lease,
+)
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
     DeferredConnectorExecutionRuntime,
@@ -912,6 +927,152 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return record_demo_connector_credential_rotation(repository, handle_id, rotation)
         except ConnectorCredentialHandleValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/credential-leases",
+        response_model=ManufacturingConnectorCredentialLeaseRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_leases(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        handle_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorCredentialLeaseRegistry:
+        return build_connector_credential_lease_registry(
+            repository,
+            ConnectorCredentialLeaseQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                handle_id=handle_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/credential-leases",
+        response_model=ConnectorCredentialLeaseRecord,
+        responses={
+            403: {"description": "Connector credential lease permission denied"},
+            409: {"description": "Connector credential lease already exists"},
+            422: {"description": "Connector credential lease validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_lease_create(
+        lease_request: ConnectorCredentialLeaseRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorCredentialLeaseRecord:
+        try:
+            return record_demo_connector_credential_lease(repository, lease_request)
+        except ConnectorCredentialLeasePermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot request connector credential leases.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ConnectorCredentialLeaseConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The connector credential lease already exists.",
+                    "reason": "credential_lease_already_exists",
+                    "lease_id": exc.lease_id,
+                },
+            ) from exc
+        except ConnectorCredentialLeaseValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/credential-leases/{lease_id}/renew",
+        response_model=ConnectorCredentialLeaseRecord,
+        responses={
+            403: {"description": "Connector credential lease permission denied"},
+            422: {"description": "Connector credential lease renewal validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_lease_renew(
+        lease_id: str,
+        renew_request: ConnectorCredentialLeaseRenewRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorCredentialLeaseRecord:
+        try:
+            return renew_demo_connector_credential_lease(repository, lease_id, renew_request)
+        except ConnectorCredentialLeasePermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot renew connector credential leases.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ConnectorCredentialLeaseValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/credential-leases/{lease_id}/revoke",
+        response_model=ConnectorCredentialLeaseRecord,
+        responses={
+            403: {"description": "Connector credential lease permission denied"},
+            422: {"description": "Connector credential lease revocation validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_credential_lease_revoke(
+        lease_id: str,
+        revoke_request: ConnectorCredentialLeaseRevokeRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorCredentialLeaseRecord:
+        try:
+            return revoke_demo_connector_credential_lease(repository, lease_id, revoke_request)
+        except ConnectorCredentialLeasePermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot revoke connector credential leases.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ConnectorCredentialLeaseValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

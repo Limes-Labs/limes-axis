@@ -10,6 +10,7 @@ import {
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
   defaultConnectorCredentialHandleRegistry,
+  defaultConnectorCredentialLeaseRegistry,
   defaultConnectorManifestRegistry,
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
@@ -28,6 +29,7 @@ import {
   type ConnectorPromotionPolicyRecord,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
+  type ManufacturingConnectorCredentialLeaseRegistry,
   type ManufacturingConnectorManifestRegistry,
   type ManufacturingConnectorManualImportRegistry,
   type ManufacturingConnectorOntologyProposalRegistry,
@@ -71,6 +73,10 @@ export function ConnectorConsole() {
   const [credentialHandleRegistry, setCredentialHandleRegistry] =
     useState<ManufacturingConnectorCredentialHandleRegistry>(
       defaultConnectorCredentialHandleRegistry,
+    );
+  const [credentialLeaseRegistry, setCredentialLeaseRegistry] =
+    useState<ManufacturingConnectorCredentialLeaseRegistry>(
+      defaultConnectorCredentialLeaseRegistry,
     );
   const [runRegistry, setRunRegistry] =
     useState<ManufacturingConnectorRunRegistry>(defaultConnectorRunRegistry);
@@ -135,6 +141,7 @@ export function ConnectorConsole() {
           manifestData,
           configurationData,
           credentialHandleData,
+          credentialLeaseData,
           runData,
           ontologyProposalData,
           manualImportData,
@@ -158,6 +165,9 @@ export function ConnectorConsole() {
           fetchJson<ManufacturingConnectorCredentialHandleRegistry>(
             "/demo/manufacturing/connectors/credential-handles",
           ),
+          fetchJson<ManufacturingConnectorCredentialLeaseRegistry>(
+            "/demo/manufacturing/connectors/credential-leases",
+          ),
           fetchJson<ManufacturingConnectorRunRegistry>("/demo/manufacturing/connectors/runs"),
           fetchJson<ManufacturingConnectorOntologyProposalRegistry>(
             "/demo/manufacturing/connectors/ontology-proposals",
@@ -177,6 +187,7 @@ export function ConnectorConsole() {
           setManifestRegistry(manifestData);
           setConfigurationRegistry(configurationData);
           setCredentialHandleRegistry(credentialHandleData);
+          setCredentialLeaseRegistry(credentialLeaseData);
           setRunRegistry(runData);
           setOntologyProposalRegistry(ontologyProposalData);
           setManualImportRegistry(manualImportData);
@@ -195,6 +206,7 @@ export function ConnectorConsole() {
           setManifestRegistry(defaultConnectorManifestRegistry);
           setConfigurationRegistry(defaultConnectorConfigurationRegistry);
           setCredentialHandleRegistry(defaultConnectorCredentialHandleRegistry);
+          setCredentialLeaseRegistry(defaultConnectorCredentialLeaseRegistry);
           setRunRegistry(defaultConnectorRunRegistry);
           setOntologyProposalRegistry(defaultConnectorOntologyProposalRegistry);
           setManualImportRegistry(defaultConnectorManualImportRegistry);
@@ -238,6 +250,13 @@ export function ConnectorConsole() {
         (handle) => handle.connector_id === selectedConnectorId,
       ),
     [credentialHandleRegistry.handles, selectedConnectorId],
+  );
+  const selectedCredentialLeases = useMemo(
+    () =>
+      credentialLeaseRegistry.leases.filter(
+        (lease) => lease.connector_id === selectedConnectorId,
+      ),
+    [credentialLeaseRegistry.leases, selectedConnectorId],
   );
   const selectedRuns = useMemo(
     () => runRegistry.runs.filter((run) => run.connector_id === selectedConnectorId),
@@ -416,6 +435,7 @@ export function ConnectorConsole() {
           .concat(manifestRegistry.metrics)
           .concat(configurationRegistry.metrics)
           .concat(credentialHandleRegistry.metrics)
+          .concat(credentialLeaseRegistry.metrics)
           .concat(runRegistry.metrics)
           .concat(ontologyProposalRegistry.metrics)
           .concat(manualImportRegistry.metrics)
@@ -655,6 +675,54 @@ export function ConnectorConsole() {
                   <p className="metric-label">Raw Value</p>
                   <p className="row-title">Never Stored</p>
                   <p className="row-detail">{handle.rotation_count} rotation records</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Credential Leases</p>
+                <h3 className="subsection-title">
+                  {selectedCredentialLeases.length} vault/kms lease
+                </h3>
+                <p className="row-detail">deferred adapter, no secret material returned</p>
+              </div>
+              <KeyRound size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedCredentialLeases.map((lease) => (
+                <div className="payload-row" key={lease.lease_id}>
+                  <span>
+                    <span className="metric-label">{lease.lease_id}</span>
+                    <span className="row-detail">{lease.lease_mode}</span>
+                  </span>
+                  <span className="mono">{formatConnectorLabel(lease.status)}</span>
+                </div>
+              ))}
+            </div>
+            {selectedCredentialLeases.map((lease) => (
+              <div className="audit-detail-grid" key={`${lease.lease_id}-evidence`}>
+                <div>
+                  <p className="metric-label">Adapter</p>
+                  <p className="row-title">{lease.lease_result.adapter}</p>
+                  <p className="row-detail">{lease.runtime_boundary}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Lease Window</p>
+                  <p className="row-title">{lease.expires_at}</p>
+                  <p className="row-detail">{lease.renewal_due_at}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Evidence</p>
+                  <p className="row-title">{lease.audit_event_type}</p>
+                  <p className="row-detail">{lease.requested_by}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Secret Material</p>
+                  <p className="row-title">{lease.lease_result.secret_material_returned}</p>
+                  <p className="row-detail">{lease.renewal_count} renewals</p>
                 </div>
               </div>
             ))}
@@ -1188,6 +1256,7 @@ export function ConnectorConsole() {
               .concat(manifestRegistry.manifest_notes)
               .concat(configurationRegistry.configuration_notes)
               .concat(credentialHandleRegistry.handle_notes)
+              .concat(credentialLeaseRegistry.lease_notes)
               .concat(runRegistry.run_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
@@ -1196,6 +1265,7 @@ export function ConnectorConsole() {
               .concat(selectedConfiguration?.notes ?? [])
               .concat(selectedManifestRecord?.notes ?? [])
               .concat(selectedCredentialHandles.flatMap((handle) => handle.notes))
+              .concat(selectedCredentialLeases.flatMap((lease) => lease.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))

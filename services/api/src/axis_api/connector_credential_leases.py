@@ -1,0 +1,526 @@
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from axis_api.audit import AuditEventCreate
+from axis_api.demo import OverviewMetric, OverviewStatus
+from axis_api.models import utc_now
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorCredentialLeaseCreate,
+    ConnectorCredentialLeaseRenewalRecord,
+    ConnectorCredentialLeaseRevocationRecord,
+)
+
+REQUEST_SCOPE = "connectors:credential_lease:request"
+RENEW_SCOPE = "connectors:credential_lease:renew"
+REVOKE_SCOPE = "connectors:credential_lease:revoke"
+LEASE_MODE = "deferred_vault_kms_lease"
+LEASE_RUNTIME_BOUNDARY = "axis-credential-lease-broker"
+LEASE_ADAPTER = "axis-deferred-vault-kms-lease-adapter"
+
+
+class ConnectorCredentialLeaseValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class ConnectorCredentialLeasePermissionDenied(PermissionError):
+    def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.required_permission = required_permission
+        self.decision = decision
+
+
+class ConnectorCredentialLeaseConflict(ValueError):
+    def __init__(self, lease_id: str) -> None:
+        super().__init__("Connector credential lease already exists")
+        self.lease_id = lease_id
+
+
+class ConnectorCredentialLeaseQuery(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    connector_id: str | None = Field(default=None, min_length=1)
+    handle_id: str | None = Field(default=None, min_length=1)
+    status: str | None = Field(default=None, min_length=1)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+class ConnectorCredentialLeaseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    connector_id: str = Field(default="file_csv_manufacturing_assets", min_length=1)
+    handle_id: str = Field(min_length=1, max_length=160)
+    lease_id: str = Field(min_length=1, max_length=180, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    requested_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    required_scopes: list[str] = Field(default_factory=lambda: [REQUEST_SCOPE])
+    lease_purpose: str = Field(min_length=1, max_length=160)
+    requested_at: datetime | None = None
+    lease_duration_seconds: int = Field(default=900, ge=60, le=24 * 60 * 60)
+    renewal_window_seconds: int = Field(default=300, ge=30, le=60 * 60)
+    runtime_boundary: str = Field(default=LEASE_RUNTIME_BOUNDARY, min_length=1, max_length=160)
+    vault_kms_policy: dict[str, str] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorCredentialLeaseRenewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    renewed_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    required_scopes: list[str] = Field(default_factory=lambda: [RENEW_SCOPE])
+    renewed_at: datetime | None = None
+    extend_seconds: int = Field(default=900, ge=60, le=24 * 60 * 60)
+    renewal_window_seconds: int = Field(default=300, ge=30, le=60 * 60)
+    renewal_reason: str = Field(min_length=1, max_length=600)
+    evidence_ref: str = Field(min_length=1, max_length=240)
+
+
+class ConnectorCredentialLeaseRevokeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    revoked_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    required_scopes: list[str] = Field(default_factory=lambda: [REVOKE_SCOPE])
+    revoked_at: datetime | None = None
+    revocation_reason: str = Field(min_length=1, max_length=600)
+    evidence_ref: str = Field(min_length=1, max_length=240)
+
+
+class ConnectorCredentialLeaseRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    handle_id: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    lease_mode: str = Field(min_length=1)
+    runtime_boundary: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    lease_purpose: str = Field(min_length=1)
+    secret_provider: str = Field(min_length=1)
+    secret_ref: str = Field(min_length=1)
+    vault_kms_policy: dict[str, str] = Field(default_factory=dict)
+    permission_decision: dict[str, Any] = Field(default_factory=dict)
+    lease_result: dict[str, str] = Field(default_factory=dict)
+    granted_at: datetime
+    expires_at: datetime
+    renewal_due_at: datetime
+    renewed_at: datetime | None = None
+    renewed_by: str | None = None
+    renewal_count: int
+    revoked_at: datetime | None = None
+    revoked_by: str | None = None
+    revocation_reason: str | None = None
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class ManufacturingConnectorCredentialLeaseRegistry(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    registry_status: OverviewStatus
+    metrics: list[OverviewMetric] = Field(default_factory=list)
+    leases: list[ConnectorCredentialLeaseRecord] = Field(default_factory=list)
+    lease_notes: list[str] = Field(default_factory=list)
+
+
+RAW_SECRET_FIELD_NAMES = {
+    "api_key",
+    "client_secret",
+    "credential_value",
+    "inline_secret",
+    "password",
+    "secret",
+    "secret_value",
+    "token",
+}
+RAW_SECRET_MARKERS = (
+    "api_key=",
+    "client_secret=",
+    "credential_value",
+    "literal-password",
+    "password=",
+    "secret_value=",
+    "token=",
+)
+
+
+def build_connector_credential_lease_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorCredentialLeaseQuery,
+) -> ManufacturingConnectorCredentialLeaseRegistry:
+    records = repository.list_connector_credential_leases(
+        tenant_id=query.tenant_id,
+        connector_id=query.connector_id,
+        handle_id=query.handle_id,
+        status=query.status,
+        limit=query.limit,
+    )
+    leases = [_lease_from_record(record) for record in records]
+    renewal_due = sum(
+        1
+        for lease in leases
+        if lease.status == "active" and _aware_datetime(lease.renewal_due_at) <= utc_now()
+    )
+    return ManufacturingConnectorCredentialLeaseRegistry(
+        tenant_id=query.tenant_id,
+        plant_name="Ravenna Works",
+        scenario="Plant Operations Cockpit",
+        registry_status=OverviewStatus.READY if leases else OverviewStatus.WATCH,
+        metrics=[
+            OverviewMetric(
+                label="Credential Leases",
+                value=str(len(leases)),
+                detail="Vault/KMS lease records for connector execution",
+                status=OverviewStatus.READY if leases else OverviewStatus.WATCH,
+            ),
+            OverviewMetric(
+                label="Renewal Due",
+                value=str(renewal_due),
+                detail="Active leases at or past renewal window",
+                status=OverviewStatus.WATCH if renewal_due else OverviewStatus.READY,
+            ),
+            OverviewMetric(
+                label="Secret Material",
+                value="Never Returned",
+                detail="Lease adapter returns refs and evidence only",
+                status=OverviewStatus.READY,
+            ),
+        ],
+        leases=leases,
+        lease_notes=[
+            "Credential leases are short-lived records for connector execution.",
+            "The default adapter is deferred and never returns secret material.",
+            "Renewal and revocation write audit evidence before live sync is enabled.",
+        ],
+    )
+
+
+def record_demo_connector_credential_lease(
+    repository: AxisPersistenceRepository,
+    request: ConnectorCredentialLeaseRequest,
+) -> ConnectorCredentialLeaseRecord:
+    _validate_public_safe_payload(request.model_dump(mode="json"))
+    existing = repository.get_connector_credential_lease(request.tenant_id, request.lease_id)
+    if existing is not None:
+        raise ConnectorCredentialLeaseConflict(existing.lease_id)
+
+    handle = repository.get_connector_credential_handle(request.tenant_id, request.handle_id)
+    if handle is None:
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector credential handle not found.",
+            "credential_handle_not_found",
+        )
+    if handle.connector_id != request.connector_id:
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector credential handle does not belong to the requested connector.",
+            "credential_handle_connector_mismatch",
+        )
+    if handle.status != "active":
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector credential handle must be active before lease request.",
+            "credential_handle_not_active",
+        )
+
+    permission_decision = _evaluate_permission(
+        tenant_id=request.tenant_id,
+        actor_id=request.requested_by,
+        actor_scopes=request.actor_scopes,
+        required_scopes=request.required_scopes,
+        action="request",
+    )
+    granted_at = _aware_datetime(request.requested_at or utc_now())
+    expires_at = granted_at + timedelta(seconds=request.lease_duration_seconds)
+    renewal_due_at = expires_at - timedelta(seconds=request.renewal_window_seconds)
+    lease_result = _lease_result(
+        status="lease_deferred",
+        lease_id=request.lease_id,
+        action="request",
+        evidence_ref=f"lease:{request.lease_id}",
+    )
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type="connector.credential_lease.requested",
+            payload={
+                "connector_id": request.connector_id,
+                "handle_id": request.handle_id,
+                "lease_id": request.lease_id,
+                "lease_mode": LEASE_MODE,
+                "lease_purpose": request.lease_purpose,
+                "runtime_boundary": request.runtime_boundary,
+                "secret_provider": handle.secret_provider,
+                "secret_material_returned": "false",
+            },
+        )
+    )
+    record = repository.create_connector_credential_lease(
+        ConnectorCredentialLeaseCreate(
+            tenant_id=request.tenant_id,
+            connector_id=request.connector_id,
+            handle_id=request.handle_id,
+            lease_id=request.lease_id,
+            status="active",
+            lease_mode=LEASE_MODE,
+            runtime_boundary=request.runtime_boundary,
+            requested_by=request.requested_by,
+            lease_purpose=request.lease_purpose,
+            secret_provider=handle.secret_provider,
+            secret_ref=handle.secret_ref,
+            vault_kms_policy=request.vault_kms_policy,
+            permission_decision=permission_decision.model_dump(mode="json"),
+            lease_result=lease_result,
+            granted_at=granted_at,
+            expires_at=expires_at,
+            renewal_due_at=renewal_due_at,
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.credential_lease.requested",
+            notes=request.notes,
+        )
+    )
+    return _lease_from_record(record)
+
+
+def renew_demo_connector_credential_lease(
+    repository: AxisPersistenceRepository,
+    lease_id: str,
+    request: ConnectorCredentialLeaseRenewRequest,
+) -> ConnectorCredentialLeaseRecord:
+    _validate_public_safe_payload(request.model_dump(mode="json"))
+    lease = _active_lease(repository, request.tenant_id, lease_id)
+    _evaluate_permission(
+        tenant_id=request.tenant_id,
+        actor_id=request.renewed_by,
+        actor_scopes=request.actor_scopes,
+        required_scopes=request.required_scopes,
+        action="renew",
+    )
+    renewed_at = _aware_datetime(request.renewed_at or utc_now())
+    expires_at = renewed_at + timedelta(seconds=request.extend_seconds)
+    renewal_due_at = expires_at - timedelta(seconds=request.renewal_window_seconds)
+    lease_result = _lease_result(
+        status="lease_renewal_deferred",
+        lease_id=lease_id,
+        action="renew",
+        evidence_ref=request.evidence_ref,
+    )
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.renewed_by,
+            event_type="connector.credential_lease.renewed",
+            payload={
+                "connector_id": lease.connector_id,
+                "handle_id": lease.handle_id,
+                "lease_id": lease_id,
+                "renewal_reason": request.renewal_reason,
+                "evidence_ref": request.evidence_ref,
+                "secret_material_returned": "false",
+            },
+        )
+    )
+    renewed = repository.renew_connector_credential_lease(
+        ConnectorCredentialLeaseRenewalRecord(
+            tenant_id=request.tenant_id,
+            lease_id=lease_id,
+            renewed_by=request.renewed_by,
+            renewed_at=renewed_at,
+            expires_at=expires_at,
+            renewal_due_at=renewal_due_at,
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.credential_lease.renewed",
+            lease_result=lease_result,
+            note=f"Lease renewed: {request.renewal_reason}",
+        )
+    )
+    return _lease_from_record(renewed)
+
+
+def revoke_demo_connector_credential_lease(
+    repository: AxisPersistenceRepository,
+    lease_id: str,
+    request: ConnectorCredentialLeaseRevokeRequest,
+) -> ConnectorCredentialLeaseRecord:
+    _validate_public_safe_payload(request.model_dump(mode="json"))
+    lease = _active_lease(repository, request.tenant_id, lease_id)
+    _evaluate_permission(
+        tenant_id=request.tenant_id,
+        actor_id=request.revoked_by,
+        actor_scopes=request.actor_scopes,
+        required_scopes=request.required_scopes,
+        action="revoke",
+    )
+    revoked_at = _aware_datetime(request.revoked_at or utc_now())
+    lease_result = _lease_result(
+        status="lease_revocation_deferred",
+        lease_id=lease_id,
+        action="revoke",
+        evidence_ref=request.evidence_ref,
+    )
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.revoked_by,
+            event_type="connector.credential_lease.revoked",
+            payload={
+                "connector_id": lease.connector_id,
+                "handle_id": lease.handle_id,
+                "lease_id": lease_id,
+                "revocation_reason": request.revocation_reason,
+                "evidence_ref": request.evidence_ref,
+                "secret_material_returned": "false",
+            },
+        )
+    )
+    revoked = repository.revoke_connector_credential_lease(
+        ConnectorCredentialLeaseRevocationRecord(
+            tenant_id=request.tenant_id,
+            lease_id=lease_id,
+            revoked_by=request.revoked_by,
+            revoked_at=revoked_at,
+            revocation_reason=request.revocation_reason,
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.credential_lease.revoked",
+            lease_result=lease_result,
+        )
+    )
+    return _lease_from_record(revoked)
+
+
+def _active_lease(repository: AxisPersistenceRepository, tenant_id: str, lease_id: str):
+    lease = repository.get_connector_credential_lease(tenant_id, lease_id)
+    if lease is None:
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector credential lease not found.",
+            "credential_lease_not_found",
+        )
+    if lease.status != "active":
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector credential lease must be active.",
+            "credential_lease_not_active",
+        )
+    return lease
+
+
+def _evaluate_permission(
+    *,
+    tenant_id: str,
+    actor_id: str,
+    actor_scopes: list[str],
+    required_scopes: list[str],
+    action: str,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=actor_id,
+            actor_scopes=actor_scopes,
+            required_scopes=required_scopes,
+            attributes={"action": action, "resource": "connector_credential_lease"},
+        )
+    )
+    if not decision.allowed:
+        required_permission = required_scopes[0] if required_scopes else REQUEST_SCOPE
+        raise ConnectorCredentialLeasePermissionDenied(required_permission, decision)
+    return decision
+
+
+def _lease_from_record(record) -> ConnectorCredentialLeaseRecord:
+    return ConnectorCredentialLeaseRecord(
+        tenant_id=record.tenant_id,
+        connector_id=record.connector_id,
+        handle_id=record.handle_id,
+        lease_id=record.lease_id,
+        status=record.status,
+        lease_mode=record.lease_mode,
+        runtime_boundary=record.runtime_boundary,
+        requested_by=record.requested_by,
+        lease_purpose=record.lease_purpose,
+        secret_provider=record.secret_provider,
+        secret_ref=record.secret_ref,
+        vault_kms_policy=record.vault_kms_policy,
+        permission_decision=record.permission_decision,
+        lease_result=record.lease_result,
+        granted_at=_aware_datetime(record.granted_at),
+        expires_at=_aware_datetime(record.expires_at),
+        renewal_due_at=_aware_datetime(record.renewal_due_at),
+        renewed_at=_optional_aware_datetime(record.renewed_at),
+        renewed_by=record.renewed_by,
+        renewal_count=record.renewal_count,
+        revoked_at=_optional_aware_datetime(record.revoked_at),
+        revoked_by=record.revoked_by,
+        revocation_reason=record.revocation_reason,
+        audit_event_id=record.audit_event_id,
+        audit_event_type=record.audit_event_type,
+        notes=record.notes,
+        created_at=_aware_datetime(record.created_at),
+    )
+
+
+def _lease_result(
+    *,
+    status: str,
+    lease_id: str,
+    action: str,
+    evidence_ref: str,
+) -> dict[str, str]:
+    return {
+        "adapter": LEASE_ADAPTER,
+        "status": status,
+        "lease_id": lease_id,
+        "action": action,
+        "external_secret_read": "false",
+        "secret_material_returned": "false",
+        "evidence_ref": evidence_ref,
+    }
+
+
+def _validate_public_safe_payload(payload: dict[str, Any]) -> None:
+    keys = {key for key, _ in _walk_payload(payload)}
+    values = [value for _, value in _walk_payload(payload)]
+    if keys.intersection(RAW_SECRET_FIELD_NAMES) or any(
+        marker in value for value in values for marker in RAW_SECRET_MARKERS
+    ):
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector credential leases cannot include raw credential material.",
+            "raw_secret_material",
+        )
+
+
+def _walk_payload(value: Any) -> Iterator[tuple[str, str]]:
+    if isinstance(value, dict):
+        for key, nested_value in value.items():
+            normalized_key = str(key).lower()
+            yield normalized_key, ""
+            yield from _walk_payload(nested_value)
+    elif isinstance(value, list):
+        for nested_value in value:
+            yield from _walk_payload(nested_value)
+    elif value is not None:
+        yield "", str(value).lower()
+
+
+def _aware_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def _optional_aware_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return _aware_datetime(value)

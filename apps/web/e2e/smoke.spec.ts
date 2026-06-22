@@ -323,6 +323,12 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("vault://axis/demo/connectors/file-csv-readonly")).toBeVisible();
     await expect(page.getByText("change-window-2026-06-22")).toBeVisible();
     await expect(
+      page.locator(".metric-card").getByText("Credential Leases", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("lease_file_csv_readonly_20260622").first()).toBeVisible();
+    await expect(page.getByText("axis-deferred-vault-kms-lease-adapter").first()).toBeVisible();
+    await expect(page.getByText("connector.credential_lease.requested").first()).toBeVisible();
+    await expect(
       page.locator(".metric-card").getByText("Connector Runs", { exact: true }),
     ).toBeVisible();
     await expect(
