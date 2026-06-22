@@ -126,12 +126,19 @@ Foundation acceptance is tracked in
 - [x] Persist tenant-scoped egress policy records for external DB preflight.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
+- [x] Remove non-connector browser-runtime seed records and guard against
+  reintroduction.
+- [ ] Replace remaining API-owned reference endpoints with persisted,
+  tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
-The governance console overview is backed by the first public-safe synthetic
-manufacturing seed. The full manufacturing reference demo remains open until it
-has ontology relationships, approval actions, workflow execution and replay.
+The browser governance console no longer ships local overview fallback records.
+Visible records must come from Axis API responses or persisted tenant state. Any
+remaining API-owned reference records are a bootstrap boundary and must be moved
+to persisted tenant-scoped records before production use. The full manufacturing
+reference demo remains open until it has ontology relationships, approval
+actions, workflow execution and replay backed by real persistence paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
@@ -140,19 +147,20 @@ the console decodes actor, tenant and scopes for display and sends the token as
 detail API calls. Full OIDC authorization-code login, refresh, secure cookie
 session management and provider configuration remain Platform/Enterprise work.
 
-The ontology explorer and entity detail pages are currently read-only and backed
-by the synthetic manufacturing graph. Graph reads now pass through the Axis
-ontology query runtime, expose query metadata and can filter relationships by
-OIDC-derived relationship scopes when a bearer token is present or OIDC auth is
-required by configuration. The TypeDB read boundary is optional and separated
-from graph mutations. Live TypeDB response mapping, persisted relationship
+The ontology explorer and entity detail pages are currently read-only and API
+required; the browser no longer carries a local graph fallback. Graph reads now
+pass through the Axis ontology query runtime, expose query metadata and can
+filter relationships by OIDC-derived relationship scopes when a bearer token is
+present or OIDC auth is required by configuration. The TypeDB read boundary is
+optional and separated from graph mutations. Moving all reference graph records
+out of API bootstrap code, live TypeDB response mapping, persisted relationship
 metadata and broader graph authorization remain Platform work.
 
-The workflow console is currently read-only and backed by the synthetic
-manufacturing workflow seed, with a persisted workflow run endpoint available
-when Postgres records exist. Approval decisions now signal the workflow runtime
-adapter when available. Deterministic replay, workflow history retention and
-workflow mutation controls remain Platform work.
+The workflow console is currently read-only and API required, with a persisted
+workflow run endpoint available when Postgres records exist. The browser no
+longer carries workflow fallback records. Approval decisions now signal the
+workflow runtime adapter when available. Deterministic replay, workflow history
+retention and workflow mutation controls remain Platform work.
 
 The approval queue is still read-only for listing. A demo decision endpoint now
 persists approval decisions and appends audit events, and the web console
@@ -164,24 +172,26 @@ the token against configurable OIDC/JWKS settings and derives tenant, actor and
 scopes from token claims before persistence. Broader relationship-aware
 permission enforcement remains Platform work.
 
-The audit explorer is backed by the synthetic manufacturing audit seed and can
-query persisted `audit_events` through the demo API when records exist. The demo
-API can also return a redacted JSON export bundle with manifest checksum,
-applied filters, retention-window enforcement and hash-chain integrity proof.
+The audit explorer is API required and can query persisted `audit_events`
+through the demo API when records exist. The browser no longer carries audit
+fallback records. The demo API can also return a redacted JSON export bundle
+with manifest checksum, applied filters, retention-window enforcement and
+hash-chain integrity proof.
 Retention deletion execution, legal hold workflow and production-grade
 tenant-scoped query permissions remain Platform work.
 
-The replay/simulation foundation derives public-safe replay artifacts from
-workflow run history, timeline events and redacted audit evidence. The
-`/simulation` page shows baseline versus simulated policy decisions and
+The replay/simulation foundation consumes API replay artifacts from workflow
+run history, timeline events and redacted audit evidence. The `/simulation`
+page shows baseline versus simulated policy decisions and
 governed connector policy-set version diffs over historical events for the
 manufacturing demo. Replay outputs can now be persisted as governed audit
 artifacts with `simulation.replay_output.persisted` evidence, retention
 metadata and idempotency protection. Replay responses now enforce
 retention-aware query windows across timeline, audit and persisted output
-records, with a legal-hold bypass for governance review. Temporal deterministic
-replay, arbitrary policy diffing, physical deletion jobs and production legal
-hold workflows remain Platform and Enterprise work.
+records, with a legal-hold bypass for governance review. The browser no longer
+constructs replay artifacts from local workflow or audit defaults. Temporal
+deterministic replay, arbitrary policy diffing, physical deletion jobs and
+production legal hold workflows remain Platform and Enterprise work.
 
 The connector foundation exposes a public-safe manifest registry, a
 preview-only file/CSV connector for manufacturing asset intake and a
@@ -325,17 +335,17 @@ provider-specific Vault/KMS adapters, provider-specific scheduled live sync
 beyond the self-hosted execution boundary, live external database adapters and
 connector-backed production actions remain Platform work.
 
-The agent registry is currently read-only and backed by the synthetic
-manufacturing agent seed. Production action execution, persisted agent state,
-tenant-scoped agent configuration, runtime policy enforcement and model cost
-observability remain Platform work.
+The agent registry is currently read-only and API required. The browser no
+longer carries local agent fallback records. Production action execution,
+persisted agent state, tenant-scoped agent configuration, runtime policy
+enforcement and model cost observability remain Platform work.
 
-The action registry UI is currently backed by the synthetic manufacturing
-action seed for catalog browsing. Typed dry-run/proposal action requests can now
-be persisted through the demo API with idempotency enforcement and append-only
-audit events. Approval-gated action payloads now signal the Axis workflow
-runtime adapter after persistence, with explicit degraded status when the
-runtime is unavailable. When a bearer token is present, or when OIDC auth is
+The action registry UI is API required for catalog browsing. The browser no
+longer carries local action fallback records. Typed dry-run/proposal action
+requests can now be persisted through the demo API with idempotency enforcement
+and append-only audit events. Approval-gated action payloads now signal the Axis
+workflow runtime adapter after persistence, with explicit degraded status when
+the runtime is unavailable. When a bearer token is present, or when OIDC auth is
 required by configuration, action run creation derives tenant, actor and scopes
 from token claims and rejects actor impersonation before persistence. Action
 payload fields marked as ontology references also require the scopes attached to
@@ -344,11 +354,11 @@ references from bypassing the typed action permission check. Live production
 execution, connector invocation and broader relationship-aware permission
 enforcement remain Platform work.
 
-The model routing and cost observability layer is currently read-only and backed
-by synthetic manufacturing route telemetry. Live provider adapters,
-provider-specific billing ingestion, tenant budget enforcement, persisted usage
-records, OpenTelemetry spans from runtime code and audit writes from live route
-decisions remain Platform work.
+The model routing and cost observability layer is currently read-only and API
+required. The browser no longer carries local route telemetry fallback records.
+Live provider adapters, provider-specific billing ingestion, tenant budget
+enforcement, persisted usage records, OpenTelemetry spans from runtime code and
+audit writes from live route decisions remain Platform work.
 
 ### Enterprise
 

@@ -36,15 +36,15 @@ migration baseline, TypeDB ontology boundary, workflow runtime port, Temporal
 adapter, typed action registry, model egress guard, permission primitives and a
 Next.js governance console shell. Foundation hardening adds API readiness,
 generated OpenAPI checks, opt-in runtime integration tests, API status in the
-console and Playwright smoke tests in CI. The first Platform slice adds a
-synthetic manufacturing overview seed and API-backed governance console
+console and Playwright smoke tests in CI. The first Platform slice adds an
+API-backed manufacturing overview reference for the governance console
 overview. The ontology slice adds a read-only manufacturing graph for typed
 nodes, source-system links, relationship mapping, permission scopes and entity
 detail pages. The
-approval slice adds a synthetic approval inbox with evidence, risk review,
+approval slice adds an API-owned approval inbox with evidence, risk review,
 decision options and local audit preview. The workflow slice adds a read-only
 runtime console for workflow state, pending signals and history preview. The
-audit slice adds an explorer for synthetic and persisted ledger events, filters
+audit slice adds an explorer for reference and persisted ledger events, filters
 and redacted payload previews. The agent registry slice adds a read-only
 governed agent view with autonomy boundaries, required permissions, model egress
 posture, proposals, workflow links and approval references. The action registry slice
@@ -52,7 +52,7 @@ adds a typed action catalog with schemas, risk levels, approval modes,
 permissions, guardrails, workflow bindings, dry-run payload previews and
 API-backed action run creation with idempotency enforcement. The
 model routing slice adds read-only route telemetry, provider boundaries, blocked
-egress visibility, synthetic token/cost estimates and audit evidence. The
+egress visibility, estimated token/cost telemetry and audit evidence. The
 persistence foundation adds Postgres schema and repository methods for approval
 records, action runs and append-only audit events. The approval persistence
 slice adds an API-backed decision endpoint that records approval decisions and
@@ -79,11 +79,11 @@ user attach a bearer token for local OIDC-backed API calls, so approval submits,
 action run requests and ontology entity detail reads can exercise the same
 token-bound API paths without a full production login flow. Ontology graph list
 reads now pass through an Axis query runtime boundary that can filter returned
-relationships by OIDC-derived scopes and can be switched from the deferred seed
-runtime to a TypeDB read boundary independently from graph mutations. The audit
-query slice reads persisted `audit_events` through a tenant-scoped API endpoint
-and the web console now requires API-backed audit/export records instead of
-constructing local fallback bundles. The audit retention/export slice adds a demo
+relationships by OIDC-derived scopes and can be switched from the deferred
+reference runtime to a TypeDB read boundary independently from graph mutations.
+The audit query slice reads persisted `audit_events` through a tenant-scoped API
+endpoint and the web console now requires API-backed audit/export records
+instead of constructing browser-local bundles. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews,
 retention-window enforcement and a deterministic hash-chain integrity proof.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline
@@ -95,7 +95,15 @@ for policy preview inspection. Replay outputs can now be persisted as governed
 audit artifacts with `simulation.replay_output.persisted` evidence, retention
 metadata and idempotency protection. Replay queries now enforce retention-aware
 windows before returning timeline, audit and persisted output records, with a
-legal-hold bypass for governance review. The connector foundation adds a
+legal-hold bypass for governance review.
+
+The web console runtime libraries no longer export browser-local fallback seed
+records for non-connector surfaces; those pages are API-required and protected
+by a regression test that blocks reintroducing default runtime seed records.
+The remaining API-owned reference records are tracked for migration to
+persisted, tenant-scoped bootstrap records.
+
+The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal

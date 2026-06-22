@@ -6,55 +6,108 @@ import {
   approvalDecisionLabel,
   approvalRiskClass,
   buildApprovalDecisionPayload,
-  defaultManufacturingApprovalInbox,
   findApprovalById,
+  type ManufacturingApprovalInbox,
 } from "./approval-demo";
 
-describe("manufacturing approval inbox demo contract", () => {
-  it("keeps a public-safe approval seed available without the API", () => {
-    expect(defaultManufacturingApprovalInbox.scenario).toBe("Plant Operations Cockpit");
-    expect(defaultManufacturingApprovalInbox.plant_name).toBe("Ravenna Works");
-    expect(defaultManufacturingApprovalInbox.approvals).toHaveLength(3);
-    expect(defaultManufacturingApprovalInbox.approvals.some((item) => item.risk_level === "high"))
-      .toBe(true);
-    expect(JSON.stringify(defaultManufacturingApprovalInbox)).not.toContain("@");
-  });
+const approvalInboxFixture: ManufacturingApprovalInbox = {
+  tenant_id: "tenant_fixture",
+  plant_name: "Fixture Plant",
+  scenario: "Runtime contract fixture",
+  as_of: "2026-06-22T09:00:00+02:00",
+  queue_status: "action_required",
+  policy_notes: ["Fixture data is scoped to tests."],
+  approvals: [
+    {
+      approval_id: "appr_supply_fixture",
+      action: "Expedite fixture batch",
+      risk_level: "high",
+      status: "pending",
+      requested_by: "agent_supply_fixture",
+      owner_role: "plant-operations-owner",
+      due: "Today 17:30",
+      workflow_id: "wf_supply_fixture",
+      domain: "Supply",
+      summary: "Approve or reject a governed supply action.",
+      evidence: ["risk_supply_fixture"],
+      data_accessed: ["Supplier status"],
+      risks: ["External shipment mutation"],
+      alternatives: ["Adjust production schedule"],
+      estimated_cost: "EUR 120",
+      model_policy: "no-external-egress",
+      required_permission: "approvals:supply:decide",
+      audit_event_preview: {
+        event: "approval.decision.recorded",
+        actor_role: "plant-operations-owner",
+        scope: "wf_supply_fixture",
+        result: "pending",
+      },
+      decision_options: [
+        { decision: "approve", label: "Approve", consequence: "Proceed to action runtime." },
+        { decision: "reject", label: "Reject", consequence: "Keep current plan." },
+        {
+          decision: "request_changes",
+          label: "Request changes",
+          consequence: "Return to agent proposal.",
+        },
+      ],
+    },
+    {
+      approval_id: "appr_quality_fixture",
+      action: "Place fixture quality hold",
+      risk_level: "medium",
+      status: "pending",
+      requested_by: "agent_quality_fixture",
+      owner_role: "quality-owner",
+      due: "Today 18:00",
+      workflow_id: "wf_quality_fixture",
+      domain: "Quality",
+      summary: "Review quality hold evidence.",
+      evidence: ["risk_quality_fixture"],
+      data_accessed: ["QMS deviation summary"],
+      risks: ["Production delay"],
+      alternatives: ["Escalate to quality review"],
+      estimated_cost: "EUR 0",
+      model_policy: "local-only",
+      required_permission: "approvals:quality:decide",
+      audit_event_preview: {
+        event: "approval.decision.recorded",
+        actor_role: "quality-owner",
+        scope: "wf_quality_fixture",
+        result: "pending",
+      },
+      decision_options: [
+        { decision: "approve", label: "Approve", consequence: "Apply hold." },
+        { decision: "reject", label: "Reject", consequence: "Release batch." },
+        {
+          decision: "request_changes",
+          label: "Request changes",
+          consequence: "Ask for more evidence.",
+        },
+      ],
+    },
+  ],
+};
 
-  it("keeps every approval tied to evidence, permissions and decisions", () => {
-    for (const approval of defaultManufacturingApprovalInbox.approvals) {
-      expect(approval.status).toBe("pending");
-      expect(approval.evidence.length).toBeGreaterThan(0);
-      expect(approval.data_accessed.length).toBeGreaterThan(0);
-      expect(approval.required_permission).toContain("approvals:");
-      expect(approval.audit_event_preview.event).toBe("approval.decision.recorded");
-      expect(approval.decision_options.map((option) => option.decision)).toEqual([
-        "approve",
-        "reject",
-        "request_changes",
-      ]);
-    }
-  });
-
+describe("approval inbox helpers", () => {
   it("formats approval risk and local decision states", () => {
     expect(approvalRiskClass("high")).toBe("signal-action-required");
     expect(approvalRiskClass("medium")).toBe("signal-watch");
+    expect(approvalRiskClass("low")).toBe("signal-ready");
     expect(approvalDecisionLabel("request_changes")).toBe("Changes Requested");
   });
 
   it("finds approvals by id with a safe fallback", () => {
-    expect(
-      findApprovalById(defaultManufacturingApprovalInbox, "appr_quality_hold_batch").action,
-    ).toBe("Place Batch Q-1842 on quality hold");
-    expect(findApprovalById(defaultManufacturingApprovalInbox, "missing").action).toBe(
-      "Expedite supplier batch",
+    expect(findApprovalById(approvalInboxFixture, "appr_quality_fixture").action).toBe(
+      "Place fixture quality hold",
+    );
+    expect(findApprovalById(approvalInboxFixture, "missing").action).toBe(
+      "Expedite fixture batch",
     );
   });
 
-  it("builds public-safe persisted decision payloads", () => {
-    const approval = findApprovalById(
-      defaultManufacturingApprovalInbox,
-      "appr_expedite_supplier_batch",
-    );
+  it("builds public-safe persisted decision payloads from provided approval data", () => {
+    const approval = findApprovalById(approvalInboxFixture, "appr_supply_fixture");
     const payload = buildApprovalDecisionPayload(approval, "approve");
 
     expect(approvalDecisionActorId(approval)).toBe("plant-operations-owner-role");
@@ -63,7 +116,7 @@ describe("manufacturing approval inbox demo contract", () => {
       decision: "approve",
       actor_id: "plant-operations-owner-role",
       actor_scopes: ["approvals:supply:decide"],
-      note: "Console decision recorded for appr_expedite_supplier_batch.",
+      note: "Console decision recorded for appr_supply_fixture.",
     });
     expect(JSON.stringify(payload)).not.toContain("@");
   });

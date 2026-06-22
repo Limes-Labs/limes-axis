@@ -5,9 +5,9 @@ API-backed operational demo surface.
 
 ## Demo Scope
 
-The manufacturing reference seed is intentionally public and synthetic. It uses
+The manufacturing reference records are API-owned and public-safe. They use
 roles, system IDs and demo tenant IDs rather than personal names or customer
-data.
+data. The browser does not carry local overview records.
 
 It models the first Plant Operations Cockpit scenario:
 
@@ -43,15 +43,15 @@ The Next.js overview page loads the demo endpoint from
 `NEXT_PUBLIC_AXIS_API_BASE_URL`. If the API is unavailable, the console shows an
 API-required state and does not render local overview records.
 
-This is a demo seed, not a production data loading path. Future Platform work
-will replace it with tenant-scoped, authenticated API surfaces backed by
-Postgres, TypeDB and workflow state.
+This is an API reference path, not a production data loading path. Future
+Platform work will replace remaining bootstrap records with tenant-scoped,
+authenticated API surfaces backed by Postgres, TypeDB and workflow state.
 
 ## Verification
 
 Covered by:
 
-- API unit tests for the manufacturing overview seed and endpoint;
+- API unit tests for the manufacturing overview reference endpoint;
 - generated OpenAPI drift check;
 - web unit tests for the API response contract;
 - Playwright smoke tests for API-required overview behavior on desktop and mobile.

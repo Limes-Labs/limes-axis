@@ -1,7 +1,7 @@
 # Platform Audit Explorer
 
 The audit explorer slice turns the static `/audit` shell into an API-backed
-view of synthetic and persisted manufacturing audit events.
+view of reference and persisted manufacturing audit events.
 
 It is public-safe and intentionally limited. The explorer shows event metadata,
 filters, evidence references and redacted payload previews. The export path now
@@ -17,7 +17,7 @@ GET /demo/manufacturing/audit/events
 GET /demo/manufacturing/audit/export
 ```
 
-The seed endpoint returns a typed audit explorer for the demo tenant. The
+The reference endpoint returns a typed audit explorer for the demo tenant. The
 persisted endpoint queries Postgres `audit_events` with tenant-scoped filters:
 
 - `tenant_id`;
@@ -26,7 +26,7 @@ persisted endpoint queries Postgres `audit_events` with tenant-scoped filters:
 - `scope`;
 - `limit`.
 
-The seed and persisted event endpoints return the same explorer contract:
+The reference and persisted event endpoints return the same explorer contract:
 
 - ledger status and audit metrics;
 - tenant, event type, scope, actor and category filter options;
@@ -52,7 +52,7 @@ JSON bundle:
 
 The `/audit` page first loads persisted events from
 `/demo/manufacturing/audit/events`. If the query returns no rows, it uses the
-synthetic seed endpoint served by the API. When the API is unavailable, the page
+reference endpoint served by the API. When the API is unavailable, the page
 shows an API-required state and does not render local audit records.
 
 The page supports local filters for tenant, event type and scope. Filtering is
@@ -97,11 +97,11 @@ deletion jobs and production legal-hold workflows remain future work.
 
 The slice is covered by:
 
-- API unit tests for the manufacturing audit explorer seed and endpoint;
+- API unit tests for the manufacturing audit explorer reference endpoint;
 - API unit tests for persisted audit event query mapping and filters;
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;
 - OpenAPI schema export/check;
-- web unit tests for filtering, export metadata and integrity
-  fields;
+- web unit tests for filtering, export metadata and integrity fields with local
+  test fixtures only;
 - Playwright smoke tests for API-required audit behavior on desktop and mobile.

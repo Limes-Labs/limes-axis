@@ -2,86 +2,108 @@ import { describe, expect, it } from "vitest";
 
 import {
   allAuditFilter,
-  defaultAuditExportBundle,
-  defaultManufacturingAuditExplorer,
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
+  type ManufacturingAuditExplorer,
 } from "./audit-demo";
 
-describe("manufacturing audit explorer demo contract", () => {
-  it("keeps a public-safe audit seed available without the API", () => {
-    expect(defaultManufacturingAuditExplorer.scenario).toBe("Plant Operations Cockpit");
-    expect(defaultManufacturingAuditExplorer.plant_name).toBe("Ravenna Works");
-    expect(defaultManufacturingAuditExplorer.events).toHaveLength(9);
-    expect(JSON.stringify(defaultManufacturingAuditExplorer)).not.toContain("@");
-    expect(JSON.stringify(defaultManufacturingAuditExplorer).toLowerCase()).not.toContain("secret");
-  });
+const auditExplorerFixture: ManufacturingAuditExplorer = {
+  tenant_id: "tenant_fixture",
+  plant_name: "Fixture Plant",
+  scenario: "Runtime contract fixture",
+  as_of: "2026-06-22T09:00:00+02:00",
+  ledger_status: "ready",
+  metrics: [],
+  filter_options: {
+    tenants: ["tenant_fixture"],
+    event_types: ["agent.proposal.created", "policy.egress.blocked"],
+    scopes: ["wf_supply_fixture", "model_route_fixture"],
+    actors: ["agent_supply_fixture", "model-router"],
+    categories: ["agent", "policy"],
+  },
+  events: [
+    {
+      audit_event_id: "audit_supply_fixture",
+      occurred_at: "2026-06-22T09:01:00+02:00",
+      tenant_id: "tenant_fixture",
+      actor_id: "agent_supply_fixture",
+      actor_type: "agent",
+      event_type: "agent.proposal.created",
+      category: "agent",
+      domain: "Supply",
+      scope: "wf_supply_fixture",
+      result: "pending_owner_review",
+      severity: "watch",
+      source: "axis-agent-runtime",
+      summary: "Agent proposed a governed supply action.",
+      permission_scope: "approvals:supply:request",
+      data_classification: "internal",
+      related_workflow_id: "wf_supply_fixture",
+      related_approval_id: "appr_supply_fixture",
+      related_agent_id: "agent_supply_fixture",
+      evidence_refs: ["risk_supply_fixture"],
+      payload_preview: { action_id: "expedite_fixture_batch" },
+    },
+    {
+      audit_event_id: "audit_egress_fixture",
+      occurred_at: "2026-06-22T09:02:00+02:00",
+      tenant_id: "tenant_fixture",
+      actor_id: "model-router",
+      actor_type: "service",
+      event_type: "policy.egress.blocked",
+      category: "policy",
+      domain: "Quality",
+      scope: "model_route_fixture",
+      result: "blocked",
+      severity: "action_required",
+      source: "axis-model-router",
+      summary: "External model egress was blocked by policy.",
+      permission_scope: "models:route",
+      data_classification: "restricted",
+      related_workflow_id: null,
+      related_approval_id: null,
+      related_agent_id: null,
+      evidence_refs: ["route_quality_fixture"],
+      payload_preview: { provider: "external-general-llm" },
+    },
+  ],
+  retention_notes: ["Fixture data is scoped to tests."],
+};
 
-  it("exposes tenant, event and scope filter options", () => {
-    expect(defaultManufacturingAuditExplorer.filter_options.tenants).toEqual([
-      "tenant_demo_manufacturing",
-    ]);
-    expect(defaultManufacturingAuditExplorer.filter_options.event_types).toContain(
-      "agent.proposal.created",
-    );
-    expect(defaultManufacturingAuditExplorer.filter_options.scopes).toContain(
-      "wf_supplier_delay_review",
-    );
-  });
-
+describe("audit explorer helpers", () => {
   it("filters events by tenant, event type and scope", () => {
-    const events = filterAuditEvents(defaultManufacturingAuditExplorer, {
-      tenant: "tenant_demo_manufacturing",
+    const events = filterAuditEvents(auditExplorerFixture, {
+      tenant: "tenant_fixture",
       eventType: "agent.proposal.created",
-      scope: "wf_supplier_delay_review",
+      scope: "wf_supply_fixture",
     });
 
     expect(events).toHaveLength(1);
-    expect(events[0].actor_id).toBe("supply-risk-agent");
+    expect(events[0].actor_id).toBe("agent_supply_fixture");
   });
 
   it("keeps all events when filters are set to all", () => {
     expect(
-      filterAuditEvents(defaultManufacturingAuditExplorer, {
+      filterAuditEvents(auditExplorerFixture, {
         tenant: allAuditFilter,
         eventType: allAuditFilter,
         scope: allAuditFilter,
       }),
-    ).toHaveLength(defaultManufacturingAuditExplorer.events.length);
+    ).toHaveLength(auditExplorerFixture.events.length);
   });
 
   it("finds audit events by id with a safe fallback", () => {
-    expect(
-      findAuditEventById(
-        defaultManufacturingAuditExplorer,
-        "audit_20260621_133900_egress_blocked",
-      ).event_type,
-    ).toBe("policy.egress.blocked");
-    expect(findAuditEventById(defaultManufacturingAuditExplorer, "missing").event_type).toBe(
-      "workflow.started",
+    expect(findAuditEventById(auditExplorerFixture, "audit_egress_fixture").event_type).toBe(
+      "policy.egress.blocked",
+    );
+    expect(findAuditEventById(auditExplorerFixture, "missing").event_type).toBe(
+      "agent.proposal.created",
     );
   });
 
   it("formats audit labels", () => {
     expect(formatAuditLabel("policy.egress.blocked")).toBe("Policy Egress Blocked");
     expect(formatAuditLabel("approvals:supply:decide")).toBe("Approvals Supply Decide");
-  });
-
-  it("keeps a public-safe audit export bundle available without the API", () => {
-    expect(defaultAuditExportBundle.tenant_id).toBe("tenant_demo_manufacturing");
-    expect(defaultAuditExportBundle.manifest.record_count).toBe(
-      defaultManufacturingAuditExplorer.events.length,
-    );
-    expect(defaultAuditExportBundle.retention_policy.retention_days).toBe(365);
-    expect(defaultAuditExportBundle.retention_policy.export_requires_review).toBe(true);
-    expect(defaultAuditExportBundle.manifest.retention_enforced).toBe(true);
-    expect(defaultAuditExportBundle.manifest.excluded_record_count).toBe(0);
-    expect(defaultAuditExportBundle.integrity_proof.algorithm).toBe("sha256-hash-chain-v1");
-    expect(defaultAuditExportBundle.manifest.integrity_chain_tip_sha256).toBe(
-      defaultAuditExportBundle.integrity_proof.chain_tip_sha256,
-    );
-    expect(JSON.stringify(defaultAuditExportBundle)).not.toContain("@");
-    expect(JSON.stringify(defaultAuditExportBundle).toLowerCase()).not.toContain("secret");
   });
 });

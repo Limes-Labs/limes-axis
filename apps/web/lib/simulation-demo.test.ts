@@ -3,97 +3,180 @@ import { describe, expect, it } from "vitest";
 import {
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
-  defaultManufacturingReplaySimulation,
   findReplayArtifactById,
+  formatSimulationLabel,
   shouldUsePersistedReplayData,
+  type ManufacturingReplaySimulation,
+  type ReplayArtifact,
 } from "./simulation-demo";
 
-describe("manufacturing replay simulation demo contract", () => {
-  it("ships a public-safe replay artifact seed", () => {
-    const artifact = defaultManufacturingReplaySimulation.artifacts[0];
-
-    expect(defaultManufacturingReplaySimulation.tenant_id).toBe("tenant_demo_manufacturing");
-    expect(defaultManufacturingReplaySimulation.metrics[0]).toMatchObject({
-      label: "Replay Artifacts",
-      value: "3",
-    });
-    expect(artifact.workflow_id).toBe("wf_supplier_delay_review");
-    expect(artifact.replay_mode).toBe("governance-preview");
-    expect(artifact.policy_results[0]).toMatchObject({
+const replayArtifactFixture: ReplayArtifact = {
+  artifact_id: "replay_supply_fixture",
+  workflow_id: "wf_supply_fixture",
+  workflow_name: "Supply Fixture Review",
+  audit_scope: "wf_supply_fixture",
+  replay_mode: "governance-preview",
+  replay_ready: false,
+  determinism_status: "preview_only",
+  timeline_event_count: 1,
+  audit_event_count: 1,
+  evidence_refs: ["wf_supply_fixture", "risk_supply_fixture"],
+  timeline: [
+    {
+      event: "workflow.started",
+      at: "2026-06-22T08:30:00+02:00",
+      actor: "axis-workflow-runtime",
+      result: "started",
+      summary: "Workflow started.",
+    },
+  ],
+  audit_events: [
+    {
+      audit_event_id: "audit_supply_fixture",
+      occurred_at: "2026-06-22T09:01:00+02:00",
+      tenant_id: "tenant_fixture",
+      actor_id: "agent_supply_fixture",
+      actor_type: "agent",
+      event_type: "agent.proposal.created",
+      category: "agent",
+      domain: "Supply",
+      scope: "wf_supply_fixture",
+      result: "pending_owner_review",
+      severity: "watch",
+      source: "axis-agent-runtime",
+      summary: "Agent proposed a governed supply action.",
+      permission_scope: "approvals:supply:request",
+      data_classification: "internal",
+      related_workflow_id: "wf_supply_fixture",
+      related_approval_id: "appr_supply_fixture",
+      related_agent_id: "agent_supply_fixture",
+      evidence_refs: ["risk_supply_fixture"],
+      payload_preview: { action_id: "expedite_fixture_batch" },
+    },
+  ],
+  policy_results: [
+    {
       policy_id: "human-approval-required",
+      policy_name: "Human approval before external mutation",
+      baseline_decision: "waiting_for_approval",
       simulated_decision: "blocked_until_human_approval",
-    });
-    expect(artifact.policy_set_diffs[0]).toMatchObject({
-      connector_id: "file_csv_manufacturing_assets",
-      baseline_policy_set_id: "policy_set_connector_asset_required_20260622_v2",
-      candidate_policy_set_id: "policy_set_connector_asset_required_20260622_rollback",
+      changed_outcome: true,
+      evidence_refs: ["wf_supply_fixture"],
+      summary: "Owner approval remains required.",
+    },
+  ],
+  policy_set_diffs: [
+    {
+      diff_id: "policy_set_diff_fixture",
+      connector_id: "file_csv_fixture_assets",
+      baseline_policy_set_id: "policy_set_current",
+      baseline_policy_set_version: "2026-06-22.1",
+      candidate_policy_set_id: "policy_set_candidate",
+      candidate_policy_set_version: "2026-06-22.2",
+      historical_event_count: 2,
+      changed_policy_ids: ["connector.asset.required"],
+      baseline_decision: "allow_after_validation",
+      candidate_decision: "block_until_required_asset_gate",
+      changed_outcome: true,
       diff_status: "changed_outcome_detected",
       audit_event_type: "connector.promotion_policy_set.simulated_diff",
-    });
-    expect(
-      defaultManufacturingReplaySimulation.metrics.find(
-        (metric) => metric.label === "Policy Set Diffs",
-      ),
-    ).toMatchObject({ value: "3" });
-    expect(
-      defaultManufacturingReplaySimulation.metrics.find(
-        (metric) => metric.label === "Persisted Outputs",
-      ),
-    ).toMatchObject({ value: "1" });
-    expect(
-      defaultManufacturingReplaySimulation.metrics.find(
-        (metric) => metric.label === "Replay Window",
-      ),
-    ).toMatchObject({ value: "365d" });
-    expect(
-      defaultManufacturingReplaySimulation.metrics.find(
-        (metric) => metric.label === "Retention Excluded",
-      ),
-    ).toMatchObject({ value: "0" });
-    expect(defaultManufacturingReplaySimulation.retention_window).toMatchObject({
-      policy_id: "axis-demo-replay-retention",
-      retention_days: 365,
-      retention_enforced: true,
-      disposal_action: "enforced_exclusion",
-      excluded_output_count: 0,
-    });
-    expect(defaultManufacturingReplaySimulation.persisted_outputs[0]).toMatchObject({
-      simulation_output_id: "replay_output_supplier_delay_review_20260622",
-      audit_event_type: "simulation.replay_output.persisted",
-      required_scope: "simulation:replay:persist",
-      retention_window_days: 30,
-    });
-    expect(defaultManufacturingReplaySimulation.persisted_outputs[0].artifact.workflow_id).toBe(
-      "wf_supplier_delay_review",
-    );
-    expect(defaultManufacturingReplaySimulation.simulation_notes).toContain(
-      "Persisted simulation outputs are governed audit artifacts with retention metadata.",
-    );
-    expect(defaultManufacturingReplaySimulation.simulation_notes).toContain(
-      "Replay retention windows are enforced at query time; legal hold suspends exclusion.",
-    );
-    expect(JSON.stringify(defaultManufacturingReplaySimulation).toLowerCase()).not.toContain(
-      "secret",
-    );
-  });
+      evidence_refs: ["wf_supply_fixture"],
+      summary: "Candidate policy set changes the outcome.",
+    },
+  ],
+};
 
+const unchangedReplayArtifactFixture: ReplayArtifact = {
+  ...replayArtifactFixture,
+  artifact_id: "replay_ops_fixture",
+  workflow_id: "wf_ops_fixture",
+  workflow_name: "Operations Fixture Brief",
+  policy_results: [
+    {
+      policy_id: "read-only-output",
+      policy_name: "Read-only output",
+      baseline_decision: "allow",
+      simulated_decision: "allow",
+      changed_outcome: false,
+      evidence_refs: ["wf_ops_fixture"],
+      summary: "Read-only output remains allowed.",
+    },
+  ],
+  policy_set_diffs: [],
+};
+
+const replaySimulationFixture: ManufacturingReplaySimulation = {
+  tenant_id: "tenant_fixture",
+  plant_name: "Fixture Plant",
+  scenario: "Runtime contract fixture",
+  as_of: "2026-06-22T09:00:00+02:00",
+  simulation_status: "ready",
+  metrics: [],
+  retention_window: {
+    policy_id: "replay-retention-fixture",
+    retention_days: 30,
+    legal_hold: false,
+    retention_enforced: true,
+    retention_window_start: "2026-05-22T09:00:00+02:00",
+    disposal_action: "enforced_exclusion",
+    excluded_timeline_event_count: 0,
+    excluded_audit_event_count: 0,
+    excluded_output_count: 0,
+    notes: ["Fixture data is scoped to tests."],
+  },
+  artifacts: [replayArtifactFixture, unchangedReplayArtifactFixture],
+  persisted_outputs: [
+    {
+      tenant_id: "tenant_fixture",
+      simulation_output_id: "replay_output_fixture",
+      workflow_id: "wf_supply_fixture",
+      artifact_id: "replay_supply_fixture",
+      idempotency_key: "tenant_fixture:replay_supply_fixture",
+      status: "persisted",
+      requested_by: "simulation-owner-role",
+      required_scope: "simulation:replay:persist",
+      replay_mode: "governance-preview",
+      determinism_status: "preview_only",
+      output_hash: "hash_fixture",
+      retention_window_days: 30,
+      permission_decision: {
+        allowed: true,
+        reason: "allowed",
+      },
+      artifact: replayArtifactFixture,
+      evidence_refs: ["wf_supply_fixture"],
+      audit_event_id: "audit_replay_fixture",
+      audit_event_type: "simulation.replay_output.persisted",
+      reason: "Persist fixture replay output.",
+      notes: ["Fixture data is scoped to tests."],
+      idempotent_replay: false,
+      created_at: "2026-06-22T09:00:00+02:00",
+    },
+  ],
+  simulation_notes: ["Fixture data is scoped to tests."],
+};
+
+describe("replay simulation helpers", () => {
   it("finds artifacts and counts policy outcome changes", () => {
-    expect(
-      findReplayArtifactById(defaultManufacturingReplaySimulation, "wf_quality_hold_review")
-        .workflow_name,
-    ).toBe("Quality Hold Review");
-    expect(countChangedPolicyResults(defaultManufacturingReplaySimulation)).toBe(2);
-    expect(countChangedPolicySetDiffs(defaultManufacturingReplaySimulation)).toBe(3);
+    expect(findReplayArtifactById(replaySimulationFixture, "wf_supply_fixture").workflow_name).toBe(
+      "Supply Fixture Review",
+    );
+    expect(countChangedPolicyResults(replaySimulationFixture)).toBe(1);
+    expect(countChangedPolicySetDiffs(replaySimulationFixture)).toBe(1);
   });
 
   it("uses persisted replay data only when artifacts are available", () => {
-    expect(shouldUsePersistedReplayData(defaultManufacturingReplaySimulation)).toBe(true);
+    expect(shouldUsePersistedReplayData(replaySimulationFixture)).toBe(true);
     expect(
       shouldUsePersistedReplayData({
-        ...defaultManufacturingReplaySimulation,
+        ...replaySimulationFixture,
         simulation_status: "watch",
         artifacts: [],
       }),
     ).toBe(false);
+  });
+
+  it("formats simulation labels", () => {
+    expect(formatSimulationLabel("changed_outcome_detected")).toBe("Changed Outcome Detected");
   });
 });

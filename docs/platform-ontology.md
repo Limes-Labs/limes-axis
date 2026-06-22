@@ -1,12 +1,13 @@
 # Platform Ontology Explorer
 
-The first ontology explorer slice maps the manufacturing reference seed into a
+The first ontology explorer slice maps the manufacturing API reference into a
 read-only operational graph.
 
 ## Demo Scope
 
-The graph is public-safe and synthetic. It uses demo IDs, roles and fictional
-plant context rather than customer data or personal names.
+The graph is public-safe. It uses demo IDs, roles and fictional plant context
+rather than customer data or personal names. The browser does not carry a local
+ontology graph.
 
 It includes:
 
@@ -49,7 +50,8 @@ The entity detail endpoint returns:
 
 In standalone demo mode, graph and entity detail reads remain readable without a
 token. Graph reads pass through the Axis ontology query runtime. The default
-runtime serves the public seed through `axis-deferred-ontology-query-adapter`.
+runtime serves the public reference graph through
+`axis-deferred-ontology-query-adapter`.
 When a bearer token is present, or when OIDC auth is required by configuration,
 the graph endpoint derives actor, tenant and scopes from the principal, rejects
 tenant mismatch, filters relationships by token-derived relationship scopes and
@@ -66,11 +68,11 @@ The schema is included in `docs/openapi.json` and checked by CI.
 ## Console Behavior
 
 The `/ontology` page loads the demo endpoint from
-`NEXT_PUBLIC_AXIS_API_BASE_URL`. If the API is unavailable, it falls back to the
-local synthetic ontology seed.
+`NEXT_PUBLIC_AXIS_API_BASE_URL`. If the API is unavailable, it shows an
+API-required state and does not render local graph records.
 
 Entity links open `/ontology/[nodeId]`, which loads the entity detail endpoint
-and falls back to a local detail builder when the API is unavailable.
+and shows an API-required state when the API is unavailable.
 When an OIDC session is attached in the console toolbar, entity detail fetches
 include the bearer token so relationship-scope denials can be exercised from
 the console.
@@ -104,5 +106,6 @@ Covered by:
   endpoint exposure;
 - web unit tests for OIDC session token parsing and authorization headers;
 - generated OpenAPI drift check;
-- web unit tests for graph integrity and detail building contracts;
+- web unit tests for graph helper and detail building contracts with local test
+  fixtures only;
 - Playwright smoke tests for API-required ontology and entity behavior.

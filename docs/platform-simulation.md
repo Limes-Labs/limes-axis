@@ -76,9 +76,8 @@ operate a production legal-hold workflow or claim immutable archive hardening.
 ## Console Behavior
 
 The `/simulation` page first loads
-`/demo/manufacturing/simulation/replay`. If no persisted artifacts are
-available, or the API is unavailable, it falls back to the local synthetic
-manufacturing replay seed.
+`/demo/manufacturing/simulation/replay`. If the API is unavailable, it shows an
+API-required state and does not construct local replay artifacts.
 
 The page lets an operator inspect:
 
@@ -104,7 +103,7 @@ The first policy-set diff preview compares the governed connector policy set
 `policy_set_connector_asset_required_20260622_v2` with the rollback candidate
 `policy_set_connector_asset_required_20260622_rollback` over each artifact's
 historical timeline and audit events. It reports changed policy ids, baseline
-and candidate decisions, `changed_outcome_detected` status and the synthetic
+and candidate decisions, `changed_outcome_detected` status and the reference
 audit event type `connector.promotion_policy_set.simulated_diff`. It does not
 activate a policy set or execute connector mutation.
 
@@ -127,6 +126,6 @@ The slice is covered by:
 - API unit tests for persisted output write, permission and idempotency;
 - API unit tests for replay retention filtering and legal-hold bypass;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for replay artifacts, persisted outputs, policy-set diffs and
-  persisted-data selection;
+- web unit tests for replay artifact helpers, persisted outputs and policy-set
+  diffs with local test fixtures only;
 - Playwright smoke tests for `/simulation` API-required behavior.
