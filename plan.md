@@ -150,7 +150,8 @@ tenant-scoped query permissions remain Platform work.
 
 The replay/simulation foundation derives public-safe replay artifacts from
 workflow run history, timeline events and redacted audit evidence. The
-`/simulation` page shows baseline versus simulated policy decisions for the
+`/simulation` page shows baseline versus simulated policy decisions and
+governed connector policy-set version diffs over historical events for the
 manufacturing demo. Temporal deterministic replay, arbitrary policy diffing,
 retention-aware replay windows and persisted simulation outputs remain Platform
 and Enterprise work.

@@ -6306,6 +6306,105 @@
         "title": "PermissionDecision",
         "type": "object"
       },
+      "PolicySetVersionDiff": {
+        "properties": {
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "baseline_decision": {
+            "minLength": 1,
+            "title": "Baseline Decision",
+            "type": "string"
+          },
+          "baseline_policy_set_id": {
+            "minLength": 1,
+            "title": "Baseline Policy Set Id",
+            "type": "string"
+          },
+          "baseline_policy_set_version": {
+            "minLength": 1,
+            "title": "Baseline Policy Set Version",
+            "type": "string"
+          },
+          "candidate_decision": {
+            "minLength": 1,
+            "title": "Candidate Decision",
+            "type": "string"
+          },
+          "candidate_policy_set_id": {
+            "minLength": 1,
+            "title": "Candidate Policy Set Id",
+            "type": "string"
+          },
+          "candidate_policy_set_version": {
+            "minLength": 1,
+            "title": "Candidate Policy Set Version",
+            "type": "string"
+          },
+          "changed_outcome": {
+            "title": "Changed Outcome",
+            "type": "boolean"
+          },
+          "changed_policy_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed Policy Ids",
+            "type": "array"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "diff_id": {
+            "minLength": 1,
+            "title": "Diff Id",
+            "type": "string"
+          },
+          "diff_status": {
+            "minLength": 1,
+            "title": "Diff Status",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "historical_event_count": {
+            "minimum": 0.0,
+            "title": "Historical Event Count",
+            "type": "integer"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "diff_id",
+          "connector_id",
+          "baseline_policy_set_id",
+          "baseline_policy_set_version",
+          "candidate_policy_set_id",
+          "candidate_policy_set_version",
+          "historical_event_count",
+          "baseline_decision",
+          "candidate_decision",
+          "changed_outcome",
+          "diff_status",
+          "audit_event_type",
+          "summary"
+        ],
+        "title": "PolicySetVersionDiff",
+        "type": "object"
+      },
       "PolicySimulationResult": {
         "properties": {
           "baseline_decision": {
@@ -6437,6 +6536,13 @@
               "$ref": "#/components/schemas/PolicySimulationResult"
             },
             "title": "Policy Results",
+            "type": "array"
+          },
+          "policy_set_diffs": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySetVersionDiff"
+            },
+            "title": "Policy Set Diffs",
             "type": "array"
           },
           "replay_mode": {

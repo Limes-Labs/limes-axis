@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  countChangedPolicySetDiffs,
   countChangedPolicyResults,
   defaultManufacturingReplaySimulation,
   findReplayArtifactById,
@@ -22,6 +23,18 @@ describe("manufacturing replay simulation demo contract", () => {
       policy_id: "human-approval-required",
       simulated_decision: "blocked_until_human_approval",
     });
+    expect(artifact.policy_set_diffs[0]).toMatchObject({
+      connector_id: "file_csv_manufacturing_assets",
+      baseline_policy_set_id: "policy_set_connector_asset_required_20260622_v2",
+      candidate_policy_set_id: "policy_set_connector_asset_required_20260622_rollback",
+      diff_status: "changed_outcome_detected",
+      audit_event_type: "connector.promotion_policy_set.simulated_diff",
+    });
+    expect(
+      defaultManufacturingReplaySimulation.metrics.find(
+        (metric) => metric.label === "Policy Set Diffs",
+      ),
+    ).toMatchObject({ value: "3" });
     expect(JSON.stringify(defaultManufacturingReplaySimulation).toLowerCase()).not.toContain(
       "secret",
     );
@@ -33,6 +46,7 @@ describe("manufacturing replay simulation demo contract", () => {
         .workflow_name,
     ).toBe("Quality Hold Review");
     expect(countChangedPolicyResults(defaultManufacturingReplaySimulation)).toBe(2);
+    expect(countChangedPolicySetDiffs(defaultManufacturingReplaySimulation)).toBe(3);
   });
 
   it("uses persisted replay data only when artifacts are available", () => {

@@ -85,8 +85,9 @@ retention-window enforcement and a deterministic hash-chain integrity proof.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline
 events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts
-from workflow history and audit events, and adds a read-only `/simulation`
-console for policy preview inspection. The connector foundation adds a
+from workflow history and audit events, adds governed policy-set version diff
+previews over historical events, and exposes a read-only `/simulation` console
+for policy preview inspection. The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal

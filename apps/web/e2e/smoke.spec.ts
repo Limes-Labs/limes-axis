@@ -269,6 +269,12 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toBeVisible();
     await expect(page.getByText("human-approval-required").first()).toBeVisible();
     await expect(page.getByText("blocked_until_human_approval").first()).toBeVisible();
+    await expect(page.getByText("Policy Set Diff", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("policy_set_connector_asset_required_20260622_rollback").first(),
+    ).toBeVisible();
+    await expect(page.getByText("connector.promotion_policy_set.simulated_diff")).toBeVisible();
+    await expect(page.getByText("changed_outcome_detected")).toBeVisible();
     await expect(page.getByText("Raw action payloads are not exposed").first()).toBeVisible();
 
     await expectNoHorizontalOverflow(page);

@@ -187,9 +187,46 @@ def test_build_replay_simulation_creates_tenant_scoped_artifacts(
     assert artifact.determinism_status == "preview_only"
     assert artifact.policy_results[0].policy_id == "human-approval-required"
     assert artifact.policy_results[0].simulated_decision == "blocked_until_human_approval"
+    assert artifact.policy_set_diffs[0].candidate_policy_set_id == (
+        "policy_set_connector_asset_required_20260622_rollback"
+    )
     assert "tenant_other" not in simulation.model_dump_json()
     assert "credential_secret" not in simulation.model_dump_json()
     assert "never-export-this-value" not in simulation.model_dump_json()
+
+
+def test_build_replay_simulation_includes_policy_set_version_diff_preview(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        simulation = build_replay_simulation(
+            repository,
+            ReplaySimulationQuery(tenant_id="tenant_demo_manufacturing"),
+        )
+
+    diff_metric = next(
+        metric for metric in simulation.metrics if metric.label == "Policy Set Diffs"
+    )
+    assert diff_metric.value == "1"
+    artifact = simulation.artifacts[0]
+    diff = artifact.policy_set_diffs[0]
+    assert diff.diff_id.startswith("policy-set-diff-wf_supplier_delay_review-")
+    assert diff.connector_id == "file_csv_manufacturing_assets"
+    assert diff.baseline_policy_set_id == "policy_set_connector_asset_required_20260622_v2"
+    assert diff.baseline_policy_set_version == "2026-06-22.2"
+    assert diff.candidate_policy_set_id == (
+        "policy_set_connector_asset_required_20260622_rollback"
+    )
+    assert diff.candidate_policy_set_version == "2026-06-22.3"
+    assert diff.historical_event_count == 4
+    assert diff.changed_policy_ids == ["connector.asset.required"]
+    assert diff.changed_outcome is True
+    assert diff.diff_status == "changed_outcome_detected"
+    assert diff.audit_event_type == "connector.promotion_policy_set.simulated_diff"
+    assert "appr_expedite_supplier_batch" in diff.evidence_refs
+    assert "credential_secret" not in diff.model_dump_json()
 
 
 def test_build_replay_simulation_filters_by_workflow_id(
@@ -233,6 +270,9 @@ def test_replay_simulation_endpoint_returns_artifact(
     assert body["tenant_id"] == "tenant_demo_manufacturing"
     assert body["artifacts"][0]["workflow_id"] == "wf_supplier_delay_review"
     assert body["artifacts"][0]["policy_results"][0]["policy_id"] == "human-approval-required"
+    assert body["artifacts"][0]["policy_set_diffs"][0]["audit_event_type"] == (
+        "connector.promotion_policy_set.simulated_diff"
+    )
     assert "tenant_other" not in str(body)
 
 
