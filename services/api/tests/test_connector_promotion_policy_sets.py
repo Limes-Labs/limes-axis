@@ -34,6 +34,22 @@ def policy_set_payload() -> dict:
     }
 
 
+def replacement_policy_set_payload() -> dict:
+    payload = policy_set_payload()
+    payload.update(
+        {
+            "policy_set_id": "policy_set_connector_asset_required_20260622_v2",
+            "policy_set_version": "2026-06-22.2",
+            "activation_reason": "Replace active set after governance review.",
+            "replaces_policy_set_id": "policy_set_connector_asset_required_20260622",
+            "replacement_approval_id": "approval_policy_set_replace_20260622",
+            "replacement_decision": "approve",
+            "replacement_workflow_signal_status": "policy_set_replacement_signal_recorded",
+        }
+    )
+    return payload
+
+
 def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
     engine = create_engine(
         "sqlite+pysqlite://",
@@ -160,6 +176,102 @@ def test_connector_promotion_policy_set_endpoint_creates_active_set() -> None:
     assert response.json()["policy_set_version"] == "2026-06-22.1"
     assert response.json()["audit_event_type"] == "connector.promotion_policy_set.activated"
     assert policy_set_count == 1
+
+
+def test_connector_promotion_policy_set_endpoint_replaces_active_set_with_evidence() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        seed_policy_set_dependencies(AxisPersistenceRepository(session))
+
+    first_response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    )
+    replacement_response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=replacement_policy_set_payload(),
+    )
+
+    with factory() as session:
+        records = {
+            record.policy_set_id: record
+            for record in session.scalars(select(ConnectorPromotionPolicySet)).all()
+        }
+        active_records = [
+            record for record in records.values() if record.status == "active"
+        ]
+        replacement_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.promotion_policy_set.replaced"
+            )
+        ).one()
+
+    client.close()
+    assert first_response.status_code == 201
+    assert replacement_response.status_code == 201
+    body = replacement_response.json()
+    assert body["policy_set_id"] == "policy_set_connector_asset_required_20260622_v2"
+    assert body["status"] == "active"
+    assert body["audit_event_type"] == "connector.promotion_policy_set.replaced"
+    assert body["replaces_policy_set_id"] == "policy_set_connector_asset_required_20260622"
+    assert body["replacement_approval_id"] == "approval_policy_set_replace_20260622"
+    assert body["replacement_decision"] == "approve"
+    assert body["replacement_workflow_signal_status"] == (
+        "policy_set_replacement_signal_recorded"
+    )
+    assert len(records) == 2
+    assert len(active_records) == 1
+    assert active_records[0].policy_set_id == "policy_set_connector_asset_required_20260622_v2"
+    assert records["policy_set_connector_asset_required_20260622"].status == "superseded"
+    assert records["policy_set_connector_asset_required_20260622"].replaced_by_policy_set_id == (
+        "policy_set_connector_asset_required_20260622_v2"
+    )
+    assert records["policy_set_connector_asset_required_20260622_v2"].replaces_policy_set_id == (
+        "policy_set_connector_asset_required_20260622"
+    )
+    assert records["policy_set_connector_asset_required_20260622_v2"].audit_event_id == (
+        replacement_event.id
+    )
+    assert replacement_event.payload["previous_policy_set_id"] == (
+        "policy_set_connector_asset_required_20260622"
+    )
+    assert replacement_event.payload["policy_set_id"] == (
+        "policy_set_connector_asset_required_20260622_v2"
+    )
+    assert replacement_event.payload["replacement_approval_id"] == (
+        "approval_policy_set_replace_20260622"
+    )
+    assert replacement_event.payload["replacement_decision"] == "approve"
+    assert replacement_event.payload["replacement_workflow_signal_status"] == (
+        "policy_set_replacement_signal_recorded"
+    )
+
+
+def test_connector_promotion_policy_set_endpoint_rejects_replacement_without_approval() -> None:
+    client, factory = build_test_client()
+    with session_scope(factory) as session:
+        seed_policy_set_dependencies(AxisPersistenceRepository(session))
+
+    assert client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=policy_set_payload(),
+    ).status_code == 201
+    payload = replacement_policy_set_payload()
+    payload["replacement_approval_id"] = None
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policy-sets",
+        json=payload,
+    )
+
+    with factory() as session:
+        records = session.scalars(select(ConnectorPromotionPolicySet)).all()
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "policy_set_replacement_approval_required"
+    assert len(records) == 1
+    assert records[0].status == "active"
 
 
 def test_connector_promotion_policy_set_endpoint_rejects_missing_permission() -> None:

@@ -188,7 +188,9 @@ Delivered:
   audit writes.
 - connector promotion policy sets with versioned active-set metadata, required
   policy references, activation permission evidence, append-only
-  `connector.promotion_policy_set.activated` audit writes and `policy_set_id` /
+  `connector.promotion_policy_set.activated` and
+  `connector.promotion_policy_set.replaced` audit writes, replacement approval
+  and workflow evidence, superseded prior-set records and `policy_set_id` /
   `policy_ids` evidence on connector ontology promotions and proposals.
 - connector ontology promotion rejection audit events with
   `connector.ontology_promotion.rejected`, effective policy/policy-set context,

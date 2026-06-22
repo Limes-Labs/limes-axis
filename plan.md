@@ -202,7 +202,11 @@ can activate a versioned active set with
 policies in that set and stores `policy_set_id`, `policy_ids` and
 `policy_set_enforced` evidence. When a policy set is active, explicit single
 `policy_id` selection is rejected so promotions cannot bypass the full
-required-gate set. Policy and policy-set promotion rejections write
+required-gate set. Replacing an active set requires `replaces_policy_set_id`,
+an approved replacement decision, `policy_set_replacement_signal_recorded`
+workflow evidence and writes `connector.promotion_policy_set.replaced` while
+marking the previous set `superseded`. Policy and policy-set promotion
+rejections write
 `connector.ontology_promotion.rejected` audit evidence with the effective
 policy context before the API returns 422. If multiple required policies exist
 without an active set, Axis still rejects implicit selection.

@@ -604,9 +604,9 @@ export function ConnectorConsole() {
               <div>
                 <p className="section-label">Policy Sets</p>
                 <h3 className="subsection-title">
-                  {selectedPromotionPolicySets.length} active policy set
+                  {selectedPromotionPolicySets.length} versioned policy set
                 </h3>
-                <p className="row-detail">versioned required gate selection</p>
+                <p className="row-detail">required gate selection and replacement evidence</p>
               </div>
               <ShieldCheck size={18} />
             </div>
@@ -642,6 +642,17 @@ export function ConnectorConsole() {
                   <p className="metric-label">Audit Event</p>
                   <p className="row-title">{policySet.audit_event_type}</p>
                   <p className="row-detail">{policySet.audit_event_id ?? "pending"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Replacement</p>
+                  <p className="row-title">
+                    {policySet.replaces_policy_set_id ??
+                      policySet.replaced_by_policy_set_id ??
+                      "none"}
+                  </p>
+                  <p className="row-detail">
+                    {policySet.replacement_workflow_signal_status ?? "no replacement signal"}
+                  </p>
                 </div>
               </div>
             ))}
