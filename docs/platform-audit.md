@@ -4,8 +4,10 @@ The audit explorer slice turns the static `/audit` shell into an API-backed
 view of synthetic and persisted manufacturing audit events.
 
 It is public-safe and intentionally limited. The explorer shows event metadata,
-filters, evidence references and redacted payload previews without claiming that
-production audit export, retention enforcement or replay are complete.
+filters, evidence references and redacted payload previews. The export path now
+enforces the requested retention window and includes a deterministic hash-chain
+integrity proof without claiming WORM storage, KMS signing or deterministic
+workflow replay are complete.
 
 ## Demo Endpoint
 
@@ -40,9 +42,11 @@ JSON bundle:
 - export manifest id, generation time, record count and checksum;
 - applied tenant/event/actor/scope/limit filters;
 - retention policy id, retention days, legal hold flag and review requirement;
+- retention enforcement flag, window start and excluded record count;
+- hash-chain algorithm, chain tip and per-event hashes;
 - redacted event records using payload previews only;
-- retention notes that identify what is advisory metadata versus future
-  enforcement.
+- retention notes that identify enforced behavior and future production
+  hardening boundaries.
 
 ## Console Behavior
 
@@ -55,31 +59,36 @@ The page supports local filters for tenant, event type and scope. Filtering is
 browser-local after the initial tenant-scoped API query.
 
 The page also loads `/demo/manufacturing/audit/export` to show the current
-export manifest and retention policy metadata. If the export endpoint is not
-available, the page displays a local public-safe fallback bundle.
+export manifest, retention enforcement status and integrity proof. If the
+export endpoint is not available, the page displays a local public-safe
+fallback bundle.
 
 ## Governance Boundary
 
 This slice demonstrates the audit contract and explorer surface. It does not
-yet implement retention deletion enforcement, legal hold workflow, immutable
+yet implement physical retention deletion jobs, legal hold workflow, WORM/KMS
 storage hardening or deterministic Temporal replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
 decisions and action run requests now append audit events, and the public audit
 explorer can query and export redacted bundles for those persisted records.
-Production query permissions, deletion enforcement, legal hold workflows and
-immutable storage hardening remain future work.
+Export bundles enforce the requested retention window before records enter the
+bundle unless legal hold is active, and every bundle includes a deterministic
+SHA-256 hash-chain integrity proof. Production query permissions, physical
+deletion jobs, legal hold workflows and WORM/KMS storage hardening remain
+future work.
 
 Future Platform work should connect this contract to:
 
 - tenant-scoped query permissions;
-- retention deletion enforcement and legal hold workflows;
+- physical retention deletion jobs and legal hold workflows;
+- WORM/KMS-backed ledger signing;
 - evidence bundles for security and operations reviews.
 
 The replay/simulation foundation now consumes redacted audit metadata for
-read-only replay preview artifacts. Persisted simulation outputs, immutable
-storage hardening and retention-aware replay windows remain future work.
+read-only replay preview artifacts. Persisted simulation outputs and
+retention-aware replay windows remain future work.
 
 ## Verification
 
@@ -87,7 +96,9 @@ The slice is covered by:
 
 - API unit tests for the manufacturing audit explorer seed and endpoint;
 - API unit tests for persisted audit event query mapping and filters;
-- API unit tests for redacted audit export manifests and retention controls;
+- API unit tests for redacted audit export manifests, retention enforcement and
+  integrity proofs;
 - OpenAPI schema export/check;
-- web unit tests for local fallback filtering and export metadata;
+- web unit tests for local fallback filtering, export metadata and integrity
+  fields;
 - Playwright smoke tests for audit rendering and filters on desktop and mobile.

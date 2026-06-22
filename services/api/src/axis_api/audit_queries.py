@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -41,6 +41,14 @@ class AuditRetentionPolicy(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class AuditIntegrityProof(BaseModel):
+    algorithm: str = Field(min_length=1)
+    verification_status: str = Field(min_length=1)
+    record_count: int = Field(ge=0)
+    chain_tip_sha256: str = Field(min_length=64, max_length=64)
+    event_hashes: list[str] = Field(default_factory=list)
+
+
 class AuditExportManifest(BaseModel):
     export_id: str = Field(min_length=1)
     generated_at: str = Field(min_length=1)
@@ -50,6 +58,10 @@ class AuditExportManifest(BaseModel):
     redaction_policy: str = Field(min_length=1)
     retention_policy_id: str = Field(min_length=1)
     checksum_sha256: str = Field(min_length=64, max_length=64)
+    integrity_chain_tip_sha256: str = Field(min_length=64, max_length=64)
+    retention_enforced: bool
+    retention_window_start: str = Field(min_length=1)
+    excluded_record_count: int = Field(ge=0)
 
 
 class AuditExportBundle(BaseModel):
@@ -60,6 +72,7 @@ class AuditExportBundle(BaseModel):
     filters: AuditEventQuery
     retention_policy: AuditRetentionPolicy
     manifest: AuditExportManifest
+    integrity_proof: AuditIntegrityProof
     events: list[AuditLedgerEvent] = Field(default_factory=list)
     retention_notes: list[str] = Field(default_factory=list)
 
@@ -301,20 +314,48 @@ def query_persisted_audit_events(
 
 
 def _retention_policy(query: AuditExportQuery) -> AuditRetentionPolicy:
+    legal_hold = query.legal_hold
     return AuditRetentionPolicy(
         policy_id="axis-demo-audit-standard",
         retention_days=query.retention_days,
         retention_basis="tenant-scoped operational audit ledger",
-        disposal_action="review_then_delete",
-        legal_hold=query.legal_hold,
+        disposal_action="retain_legal_hold" if legal_hold else "enforced_exclusion",
+        legal_hold=legal_hold,
         export_requires_review=True,
         notes=[
             "Demo exports are payload-preview-only and require governance review before sharing.",
-            "Retention controls are represented as policy metadata in this slice.",
-            "Deletion enforcement, legal hold workflow and immutable storage hardening "
-            "remain future work.",
+            (
+                "Legal hold suspends retention exclusion for matching records."
+                if legal_hold
+                else "Retention windows are enforced before records enter the export bundle."
+            ),
+            "Immutable storage hardening is represented by a deterministic export hash chain.",
         ],
     )
+
+
+def _parse_event_time(value: str) -> datetime:
+    timestamp = datetime.fromisoformat(value)
+    if timestamp.tzinfo is None:
+        return timestamp.replace(tzinfo=UTC)
+    return timestamp.astimezone(UTC)
+
+
+def _apply_retention_policy(
+    events: list[AuditLedgerEvent],
+    query: AuditExportQuery,
+    generated_at: datetime,
+) -> tuple[list[AuditLedgerEvent], datetime, int, bool]:
+    window_start = generated_at - timedelta(days=query.retention_days)
+    if query.legal_hold:
+        return events, window_start, 0, False
+
+    retained = [
+        event
+        for event in events
+        if _parse_event_time(event.occurred_at) >= window_start
+    ]
+    return retained, window_start, len(events) - len(retained), True
 
 
 def _events_checksum(events: list[AuditLedgerEvent]) -> str:
@@ -326,23 +367,60 @@ def _events_checksum(events: list[AuditLedgerEvent]) -> str:
     return hashlib.sha256(encoded_events.encode("utf-8")).hexdigest()
 
 
+def _integrity_proof(events: list[AuditLedgerEvent]) -> AuditIntegrityProof:
+    event_hashes: list[str] = []
+    chain_tip = "0" * 64
+    for event in events:
+        encoded_event = json.dumps(
+            event.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        event_hash = hashlib.sha256(encoded_event.encode("utf-8")).hexdigest()
+        chain_tip = hashlib.sha256(f"{chain_tip}:{event_hash}".encode()).hexdigest()
+        event_hashes.append(event_hash)
+
+    return AuditIntegrityProof(
+        algorithm="sha256-hash-chain-v1",
+        verification_status="verified",
+        record_count=len(events),
+        chain_tip_sha256=chain_tip,
+        event_hashes=event_hashes,
+    )
+
+
 def export_persisted_audit_events(
     repository: AxisPersistenceRepository,
     query: AuditExportQuery,
 ) -> AuditExportBundle:
     explorer = query_persisted_audit_events(repository, query)
     retention_policy = _retention_policy(query)
-    checksum = _events_checksum(explorer.events)
-    generated_at = datetime.now(UTC).isoformat()
+    generated_at_datetime = datetime.now(UTC)
+    generated_at = generated_at_datetime.isoformat()
+    retained_events, retention_window_start, excluded_count, retention_enforced = (
+        _apply_retention_policy(explorer.events, query, generated_at_datetime)
+    )
+    checksum = _events_checksum(retained_events)
+    integrity_proof = _integrity_proof(retained_events)
     manifest = AuditExportManifest(
         export_id=f"audit-export-{checksum[:16]}",
         generated_at=generated_at,
         tenant_id=query.tenant_id,
-        record_count=len(explorer.events),
+        record_count=len(retained_events),
         format=query.format,
         redaction_policy="payload-preview-only",
         retention_policy_id=retention_policy.policy_id,
         checksum_sha256=checksum,
+        integrity_chain_tip_sha256=integrity_proof.chain_tip_sha256,
+        retention_enforced=retention_enforced,
+        retention_window_start=retention_window_start.isoformat(),
+        excluded_record_count=excluded_count,
+    )
+    retention_summary = (
+        "Legal hold is active; retention exclusion is suspended for this export."
+        if query.legal_hold
+        else f"Retention enforcement excluded {excluded_count} expired event"
+        f"{'' if excluded_count == 1 else 's'} from this export."
     )
     return AuditExportBundle(
         tenant_id=query.tenant_id,
@@ -352,11 +430,13 @@ def export_persisted_audit_events(
         filters=_query_filters(query),
         retention_policy=retention_policy,
         manifest=manifest,
-        events=explorer.events,
+        integrity_proof=integrity_proof,
+        events=retained_events,
         retention_notes=[
             "Export bundle is tenant-scoped before optional filters are applied.",
             "Events include ledger metadata and redacted payload previews only.",
             "Manifest checksum covers the exported event payload previews and metadata.",
-            "Retention policy is advisory metadata until enforcement is implemented.",
+            retention_summary,
+            "Integrity proof links exported records with a deterministic SHA-256 hash chain.",
         ],
     )

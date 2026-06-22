@@ -73,7 +73,8 @@ Delivered:
 - API-backed audit explorer queries from persisted `audit_events`, with tenant,
   event, actor, scope and limit filters.
 - redacted audit export bundles with manifest checksum, applied filters and
-  retention policy metadata.
+  retention-window enforcement, legal-hold bypass metadata and hash-chain
+  integrity proof.
 - replay/simulation preview artifacts derived from `workflow_runs`,
   `workflow_timeline_events` and redacted `audit_events`.
 - persisted workflow run state and tenant-scoped history views.
@@ -83,6 +84,7 @@ Still Platform work:
 - production connector mutations from action runtime paths;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;
-- immutable storage hardening beyond insert-only repository shape;
-- retention deletion enforcement and legal hold workflows;
+- WORM/KMS-backed immutable storage hardening beyond insert-only repository
+  shape and export hash-chain proof;
+- physical retention deletion jobs and legal hold workflows;
 - deterministic Temporal replay and persisted simulation outputs.

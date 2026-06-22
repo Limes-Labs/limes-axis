@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -79,6 +81,39 @@ def seed_audit_events(repository: AxisPersistenceRepository) -> None:
             payload={"approval_id": "appr_other", "decision": "approve"},
         )
     )
+
+
+def seed_retention_window_events(repository: AxisPersistenceRepository) -> None:
+    current_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="plant-operations-owner-role",
+            event_type="approval.decision.recorded",
+            payload={
+                "approval_id": "appr_recent",
+                "workflow_id": "wf_recent_quality_hold",
+                "decision": "approve",
+                "required_permission": "approvals:quality:decide",
+            },
+        )
+    )
+    current_event.created_at = datetime.now(UTC) - timedelta(days=3)
+
+    expired_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="agent_quality_risk",
+            event_type="action.proposal.created",
+            payload={
+                "action_id": "hold_quality_batch",
+                "workflow_id": "wf_expired_quality_hold",
+                "approval_id": "appr_expired",
+                "status": "approval_required",
+                "approval_required": True,
+            },
+        )
+    )
+    expired_event.created_at = datetime.now(UTC) - timedelta(days=90)
 
 
 def test_query_persisted_audit_events_maps_records_to_public_explorer(
@@ -230,6 +265,81 @@ def test_export_persisted_audit_events_returns_manifest_and_retention_controls(
     assert "tenant_other" not in export.model_dump_json()
     assert "credential_secret" not in export.model_dump_json()
     assert "never-export-this-value" not in export.model_dump_json()
+
+
+def test_export_persisted_audit_events_enforces_retention_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(
+                tenant_id="tenant_demo_manufacturing",
+                retention_days=30,
+                export_reason="retention-review",
+            ),
+        )
+
+    assert export.manifest.record_count == 1
+    assert export.manifest.retention_enforced is True
+    assert export.manifest.excluded_record_count == 1
+    assert export.retention_policy.disposal_action == "enforced_exclusion"
+    assert [event.related_workflow_id for event in export.events] == [
+        "wf_recent_quality_hold"
+    ]
+    assert "wf_expired_quality_hold" not in export.model_dump_json()
+    assert any("excluded 1 expired event" in note for note in export.retention_notes)
+
+
+def test_export_persisted_audit_events_preserves_expired_events_under_legal_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(
+                tenant_id="tenant_demo_manufacturing",
+                retention_days=30,
+                legal_hold=True,
+                export_reason="legal-hold-review",
+            ),
+        )
+
+    assert export.manifest.record_count == 2
+    assert export.manifest.retention_enforced is False
+    assert export.manifest.excluded_record_count == 0
+    assert export.retention_policy.legal_hold is True
+    assert export.retention_policy.disposal_action == "retain_legal_hold"
+    assert {event.related_workflow_id for event in export.events} == {
+        "wf_recent_quality_hold",
+        "wf_expired_quality_hold",
+    }
+    assert any("legal hold" in note.lower() for note in export.retention_notes)
+
+
+def test_export_persisted_audit_events_includes_hash_chain_integrity_proof(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(tenant_id="tenant_demo_manufacturing"),
+        )
+
+    assert export.integrity_proof.algorithm == "sha256-hash-chain-v1"
+    assert export.integrity_proof.verification_status == "verified"
+    assert export.integrity_proof.record_count == export.manifest.record_count
+    assert len(export.integrity_proof.chain_tip_sha256) == 64
+    assert len(export.integrity_proof.event_hashes) == export.manifest.record_count
+    assert export.manifest.integrity_chain_tip_sha256 == (
+        export.integrity_proof.chain_tip_sha256
+    )
 
 
 def test_export_persisted_audit_events_applies_event_actor_scope_and_limit_filters(

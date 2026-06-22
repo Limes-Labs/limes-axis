@@ -56,7 +56,8 @@ It includes:
   evidence references and redacted payload previews.
 - API-backed persisted audit event queries from append-only `audit_events`.
 - redacted audit export bundles with manifest checksum, applied filters and
-  retention policy metadata.
+  retention-window enforcement, legal-hold bypass metadata and hash-chain
+  integrity proof.
 - read-only agent registry entries with autonomy boundaries, required
   permissions, model egress posture, action proposals, workflow links and
   approval references.
@@ -91,7 +92,8 @@ The reference demo should grow into an end-to-end Platform scenario:
 - deterministic workflow replay and broader policy simulation;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;
-- audit retention deletion enforcement and legal hold workflows;
+- physical audit retention deletion jobs, legal hold workflows and WORM/KMS
+  ledger signing;
 - production action registry execution, connector mutation and persisted agent state;
 - live model provider adapters, budget enforcement, persisted usage telemetry
   and OpenTelemetry spans;
