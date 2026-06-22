@@ -2,17 +2,19 @@
 
 The replay and simulation foundation turns existing workflow history and audit
 evidence into public-safe replay preview artifacts and governed policy-set
-version diff previews.
+version diff previews. Replay outputs can also be persisted as governed audit
+artifacts for later inspection.
 
 It is intentionally limited. The slice does not execute Temporal deterministic
-replay, mutate workflow state, compare arbitrary policies, persist simulation
-outputs or expose raw action payloads. It creates a first inspectable contract
-for future replay, wider policy diffing and audit-backed simulation.
+replay, mutate workflow state, compare arbitrary policies or expose raw action
+payloads. It creates a first inspectable contract for future replay, wider
+policy diffing and audit-backed simulation.
 
 ## Demo Endpoint
 
 ```text
 GET /demo/manufacturing/simulation/replay
+POST /demo/manufacturing/simulation/replay/outputs
 ```
 
 The endpoint derives replay artifacts from existing Postgres records:
@@ -36,7 +38,23 @@ The response includes:
 - redacted audit evidence;
 - deterministic policy preview results;
 - governed connector policy-set version diff previews;
+- persisted replay output records when present;
 - public-safe simulation notes.
+
+`POST /demo/manufacturing/simulation/replay/outputs` persists one derived
+artifact for a workflow. The request requires:
+
+- `simulation_output_id`;
+- `workflow_id`;
+- `idempotency_key`;
+- `requested_by`;
+- `actor_scopes` containing `simulation:replay:persist`;
+- `reason`;
+- `retention_window_days`.
+
+The write creates `simulation.replay_output.persisted` audit evidence, stores a
+SHA-256 `output_hash`, persists the redacted artifact payload and returns `200`
+on idempotent replay without writing duplicate audit events.
 
 ## Console Behavior
 
@@ -51,6 +69,7 @@ The page lets an operator inspect:
 - policy preview outcomes;
 - baseline versus simulated decision;
 - baseline versus candidate policy-set version decisions;
+- persisted output hash, retention and audit evidence;
 - timeline evidence;
 - audit event types and evidence references.
 
@@ -78,8 +97,7 @@ Future Platform work should connect this contract to:
 
 - Temporal deterministic replay;
 - arbitrary policy comparison over historical events;
-- retention-aware replay windows;
-- simulation results persisted as governed audit artifacts.
+- retention-aware replay windows and deletion jobs.
 
 ## Verification
 
@@ -88,8 +106,9 @@ The slice is covered by:
 - API unit tests for tenant-scoped artifact construction;
 - API unit tests for workflow filter behavior;
 - API unit tests for policy-set version diff preview construction;
+- API unit tests for persisted output write, permission and idempotency;
 - API endpoint and OpenAPI exposure tests;
-- web unit tests for fallback artifacts, policy-set diffs and persisted-data
-  selection;
+- web unit tests for fallback artifacts, persisted outputs, policy-set diffs and
+  persisted-data selection;
 - Playwright smoke tests for `/simulation` rendering, including policy-set diff
-  metadata.
+  metadata and persisted output evidence.

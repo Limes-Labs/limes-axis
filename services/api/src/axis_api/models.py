@@ -173,6 +173,54 @@ class WorkflowTimelineRecord(Base):
     )
 
 
+class ReplaySimulationOutput(Base):
+    __tablename__ = "replay_simulation_outputs"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    simulation_output_id: Mapped[str] = mapped_column(
+        String(180),
+        nullable=False,
+        index=True,
+    )
+    workflow_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    artifact_id: Mapped[str] = mapped_column(String(240), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    required_scope: Mapped[str] = mapped_column(String(160), nullable=False)
+    replay_mode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    determinism_status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    output_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    retention_window_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    artifact_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(String(600), nullable=False)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "simulation_output_id",
+            name="uq_replay_simulation_outputs_tenant_output",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_replay_simulation_outputs_tenant_idempotency",
+        ),
+    )
+
+
 class ConnectorConfiguration(Base):
     __tablename__ = "connector_configurations"
 

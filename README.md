@@ -87,7 +87,9 @@ events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts
 from workflow history and audit events, adds governed policy-set version diff
 previews over historical events, and exposes a read-only `/simulation` console
-for policy preview inspection. The connector foundation adds a
+for policy preview inspection. Replay outputs can now be persisted as governed
+audit artifacts with `simulation.replay_output.persisted` evidence, retention
+metadata and idempotency protection. The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal

@@ -19,6 +19,7 @@ from axis_api.models import (
     ConnectorPromotionPolicy,
     ConnectorPromotionPolicySet,
     ConnectorRun,
+    ReplaySimulationOutput,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
     utc_now,
@@ -103,6 +104,28 @@ class WorkflowTimelineEventCreate(BaseModel):
     actor: str = Field(min_length=1)
     result: str = Field(min_length=1)
     summary: str = Field(min_length=1)
+
+
+class ReplaySimulationOutputCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    simulation_output_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    artifact_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(default="persisted", min_length=1)
+    requested_by: str = Field(min_length=1)
+    required_scope: str = Field(default="simulation:replay:persist", min_length=1)
+    replay_mode: str = Field(min_length=1)
+    determinism_status: str = Field(min_length=1)
+    output_hash: str = Field(min_length=1)
+    retention_window_days: int = Field(ge=1)
+    permission_decision: dict = Field(default_factory=dict)
+    artifact_payload: dict = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="simulation.replay_output.persisted", min_length=1)
+    reason: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorConfigurationCreate(BaseModel):
@@ -565,6 +588,75 @@ class AxisPersistenceRepository:
             .order_by(WorkflowTimelineRecord.sequence.asc())
             .limit(limit)
         )
+        return list(self.session.scalars(statement))
+
+    def create_replay_simulation_output(
+        self,
+        record: ReplaySimulationOutputCreate,
+    ) -> ReplaySimulationOutput:
+        output = ReplaySimulationOutput(
+            tenant_id=record.tenant_id,
+            simulation_output_id=record.simulation_output_id,
+            workflow_id=record.workflow_id,
+            artifact_id=record.artifact_id,
+            idempotency_key=record.idempotency_key,
+            status=record.status,
+            requested_by=record.requested_by,
+            required_scope=record.required_scope,
+            replay_mode=record.replay_mode,
+            determinism_status=record.determinism_status,
+            output_hash=record.output_hash,
+            retention_window_days=record.retention_window_days,
+            permission_decision=record.permission_decision,
+            artifact_payload=record.artifact_payload,
+            evidence_refs=record.evidence_refs,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            reason=record.reason,
+            notes=record.notes,
+        )
+        self.session.add(output)
+        self.session.flush()
+        return output
+
+    def get_replay_simulation_output(
+        self,
+        tenant_id: str,
+        simulation_output_id: str,
+    ) -> ReplaySimulationOutput | None:
+        statement = select(ReplaySimulationOutput).where(
+            ReplaySimulationOutput.tenant_id == tenant_id,
+            ReplaySimulationOutput.simulation_output_id == simulation_output_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def get_replay_simulation_output_by_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ReplaySimulationOutput | None:
+        statement = select(ReplaySimulationOutput).where(
+            ReplaySimulationOutput.tenant_id == tenant_id,
+            ReplaySimulationOutput.idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_replay_simulation_outputs(
+        self,
+        tenant_id: str,
+        workflow_id: str | None = None,
+        limit: int = 100,
+    ) -> list[ReplaySimulationOutput]:
+        statement: Select[tuple[ReplaySimulationOutput]] = select(
+            ReplaySimulationOutput
+        ).where(ReplaySimulationOutput.tenant_id == tenant_id)
+        if workflow_id is not None:
+            statement = statement.where(ReplaySimulationOutput.workflow_id == workflow_id)
+
+        statement = statement.order_by(
+            ReplaySimulationOutput.created_at.desc(),
+            ReplaySimulationOutput.id.desc(),
+        ).limit(limit)
         return list(self.session.scalars(statement))
 
     def create_connector_configuration(

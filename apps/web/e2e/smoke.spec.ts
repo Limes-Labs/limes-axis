@@ -275,6 +275,9 @@ test.describe("Axis console smoke", () => {
     ).toBeVisible();
     await expect(page.getByText("connector.promotion_policy_set.simulated_diff")).toBeVisible();
     await expect(page.getByText("changed_outcome_detected")).toBeVisible();
+    await expect(page.getByText("Persisted Outputs", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("simulation.replay_output.persisted")).toBeVisible();
+    await expect(page.getByText("simulation:replay:persist")).toBeVisible();
     await expect(page.getByText("Raw action payloads are not exposed").first()).toBeVisible();
 
     await expectNoHorizontalOverflow(page);

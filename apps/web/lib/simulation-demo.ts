@@ -49,6 +49,33 @@ export type ReplayArtifact = {
   policy_set_diffs: PolicySetVersionDiff[];
 };
 
+export type ReplaySimulationOutputRecord = {
+  tenant_id: string;
+  simulation_output_id: string;
+  workflow_id: string;
+  artifact_id: string;
+  idempotency_key: string;
+  status: string;
+  requested_by: string;
+  required_scope: string;
+  replay_mode: string;
+  determinism_status: string;
+  output_hash: string;
+  retention_window_days: number;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  artifact: ReplayArtifact;
+  evidence_refs: string[];
+  audit_event_id: string | null;
+  audit_event_type: string;
+  reason: string;
+  notes: string[];
+  idempotent_replay: boolean;
+  created_at: string;
+};
+
 export type ManufacturingReplaySimulation = {
   tenant_id: string;
   plant_name: string;
@@ -62,6 +89,7 @@ export type ManufacturingReplaySimulation = {
     status: PlatformStatus;
   }[];
   artifacts: ReplayArtifact[];
+  persisted_outputs: ReplaySimulationOutputRecord[];
   simulation_notes: string[];
 };
 
@@ -155,6 +183,34 @@ function artifactFromWorkflow(workflow: WorkflowRun, index: number): ReplayArtif
 }
 
 const defaultArtifacts = defaultManufacturingWorkflowConsole.workflow_runs.map(artifactFromWorkflow);
+const defaultPersistedOutputs: ReplaySimulationOutputRecord[] = [
+  {
+    tenant_id: "tenant_demo_manufacturing",
+    simulation_output_id: "replay_output_supplier_delay_review_20260622",
+    workflow_id: defaultArtifacts[0].workflow_id,
+    artifact_id: defaultArtifacts[0].artifact_id,
+    idempotency_key: "idem_replay_output_supplier_delay_review_20260622",
+    status: "persisted",
+    requested_by: "simulation-governance-owner-role",
+    required_scope: "simulation:replay:persist",
+    replay_mode: defaultArtifacts[0].replay_mode,
+    determinism_status: defaultArtifacts[0].determinism_status,
+    output_hash: "1b7f6b7d2c98b4c808ffed1a7f740ba946bda215f6d19c2ddf84c3c596f6b8cb",
+    retention_window_days: 30,
+    permission_decision: {
+      allowed: true,
+      reason: "allowed",
+    },
+    artifact: defaultArtifacts[0],
+    evidence_refs: defaultArtifacts[0].evidence_refs,
+    audit_event_id: "audit_replay_output_supplier_delay_review_20260622",
+    audit_event_type: "simulation.replay_output.persisted",
+    reason: "Persist replay output for governance review.",
+    notes: ["Governed replay output retained for design partner review."],
+    idempotent_replay: false,
+    created_at: "2026-06-21T16:30:00+02:00",
+  },
+];
 
 export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation = {
   tenant_id: "tenant_demo_manufacturing",
@@ -198,6 +254,12 @@ export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation
       status: "ready",
     },
     {
+      label: "Persisted Outputs",
+      value: String(defaultPersistedOutputs.length),
+      detail: "Governed replay outputs retained with audit evidence",
+      status: "ready",
+    },
+    {
       label: "Deterministic Replay",
       value: "0",
       detail: "Full Temporal replay remains behind a future runtime path",
@@ -205,12 +267,14 @@ export const defaultManufacturingReplaySimulation: ManufacturingReplaySimulation
     },
   ],
   artifacts: defaultArtifacts,
+  persisted_outputs: defaultPersistedOutputs,
   simulation_notes: [
     "Replay artifacts are derived from workflow history and audit evidence.",
     "Policy simulation is deterministic preview logic, not live workflow replay.",
     "Policy-set version diffs compare governed connector policy sets over historical events without activating a new set.",
+    "Persisted simulation outputs are governed audit artifacts with retention metadata.",
     "Raw action payloads are not exposed in replay artifacts.",
-    "Temporal replay, persisted simulation outputs and retention enforcement remain Platform work.",
+    "Temporal replay and retention enforcement jobs remain Platform work.",
   ],
 };
 
