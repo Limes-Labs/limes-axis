@@ -5733,6 +5733,64 @@
         "title": "ConnectorRunCreateRequest",
         "type": "object"
       },
+      "ConnectorRunDispatchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "credential_lease_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Credential Lease Id",
+            "type": "string"
+          },
+          "dispatch_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Dispatch Id",
+            "type": "string"
+          },
+          "dispatched_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Dispatched By",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 220,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dispatch_id",
+          "dispatched_by",
+          "credential_lease_id",
+          "idempotency_key"
+        ],
+        "title": "ConnectorRunDispatchRequest",
+        "type": "object"
+      },
       "ConnectorRunRecord": {
         "properties": {
           "audit_event_id": {
@@ -5768,6 +5826,16 @@
             },
             "title": "Credential Handle Ids",
             "type": "array"
+          },
+          "dispatch_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorSyncDispatchResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "execution_mode": {
             "minLength": 1,
@@ -5940,6 +6008,57 @@
           "description"
         ],
         "title": "ConnectorSchemaField",
+        "type": "object"
+      },
+      "ConnectorSyncDispatchResult": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "dispatch_ref": {
+            "minLength": 1,
+            "title": "Dispatch Ref",
+            "type": "string"
+          },
+          "external_sync_started": {
+            "title": "External Sync Started",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "result_summary": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Result Summary",
+            "type": "object"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter",
+          "status",
+          "dispatch_ref",
+          "external_sync_started",
+          "idempotency_key"
+        ],
+        "title": "ConnectorSyncDispatchResult",
         "type": "object"
       },
       "ConnectorSyncScheduleResult": {
@@ -11082,6 +11201,60 @@
           }
         },
         "summary": "Manufacturing Connector Run Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/runs/{run_id}/dispatch": {
+      "post": {
+        "operationId": "manufacturing_connector_run_dispatch_demo_manufacturing_connectors_runs__run_id__dispatch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorRunDispatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorRunRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector sync dispatch permission denied"
+          },
+          "404": {
+            "description": "Connector run not found"
+          },
+          "409": {
+            "description": "Connector sync dispatch idempotency conflict"
+          },
+          "422": {
+            "description": "Connector sync dispatch validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Run Dispatch",
         "tags": [
           "demo"
         ]

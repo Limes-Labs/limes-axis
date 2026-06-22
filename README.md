@@ -119,7 +119,9 @@ deferred execution adapter that writes `connector.run.execution_deferred`
 evidence without starting live sync or retrieving credential material. Scheduled
 sync plans can also be recorded through run records with
 `connector.run.sync_scheduled` audit evidence and a deferred scheduler adapter,
-still without starting external sync. The
+still without starting external sync. Scheduled plans can now be dispatch-claimed
+with `connector.run.sync_dispatch_deferred` evidence, idempotency replay and a
+deferred dispatch adapter, still without connector egress. The
 connector ontology proposal slice persists preview-derived proposals for review with
 `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

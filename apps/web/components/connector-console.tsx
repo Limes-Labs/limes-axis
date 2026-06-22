@@ -58,19 +58,35 @@ function sourceLabel(source: ConnectorSource): string {
 }
 
 function connectorRunRuntimeAdapter(run: ConnectorRunRecord): string {
-  return run.schedule_result?.adapter ?? run.execution_result?.adapter ?? "not requested";
+  return (
+    run.dispatch_result?.adapter ??
+    run.schedule_result?.adapter ??
+    run.execution_result?.adapter ??
+    "not requested"
+  );
 }
 
 function connectorRunRuntimeStatus(run: ConnectorRunRecord): string {
-  return run.schedule_result?.status ?? run.execution_result?.status ?? "record-only evidence";
+  return (
+    run.dispatch_result?.status ??
+    run.schedule_result?.status ??
+    run.execution_result?.status ??
+    "record-only evidence"
+  );
 }
 
 function connectorRunExternalSyncStarted(run: ConnectorRunRecord): boolean {
-  return Boolean(run.schedule_result?.external_sync_started ?? run.execution_result?.external_sync_started);
+  return Boolean(
+    run.dispatch_result?.external_sync_started ??
+      run.schedule_result?.external_sync_started ??
+      run.execution_result?.external_sync_started,
+  );
 }
 
 function connectorRunRuntimeEvidence(run: ConnectorRunRecord): string {
   return (
+    run.dispatch_result?.dispatch_ref ??
+    run.dispatch_result?.idempotency_key ??
     run.schedule_result?.schedule_ref ??
     run.schedule_result?.idempotency_key ??
     run.execution_result?.idempotency_key ??

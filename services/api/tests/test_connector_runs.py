@@ -445,6 +445,205 @@ def test_create_connector_run_scheduled_sync_requires_active_lease(
     assert response.json()["detail"]["reason"] == "credential_lease_not_found"
 
 
+def test_dispatch_scheduled_connector_sync_claims_run_without_external_sync(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_scheduled_dispatch_20260622",
+            "execution_mode": "scheduled_sync_plan",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "schedule_timezone": "Europe/Rome",
+            "next_run_at": "2026-06-22T14:00:00Z",
+            "input_summary": {"source": "manufacturing-assets-demo.csv", "record_count": "2"},
+            "result_summary": {},
+        },
+    )
+    assert create_response.status_code == 201
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/run_file_csv_assets_scheduled_dispatch_20260622/dispatch",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "dispatch_id": "dispatch_file_csv_assets_hourly_20260622_1400",
+            "dispatched_by": "axis-scheduler-role",
+            "actor_scopes": ["connectors:sync:dispatch"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": "idem_dispatch_file_csv_assets_hourly_20260622_1400",
+            "notes": ["Dispatch claim only; live sync remains disabled."],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_dispatch_deferred"
+    assert body["audit_event_type"] == "connector.run.sync_dispatch_deferred"
+    assert body["schedule_result"]["external_sync_started"] is False
+    assert body["dispatch_result"] == {
+        "adapter": "axis-deferred-connector-sync-dispatcher",
+        "status": "sync_dispatch_deferred",
+        "dispatch_ref": (
+            "deferred-sync-dispatch://tenant_demo_manufacturing/"
+            "run_file_csv_assets_scheduled_dispatch_20260622/"
+            "dispatch_file_csv_assets_hourly_20260622_1400"
+        ),
+        "external_sync_started": False,
+        "idempotency_key": "idem_dispatch_file_csv_assets_hourly_20260622_1400",
+        "result_summary": {
+            "runtime_status": "dispatch_deferred",
+            "external_sync_started": "false",
+            "connector_id": "file_csv_manufacturing_assets",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "dispatch_id": "dispatch_file_csv_assets_hourly_20260622_1400",
+        },
+        "notes": [
+            "Connector sync dispatch is deferred by the Axis runtime adapter.",
+            "No external sync, credential retrieval or graph mutation was started.",
+        ],
+    }
+    assert body["result_summary"]["sync_dispatch_result"]["external_sync_started"] is False
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_dispatch_deferred",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["dispatch_result"]["external_sync_started"] is False
+    assert events[0].payload["credential_lease_id"] == "lease_file_csv_readonly_20260622"
+    assert "vault://" not in str(events[0].payload).lower()
+    assert "credential_value" not in str(events[0].payload).lower()
+
+
+def test_dispatch_scheduled_connector_sync_replays_same_idempotency_key(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_scheduled_replay_20260622",
+            "execution_mode": "scheduled_sync_plan",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "schedule_timezone": "Europe/Rome",
+            "next_run_at": "2026-06-22T14:00:00Z",
+            "input_summary": {"source": "manufacturing-assets-demo.csv"},
+            "result_summary": {},
+        },
+    )
+    assert create_response.status_code == 201
+
+    payload = {
+        "tenant_id": "tenant_demo_manufacturing",
+        "dispatch_id": "dispatch_file_csv_assets_replay_20260622_1400",
+        "dispatched_by": "axis-scheduler-role",
+        "actor_scopes": ["connectors:sync:dispatch"],
+        "credential_lease_id": "lease_file_csv_readonly_20260622",
+        "idempotency_key": "idem_dispatch_file_csv_assets_replay_20260622_1400",
+    }
+
+    first = client.post(
+        "/demo/manufacturing/connectors/runs/run_file_csv_assets_scheduled_replay_20260622/dispatch",
+        json=payload,
+    )
+    second = client.post(
+        "/demo/manufacturing/connectors/runs/run_file_csv_assets_scheduled_replay_20260622/dispatch",
+        json=payload,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["audit_event_id"] == first.json()["audit_event_id"]
+    assert second.json()["dispatch_result"]["idempotency_key"] == payload["idempotency_key"]
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_dispatch_deferred",
+        )
+
+    assert len(events) == 1
+
+
+def test_dispatch_scheduled_connector_sync_requires_dispatch_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/demo/manufacturing/connectors/runs",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "run_id": "run_file_csv_assets_scheduled_missing_scope",
+            "execution_mode": "scheduled_sync_plan",
+            "requested_by": "plant-operations-owner-role",
+            "credential_handle_ids": ["cred_file_csv_readonly"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "schedule_cadence": "hourly",
+            "schedule_timezone": "Europe/Rome",
+            "next_run_at": "2026-06-22T14:00:00Z",
+            "input_summary": {"source": "manufacturing-assets-demo.csv"},
+            "result_summary": {},
+        },
+    )
+    assert create_response.status_code == 201
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/run_file_csv_assets_scheduled_missing_scope/dispatch",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "dispatch_id": "dispatch_file_csv_assets_missing_scope",
+            "dispatched_by": "axis-scheduler-role",
+            "actor_scopes": [],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": "idem_dispatch_file_csv_assets_missing_scope",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+    assert response.json()["detail"]["required_permission"] == "connectors:sync:dispatch"
+
+
 def test_create_connector_run_requires_credential_handle_for_governed_execution(
     session_factory: sessionmaker[Session],
 ) -> None:

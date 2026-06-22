@@ -91,7 +91,10 @@ requires credential handle ids and writes `connector.run.execution_deferred`
 evidence while keeping `external_sync_started=false`. Scheduled sync plans reuse
 run records with `execution_mode=scheduled_sync_plan`, require active credential
 lease evidence and call a deferred Axis connector sync scheduler adapter that
-writes `connector.run.sync_scheduled` without starting external sync. Connector ontology
+writes `connector.run.sync_scheduled` without starting external sync. Scheduled
+plans can be dispatch-claimed with `connectors:sync:dispatch`, active lease
+evidence, idempotency replay and `connector.run.sync_dispatch_deferred`, still
+without connector egress. Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation
 explicitly `not_applied`. Manual import request records
