@@ -240,6 +240,8 @@ export type ConnectorOntologyProposalRecord = {
   evidence_refs: string[];
   promotion_id: string | null;
   policy_id: string | null;
+  policy_set_id: string | null;
+  policy_ids: string[] | null;
   policy_decision: ConnectorPromotionPolicyDecision | null;
   promoted_by: string | null;
   promoted_at: string | null;
@@ -261,6 +263,10 @@ export type ConnectorPromotionPolicyDecision = {
   allowed: boolean;
   policy_id: string | null;
   policy_version: string | null;
+  policy_set_id: string | null;
+  policy_set_version: string | null;
+  policy_ids: string[];
+  policy_results: Record<string, unknown>[];
   enforcement_mode: string;
   reason: string;
   required_scopes: string[];
@@ -399,6 +405,41 @@ export type ManufacturingConnectorPromotionPolicyRegistry = {
   }[];
   policies: ConnectorPromotionPolicyRecord[];
   policy_notes: string[];
+};
+
+export type ConnectorPromotionPolicySetRecord = {
+  tenant_id: string;
+  connector_id: string;
+  policy_set_id: string;
+  policy_set_version: string;
+  status: string;
+  activated_by: string;
+  activation_scope: string;
+  policy_ids: string[];
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id: string | null;
+  audit_event_type: string;
+  activation_reason: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorPromotionPolicySetRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  policy_sets: ConnectorPromotionPolicySetRecord[];
+  policy_set_notes: string[];
 };
 
 export const defaultManufacturingConnectorRegistry: ManufacturingConnectorRegistry = {
@@ -811,21 +852,35 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
         evidence_refs: ["manufacturing-assets-demo.csv", "asset_line_2_packaging"],
         promotion_id: "promote_asset_line_2_packaging_20260622",
         policy_id: "policy_connector_asset_promotion_v1",
+        policy_set_id: "policy_set_connector_asset_required_20260622",
+        policy_ids: ["policy_connector_asset_promotion_v1"],
         policy_decision: {
-          status: "policy_enforced",
+          status: "policy_set_enforced",
           allowed: true,
           policy_id: "policy_connector_asset_promotion_v1",
           policy_version: "2026-06-22",
+          policy_set_id: "policy_set_connector_asset_required_20260622",
+          policy_set_version: "2026-06-22.1",
+          policy_ids: ["policy_connector_asset_promotion_v1"],
+          policy_results: [
+            {
+              policy_id: "policy_connector_asset_promotion_v1",
+              status: "policy_enforced",
+              allowed: true,
+              reason: "policy_constraints_satisfied",
+            },
+          ],
           enforcement_mode: "required",
-          reason: "policy_constraints_satisfied",
+          reason: "policy_set_constraints_satisfied",
           required_scopes: ["connectors:ontology:promote"],
           matched_constraints: {
-            policy_status: "enabled",
+            policy_set_status: "active",
             manual_import_status: "approval_approved",
             workflow_signal_status: "manual_import_signal_requested",
             risk_level: "high",
             ontology_type: "manufacturing_asset",
-            selection_mode: "auto_required",
+            selection_mode: "active_policy_set",
+            policy_count: "1",
           },
         },
         promoted_by: "plant-operations-owner-role",
@@ -872,6 +927,8 @@ export const defaultConnectorOntologyProposalRegistry: ManufacturingConnectorOnt
         evidence_refs: ["manufacturing-assets-demo.csv", "asset_press_4"],
         promotion_id: null,
         policy_id: null,
+        policy_set_id: null,
+        policy_ids: null,
         policy_decision: null,
         promoted_by: null,
         promoted_at: null,
@@ -1044,6 +1101,60 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
       "Policy authoring records required scopes before enablement.",
       "Enablement requires approval and workflow signal evidence.",
       "Enabled required policies are auto-selected before TypeDB mutation execution.",
+    ],
+  };
+
+export const defaultConnectorPromotionPolicySetRegistry: ManufacturingConnectorPromotionPolicySetRegistry =
+  {
+    tenant_id: "tenant_demo_manufacturing",
+    plant_name: "Ravenna Works",
+    scenario: "Plant Operations Cockpit",
+    registry_status: "ready",
+    metrics: [
+      {
+        label: "Policy Sets",
+        value: "1",
+        detail: "Versioned connector promotion policy sets",
+        status: "ready",
+      },
+      {
+        label: "Active Sets",
+        value: "1",
+        detail: "Policy sets selected for automatic required gates",
+        status: "ready",
+      },
+      {
+        label: "Set Policies",
+        value: "1",
+        detail: "Required policy references inside versioned sets",
+        status: "ready",
+      },
+    ],
+    policy_sets: [
+      {
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        policy_set_id: "policy_set_connector_asset_required_20260622",
+        policy_set_version: "2026-06-22.1",
+        status: "active",
+        activated_by: "platform-governance-owner-role",
+        activation_scope: "connectors:promotion_policy_set:activate",
+        policy_ids: ["policy_connector_asset_promotion_v1"],
+        permission_decision: {
+          allowed: true,
+          reason: "allowed",
+        },
+        audit_event_id: "audit_connector_promotion_policy_set_demo_20260622",
+        audit_event_type: "connector.promotion_policy_set.activated",
+        activation_reason: "Activate required policy set for connector asset promotions.",
+        notes: ["Active policy set resolves required gate selection before promotion."],
+        created_at: "2026-06-22T00:00:00Z",
+      },
+    ],
+    policy_set_notes: [
+      "Policy sets version the active required gates for connector promotions.",
+      "Activation requires policy-set scope and enabled required policy references.",
+      "Promotion auto-selection uses the active set before TypeDB mutation execution.",
     ],
   };
 

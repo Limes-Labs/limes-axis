@@ -10,6 +10,7 @@ import {
   defaultConnectorManualImportRegistry,
   defaultConnectorOntologyProposalRegistry,
   defaultConnectorPromotionPolicyRegistry,
+  defaultConnectorPromotionPolicySetRegistry,
   defaultConnectorRunRegistry,
   defaultManufacturingConnectorRegistry,
   defaultManufacturingConnectorPreview,
@@ -191,10 +192,14 @@ describe("manufacturing connector demo contract", () => {
     expect(proposal.promotion_id).toBe("promote_asset_line_2_packaging_20260622");
     expect(proposal.promoted_by).toBe("plant-operations-owner-role");
     expect(proposal.policy_id).toBe("policy_connector_asset_promotion_v1");
-    expect(proposal.policy_decision?.status).toBe("policy_enforced");
-    expect(proposal.policy_decision?.reason).toBe("policy_constraints_satisfied");
+    expect(proposal.policy_set_id).toBe("policy_set_connector_asset_required_20260622");
+    expect(proposal.policy_ids).toEqual(["policy_connector_asset_promotion_v1"]);
+    expect(proposal.policy_decision?.status).toBe("policy_set_enforced");
+    expect(proposal.policy_decision?.reason).toBe("policy_set_constraints_satisfied");
     expect(proposal.policy_decision?.matched_constraints.risk_level).toBe("high");
-    expect(proposal.policy_decision?.matched_constraints.selection_mode).toBe("auto_required");
+    expect(proposal.policy_decision?.matched_constraints.selection_mode).toBe(
+      "active_policy_set",
+    );
     expect(proposal.ontology_mutation?.status).toBe("type_db_mutation_applied");
     expect(proposal.ontology_mutation?.payload.manual_import_id).toBe(
       "import_assets_manual_20260622",
@@ -293,6 +298,38 @@ describe("manufacturing connector demo contract", () => {
       "password",
     );
     expect(JSON.stringify(defaultConnectorPromotionPolicyRegistry).toLowerCase()).not.toContain(
+      "credential_value",
+    );
+  });
+
+  it("keeps connector promotion policy set fallback versioned and audit-backed", () => {
+    expect(defaultConnectorPromotionPolicySetRegistry.tenant_id).toBe(
+      "tenant_demo_manufacturing",
+    );
+    expect(defaultConnectorPromotionPolicySetRegistry.policy_sets).toHaveLength(1);
+    expect(defaultConnectorPromotionPolicySetRegistry.metrics[0]).toMatchObject({
+      label: "Policy Sets",
+      value: "1",
+    });
+    expect(defaultConnectorPromotionPolicySetRegistry.metrics[1]).toMatchObject({
+      label: "Active Sets",
+      value: "1",
+    });
+
+    const policySet = defaultConnectorPromotionPolicySetRegistry.policy_sets[0];
+    expect(policySet.policy_set_id).toBe("policy_set_connector_asset_required_20260622");
+    expect(policySet.policy_set_version).toBe("2026-06-22.1");
+    expect(policySet.status).toBe("active");
+    expect(policySet.activation_scope).toBe("connectors:promotion_policy_set:activate");
+    expect(policySet.policy_ids).toEqual(["policy_connector_asset_promotion_v1"]);
+    expect(policySet.audit_event_type).toBe("connector.promotion_policy_set.activated");
+    expect(JSON.stringify(defaultConnectorPromotionPolicySetRegistry).toLowerCase()).not.toContain(
+      "csv_content",
+    );
+    expect(JSON.stringify(defaultConnectorPromotionPolicySetRegistry).toLowerCase()).not.toContain(
+      "password",
+    );
+    expect(JSON.stringify(defaultConnectorPromotionPolicySetRegistry).toLowerCase()).not.toContain(
       "credential_value",
     );
   });

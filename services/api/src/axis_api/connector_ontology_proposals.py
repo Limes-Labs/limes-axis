@@ -66,6 +66,8 @@ class ConnectorOntologyProposalRecord(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     promotion_id: str | None = None
     policy_id: str | None = None
+    policy_set_id: str | None = None
+    policy_ids: list[str] | None = None
     policy_decision: dict | None = None
     promoted_by: str | None = None
     promoted_at: datetime | None = None

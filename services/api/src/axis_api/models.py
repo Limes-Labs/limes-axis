@@ -311,6 +311,8 @@ class ConnectorOntologyProposal(Base):
     evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
     promotion_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
     policy_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    policy_set_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    policy_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
     policy_decision: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     promoted_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -351,6 +353,8 @@ class ConnectorOntologyPromotion(Base):
     ontology_mutation: Mapped[dict] = mapped_column(JSON, nullable=False)
     permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
     policy_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    policy_set_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    policy_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
     policy_decision: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -410,6 +414,39 @@ class ConnectorPromotionPolicy(Base):
             "tenant_id",
             "policy_id",
             name="uq_connector_promotion_policies_tenant_policy",
+        ),
+    )
+
+
+class ConnectorPromotionPolicySet(Base):
+    __tablename__ = "connector_promotion_policy_sets"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    policy_set_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    policy_set_version: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    activated_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    activation_scope: Mapped[str] = mapped_column(String(160), nullable=False)
+    policy_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    activation_reason: Mapped[str] = mapped_column(String(600), nullable=False)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "policy_set_id",
+            name="uq_connector_promotion_policy_sets_tenant_set",
         ),
     )
 
