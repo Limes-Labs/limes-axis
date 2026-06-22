@@ -54,5 +54,9 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",
     )
+    credential_lease_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)

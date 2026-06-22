@@ -105,6 +105,7 @@ Foundation acceptance is tracked in
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
 - [x] Add Vault/KMS credential lease records with renew/revoke evidence.
+- [x] Add optional self-hosted Vault/KMS lease runtime adapter.
 - [x] Author connector promotion policies before required enforcement.
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.
@@ -192,9 +193,12 @@ references instead of raw credential values. Short-lived credential leases can
 now be requested, renewed and revoked through
 `/demo/manufacturing/connectors/credential-leases`, writing
 `connector.credential_lease.*` audit evidence while returning only references,
-timestamps, permission decisions and deferred adapter evidence. Connector run
-records can now be written through `/demo/manufacturing/connectors/runs`; each
-record stores only redacted summaries and links to an append-only
+timestamps, permission decisions and adapter evidence. The lease runtime is
+deferred by default and can use the optional self-hosted Vault/KMS adapter when
+`AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`, still without returning secret
+material. Connector run records can now be written through
+`/demo/manufacturing/connectors/runs`; each record stores only redacted
+summaries and links to an append-only
 `connector.run.recorded` audit event. Governed dry-run connector execution now
 calls the deferred Axis
 connector execution adapter, requires credential handle ids, writes
@@ -262,8 +266,8 @@ mapping with an offline fallback seed.
 It can author promotion policies through the API when available, enable them
 with approval/workflow evidence or record local public-safe previews when the API
 is offline.
-Manifest lifecycle transitions beyond preview-only registration, production
-live vault/KMS adapters, scheduled live sync, live external database adapters
+Manifest lifecycle transitions beyond preview-only registration,
+provider-specific Vault/KMS adapters, scheduled live sync, live external database adapters
 and connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and backed by the synthetic

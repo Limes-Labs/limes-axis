@@ -10,6 +10,8 @@ from axis_api.config import Settings
 from axis_api.connector_credential_leases import (
     ConnectorCredentialLeaseQuery,
     ConnectorCredentialLeaseRequest,
+    CredentialLeaseRuntimeRequest,
+    SelfHostedVaultKmsLeaseRuntime,
     build_connector_credential_lease_registry,
     record_demo_connector_credential_lease,
 )
@@ -213,6 +215,70 @@ def test_request_connector_credential_lease_persists_deferred_lease(
     assert "credential_value" not in str(body).lower()
 
 
+def test_self_hosted_vault_kms_runtime_executes_lease_without_secret_material() -> None:
+    runtime = SelfHostedVaultKmsLeaseRuntime()
+
+    result = runtime.request_lease(
+        CredentialLeaseRuntimeRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            handle_id="cred_file_csv_readonly",
+            lease_id="lease_file_csv_readonly_20260622",
+            action="request",
+            secret_provider="external_vault",
+            secret_ref="vault://axis/demo/connectors/file-csv-readonly",
+            vault_kms_policy={
+                "provider_mode": "self_hosted_vault",
+                "lease_path": "axis/demo/connectors/file-csv-readonly",
+                "kms_key_ref": "kms://axis/demo/connectors",
+            },
+            evidence_ref="lease:lease_file_csv_readonly_20260622",
+        )
+    )
+
+    assert result.adapter == "axis-self-hosted-vault-kms-lease-adapter"
+    assert result.status == "lease_executed"
+    assert result.provider_mode == "self_hosted_vault"
+    assert result.provider_lease_ref == (
+        "vault-lease://tenant_demo_manufacturing/lease_file_csv_readonly_20260622"
+    )
+    assert result.external_secret_read == "false"
+    assert result.secret_material_returned == "false"
+    serialized = result.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "credential_value" not in serialized
+    assert "secret_value" not in serialized
+
+
+def test_request_connector_credential_lease_uses_live_runtime_when_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            credential_lease_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_handle(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases",
+        json=lease_request().model_dump(mode="json"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["lease_mode"] == "self_hosted_vault_kms_lease"
+    assert body["lease_result"]["adapter"] == "axis-self-hosted-vault-kms-lease-adapter"
+    assert body["lease_result"]["status"] == "lease_executed"
+    assert body["lease_result"]["provider_mode"] == "self_hosted_vault"
+    assert body["lease_result"]["external_secret_read"] == "false"
+    assert body["lease_result"]["secret_material_returned"] == "false"
+
+
 def test_renew_connector_credential_lease_extends_expiry_with_audit(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -247,6 +313,44 @@ def test_renew_connector_credential_lease_extends_expiry_with_audit(
     assert body["audit_event_type"] == "connector.credential_lease.renewed"
 
 
+def test_renew_connector_credential_lease_uses_live_runtime_when_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            credential_lease_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository)
+        record_demo_connector_credential_lease(repository, lease_request())
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases/lease_file_csv_readonly_20260622/renew",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "renewed_by": "axis-connector-runtime-role",
+            "actor_scopes": ["connectors:credential_lease:renew"],
+            "renewed_at": "2026-06-22T09:42:00Z",
+            "extend_seconds": 900,
+            "renewal_reason": "dry-run still executing",
+            "evidence_ref": "workflow:wf_connector_runtime:signal-lease-renewal",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lease_result"]["adapter"] == "axis-self-hosted-vault-kms-lease-adapter"
+    assert body["lease_result"]["status"] == "lease_renewed"
+    assert body["lease_result"]["provider_lease_ref"] == (
+        "vault-lease://tenant_demo_manufacturing/lease_file_csv_readonly_20260622"
+    )
+
+
 def test_revoke_connector_credential_lease_closes_lease_with_audit(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -276,6 +380,41 @@ def test_revoke_connector_credential_lease_closes_lease_with_audit(
     assert body["revoked_by"] == "security-operations-role"
     assert body["revoked_at"] == "2026-06-22T09:44:00Z"
     assert body["audit_event_type"] == "connector.credential_lease.revoked"
+
+
+def test_revoke_connector_credential_lease_uses_live_runtime_when_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            credential_lease_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository)
+        record_demo_connector_credential_lease(repository, lease_request())
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases/lease_file_csv_readonly_20260622/revoke",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "revoked_by": "security-operations-role",
+            "actor_scopes": ["connectors:credential_lease:revoke"],
+            "revoked_at": "2026-06-22T09:44:00Z",
+            "revocation_reason": "workflow completed",
+            "evidence_ref": "workflow:wf_connector_runtime:completed",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lease_result"]["adapter"] == "axis-self-hosted-vault-kms-lease-adapter"
+    assert body["lease_result"]["status"] == "lease_revoked"
+    assert body["lease_result"]["secret_material_returned"] == "false"
 
 
 def test_openapi_exposes_connector_credential_lease_endpoints() -> None:

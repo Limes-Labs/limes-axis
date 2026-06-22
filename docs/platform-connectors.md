@@ -169,7 +169,7 @@ records for connector execution. A lease includes:
 - external secret provider and reference;
 - Vault/KMS policy metadata;
 - permission decision;
-- deferred adapter result;
+- deferred or self-hosted adapter result;
 - granted, expiry and renewal timestamps;
 - renewal/revocation evidence;
 - linked audit event id and type;
@@ -183,9 +183,11 @@ evidence. Renewing and revoking leases require
 `connectors:credential_lease:renew` and
 `connectors:credential_lease:revoke` respectively, writing
 `connector.credential_lease.renewed` and
-`connector.credential_lease.revoked`. The default adapter is deferred and does
-not retrieve secret material, call an external vault, start live sync or mutate
-the ontology graph.
+`connector.credential_lease.revoked`. The default adapter is deferred.
+`AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true` switches the boundary to the
+self-hosted Vault/KMS lease adapter, which records a provider lease reference
+without returning secret material, requiring a managed service, starting live
+sync or mutating the ontology graph.
 
 The connector run endpoints store and query tenant-scoped run evidence. A run
 record includes:
@@ -469,7 +471,7 @@ contract keeps these boundaries visible:
 Future Platform work should add:
 
 - manifest lifecycle transitions beyond preview-only registration;
-- live production vault/KMS adapters behind the lease runtime boundary;
+- provider-specific Vault/KMS adapters beyond the self-hosted lease boundary;
 - scheduled sync lifecycle;
 - live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.

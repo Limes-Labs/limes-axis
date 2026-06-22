@@ -1260,6 +1260,9 @@ export const defaultConnectorCredentialLeaseRegistry: ManufacturingConnectorCred
         external_secret_read: "false",
         secret_material_returned: "false",
         evidence_ref: "lease:lease_file_csv_readonly_20260622",
+        provider_mode: "deferred",
+        provider_lease_ref:
+          "deferred-lease://tenant_demo_manufacturing/lease_file_csv_readonly_20260622",
       },
       granted_at: "2026-06-22T09:30:00Z",
       expires_at: "2026-06-22T09:45:00Z",
@@ -1282,6 +1285,7 @@ export const defaultConnectorCredentialLeaseRegistry: ManufacturingConnectorCred
   lease_notes: [
     "Credential leases are short-lived records for connector execution.",
     "The default adapter is deferred and never returns secret material.",
+    "A self-hosted Vault/KMS lease adapter can be enabled without requiring managed services.",
     "Renewal and revocation write audit evidence before live sync is enabled.",
   ],
 };

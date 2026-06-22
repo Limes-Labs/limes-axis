@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +22,136 @@ REVOKE_SCOPE = "connectors:credential_lease:revoke"
 LEASE_MODE = "deferred_vault_kms_lease"
 LEASE_RUNTIME_BOUNDARY = "axis-credential-lease-broker"
 LEASE_ADAPTER = "axis-deferred-vault-kms-lease-adapter"
+SELF_HOSTED_LEASE_MODE = "self_hosted_vault_kms_lease"
+SELF_HOSTED_LEASE_ADAPTER = "axis-self-hosted-vault-kms-lease-adapter"
+
+
+class CredentialLeaseRuntimeRequest(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    handle_id: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    action: str = Field(min_length=1)
+    secret_provider: str = Field(min_length=1)
+    secret_ref: str = Field(min_length=1)
+    vault_kms_policy: dict[str, str] = Field(default_factory=dict)
+    evidence_ref: str = Field(min_length=1)
+
+
+class CredentialLeaseRuntimeResult(BaseModel):
+    adapter: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    action: str = Field(min_length=1)
+    external_secret_read: str = Field(default="false", min_length=1)
+    secret_material_returned: str = Field(default="false", min_length=1)
+    evidence_ref: str = Field(min_length=1)
+    provider_mode: str = Field(default="deferred", min_length=1)
+    provider_lease_ref: str = Field(min_length=1)
+
+
+class CredentialLeaseRuntime(Protocol):
+    lease_mode: str
+
+    def request_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        pass
+
+    def renew_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        pass
+
+    def revoke_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        pass
+
+
+class DeferredCredentialLeaseRuntime:
+    lease_mode = LEASE_MODE
+    adapter_name = LEASE_ADAPTER
+
+    def request_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status="lease_deferred",
+            request=request,
+            provider_mode="deferred",
+            provider_lease_ref=f"deferred-lease://{request.tenant_id}/{request.lease_id}",
+        )
+
+    def renew_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status="lease_renewal_deferred",
+            request=request,
+            provider_mode="deferred",
+            provider_lease_ref=f"deferred-lease://{request.tenant_id}/{request.lease_id}",
+        )
+
+    def revoke_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status="lease_revocation_deferred",
+            request=request,
+            provider_mode="deferred",
+            provider_lease_ref=f"deferred-lease://{request.tenant_id}/{request.lease_id}",
+        )
+
+
+class SelfHostedVaultKmsLeaseRuntime:
+    lease_mode = SELF_HOSTED_LEASE_MODE
+    adapter_name = SELF_HOSTED_LEASE_ADAPTER
+
+    def request_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status="lease_executed",
+            request=request,
+            provider_mode=_provider_mode(request),
+            provider_lease_ref=_provider_lease_ref(request),
+        )
+
+    def renew_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status="lease_renewed",
+            request=request,
+            provider_mode=_provider_mode(request),
+            provider_lease_ref=_provider_lease_ref(request),
+        )
+
+    def revoke_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status="lease_revoked",
+            request=request,
+            provider_mode=_provider_mode(request),
+            provider_lease_ref=_provider_lease_ref(request),
+        )
 
 
 class ConnectorCredentialLeaseValidationError(ValueError):
@@ -212,6 +342,7 @@ def build_connector_credential_lease_registry(
 def record_demo_connector_credential_lease(
     repository: AxisPersistenceRepository,
     request: ConnectorCredentialLeaseRequest,
+    lease_runtime: CredentialLeaseRuntime | None = None,
 ) -> ConnectorCredentialLeaseRecord:
     _validate_public_safe_payload(request.model_dump(mode="json"))
     existing = repository.get_connector_credential_lease(request.tenant_id, request.lease_id)
@@ -245,12 +376,21 @@ def record_demo_connector_credential_lease(
     granted_at = _aware_datetime(request.requested_at or utc_now())
     expires_at = granted_at + timedelta(seconds=request.lease_duration_seconds)
     renewal_due_at = expires_at - timedelta(seconds=request.renewal_window_seconds)
-    lease_result = _lease_result(
-        status="lease_deferred",
-        lease_id=request.lease_id,
-        action="request",
-        evidence_ref=f"lease:{request.lease_id}",
-    )
+    runtime = lease_runtime or DeferredCredentialLeaseRuntime()
+    lease_result = runtime.request_lease(
+        CredentialLeaseRuntimeRequest(
+            tenant_id=request.tenant_id,
+            connector_id=request.connector_id,
+            handle_id=request.handle_id,
+            lease_id=request.lease_id,
+            secret_provider=handle.secret_provider,
+            secret_ref=handle.secret_ref,
+            vault_kms_policy=request.vault_kms_policy,
+            evidence_ref=f"lease:{request.lease_id}",
+            action="request",
+        )
+    ).model_dump(mode="json")
+    lease_mode = runtime.lease_mode
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
@@ -260,11 +400,12 @@ def record_demo_connector_credential_lease(
                 "connector_id": request.connector_id,
                 "handle_id": request.handle_id,
                 "lease_id": request.lease_id,
-                "lease_mode": LEASE_MODE,
+                "lease_mode": lease_mode,
                 "lease_purpose": request.lease_purpose,
                 "runtime_boundary": request.runtime_boundary,
                 "secret_provider": handle.secret_provider,
-                "secret_material_returned": "false",
+                "secret_material_returned": lease_result["secret_material_returned"],
+                "adapter": lease_result["adapter"],
             },
         )
     )
@@ -275,7 +416,7 @@ def record_demo_connector_credential_lease(
             handle_id=request.handle_id,
             lease_id=request.lease_id,
             status="active",
-            lease_mode=LEASE_MODE,
+            lease_mode=lease_mode,
             runtime_boundary=request.runtime_boundary,
             requested_by=request.requested_by,
             lease_purpose=request.lease_purpose,
@@ -299,6 +440,7 @@ def renew_demo_connector_credential_lease(
     repository: AxisPersistenceRepository,
     lease_id: str,
     request: ConnectorCredentialLeaseRenewRequest,
+    lease_runtime: CredentialLeaseRuntime | None = None,
 ) -> ConnectorCredentialLeaseRecord:
     _validate_public_safe_payload(request.model_dump(mode="json"))
     lease = _active_lease(repository, request.tenant_id, lease_id)
@@ -312,12 +454,20 @@ def renew_demo_connector_credential_lease(
     renewed_at = _aware_datetime(request.renewed_at or utc_now())
     expires_at = renewed_at + timedelta(seconds=request.extend_seconds)
     renewal_due_at = expires_at - timedelta(seconds=request.renewal_window_seconds)
-    lease_result = _lease_result(
-        status="lease_renewal_deferred",
-        lease_id=lease_id,
-        action="renew",
-        evidence_ref=request.evidence_ref,
-    )
+    runtime = lease_runtime or DeferredCredentialLeaseRuntime()
+    lease_result = runtime.renew_lease(
+        CredentialLeaseRuntimeRequest(
+            tenant_id=request.tenant_id,
+            connector_id=lease.connector_id,
+            handle_id=lease.handle_id,
+            lease_id=lease_id,
+            secret_provider=lease.secret_provider,
+            secret_ref=lease.secret_ref,
+            vault_kms_policy=lease.vault_kms_policy,
+            evidence_ref=request.evidence_ref,
+            action="renew",
+        )
+    ).model_dump(mode="json")
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
@@ -329,7 +479,8 @@ def renew_demo_connector_credential_lease(
                 "lease_id": lease_id,
                 "renewal_reason": request.renewal_reason,
                 "evidence_ref": request.evidence_ref,
-                "secret_material_returned": "false",
+                "secret_material_returned": lease_result["secret_material_returned"],
+                "adapter": lease_result["adapter"],
             },
         )
     )
@@ -354,6 +505,7 @@ def revoke_demo_connector_credential_lease(
     repository: AxisPersistenceRepository,
     lease_id: str,
     request: ConnectorCredentialLeaseRevokeRequest,
+    lease_runtime: CredentialLeaseRuntime | None = None,
 ) -> ConnectorCredentialLeaseRecord:
     _validate_public_safe_payload(request.model_dump(mode="json"))
     lease = _active_lease(repository, request.tenant_id, lease_id)
@@ -365,12 +517,20 @@ def revoke_demo_connector_credential_lease(
         action="revoke",
     )
     revoked_at = _aware_datetime(request.revoked_at or utc_now())
-    lease_result = _lease_result(
-        status="lease_revocation_deferred",
-        lease_id=lease_id,
-        action="revoke",
-        evidence_ref=request.evidence_ref,
-    )
+    runtime = lease_runtime or DeferredCredentialLeaseRuntime()
+    lease_result = runtime.revoke_lease(
+        CredentialLeaseRuntimeRequest(
+            tenant_id=request.tenant_id,
+            connector_id=lease.connector_id,
+            handle_id=lease.handle_id,
+            lease_id=lease_id,
+            secret_provider=lease.secret_provider,
+            secret_ref=lease.secret_ref,
+            vault_kms_policy=lease.vault_kms_policy,
+            evidence_ref=request.evidence_ref,
+            action="revoke",
+        )
+    ).model_dump(mode="json")
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
@@ -382,7 +542,8 @@ def revoke_demo_connector_credential_lease(
                 "lease_id": lease_id,
                 "revocation_reason": request.revocation_reason,
                 "evidence_ref": request.evidence_ref,
-                "secret_material_returned": "false",
+                "secret_material_returned": lease_result["secret_material_returned"],
+                "adapter": lease_result["adapter"],
             },
         )
     )
@@ -471,22 +632,33 @@ def _lease_from_record(record) -> ConnectorCredentialLeaseRecord:
     )
 
 
-def _lease_result(
+def _runtime_result(
     *,
+    adapter: str,
     status: str,
-    lease_id: str,
-    action: str,
-    evidence_ref: str,
-) -> dict[str, str]:
-    return {
-        "adapter": LEASE_ADAPTER,
-        "status": status,
-        "lease_id": lease_id,
-        "action": action,
-        "external_secret_read": "false",
-        "secret_material_returned": "false",
-        "evidence_ref": evidence_ref,
-    }
+    request: CredentialLeaseRuntimeRequest,
+    provider_mode: str,
+    provider_lease_ref: str,
+) -> CredentialLeaseRuntimeResult:
+    return CredentialLeaseRuntimeResult(
+        adapter=adapter,
+        status=status,
+        lease_id=request.lease_id,
+        action=request.action,
+        external_secret_read="false",
+        secret_material_returned="false",
+        evidence_ref=request.evidence_ref,
+        provider_mode=provider_mode,
+        provider_lease_ref=provider_lease_ref,
+    )
+
+
+def _provider_mode(request: CredentialLeaseRuntimeRequest) -> str:
+    return request.vault_kms_policy.get("provider_mode") or "self_hosted_vault"
+
+
+def _provider_lease_ref(request: CredentialLeaseRuntimeRequest) -> str:
+    return f"vault-lease://{request.tenant_id}/{request.lease_id}"
 
 
 def _validate_public_safe_payload(payload: dict[str, Any]) -> None:
