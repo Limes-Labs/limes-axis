@@ -1,9 +1,18 @@
+from pathlib import Path
+from runpy import run_path
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
+from axis_api.db import session_scope
 from axis_api.demo import ManufacturingOntology, get_manufacturing_ontology
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
+from axis_api.models import Base
 from axis_api.ontology.queries import (
     DeferredOntologyQueryRuntime,
     OntologyGraphQueryMetadata,
@@ -11,6 +20,43 @@ from axis_api.ontology.queries import (
     query_manufacturing_ontology_graph,
 )
 from axis_api.permissions import PermissionDecision
+from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+
+MIGRATIONS_DIR = Path(__file__).parents[1] / "migrations" / "versions"
+
+
+@pytest.fixture
+def ontology_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_ontology_reference(factory)
+    yield factory
+    engine.dispose()
+
+
+def ontology_bootstrap_payload() -> dict:
+    migration = run_path(str(MIGRATIONS_DIR / "0030_ontology_reference.py"))
+    return migration["ONTOLOGY_PAYLOAD"]
+
+
+def seed_ontology_reference(factory: sessionmaker[Session]) -> None:
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="ontology",
+                reference_id="manufacturing-ontology",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=ontology_bootstrap_payload(),
+            )
+        )
 
 
 class StaticIdentityVerifier:
@@ -31,9 +77,9 @@ class RecordingOntologyQueryRuntime:
     def query_manufacturing_graph(
         self,
         request: OntologyGraphQueryRequest,
+        ontology: ManufacturingOntology,
     ) -> ManufacturingOntology:
         self.requests.append(request)
-        ontology = get_manufacturing_ontology()
         return ontology.model_copy(
             update={
                 "graph_query": OntologyGraphQueryMetadata(
@@ -69,6 +115,7 @@ def test_deferred_ontology_query_runtime_filters_relationships_by_scope() -> Non
             actor_scopes=["operations:read"],
             enforce_relationship_scopes=True,
         ),
+        get_manufacturing_ontology(),
     )
 
     assert ontology.graph_query.adapter == "axis-deferred-ontology-query-adapter"
@@ -86,8 +133,11 @@ def test_deferred_ontology_query_runtime_filters_relationships_by_scope() -> Non
     assert "asset_motors_batch" not in {node.node_id for node in ontology.nodes}
 
 
-def test_ontology_endpoint_uses_query_runtime_and_oidc_principal() -> None:
-    app = create_app(Settings(oidc_auth_required=True))
+def test_ontology_endpoint_uses_query_runtime_and_oidc_principal(
+    ontology_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = ontology_session_factory
     runtime = RecordingOntologyQueryRuntime()
     app.state.ontology_query_runtime = runtime
     app.state.identity_verifier = StaticIdentityVerifier(
@@ -113,8 +163,11 @@ def test_ontology_endpoint_uses_query_runtime_and_oidc_principal() -> None:
     assert runtime.requests[0].actor_scopes == ["operations:read"]
 
 
-def test_ontology_endpoint_filters_graph_when_oidc_auth_required() -> None:
-    app = create_app(Settings(oidc_auth_required=True))
+def test_ontology_endpoint_filters_graph_when_oidc_auth_required(
+    ontology_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = ontology_session_factory
     app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
             actor_id="operations-reader",
@@ -139,8 +192,11 @@ def test_ontology_endpoint_filters_graph_when_oidc_auth_required() -> None:
     assert "asset_motors_batch" not in str(body)
 
 
-def test_ontology_endpoint_rejects_tenant_mismatch() -> None:
-    app = create_app(Settings(oidc_auth_required=True))
+def test_ontology_endpoint_rejects_tenant_mismatch(
+    ontology_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = ontology_session_factory
     app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
             actor_id="operations-reader",
@@ -159,8 +215,11 @@ def test_ontology_endpoint_rejects_tenant_mismatch() -> None:
     assert response.json()["detail"]["reason"] == "tenant_mismatch"
 
 
-def test_ontology_endpoint_allows_empty_filtered_graph() -> None:
-    app = create_app(Settings(oidc_auth_required=True))
+def test_ontology_endpoint_allows_empty_filtered_graph(
+    ontology_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = ontology_session_factory
     app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
             actor_id="no-graph-scope-reader",

@@ -217,7 +217,6 @@ from axis_api.demo import (
     ManufacturingOntologyEntityDetail,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
-    get_manufacturing_ontology_entity_detail,
 )
 from axis_api.demo_reference import (
     DemoReferenceRecordInvalid,
@@ -250,6 +249,12 @@ from axis_api.ontology.queries import (
     TypeDBOntologyQueryConfig,
     TypeDBOntologyQueryRuntime,
     query_manufacturing_ontology_graph,
+)
+from axis_api.ontology_reference import (
+    OntologyReferenceRecordInvalid,
+    OntologyReferenceRecordNotFound,
+    get_persisted_manufacturing_ontology,
+    get_persisted_manufacturing_ontology_entity_detail,
 )
 from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
@@ -2445,10 +2450,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/ontology",
         response_model=ManufacturingOntology,
+        responses={
+            404: {"description": "Manufacturing ontology reference record not found"},
+            422: {"description": "Manufacturing ontology reference payload invalid"},
+        },
         tags=["demo"],
     )
     def manufacturing_ontology(
         principal: OidcPrincipalDependency,
+        repository: PersistenceRepository,
         ontology_query_runtime: OntologyQueryRuntimeDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         limit: int = Query(default=200, ge=1, le=500),
@@ -2463,6 +2473,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
 
+        try:
+            ontology = get_persisted_manufacturing_ontology(repository, tenant_id=tenant_id)
+        except OntologyReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing ontology reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "ontology",
+                },
+            ) from exc
+        except OntologyReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing ontology reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "ontology",
+                },
+            ) from exc
+
         return query_manufacturing_ontology_graph(
             ontology_query_runtime,
             OntologyGraphQueryRequest(
@@ -2472,18 +2505,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 enforce_relationship_scopes=principal is not None,
                 limit=limit,
             ),
+            ontology,
         )
 
     @app.get(
         "/demo/manufacturing/ontology/entities/{node_id}",
         response_model=ManufacturingOntologyEntityDetail,
+        responses={
+            404: {"description": "Manufacturing ontology entity or reference record not found"},
+            422: {"description": "Manufacturing ontology reference payload invalid"},
+        },
         tags=["demo"],
     )
     def manufacturing_ontology_entity_detail(
         node_id: str,
         principal: OidcPrincipalDependency,
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingOntologyEntityDetail:
-        detail = get_manufacturing_ontology_entity_detail(node_id)
+        if principal is not None and principal.tenant_id != tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot read ontology entity data for this tenant.",
+                    "reason": "tenant_mismatch",
+                },
+            )
+
+        try:
+            detail = get_persisted_manufacturing_ontology_entity_detail(
+                repository,
+                node_id,
+                tenant_id=tenant_id,
+            )
+        except OntologyReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing ontology reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "ontology",
+                },
+            ) from exc
+        except OntologyReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing ontology reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "ontology",
+                },
+            ) from exc
         if detail is None:
             raise HTTPException(status_code=404, detail="Ontology entity not found")
         _authorize_demo_ontology_detail(detail, principal)

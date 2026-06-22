@@ -45,9 +45,10 @@ actors, approval records, action runs and append-only audit events. TypeDB owns
 the operational ontology: actors, organizations, assets, processes, workflows,
 operations, policies, approvals, audit evidence and relationship primitives.
 Ontology graph reads go through an Axis query runtime boundary. The deferred
-runtime serves the public manufacturing seed; the TypeDB query runtime can be
-enabled separately from graph mutations and keeps TypeQL execution, response
-mapping and relationship-scope filtering behind the same contract.
+runtime serves the persisted public manufacturing reference graph from
+Postgres; the TypeDB query runtime can be enabled separately from graph
+mutations and keeps TypeQL execution, response mapping and relationship-scope
+filtering behind the same contract.
 
 Search starts from Postgres and remains behind an adapter until a specialized
 engine is justified.
@@ -175,7 +176,7 @@ relationships before action execution or approval. The current Platform
 mutation endpoints bind approval decisions and action run requests to
 OIDC-derived actors and scopes when authenticated, then apply the existing
 permission checks before persistence. Entity detail reads and typed action
-payloads can also derive required scopes from the synthetic ontology
+payloads can also derive required scopes from the persisted ontology reference
 relationships attached to referenced resources, so cross-domain graph context
 cannot be read or proposed through an action without the matching relationship
 scope. The graph list endpoint also binds to OIDC principals when present,

@@ -494,7 +494,6 @@ class ManufacturingModelRouting(BaseModel):
     observability_notes: list[str] = Field(min_length=1)
 
 
-
 def _action_registry_filter_options(
     actions: list[ActionRegistryEntry],
 ) -> ActionRegistryFilterOptions:
@@ -2256,10 +2255,10 @@ def _default_ontology_detail_lists(node: OntologyNode) -> dict[str, list[str]]:
     }
 
 
-def get_manufacturing_ontology_entity_detail(
+def build_manufacturing_ontology_entity_detail(
+    ontology: ManufacturingOntology,
     node_id: str,
 ) -> ManufacturingOntologyEntityDetail | None:
-    ontology = get_manufacturing_ontology()
     node_by_id = {node.node_id: node for node in ontology.nodes}
     node = node_by_id.get(node_id)
 
@@ -2346,6 +2345,12 @@ def get_manufacturing_ontology_entity_detail(
         ),
         detail_notes=detail_lists["detail_notes"],
     )
+
+
+def get_manufacturing_ontology_entity_detail(
+    node_id: str,
+) -> ManufacturingOntologyEntityDetail | None:
+    return build_manufacturing_ontology_entity_detail(get_manufacturing_ontology(), node_id)
 
 
 def _model_routing_filter_options(
