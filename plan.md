@@ -140,9 +140,11 @@ Foundation acceptance is tracked in
   bootstrap record.
 - [x] Persist the manufacturing action registry reference as a tenant-scoped
   bootstrap record.
+- [x] Persist the manufacturing approval inbox reference as a tenant-scoped
+  bootstrap record.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
-  console, connector registry, agent registry and action registry with
-  persisted, tenant-scoped bootstrap records.
+  console, approval inbox, connector registry, agent registry and action
+  registry with persisted, tenant-scoped bootstrap records.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -161,11 +163,15 @@ record before writing action/audit state.
 The workflow console reference endpoint reads from `surface=workflows` and
 `reference_id=manufacturing-workflow-console`, while
 `/demo/manufacturing/workflows/runs` continues to query operational workflow run
-state and tenant-scoped timeline events. Remaining API-owned reference records
-are a bootstrap boundary and must be moved to persisted tenant-scoped records
-before production use. The full manufacturing reference demo remains open until
-it has ontology relationships, approval actions, workflow execution and replay
-backed by real persistence paths.
+state and tenant-scoped timeline events. The approval inbox endpoint reads from
+`surface=approvals` and `reference_id=manufacturing-approval-inbox`; approval
+decision submissions validate approval ids, workflow ids and required
+permissions against that same persisted record before writing approval, audit
+or workflow-signal evidence. Remaining API-owned reference records are a
+bootstrap boundary and must be moved to persisted tenant-scoped records before
+production use. The full manufacturing reference demo remains open until it has
+ontology relationships, approval actions, workflow execution and replay backed
+by real persistence paths.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
@@ -189,10 +195,12 @@ longer carries workflow fallback records. Approval decisions now signal the
 workflow runtime adapter when available. Deterministic replay, workflow history
 retention and workflow mutation controls remain Platform work.
 
-The approval queue is still read-only for listing. A demo decision endpoint now
-persists approval decisions and appends audit events, and the web console
-submits reviewer decisions to it without creating a standalone local decision
-preview when persistence fails. The decision endpoint enforces the required demo approval scope before
+The approval queue is still read-only for listing, but the listing now comes
+from a persisted tenant-scoped reference row rather than route-owned seed data.
+A demo decision endpoint now persists approval decisions and appends audit
+events, and the web console submits reviewer decisions to it without creating a
+standalone local decision preview when persistence fails. The decision endpoint
+enforces the required demo approval scope before
 persistence and signals the workflow runtime adapter. When a bearer token is
 present, or when OIDC auth is required by configuration, the endpoint validates
 the token against configurable OIDC/JWKS settings and derives tenant, actor and

@@ -2,8 +2,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.approval_reference import get_persisted_manufacturing_approval_inbox
 from axis_api.audit import AuditEventCreate
-from axis_api.demo import ApprovalDecision, ApprovalInboxItem, get_manufacturing_approval_inbox
+from axis_api.demo import ApprovalDecision, ApprovalInboxItem
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
     ApprovalDecisionRecord,
@@ -65,8 +66,11 @@ def _approval_action_id(approval_id: str) -> str:
     return _APPROVAL_ACTION_IDS.get(approval_id, approval_id)
 
 
-def _find_demo_approval(approval_id: str) -> tuple[str, ApprovalInboxItem]:
-    inbox = get_manufacturing_approval_inbox()
+def _find_demo_approval(
+    repository: AxisPersistenceRepository,
+    approval_id: str,
+) -> tuple[str, ApprovalInboxItem]:
+    inbox = get_persisted_manufacturing_approval_inbox(repository)
     for approval in inbox.approvals:
         if approval.approval_id == approval_id:
             return inbox.tenant_id, approval
@@ -154,7 +158,7 @@ async def record_demo_approval_decision(
     request: ApprovalDecisionRequest,
     workflow_runtime: WorkflowSignalRuntime | None = None,
 ) -> ApprovalDecisionPersistenceResult:
-    tenant_id, approval = _find_demo_approval(approval_id)
+    tenant_id, approval = _find_demo_approval(repository, approval_id)
     action_id = _approval_action_id(approval.approval_id)
     permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
     runtime = workflow_runtime or DeferredWorkflowSignalRuntime()

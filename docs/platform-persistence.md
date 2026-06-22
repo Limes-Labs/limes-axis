@@ -139,6 +139,14 @@ The twenty-sixth Alembic migration adds:
 - the public-safe workflow reference runs, pending governance signals, timeline
   evidence and runtime notes used by `GET /demo/manufacturing/workflows`.
 
+The twenty-seventh Alembic migration adds:
+
+- a persisted manufacturing approval inbox bootstrap record for
+  `tenant_demo_manufacturing`;
+- the public-safe approval queue, evidence, decision options, required
+  permissions and workflow references used by
+  `GET /demo/manufacturing/approvals` and the approval decision endpoint.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -272,6 +280,11 @@ Delivered:
   `surface=workflows/reference_id=manufacturing-workflow-console` while the
   separate `/demo/manufacturing/workflows/runs` endpoint continues to query
   operational workflow run and timeline tables.
+- persisted manufacturing approval inbox reference records through
+  `demo_reference_records`, with the API reading
+  `surface=approvals/reference_id=manufacturing-approval-inbox`, approval
+  decisions validating against the same persisted inbox record and both paths
+  returning 404/422 for missing or invalid persisted payloads.
 
 Still Platform work:
 
