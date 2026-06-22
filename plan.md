@@ -117,6 +117,7 @@ Foundation acceptance is tracked in
 - [x] Add deferred scheduled connector sync planning from run records.
 - [x] Add idempotent deferred dispatch claims for scheduled connector sync.
 - [x] Add scheduled connector sync execution boundary with opt-in self-hosted runtime.
+- [x] Add Postgres external DB sync adapter boundary with public-safe profile evidence.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -223,6 +224,10 @@ opt-in self-hosted demo runtime, enabled with
 `AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true`, can write
 `connector.run.sync_execution_completed` without external egress, credential
 material retrieval or graph mutation.
+External DB sync can opt into the Postgres profile adapter boundary with
+`AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true`, adding public-safe
+provider/profile/table/count evidence while still omitting raw connection
+strings and credential material.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed and initially marked with `graph_mutation_status=not_applied`.

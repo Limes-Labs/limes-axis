@@ -154,28 +154,89 @@ def seed_connector_credential_lease(repository: AxisPersistenceRepository) -> No
     )
 
 
+def seed_external_db_credential_handle(repository: AxisPersistenceRepository) -> None:
+    now = utc_now()
+    repository.create_connector_credential_handle(
+        ConnectorCredentialHandleCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            handle_id="cred_external_db_readonly",
+            display_name="Read-only external DB mirror handle",
+            status="active",
+            secret_provider="vault-dev",
+            secret_ref="vault://axis/demo/external-db-readonly",
+            purpose="read_only_external_db_sync",
+            rotation_interval_days=30,
+            last_rotated_at=now,
+            next_rotation_due_at=now,
+            created_by="security-owner-role",
+            labels={"environment": "demo"},
+            notes=["Metadata-only external DB credential handle."],
+        )
+    )
+
+
+def seed_external_db_credential_lease(repository: AxisPersistenceRepository) -> None:
+    now = utc_now()
+    repository.create_connector_credential_lease(
+        ConnectorCredentialLeaseCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            handle_id="cred_external_db_readonly",
+            lease_id="lease_external_db_readonly_20260622",
+            status="active",
+            lease_mode="self_hosted_vault_kms_lease",
+            runtime_boundary="axis-credential-lease-broker",
+            requested_by="axis-connector-runtime-role",
+            lease_purpose="scheduled_external_db_sync",
+            secret_provider="vault-dev",
+            secret_ref="vault://axis/demo/external-db-readonly",
+            vault_kms_policy={"ttl_seconds": "900", "max_ttl_seconds": "1800"},
+            permission_decision={"allowed": "true", "scope": "connectors:credential_lease:request"},
+            lease_result={
+                "adapter": "axis-self-hosted-vault-kms-lease-adapter",
+                "status": "lease_executed",
+                "provider_lease_ref": (
+                    "self-hosted-vault-kms://tenant_demo_manufacturing/"
+                    "lease_external_db_readonly_20260622"
+                ),
+                "secret_material_returned": False,
+            },
+            granted_at=now,
+            expires_at=now.replace(year=now.year + 1),
+            renewal_due_at=now,
+            notes=["Active lease for external DB sync tests."],
+        )
+    )
+
+
 def create_dispatched_scheduled_sync(
     client: TestClient,
     *,
     run_id: str,
     dispatch_id: str,
     dispatch_idempotency_key: str,
+    connector_id: str = "file_csv_manufacturing_assets",
+    credential_handle_id: str = "cred_file_csv_readonly",
+    credential_lease_id: str = "lease_file_csv_readonly_20260622",
+    input_summary: dict[str, str] | None = None,
 ) -> None:
     create_response = client.post(
         "/demo/manufacturing/connectors/runs",
         json={
             "tenant_id": "tenant_demo_manufacturing",
-            "connector_id": "file_csv_manufacturing_assets",
+            "connector_id": connector_id,
             "run_id": run_id,
             "execution_mode": "scheduled_sync_plan",
             "requested_by": "plant-operations-owner-role",
-            "credential_handle_ids": ["cred_file_csv_readonly"],
-            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "credential_handle_ids": [credential_handle_id],
+            "credential_lease_id": credential_lease_id,
             "schedule_id": "schedule_file_csv_assets_hourly",
             "schedule_cadence": "hourly",
             "schedule_timezone": "Europe/Rome",
             "next_run_at": "2026-06-22T14:00:00Z",
-            "input_summary": {"source": "manufacturing-assets-demo.csv", "record_count": "2"},
+            "input_summary": input_summary
+            or {"source": "manufacturing-assets-demo.csv", "record_count": "2"},
             "result_summary": {},
         },
     )
@@ -188,7 +249,7 @@ def create_dispatched_scheduled_sync(
             "dispatch_id": dispatch_id,
             "dispatched_by": "axis-scheduler-role",
             "actor_scopes": ["connectors:sync:dispatch"],
-            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "credential_lease_id": credential_lease_id,
             "idempotency_key": dispatch_idempotency_key,
         },
     )
@@ -842,6 +903,168 @@ def test_execute_scheduled_connector_sync_self_hosted_runtime_when_enabled(
     assert len(events) == 1
     assert events[0].payload["sync_execution_result"]["external_sync_started"] is False
     assert events[0].payload["sync_execution_result"]["result_summary"]["records_read"] == "2"
+
+
+def test_execute_external_db_sync_uses_generic_runtime_until_external_db_flag_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_scheduled_generic_20260622",
+        dispatch_id="dispatch_external_db_orders_generic_20260622_1400",
+        dispatch_idempotency_key="idem_dispatch_external_db_orders_generic_20260622_1400",
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "record_count": "2",
+        },
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_scheduled_generic_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_generic_20260622_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_external_db_orders_generic_20260622_1400",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sync_execution_result"]["adapter"] == "axis-self-hosted-connector-sync-executor"
+    assert body["sync_execution_result"]["result_summary"]["source_mode"] == "self_hosted_demo"
+    assert "postgres-external-db-sync" not in body["sync_execution_result"]["sync_ref"]
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+
+
+def test_execute_external_db_sync_uses_postgres_profile_adapter_when_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_scheduled_20260622",
+        dispatch_id="dispatch_external_db_orders_20260622_1400",
+        dispatch_idempotency_key="idem_dispatch_external_db_orders_20260622_1400",
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+        },
+    )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_scheduled_20260622/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_20260622_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_external_db_orders_20260622_1400",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "sync_execution_completed"
+    assert body["audit_event_type"] == "connector.run.sync_execution_completed"
+    assert body["sync_execution_result"] == {
+        "adapter": "axis-postgres-external-db-sync-executor",
+        "status": "sync_execution_completed",
+        "sync_ref": (
+            "postgres-external-db-sync://tenant_demo_manufacturing/"
+            "profile_postgres_ops_readonly/"
+            "run_external_db_orders_scheduled_20260622/"
+            "sync_exec_external_db_orders_20260622_1400"
+        ),
+        "external_sync_started": False,
+        "idempotency_key": "idem_sync_exec_external_db_orders_20260622_1400",
+        "result_summary": {
+            "runtime_status": "sync_execution_completed",
+            "external_sync_started": "false",
+            "connector_id": "external_db_operational_mirror",
+            "schedule_id": "schedule_file_csv_assets_hourly",
+            "dispatch_id": "dispatch_external_db_orders_20260622_1400",
+            "execution_id": "sync_exec_external_db_orders_20260622_1400",
+            "provider": "postgres",
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "records_read": "2",
+            "records_accepted": "2",
+            "records_rejected": "0",
+            "external_query_started": "false",
+            "credential_material_returned": "false",
+            "graph_mutation_started": "false",
+            "source_mode": "external_db_profile",
+        },
+        "notes": [
+            "Postgres external DB sync executed through the profile adapter boundary.",
+            (
+                "No raw connection string, credential material, external query or "
+                "graph mutation was started."
+            ),
+        ],
+    }
+    assert "vault://" not in str(body).lower()
+    assert "password" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_completed",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["sync_execution_result"]["adapter"] == (
+        "axis-postgres-external-db-sync-executor"
+    )
+    assert events[0].payload["sync_execution_result"]["external_sync_started"] is False
+    assert "vault://" not in str(events[0].payload).lower()
+    assert "credential_value" not in str(events[0].payload).lower()
+    assert "dsn" not in str(events[0].payload).lower()
 
 
 def test_execute_scheduled_connector_sync_replays_same_idempotency_key(

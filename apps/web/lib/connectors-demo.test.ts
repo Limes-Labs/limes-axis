@@ -271,10 +271,10 @@ describe("manufacturing connector demo contract", () => {
 
   it("keeps connector run fallback audit-backed and redacted", () => {
     expect(defaultConnectorRunRegistry.tenant_id).toBe("tenant_demo_manufacturing");
-    expect(defaultConnectorRunRegistry.runs).toHaveLength(2);
+    expect(defaultConnectorRunRegistry.runs).toHaveLength(3);
     expect(defaultConnectorRunRegistry.metrics[0]).toMatchObject({
       label: "Connector Runs",
-      value: "2",
+      value: "3",
     });
 
     const run = defaultConnectorRunRegistry.runs[0];
@@ -312,6 +312,26 @@ describe("manufacturing connector demo contract", () => {
       sync_ref:
         "deferred-sync-execution://tenant_demo_manufacturing/" +
         "run_file_csv_assets_scheduled_20260622/sync_exec_file_csv_assets_20260622_1400",
+    });
+    const externalDbRun = defaultConnectorRunRegistry.runs[2];
+    expect(externalDbRun.run_id).toBe("run_external_db_orders_scheduled_20260622");
+    expect(externalDbRun.connector_id).toBe("external_db_operational_mirror");
+    expect(externalDbRun.audit_event_type).toBe("connector.run.sync_execution_completed");
+    expect(externalDbRun.sync_execution_result).toMatchObject({
+      adapter: "axis-postgres-external-db-sync-executor",
+      status: "sync_execution_completed",
+      external_sync_started: false,
+      sync_ref:
+        "postgres-external-db-sync://tenant_demo_manufacturing/" +
+        "profile_postgres_ops_readonly/run_external_db_orders_scheduled_20260622/" +
+        "sync_exec_external_db_orders_20260622_1400",
+    });
+    expect(externalDbRun.sync_execution_result?.result_summary).toMatchObject({
+      provider: "postgres",
+      connection_profile_id: "profile_postgres_ops_readonly",
+      external_query_started: "false",
+      credential_material_returned: "false",
+      graph_mutation_started: "false",
     });
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("csv_content");
     expect(JSON.stringify(defaultConnectorRunRegistry).toLowerCase()).not.toContain("password");
