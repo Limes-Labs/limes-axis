@@ -10251,8 +10251,11 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "422": {
-            "description": "Connector credential handle validation failed"
+            "description": "Connector credential handle or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Credential Handle Create",

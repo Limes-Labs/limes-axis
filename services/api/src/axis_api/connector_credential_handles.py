@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
-from axis_api.connectors import get_manufacturing_connector_registry
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.models import utc_now
 from axis_api.persistence import (
@@ -174,7 +174,7 @@ def record_demo_connector_credential_handle(
     repository: AxisPersistenceRepository,
     request: ConnectorCredentialHandleCreateRequest,
 ) -> ConnectorCredentialHandleRecord:
-    _manifest_for_connector(request.connector_id)
+    _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_secret_ref(request.secret_ref)
     last_rotated_at = utc_now()
     next_rotation_due_at = last_rotated_at + timedelta(days=request.rotation_interval_days)
@@ -316,8 +316,12 @@ def _optional_aware_datetime(value: datetime | None) -> datetime | None:
     return _aware_datetime(value)
 
 
-def _manifest_for_connector(connector_id: str):
-    registry = get_manufacturing_connector_registry()
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
     for connector in registry.connectors:
         if connector.manifest.connector_id == connector_id:
             return connector.manifest

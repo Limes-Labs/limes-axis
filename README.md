@@ -120,7 +120,9 @@ connector and a `/connectors` console for schema mapping, permissions, runtime
 boundaries, tenant-scoped preview configuration and redacted ontology proposal
 previews without enabling live sync or connector mutation. Connector
 configuration writes resolve manifests from the persisted connector registry
-reference before storing runtime boundary metadata. The external DB
+reference before storing runtime boundary metadata, and credential handle
+creation uses the same persisted registry before storing external secret
+reference metadata. The external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.
