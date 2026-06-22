@@ -30,6 +30,11 @@ from axis_api.approval_decisions import (
     DemoApprovalNotFound,
     record_demo_approval_decision,
 )
+from axis_api.approval_reference import (
+    ApprovalReferenceRecordInvalid,
+    ApprovalReferenceRecordNotFound,
+    get_persisted_manufacturing_approval_inbox,
+)
 from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportBundle,
@@ -207,7 +212,6 @@ from axis_api.demo import (
     ManufacturingOntologyEntityDetail,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
-    get_manufacturing_approval_inbox,
     get_manufacturing_audit_explorer,
     get_manufacturing_model_routing,
     get_manufacturing_ontology_entity_detail,
@@ -2207,10 +2211,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/approvals",
         response_model=ManufacturingApprovalInbox,
+        responses={
+            404: {"description": "Approval inbox reference record not found"},
+            422: {"description": "Approval inbox reference payload invalid"},
+        },
         tags=["demo"],
     )
-    def manufacturing_approval_inbox() -> ManufacturingApprovalInbox:
-        return get_manufacturing_approval_inbox()
+    def manufacturing_approval_inbox(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ManufacturingApprovalInbox:
+        try:
+            return get_persisted_manufacturing_approval_inbox(
+                repository,
+                tenant_id=tenant_id,
+            )
+        except ApprovalReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing approval inbox reference record not found.",
+                    "tenant_id": tenant_id,
+                    "surface": "approvals",
+                },
+            ) from exc
+        except ApprovalReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing approval inbox reference payload is invalid.",
+                    "tenant_id": tenant_id,
+                    "surface": "approvals",
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/approvals/{approval_id}/decision",
@@ -2236,6 +2271,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except DemoApprovalNotFound as exc:
             raise HTTPException(status_code=404, detail="Approval not found") from exc
+        except ApprovalReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing approval inbox reference record not found.",
+                    "surface": "approvals",
+                },
+            ) from exc
+        except ApprovalReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing approval inbox reference payload is invalid.",
+                    "surface": "approvals",
+                },
+            ) from exc
         except ApprovalPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,

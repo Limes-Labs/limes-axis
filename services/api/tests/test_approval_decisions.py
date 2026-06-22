@@ -1,3 +1,7 @@
+from copy import deepcopy
+from pathlib import Path
+from runpy import run_path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -11,12 +15,14 @@ from axis_api.demo import ApprovalDecision
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import ApprovalRecord, AuditEvent, Base
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
 from axis_api.workflow_runtime import (
     WorkflowSignalError,
     WorkflowSignalRequest,
     WorkflowSignalResult,
 )
+
+MIGRATIONS_DIR = Path(__file__).parents[1] / "migrations" / "versions"
 
 
 class RecordingWorkflowRuntime:
@@ -67,8 +73,156 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_approval_inbox_reference(factory, approval_inbox_bootstrap_payload())
     yield factory
     engine.dispose()
+
+
+@pytest.fixture
+def empty_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
+
+
+def approval_inbox_bootstrap_payload() -> dict:
+    migration = run_path(str(MIGRATIONS_DIR / "0027_approval_inbox_reference.py"))
+    return deepcopy(migration["APPROVAL_INBOX_PAYLOAD"])
+
+
+def persisted_approval_inbox_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Approval Inbox",
+        "as_of": "2026-06-22T11:15:00+02:00",
+        "queue_status": "action_required",
+        "policy_notes": ["Persisted approval inbox reference."],
+        "approvals": [
+            {
+                "approval_id": "appr_persisted_operations_review",
+                "action": "Review persisted operations proposal",
+                "risk_level": "medium",
+                "status": "pending",
+                "requested_by": "agent_persisted_daily_brief",
+                "owner_role": "plant-operations-owner",
+                "due": "Today 14:00",
+                "workflow_id": "wf_persisted_reference",
+                "domain": "Operations",
+                "summary": "Persisted approval reference used by the API.",
+                "evidence": ["Persisted approval evidence"],
+                "data_accessed": ["Axis Audit: persisted approval reference"],
+                "risks": ["Approving without persisted evidence would violate policy."],
+                "alternatives": ["Request changes before approval."],
+                "estimated_cost": "No direct spend",
+                "model_policy": "local-only",
+                "required_permission": "approvals:operations:decide",
+                "audit_event_preview": {
+                    "event": "approval.decision.recorded",
+                    "actor_role": "plant-operations-owner",
+                    "scope": "wf_persisted_reference",
+                    "result": "workflow_signal_ready",
+                },
+                "decision_options": [
+                    {
+                        "decision": "approve",
+                        "label": "Approve",
+                        "consequence": "Signal persisted workflow approval.",
+                    },
+                    {
+                        "decision": "reject",
+                        "label": "Reject",
+                        "consequence": "Record denial in persisted approval flow.",
+                    },
+                    {
+                        "decision": "request_changes",
+                        "label": "Request changes",
+                        "consequence": "Return persisted proposal for revision.",
+                    },
+                ],
+            }
+        ],
+    }
+
+
+def seed_approval_inbox_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    inbox_payload = deepcopy(payload or approval_inbox_bootstrap_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="approvals",
+                reference_id="manufacturing-approval-inbox",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=inbox_payload,
+            )
+        )
+
+
+async def test_record_demo_approval_decision_reads_persisted_approval_inbox_reference(
+    session_factory: sessionmaker[Session],
+) -> None:
+    seed_approval_inbox_reference(session_factory, persisted_approval_inbox_payload())
+    workflow_runtime = RecordingWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        result = await record_demo_approval_decision(
+            repository,
+            "appr_persisted_operations_review",
+            ApprovalDecisionRequest(
+                decision=ApprovalDecision.APPROVE,
+                actor_id="plant-operations-owner-role",
+                actor_scopes=["approvals:operations:decide"],
+                note="Approved persisted reference.",
+            ),
+            workflow_runtime,
+        )
+
+    with session_factory() as session:
+        approval = session.scalars(select(ApprovalRecord)).one()
+        audit_event = session.scalars(select(AuditEvent)).one()
+
+    assert result.approval_id == "appr_persisted_operations_review"
+    assert result.workflow_id == "wf_persisted_reference"
+    assert result.action_id == "appr_persisted_operations_review"
+    assert approval.workflow_id == "wf_persisted_reference"
+    assert audit_event.payload["required_permission"] == "approvals:operations:decide"
+    assert workflow_runtime.requests[0].workflow_id == "wf_persisted_reference"
+
+
+def test_approval_decision_endpoint_reports_missing_approval_reference_record(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = empty_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json={
+            "decision": "approve",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["approvals:supply:decide"],
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing approval inbox reference record not found.",
+        "surface": "approvals",
+    }
 
 
 async def test_record_demo_approval_decision_persists_approval_and_audit_event(

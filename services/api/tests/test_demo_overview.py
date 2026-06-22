@@ -13,6 +13,7 @@ from axis_api.demo import (
     ApprovalDecision,
     ManufacturingActionRegistry,
     ManufacturingAgentRegistry,
+    ManufacturingApprovalInbox,
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
     OntologyNodeType,
@@ -155,6 +156,61 @@ def persisted_workflow_console_payload() -> dict:
             }
         ],
         "runtime_notes": ["Persisted workflow console reference."],
+    }
+
+
+def persisted_approval_inbox_payload() -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "plant_name": "Persisted Ravenna Works",
+        "scenario": "Persisted Approval Inbox",
+        "as_of": "2026-06-22T11:15:00+02:00",
+        "queue_status": "action_required",
+        "policy_notes": ["Persisted approval inbox reference."],
+        "approvals": [
+            {
+                "approval_id": "appr_persisted_operations_review",
+                "action": "Review persisted operations proposal",
+                "risk_level": "medium",
+                "status": "pending",
+                "requested_by": "agent_persisted_daily_brief",
+                "owner_role": "plant-operations-owner",
+                "due": "Today 14:00",
+                "workflow_id": "wf_persisted_reference",
+                "domain": "Operations",
+                "summary": "Persisted approval reference used by the API.",
+                "evidence": ["Persisted approval evidence"],
+                "data_accessed": ["Axis Audit: persisted approval reference"],
+                "risks": ["Approving without persisted evidence would violate policy."],
+                "alternatives": ["Request changes before approval."],
+                "estimated_cost": "No direct spend",
+                "model_policy": "local-only",
+                "required_permission": "approvals:operations:decide",
+                "audit_event_preview": {
+                    "event": "approval.decision.recorded",
+                    "actor_role": "plant-operations-owner",
+                    "scope": "wf_persisted_reference",
+                    "result": "workflow_signal_ready",
+                },
+                "decision_options": [
+                    {
+                        "decision": "approve",
+                        "label": "Approve",
+                        "consequence": "Signal persisted workflow approval.",
+                    },
+                    {
+                        "decision": "reject",
+                        "label": "Reject",
+                        "consequence": "Record denial in persisted approval flow.",
+                    },
+                    {
+                        "decision": "request_changes",
+                        "label": "Request changes",
+                        "consequence": "Return persisted proposal for revision.",
+                    },
+                ],
+            }
+        ],
     }
 
 
@@ -874,18 +930,105 @@ def test_manufacturing_approval_inbox_seed_is_governed() -> None:
     assert "@" not in inbox.model_dump_json()
 
 
-def test_manufacturing_approval_inbox_endpoint_returns_public_demo_data() -> None:
-    client = TestClient(create_app())
+def test_manufacturing_approval_inbox_reference_contract_is_valid() -> None:
+    inbox = ManufacturingApprovalInbox.model_validate(persisted_approval_inbox_payload())
+
+    assert inbox.tenant_id == "tenant_demo_manufacturing"
+    assert inbox.scenario == "Persisted Approval Inbox"
+    assert inbox.approvals[0].approval_id == "appr_persisted_operations_review"
+    assert inbox.approvals[0].required_permission == "approvals:operations:decide"
+
+
+def test_manufacturing_approval_inbox_bootstrap_payload_matches_contract() -> None:
+    migration = run_path("migrations/versions/0027_approval_inbox_reference.py")
+
+    inbox = ManufacturingApprovalInbox.model_validate(migration["APPROVAL_INBOX_PAYLOAD"])
+
+    assert inbox.tenant_id == "tenant_demo_manufacturing"
+    assert inbox.scenario == "Plant Operations Cockpit"
+    assert len(inbox.approvals) == 3
+    assert any(
+        approval.approval_id == "appr_expedite_supplier_batch" for approval in inbox.approvals
+    )
+    serialized = inbox.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "api_key" not in serialized
+    assert "credential_value" not in serialized
+
+
+def test_manufacturing_approval_inbox_endpoint_is_not_defined_as_runtime_seed() -> None:
+    source = Path("src/axis_api/main.py").read_text()
+
+    assert "return get_manufacturing_approval_inbox()" not in source
+
+
+def test_manufacturing_approval_inbox_endpoint_returns_persisted_reference_data(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="approvals",
+                reference_id="manufacturing-approval-inbox",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=persisted_approval_inbox_payload(),
+            )
+        )
+    client = TestClient(app)
     response = client.get("/demo/manufacturing/approvals")
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
-    assert body["approvals"][0]["approval_id"] == "appr_expedite_supplier_batch"
-    assert body["approvals"][0]["required_permission"] == "approvals:supply:decide"
+    assert body["scenario"] == "Persisted Approval Inbox"
+    assert body["approvals"][0]["approval_id"] == "appr_persisted_operations_review"
+    assert body["approvals"][0]["required_permission"] == "approvals:operations:decide"
     assert body["approvals"][0]["decision_options"][0]["decision"] == "approve"
-    assert "production persistence remains Platform work" in body["policy_notes"][3]
+    assert "Persisted approval inbox reference." in body["policy_notes"][0]
     assert "password" not in str(body).lower()
+
+
+def test_manufacturing_approval_inbox_endpoint_reports_missing_reference_record(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/approvals")
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_manufacturing_approval_inbox_endpoint_rejects_invalid_reference_payload(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    with session_scope(overview_session_factory) as session:
+        payload = persisted_approval_inbox_payload()
+        payload["tenant_id"] = "tenant_wrong"
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="approvals",
+                reference_id="manufacturing-approval-inbox",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/approvals")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
 
 
 def test_openapi_exposes_manufacturing_approval_inbox_endpoint() -> None:

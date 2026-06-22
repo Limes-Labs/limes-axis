@@ -43,8 +43,10 @@ runtime seed code. The ontology slice adds a read-only manufacturing graph for
 typed nodes, source-system links, relationship mapping, permission scopes and
 entity detail pages. The
 approval slice adds an API-owned approval inbox with evidence, risk review,
-decision options and local audit preview. The workflow slice adds a read-only
-runtime console for workflow state, pending signals and history preview. The
+decision options and local audit preview, now read from a persisted
+tenant-scoped bootstrap record for the listing and decision validation paths.
+The workflow slice adds a read-only runtime console for workflow state, pending
+signals and history preview. The
 audit slice adds an explorer for reference and persisted ledger events, filters
 and redacted payload previews. The agent registry slice adds a read-only
 governed agent view with autonomy boundaries, required permissions, model egress
@@ -102,11 +104,13 @@ The web console runtime libraries no longer export browser-local fallback seed
 records, including the connector console records; those pages are API-required
 and protected by a regression test that blocks reintroducing default runtime
 seed records.
-The manufacturing overview, workflow console, connector registry, agent
-registry and action registry API reference surfaces now read tenant-scoped
-`demo_reference_records` bootstrap rows and return explicit API errors when
-those records are missing or invalid. Remaining API-owned reference records are
-tracked for migration to persisted, tenant-scoped bootstrap records.
+The manufacturing overview, workflow console, approval inbox, connector
+registry, agent registry and action registry API reference surfaces now read
+tenant-scoped `demo_reference_records` bootstrap rows and return explicit API
+errors when those records are missing or invalid. Approval decisions and action
+runs validate against those persisted reference records before writing
+operational state. Remaining API-owned reference records are tracked for
+migration to persisted, tenant-scoped bootstrap records.
 
 The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
