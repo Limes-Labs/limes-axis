@@ -244,6 +244,17 @@ class ConnectorPromotionPolicyCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorPromotionPolicyEnableRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    policy_id: str = Field(min_length=1)
+    status: str = Field(default="enabled", min_length=1)
+    enforcement_mode: str = Field(default="required", min_length=1)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID
+    audit_event_type: str = Field(default="connector.promotion_policy.enabled", min_length=1)
+    note: str | None = None
+
+
 class ConnectorManualImportRequestCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -884,6 +895,25 @@ class AxisPersistenceRepository:
             ConnectorPromotionPolicy.policy_id == policy_id,
         )
         return self.session.scalars(statement).first()
+
+    def enable_connector_promotion_policy(
+        self,
+        record: ConnectorPromotionPolicyEnableRecord,
+    ) -> ConnectorPromotionPolicy:
+        policy = self.get_connector_promotion_policy(record.tenant_id, record.policy_id)
+        if policy is None:
+            raise PersistenceRecordNotFound("Connector promotion policy not found")
+
+        policy.status = record.status
+        policy.enforcement_mode = record.enforcement_mode
+        policy.permission_decision = record.permission_decision
+        policy.audit_event_id = record.audit_event_id
+        policy.audit_event_type = record.audit_event_type
+        if record.note:
+            policy.notes = [*policy.notes, record.note]
+        policy.updated_at = utc_now()
+        self.session.flush()
+        return policy
 
     def list_connector_promotion_policies(
         self,

@@ -375,6 +375,17 @@ export type ConnectorPromotionPolicyCreateRequest = {
   notes: string[];
 };
 
+export type ConnectorPromotionPolicyEnableRequest = {
+  tenant_id: string;
+  policy_id: string;
+  enabled_by: string;
+  actor_scopes: string[];
+  approval_id: string;
+  approval_decision: string;
+  workflow_signal_status: string;
+  note: string | null;
+};
+
 export type ManufacturingConnectorPromotionPolicyRegistry = {
   tenant_id: string;
   plant_name: string;
@@ -1019,15 +1030,19 @@ export const defaultConnectorPromotionPolicyRegistry: ManufacturingConnectorProm
           allowed: true,
           reason: "allowed",
         },
-        audit_event_id: "audit_connector_promotion_policy_demo_20260622",
-        audit_event_type: "connector.promotion_policy.authored",
-        notes: ["Required policy enforced during approved ontology promotion."],
+        audit_event_id: "audit_connector_promotion_policy_enable_demo_20260622",
+        audit_event_type: "connector.promotion_policy.enabled",
+        notes: [
+          "Policy authored as draft before enablement.",
+          "Required policy enabled after approval and workflow signal evidence.",
+        ],
         created_at: "2026-06-22T00:00:00Z",
       },
     ],
     policy_notes: [
       "Promotion policies are governance metadata that can become required gates.",
-      "Policy authoring records required scopes, import state and workflow signal state.",
+      "Policy authoring records required scopes before enablement.",
+      "Enablement requires approval and workflow signal evidence.",
       "Enabled required policies are auto-selected before TypeDB mutation execution.",
     ],
   };
@@ -1083,6 +1098,24 @@ export function buildDefaultConnectorPromotionPolicyRequest(
   };
 }
 
+export function buildDefaultConnectorPromotionPolicyEnableRequest(
+  overrides: Partial<ConnectorPromotionPolicyEnableRequest> = {},
+): ConnectorPromotionPolicyEnableRequest {
+  const policyId = overrides.policy_id ?? "policy_connector_asset_promotion_v1";
+  const approvalIdSuffix = policyId.replace(/^policy_/, "");
+  return {
+    tenant_id: "tenant_demo_manufacturing",
+    policy_id: policyId,
+    enabled_by: "platform-governance-owner-role",
+    actor_scopes: ["connectors:promotion_policy:enable"],
+    approval_id: `appr_policy_enable_${approvalIdSuffix}`,
+    approval_decision: "approve",
+    workflow_signal_status: "policy_enable_signal_recorded",
+    note: "Enable required policy after governance review.",
+    ...overrides,
+  };
+}
+
 export function recordLocalConnectorPromotionPolicy(
   registry: ManufacturingConnectorPromotionPolicyRegistry,
   request: ConnectorPromotionPolicyCreateRequest,
@@ -1116,6 +1149,67 @@ export function recordLocalConnectorPromotionPolicy(
     authoredPolicy,
     ...registry.policies.filter((policy) => policy.policy_id !== request.policy_id),
   ];
+  const draftCount = policies.filter((policy) => policy.status === "draft").length;
+  const requiredCount = policies.filter(
+    (policy) => policy.status === "enabled" && policy.enforcement_mode === "required",
+  ).length;
+
+  return {
+    ...registry,
+    registry_status: "ready",
+    metrics: [
+      {
+        label: "Promotion Policies",
+        value: String(policies.length),
+        detail: "Connector proposal promotion policies",
+        status: policies.length > 0 ? "ready" : "watch",
+      },
+      {
+        label: "Draft Policies",
+        value: String(draftCount),
+        detail: "Policies authored but not enabled",
+        status: draftCount > 0 ? "watch" : "ready",
+      },
+      {
+        label: "Required Gates",
+        value: String(requiredCount),
+        detail: "Enabled policies marked required for promotion",
+        status: requiredCount > 0 ? "ready" : "watch",
+      },
+    ],
+    policies,
+  };
+}
+
+export function recordLocalConnectorPromotionPolicyEnable(
+  registry: ManufacturingConnectorPromotionPolicyRegistry,
+  request: ConnectorPromotionPolicyEnableRequest,
+  record?: ConnectorPromotionPolicyRecord,
+): ManufacturingConnectorPromotionPolicyRegistry {
+  const policies = registry.policies.map((policy) => {
+    if (policy.policy_id !== request.policy_id) {
+      return policy;
+    }
+
+    return (
+      record ?? {
+        ...policy,
+        status: "enabled",
+        enforcement_mode: "required",
+        permission_decision: {
+          allowed: true,
+          reason: "local_enable_preview",
+        },
+        audit_event_id: null,
+        audit_event_type: "connector.promotion_policy.enabled",
+        notes: [
+          ...policy.notes,
+          "Authoring audit event connector.promotion_policy.authored retained before enablement.",
+          request.note ?? "Local enablement preview recorded with approval evidence.",
+        ],
+      }
+    );
+  });
   const draftCount = policies.filter((policy) => policy.status === "draft").length;
   const requiredCount = policies.filter(
     (policy) => policy.status === "enabled" && policy.enforcement_mode === "required",

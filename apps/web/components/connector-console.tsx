@@ -5,6 +5,7 @@ import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lu
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  buildDefaultConnectorPromotionPolicyEnableRequest,
   buildDefaultConnectorPromotionPolicyRequest,
   buildDefaultCsvPreviewRequest,
   defaultConnectorConfigurationRegistry,
@@ -17,9 +18,11 @@ import {
   defaultManufacturingConnectorRegistry,
   findConnectorById,
   formatConnectorLabel,
+  recordLocalConnectorPromotionPolicyEnable,
   recordLocalConnectorPromotionPolicy,
   type ConnectorCsvPreviewResult,
   type ConnectorPromotionPolicyCreateRequest,
+  type ConnectorPromotionPolicyEnableRequest,
   type ConnectorPromotionPolicyRecord,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorCredentialHandleRegistry,
@@ -37,6 +40,7 @@ import {
 
 type ConnectorSource = "loading" | "api" | "fallback";
 type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "local_created" | "error";
+type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "local_enabled" | "error";
 
 function sourceLabel(source: ConnectorSource): string {
   if (source === "api") {
@@ -82,8 +86,13 @@ export function ConnectorConsole() {
   const [policyForm, setPolicyForm] = useState<ConnectorPromotionPolicyCreateRequest>(() =>
     buildDefaultConnectorPromotionPolicyRequest(),
   );
+  const [policyEnableForm, setPolicyEnableForm] =
+    useState<ConnectorPromotionPolicyEnableRequest>(() =>
+      buildDefaultConnectorPromotionPolicyEnableRequest(),
+    );
   const [policyAuthoringStatus, setPolicyAuthoringStatus] =
     useState<PolicyAuthoringStatus>("idle");
+  const [policyEnableStatus, setPolicyEnableStatus] = useState<PolicyEnableStatus>("idle");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -265,13 +274,66 @@ export function ConnectorConsole() {
       setPromotionPolicyRegistry((currentRegistry) =>
         recordLocalConnectorPromotionPolicy(currentRegistry, request, record),
       );
+      setPolicyEnableForm(
+        buildDefaultConnectorPromotionPolicyEnableRequest({
+          policy_id: request.policy_id,
+        }),
+      );
       setPolicyAuthoringStatus("api_created");
       return;
     } catch {
       setPromotionPolicyRegistry((currentRegistry) =>
         recordLocalConnectorPromotionPolicy(currentRegistry, request),
       );
+      setPolicyEnableForm(
+        buildDefaultConnectorPromotionPolicyEnableRequest({
+          policy_id: request.policy_id,
+        }),
+      );
       setPolicyAuthoringStatus("local_created");
+    }
+  }
+
+  async function enablePromotionPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const request = {
+      ...policyEnableForm,
+      tenant_id: registry.tenant_id,
+      actor_scopes: ["connectors:promotion_policy:enable"],
+      approval_decision: "approve",
+      workflow_signal_status: "policy_enable_signal_recorded",
+    };
+
+    setPolicyEnableStatus("saving");
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/demo/manufacturing/connectors/promotion-policies/${request.policy_id}/enable`,
+        {
+          body: JSON.stringify(request),
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        },
+      );
+
+      if (!response.ok) {
+        setPolicyEnableStatus("error");
+        return;
+      }
+
+      const record = (await response.json()) as ConnectorPromotionPolicyRecord;
+      setPromotionPolicyRegistry((currentRegistry) =>
+        recordLocalConnectorPromotionPolicyEnable(currentRegistry, request, record),
+      );
+      setPolicyEnableStatus("api_enabled");
+      return;
+    } catch {
+      setPromotionPolicyRegistry((currentRegistry) =>
+        recordLocalConnectorPromotionPolicyEnable(currentRegistry, request),
+      );
+      setPolicyEnableStatus("local_enabled");
     }
   }
 
@@ -757,7 +819,6 @@ export function ConnectorConsole() {
                   value={policyForm.status}
                 >
                   <option value="draft">draft</option>
-                  <option value="enabled">enabled</option>
                 </select>
               </label>
               <label>
@@ -794,6 +855,62 @@ export function ConnectorConsole() {
                   : policyAuthoringStatus === "saving"
                     ? "Policy authoring pending"
                     : "Policy authoring rejected"}
+              </p>
+            ) : null}
+            <form
+              aria-label="Promotion policy enablement"
+              className="policy-authoring-form"
+              onSubmit={enablePromotionPolicy}
+            >
+              <label>
+                <span className="metric-label">Enable Policy ID</span>
+                <input
+                  aria-label="Enable Policy ID"
+                  onChange={(event) =>
+                    setPolicyEnableForm((currentForm) => ({
+                      ...currentForm,
+                      policy_id: event.target.value,
+                    }))
+                  }
+                  pattern="[a-z0-9][a-z0-9_-]*"
+                  required
+                  type="text"
+                  value={policyEnableForm.policy_id}
+                />
+              </label>
+              <label>
+                <span className="metric-label">Approval ID</span>
+                <input
+                  aria-label="Approval ID"
+                  onChange={(event) =>
+                    setPolicyEnableForm((currentForm) => ({
+                      ...currentForm,
+                      approval_id: event.target.value,
+                    }))
+                  }
+                  required
+                  type="text"
+                  value={policyEnableForm.approval_id}
+                />
+              </label>
+              <button
+                className="command-button"
+                disabled={policyEnableStatus === "saving"}
+                type="submit"
+              >
+                <ShieldCheck size={15} />
+                {policyEnableStatus === "saving" ? "Enabling" : "Enable policy"}
+              </button>
+            </form>
+            {policyEnableStatus !== "idle" ? (
+              <p className="row-detail">
+                {policyEnableStatus === "api_enabled"
+                  ? "API policy enabled"
+                  : policyEnableStatus === "local_enabled"
+                    ? "Local policy enable preview"
+                  : policyEnableStatus === "saving"
+                    ? "Policy enable pending"
+                    : "Policy enable rejected"}
               </p>
             ) : null}
             <div className="payload-grid">

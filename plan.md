@@ -102,6 +102,7 @@ Foundation acceptance is tracked in
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.
 - [x] Add connector console policy authoring controls with API/local preview.
+- [x] Add connector promotion policy enablement workflow with audit evidence.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -188,18 +189,21 @@ authored through `/demo/manufacturing/connectors/promotion-policies`; each
 policy records the authoring permission, required promotion scopes, approved
 manual import state, workflow signal state, allowed risk levels and
 `connector.promotion_policy.authored` audit evidence without executing
-connectors or mutating TypeDB. Enabled required policies are auto-selected when
-a promotion request omits `policy_id` and are enforced before the TypeDB
-mutation adapter is called. If multiple enabled required policies match the
-same connector, Axis rejects the promotion until policy-set versioning defines a
-single active set.
+connectors or mutating TypeDB. Policies are enabled through
+`/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable`, which
+requires `connectors:promotion_policy:enable`, an approved decision, workflow
+signal evidence and writes `connector.promotion_policy.enabled`. Enabled
+required policies are auto-selected when a promotion request omits `policy_id`
+and are enforced before the TypeDB mutation adapter is called. If multiple
+enabled required policies match the same connector, Axis rejects the promotion
+until policy-set versioning defines a single active set.
 The `/connectors` console shows runtime boundaries, required permissions,
 blocked operations, tenant configuration, credential handle posture, connector
 run evidence, persisted ontology proposal evidence, promotion evidence, manual
 import decision evidence, promotion policy authoring/enforcement evidence and
 schema mapping with an offline fallback seed. It can author promotion policies
-through the API when available or record a local public-safe preview when the
-API is offline.
+through the API when available, enable them with approval/workflow evidence or
+record local public-safe previews when the API is offline.
 Persisted connector manifest management beyond the demo seed, credential vault
 integration, scheduled sync, external database connectors and connector-backed
 production actions remain Platform work.
