@@ -126,7 +126,9 @@ reference metadata. Ontology proposal writes also resolve connector runtime
 boundary metadata from that persisted registry before recording proposal audit
 evidence, connector run creation uses it before storing run/audit runtime
 boundary metadata, and manual import request creation uses it before writing
-approval-gated import audit evidence. The external DB
+approval-gated import audit evidence. Promotion policy authoring, enablement
+and revision paths also validate connector ids against the persisted registry
+reference before writing policy/audit evidence. The external DB
 preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.
@@ -187,7 +189,9 @@ separate approval/workflow-gated transition with
 `connector.promotion_policy.enabled` evidence. Enabled required policies are
 now auto-selected during controlled ontology promotion when `policy_id` is
 omitted, so required gates cannot be bypassed before the TypeDB mutation
-boundary is called. Versioned promotion policy sets can now activate a single
+boundary is called. Promotion policy authoring, enablement and revision now
+fail before policy/audit writes when the persisted connector registry reference
+is missing or invalid. Versioned promotion policy sets can now activate a single
 required-gate set per connector, so multiple enabled required policies are
 evaluated together with `connector.promotion_policy_set.activated` evidence
 instead of being selected implicitly; once a set is active, single-policy

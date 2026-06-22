@@ -1,3 +1,8 @@
+from copy import deepcopy
+from pathlib import Path
+from runpy import run_path
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -13,10 +18,15 @@ from axis_api.connector_promotion_policies import (
     record_demo_connector_promotion_policy,
     revise_demo_connector_promotion_policy,
 )
+from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import AuditEvent, Base, ConnectorPromotionPolicy
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorPromotionPolicyCreate,
+    DemoReferenceRecordCreate,
+)
 
 
 def policy_payload() -> dict:
@@ -77,7 +87,10 @@ def revision_payload() -> dict:
     }
 
 
-def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
+def build_test_client(
+    *,
+    seed_connector_registry: bool = True,
+) -> tuple[TestClient, sessionmaker[Session]]:
     engine = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},
@@ -93,7 +106,164 @@ def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
         )
     )
     app.state.session_factory = factory
+    if seed_connector_registry:
+        seed_connector_registry_reference(factory)
     return TestClient(app), factory
+
+
+def connector_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
+
+
+def policy_request(connector_id: str = "file_csv_manufacturing_assets"):
+    payload = policy_payload()
+    payload["connector_id"] = connector_id
+    return ConnectorPromotionPolicyCreateRequest(**payload)
+
+
+def seed_promotion_policy(
+    repository: AxisPersistenceRepository,
+    *,
+    connector_id: str = "file_csv_manufacturing_assets",
+    policy_id: str = "policy_connector_asset_promotion_v1",
+) -> None:
+    repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id=connector_id,
+            policy_id=policy_id,
+            policy_version="2026-06-22",
+            status="draft",
+            enforcement_mode="advisory",
+            created_by="platform-governance-owner-role",
+            required_authoring_scope="connectors:promotion_policy:author",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status="approval_approved",
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=["high", "medium"],
+            allowed_ontology_types=["manufacturing_asset"],
+            review_window_hours=24,
+            permission_decision={"allowed": True, "reason": "allowed"},
+            audit_event_type="connector.promotion_policy.authored",
+            notes=["Policy draft seeded directly for registry reference tests."],
+        )
+    )
+
+
+def test_connector_promotion_policy_path_does_not_load_demo_connector_registry_seed() -> None:
+    source = Path("src/axis_api/connector_promotion_policies.py").read_text()
+
+    assert "get_manufacturing_connector_registry" not in source
+
+
+def test_record_connector_promotion_policy_requires_persisted_connector_registry() -> None:
+    client, factory = build_test_client(seed_connector_registry=False)
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(ConnectorReferenceRecordNotFound):
+            record_demo_connector_promotion_policy(repository, policy_request())
+
+    client.close()
+
+
+def test_record_connector_promotion_policy_uses_persisted_connector_manifest() -> None:
+    client, factory = build_test_client()
+    payload = connector_registry_payload()
+    persisted_only_connector = deepcopy(payload["connectors"][0])
+    persisted_only_connector["manifest"]["connector_id"] = "persisted_policy_connector"
+    persisted_only_connector["manifest"]["display_name"] = "Persisted policy connector"
+    payload["connectors"].append(persisted_only_connector)
+    seed_connector_registry_reference(factory, payload)
+
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        policy = record_demo_connector_promotion_policy(
+            repository,
+            policy_request("persisted_policy_connector"),
+        )
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.promotion_policy.authored",
+        )
+
+    client.close()
+    assert policy.connector_id == "persisted_policy_connector"
+    assert events[0].payload["connector_id"] == "persisted_policy_connector"
+
+
+def test_connector_promotion_policy_endpoint_reports_missing_connector_registry() -> None:
+    client, _ = build_test_client(seed_connector_registry=False)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies",
+        json=policy_payload(),
+    )
+
+    client.close()
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
+
+
+def test_connector_promotion_policy_enable_endpoint_reports_missing_connector_registry() -> None:
+    client, factory = build_test_client(seed_connector_registry=False)
+    with session_scope(factory) as session:
+        seed_promotion_policy(AxisPersistenceRepository(session))
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/enable",
+        json=enable_payload(),
+    )
+
+    client.close()
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
+
+
+def test_connector_promotion_policy_revise_endpoint_reports_missing_connector_registry() -> None:
+    client, factory = build_test_client(seed_connector_registry=False)
+    with session_scope(factory) as session:
+        seed_promotion_policy(AxisPersistenceRepository(session))
+
+    response = client.post(
+        "/demo/manufacturing/connectors/promotion-policies/policy_connector_asset_promotion_v1/revise",
+        json=revision_payload(),
+    )
+
+    client.close()
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
 
 
 def test_record_connector_promotion_policy_writes_audit_and_registry() -> None:

@@ -1831,8 +1831,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response_model=ConnectorPromotionPolicyRecord,
         responses={
             403: {"description": "Connector promotion policy permission denied"},
+            404: {"description": "Connector registry reference record not found"},
             409: {"description": "Connector promotion policy already exists"},
-            422: {"description": "Connector promotion policy validation failed"},
+            422: {"description": "Connector promotion policy or registry validation failed"},
         },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
@@ -1845,6 +1846,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             bound_policy = _bind_demo_created_by(policy_request, principal)
             return record_demo_connector_promotion_policy(repository, bound_policy)
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
         except ConnectorPromotionPolicyPermissionDenied as exc:
             reason = (
                 "missing_required_scope"
@@ -1886,8 +1905,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response_model=ConnectorPromotionPolicyRecord,
         responses={
             403: {"description": "Connector promotion policy enable permission denied"},
-            404: {"description": "Connector promotion policy not found"},
-            422: {"description": "Connector promotion policy enable validation failed"},
+            404: {"description": "Connector promotion policy or registry reference not found"},
+            422: {"description": "Connector promotion policy enable or registry validation failed"},
         },
         tags=["demo"],
     )
@@ -1909,6 +1928,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             bound_request = _bind_demo_enabled_by(enable_request, principal)
             return enable_demo_connector_promotion_policy(repository, bound_request)
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
         except ConnectorPromotionPolicyNotFound as exc:
             raise HTTPException(
                 status_code=404,
@@ -1945,9 +1982,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response_model=ConnectorPromotionPolicyRecord,
         responses={
             403: {"description": "Connector promotion policy revision permission denied"},
-            404: {"description": "Connector promotion policy not found"},
+            404: {"description": "Connector promotion policy or registry reference not found"},
             409: {"description": "Connector promotion policy revision conflict"},
-            422: {"description": "Connector promotion policy revision validation failed"},
+            422: {
+                "description": (
+                    "Connector promotion policy revision or registry validation failed"
+                )
+            },
         },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
@@ -1971,6 +2012,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             bound_request = _bind_demo_updated_by(revise_request, principal)
             result = revise_demo_connector_promotion_policy(repository, bound_request)
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
         except ConnectorPromotionPolicyNotFound as exc:
             raise HTTPException(
                 status_code=404,

@@ -11400,11 +11400,14 @@
           "403": {
             "description": "Connector promotion policy permission denied"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "409": {
             "description": "Connector promotion policy already exists"
           },
           "422": {
-            "description": "Connector promotion policy validation failed"
+            "description": "Connector promotion policy or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Promotion Policy Create",
@@ -11468,10 +11471,10 @@
             "description": "Connector promotion policy enable permission denied"
           },
           "404": {
-            "description": "Connector promotion policy not found"
+            "description": "Connector promotion policy or registry reference not found"
           },
           "422": {
-            "description": "Connector promotion policy enable validation failed"
+            "description": "Connector promotion policy enable or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Promotion Policy Enable",
@@ -11535,13 +11538,13 @@
             "description": "Connector promotion policy revision permission denied"
           },
           "404": {
-            "description": "Connector promotion policy not found"
+            "description": "Connector promotion policy or registry reference not found"
           },
           "409": {
             "description": "Connector promotion policy revision conflict"
           },
           "422": {
-            "description": "Connector promotion policy revision validation failed"
+            "description": "Connector promotion policy revision or registry validation failed"
           }
         },
         "summary": "Manufacturing Connector Promotion Policy Revise",
