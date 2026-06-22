@@ -89,8 +89,8 @@ from workflow history and audit events, and adds a read-only `/simulation`
 console for policy preview inspection. The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
 connector and a `/connectors` console for schema mapping, permissions, runtime
-boundaries and redacted ontology proposal previews without enabling live sync
-or connector mutation.
+boundaries, tenant-scoped preview configuration and redacted ontology proposal
+previews without enabling live sync or connector mutation.
 
 ## Architecture Defaults
 

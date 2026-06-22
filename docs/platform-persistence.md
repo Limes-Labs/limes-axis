@@ -27,6 +27,12 @@ The third Alembic migration adds:
 - `workflow_timeline_events`: tenant-scoped workflow history events ordered by
   workflow-local sequence.
 
+The fourth Alembic migration adds:
+
+- `connector_configurations`: tenant-scoped preview connector configuration,
+  connector id, sync mode, runtime boundary, creator, public-safe configuration
+  payload and credential reference ids.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -40,6 +46,7 @@ The third Alembic migration adds:
 - action run listing by tenant and optional status.
 - workflow run creation and tenant-scoped listing;
 - workflow timeline event append and tenant-scoped history listing.
+- connector configuration creation and tenant-scoped listing.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
@@ -78,9 +85,14 @@ Delivered:
 - replay/simulation preview artifacts derived from `workflow_runs`,
   `workflow_timeline_events` and redacted `audit_events`.
 - persisted workflow run state and tenant-scoped history views.
+- tenant-scoped connector configuration records for preview-only connector
+  setup, with raw credential fields rejected before persistence.
 
 Still Platform work:
 
+- connector run records and append-only audit writes from connector execution;
+- credential handle storage and rotation;
+- scheduled connector sync lifecycle;
 - production connector mutations from action runtime paths;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;

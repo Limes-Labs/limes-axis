@@ -171,3 +171,33 @@ class WorkflowTimelineRecord(Base):
             name="uq_workflow_timeline_tenant_workflow_sequence",
         ),
     )
+
+
+class ConnectorConfiguration(Base):
+    __tablename__ = "connector_configurations"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    sync_mode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    runtime_boundary: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    configuration_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    credential_ref_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "connector_id",
+            name="uq_connector_configurations_tenant_connector",
+        ),
+    )

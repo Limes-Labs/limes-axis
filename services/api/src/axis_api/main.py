@@ -28,6 +28,15 @@ from axis_api.audit_queries import (
     query_persisted_audit_events,
 )
 from axis_api.config import Settings
+from axis_api.connector_configurations import (
+    ConnectorConfigurationCreateRequest,
+    ConnectorConfigurationQuery,
+    ConnectorConfigurationValidationError,
+    ConnectorTenantConfiguration,
+    ManufacturingConnectorConfigurationRegistry,
+    build_connector_configuration_registry,
+    record_demo_connector_configuration,
+)
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorCsvPreviewResult,
@@ -339,6 +348,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_connector_registry() -> ManufacturingConnectorRegistry:
         return get_manufacturing_connector_registry()
+
+    @app.get(
+        "/demo/manufacturing/connectors/configurations",
+        response_model=ManufacturingConnectorConfigurationRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_configurations(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorConfigurationRegistry:
+        return build_connector_configuration_registry(
+            repository,
+            ConnectorConfigurationQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                status=status,
+                limit=limit,
+            ),
+        )
+
+    @app.post(
+        "/demo/manufacturing/connectors/configurations",
+        response_model=ConnectorTenantConfiguration,
+        responses={422: {"description": "Connector configuration validation failed"}},
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_connector_configuration_create(
+        configuration: ConnectorConfigurationCreateRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorTenantConfiguration:
+        try:
+            return record_demo_connector_configuration(repository, configuration)
+        except ConnectorConfigurationValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/connectors/file-csv/preview",

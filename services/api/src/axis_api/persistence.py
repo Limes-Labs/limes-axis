@@ -10,6 +10,7 @@ from axis_api.models import (
     ActionRun,
     ApprovalRecord,
     AuditEvent,
+    ConnectorConfiguration,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
     utc_now,
@@ -94,6 +95,19 @@ class WorkflowTimelineEventCreate(BaseModel):
     actor: str = Field(min_length=1)
     result: str = Field(min_length=1)
     summary: str = Field(min_length=1)
+
+
+class ConnectorConfigurationCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    status: str = Field(default="configured_preview_only", min_length=1)
+    sync_mode: str = Field(default="preview", min_length=1)
+    runtime_boundary: str = Field(default="axis-connector-sandbox", min_length=1)
+    created_by: str = Field(min_length=1)
+    configuration_payload: dict = Field(default_factory=dict)
+    credential_ref_ids: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
 
 
 class AxisPersistenceRepository:
@@ -321,4 +335,45 @@ class AxisPersistenceRepository:
             .order_by(WorkflowTimelineRecord.sequence.asc())
             .limit(limit)
         )
+        return list(self.session.scalars(statement))
+
+    def create_connector_configuration(
+        self,
+        record: ConnectorConfigurationCreate,
+    ) -> ConnectorConfiguration:
+        configuration = ConnectorConfiguration(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            display_name=record.display_name,
+            status=record.status,
+            sync_mode=record.sync_mode,
+            runtime_boundary=record.runtime_boundary,
+            created_by=record.created_by,
+            configuration_payload=record.configuration_payload,
+            credential_ref_ids=record.credential_ref_ids,
+            notes=record.notes,
+        )
+        self.session.add(configuration)
+        self.session.flush()
+        return configuration
+
+    def list_connector_configurations(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorConfiguration]:
+        statement: Select[tuple[ConnectorConfiguration]] = select(ConnectorConfiguration).where(
+            ConnectorConfiguration.tenant_id == tenant_id
+        )
+        if connector_id is not None:
+            statement = statement.where(ConnectorConfiguration.connector_id == connector_id)
+        if status is not None:
+            statement = statement.where(ConnectorConfiguration.status == status)
+
+        statement = statement.order_by(
+            ConnectorConfiguration.created_at.desc(),
+            ConnectorConfiguration.id.desc(),
+        ).limit(limit)
         return list(self.session.scalars(statement))
