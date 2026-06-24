@@ -13,6 +13,7 @@ connector surfaces.
 
 ```text
 GET /demo/manufacturing/operations
+GET /demo/manufacturing/operations/snapshot
 POST /demo/manufacturing/operations/daily-brief
 POST /demo/manufacturing/operations/risk-scenarios/quality
 POST /demo/manufacturing/operations/risk-scenarios/maintenance
@@ -74,10 +75,25 @@ Each scenario includes:
 - permission decision;
 - append-only audit event reference.
 
+The operations snapshot is read-only and stores no extra rows. It composes
+already persisted state from:
+
+- `manufacturing_operation_records`;
+- `manufacturing_daily_briefs`;
+- `manufacturing_risk_scenarios`;
+- `workflow_runs`;
+- `approval_records`;
+- `audit_events`.
+
 ## Boundaries
 
 This slice gives Axis a persisted operational dataset to query and compose into
-the reference demo. The daily plant brief endpoint creates a deterministic
+the reference demo. The snapshot endpoint returns domain rollups, latest daily
+briefs, generated risk scenarios, active workflows, pending approvals and
+recent audit evidence from existing persisted records. It does not generate new
+artifacts, execute workflow signals, run connectors or query source systems.
+
+The daily plant brief endpoint creates a deterministic
 summary from persisted operation records, writes
 `manufacturing.daily_brief.generated` audit evidence and enforces
 `briefs:generate`, `audit:read` and `workflows:read`.

@@ -424,6 +424,10 @@ Delivered:
   `/demo/manufacturing/operations` reading tenant-scoped production order,
   material lot, supplier posture, quality batch, machine status and maintenance
   window metadata through repository queries and server-side filters.
+- a read-only manufacturing operations snapshot at
+  `/demo/manufacturing/operations/snapshot`, composing persisted operation
+  records, generated daily briefs, risk scenarios, workflow runs, approval
+  records and recent audit evidence without writing new state.
 - persisted manufacturing daily briefs through `manufacturing_daily_briefs`,
   with `/demo/manufacturing/operations/daily-brief` generating deterministic
   summaries from operation records, enforcing brief/audit/workflow scopes,
