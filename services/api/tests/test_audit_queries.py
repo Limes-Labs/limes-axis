@@ -10,10 +10,14 @@ from axis_api.audit import AuditEventCreate
 from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportQuery,
+    AuditLegalHoldCreateRequest,
+    AuditLegalHoldReleaseRequest,
     AuditRetentionDeletionRequest,
+    create_audit_legal_hold,
     execute_audit_retention_deletion,
     export_persisted_audit_events,
     query_persisted_audit_events,
+    release_audit_legal_hold,
 )
 from axis_api.config import Settings
 from axis_api.db import session_scope
@@ -377,6 +381,108 @@ def test_audit_retention_deletion_blocks_physical_delete_under_legal_hold(
     assert len(events) == 2
 
 
+def test_audit_retention_deletion_blocks_matching_persisted_legal_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        hold = create_audit_legal_hold(
+            repository,
+            AuditLegalHoldCreateRequest(
+                tenant_id="tenant_demo_manufacturing",
+                hold_id="hold-quality-proposals",
+                actor_id="legal-ops-controller",
+                actor_scopes=["audit:legal_hold:write"],
+                reason="Litigation hold for quality proposal evidence.",
+                event_type="action.proposal.created",
+                approved_by="legal-reviewer-role",
+            ),
+        )
+        result = execute_audit_retention_deletion(
+            repository,
+            AuditRetentionDeletionRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="audit-retention-operator",
+                actor_scopes=["audit:retention:delete"],
+                retention_days=30,
+                dry_run=False,
+                event_type="action.proposal.created",
+            ),
+        )
+
+    with session_factory() as session:
+        events = list(session.scalars(select(AuditEvent)))
+
+    assert hold.status == "active"
+    assert hold.audit_event_type == "audit.legal_hold.activated"
+    assert result.status == "blocked_legal_hold"
+    assert result.legal_hold is True
+    assert result.candidate_count == 1
+    assert result.deleted_count == 0
+    assert any("hold-quality-proposals" in note for note in result.notes)
+    assert {event.event_type for event in events} == {
+        "approval.decision.recorded",
+        "action.proposal.created",
+        "audit.legal_hold.activated",
+    }
+
+
+def test_audit_retention_deletion_executes_after_persisted_legal_hold_release(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        create_audit_legal_hold(
+            repository,
+            AuditLegalHoldCreateRequest(
+                tenant_id="tenant_demo_manufacturing",
+                hold_id="hold-release-quality-proposals",
+                actor_id="legal-ops-controller",
+                actor_scopes=["audit:legal_hold:write"],
+                reason="Temporary legal hold for quality proposal evidence.",
+                event_type="action.proposal.created",
+                approved_by="legal-reviewer-role",
+            ),
+        )
+        release = release_audit_legal_hold(
+            repository,
+            AuditLegalHoldReleaseRequest(
+                tenant_id="tenant_demo_manufacturing",
+                hold_id="hold-release-quality-proposals",
+                actor_id="legal-ops-controller",
+                actor_scopes=["audit:legal_hold:write"],
+                release_reason="Legal review completed.",
+            ),
+        )
+        result = execute_audit_retention_deletion(
+            repository,
+            AuditRetentionDeletionRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="audit-retention-operator",
+                actor_scopes=["audit:retention:delete"],
+                retention_days=30,
+                dry_run=False,
+                event_type="action.proposal.created",
+            ),
+        )
+
+    with session_factory() as session:
+        events = list(session.scalars(select(AuditEvent)))
+
+    assert release.status == "released"
+    assert release.release_audit_event_type == "audit.legal_hold.released"
+    assert result.status == "executed"
+    assert result.deleted_count == 1
+    assert {event.event_type for event in events} == {
+        "approval.decision.recorded",
+        "audit.legal_hold.activated",
+        "audit.legal_hold.released",
+        "audit.retention_deletion.executed",
+    }
+
+
 def test_audit_retention_deletion_removes_only_expired_tenant_events_and_records_evidence(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -478,6 +584,89 @@ def test_audit_retention_deletion_endpoint_executes_dry_run(
     assert body["status"] == "dry_run"
     assert body["candidate_count"] == 1
     assert body["deleted_count"] == 0
+
+
+def test_audit_legal_hold_endpoint_creates_lists_and_releases_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/demo/manufacturing/audit/legal-holds",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-api-quality-proposals",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "reason": "Regulatory review hold.",
+            "event_type": "action.proposal.created",
+            "approved_by": "legal-reviewer-role",
+        },
+    )
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["status"] == "active"
+    assert created["audit_event_type"] == "audit.legal_hold.activated"
+
+    list_response = client.get(
+        "/demo/manufacturing/audit/legal-holds",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+    assert list_response.status_code == 200
+    assert [hold["hold_id"] for hold in list_response.json()] == [
+        "hold-api-quality-proposals"
+    ]
+
+    release_response = client.post(
+        "/demo/manufacturing/audit/legal-holds/hold-api-quality-proposals/release",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-api-quality-proposals",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "release_reason": "Regulatory review completed.",
+        },
+    )
+
+    assert release_response.status_code == 200
+    released = release_response.json()
+    assert released["status"] == "released"
+    assert released["release_audit_event_type"] == "audit.legal_hold.released"
+
+    active_response = client.get(
+        "/demo/manufacturing/audit/legal-holds",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+    assert active_response.status_code == 200
+    assert active_response.json() == []
+
+
+def test_audit_legal_hold_endpoint_denies_missing_write_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/legal-holds",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-denied",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:read"],
+            "reason": "Regulatory review hold.",
+            "approved_by": "legal-reviewer-role",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permissions"] == [
+        "audit:legal_hold:write"
+    ]
 
 
 def test_export_persisted_audit_events_includes_hash_chain_integrity_proof(

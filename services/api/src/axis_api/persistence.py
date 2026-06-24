@@ -10,6 +10,7 @@ from axis_api.models import (
     ActionRun,
     ApprovalRecord,
     AuditEvent,
+    AuditLegalHold,
     ConnectorConfiguration,
     ConnectorCredentialHandle,
     ConnectorCredentialLease,
@@ -74,6 +75,26 @@ class ActionRunResultRecord(BaseModel):
     action_run_id: UUID
     status: str = Field(min_length=1)
     result_payload: dict = Field(default_factory=dict)
+
+
+class AuditLegalHoldCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    hold_id: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    approved_by: str = Field(min_length=1)
+    event_type: str | None = Field(default=None, min_length=1)
+    actor_id: str | None = Field(default=None, min_length=1)
+    audit_event_id: UUID | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class AuditLegalHoldRelease(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    hold_id: str = Field(min_length=1)
+    released_by: str = Field(min_length=1)
+    release_reason: str = Field(min_length=1)
+    release_audit_event_id: UUID | None = None
 
 
 class DemoReferenceRecordCreate(BaseModel):
@@ -599,6 +620,69 @@ class AxisPersistenceRepository:
             deleted_count += 1
         self.session.flush()
         return deleted_count
+
+    def create_audit_legal_hold(
+        self,
+        record: AuditLegalHoldCreate,
+    ) -> AuditLegalHold:
+        legal_hold = AuditLegalHold(
+            tenant_id=record.tenant_id,
+            hold_id=record.hold_id,
+            status="active",
+            reason=record.reason,
+            event_type=record.event_type,
+            actor_id=record.actor_id,
+            requested_by=record.requested_by,
+            approved_by=record.approved_by,
+            audit_event_id=record.audit_event_id,
+            notes=record.notes,
+        )
+        self.session.add(legal_hold)
+        self.session.flush()
+        return legal_hold
+
+    def get_audit_legal_hold(
+        self,
+        tenant_id: str,
+        hold_id: str,
+    ) -> AuditLegalHold | None:
+        statement = select(AuditLegalHold).where(
+            AuditLegalHold.tenant_id == tenant_id,
+            AuditLegalHold.hold_id == hold_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_active_audit_legal_holds(
+        self,
+        tenant_id: str,
+    ) -> list[AuditLegalHold]:
+        statement: Select[tuple[AuditLegalHold]] = (
+            select(AuditLegalHold)
+            .where(
+                AuditLegalHold.tenant_id == tenant_id,
+                AuditLegalHold.status == "active",
+            )
+            .order_by(AuditLegalHold.created_at.asc(), AuditLegalHold.id.asc())
+        )
+        return list(self.session.scalars(statement))
+
+    def release_audit_legal_hold(
+        self,
+        record: AuditLegalHoldRelease,
+    ) -> AuditLegalHold:
+        legal_hold = self.get_audit_legal_hold(record.tenant_id, record.hold_id)
+        if legal_hold is None:
+            raise PersistenceRecordNotFound("Audit legal hold record not found")
+
+        now = utc_now()
+        legal_hold.status = "released"
+        legal_hold.released_by = record.released_by
+        legal_hold.release_reason = record.release_reason
+        legal_hold.release_audit_event_id = record.release_audit_event_id
+        legal_hold.released_at = now
+        legal_hold.updated_at = now
+        self.session.flush()
+        return legal_hold
 
     def create_approval_record(self, record: ApprovalRecordCreate) -> ApprovalRecord:
         approval = ApprovalRecord(

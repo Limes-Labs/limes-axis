@@ -48,6 +48,36 @@ class AuditEvent(Base):
     )
 
 
+class AuditLegalHold(Base):
+    __tablename__ = "audit_legal_holds"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    hold_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(String(600), nullable=False)
+    event_type: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    actor_id: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    approved_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    released_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    release_reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    release_audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "hold_id", name="uq_audit_legal_holds_tenant_hold"),
+    )
+
+
 class ApprovalRecord(Base):
     __tablename__ = "approval_records"
 
