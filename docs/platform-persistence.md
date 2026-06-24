@@ -259,6 +259,9 @@ Delivered:
 - redacted audit export bundles with manifest checksum, applied filters and
   retention-window enforcement, legal-hold bypass metadata and hash-chain
   integrity proof.
+- permission-gated physical audit retention deletion for eligible
+  tenant-scoped `audit_events`, with dry-run support, legal-hold blocking and
+  redacted `audit.retention_deletion.executed` evidence.
 - replay/simulation preview artifacts derived from `workflow_runs`,
   `workflow_timeline_events` and redacted `audit_events`, including governed
   connector policy-set version diff previews.
@@ -448,6 +451,6 @@ Still Platform work:
   ontology-scope checks;
 - WORM/KMS-backed immutable storage hardening beyond insert-only repository
   shape and export hash-chain proof;
-- physical retention deletion jobs and legal hold workflows;
-- deterministic Temporal replay and physical retention deletion jobs for
-  simulation outputs.
+- production-grade legal hold workflows and WORM retention policy integration;
+- deterministic Temporal replay and retention deletion jobs for simulation
+  outputs.

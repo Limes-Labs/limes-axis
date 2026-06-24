@@ -114,7 +114,7 @@ Future Platform work should connect this contract to:
 
 - Temporal deterministic replay;
 - arbitrary policy comparison over historical events;
-- physical retention deletion jobs and production legal-hold workflows.
+- replay-output retention deletion jobs and production legal-hold workflows.
 
 ## Verification
 

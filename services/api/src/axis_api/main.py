@@ -39,6 +39,10 @@ from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportBundle,
     AuditExportQuery,
+    AuditRetentionDeletionPermissionDenied,
+    AuditRetentionDeletionRequest,
+    AuditRetentionDeletionResult,
+    execute_audit_retention_deletion,
     export_persisted_audit_events,
     query_persisted_audit_events,
 )
@@ -2947,6 +2951,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 format=format,
             ),
         )
+
+    @app.post(
+        "/demo/manufacturing/audit/retention/delete",
+        response_model=AuditRetentionDeletionResult,
+        responses={403: {"description": "Audit retention deletion permission denied"}},
+        tags=["demo"],
+    )
+    def manufacturing_audit_retention_delete(
+        deletion_request: AuditRetentionDeletionRequest,
+        repository: PersistenceRepository,
+    ) -> AuditRetentionDeletionResult:
+        try:
+            return execute_audit_retention_deletion(repository, deletion_request)
+        except AuditRetentionDeletionPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot execute audit retention deletion.",
+                    "required_permissions": ["audit:retention:delete"],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/model-routing",

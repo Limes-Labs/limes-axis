@@ -2,9 +2,11 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.audit import AuditEventCreate
 from axis_api.demo import (
     AuditFilterOptions,
     AuditLedgerEvent,
@@ -13,7 +15,11 @@ from axis_api.demo import (
     OverviewStatus,
 )
 from axis_api.models import AuditEvent
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
+
+RETENTION_DELETION_REQUIRED_SCOPE = "audit:retention:delete"
+RETENTION_DELETION_EVENT_TYPE = "audit.retention_deletion.executed"
 
 
 class AuditEventQuery(BaseModel):
@@ -75,6 +81,42 @@ class AuditExportBundle(BaseModel):
     integrity_proof: AuditIntegrityProof
     events: list[AuditLedgerEvent] = Field(default_factory=list)
     retention_notes: list[str] = Field(default_factory=list)
+
+
+class AuditRetentionDeletionRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    actor_id: str = Field(min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
+    retention_days: int = Field(default=365, ge=30, le=3650)
+    legal_hold: bool = False
+    dry_run: bool = True
+    event_type: str | None = Field(default=None, min_length=1)
+    actor_filter: str | None = Field(default=None, min_length=1)
+    limit: int = Field(default=100, ge=1, le=1000)
+    reason: str = Field(default="retention-deletion", min_length=1, max_length=160)
+
+
+class AuditRetentionDeletionResult(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    retention_days: int = Field(ge=1)
+    cutoff: str = Field(min_length=1)
+    dry_run: bool
+    legal_hold: bool
+    status: str = Field(min_length=1)
+    candidate_count: int = Field(ge=0)
+    deleted_count: int = Field(ge=0)
+    retained_count: int = Field(ge=0)
+    deleted_event_hashes: list[str] = Field(default_factory=list)
+    permission_decision: PermissionDecision
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class AuditRetentionDeletionPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
 
 
 def _string_value(value: Any) -> str:
@@ -438,5 +480,143 @@ def export_persisted_audit_events(
             "Manifest checksum covers the exported event payload previews and metadata.",
             retention_summary,
             "Integrity proof links exported records with a deterministic SHA-256 hash chain.",
+        ],
+    )
+
+
+def _retention_cutoff(retention_days: int) -> datetime:
+    return datetime.now(UTC) - timedelta(days=retention_days)
+
+
+def _event_deletion_hash(event: AuditEvent) -> str:
+    payload = {
+        "id": str(event.id),
+        "tenant_id": event.tenant_id,
+        "actor_id": event.actor_id,
+        "event_type": event.event_type,
+        "created_at": event.created_at.astimezone(UTC).isoformat()
+        if event.created_at.tzinfo is not None
+        else event.created_at.replace(tzinfo=UTC).isoformat(),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _evaluate_retention_deletion_permission(
+    request: AuditRetentionDeletionRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[RETENTION_DELETION_REQUIRED_SCOPE],
+            attributes={
+                "operation": "audit.retention_deletion.execute",
+                "retention_days": request.retention_days,
+                "dry_run": request.dry_run,
+                "legal_hold": request.legal_hold,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise AuditRetentionDeletionPermissionDenied(decision)
+    return decision
+
+
+def execute_audit_retention_deletion(
+    repository: AxisPersistenceRepository,
+    request: AuditRetentionDeletionRequest,
+) -> AuditRetentionDeletionResult:
+    decision = _evaluate_retention_deletion_permission(request)
+    cutoff = _retention_cutoff(request.retention_days)
+    candidates = repository.list_audit_events_before(
+        tenant_id=request.tenant_id,
+        cutoff=cutoff,
+        event_type=request.event_type,
+        actor_id=request.actor_filter,
+        limit=request.limit,
+    )
+    candidate_hashes = [_event_deletion_hash(event) for event in candidates]
+
+    if request.legal_hold:
+        return AuditRetentionDeletionResult(
+            tenant_id=request.tenant_id,
+            retention_days=request.retention_days,
+            cutoff=cutoff.isoformat(),
+            dry_run=request.dry_run,
+            legal_hold=True,
+            status="blocked_legal_hold",
+            candidate_count=len(candidates),
+            deleted_count=0,
+            retained_count=len(candidates),
+            deleted_event_hashes=[],
+            permission_decision=decision,
+            notes=[
+                "Legal hold is active; physical retention deletion is blocked.",
+                "Candidate records were counted but no rows were deleted.",
+            ],
+        )
+
+    if request.dry_run:
+        return AuditRetentionDeletionResult(
+            tenant_id=request.tenant_id,
+            retention_days=request.retention_days,
+            cutoff=cutoff.isoformat(),
+            dry_run=True,
+            legal_hold=False,
+            status="dry_run",
+            candidate_count=len(candidates),
+            deleted_count=0,
+            retained_count=len(candidates),
+            deleted_event_hashes=[],
+            permission_decision=decision,
+            notes=[
+                "Dry run completed; no audit rows were deleted.",
+                "Run with dry_run=false to execute physical retention deletion.",
+            ],
+        )
+
+    deleted_count = repository.delete_audit_events(candidates)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=RETENTION_DELETION_EVENT_TYPE,
+            payload={
+                "category": "audit",
+                "status": "executed",
+                "reason": request.reason,
+                "retention_days": request.retention_days,
+                "cutoff": cutoff.isoformat(),
+                "candidate_count": len(candidates),
+                "deleted_count": deleted_count,
+                "event_type_filter": request.event_type,
+                "actor_filter": request.actor_filter,
+                "deleted_event_hashes": candidate_hashes,
+                "permission_decision": decision.model_dump(),
+                "raw_payload_exported": False,
+            },
+        )
+    )
+    return AuditRetentionDeletionResult(
+        tenant_id=request.tenant_id,
+        retention_days=request.retention_days,
+        cutoff=cutoff.isoformat(),
+        dry_run=False,
+        legal_hold=False,
+        status="executed",
+        candidate_count=len(candidates),
+        deleted_count=deleted_count,
+        retained_count=0,
+        deleted_event_hashes=candidate_hashes,
+        permission_decision=decision,
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
+        notes=[
+            "Physical retention deletion executed for eligible tenant-scoped audit rows.",
+            "Deletion evidence stores event hashes, counts and filters, not raw payloads.",
+            "Retention deletion evidence events are excluded from future candidate scans.",
         ],
     )

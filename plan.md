@@ -96,6 +96,8 @@ Foundation acceptance is tracked in
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
+- [x] Add permission-gated physical audit retention deletion with dry-run,
+  legal-hold blocking and redacted deletion evidence.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [x] Persist replay simulation outputs as governed audit artifacts.
@@ -308,8 +310,12 @@ persisted tenant-scoped bootstrap row, and it can query persisted
 carries audit fallback records. The demo API can also return a redacted JSON
 export bundle with manifest checksum, applied filters, retention-window
 enforcement and hash-chain integrity proof.
-Retention deletion execution, legal hold workflow and production-grade
-tenant-scoped query permissions remain Platform work.
+`POST /demo/manufacturing/audit/retention/delete` adds a permission-gated
+physical retention deletion execution path for tenant-scoped audit rows. It
+supports dry-run, blocks deletion under legal hold and writes
+`audit.retention_deletion.executed` evidence with counts and hashes rather than
+raw payloads. Production-grade legal hold workflow and tenant-scoped query
+permissions remain Platform work.
 
 The replay/simulation foundation consumes API replay artifacts from workflow
 run history, timeline events and redacted audit evidence. The `/simulation`
@@ -321,7 +327,7 @@ metadata and idempotency protection. Replay responses now enforce
 retention-aware query windows across timeline, audit and persisted output
 records, with a legal-hold bypass for governance review. The browser no longer
 constructs replay artifacts from local workflow or audit defaults. Temporal
-deterministic replay, arbitrary policy diffing, physical deletion jobs and
+deterministic replay, arbitrary policy diffing, replay-output deletion jobs and
 production legal hold workflows remain Platform and Enterprise work.
 
 The connector foundation exposes a public-safe manifest registry, a

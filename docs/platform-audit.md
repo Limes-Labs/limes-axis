@@ -15,6 +15,7 @@ workflow replay are complete.
 GET /demo/manufacturing/audit
 GET /demo/manufacturing/audit/events
 GET /demo/manufacturing/audit/export
+POST /demo/manufacturing/audit/retention/delete
 ```
 
 The reference endpoint returns a typed audit explorer for the demo tenant. It
@@ -51,6 +52,14 @@ JSON bundle:
 - retention notes that identify enforced behavior and future production
   hardening boundaries.
 
+The retention delete endpoint accepts a typed request with tenant, actor,
+scopes, retention days, dry-run mode and legal-hold flag. It requires
+`audit:retention:delete`. Dry runs count candidates without deleting rows.
+Legal hold blocks deletion. Executed runs physically delete eligible
+tenant-scoped `audit_events` rows older than the retention cutoff and append a
+fresh `audit.retention_deletion.executed` evidence event containing counts,
+filters and SHA-256 hashes of deleted records, not raw payloads.
+
 ## Console Behavior
 
 The `/audit` page first loads persisted events from
@@ -72,8 +81,9 @@ This slice demonstrates the audit contract and explorer surface. Alembic
 migration `0028_audit_explorer_reference` inserts the public-safe reference
 explorer payload. The API runtime no longer defines an audit explorer seed
 factory; tests validate the bootstrap payload directly from the migration. It
-does not yet implement physical retention deletion jobs, legal hold workflow,
-WORM/KMS storage hardening or deterministic Temporal replay.
+implements a first physical retention deletion execution path with dry-run and
+legal-hold safeguards. It does not yet implement production-grade legal hold
+workflow, WORM/KMS storage hardening or deterministic Temporal replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
@@ -81,14 +91,15 @@ decisions and action run requests now append audit events, and the public audit
 explorer can query and export redacted bundles for those persisted records.
 Export bundles enforce the requested retention window before records enter the
 bundle unless legal hold is active, and every bundle includes a deterministic
-SHA-256 hash-chain integrity proof. Production query permissions, physical
-deletion jobs, legal hold workflows and WORM/KMS storage hardening remain
-future work.
+SHA-256 hash-chain integrity proof. Retention deletion can physically remove
+eligible audit rows with audit evidence, while legal hold blocks execution.
+Production query permissions, production-grade legal hold workflows and WORM/KMS
+storage hardening remain future work.
 
 Future Platform work should connect this contract to:
 
 - tenant-scoped query permissions;
-- physical retention deletion jobs and legal hold workflows;
+- production-grade legal hold workflows;
 - WORM/KMS-backed ledger signing;
 - evidence bundles for security and operations reviews.
 
@@ -97,7 +108,8 @@ read-only replay preview artifacts and governed policy-set version diff
 previews. Persisted simulation outputs now write
 `simulation.replay_output.persisted` evidence. Replay simulation responses now
 enforce retention-aware query windows and expose excluded record counts; physical
-deletion jobs and production legal-hold workflows remain future work.
+deletion for replay outputs and production legal-hold workflows remain future
+work.
 
 ## Verification
 
@@ -108,6 +120,8 @@ The slice is covered by:
 - API unit tests for persisted audit event query mapping and filters;
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;
+- API unit tests for physical retention deletion dry-run, legal-hold blocking,
+  tenant isolation and redacted deletion evidence;
 - OpenAPI schema export/check;
 - web unit tests for filtering, export metadata and integrity fields with local
   test fixtures only;
