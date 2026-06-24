@@ -16,6 +16,7 @@ GET /demo/manufacturing/operations
 POST /demo/manufacturing/operations/daily-brief
 POST /demo/manufacturing/operations/risk-scenarios/quality
 POST /demo/manufacturing/operations/risk-scenarios/maintenance
+POST /demo/manufacturing/operations/risk-scenarios/supplier-delay
 ```
 
 Query parameters:
@@ -96,3 +97,9 @@ persisted `domain=Maintenance` operation records, writes
 `manufacturing.risk_scenario.generated` audit evidence and enforces
 `maintenance:read`, `workflows:read` and `audit:read`. It does not mutate CMMS
 or MES work orders, approve dispatch changes or call a model provider.
+
+The supplier delay scenario endpoint creates a deterministic scenario from
+persisted `domain=Supply` operation records, writes
+`manufacturing.risk_scenario.generated` audit evidence and enforces
+`supply:read`, `workflows:read` and `audit:read`. It does not mutate Supplier
+Portal or ERP records, approve expedite actions or call a model provider.

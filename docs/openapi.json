@@ -9670,6 +9670,163 @@
         "title": "RiskSignal",
         "type": "object"
       },
+      "SupplierDelayScenarioRecord": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "risk_level": {
+            "minLength": 1,
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "scenario_id": {
+            "minLength": 1,
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_payload": {
+            "additionalProperties": true,
+            "title": "Scenario Payload",
+            "type": "object"
+          },
+          "source_record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Record Ids",
+            "type": "array"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Workflow Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "scenario_id",
+          "idempotency_key",
+          "domain",
+          "status",
+          "risk_level",
+          "requested_by",
+          "owner_role",
+          "workflow_ids",
+          "source_record_ids",
+          "scenario_payload",
+          "permission_decision",
+          "audit_event_type"
+        ],
+        "title": "SupplierDelayScenarioRecord",
+        "type": "object"
+      },
+      "SupplierDelayScenarioRequest": {
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "maxLength": 220,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "requested_by": {
+            "default": "agent_supplier_delay",
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "source_record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Record Ids",
+            "type": "array"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "title": "SupplierDelayScenarioRequest",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -12973,6 +13130,46 @@
           }
         },
         "summary": "Manufacturing Quality Risk Scenario",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/operations/risk-scenarios/supplier-delay": {
+      "post": {
+        "operationId": "manufacturing_supplier_delay_scenario_demo_manufacturing_operations_risk_scenarios_supplier_delay_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierDelayScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDelayScenarioRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Supplier delay scenario permission denied"
+          },
+          "409": {
+            "description": "Supplier delay scenario idempotency conflict"
+          },
+          "422": {
+            "description": "Supplier delay scenario validation failed"
+          }
+        },
+        "summary": "Manufacturing Supplier Delay Scenario",
         "tags": [
           "demo"
         ]

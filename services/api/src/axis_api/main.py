@@ -249,9 +249,15 @@ from axis_api.manufacturing_operations import (
     QualityRiskScenarioRecord,
     QualityRiskScenarioRequest,
     QualityRiskScenarioValidationError,
+    SupplierDelayScenarioIdempotencyConflict,
+    SupplierDelayScenarioPermissionDenied,
+    SupplierDelayScenarioRecord,
+    SupplierDelayScenarioRequest,
+    SupplierDelayScenarioValidationError,
     generate_daily_plant_brief,
     generate_maintenance_risk_scenario,
     generate_quality_risk_scenario,
+    generate_supplier_delay_scenario,
     query_manufacturing_operations_dataset,
 )
 from axis_api.model_routing_reference import (
@@ -1123,6 +1129,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
         except MaintenanceRiskScenarioValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @app.post(
+        "/demo/manufacturing/operations/risk-scenarios/supplier-delay",
+        response_model=SupplierDelayScenarioRecord,
+        responses={
+            403: {"description": "Supplier delay scenario permission denied"},
+            409: {"description": "Supplier delay scenario idempotency conflict"},
+            422: {"description": "Supplier delay scenario validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_supplier_delay_scenario(
+        scenario_request: SupplierDelayScenarioRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> SupplierDelayScenarioRecord:
+        try:
+            result = generate_supplier_delay_scenario(repository, scenario_request)
+        except SupplierDelayScenarioPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot generate a supplier delay scenario.",
+                    "required_permissions": [
+                        "supply:read",
+                        "workflows:read",
+                        "audit:read",
+                    ],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except SupplierDelayScenarioIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The supplier delay scenario idempotency key conflicts.",
+                    "scenario_id": exc.scenario_id,
+                },
+            ) from exc
+        except SupplierDelayScenarioValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={
