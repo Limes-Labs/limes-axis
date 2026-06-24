@@ -426,6 +426,13 @@ Delivered:
   records, enforcing maintenance/workflow/audit scopes, writing append-only
   `manufacturing.risk_scenario.generated` audit evidence and returning
   idempotent replays for duplicate requests.
+- persisted supplier delay scenarios through the same
+  `manufacturing_risk_scenarios` table, with
+  `/demo/manufacturing/operations/risk-scenarios/supplier-delay` generating a
+  deterministic supply risk artifact from persisted Supply operation records,
+  enforcing supply/workflow/audit scopes, writing append-only
+  `manufacturing.risk_scenario.generated` audit evidence and returning
+  idempotent replays for duplicate requests.
 
 Still Platform work:
 

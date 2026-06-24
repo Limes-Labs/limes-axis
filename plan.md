@@ -174,6 +174,8 @@ Foundation acceptance is tracked in
   Quality operation records with idempotency and permission checks.
 - [x] Add an audit-backed maintenance risk scenario generated from persisted
   Maintenance operation records with idempotency and permission checks.
+- [x] Add an audit-backed supplier delay scenario generated from persisted
+  Supply operation records with idempotency and permission checks.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -257,6 +259,12 @@ enforces `maintenance:read`, `workflows:read` and `audit:read`, writes
 `manufacturing.risk_scenario.generated` audit evidence and returns idempotent
 replays for duplicate requests. The scenario generator does not mutate CMMS/MES
 work orders, approve dispatch changes or call a model provider.
+`POST /demo/manufacturing/operations/risk-scenarios/supplier-delay` creates a
+persisted supplier delay scenario from `domain=Supply` operation records,
+enforces `supply:read`, `workflows:read` and `audit:read`, writes
+`manufacturing.risk_scenario.generated` audit evidence and returns idempotent
+replays for duplicate requests. The scenario generator does not mutate Supplier
+Portal or ERP records, approve expedite actions or call a model provider.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;

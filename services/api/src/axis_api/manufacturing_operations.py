@@ -25,6 +25,7 @@ MAINTENANCE_RISK_REQUIRED_SCOPES = [
     "workflows:read",
     "audit:read",
 ]
+SUPPLIER_DELAY_REQUIRED_SCOPES = ["supply:read", "workflows:read", "audit:read"]
 
 
 class DailyPlantBriefPermissionDenied(PermissionError):
@@ -79,6 +80,25 @@ class MaintenanceRiskScenarioValidationError(ValueError):
 
 
 class MaintenanceRiskScenarioIdempotencyConflict(ValueError):
+    def __init__(self, scenario_id: str) -> None:
+        super().__init__("Idempotency key already exists with a different request")
+        self.scenario_id = scenario_id
+
+
+class SupplierDelayScenarioPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+class SupplierDelayScenarioValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class SupplierDelayScenarioIdempotencyConflict(ValueError):
     def __init__(self, scenario_id: str) -> None:
         super().__init__("Idempotency key already exists with a different request")
         self.scenario_id = scenario_id
@@ -148,6 +168,15 @@ class MaintenanceRiskScenarioRequest(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
+class SupplierDelayScenarioRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    requested_by: str = Field(default="agent_supplier_delay", min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=220)
+    source_record_ids: list[str] = Field(default_factory=list)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
 class DailyPlantBriefRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     brief_id: str = Field(min_length=1)
@@ -183,6 +212,10 @@ class QualityRiskScenarioRecord(BaseModel):
 
 
 class MaintenanceRiskScenarioRecord(QualityRiskScenarioRecord):
+    pass
+
+
+class SupplierDelayScenarioRecord(QualityRiskScenarioRecord):
     pass
 
 
@@ -913,3 +946,211 @@ def generate_maintenance_risk_scenario(
     )
     record = _risk_scenario_to_public(scenario, idempotent_replay=False)
     return MaintenanceRiskScenarioRecord.model_validate(record.model_dump())
+
+
+def _supplier_delay_idempotency_key(request: SupplierDelayScenarioRequest) -> str:
+    if request.idempotency_key is not None:
+        return request.idempotency_key
+    return f"{request.tenant_id}:supplier-delay-scenario:{request.requested_by}"
+
+
+def _supplier_delay_request_fingerprint(request: SupplierDelayScenarioRequest) -> dict:
+    return {
+        "domain": "Supply",
+        "requested_by": request.requested_by,
+        "source_record_ids": sorted(request.source_record_ids),
+        "limit": request.limit,
+    }
+
+
+def _evaluate_supplier_delay_permission(
+    request: SupplierDelayScenarioRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=SUPPLIER_DELAY_REQUIRED_SCOPES,
+            relationship_scopes=[],
+            attributes={
+                "domain": "Supply",
+                "source_record_ids": request.source_record_ids,
+                "operation": "manufacturing.supplier_delay_scenario.generate",
+            },
+        )
+    )
+    if not decision.allowed:
+        raise SupplierDelayScenarioPermissionDenied(decision)
+    return decision
+
+
+def _select_supplier_delay_records(
+    repository: AxisPersistenceRepository,
+    request: SupplierDelayScenarioRequest,
+) -> list[ManufacturingOperationRecordView]:
+    records = [
+        _operation_record_to_public(record)
+        for record in repository.list_manufacturing_operation_records(
+            tenant_id=request.tenant_id,
+            domain="Supply",
+            limit=request.limit,
+        )
+    ]
+    if request.source_record_ids:
+        requested = set(request.source_record_ids)
+        records = [record for record in records if record.record_id in requested]
+        found = {record.record_id for record in records}
+        missing = sorted(requested - found)
+        if missing:
+            raise SupplierDelayScenarioValidationError(
+                "Supplier delay scenario source records were not found.",
+                f"missing_source_records:{','.join(missing)}",
+            )
+
+    if not records:
+        raise SupplierDelayScenarioValidationError(
+            "Supplier delay scenario requires at least one persisted supply "
+            "operation record.",
+            "no_supply_operation_records",
+        )
+    return records
+
+
+def _supplier_delay_payload(
+    *,
+    request: SupplierDelayScenarioRequest,
+    records: list[ManufacturingOperationRecordView],
+    risk_level: str,
+) -> dict:
+    workflow_ids = sorted({record.workflow_id for record in records if record.workflow_id})
+    evidence_refs = sorted({ref for record in records for ref in record.evidence_refs})
+    assets = sorted({record.related_asset for record in records if record.related_asset})
+    owner_roles = sorted({record.owner_role for record in records})
+    suppliers = sorted(
+        {
+            supplier
+            for record in records
+            if (supplier := record.payload.get("supplier")) is not None
+        }
+    )
+    delay_hours = [
+        hours
+        for record in records
+        if isinstance((hours := record.payload.get("delay_hours")), int | float)
+    ]
+    return {
+        "request": _supplier_delay_request_fingerprint(request),
+        "headline": (
+            f"Supplier delay scenario is {risk_level} across {len(records)} "
+            "persisted supply records."
+        ),
+        "domain": "Supply",
+        "risk_level": risk_level,
+        "owner_roles": owner_roles,
+        "related_assets": assets,
+        "suppliers": suppliers,
+        "max_delay_hours": max(delay_hours) if delay_hours else None,
+        "workflow_ids": workflow_ids,
+        "recommended_controls": [
+            "Keep supply planning owner review before expedite commitment.",
+            "Cite Supplier Portal and ERP evidence before purchase-order mutation.",
+            "Coordinate production schedule impact through workflow approval.",
+        ],
+        "cited_evidence": evidence_refs,
+        "source_records": [
+            {
+                "record_id": record.record_id,
+                "record_type": record.record_type,
+                "status": record.status,
+                "risk_level": record.risk_level,
+                "owner_role": record.owner_role,
+                "related_asset": record.related_asset,
+                "workflow_id": record.workflow_id,
+                "source_system": record.source_system,
+                "occurred_at": record.occurred_at,
+            }
+            for record in records
+        ],
+        "generation_boundary": "deterministic_persisted_supply_records",
+        "notes": [
+            "Generated from persisted tenant-scoped supply operation records.",
+            "No Supplier Portal, ERP, model provider or approval mutation is performed.",
+        ],
+    }
+
+
+def _supplier_delay_scenario_id(
+    request: SupplierDelayScenarioRequest,
+    source_record_ids: list[str],
+) -> str:
+    digest = sha256(
+        "|".join([request.tenant_id, "supplier-delay", *sorted(source_record_ids)]).encode()
+    ).hexdigest()[:12]
+    return f"supplier_delay_{digest}"
+
+
+def generate_supplier_delay_scenario(
+    repository: AxisPersistenceRepository,
+    request: SupplierDelayScenarioRequest,
+) -> SupplierDelayScenarioRecord:
+    idempotency_key = _supplier_delay_idempotency_key(request)
+    decision = _evaluate_supplier_delay_permission(request)
+    existing = repository.get_manufacturing_risk_scenario_by_idempotency_key(
+        request.tenant_id,
+        idempotency_key,
+    )
+    if existing is not None:
+        fingerprint = _supplier_delay_request_fingerprint(request)
+        if existing.domain != "Supply" or existing.scenario_payload.get(
+            "request"
+        ) != fingerprint:
+            raise SupplierDelayScenarioIdempotencyConflict(existing.scenario_id)
+        replay = _risk_scenario_to_public(existing, idempotent_replay=True)
+        return SupplierDelayScenarioRecord.model_validate(replay.model_dump())
+
+    records = _select_supplier_delay_records(repository, request)
+    source_record_ids = [record.record_id for record in records]
+    risk_level = _operation_risk_level(records)
+    scenario_id = _supplier_delay_scenario_id(request, source_record_ids)
+    scenario_payload = _supplier_delay_payload(
+        request=request,
+        records=records,
+        risk_level=risk_level,
+    )
+    workflow_ids = sorted({record.workflow_id for record in records if record.workflow_id})
+    owner_roles = sorted({record.owner_role for record in records})
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type="manufacturing.risk_scenario.generated",
+            payload={
+                "scenario_id": scenario_id,
+                "domain": "Supply",
+                "risk_level": risk_level,
+                "source_record_ids": source_record_ids,
+                "workflow_ids": workflow_ids,
+                "required_scopes": SUPPLIER_DELAY_REQUIRED_SCOPES,
+                "permission_decision": decision.model_dump(),
+            },
+        )
+    )
+    scenario = repository.create_manufacturing_risk_scenario(
+        ManufacturingRiskScenarioCreate(
+            tenant_id=request.tenant_id,
+            scenario_id=scenario_id,
+            idempotency_key=idempotency_key,
+            domain="Supply",
+            risk_level=risk_level,
+            requested_by=request.requested_by,
+            owner_role=owner_roles[0] if owner_roles else "supply-planning-owner",
+            workflow_ids=workflow_ids,
+            source_record_ids=source_record_ids,
+            scenario_payload=scenario_payload,
+            permission_decision=decision.model_dump(),
+            audit_event_id=audit_event.id,
+        )
+    )
+    record = _risk_scenario_to_public(scenario, idempotent_replay=False)
+    return SupplierDelayScenarioRecord.model_validate(record.model_dump())
