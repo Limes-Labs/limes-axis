@@ -466,9 +466,30 @@ export function AuditExplorer() {
               </p>
               <p className="row-detail">{auditExport.integrity_proof.algorithm}</p>
             </div>
+            <div>
+              <p className="metric-label">Ledger Signature</p>
+              <p className="row-title">
+                {auditExport.ledger_signature.verification_status}
+              </p>
+              <p className="row-detail">
+                {auditExport.ledger_signature.key_id ?? auditExport.ledger_signature.signing_mode}
+              </p>
+            </div>
+            <div>
+              <p className="metric-label">Signature Proof</p>
+              <p className="row-title mono">
+                {(auditExport.ledger_signature.signature ?? "unsigned").slice(0, 12)}
+              </p>
+              <p className="row-detail">{auditExport.ledger_signature.algorithm}</p>
+            </div>
           </div>
 
           <div className="stack">
+            {auditExport.ledger_signature.notes.map((note) => (
+              <p className="row-detail" key={note}>
+                {note}
+              </p>
+            ))}
             {auditExport.retention_notes.map((note) => (
               <p className="row-detail" key={note}>
                 {note}

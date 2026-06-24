@@ -81,6 +81,16 @@ export type AuditIntegrityProof = {
   event_hashes: string[];
 };
 
+export type AuditLedgerSignatureProof = {
+  algorithm: string;
+  key_id: string | null;
+  signing_mode: string;
+  verification_status: string;
+  signed_payload_sha256: string;
+  signature: string | null;
+  notes: string[];
+};
+
 export type AuditExportBundle = {
   tenant_id: string;
   scenario: string;
@@ -96,6 +106,7 @@ export type AuditExportBundle = {
   retention_policy: AuditRetentionPolicy;
   manifest: AuditExportManifest;
   integrity_proof: AuditIntegrityProof;
+  ledger_signature: AuditLedgerSignatureProof;
   events: AuditLedgerEvent[];
   retention_notes: string[];
 };

@@ -19,6 +19,10 @@ from axis_api.audit_queries import (
     query_persisted_audit_events,
     release_audit_legal_hold,
 )
+from axis_api.audit_signing import (
+    SelfHostedAuditLedgerSigner,
+    verify_audit_ledger_signature,
+)
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
@@ -690,6 +694,45 @@ def test_export_persisted_audit_events_includes_hash_chain_integrity_proof(
     )
 
 
+def test_export_persisted_audit_events_includes_verifiable_ledger_signature(
+    session_factory: sessionmaker[Session],
+) -> None:
+    signer = SelfHostedAuditLedgerSigner(
+        key_id="axis-local-test-key",
+        secret_key="local-test-signing-secret",
+    )
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(tenant_id="tenant_demo_manufacturing"),
+            ledger_signer=signer,
+        )
+
+    assert export.ledger_signature.algorithm == "hmac-sha256"
+    assert export.ledger_signature.key_id == "axis-local-test-key"
+    assert export.ledger_signature.verification_status == "verified"
+    assert export.ledger_signature.signature
+    assert len(export.ledger_signature.signed_payload_sha256) == 64
+    assert verify_audit_ledger_signature(
+        export.manifest,
+        export.integrity_proof,
+        export.ledger_signature,
+        secret_key="local-test-signing-secret",
+    )
+
+    tampered_manifest = export.manifest.model_copy(
+        update={"checksum_sha256": "0" * 64}
+    )
+    assert not verify_audit_ledger_signature(
+        tampered_manifest,
+        export.integrity_proof,
+        export.ledger_signature,
+        secret_key="local-test-signing-secret",
+    )
+
+
 def test_export_persisted_audit_events_applies_event_actor_scope_and_limit_filters(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -743,6 +786,31 @@ def test_persisted_audit_export_endpoint_returns_tenant_scoped_redacted_bundle(
     assert "tenant_other" not in str(body)
     assert "credential_secret" not in str(body)
     assert "never-export-this-value" not in str(body)
+
+
+def test_persisted_audit_export_endpoint_uses_configured_ledger_signer(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            audit_ledger_signing_key_id="axis-api-test-key",
+            audit_ledger_signing_secret="api-test-signing-secret",
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_audit_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.get("/demo/manufacturing/audit/export")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ledger_signature"]["algorithm"] == "hmac-sha256"
+    assert body["ledger_signature"]["key_id"] == "axis-api-test-key"
+    assert body["ledger_signature"]["verification_status"] == "verified"
+    assert "api-test-signing-secret" not in str(body)
 
 
 def test_openapi_exposes_persisted_audit_export_endpoint() -> None:

@@ -60,6 +60,7 @@ from axis_api.audit_reference import (
     AuditReferenceRecordNotFound,
     get_persisted_manufacturing_audit_explorer,
 )
+from axis_api.audit_signing import SelfHostedAuditLedgerSigner
 from axis_api.config import Settings
 from axis_api.connector_configurations import (
     ConnectorConfigurationCreateRequest,
@@ -450,6 +451,15 @@ OidcPrincipalDependency = Annotated[
     OidcPrincipal | None,
     Depends(oidc_principal),
 ]
+
+
+def _audit_ledger_signer_from_settings(settings: Settings) -> SelfHostedAuditLedgerSigner | None:
+    if settings.audit_ledger_signing_secret is None:
+        return None
+    return SelfHostedAuditLedgerSigner(
+        key_id=settings.audit_ledger_signing_key_id,
+        secret_key=settings.audit_ledger_signing_secret,
+    )
 
 
 def _oidc_jwks_url(settings: Settings) -> str:
@@ -2959,6 +2969,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 legal_hold=legal_hold,
                 format=format,
             ),
+            ledger_signer=_audit_ledger_signer_from_settings(app.state.settings),
         )
 
     @app.post(

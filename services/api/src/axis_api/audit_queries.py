@@ -7,6 +7,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from axis_api.audit import AuditEventCreate
+from axis_api.audit_signing import (
+    AuditLedgerSignatureProof,
+    AuditLedgerSigner,
+    canonical_ledger_signature_payload,
+    unsigned_audit_ledger_signature,
+)
 from axis_api.demo import (
     AuditFilterOptions,
     AuditLedgerEvent,
@@ -86,6 +92,7 @@ class AuditExportBundle(BaseModel):
     retention_policy: AuditRetentionPolicy
     manifest: AuditExportManifest
     integrity_proof: AuditIntegrityProof
+    ledger_signature: AuditLedgerSignatureProof
     events: list[AuditLedgerEvent] = Field(default_factory=list)
     retention_notes: list[str] = Field(default_factory=list)
 
@@ -499,6 +506,7 @@ def _integrity_proof(events: list[AuditLedgerEvent]) -> AuditIntegrityProof:
 def export_persisted_audit_events(
     repository: AxisPersistenceRepository,
     query: AuditExportQuery,
+    ledger_signer: AuditLedgerSigner | None = None,
 ) -> AuditExportBundle:
     explorer = query_persisted_audit_events(repository, query)
     retention_policy = _retention_policy(query)
@@ -523,6 +531,12 @@ def export_persisted_audit_events(
         retention_window_start=retention_window_start.isoformat(),
         excluded_record_count=excluded_count,
     )
+    signature_payload = canonical_ledger_signature_payload(manifest, integrity_proof)
+    ledger_signature = (
+        ledger_signer.sign_payload(signature_payload)
+        if ledger_signer is not None
+        else unsigned_audit_ledger_signature(signature_payload)
+    )
     retention_summary = (
         "Legal hold is active; retention exclusion is suspended for this export."
         if query.legal_hold
@@ -538,6 +552,7 @@ def export_persisted_audit_events(
         retention_policy=retention_policy,
         manifest=manifest,
         integrity_proof=integrity_proof,
+        ledger_signature=ledger_signature,
         events=retained_events,
         retention_notes=[
             "Export bundle is tenant-scoped before optional filters are applied.",
