@@ -221,6 +221,7 @@ The thirty-third Alembic migration adds:
 - connector ontology promotion creation, idempotency lookup, tenant-scoped
   listing and proposal promotion update.
 - connector promotion policy creation, policy lookup and tenant-scoped listing.
+- connector manifest lifecycle status updates with audit evidence references.
 - connector manual import request creation, idempotency lookup and
   tenant-scoped listing.
 - connector manual import decision recording with workflow signal evidence.

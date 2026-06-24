@@ -3831,6 +3831,62 @@
         "title": "ConnectorManifestCreateRequest",
         "type": "object"
       },
+      "ConnectorManifestLifecycleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "required_scope": {
+            "default": "connectors:manifest:lifecycle",
+            "minLength": 1,
+            "title": "Required Scope",
+            "type": "string"
+          },
+          "target_status": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Target Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "transition_reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Transition Reason",
+            "type": "string"
+          },
+          "transitioned_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Transitioned By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transitioned_by",
+          "target_status",
+          "transition_reason"
+        ],
+        "title": "ConnectorManifestLifecycleRequest",
+        "type": "object"
+      },
       "ConnectorManifestRecordView": {
         "properties": {
           "audit_event_id": {
@@ -12856,6 +12912,54 @@
           }
         },
         "summary": "Manufacturing Connector Manifest Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle": {
+      "post": {
+        "operationId": "manufacturing_connector_manifest_lifecycle_demo_manufacturing_connectors_manifests__connector_id__lifecycle_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorManifestLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestRecordView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest lifecycle permission denied"
+          },
+          "422": {
+            "description": "Connector manifest lifecycle validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Lifecycle",
         "tags": [
           "demo"
         ]

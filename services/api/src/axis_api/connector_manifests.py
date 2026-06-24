@@ -8,10 +8,22 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from axis_api.audit import AuditEventCreate
 from axis_api.connectors import ConnectorManifest, ConnectorPreviewSample, ConnectorRuntimePolicy
 from axis_api.demo import OverviewMetric, OverviewStatus
-from axis_api.persistence import AxisPersistenceRepository, ConnectorManifestCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorManifestCreate,
+    ConnectorManifestLifecycleUpdate,
+    PersistenceRecordNotFound,
+)
 
 
 class ConnectorManifestValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class ConnectorManifestLifecycleValidationError(ValueError):
     def __init__(self, message: str, reason: str) -> None:
         super().__init__(message)
         self.message = message
@@ -40,6 +52,18 @@ class ConnectorManifestCreateRequest(BaseModel):
     runtime_policy: dict[str, Any] = Field(default_factory=dict)
     preview_sample: dict[str, Any] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorManifestLifecycleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    transitioned_by: str = Field(min_length=1, max_length=160)
+    target_status: str = Field(min_length=1, max_length=80)
+    actor_scopes: list[str] = Field(default_factory=list)
+    required_scope: str = Field(default="connectors:manifest:lifecycle", min_length=1)
+    transition_reason: str = Field(min_length=1, max_length=600)
+    evidence_refs: list[str] = Field(default_factory=list)
 
 
 class ConnectorManifestRecordView(BaseModel):
@@ -100,6 +124,17 @@ RAW_QUERY_FIELD_NAMES = {
 
 RAW_CONNECTION_MARKERS = ("postgres://", "postgresql://", "jdbc:")
 RAW_QUERY_MARKERS = ("select ", "insert ", "update ", "delete ", "drop ")
+MANIFEST_LIFECYCLE_TRANSITIONS = {
+    "registered_preview_only": {"active_preview", "deprecated"},
+    "active_preview": {"deprecated"},
+    "deprecated": set(),
+}
+LIVE_MANIFEST_TARGETS = {
+    "active_live",
+    "enabled_live",
+    "live_enabled",
+    "production_enabled",
+}
 
 
 def build_connector_manifest_registry(
@@ -216,6 +251,75 @@ def record_demo_connector_manifest(
         )
     )
     return _record_from_persistence(record)
+
+
+def transition_demo_connector_manifest_lifecycle(
+    repository: AxisPersistenceRepository,
+    connector_id: str,
+    request: ConnectorManifestLifecycleRequest,
+) -> ConnectorManifestRecordView:
+    if request.required_scope not in request.actor_scopes:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest lifecycle transition requires lifecycle scope.",
+            "missing_manifest_lifecycle_scope",
+        )
+    if request.target_status in LIVE_MANIFEST_TARGETS:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest lifecycle cannot enable live connector operation.",
+            "unsupported_manifest_lifecycle_target",
+        )
+    if request.target_status not in {"active_preview", "deprecated"}:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest lifecycle target is not supported.",
+            "unsupported_manifest_lifecycle_target",
+        )
+
+    manifest = repository.get_connector_manifest(request.tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest was not found.",
+            "manifest_not_found",
+        )
+    allowed_targets = MANIFEST_LIFECYCLE_TRANSITIONS.get(manifest.status, set())
+    if request.target_status not in allowed_targets:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest lifecycle transition is not allowed.",
+            "manifest_lifecycle_transition_not_allowed",
+        )
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.transitioned_by,
+            event_type="connector.manifest.lifecycle_transitioned",
+            payload={
+                "connector_id": connector_id,
+                "from_status": manifest.status,
+                "target_status": request.target_status,
+                "required_scope": request.required_scope,
+                "transition_reason": request.transition_reason,
+                "evidence_refs": request.evidence_refs,
+                "live_sync_enabled": "false",
+            },
+        )
+    )
+    try:
+        updated = repository.update_connector_manifest_lifecycle(
+            ConnectorManifestLifecycleUpdate(
+                tenant_id=request.tenant_id,
+                connector_id=connector_id,
+                status=request.target_status,
+                audit_event_id=audit_event.id,
+                audit_event_type="connector.manifest.lifecycle_transitioned",
+                note=f"Lifecycle transition: {request.target_status}",
+            )
+        )
+    except PersistenceRecordNotFound as exc:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest was not found.",
+            "manifest_not_found",
+        ) from exc
+    return _record_from_persistence(updated)
 
 
 def _record_from_persistence(record) -> ConnectorManifestRecordView:
