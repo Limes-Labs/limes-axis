@@ -259,6 +259,8 @@ from axis_api.manufacturing_operations import (
     MaintenanceRiskScenarioValidationError,
     ManufacturingOperationQuery,
     ManufacturingOperationsDataset,
+    ManufacturingOperationsSnapshot,
+    ManufacturingOperationsSnapshotQuery,
     QualityRiskScenarioIdempotencyConflict,
     QualityRiskScenarioPermissionDenied,
     QualityRiskScenarioRecord,
@@ -269,6 +271,7 @@ from axis_api.manufacturing_operations import (
     SupplierDelayScenarioRecord,
     SupplierDelayScenarioRequest,
     SupplierDelayScenarioValidationError,
+    build_manufacturing_operations_snapshot,
     generate_daily_plant_brief,
     generate_maintenance_risk_scenario,
     generate_quality_risk_scenario,
@@ -997,6 +1000,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 record_type=record_type,
                 source_system=source_system,
                 limit=limit,
+            ),
+        )
+
+    @app.get(
+        "/demo/manufacturing/operations/snapshot",
+        response_model=ManufacturingOperationsSnapshot,
+        tags=["demo"],
+    )
+    def manufacturing_operations_snapshot(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        operation_limit: int = Query(default=100, ge=1, le=200),
+        workflow_limit: int = Query(default=25, ge=1, le=100),
+        approval_limit: int = Query(default=25, ge=1, le=100),
+        artifact_limit: int = Query(default=10, ge=1, le=50),
+        audit_limit: int = Query(default=25, ge=1, le=100),
+    ) -> ManufacturingOperationsSnapshot:
+        return build_manufacturing_operations_snapshot(
+            repository,
+            ManufacturingOperationsSnapshotQuery(
+                tenant_id=tenant_id,
+                operation_limit=operation_limit,
+                workflow_limit=workflow_limit,
+                approval_limit=approval_limit,
+                artifact_limit=artifact_limit,
+                audit_limit=audit_limit,
             ),
         )
 

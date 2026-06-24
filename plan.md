@@ -185,6 +185,8 @@ Foundation acceptance is tracked in
   Maintenance operation records with idempotency and permission checks.
 - [x] Add an audit-backed supplier delay scenario generated from persisted
   Supply operation records with idempotency and permission checks.
+- [x] Add a read-only manufacturing operations snapshot that composes persisted
+  operation records, generated artifacts, workflows, approvals and audit evidence.
 - [x] Guard all API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -249,6 +251,11 @@ machine status and maintenance windows as redacted business metadata from
 ERP/MES/QMS/CMMS/Supplier Portal boundaries. Live source-system queries and
 secret retrieval remain behind connector runtime, credential lease and egress
 policy boundaries.
+`GET /demo/manufacturing/operations/snapshot` composes the persisted operation
+records with generated daily briefs, risk scenarios, workflow runs, approval
+records and recent audit events. It is read-only, stores no new rows and does
+not generate artifacts, signal workflows, run connectors or query source
+systems.
 `POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
 plant brief from those operation records, enforces `briefs:generate`,
 `audit:read` and `workflows:read`, writes

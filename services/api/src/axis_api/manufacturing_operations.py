@@ -131,6 +131,94 @@ class ManufacturingOperationsDataset(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ManufacturingOperationsSnapshotQuery(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    operation_limit: int = Field(default=100, ge=1, le=200)
+    workflow_limit: int = Field(default=25, ge=1, le=100)
+    approval_limit: int = Field(default=25, ge=1, le=100)
+    artifact_limit: int = Field(default=10, ge=1, le=50)
+    audit_limit: int = Field(default=25, ge=1, le=100)
+
+
+class ManufacturingDomainSnapshot(BaseModel):
+    domain: str = Field(min_length=1)
+    record_count: int = Field(ge=0)
+    action_required_count: int = Field(ge=0)
+    watch_count: int = Field(ge=0)
+    highest_risk_level: str = Field(min_length=1)
+    owner_roles: list[str] = Field(default_factory=list)
+    workflow_ids: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class ManufacturingBriefSummary(BaseModel):
+    brief_id: str = Field(min_length=1)
+    brief_date: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    source_record_count: int = Field(ge=0)
+    generation_boundary: str = Field(min_length=1)
+    audit_event_type: str = Field(min_length=1)
+
+
+class ManufacturingRiskScenarioSummary(BaseModel):
+    scenario_id: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    risk_level: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    workflow_ids: list[str] = Field(default_factory=list)
+    source_record_count: int = Field(ge=0)
+    generation_boundary: str = Field(min_length=1)
+    audit_event_type: str = Field(min_length=1)
+
+
+class ManufacturingWorkflowSnapshot(BaseModel):
+    workflow_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    autonomy_level: str = Field(min_length=1)
+    blocker: str | None = None
+    pending_signal_count: int = Field(ge=0)
+    replay_ready: bool
+
+
+class ManufacturingApprovalSnapshot(BaseModel):
+    approval_id: str = Field(min_length=1)
+    workflow_id: str | None = None
+    action_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    risk_level: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+
+
+class ManufacturingAuditEventSummary(BaseModel):
+    event_type: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    created_at: str = Field(min_length=1)
+    payload_refs: dict = Field(default_factory=dict)
+
+
+class ManufacturingOperationsSnapshot(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    as_of: str = Field(min_length=1)
+    metrics: list[OverviewMetric]
+    domain_snapshots: list[ManufacturingDomainSnapshot]
+    latest_daily_briefs: list[ManufacturingBriefSummary]
+    risk_scenarios: list[ManufacturingRiskScenarioSummary]
+    active_workflows: list[ManufacturingWorkflowSnapshot]
+    pending_approvals: list[ManufacturingApprovalSnapshot]
+    recent_audit_events: list[ManufacturingAuditEventSummary]
+    generation_boundary: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
 class ManufacturingOperationQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     domain: str | None = Field(default=None, min_length=1)
@@ -364,6 +452,258 @@ def query_manufacturing_operations_dataset(
             "This view is backed by tenant-scoped manufacturing operation records.",
             "Records are public-safe operational references, not browser fallbacks.",
             "Source payloads are redacted to business metadata before API exposure.",
+        ],
+    )
+
+
+RISK_LEVEL_ORDER = {
+    "critical": 4,
+    "high": 3,
+    "medium": 2,
+    "low": 1,
+}
+
+
+def _risk_level_rank(value: str | None) -> int:
+    return RISK_LEVEL_ORDER.get((value or "").lower(), 0)
+
+
+def _highest_risk_level(records: list[ManufacturingOperationRecordView]) -> str:
+    ranked = sorted(
+        {record.risk_level for record in records if record.risk_level},
+        key=_risk_level_rank,
+        reverse=True,
+    )
+    if ranked:
+        return ranked[0]
+    if any(record.status == "action_required" for record in records):
+        return "high"
+    if any(record.status == "watch" for record in records):
+        return "medium"
+    return "low"
+
+
+def _domain_snapshots(
+    records: list[ManufacturingOperationRecordView],
+) -> list[ManufacturingDomainSnapshot]:
+    domains = sorted({record.domain for record in records})
+    snapshots: list[ManufacturingDomainSnapshot] = []
+    for domain in domains:
+        domain_records = [record for record in records if record.domain == domain]
+        snapshots.append(
+            ManufacturingDomainSnapshot(
+                domain=domain,
+                record_count=len(domain_records),
+                action_required_count=sum(
+                    1 for record in domain_records if record.status == "action_required"
+                ),
+                watch_count=sum(1 for record in domain_records if record.status == "watch"),
+                highest_risk_level=_highest_risk_level(domain_records),
+                owner_roles=sorted({record.owner_role for record in domain_records}),
+                workflow_ids=sorted(
+                    {record.workflow_id for record in domain_records if record.workflow_id}
+                ),
+                evidence_refs=sorted(
+                    {ref for record in domain_records for ref in record.evidence_refs}
+                ),
+            )
+        )
+    return snapshots
+
+
+def _brief_summary(brief) -> ManufacturingBriefSummary:
+    return ManufacturingBriefSummary(
+        brief_id=brief.brief_id,
+        brief_date=brief.brief_date,
+        status=brief.status,
+        requested_by=brief.requested_by,
+        source_record_count=len(brief.source_record_ids),
+        generation_boundary=brief.summary_payload.get(
+            "generation_boundary",
+            "persisted_daily_brief",
+        ),
+        audit_event_type=brief.audit_event_type,
+    )
+
+
+def _risk_scenario_summary(scenario) -> ManufacturingRiskScenarioSummary:
+    return ManufacturingRiskScenarioSummary(
+        scenario_id=scenario.scenario_id,
+        domain=scenario.domain,
+        status=scenario.status,
+        risk_level=scenario.risk_level,
+        owner_role=scenario.owner_role,
+        workflow_ids=scenario.workflow_ids,
+        source_record_count=len(scenario.source_record_ids),
+        generation_boundary=scenario.scenario_payload.get(
+            "generation_boundary",
+            "persisted_risk_scenario",
+        ),
+        audit_event_type=scenario.audit_event_type,
+    )
+
+
+def _workflow_snapshot(workflow) -> ManufacturingWorkflowSnapshot:
+    return ManufacturingWorkflowSnapshot(
+        workflow_id=workflow.workflow_id,
+        name=workflow.name,
+        domain=workflow.domain,
+        state=workflow.state,
+        status=workflow.status,
+        owner_role=workflow.owner_role,
+        autonomy_level=workflow.autonomy_level,
+        blocker=workflow.blocker,
+        pending_signal_count=len(workflow.pending_signals),
+        replay_ready=workflow.replay_ready,
+    )
+
+
+def _approval_snapshot(approval) -> ManufacturingApprovalSnapshot:
+    return ManufacturingApprovalSnapshot(
+        approval_id=approval.approval_id,
+        workflow_id=approval.workflow_id,
+        action_id=approval.action_id,
+        status=approval.status,
+        owner_role=approval.owner_role,
+        risk_level=approval.risk_level,
+        requested_by=approval.requested_by,
+    )
+
+
+def _audit_event_summary(audit_event) -> ManufacturingAuditEventSummary:
+    payload_refs = {
+        key: value
+        for key, value in audit_event.payload.items()
+        if key.endswith("_id")
+        or key.endswith("_ids")
+        or key in {"domain", "risk_level", "brief_date"}
+    }
+    return ManufacturingAuditEventSummary(
+        event_type=audit_event.event_type,
+        actor_id=audit_event.actor_id,
+        created_at=_isoformat_utc(audit_event.created_at),
+        payload_refs=payload_refs,
+    )
+
+
+def _snapshot_metrics(
+    *,
+    records: list[ManufacturingOperationRecordView],
+    workflows: list,
+    approvals: list,
+    briefs: list,
+    scenarios: list,
+) -> list[OverviewMetric]:
+    open_workflows = _open_workflows(workflows)
+    pending_approvals = [approval for approval in approvals if approval.status == "pending"]
+    generated_artifacts = len(briefs) + len(scenarios)
+    return [
+        OverviewMetric(
+            label="Operation Records",
+            value=str(len(records)),
+            detail="Persisted tenant-scoped operational records in the snapshot",
+            status=OverviewStatus.READY if records else OverviewStatus.WATCH,
+        ),
+        OverviewMetric(
+            label="Open Workflows",
+            value=str(len(open_workflows)),
+            detail="Persisted workflows that are not completed or cancelled",
+            status=OverviewStatus.ACTION_REQUIRED if open_workflows else OverviewStatus.READY,
+        ),
+        OverviewMetric(
+            label="Pending Approvals",
+            value=str(len(pending_approvals)),
+            detail="Persisted approval records awaiting owner decision",
+            status=(
+                OverviewStatus.ACTION_REQUIRED
+                if pending_approvals
+                else OverviewStatus.READY
+            ),
+        ),
+        OverviewMetric(
+            label="Generated Artifacts",
+            value=str(generated_artifacts),
+            detail="Persisted daily briefs and risk scenarios linked to operations",
+            status=OverviewStatus.READY if generated_artifacts else OverviewStatus.WATCH,
+        ),
+    ]
+
+
+def _open_workflows(workflows: list) -> list:
+    return [
+        workflow
+        for workflow in workflows
+        if workflow.state not in {"completed", "cancelled", "failed"}
+    ]
+
+
+def build_manufacturing_operations_snapshot(
+    repository: AxisPersistenceRepository,
+    query: ManufacturingOperationsSnapshotQuery,
+) -> ManufacturingOperationsSnapshot:
+    records = [
+        _operation_record_to_public(record)
+        for record in repository.list_manufacturing_operation_records(
+            tenant_id=query.tenant_id,
+            limit=query.operation_limit,
+        )
+    ]
+    workflows = repository.list_workflow_runs(
+        tenant_id=query.tenant_id,
+        limit=query.workflow_limit,
+    )
+    approvals = repository.list_approval_records(
+        tenant_id=query.tenant_id,
+        limit=query.approval_limit,
+    )
+    briefs = repository.list_manufacturing_daily_briefs(
+        tenant_id=query.tenant_id,
+        limit=query.artifact_limit,
+    )
+    scenarios = repository.list_manufacturing_risk_scenarios(
+        tenant_id=query.tenant_id,
+        limit=query.artifact_limit,
+    )
+    audit_events = repository.list_audit_events(
+        tenant_id=query.tenant_id,
+        limit=query.audit_limit,
+    )
+    as_of_candidates = [
+        *[record.occurred_at for record in records],
+        *[_isoformat_utc(workflow.started_at) for workflow in workflows],
+        *[_isoformat_utc(event.created_at) for event in audit_events],
+    ]
+    as_of = max(as_of_candidates) if as_of_candidates else "2026-06-22T00:00:00+00:00"
+
+    return ManufacturingOperationsSnapshot(
+        tenant_id=query.tenant_id,
+        plant_name="Ravenna Works",
+        scenario="Plant Operations Cockpit",
+        as_of=as_of,
+        metrics=_snapshot_metrics(
+            records=records,
+            workflows=workflows,
+            approvals=approvals,
+            briefs=briefs,
+            scenarios=scenarios,
+        ),
+        domain_snapshots=_domain_snapshots(records),
+        latest_daily_briefs=[_brief_summary(brief) for brief in briefs],
+        risk_scenarios=[_risk_scenario_summary(scenario) for scenario in scenarios],
+        active_workflows=[
+            _workflow_snapshot(workflow) for workflow in _open_workflows(workflows)
+        ],
+        pending_approvals=[
+            _approval_snapshot(approval)
+            for approval in approvals
+            if approval.status == "pending"
+        ],
+        recent_audit_events=[_audit_event_summary(event) for event in audit_events],
+        generation_boundary="persisted_manufacturing_operations_snapshot",
+        notes=[
+            "Snapshot composes persisted operations, workflows, approvals and audit artifacts.",
+            "It does not generate new briefs, scenarios, workflow signals or connector runs.",
+            "No source-system query, model provider call or credential retrieval is performed.",
         ],
     )
 

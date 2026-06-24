@@ -346,6 +346,7 @@ Architecture and acceptance notes:
 - [`docs/platform-persistence.md`](./docs/platform-persistence.md)
 - [`docs/platform-model-routing.md`](./docs/platform-model-routing.md)
 - [`docs/platform-simulation.md`](./docs/platform-simulation.md)
+- [`docs/platform-manufacturing-operations.md`](./docs/platform-manufacturing-operations.md)
 - [`docs/platform-connectors.md`](./docs/platform-connectors.md)
 
 Reference examples:
