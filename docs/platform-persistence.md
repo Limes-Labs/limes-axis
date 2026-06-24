@@ -419,6 +419,13 @@ Delivered:
   enforcing quality/workflow/audit scopes, writing append-only
   `manufacturing.risk_scenario.generated` audit evidence and returning
   idempotent replays for duplicate requests.
+- persisted maintenance risk scenarios through the same
+  `manufacturing_risk_scenarios` table, with
+  `/demo/manufacturing/operations/risk-scenarios/maintenance` generating a
+  deterministic maintenance risk artifact from persisted Maintenance operation
+  records, enforcing maintenance/workflow/audit scopes, writing append-only
+  `manufacturing.risk_scenario.generated` audit evidence and returning
+  idempotent replays for duplicate requests.
 
 Still Platform work:
 

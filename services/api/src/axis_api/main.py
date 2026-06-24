@@ -237,6 +237,11 @@ from axis_api.manufacturing_operations import (
     DailyPlantBriefRecord,
     DailyPlantBriefRequest,
     DailyPlantBriefValidationError,
+    MaintenanceRiskScenarioIdempotencyConflict,
+    MaintenanceRiskScenarioPermissionDenied,
+    MaintenanceRiskScenarioRecord,
+    MaintenanceRiskScenarioRequest,
+    MaintenanceRiskScenarioValidationError,
     ManufacturingOperationQuery,
     ManufacturingOperationsDataset,
     QualityRiskScenarioIdempotencyConflict,
@@ -245,6 +250,7 @@ from axis_api.manufacturing_operations import (
     QualityRiskScenarioRequest,
     QualityRiskScenarioValidationError,
     generate_daily_plant_brief,
+    generate_maintenance_risk_scenario,
     generate_quality_risk_scenario,
     query_manufacturing_operations_dataset,
 )
@@ -1060,6 +1066,63 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
         except QualityRiskScenarioValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @app.post(
+        "/demo/manufacturing/operations/risk-scenarios/maintenance",
+        response_model=MaintenanceRiskScenarioRecord,
+        responses={
+            403: {"description": "Maintenance risk scenario permission denied"},
+            409: {"description": "Maintenance risk scenario idempotency conflict"},
+            422: {"description": "Maintenance risk scenario validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_maintenance_risk_scenario(
+        scenario_request: MaintenanceRiskScenarioRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> MaintenanceRiskScenarioRecord:
+        try:
+            result = generate_maintenance_risk_scenario(repository, scenario_request)
+        except MaintenanceRiskScenarioPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot generate a maintenance risk scenario.",
+                    "required_permissions": [
+                        "maintenance:read",
+                        "workflows:read",
+                        "audit:read",
+                    ],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except MaintenanceRiskScenarioIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": (
+                        "The maintenance risk scenario idempotency key conflicts."
+                    ),
+                    "scenario_id": exc.scenario_id,
+                },
+            ) from exc
+        except MaintenanceRiskScenarioValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

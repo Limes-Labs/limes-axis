@@ -20,6 +20,11 @@ from axis_api.persistence import (
 
 DAILY_BRIEF_REQUIRED_SCOPES = ["briefs:generate", "audit:read", "workflows:read"]
 QUALITY_RISK_REQUIRED_SCOPES = ["quality:read", "workflows:read", "audit:read"]
+MAINTENANCE_RISK_REQUIRED_SCOPES = [
+    "maintenance:read",
+    "workflows:read",
+    "audit:read",
+]
 
 
 class DailyPlantBriefPermissionDenied(PermissionError):
@@ -55,6 +60,25 @@ class QualityRiskScenarioValidationError(ValueError):
 
 
 class QualityRiskScenarioIdempotencyConflict(ValueError):
+    def __init__(self, scenario_id: str) -> None:
+        super().__init__("Idempotency key already exists with a different request")
+        self.scenario_id = scenario_id
+
+
+class MaintenanceRiskScenarioPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+class MaintenanceRiskScenarioValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class MaintenanceRiskScenarioIdempotencyConflict(ValueError):
     def __init__(self, scenario_id: str) -> None:
         super().__init__("Idempotency key already exists with a different request")
         self.scenario_id = scenario_id
@@ -115,6 +139,15 @@ class QualityRiskScenarioRequest(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
+class MaintenanceRiskScenarioRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    requested_by: str = Field(default="agent_maintenance_risk", min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=220)
+    source_record_ids: list[str] = Field(default_factory=list)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
 class DailyPlantBriefRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     brief_id: str = Field(min_length=1)
@@ -147,6 +180,10 @@ class QualityRiskScenarioRecord(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     idempotent_replay: bool = False
+
+
+class MaintenanceRiskScenarioRecord(QualityRiskScenarioRecord):
+    pass
 
 
 def _isoformat_utc(value) -> str:
@@ -545,7 +582,7 @@ def _select_quality_risk_records(
     return records
 
 
-def _quality_risk_level(records: list[ManufacturingOperationRecordView]) -> str:
+def _operation_risk_level(records: list[ManufacturingOperationRecordView]) -> str:
     risk_levels = {record.risk_level for record in records}
     if "critical" in risk_levels:
         return "critical"
@@ -636,7 +673,7 @@ def generate_quality_risk_scenario(
 
     records = _select_quality_risk_records(repository, request)
     source_record_ids = [record.record_id for record in records]
-    risk_level = _quality_risk_level(records)
+    risk_level = _operation_risk_level(records)
     scenario_id = _quality_scenario_id(request, source_record_ids)
     scenario_payload = _quality_risk_payload(
         request=request,
@@ -678,3 +715,201 @@ def generate_quality_risk_scenario(
         )
     )
     return _risk_scenario_to_public(scenario, idempotent_replay=False)
+
+
+def _maintenance_risk_idempotency_key(
+    request: MaintenanceRiskScenarioRequest,
+) -> str:
+    if request.idempotency_key is not None:
+        return request.idempotency_key
+    return f"{request.tenant_id}:maintenance-risk-scenario:{request.requested_by}"
+
+
+def _maintenance_risk_request_fingerprint(
+    request: MaintenanceRiskScenarioRequest,
+) -> dict:
+    return {
+        "domain": "Maintenance",
+        "requested_by": request.requested_by,
+        "source_record_ids": sorted(request.source_record_ids),
+        "limit": request.limit,
+    }
+
+
+def _evaluate_maintenance_risk_permission(
+    request: MaintenanceRiskScenarioRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=MAINTENANCE_RISK_REQUIRED_SCOPES,
+            relationship_scopes=[],
+            attributes={
+                "domain": "Maintenance",
+                "source_record_ids": request.source_record_ids,
+                "operation": "manufacturing.maintenance_risk_scenario.generate",
+            },
+        )
+    )
+    if not decision.allowed:
+        raise MaintenanceRiskScenarioPermissionDenied(decision)
+    return decision
+
+
+def _select_maintenance_risk_records(
+    repository: AxisPersistenceRepository,
+    request: MaintenanceRiskScenarioRequest,
+) -> list[ManufacturingOperationRecordView]:
+    records = [
+        _operation_record_to_public(record)
+        for record in repository.list_manufacturing_operation_records(
+            tenant_id=request.tenant_id,
+            domain="Maintenance",
+            limit=request.limit,
+        )
+    ]
+    if request.source_record_ids:
+        requested = set(request.source_record_ids)
+        records = [record for record in records if record.record_id in requested]
+        found = {record.record_id for record in records}
+        missing = sorted(requested - found)
+        if missing:
+            raise MaintenanceRiskScenarioValidationError(
+                "Maintenance risk scenario source records were not found.",
+                f"missing_source_records:{','.join(missing)}",
+            )
+
+    if not records:
+        raise MaintenanceRiskScenarioValidationError(
+            "Maintenance risk scenario requires at least one persisted maintenance "
+            "operation record.",
+            "no_maintenance_operation_records",
+        )
+    return records
+
+
+def _maintenance_risk_payload(
+    *,
+    request: MaintenanceRiskScenarioRequest,
+    records: list[ManufacturingOperationRecordView],
+    risk_level: str,
+) -> dict:
+    workflow_ids = sorted({record.workflow_id for record in records if record.workflow_id})
+    evidence_refs = sorted({ref for record in records for ref in record.evidence_refs})
+    assets = sorted({record.related_asset for record in records if record.related_asset})
+    owner_roles = sorted({record.owner_role for record in records})
+    return {
+        "request": _maintenance_risk_request_fingerprint(request),
+        "headline": (
+            f"Maintenance risk scenario is {risk_level} across {len(records)} "
+            "persisted maintenance records."
+        ),
+        "domain": "Maintenance",
+        "risk_level": risk_level,
+        "owner_roles": owner_roles,
+        "related_assets": assets,
+        "workflow_ids": workflow_ids,
+        "recommended_controls": [
+            "Keep maintenance planner review before work-order mutation.",
+            "Cite CMMS evidence and affected asset context before dispatch changes.",
+            "Coordinate with production owners before schedule-impacting actions.",
+        ],
+        "cited_evidence": evidence_refs,
+        "source_records": [
+            {
+                "record_id": record.record_id,
+                "record_type": record.record_type,
+                "status": record.status,
+                "risk_level": record.risk_level,
+                "owner_role": record.owner_role,
+                "related_asset": record.related_asset,
+                "workflow_id": record.workflow_id,
+                "source_system": record.source_system,
+                "occurred_at": record.occurred_at,
+            }
+            for record in records
+        ],
+        "generation_boundary": "deterministic_persisted_maintenance_records",
+        "notes": [
+            "Generated from persisted tenant-scoped maintenance operation records.",
+            "No CMMS/MES mutation, model provider call or approval decision is performed.",
+        ],
+    }
+
+
+def _maintenance_scenario_id(
+    request: MaintenanceRiskScenarioRequest,
+    source_record_ids: list[str],
+) -> str:
+    digest = sha256(
+        "|".join([request.tenant_id, "maintenance", *sorted(source_record_ids)]).encode()
+    ).hexdigest()[:12]
+    return f"maintenance_risk_{digest}"
+
+
+def generate_maintenance_risk_scenario(
+    repository: AxisPersistenceRepository,
+    request: MaintenanceRiskScenarioRequest,
+) -> MaintenanceRiskScenarioRecord:
+    idempotency_key = _maintenance_risk_idempotency_key(request)
+    decision = _evaluate_maintenance_risk_permission(request)
+    existing = repository.get_manufacturing_risk_scenario_by_idempotency_key(
+        request.tenant_id,
+        idempotency_key,
+    )
+    if existing is not None:
+        fingerprint = _maintenance_risk_request_fingerprint(request)
+        if existing.domain != "Maintenance" or existing.scenario_payload.get(
+            "request"
+        ) != fingerprint:
+            raise MaintenanceRiskScenarioIdempotencyConflict(existing.scenario_id)
+        replay = _risk_scenario_to_public(existing, idempotent_replay=True)
+        return MaintenanceRiskScenarioRecord.model_validate(replay.model_dump())
+
+    records = _select_maintenance_risk_records(repository, request)
+    source_record_ids = [record.record_id for record in records]
+    risk_level = _operation_risk_level(records)
+    scenario_id = _maintenance_scenario_id(request, source_record_ids)
+    scenario_payload = _maintenance_risk_payload(
+        request=request,
+        records=records,
+        risk_level=risk_level,
+    )
+    workflow_ids = sorted({record.workflow_id for record in records if record.workflow_id})
+    owner_roles = sorted({record.owner_role for record in records})
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type="manufacturing.risk_scenario.generated",
+            payload={
+                "scenario_id": scenario_id,
+                "domain": "Maintenance",
+                "risk_level": risk_level,
+                "source_record_ids": source_record_ids,
+                "workflow_ids": workflow_ids,
+                "required_scopes": MAINTENANCE_RISK_REQUIRED_SCOPES,
+                "permission_decision": decision.model_dump(),
+            },
+        )
+    )
+    scenario = repository.create_manufacturing_risk_scenario(
+        ManufacturingRiskScenarioCreate(
+            tenant_id=request.tenant_id,
+            scenario_id=scenario_id,
+            idempotency_key=idempotency_key,
+            domain="Maintenance",
+            risk_level=risk_level,
+            requested_by=request.requested_by,
+            owner_role=owner_roles[0] if owner_roles else "maintenance-owner",
+            workflow_ids=workflow_ids,
+            source_record_ids=source_record_ids,
+            scenario_payload=scenario_payload,
+            permission_decision=decision.model_dump(),
+            audit_event_id=audit_event.id,
+        )
+    )
+    record = _risk_scenario_to_public(scenario, idempotent_replay=False)
+    return MaintenanceRiskScenarioRecord.model_validate(record.model_dump())
