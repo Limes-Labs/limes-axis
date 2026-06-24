@@ -14,6 +14,7 @@ connector surfaces.
 ```text
 GET /demo/manufacturing/operations
 POST /demo/manufacturing/operations/daily-brief
+POST /demo/manufacturing/operations/risk-scenarios/quality
 ```
 
 Query parameters:
@@ -59,6 +60,18 @@ Each brief includes:
 - permission decision;
 - append-only audit event reference.
 
+Risk scenarios are stored in `manufacturing_risk_scenarios`.
+
+Each scenario includes:
+
+- tenant, scenario and idempotency identifiers;
+- domain, status, risk level and owner role;
+- linked workflow ids;
+- cited source operation record ids;
+- deterministic scenario payload;
+- permission decision;
+- append-only audit event reference.
+
 ## Boundaries
 
 This slice gives Axis a persisted operational dataset to query and compose into
@@ -70,3 +83,9 @@ summary from persisted operation records, writes
 It does not execute live ERP/MES/QMS/CMMS queries, retrieve secrets, invoke a
 model provider or mutate production systems. Live source adapters remain behind
 the connector runtime, credential lease and egress policy boundaries.
+
+The quality risk scenario endpoint creates a deterministic scenario from
+persisted `domain=Quality` operation records, writes
+`manufacturing.risk_scenario.generated` audit evidence and enforces
+`quality:read`, `workflows:read` and `audit:read`. It does not mutate QMS/MES,
+approve a hold or call a model provider.

@@ -189,6 +189,15 @@ The thirty-second Alembic migration adds:
 - indexes for tenant, brief, idempotency key, brief date, status, actor and
   audit event type filtering.
 
+The thirty-third Alembic migration adds:
+
+- `manufacturing_risk_scenarios`: tenant-scoped operational risk scenario
+  artifacts keyed by tenant and scenario/idempotency identifiers;
+- domain, status, risk level, owner role, linked workflow ids, source record
+  ids, scenario payload, permission decision and audit event references;
+- indexes for tenant, scenario, idempotency key, domain, status, risk, actor,
+  owner and audit event type filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -403,6 +412,13 @@ Delivered:
   summaries from operation records, enforcing brief/audit/workflow scopes,
   writing append-only `manufacturing.daily_brief.generated` audit evidence and
   returning idempotent replays for duplicate requests.
+- persisted manufacturing risk scenarios through
+  `manufacturing_risk_scenarios`, with
+  `/demo/manufacturing/operations/risk-scenarios/quality` generating a
+  deterministic quality risk artifact from persisted Quality operation records,
+  enforcing quality/workflow/audit scopes, writing append-only
+  `manufacturing.risk_scenario.generated` audit evidence and returning
+  idempotent replays for duplicate requests.
 
 Still Platform work:
 

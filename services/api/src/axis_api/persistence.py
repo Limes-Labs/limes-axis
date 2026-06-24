@@ -25,6 +25,7 @@ from axis_api.models import (
     DemoReferenceRecord,
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
+    ManufacturingRiskScenario,
     ReplaySimulationOutput,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -502,6 +503,26 @@ class ManufacturingDailyBriefCreate(BaseModel):
     permission_decision: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="manufacturing.daily_brief.generated", min_length=1)
+
+
+class ManufacturingRiskScenarioCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    scenario_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    status: str = Field(default="generated", min_length=1)
+    risk_level: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    workflow_ids: list[str] = Field(default_factory=list)
+    source_record_ids: list[str] = Field(min_length=1)
+    scenario_payload: dict = Field(default_factory=dict)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="manufacturing.risk_scenario.generated",
+        min_length=1,
+    )
 
 
 class AxisPersistenceRepository:
@@ -1892,5 +1913,61 @@ class AxisPersistenceRepository:
         statement = statement.order_by(
             ManufacturingDailyBrief.created_at.desc(),
             ManufacturingDailyBrief.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_manufacturing_risk_scenario(
+        self,
+        record: ManufacturingRiskScenarioCreate,
+    ) -> ManufacturingRiskScenario:
+        scenario = ManufacturingRiskScenario(
+            tenant_id=record.tenant_id,
+            scenario_id=record.scenario_id,
+            idempotency_key=record.idempotency_key,
+            domain=record.domain,
+            status=record.status,
+            risk_level=record.risk_level,
+            requested_by=record.requested_by,
+            owner_role=record.owner_role,
+            workflow_ids=record.workflow_ids,
+            source_record_ids=record.source_record_ids,
+            scenario_payload=record.scenario_payload,
+            permission_decision=record.permission_decision,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+        )
+        self.session.add(scenario)
+        self.session.flush()
+        return scenario
+
+    def get_manufacturing_risk_scenario_by_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ManufacturingRiskScenario | None:
+        statement = select(ManufacturingRiskScenario).where(
+            ManufacturingRiskScenario.tenant_id == tenant_id,
+            ManufacturingRiskScenario.idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_manufacturing_risk_scenarios(
+        self,
+        tenant_id: str,
+        domain: str | None = None,
+        risk_level: str | None = None,
+        limit: int = 100,
+    ) -> list[ManufacturingRiskScenario]:
+        statement: Select[tuple[ManufacturingRiskScenario]] = select(
+            ManufacturingRiskScenario
+        ).where(ManufacturingRiskScenario.tenant_id == tenant_id)
+        if domain is not None:
+            statement = statement.where(ManufacturingRiskScenario.domain == domain)
+        if risk_level is not None:
+            statement = statement.where(ManufacturingRiskScenario.risk_level == risk_level)
+
+        statement = statement.order_by(
+            ManufacturingRiskScenario.created_at.desc(),
+            ManufacturingRiskScenario.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
