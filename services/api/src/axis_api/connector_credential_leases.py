@@ -24,6 +24,48 @@ LEASE_RUNTIME_BOUNDARY = "axis-credential-lease-broker"
 LEASE_ADAPTER = "axis-deferred-vault-kms-lease-adapter"
 SELF_HOSTED_LEASE_MODE = "self_hosted_vault_kms_lease"
 SELF_HOSTED_LEASE_ADAPTER = "axis-self-hosted-vault-kms-lease-adapter"
+PROVIDER_SPECIFIC_LEASE_MODE = "provider_specific_vault_kms_lease"
+PROVIDER_SPECIFIC_LEASE_ADAPTER = "axis-provider-specific-vault-kms-lease-adapter"
+
+
+PROVIDER_PROFILES = {
+    "hashicorp_vault": {
+        "provider_aliases": {"external_vault", "hashicorp_vault", "vault"},
+        "secret_ref_prefix": "vault://",
+        "lease_ref_prefix": "vault://axis/leases",
+        "requires_lease_path": True,
+    },
+    "aws_secrets_manager": {
+        "provider_aliases": {"aws_secrets_manager", "aws-secrets-manager"},
+        "secret_ref_prefix": "aws-secrets-manager://",
+        "lease_ref_prefix": "aws-secrets-manager://axis/leases",
+        "requires_lease_path": False,
+    },
+    "gcp_secret_manager": {
+        "provider_aliases": {"gcp_secret_manager", "gcp-secret-manager"},
+        "secret_ref_prefix": "gcp-secret-manager://",
+        "lease_ref_prefix": "gcp-secret-manager://axis/leases",
+        "requires_lease_path": False,
+    },
+    "azure_key_vault": {
+        "provider_aliases": {"azure_key_vault", "azure-key-vault"},
+        "secret_ref_prefix": "azure-key-vault://",
+        "lease_ref_prefix": "azure-key-vault://axis/leases",
+        "requires_lease_path": False,
+    },
+    "kms": {
+        "provider_aliases": {"kms"},
+        "secret_ref_prefix": "kms://",
+        "lease_ref_prefix": "kms://axis/leases",
+        "requires_lease_path": False,
+    },
+    "env_dev": {
+        "provider_aliases": {"env", "env_dev", "local_env"},
+        "secret_ref_prefix": "env://",
+        "lease_ref_prefix": "env://axis/leases",
+        "requires_lease_path": False,
+    },
+}
 
 
 class CredentialLeaseRuntimeRequest(BaseModel):
@@ -151,6 +193,45 @@ class SelfHostedVaultKmsLeaseRuntime:
             request=request,
             provider_mode=_provider_mode(request),
             provider_lease_ref=_provider_lease_ref(request),
+        )
+
+
+class ProviderSpecificVaultKmsLeaseRuntime:
+    lease_mode = PROVIDER_SPECIFIC_LEASE_MODE
+    adapter_name = PROVIDER_SPECIFIC_LEASE_ADAPTER
+
+    def request_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return self._lease_result("lease_executed", request)
+
+    def renew_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return self._lease_result("lease_renewed", request)
+
+    def revoke_lease(
+        self,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        return self._lease_result("lease_revoked", request)
+
+    def _lease_result(
+        self,
+        status: str,
+        request: CredentialLeaseRuntimeRequest,
+    ) -> CredentialLeaseRuntimeResult:
+        provider_mode, profile = _provider_profile(request)
+        return _runtime_result(
+            adapter=self.adapter_name,
+            status=status,
+            request=request,
+            provider_mode=provider_mode,
+            provider_lease_ref=(
+                f"{profile['lease_ref_prefix']}/{request.tenant_id}/{request.lease_id}"
+            ),
         )
 
 
@@ -659,6 +740,56 @@ def _provider_mode(request: CredentialLeaseRuntimeRequest) -> str:
 
 def _provider_lease_ref(request: CredentialLeaseRuntimeRequest) -> str:
     return f"vault-lease://{request.tenant_id}/{request.lease_id}"
+
+
+def _provider_profile(
+    request: CredentialLeaseRuntimeRequest,
+) -> tuple[str, dict[str, Any]]:
+    provider_mode = _normalized_provider_mode(request.vault_kms_policy.get("provider_mode"))
+    if not provider_mode:
+        raise ConnectorCredentialLeaseValidationError(
+            "Provider-specific credential leases require vault_kms_policy.provider_mode.",
+            "missing_provider_mode",
+        )
+    profile = PROVIDER_PROFILES.get(provider_mode)
+    if profile is None:
+        raise ConnectorCredentialLeaseValidationError(
+            "Unsupported provider-specific Vault/KMS credential lease mode.",
+            "unsupported_provider_mode",
+        )
+
+    secret_provider = _normalized_provider_mode(request.secret_provider)
+    if secret_provider not in profile["provider_aliases"]:
+        raise ConnectorCredentialLeaseValidationError(
+            "Credential handle secret_provider does not match provider lease mode.",
+            "provider_secret_provider_mismatch",
+        )
+
+    secret_ref = request.secret_ref.strip().lower()
+    if not secret_ref.startswith(profile["secret_ref_prefix"]):
+        raise ConnectorCredentialLeaseValidationError(
+            "Credential handle secret_ref does not match provider lease mode.",
+            "provider_secret_ref_mismatch",
+        )
+
+    if profile["requires_lease_path"] and not request.vault_kms_policy.get("lease_path"):
+        raise ConnectorCredentialLeaseValidationError(
+            "Provider-specific Vault leases require vault_kms_policy.lease_path.",
+            "missing_provider_lease_path",
+        )
+
+    kms_key_ref = request.vault_kms_policy.get("kms_key_ref")
+    if kms_key_ref is not None and not kms_key_ref.strip().lower().startswith("kms://"):
+        raise ConnectorCredentialLeaseValidationError(
+            "Provider-specific Vault/KMS leases require kms_key_ref to use kms://.",
+            "invalid_kms_key_ref",
+        )
+
+    return provider_mode, profile
+
+
+def _normalized_provider_mode(value: str | None) -> str:
+    return (value or "").strip().lower().replace("-", "_")
 
 
 def _validate_public_safe_payload(payload: dict[str, Any]) -> None:
