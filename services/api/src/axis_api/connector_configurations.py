@@ -112,7 +112,11 @@ def record_demo_connector_configuration(
     repository: AxisPersistenceRepository,
     request: ConnectorConfigurationCreateRequest,
 ) -> ConnectorTenantConfiguration:
-    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
+    manifest = _active_preview_manifest_for_connector(
+        repository,
+        request.tenant_id,
+        request.connector_id,
+    )
     _validate_preview_sync_mode(request.sync_mode)
     _validate_public_safe_payload(request.configuration_payload)
     record = repository.create_connector_configuration(
@@ -160,6 +164,26 @@ def _manifest_for_connector(
         f"Unsupported connector_id: {connector_id}",
         "unsupported_connector_id",
     )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorConfigurationValidationError(
+            "Connector manifest must be registered before tenant configuration.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorConfigurationValidationError(
+            "Connector manifest must be active_preview before tenant configuration.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _validate_preview_sync_mode(sync_mode: str) -> None:

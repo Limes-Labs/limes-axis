@@ -12,8 +12,15 @@ from axis_api.config import Settings
 from axis_api.connector_configurations import (
     ConnectorConfigurationCreateRequest,
     ConnectorConfigurationQuery,
+    ConnectorConfigurationValidationError,
     build_connector_configuration_registry,
     record_demo_connector_configuration,
+)
+from axis_api.connector_manifests import (
+    ConnectorManifestCreateRequest,
+    ConnectorManifestLifecycleRequest,
+    record_demo_connector_manifest,
+    transition_demo_connector_manifest_lifecycle,
 )
 from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
@@ -131,6 +138,45 @@ def connector_configuration_request() -> ConnectorConfigurationCreateRequest:
     )
 
 
+def file_csv_manifest_request(payload: dict | None = None) -> ConnectorManifestCreateRequest:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    connector = registry_payload["connectors"][0]
+    return ConnectorManifestCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        registered_by="platform-connector-owner-role",
+        manifest=connector["manifest"],
+        runtime_policy=connector["runtime_policy"],
+        preview_sample=connector["preview_sample"],
+        notes=["Manifest is registered without enabling live sync."],
+    )
+
+
+def seed_registered_file_csv_manifest(
+    repository: AxisPersistenceRepository,
+    payload: dict | None = None,
+) -> None:
+    record_demo_connector_manifest(repository, file_csv_manifest_request(payload))
+
+
+def seed_active_file_csv_manifest(
+    repository: AxisPersistenceRepository,
+    payload: dict | None = None,
+) -> None:
+    seed_registered_file_csv_manifest(repository, payload)
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        "file_csv_manufacturing_assets",
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_preview",
+            actor_scopes=["connectors:manifest:lifecycle"],
+            transition_reason="Validated for tenant connector configuration tests.",
+            evidence_refs=["test://connector-config-active-manifest"],
+        ),
+    )
+
+
 def test_connector_configuration_path_does_not_load_demo_connector_registry_seed() -> None:
     source = Path("src/axis_api/connector_configurations.py").read_text()
 
@@ -158,12 +204,29 @@ def test_record_demo_connector_configuration_uses_persisted_connector_manifest(
 
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
+        seed_active_file_csv_manifest(repository, payload)
         configuration = record_demo_connector_configuration(
             repository,
             connector_configuration_request(),
         )
 
     assert configuration.runtime_boundary == "persisted-config-runtime-boundary"
+
+
+def test_record_demo_connector_configuration_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_registered_file_csv_manifest(repository)
+
+        with pytest.raises(ConnectorConfigurationValidationError) as exc_info:
+            record_demo_connector_configuration(
+                repository,
+                connector_configuration_request(),
+            )
+
+    assert exc_info.value.reason == "connector_manifest_not_active_preview"
 
 
 def test_build_connector_configuration_registry_maps_persisted_records(
@@ -231,6 +294,8 @@ def test_create_connector_configuration_endpoint_rejects_raw_secret_payloads(
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_file_csv_manifest(AxisPersistenceRepository(session))
     client = TestClient(app)
 
     response = client.post(
@@ -258,6 +323,8 @@ def test_create_connector_configuration_endpoint_persists_preview_only_config(
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_file_csv_manifest(AxisPersistenceRepository(session))
     client = TestClient(app)
 
     response = client.post(
@@ -288,6 +355,24 @@ def test_create_connector_configuration_endpoint_persists_preview_only_config(
     assert "password" not in str(body).lower()
     assert "api_key" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
+
+
+def test_create_connector_configuration_endpoint_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_registered_file_csv_manifest(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/configurations",
+        json=connector_configuration_request().model_dump(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "connector_manifest_not_active_preview"
 
 
 def test_create_connector_configuration_endpoint_reports_missing_connector_registry(
