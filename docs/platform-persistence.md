@@ -341,8 +341,9 @@ Delivered:
   registry references.
 - connector configuration creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
-  connector manifests and runtime boundaries before tenant configuration state
-  is written.
+  connector manifests and runtime boundaries, then requires the tenant-scoped
+  persisted manifest to be `active_preview` before tenant configuration state is
+  written.
 - connector credential handle creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to validate
   connector ids before external secret reference metadata is written.

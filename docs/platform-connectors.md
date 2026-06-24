@@ -27,8 +27,11 @@ The connector registry API now reads its public-safe reference payload from
 records return explicit API errors instead of silently falling back to runtime
 seed data.
 Connector configuration creation also resolves connector manifests from that
-persisted registry reference before storing runtime boundary metadata, so
-tenant configuration writes no longer depend on a service-local connector seed.
+persisted registry reference, then requires a tenant-scoped persisted manifest
+in `active_preview` before storing runtime boundary metadata. A manifest that
+is only `registered_preview_only` remains catalogued but cannot be configured
+for tenant use, so configuration writes no longer depend on a service-local
+connector seed or an unreviewed manifest registration.
 Credential handle creation uses the same persisted registry reference before
 storing external secret reference metadata, so credential posture writes also
 avoid service-local connector seeds.
@@ -117,7 +120,9 @@ Connector configuration creation reads that same persisted registry reference
 to resolve the connector manifest and runtime boundary for the requested
 connector id. If the registry reference is missing or invalid, configuration
 creation returns explicit 404/422 errors before storing tenant configuration
-state.
+state. The write then checks the tenant-scoped persisted manifest record and
+requires `active_preview`; missing manifests or manifests still in
+`registered_preview_only` are rejected before any configuration row is written.
 
 Credential handle creation also reads the persisted registry reference to
 validate the requested connector id before storing external secret reference
@@ -228,9 +233,11 @@ configuration records. A configuration includes:
 - configuration notes.
 
 Configuration payloads reject raw credential fields such as passwords, API keys
-and credential values. The current configuration status is
-`configured_preview_only`; scheduled sync and connector execution remain future
-Platform work.
+and credential values. Creating a configuration requires the matching
+tenant-scoped connector manifest to have passed the governed lifecycle gate into
+`active_preview`; registration alone is intentionally insufficient. The current
+configuration status is `configured_preview_only`; scheduled sync and connector
+execution remain future Platform work.
 
 The credential handle endpoints store and query tenant-scoped metadata for
 external secret references. A handle includes:
@@ -659,8 +666,8 @@ The slice is covered by:
 
 - API unit tests for manifest shape, public-safety checks, manifest persistence,
   audit evidence, CSV mapping and metadata-only external DB preview;
-- API unit tests for tenant-scoped connector configuration persistence and raw
-  credential field rejection;
+- API unit tests for tenant-scoped connector configuration persistence,
+  `active_preview` manifest gating and raw credential field rejection;
 - API unit tests for credential handle metadata, secret reference guardrails
   and rotation history;
 - API unit tests for credential lease request, renewal, revocation, permission

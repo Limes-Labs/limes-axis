@@ -110,6 +110,7 @@ Foundation acceptance is tracked in
 - [x] Add tenant-scoped persisted connector manifest records.
 - [x] Add governed connector manifest lifecycle transitions for preview states.
 - [x] Add tenant-scoped connector configuration persistence.
+- [x] Require active preview connector manifests before tenant configuration writes.
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
@@ -361,7 +362,8 @@ returned by `/demo/manufacturing/connectors` now reads from the tenant-scoped
 The API module no longer defines a connector registry factory; tests validate
 the Alembic bootstrap payload directly against the registry schema.
 Connector configuration creation resolves connector manifests and runtime
-boundaries from that persisted registry reference before storing tenant
+boundaries from that persisted registry reference, then requires a matching
+tenant-scoped persisted manifest in `active_preview` before storing tenant
 configuration state.
 Credential handle creation uses the same persisted registry reference to
 validate connector manifests before storing external secret reference metadata.
@@ -383,9 +385,9 @@ queries. Tenant-scoped connector manifests can now be registered through
 `connector.manifest.registered` audit evidence while rejecting raw connection
 fields, SQL/query text and credential material. The API also stores and
 queries tenant-scoped preview connector configuration through
-`/demo/manufacturing/connectors/configurations`, rejecting raw credential
-fields in configuration payloads. The API now also stores metadata-only
-credential handles and rotation history through
+`/demo/manufacturing/connectors/configurations`, requiring an `active_preview`
+manifest and rejecting raw credential fields in configuration payloads. The API
+now also stores metadata-only credential handles and rotation history through
 `/demo/manufacturing/connectors/credential-handles`, using external secret
 references instead of raw credential values and failing explicitly if the
 persisted connector registry reference is missing or invalid. Short-lived

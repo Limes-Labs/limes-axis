@@ -130,18 +130,19 @@ registry reference is loaded from the persisted bootstrap payload. Connector
 preview endpoints resolve manifests, schema fields, runtime row limits and
 public-safe sample rows from that persisted connector registry reference before
 returning redacted preview output. Connector configuration writes resolve
-manifests from the persisted connector registry reference before storing
-runtime boundary metadata, and credential handle
-creation uses the same persisted registry before storing external secret
-reference metadata. Ontology proposal writes also resolve connector runtime
-boundary metadata from that persisted registry before recording proposal audit
-evidence, connector run creation uses it before storing run/audit runtime
-boundary metadata, and manual import request creation uses it before writing
-approval-gated import audit evidence. Promotion policy authoring, enablement
-and revision paths also validate connector ids against the persisted registry
-reference before writing policy/audit evidence, and promotion policy set
-activation/replacement/rollback uses it before writing set/audit evidence. The
-external DB preview slice adds a metadata-only Postgres operational mirror manifest and
+manifests from the persisted connector registry reference and require the
+tenant-scoped manifest to be `active_preview` before storing runtime boundary
+metadata, and credential handle creation uses the same persisted registry
+before storing external secret reference metadata. Ontology proposal writes
+also resolve connector runtime boundary metadata from that persisted registry
+before recording proposal audit evidence, connector run creation uses it before
+storing run/audit runtime boundary metadata, and manual import request creation
+uses it before writing approval-gated import audit evidence. Promotion policy
+authoring, enablement and revision paths also validate connector ids against
+the persisted registry reference before writing policy/audit evidence, and
+promotion policy set activation/replacement/rollback uses it before writing
+set/audit evidence. The external DB preview slice adds a metadata-only Postgres
+operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.
 Persisted connector manifests can now be registered tenant-scoped with
