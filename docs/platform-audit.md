@@ -16,6 +16,9 @@ GET /demo/manufacturing/audit
 GET /demo/manufacturing/audit/events
 GET /demo/manufacturing/audit/export
 POST /demo/manufacturing/audit/retention/delete
+GET /demo/manufacturing/audit/legal-holds
+POST /demo/manufacturing/audit/legal-holds
+POST /demo/manufacturing/audit/legal-holds/{hold_id}/release
 ```
 
 The reference endpoint returns a typed audit explorer for the demo tenant. It
@@ -52,13 +55,19 @@ JSON bundle:
 - retention notes that identify enforced behavior and future production
   hardening boundaries.
 
+The legal hold endpoints create, list and release tenant-scoped hold records.
+They require `audit:legal_hold:write`, append
+`audit.legal_hold.activated` / `audit.legal_hold.released` evidence, and store
+scope filters for event type and actor without raw payload material.
+
 The retention delete endpoint accepts a typed request with tenant, actor,
 scopes, retention days, dry-run mode and legal-hold flag. It requires
 `audit:retention:delete`. Dry runs count candidates without deleting rows.
-Legal hold blocks deletion. Executed runs physically delete eligible
-tenant-scoped `audit_events` rows older than the retention cutoff and append a
-fresh `audit.retention_deletion.executed` evidence event containing counts,
-filters and SHA-256 hashes of deleted records, not raw payloads.
+Active persisted legal holds, or the explicit request legal-hold flag, block
+deletion. Executed runs physically delete eligible tenant-scoped `audit_events`
+rows older than the retention cutoff and append a fresh
+`audit.retention_deletion.executed` evidence event containing counts, filters
+and SHA-256 hashes of deleted records, not raw payloads.
 
 ## Console Behavior
 
@@ -82,8 +91,8 @@ migration `0028_audit_explorer_reference` inserts the public-safe reference
 explorer payload. The API runtime no longer defines an audit explorer seed
 factory; tests validate the bootstrap payload directly from the migration. It
 implements a first physical retention deletion execution path with dry-run and
-legal-hold safeguards. It does not yet implement production-grade legal hold
-workflow, WORM/KMS storage hardening or deterministic Temporal replay.
+persisted legal-hold safeguards. It does not yet implement WORM/KMS storage
+hardening or deterministic Temporal replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
@@ -92,14 +101,14 @@ explorer can query and export redacted bundles for those persisted records.
 Export bundles enforce the requested retention window before records enter the
 bundle unless legal hold is active, and every bundle includes a deterministic
 SHA-256 hash-chain integrity proof. Retention deletion can physically remove
-eligible audit rows with audit evidence, while legal hold blocks execution.
-Production query permissions, production-grade legal hold workflows and WORM/KMS
-storage hardening remain future work.
+eligible audit rows with audit evidence, while active legal hold records block
+execution. Production query permissions, WORM/KMS storage hardening and richer
+enterprise legal review workflows remain future work.
 
 Future Platform work should connect this contract to:
 
 - tenant-scoped query permissions;
-- production-grade legal hold workflows;
+- richer legal review workflows and UI for legal hold administration;
 - WORM/KMS-backed ledger signing;
 - evidence bundles for security and operations reviews.
 
@@ -120,8 +129,9 @@ The slice is covered by:
 - API unit tests for persisted audit event query mapping and filters;
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;
-- API unit tests for physical retention deletion dry-run, legal-hold blocking,
-  tenant isolation and redacted deletion evidence;
+- API unit tests for audit legal hold activation/release, physical retention
+  deletion dry-run, persisted legal-hold blocking, tenant isolation and
+  redacted deletion evidence;
 - OpenAPI schema export/check;
 - web unit tests for filtering, export metadata and integrity fields with local
   test fixtures only;

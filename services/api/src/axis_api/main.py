@@ -39,12 +39,21 @@ from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportBundle,
     AuditExportQuery,
+    AuditLegalHoldConflict,
+    AuditLegalHoldCreateRequest,
+    AuditLegalHoldNotFound,
+    AuditLegalHoldPermissionDenied,
+    AuditLegalHoldRecord,
+    AuditLegalHoldReleaseRequest,
     AuditRetentionDeletionPermissionDenied,
     AuditRetentionDeletionRequest,
     AuditRetentionDeletionResult,
+    create_audit_legal_hold,
     execute_audit_retention_deletion,
     export_persisted_audit_events,
+    list_audit_legal_holds,
     query_persisted_audit_events,
+    release_audit_legal_hold,
 )
 from axis_api.audit_reference import (
     AuditReferenceRecordInvalid,
@@ -2972,6 +2981,109 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "message": "The actor cannot execute audit retention deletion.",
                     "required_permissions": ["audit:retention:delete"],
                     "reason": exc.decision.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/audit/legal-holds",
+        response_model=list[AuditLegalHoldRecord],
+        tags=["demo"],
+    )
+    def manufacturing_audit_legal_holds(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> list[AuditLegalHoldRecord]:
+        return list_audit_legal_holds(repository, tenant_id)
+
+    @app.post(
+        "/demo/manufacturing/audit/legal-holds",
+        response_model=AuditLegalHoldRecord,
+        responses={
+            403: {"description": "Audit legal hold permission denied"},
+            409: {"description": "Audit legal hold already active"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_audit_legal_hold_create(
+        legal_hold_request: AuditLegalHoldCreateRequest,
+        repository: PersistenceRepository,
+    ) -> AuditLegalHoldRecord:
+        try:
+            return create_audit_legal_hold(repository, legal_hold_request)
+        except AuditLegalHoldPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot manage audit legal holds.",
+                    "required_permissions": ["audit:legal_hold:write"],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except AuditLegalHoldConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The audit legal hold conflicts with existing state.",
+                    "hold_id": exc.hold_id,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/audit/legal-holds/{hold_id}/release",
+        response_model=AuditLegalHoldRecord,
+        responses={
+            403: {"description": "Audit legal hold permission denied"},
+            404: {"description": "Audit legal hold not found"},
+            409: {"description": "Audit legal hold is not active"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_audit_legal_hold_release(
+        hold_id: str,
+        release_request: AuditLegalHoldReleaseRequest,
+        repository: PersistenceRepository,
+    ) -> AuditLegalHoldRecord:
+        if release_request.hold_id != hold_id:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Path hold_id must match request hold_id.",
+                },
+            )
+        try:
+            return release_audit_legal_hold(repository, release_request)
+        except AuditLegalHoldPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot manage audit legal holds.",
+                    "required_permissions": ["audit:legal_hold:write"],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except AuditLegalHoldNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Audit legal hold record not found.",
+                    "hold_id": hold_id,
+                },
+            ) from exc
+        except AuditLegalHoldConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The audit legal hold conflicts with existing state.",
+                    "hold_id": exc.hold_id,
+                    "reason": exc.reason,
                 },
             ) from exc
 

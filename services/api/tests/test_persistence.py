@@ -10,6 +10,7 @@ from axis_api.models import (
     ActionRun,
     ApprovalRecord,
     AuditEvent,
+    AuditLegalHold,
     Base,
     ConnectorConfiguration,
     ConnectorCredentialHandle,
@@ -57,6 +58,7 @@ def session() -> Session:
 def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert {
         "audit_events",
+        "audit_legal_holds",
         "approval_records",
         "action_runs",
         "connector_configurations",
@@ -73,6 +75,8 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ApprovalRecord.__table__.c.tenant_id.index is True
     assert ActionRun.__table__.c.idempotency_key.index is True
     assert AuditEvent.__table__.c.event_type.index is True
+    assert AuditLegalHold.__table__.c.hold_id.index is True
+    assert AuditLegalHold.__table__.c.status.index is True
     assert ConnectorConfiguration.__table__.c.connector_id.index is True
     assert ConnectorManifestRecord.__table__.c.connector_id.index is True
     assert ConnectorCredentialHandle.__table__.c.handle_id.index is True

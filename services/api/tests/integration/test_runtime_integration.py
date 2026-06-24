@@ -32,6 +32,7 @@ def test_postgres_migration_creates_foundation_tables() -> None:
         "tenants",
         "actors",
         "audit_events",
+        "audit_legal_holds",
         "approval_records",
         "action_runs",
         "connector_configurations",

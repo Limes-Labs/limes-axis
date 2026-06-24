@@ -262,6 +262,9 @@ Delivered:
 - permission-gated physical audit retention deletion for eligible
   tenant-scoped `audit_events`, with dry-run support, legal-hold blocking and
   redacted `audit.retention_deletion.executed` evidence.
+- persisted audit legal hold records for tenant-scoped activation/release, with
+  event-type/actor scoping, `audit:legal_hold:write` permission checks and
+  `audit.legal_hold.activated` / `audit.legal_hold.released` evidence.
 - replay/simulation preview artifacts derived from `workflow_runs`,
   `workflow_timeline_events` and redacted `audit_events`, including governed
   connector policy-set version diff previews.
@@ -455,6 +458,7 @@ Still Platform work:
   ontology-scope checks;
 - WORM/KMS-backed immutable storage hardening beyond insert-only repository
   shape and export hash-chain proof;
-- production-grade legal hold workflows and WORM retention policy integration;
+- richer enterprise legal hold administration UI and WORM retention policy
+  integration;
 - deterministic Temporal replay and retention deletion jobs for simulation
   outputs.

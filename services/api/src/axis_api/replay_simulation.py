@@ -343,7 +343,8 @@ def _retention_window(
             "Persisted outputs use the stricter of the query window and the output "
             "retention window.",
             excluded_summary,
-            "Physical deletion jobs and legal hold workflows remain separate platform work.",
+            "Replay-output deletion jobs and non-audit legal hold workflows remain "
+            "separate platform work.",
         ],
     )
 

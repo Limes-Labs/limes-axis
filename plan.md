@@ -98,6 +98,8 @@ Foundation acceptance is tracked in
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Add permission-gated physical audit retention deletion with dry-run,
   legal-hold blocking and redacted deletion evidence.
+- [x] Add persisted audit legal hold activation/release workflow that blocks
+  matching retention deletion candidates.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [x] Persist replay simulation outputs as governed audit artifacts.
@@ -311,10 +313,14 @@ export bundle with manifest checksum, applied filters, retention-window
 enforcement and hash-chain integrity proof.
 `POST /demo/manufacturing/audit/retention/delete` adds a permission-gated
 physical retention deletion execution path for tenant-scoped audit rows. It
-supports dry-run, blocks deletion under legal hold and writes
+supports dry-run, blocks deletion under active persisted legal holds or an
+explicit legal-hold request flag and writes
 `audit.retention_deletion.executed` evidence with counts and hashes rather than
-raw payloads. Production-grade legal hold workflow and tenant-scoped query
-permissions remain Platform work.
+raw payloads. `POST /demo/manufacturing/audit/legal-holds`,
+`GET /demo/manufacturing/audit/legal-holds` and
+`POST /demo/manufacturing/audit/legal-holds/{hold_id}/release` provide the
+audit-backed legal hold activation/list/release workflow used by retention
+deletion. Tenant-scoped query permissions remain Platform work.
 
 The replay/simulation foundation consumes API replay artifacts from workflow
 run history, timeline events and redacted audit evidence. The `/simulation`
@@ -327,7 +333,8 @@ retention-aware query windows across timeline, audit and persisted output
 records, with a legal-hold bypass for governance review. The browser no longer
 constructs replay artifacts from local workflow or audit defaults. Temporal
 deterministic replay, arbitrary policy diffing, replay-output deletion jobs and
-production legal hold workflows remain Platform and Enterprise work.
+legal hold workflows for non-audit artifacts remain Platform and Enterprise
+work.
 
 The connector foundation exposes a public-safe manifest registry, a
 preview-only file/CSV connector for manufacturing asset intake and a

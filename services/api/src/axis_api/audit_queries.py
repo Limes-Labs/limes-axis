@@ -14,12 +14,19 @@ from axis_api.demo import (
     OverviewMetric,
     OverviewStatus,
 )
-from axis_api.models import AuditEvent
+from axis_api.models import AuditEvent, AuditLegalHold
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.persistence import (
+    AuditLegalHoldCreate,
+    AuditLegalHoldRelease,
+    AxisPersistenceRepository,
+)
 
 RETENTION_DELETION_REQUIRED_SCOPE = "audit:retention:delete"
 RETENTION_DELETION_EVENT_TYPE = "audit.retention_deletion.executed"
+LEGAL_HOLD_REQUIRED_SCOPE = "audit:legal_hold:write"
+LEGAL_HOLD_ACTIVATED_EVENT_TYPE = "audit.legal_hold.activated"
+LEGAL_HOLD_RELEASED_EVENT_TYPE = "audit.legal_hold.released"
 
 
 class AuditEventQuery(BaseModel):
@@ -83,6 +90,47 @@ class AuditExportBundle(BaseModel):
     retention_notes: list[str] = Field(default_factory=list)
 
 
+class AuditLegalHoldCreateRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    hold_id: str = Field(min_length=1, max_length=180, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    actor_id: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=1, max_length=600)
+    event_type: str | None = Field(default=None, min_length=1, max_length=120)
+    actor_filter: str | None = Field(default=None, min_length=1, max_length=160)
+    approved_by: str = Field(min_length=1, max_length=160)
+    notes: list[str] = Field(default_factory=list)
+
+
+class AuditLegalHoldReleaseRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    hold_id: str = Field(min_length=1, max_length=180)
+    actor_id: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    release_reason: str = Field(min_length=1, max_length=600)
+
+
+class AuditLegalHoldRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    hold_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    event_type: str | None = None
+    actor_filter: str | None = None
+    requested_by: str = Field(min_length=1)
+    approved_by: str = Field(min_length=1)
+    released_by: str | None = None
+    release_reason: str | None = None
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
+    release_audit_event_id: UUID | None = None
+    release_audit_event_type: str | None = None
+    permission_decision: PermissionDecision | None = None
+    notes: list[str] = Field(default_factory=list)
+    created_at: datetime
+    released_at: datetime | None = None
+
+
 class AuditRetentionDeletionRequest(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     actor_id: str = Field(min_length=1)
@@ -117,6 +165,23 @@ class AuditRetentionDeletionPermissionDenied(PermissionError):
     def __init__(self, decision: PermissionDecision) -> None:
         super().__init__(decision.reason)
         self.decision = decision
+
+
+class AuditLegalHoldPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+class AuditLegalHoldNotFound(LookupError):
+    pass
+
+
+class AuditLegalHoldConflict(ValueError):
+    def __init__(self, hold_id: str, reason: str) -> None:
+        super().__init__(reason)
+        self.hold_id = hold_id
+        self.reason = reason
 
 
 def _string_value(value: Any) -> str:
@@ -503,6 +568,175 @@ def _event_deletion_hash(event: AuditEvent) -> str:
     ).hexdigest()
 
 
+def _evaluate_legal_hold_permission(
+    tenant_id: str,
+    actor_id: str,
+    actor_scopes: list[str],
+    operation: str,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=actor_id,
+            actor_scopes=actor_scopes,
+            required_scopes=[LEGAL_HOLD_REQUIRED_SCOPE],
+            attributes={"operation": operation},
+        )
+    )
+    if not decision.allowed:
+        raise AuditLegalHoldPermissionDenied(decision)
+    return decision
+
+
+def _legal_hold_to_record(
+    legal_hold: AuditLegalHold,
+    *,
+    permission_decision: PermissionDecision | None = None,
+) -> AuditLegalHoldRecord:
+    return AuditLegalHoldRecord(
+        tenant_id=legal_hold.tenant_id,
+        hold_id=legal_hold.hold_id,
+        status=legal_hold.status,
+        reason=legal_hold.reason,
+        event_type=legal_hold.event_type,
+        actor_filter=legal_hold.actor_id,
+        requested_by=legal_hold.requested_by,
+        approved_by=legal_hold.approved_by,
+        released_by=legal_hold.released_by,
+        release_reason=legal_hold.release_reason,
+        audit_event_id=legal_hold.audit_event_id,
+        audit_event_type=LEGAL_HOLD_ACTIVATED_EVENT_TYPE
+        if legal_hold.audit_event_id
+        else None,
+        release_audit_event_id=legal_hold.release_audit_event_id,
+        release_audit_event_type=LEGAL_HOLD_RELEASED_EVENT_TYPE
+        if legal_hold.release_audit_event_id
+        else None,
+        permission_decision=permission_decision,
+        notes=legal_hold.notes,
+        created_at=legal_hold.created_at,
+        released_at=legal_hold.released_at,
+    )
+
+
+def create_audit_legal_hold(
+    repository: AxisPersistenceRepository,
+    request: AuditLegalHoldCreateRequest,
+) -> AuditLegalHoldRecord:
+    decision = _evaluate_legal_hold_permission(
+        request.tenant_id,
+        request.actor_id,
+        request.actor_scopes,
+        "audit.legal_hold.activate",
+    )
+    existing = repository.get_audit_legal_hold(request.tenant_id, request.hold_id)
+    if existing is not None and existing.status == "active":
+        raise AuditLegalHoldConflict(request.hold_id, "active_hold_exists")
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=LEGAL_HOLD_ACTIVATED_EVENT_TYPE,
+            payload={
+                "category": "audit",
+                "status": "active",
+                "hold_id": request.hold_id,
+                "reason": request.reason,
+                "event_type_filter": request.event_type,
+                "actor_filter": request.actor_filter,
+                "approved_by": request.approved_by,
+                "permission_decision": decision.model_dump(),
+                "raw_payload_exported": False,
+            },
+        )
+    )
+    legal_hold = repository.create_audit_legal_hold(
+        AuditLegalHoldCreate(
+            tenant_id=request.tenant_id,
+            hold_id=request.hold_id,
+            reason=request.reason,
+            requested_by=request.actor_id,
+            approved_by=request.approved_by,
+            event_type=request.event_type,
+            actor_id=request.actor_filter,
+            audit_event_id=audit_event.id,
+            notes=request.notes,
+        )
+    )
+    return _legal_hold_to_record(legal_hold, permission_decision=decision)
+
+
+def release_audit_legal_hold(
+    repository: AxisPersistenceRepository,
+    request: AuditLegalHoldReleaseRequest,
+) -> AuditLegalHoldRecord:
+    decision = _evaluate_legal_hold_permission(
+        request.tenant_id,
+        request.actor_id,
+        request.actor_scopes,
+        "audit.legal_hold.release",
+    )
+    existing = repository.get_audit_legal_hold(request.tenant_id, request.hold_id)
+    if existing is None:
+        raise AuditLegalHoldNotFound("Audit legal hold record not found")
+    if existing.status != "active":
+        raise AuditLegalHoldConflict(request.hold_id, "hold_not_active")
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=LEGAL_HOLD_RELEASED_EVENT_TYPE,
+            payload={
+                "category": "audit",
+                "status": "released",
+                "hold_id": request.hold_id,
+                "release_reason": request.release_reason,
+                "permission_decision": decision.model_dump(),
+                "raw_payload_exported": False,
+            },
+        )
+    )
+    legal_hold = repository.release_audit_legal_hold(
+        AuditLegalHoldRelease(
+            tenant_id=request.tenant_id,
+            hold_id=request.hold_id,
+            released_by=request.actor_id,
+            release_reason=request.release_reason,
+            release_audit_event_id=audit_event.id,
+        )
+    )
+    return _legal_hold_to_record(legal_hold, permission_decision=decision)
+
+
+def list_audit_legal_holds(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+) -> list[AuditLegalHoldRecord]:
+    return [
+        _legal_hold_to_record(legal_hold)
+        for legal_hold in repository.list_active_audit_legal_holds(tenant_id)
+    ]
+
+
+def _legal_hold_matches_event(legal_hold: AuditLegalHold, event: AuditEvent) -> bool:
+    if legal_hold.event_type is not None and legal_hold.event_type != event.event_type:
+        return False
+    return not (legal_hold.actor_id is not None and legal_hold.actor_id != event.actor_id)
+
+
+def _matching_legal_holds(
+    legal_holds: list[AuditLegalHold],
+    candidates: list[AuditEvent],
+) -> list[AuditLegalHold]:
+    matched: dict[str, AuditLegalHold] = {}
+    for legal_hold in legal_holds:
+        if any(_legal_hold_matches_event(legal_hold, event) for event in candidates):
+            matched[legal_hold.hold_id] = legal_hold
+    return list(matched.values())
+
+
 def _evaluate_retention_deletion_permission(
     request: AuditRetentionDeletionRequest,
 ) -> PermissionDecision:
@@ -539,8 +773,16 @@ def execute_audit_retention_deletion(
         limit=request.limit,
     )
     candidate_hashes = [_event_deletion_hash(event) for event in candidates]
+    matching_legal_holds = _matching_legal_holds(
+        repository.list_active_audit_legal_holds(request.tenant_id),
+        candidates,
+    )
 
-    if request.legal_hold:
+    if request.legal_hold or matching_legal_holds:
+        hold_notes = [
+            f"Active legal hold {legal_hold.hold_id} blocks matching candidate records."
+            for legal_hold in matching_legal_holds
+        ]
         return AuditRetentionDeletionResult(
             tenant_id=request.tenant_id,
             retention_days=request.retention_days,
@@ -556,6 +798,7 @@ def execute_audit_retention_deletion(
             notes=[
                 "Legal hold is active; physical retention deletion is blocked.",
                 "Candidate records were counted but no rows were deleted.",
+                *hold_notes,
             ],
         )
 
