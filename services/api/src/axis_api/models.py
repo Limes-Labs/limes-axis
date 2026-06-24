@@ -836,3 +836,42 @@ class ManufacturingDailyBrief(Base):
             name="uq_manufacturing_daily_briefs_tenant_idempotency",
         ),
     )
+
+
+class ManufacturingRiskScenario(Base):
+    __tablename__ = "manufacturing_risk_scenarios"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    scenario_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
+    domain: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    owner_role: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    workflow_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    source_record_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    scenario_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "scenario_id",
+            name="uq_manufacturing_risk_scenarios_tenant_scenario",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_manufacturing_risk_scenarios_tenant_idempotency",
+        ),
+    )

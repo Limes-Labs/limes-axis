@@ -239,7 +239,13 @@ from axis_api.manufacturing_operations import (
     DailyPlantBriefValidationError,
     ManufacturingOperationQuery,
     ManufacturingOperationsDataset,
+    QualityRiskScenarioIdempotencyConflict,
+    QualityRiskScenarioPermissionDenied,
+    QualityRiskScenarioRecord,
+    QualityRiskScenarioRequest,
+    QualityRiskScenarioValidationError,
     generate_daily_plant_brief,
+    generate_quality_risk_scenario,
     query_manufacturing_operations_dataset,
 )
 from axis_api.model_routing_reference import (
@@ -999,6 +1005,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
         except DailyPlantBriefValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @app.post(
+        "/demo/manufacturing/operations/risk-scenarios/quality",
+        response_model=QualityRiskScenarioRecord,
+        responses={
+            403: {"description": "Quality risk scenario permission denied"},
+            409: {"description": "Quality risk scenario idempotency conflict"},
+            422: {"description": "Quality risk scenario validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_quality_risk_scenario(
+        scenario_request: QualityRiskScenarioRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> QualityRiskScenarioRecord:
+        try:
+            result = generate_quality_risk_scenario(repository, scenario_request)
+        except QualityRiskScenarioPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot generate a quality risk scenario.",
+                    "required_permissions": [
+                        "quality:read",
+                        "workflows:read",
+                        "audit:read",
+                    ],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except QualityRiskScenarioIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The quality risk scenario idempotency key conflicts.",
+                    "scenario_id": exc.scenario_id,
+                },
+            ) from exc
+        except QualityRiskScenarioValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={

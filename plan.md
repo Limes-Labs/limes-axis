@@ -170,6 +170,8 @@ Foundation acceptance is tracked in
   API for production, supply, quality and maintenance reference data.
 - [x] Add an audit-backed daily plant brief generated from persisted operation
   records with idempotency and permission checks.
+- [x] Add an audit-backed quality risk scenario generated from persisted
+  Quality operation records with idempotency and permission checks.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -241,6 +243,12 @@ plant brief from those operation records, enforces `briefs:generate`,
 `manufacturing.daily_brief.generated` audit evidence and returns idempotent
 replays for duplicate requests. The brief generator is deterministic and does
 not invoke a placeholder model provider or mutate production systems.
+`POST /demo/manufacturing/operations/risk-scenarios/quality` creates a
+persisted quality risk scenario from `domain=Quality` operation records,
+enforces `quality:read`, `workflows:read` and `audit:read`, writes
+`manufacturing.risk_scenario.generated` audit evidence and returns idempotent
+replays for duplicate requests. The scenario generator does not mutate QMS/MES,
+approve a hold or call a model provider.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
