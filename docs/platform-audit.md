@@ -6,8 +6,9 @@ view of reference and persisted manufacturing audit events.
 It is public-safe and intentionally limited. The explorer shows event metadata,
 filters, evidence references and redacted payload previews. The export path now
 enforces the requested retention window and includes a deterministic hash-chain
-integrity proof without claiming WORM storage, KMS signing or deterministic
-workflow replay are complete.
+integrity proof plus a self-hosted ledger signature proof when signing is
+configured. It does not claim WORM object storage or deterministic workflow
+replay are complete.
 
 ## Demo Endpoint
 
@@ -51,9 +52,16 @@ JSON bundle:
 - retention policy id, retention days, legal hold flag and review requirement;
 - retention enforcement flag, window start and excluded record count;
 - hash-chain algorithm, chain tip and per-event hashes;
+- ledger signature status, key id, payload digest and signature metadata;
 - redacted event records using payload previews only;
 - retention notes that identify enforced behavior and future production
   hardening boundaries.
+
+Audit ledger signing is configured with `AXIS_AUDIT_LEDGER_SIGNING_SECRET` and
+`AXIS_AUDIT_LEDGER_SIGNING_KEY_ID`. The default path is self-hosted
+HMAC-SHA256 over the export manifest plus hash-chain integrity proof. Secret
+material is never returned in the bundle. If signing is not configured, the API
+returns an explicit unsigned proof with the canonical payload digest.
 
 The legal hold endpoints create, list and release tenant-scoped hold records.
 They require `audit:legal_hold:write`, append
@@ -91,8 +99,9 @@ migration `0028_audit_explorer_reference` inserts the public-safe reference
 explorer payload. The API runtime no longer defines an audit explorer seed
 factory; tests validate the bootstrap payload directly from the migration. It
 implements a first physical retention deletion execution path with dry-run and
-persisted legal-hold safeguards. It does not yet implement WORM/KMS storage
-hardening or deterministic Temporal replay.
+persisted legal-hold safeguards and self-hosted ledger signing for export
+proofs. It does not yet implement WORM object-store retention enforcement,
+provider-specific KMS adapters or deterministic Temporal replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
@@ -102,14 +111,15 @@ Export bundles enforce the requested retention window before records enter the
 bundle unless legal hold is active, and every bundle includes a deterministic
 SHA-256 hash-chain integrity proof. Retention deletion can physically remove
 eligible audit rows with audit evidence, while active legal hold records block
-execution. Production query permissions, WORM/KMS storage hardening and richer
-enterprise legal review workflows remain future work.
+execution. Production query permissions, WORM object-store hardening,
+provider-specific KMS adapters and richer enterprise legal review workflows
+remain future work.
 
 Future Platform work should connect this contract to:
 
 - tenant-scoped query permissions;
 - richer legal review workflows and UI for legal hold administration;
-- WORM/KMS-backed ledger signing;
+- provider-specific KMS signers and WORM object-store retention policies;
 - evidence bundles for security and operations reviews.
 
 The replay/simulation foundation now consumes redacted audit metadata for
@@ -129,6 +139,7 @@ The slice is covered by:
 - API unit tests for persisted audit event query mapping and filters;
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;
+- API unit tests for verifiable audit ledger signatures and tamper detection;
 - API unit tests for audit legal hold activation/release, physical retention
   deletion dry-run, persisted legal-hold blocking, tenant isolation and
   redacted deletion evidence;

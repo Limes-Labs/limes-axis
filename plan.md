@@ -96,6 +96,7 @@ Foundation acceptance is tracked in
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
+- [x] Add self-hosted KMS-style ledger signature proof for audit export bundles.
 - [x] Add permission-gated physical audit retention deletion with dry-run,
   legal-hold blocking and redacted deletion evidence.
 - [x] Add persisted audit legal hold activation/release workflow that blocks
@@ -310,7 +311,11 @@ persisted tenant-scoped bootstrap row, and it can query persisted
 `audit_events` through the demo API when records exist. The browser no longer
 carries audit fallback records. The demo API can also return a redacted JSON
 export bundle with manifest checksum, applied filters, retention-window
-enforcement and hash-chain integrity proof.
+enforcement, hash-chain integrity proof and a ledger signature proof. When
+`AXIS_AUDIT_LEDGER_SIGNING_SECRET` is configured, the API signs the export
+manifest plus hash-chain proof with a self-hosted HMAC-SHA256 signer; when it
+is not configured, the bundle reports an explicit `unsigned` proof instead of
+pretending a managed KMS signature exists.
 `POST /demo/manufacturing/audit/retention/delete` adds a permission-gated
 physical retention deletion execution path for tenant-scoped audit rows. It
 supports dry-run, blocks deletion under active persisted legal holds or an

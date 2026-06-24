@@ -259,6 +259,9 @@ Delivered:
 - redacted audit export bundles with manifest checksum, applied filters and
   retention-window enforcement, legal-hold bypass metadata and hash-chain
   integrity proof.
+- self-hosted audit ledger signature proof for export bundles, covering the
+  manifest plus hash-chain proof with HMAC-SHA256 when a signing key is
+  configured and explicit unsigned status otherwise.
 - permission-gated physical audit retention deletion for eligible
   tenant-scoped `audit_events`, with dry-run support, legal-hold blocking and
   redacted `audit.retention_deletion.executed` evidence.
@@ -456,8 +459,9 @@ Still Platform work:
 - production connector mutations from action runtime paths;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;
-- WORM/KMS-backed immutable storage hardening beyond insert-only repository
-  shape and export hash-chain proof;
+- WORM object-store retention hardening and provider-specific KMS adapters
+  beyond insert-only repository shape, export hash-chain proof and self-hosted
+  ledger signing;
 - richer enterprise legal hold administration UI and WORM retention policy
   integration;
 - deterministic Temporal replay and retention deletion jobs for simulation

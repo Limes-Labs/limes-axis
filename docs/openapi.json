@@ -1264,6 +1264,9 @@
           "integrity_proof": {
             "$ref": "#/components/schemas/AuditIntegrityProof"
           },
+          "ledger_signature": {
+            "$ref": "#/components/schemas/AuditLedgerSignatureProof"
+          },
           "manifest": {
             "$ref": "#/components/schemas/AuditExportManifest"
           },
@@ -1296,7 +1299,8 @@
           "filters",
           "retention_policy",
           "manifest",
-          "integrity_proof"
+          "integrity_proof",
+          "ledger_signature"
         ],
         "title": "AuditExportBundle",
         "type": "object"
@@ -1612,6 +1616,68 @@
           "payload_preview"
         ],
         "title": "AuditLedgerEvent",
+        "type": "object"
+      },
+      "AuditLedgerSignatureProof": {
+        "properties": {
+          "algorithm": {
+            "minLength": 1,
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Id"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature"
+          },
+          "signed_payload_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Signed Payload Sha256",
+            "type": "string"
+          },
+          "signing_mode": {
+            "minLength": 1,
+            "title": "Signing Mode",
+            "type": "string"
+          },
+          "verification_status": {
+            "minLength": 1,
+            "title": "Verification Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "signing_mode",
+          "verification_status",
+          "signed_payload_sha256"
+        ],
+        "title": "AuditLedgerSignatureProof",
         "type": "object"
       },
       "AuditLegalHoldCreateRequest": {

@@ -70,5 +70,13 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED",
     )
+    audit_ledger_signing_key_id: str = Field(
+        default="axis-self-hosted-audit-ledger",
+        alias="AXIS_AUDIT_LEDGER_SIGNING_KEY_ID",
+    )
+    audit_ledger_signing_secret: str | None = Field(
+        default=None,
+        alias="AXIS_AUDIT_LEDGER_SIGNING_SECRET",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
