@@ -15,6 +15,7 @@ connector surfaces.
 GET /demo/manufacturing/operations
 POST /demo/manufacturing/operations/daily-brief
 POST /demo/manufacturing/operations/risk-scenarios/quality
+POST /demo/manufacturing/operations/risk-scenarios/maintenance
 ```
 
 Query parameters:
@@ -89,3 +90,9 @@ persisted `domain=Quality` operation records, writes
 `manufacturing.risk_scenario.generated` audit evidence and enforces
 `quality:read`, `workflows:read` and `audit:read`. It does not mutate QMS/MES,
 approve a hold or call a model provider.
+
+The maintenance risk scenario endpoint creates a deterministic scenario from
+persisted `domain=Maintenance` operation records, writes
+`manufacturing.risk_scenario.generated` audit evidence and enforces
+`maintenance:read`, `workflows:read` and `audit:read`. It does not mutate CMMS
+or MES work orders, approve dispatch changes or call a model provider.
