@@ -10,6 +10,7 @@ from axis_api.persistence import (
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
     AxisPersistenceRepository,
+    WorkflowApprovalDecisionUpdate,
 )
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
@@ -53,6 +54,9 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     permission_decision: PermissionDecision
     workflow_signal: WorkflowSignalResult
     workflow_signal_status: str = Field(min_length=1)
+    workflow_state_updated: bool
+    workflow_state: str | None = None
+    workflow_status: str | None = None
 
 
 _APPROVAL_ACTION_IDS = {
@@ -174,6 +178,15 @@ async def record_demo_approval_decision(
         )
     )
     workflow_signal = await _signal_approval_workflow(runtime, tenant_id, approval, request)
+    workflow_run = repository.record_workflow_approval_decision(
+        WorkflowApprovalDecisionUpdate(
+            tenant_id=tenant_id,
+            workflow_id=approval.workflow_id,
+            approval_id=approval.approval_id,
+            decision=request.decision.value,
+            actor_id=request.actor_id,
+        )
+    )
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=tenant_id,
@@ -187,6 +200,9 @@ async def record_demo_approval_decision(
                 "required_permission": approval.required_permission,
                 "permission_decision": permission_decision.model_dump(),
                 "workflow_signal": workflow_signal.model_dump(),
+                "workflow_state_updated": workflow_run is not None,
+                "workflow_state": workflow_run.state if workflow_run is not None else None,
+                "workflow_status": workflow_run.status if workflow_run is not None else None,
                 "result": approval.audit_event_preview.result,
                 "decision_note_recorded": str(request.note is not None).lower(),
             },
@@ -207,4 +223,7 @@ async def record_demo_approval_decision(
         permission_decision=permission_decision,
         workflow_signal=workflow_signal,
         workflow_signal_status=workflow_signal.status,
+        workflow_state_updated=workflow_run is not None,
+        workflow_state=workflow_run.state if workflow_run is not None else None,
+        workflow_status=workflow_run.status if workflow_run is not None else None,
     )

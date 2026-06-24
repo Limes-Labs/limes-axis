@@ -48,7 +48,10 @@ audit event. When allowed, it creates or reuses the matching tenant-scoped
 `approval.decision.recorded` audit event. It also signals the Axis workflow
 runtime adapter. When Temporal is unavailable or the workflow is not running,
 the decision still persists and the response returns an explicit degraded
-workflow signal status.
+workflow signal status. If a matching tenant-scoped `workflow_runs` row exists,
+the decision also updates persisted workflow state, marks the linked pending
+signal with the decision result and appends
+`workflow.approval_decision.recorded` to the workflow timeline.
 
 ## Console Behavior
 
@@ -76,7 +79,8 @@ decision persistence. The API runtime no longer defines an approval inbox seed
 factory; tests validate the bootstrap payload directly from the migration. The
 demo endpoint enforces the approval's required permission from supplied demo
 actor scopes or from OIDC-derived token scopes, rejects actor impersonation
-before persistence and signals the workflow runtime adapter.
+before persistence, signals the workflow runtime adapter and reconciles the
+persisted workflow run view when the referenced workflow already exists.
 
 Future Platform work should connect this contract to:
 
@@ -96,6 +100,8 @@ The slice is covered by:
 - API unit tests for OIDC/JWKS token validation, actor binding and
   impersonation denial;
 - API unit tests for workflow signal success and degraded runtime paths;
+- API unit tests for approval-driven persisted workflow state and timeline
+  updates;
 - OpenAPI schema export/check;
 - web unit tests for the persisted decision payload contract;
 - Playwright smoke tests for API-required approval behavior.

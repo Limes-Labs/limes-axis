@@ -263,6 +263,10 @@ Delivered:
   `workflow_timeline_events` and redacted `audit_events`, including governed
   connector policy-set version diff previews.
 - persisted workflow run state and tenant-scoped history views.
+- approval-driven workflow state reconciliation, where recorded approval
+  decisions update a matching `workflow_runs` row, resolve the approval pending
+  signal and append `workflow.approval_decision.recorded` timeline evidence
+  without requiring a live Temporal worker.
 - tenant-scoped connector configuration records for preview-only connector
   setup, with raw credential fields rejected before persistence.
 - metadata-only connector credential handles with external secret references

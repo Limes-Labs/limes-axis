@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 from runpy import run_path
 
@@ -14,8 +15,14 @@ from axis_api.db import session_scope
 from axis_api.demo import ApprovalDecision
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
-from axis_api.models import ApprovalRecord, AuditEvent, Base
-from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+from axis_api.models import ApprovalRecord, AuditEvent, Base, WorkflowRunRecord
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    DemoReferenceRecordCreate,
+    WorkflowRunCreate,
+    WorkflowTimelineEventCreate,
+)
+from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_runtime import (
     WorkflowSignalError,
     WorkflowSignalRequest,
@@ -170,6 +177,56 @@ def seed_approval_inbox_reference(
         )
 
 
+def seed_supplier_delay_workflow(repository: AxisPersistenceRepository) -> None:
+    started_at = datetime(2026, 6, 21, 14, 5, tzinfo=UTC)
+    repository.create_workflow_run(
+        WorkflowRunCreate(
+            tenant_id="tenant_demo_manufacturing",
+            workflow_id="wf_supplier_delay_review",
+            name="Supplier Delay Review",
+            domain="Supply",
+            state="waiting_for_approval",
+            status="action_required",
+            owner_role="plant-operations-owner",
+            runtime="Temporal OSS",
+            adapter="axis-temporal-adapter",
+            autonomy_level="L2",
+            started_at=started_at,
+            eta="Today 18:00",
+            blocker="Approve expedite action or adjust production schedule",
+            objective="Resolve a delayed supplier batch before it blocks Line 2.",
+            current_step="Approval gate",
+            related_risk="risk_supplier_delay",
+            related_assets=["asset_motors_batch", "asset_line_2_packaging"],
+            inputs=["Supplier portal delay signal", "Line 2 packaging schedule"],
+            proposed_outputs=["Expedite supplier batch action payload"],
+            pending_signals=[
+                {
+                    "signal": "approval.decision",
+                    "required_role": "plant-operations-owner",
+                    "status": "waiting",
+                    "approval_id": "appr_expedite_supplier_batch",
+                }
+            ],
+            controls=["approvals:supply:decide", "append-only-audit-required"],
+            audit_scope="wf_supplier_delay_review",
+            replay_ready=False,
+        )
+    )
+    repository.append_workflow_timeline_event(
+        WorkflowTimelineEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            workflow_id="wf_supplier_delay_review",
+            sequence=1,
+            event="workflow.started",
+            occurred_at=started_at,
+            actor="workflow-runtime",
+            result="started",
+            summary="Supplier delay workflow created from the supply risk signal.",
+        )
+    )
+
+
 async def test_record_demo_approval_decision_reads_persisted_approval_inbox_reference(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -199,6 +256,61 @@ async def test_record_demo_approval_decision_reads_persisted_approval_inbox_refe
     assert approval.workflow_id == "wf_persisted_reference"
     assert audit_event.payload["required_permission"] == "approvals:operations:decide"
     assert workflow_runtime.requests[0].workflow_id == "wf_persisted_reference"
+
+
+async def test_record_demo_approval_decision_updates_persisted_workflow_state(
+    session_factory: sessionmaker[Session],
+) -> None:
+    workflow_runtime = RecordingWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_supplier_delay_workflow(repository)
+        result = await record_demo_approval_decision(
+            repository,
+            "appr_expedite_supplier_batch",
+            ApprovalDecisionRequest(
+                decision=ApprovalDecision.APPROVE,
+                actor_id="plant-operations-owner-role",
+                actor_scopes=["approvals:supply:decide"],
+                note="Approved persisted workflow state update.",
+            ),
+            workflow_runtime,
+        )
+        console = query_persisted_workflow_runs(
+            repository,
+            WorkflowRunQuery(tenant_id="tenant_demo_manufacturing"),
+        )
+
+    with session_factory() as session:
+        workflow_run = session.scalars(select(WorkflowRunRecord)).one()
+        audit_event = session.scalars(select(AuditEvent)).one()
+
+    assert result.workflow_state_updated is True
+    assert result.workflow_state == "approval_approved"
+    assert result.workflow_status == "ready"
+    assert workflow_run.state == "approval_approved"
+    assert workflow_run.status == "ready"
+    assert workflow_run.current_step == "Approval approved"
+    assert workflow_run.blocker is None
+    assert workflow_run.replay_ready is True
+    assert workflow_run.pending_signals == [
+        {
+            "signal": "approval.decision",
+            "required_role": "plant-operations-owner",
+            "status": "approved",
+            "approval_id": "appr_expedite_supplier_batch",
+            "decision": "approve",
+            "decided_by": "plant-operations-owner-role",
+        }
+    ]
+    assert console.workflow_runs[0].state == "approval_approved"
+    assert console.workflow_runs[0].timeline[-1].event == (
+        "workflow.approval_decision.recorded"
+    )
+    assert console.workflow_runs[0].timeline[-1].result == "approved"
+    assert audit_event.payload["workflow_state_updated"] is True
+    assert audit_event.payload["workflow_state"] == "approval_approved"
+    assert audit_event.payload["workflow_status"] == "ready"
 
 
 def test_approval_decision_endpoint_reports_missing_approval_reference_record(

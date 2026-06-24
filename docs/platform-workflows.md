@@ -54,7 +54,10 @@ operations.
 Approval decision persistence now uses this runtime boundary to signal the
 matching workflow when Temporal is available. The workflow console itself stays
 read-only: it shows persisted run state and history views without exposing live
-mutation controls.
+mutation controls. When the referenced workflow run already exists in
+`workflow_runs`, an approval decision also updates that persisted row, resolves
+the matching pending signal, records the decision state and appends a
+`workflow.approval_decision.recorded` timeline event.
 
 The reference workflow console is a bootstrap reference surface, but it is no
 longer constructed inside the FastAPI route. Alembic migration
@@ -87,6 +90,8 @@ The slice is covered by:
 - API unit tests for the manufacturing workflow console reference endpoint;
 - contract tests for the persisted workflow console bootstrap payload;
 - API unit tests for persisted workflow run state and tenant-scoped history;
+- API unit tests for approval decisions mutating persisted workflow state and
+  timeline history;
 - OpenAPI schema export/check;
 - web unit tests for the persisted-data selection contract;
 - Playwright smoke tests for API-required workflow behavior on desktop and mobile.
