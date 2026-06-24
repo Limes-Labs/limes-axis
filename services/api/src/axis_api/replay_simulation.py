@@ -263,7 +263,7 @@ def build_replay_simulation(
             "Persisted simulation outputs are governed audit artifacts with retention metadata.",
             "Replay retention windows are enforced at query time; legal hold suspends exclusion.",
             "Raw action payloads are not exposed in replay artifacts.",
-            "Temporal replay and physical retention deletion jobs remain Platform work.",
+            "Temporal replay and replay-output deletion jobs remain Platform work.",
         ],
     )
 

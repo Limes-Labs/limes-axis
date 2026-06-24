@@ -405,6 +405,10 @@ Delivered:
   query runtime applies metadata and relationship-scope filtering; the runtime
   seed factory has been removed from the API module and tests validate the
   Alembic bootstrap payload directly.
+- a consolidated reference-surface guard covering overview, workflows,
+  connectors, agents, actions, approvals, audit, model routing and ontology so
+  those endpoints retain persisted bootstrap rows and cannot reintroduce
+  `get_manufacturing_*` runtime reference factories.
 - action run creation now also reads
   `surface=ontology/reference_id=manufacturing-ontology` to derive
   relationship scopes for typed payload fields marked as ontology references
