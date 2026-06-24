@@ -83,6 +83,8 @@ Foundation acceptance is tracked in
   decision fallback.
 - [x] Enforce demo approval decision permissions before persistence.
 - [x] Signal approval decisions through the workflow runtime adapter.
+- [x] Reconcile persisted workflow run state and timeline history when approval
+  decisions are recorded.
 - [x] Persist typed action run requests with idempotency enforcement.
 - [x] Signal workflow runtime from typed action payloads behind policy.
 - [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
@@ -524,6 +526,12 @@ their connected ontology relationships from the persisted ontology reference
 record, preventing cross-domain resource references from bypassing the typed
 action permission check. Live production execution, connector invocation and
 broader relationship-aware permission enforcement remain Platform work.
+
+Approval decisions now also reconcile persisted workflow state when the linked
+`workflow_runs` row exists: the pending signal records the decision, the run
+state/status/current step are updated and a workflow timeline event is appended.
+This keeps the persisted workflow console coherent without requiring a live
+Temporal worker.
 
 The model routing and cost observability layer is currently read-only and API
 required. The browser no longer carries local route telemetry fallback records,

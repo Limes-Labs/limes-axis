@@ -123,6 +123,14 @@ class WorkflowTimelineEventCreate(BaseModel):
     summary: str = Field(min_length=1)
 
 
+class WorkflowApprovalDecisionUpdate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    decision: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+
+
 class ReplaySimulationOutputCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     simulation_output_id: str = Field(min_length=1)
@@ -748,6 +756,102 @@ class AxisPersistenceRepository:
         )
         self.session.add(workflow_run)
         self.session.flush()
+        return workflow_run
+
+    def get_workflow_run(
+        self,
+        tenant_id: str,
+        workflow_id: str,
+    ) -> WorkflowRunRecord | None:
+        statement = select(WorkflowRunRecord).where(
+            WorkflowRunRecord.tenant_id == tenant_id,
+            WorkflowRunRecord.workflow_id == workflow_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def record_workflow_approval_decision(
+        self,
+        record: WorkflowApprovalDecisionUpdate,
+    ) -> WorkflowRunRecord | None:
+        workflow_run = self.get_workflow_run(record.tenant_id, record.workflow_id)
+        if workflow_run is None:
+            return None
+
+        decision_status = {
+            "approve": "approved",
+            "reject": "rejected",
+            "request_changes": "changes_requested",
+        }.get(record.decision, record.decision)
+        pending_signals = []
+        matched_signal = False
+        for signal in workflow_run.pending_signals:
+            next_signal = dict(signal)
+            if next_signal.get("approval_id") == record.approval_id:
+                next_signal["status"] = decision_status
+                next_signal["decision"] = record.decision
+                next_signal["decided_by"] = record.actor_id
+                matched_signal = True
+            pending_signals.append(next_signal)
+
+        if not matched_signal:
+            pending_signals.append(
+                {
+                    "signal": "approval.decision",
+                    "required_role": workflow_run.owner_role,
+                    "status": decision_status,
+                    "approval_id": record.approval_id,
+                    "decision": record.decision,
+                    "decided_by": record.actor_id,
+                }
+            )
+
+        if record.decision == "approve":
+            workflow_run.state = "approval_approved"
+            workflow_run.status = "ready"
+            workflow_run.current_step = "Approval approved"
+            workflow_run.blocker = None
+            workflow_run.replay_ready = True
+        elif record.decision == "reject":
+            workflow_run.state = "approval_rejected"
+            workflow_run.status = "watch"
+            workflow_run.current_step = "Approval rejected"
+            workflow_run.blocker = "Approval rejected; action execution is blocked."
+            workflow_run.replay_ready = True
+        else:
+            workflow_run.state = "changes_requested"
+            workflow_run.status = "action_required"
+            workflow_run.current_step = "Approval changes requested"
+            workflow_run.blocker = "Approval reviewer requested changes before execution."
+            workflow_run.replay_ready = True
+
+        workflow_run.pending_signals = pending_signals
+        workflow_run.updated_at = utc_now()
+        self.session.flush()
+
+        latest_sequence = self.session.scalars(
+            select(WorkflowTimelineRecord.sequence)
+            .where(
+                WorkflowTimelineRecord.tenant_id == record.tenant_id,
+                WorkflowTimelineRecord.workflow_id == record.workflow_id,
+            )
+            .order_by(WorkflowTimelineRecord.sequence.desc())
+            .limit(1)
+        ).first()
+        self.append_workflow_timeline_event(
+            WorkflowTimelineEventCreate(
+                tenant_id=record.tenant_id,
+                workflow_id=record.workflow_id,
+                sequence=(latest_sequence or 0) + 1,
+                event="workflow.approval_decision.recorded",
+                occurred_at=workflow_run.updated_at,
+                actor=record.actor_id,
+                result=decision_status,
+                summary=(
+                    f"Approval {record.approval_id} recorded decision "
+                    f"{record.decision} and updated persisted workflow state."
+                ),
+            )
+        )
         return workflow_run
 
     def list_workflow_runs(
