@@ -232,8 +232,14 @@ from axis_api.identity import (
     bind_request_actor,
 )
 from axis_api.manufacturing_operations import (
+    DailyPlantBriefIdempotencyConflict,
+    DailyPlantBriefPermissionDenied,
+    DailyPlantBriefRecord,
+    DailyPlantBriefRequest,
+    DailyPlantBriefValidationError,
     ManufacturingOperationQuery,
     ManufacturingOperationsDataset,
+    generate_daily_plant_brief,
     query_manufacturing_operations_dataset,
 )
 from axis_api.model_routing_reference import (
@@ -950,6 +956,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 limit=limit,
             ),
         )
+
+    @app.post(
+        "/demo/manufacturing/operations/daily-brief",
+        response_model=DailyPlantBriefRecord,
+        responses={
+            403: {"description": "Daily plant brief permission denied"},
+            409: {"description": "Daily plant brief idempotency conflict"},
+            422: {"description": "Daily plant brief validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_daily_plant_brief(
+        brief_request: DailyPlantBriefRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> DailyPlantBriefRecord:
+        try:
+            result = generate_daily_plant_brief(repository, brief_request)
+        except DailyPlantBriefPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot generate a daily plant brief.",
+                    "required_permissions": [
+                        "briefs:generate",
+                        "audit:read",
+                        "workflows:read",
+                    ],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except DailyPlantBriefIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The daily plant brief idempotency key conflicts.",
+                    "brief_id": exc.brief_id,
+                },
+            ) from exc
+        except DailyPlantBriefValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
 
     @app.get(
         "/demo/manufacturing/agents",

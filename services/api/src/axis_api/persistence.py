@@ -23,6 +23,7 @@ from axis_api.models import (
     ConnectorPromotionPolicySet,
     ConnectorRun,
     DemoReferenceRecord,
+    ManufacturingDailyBrief,
     ManufacturingOperationRecord,
     ReplaySimulationOutput,
     WorkflowRunRecord,
@@ -486,6 +487,21 @@ class ManufacturingOperationRecordCreate(BaseModel):
     related_asset: str | None = None
     workflow_id: str | None = None
     risk_level: str | None = None
+
+
+class ManufacturingDailyBriefCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    brief_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    brief_date: str = Field(min_length=1)
+    status: str = Field(default="generated", min_length=1)
+    requested_by: str = Field(min_length=1)
+    required_scopes: list[str] = Field(min_length=1)
+    source_record_ids: list[str] = Field(min_length=1)
+    summary_payload: dict = Field(default_factory=dict)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="manufacturing.daily_brief.generated", min_length=1)
 
 
 class AxisPersistenceRepository:
@@ -1814,5 +1830,67 @@ class AxisPersistenceRepository:
         statement = statement.order_by(
             ManufacturingOperationRecord.occurred_at.desc(),
             ManufacturingOperationRecord.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def create_manufacturing_daily_brief(
+        self,
+        record: ManufacturingDailyBriefCreate,
+    ) -> ManufacturingDailyBrief:
+        brief = ManufacturingDailyBrief(
+            tenant_id=record.tenant_id,
+            brief_id=record.brief_id,
+            idempotency_key=record.idempotency_key,
+            brief_date=record.brief_date,
+            status=record.status,
+            requested_by=record.requested_by,
+            required_scopes=record.required_scopes,
+            source_record_ids=record.source_record_ids,
+            summary_payload=record.summary_payload,
+            permission_decision=record.permission_decision,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+        )
+        self.session.add(brief)
+        self.session.flush()
+        return brief
+
+    def get_manufacturing_daily_brief(
+        self,
+        tenant_id: str,
+        brief_id: str,
+    ) -> ManufacturingDailyBrief | None:
+        statement = select(ManufacturingDailyBrief).where(
+            ManufacturingDailyBrief.tenant_id == tenant_id,
+            ManufacturingDailyBrief.brief_id == brief_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def get_manufacturing_daily_brief_by_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ManufacturingDailyBrief | None:
+        statement = select(ManufacturingDailyBrief).where(
+            ManufacturingDailyBrief.tenant_id == tenant_id,
+            ManufacturingDailyBrief.idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_manufacturing_daily_briefs(
+        self,
+        tenant_id: str,
+        brief_date: str | None = None,
+        limit: int = 100,
+    ) -> list[ManufacturingDailyBrief]:
+        statement: Select[tuple[ManufacturingDailyBrief]] = select(
+            ManufacturingDailyBrief
+        ).where(ManufacturingDailyBrief.tenant_id == tenant_id)
+        if brief_date is not None:
+            statement = statement.where(ManufacturingDailyBrief.brief_date == brief_date)
+
+        statement = statement.order_by(
+            ManufacturingDailyBrief.created_at.desc(),
+            ManufacturingDailyBrief.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))

@@ -1,10 +1,38 @@
 from datetime import UTC
+from hashlib import sha256
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.audit import AuditEventCreate
 from axis_api.demo import OverviewMetric, OverviewStatus
-from axis_api.models import ManufacturingOperationRecord
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.models import ManufacturingDailyBrief, ManufacturingOperationRecord
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ManufacturingDailyBriefCreate,
+)
+
+DAILY_BRIEF_REQUIRED_SCOPES = ["briefs:generate", "audit:read", "workflows:read"]
+
+
+class DailyPlantBriefPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+class DailyPlantBriefValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class DailyPlantBriefIdempotencyConflict(ValueError):
+    def __init__(self, brief_id: str) -> None:
+        super().__init__("Idempotency key already exists with a different request")
+        self.brief_id = brief_id
 
 
 class ManufacturingOperationRecordView(BaseModel):
@@ -43,6 +71,32 @@ class ManufacturingOperationQuery(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
+class DailyPlantBriefRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    brief_date: str = Field(min_length=1, max_length=40)
+    requested_by: str = Field(default="agent_daily_brief", min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=220)
+    source_record_ids: list[str] = Field(default_factory=list)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+class DailyPlantBriefRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    brief_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    brief_date: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    required_scopes: list[str]
+    source_record_ids: list[str]
+    summary_payload: dict
+    permission_decision: PermissionDecision
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    idempotent_replay: bool = False
+
+
 def _isoformat_utc(value) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
@@ -65,6 +119,28 @@ def _operation_record_to_public(
         occurred_at=_isoformat_utc(record.occurred_at),
         payload=record.payload,
         evidence_refs=record.evidence_refs,
+    )
+
+
+def _brief_record_to_public(
+    brief: ManufacturingDailyBrief,
+    *,
+    idempotent_replay: bool,
+) -> DailyPlantBriefRecord:
+    return DailyPlantBriefRecord(
+        tenant_id=brief.tenant_id,
+        brief_id=brief.brief_id,
+        idempotency_key=brief.idempotency_key,
+        brief_date=brief.brief_date,
+        status=brief.status,
+        requested_by=brief.requested_by,
+        required_scopes=brief.required_scopes,
+        source_record_ids=brief.source_record_ids,
+        summary_payload=brief.summary_payload,
+        permission_decision=PermissionDecision.model_validate(brief.permission_decision),
+        audit_event_id=brief.audit_event_id,
+        audit_event_type=brief.audit_event_type,
+        idempotent_replay=idempotent_replay,
     )
 
 
@@ -144,3 +220,183 @@ def query_manufacturing_operations_dataset(
             "Source payloads are redacted to business metadata before API exposure.",
         ],
     )
+
+
+def _daily_brief_idempotency_key(request: DailyPlantBriefRequest) -> str:
+    if request.idempotency_key is not None:
+        return request.idempotency_key
+    return f"{request.tenant_id}:daily-plant-brief:{request.brief_date}:{request.requested_by}"
+
+
+def _daily_brief_request_fingerprint(request: DailyPlantBriefRequest) -> dict:
+    return {
+        "brief_date": request.brief_date,
+        "requested_by": request.requested_by,
+        "source_record_ids": sorted(request.source_record_ids),
+        "limit": request.limit,
+    }
+
+
+def _evaluate_daily_brief_permission(
+    request: DailyPlantBriefRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=DAILY_BRIEF_REQUIRED_SCOPES,
+            relationship_scopes=[],
+            attributes={
+                "brief_date": request.brief_date,
+                "source_record_ids": request.source_record_ids,
+                "operation": "manufacturing.daily_plant_brief.generate",
+            },
+        )
+    )
+    if not decision.allowed:
+        raise DailyPlantBriefPermissionDenied(decision)
+    return decision
+
+
+def _select_daily_brief_records(
+    repository: AxisPersistenceRepository,
+    request: DailyPlantBriefRequest,
+) -> list[ManufacturingOperationRecordView]:
+    records = [
+        _operation_record_to_public(record)
+        for record in repository.list_manufacturing_operation_records(
+            tenant_id=request.tenant_id,
+            limit=request.limit,
+        )
+    ]
+    if request.source_record_ids:
+        requested = set(request.source_record_ids)
+        records = [record for record in records if record.record_id in requested]
+        found = {record.record_id for record in records}
+        missing = sorted(requested - found)
+        if missing:
+            raise DailyPlantBriefValidationError(
+                "Daily plant brief source records were not found.",
+                f"missing_source_records:{','.join(missing)}",
+            )
+
+    if not records:
+        raise DailyPlantBriefValidationError(
+            "Daily plant brief requires at least one persisted operation record.",
+            "no_operation_records",
+        )
+
+    return records
+
+
+def _daily_brief_summary_payload(
+    *,
+    request: DailyPlantBriefRequest,
+    records: list[ManufacturingOperationRecordView],
+) -> dict:
+    action_required = [record for record in records if record.status == "action_required"]
+    watch = [record for record in records if record.status == "watch"]
+    domains = sorted({record.domain for record in records})
+    source_systems = sorted({record.source_system for record in records})
+    top_actions = [
+        {
+            "record_id": record.record_id,
+            "domain": record.domain,
+            "status": record.status,
+            "owner_role": record.owner_role,
+            "related_asset": record.related_asset,
+            "workflow_id": record.workflow_id,
+            "risk_level": record.risk_level,
+        }
+        for record in [*action_required, *watch][:5]
+    ]
+    return {
+        "request": _daily_brief_request_fingerprint(request),
+        "headline": (
+            f"Ravenna Works has {len(action_required)} action-required and "
+            f"{len(watch)} watch records across {len(domains)} operational domains."
+        ),
+        "summary": {
+            "record_count": len(records),
+            "action_required_count": len(action_required),
+            "watch_count": len(watch),
+            "domains": domains,
+            "source_systems": source_systems,
+        },
+        "top_actions": top_actions,
+        "cited_evidence": sorted({ref for record in records for ref in record.evidence_refs}),
+        "source_records": [
+            {
+                "record_id": record.record_id,
+                "domain": record.domain,
+                "record_type": record.record_type,
+                "source_system": record.source_system,
+                "status": record.status,
+                "occurred_at": record.occurred_at,
+            }
+            for record in records
+        ],
+        "generation_boundary": "deterministic_persisted_records",
+        "notes": [
+            "Generated from persisted tenant-scoped manufacturing operation records.",
+            "No external model provider or source-system mutation is invoked.",
+        ],
+    }
+
+
+def _daily_brief_id(request: DailyPlantBriefRequest, source_record_ids: list[str]) -> str:
+    digest = sha256(
+        "|".join([request.tenant_id, request.brief_date, *sorted(source_record_ids)]).encode()
+    ).hexdigest()[:12]
+    return f"brief_{request.brief_date.replace('-', '')}_{digest}"
+
+
+def generate_daily_plant_brief(
+    repository: AxisPersistenceRepository,
+    request: DailyPlantBriefRequest,
+) -> DailyPlantBriefRecord:
+    idempotency_key = _daily_brief_idempotency_key(request)
+    decision = _evaluate_daily_brief_permission(request)
+    existing = repository.get_manufacturing_daily_brief_by_idempotency_key(
+        request.tenant_id,
+        idempotency_key,
+    )
+    if existing is not None:
+        if existing.summary_payload.get("request") != _daily_brief_request_fingerprint(request):
+            raise DailyPlantBriefIdempotencyConflict(existing.brief_id)
+        return _brief_record_to_public(existing, idempotent_replay=True)
+
+    records = _select_daily_brief_records(repository, request)
+    source_record_ids = [record.record_id for record in records]
+    summary_payload = _daily_brief_summary_payload(request=request, records=records)
+    brief_id = _daily_brief_id(request, source_record_ids)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type="manufacturing.daily_brief.generated",
+            payload={
+                "brief_id": brief_id,
+                "brief_date": request.brief_date,
+                "source_record_ids": source_record_ids,
+                "required_scopes": DAILY_BRIEF_REQUIRED_SCOPES,
+                "permission_decision": decision.model_dump(),
+            },
+        )
+    )
+    brief = repository.create_manufacturing_daily_brief(
+        ManufacturingDailyBriefCreate(
+            tenant_id=request.tenant_id,
+            brief_id=brief_id,
+            idempotency_key=idempotency_key,
+            brief_date=request.brief_date,
+            requested_by=request.requested_by,
+            required_scopes=DAILY_BRIEF_REQUIRED_SCOPES,
+            source_record_ids=source_record_ids,
+            summary_payload=summary_payload,
+            permission_decision=decision.model_dump(),
+            audit_event_id=audit_event.id,
+        )
+    )
+    return _brief_record_to_public(brief, idempotent_replay=False)

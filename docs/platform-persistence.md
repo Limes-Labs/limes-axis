@@ -180,6 +180,15 @@ The thirty-first Alembic migration adds:
 - indexes for tenant, record, domain, type, source system, status, owner role,
   related asset, workflow and risk filtering.
 
+The thirty-second Alembic migration adds:
+
+- `manufacturing_daily_briefs`: tenant-scoped daily brief artifacts keyed by
+  tenant and brief/idempotency identifiers;
+- required scope, source record, summary payload, permission decision and audit
+  event references for each generated brief;
+- indexes for tenant, brief, idempotency key, brief date, status, actor and
+  audit event type filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -389,6 +398,11 @@ Delivered:
   `/demo/manufacturing/operations` reading tenant-scoped production order,
   material lot, supplier posture, quality batch, machine status and maintenance
   window metadata through repository queries and server-side filters.
+- persisted manufacturing daily briefs through `manufacturing_daily_briefs`,
+  with `/demo/manufacturing/operations/daily-brief` generating deterministic
+  summaries from operation records, enforcing brief/audit/workflow scopes,
+  writing append-only `manufacturing.daily_brief.generated` audit evidence and
+  returning idempotent replays for duplicate requests.
 
 Still Platform work:
 

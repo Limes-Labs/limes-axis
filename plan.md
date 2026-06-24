@@ -168,6 +168,8 @@ Foundation acceptance is tracked in
   reference factories in the API module.
 - [x] Add tenant-scoped manufacturing operation records with a persisted read
   API for production, supply, quality and maintenance reference data.
+- [x] Add an audit-backed daily plant brief generated from persisted operation
+  records with idempotency and permission checks.
 - [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -233,6 +235,12 @@ machine status and maintenance windows as redacted business metadata from
 ERP/MES/QMS/CMMS/Supplier Portal boundaries. Live source-system queries and
 secret retrieval remain behind connector runtime, credential lease and egress
 policy boundaries.
+`POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
+plant brief from those operation records, enforces `briefs:generate`,
+`audit:read` and `workflows:read`, writes
+`manufacturing.daily_brief.generated` audit evidence and returns idempotent
+replays for duplicate requests. The brief generator is deterministic and does
+not invoke a placeholder model provider or mutate production systems.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
