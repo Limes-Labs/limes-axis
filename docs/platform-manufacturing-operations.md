@@ -13,6 +13,7 @@ connector surfaces.
 
 ```text
 GET /demo/manufacturing/operations
+POST /demo/manufacturing/operations/daily-brief
 ```
 
 Query parameters:
@@ -46,9 +47,26 @@ The first bootstrap covers:
 - quality batch evidence from QMS;
 - machine status and maintenance windows from CMMS.
 
+Daily plant briefs are stored in `manufacturing_daily_briefs`.
+
+Each brief includes:
+
+- tenant, brief and idempotency identifiers;
+- brief date and requested actor;
+- required permission scopes;
+- cited source operation record ids;
+- deterministic summary payload;
+- permission decision;
+- append-only audit event reference.
+
 ## Boundaries
 
 This slice gives Axis a persisted operational dataset to query and compose into
-the reference demo. It does not execute live ERP/MES/QMS/CMMS queries, retrieve
-secrets or mutate production systems. Live source adapters remain behind the
-connector runtime, credential lease and egress policy boundaries.
+the reference demo. The daily plant brief endpoint creates a deterministic
+summary from persisted operation records, writes
+`manufacturing.daily_brief.generated` audit evidence and enforces
+`briefs:generate`, `audit:read` and `workflows:read`.
+
+It does not execute live ERP/MES/QMS/CMMS queries, retrieve secrets, invoke a
+model provider or mutate production systems. Live source adapters remain behind
+the connector runtime, credential lease and egress policy boundaries.

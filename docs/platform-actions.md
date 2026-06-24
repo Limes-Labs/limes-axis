@@ -59,6 +59,13 @@ The reference registry currently includes:
 These actions connect the agent registry, workflow console, approval inbox and
 audit explorer without enabling live mutation.
 
+The daily plant brief now has a persisted execution boundary through
+`POST /demo/manufacturing/operations/daily-brief`. It generates a deterministic
+brief from tenant-scoped manufacturing operation records, writes
+`manufacturing.daily_brief.generated` audit evidence and stores the artifact in
+`manufacturing_daily_briefs`. It does not call a model provider or mutate
+production systems.
+
 ## Boundaries
 
 The registry remains read-only at the catalog boundary, while action run
