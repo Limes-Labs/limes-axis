@@ -171,6 +171,15 @@ retrieve credentials, execute connector code or mutate the ontology graph. The
 create endpoint rejects raw connection fields, DSNs, SQL/query text and raw
 credential material before persisting the record.
 
+`POST /demo/manufacturing/connectors/manifests/{connector_id}/lifecycle`
+transitions a persisted manifest from `registered_preview_only` to
+`active_preview`, or from preview states to `deprecated`, when the actor has
+`connectors:manifest:lifecycle`. The endpoint writes
+`connector.manifest.lifecycle_transitioned` audit evidence and records the
+lifecycle note on the manifest. Live targets such as `live_enabled` are rejected
+explicitly; the lifecycle path does not start sync, retrieve credentials,
+execute connector code or mutate the ontology graph.
+
 The CSV preview endpoint accepts a demo CSV payload and returns:
 
 - validation status;
@@ -634,7 +643,7 @@ contract keeps these boundaries visible:
 
 Future Platform work should add:
 
-- manifest lifecycle transitions beyond preview-only registration;
+- live connector manifest enablement beyond preview lifecycle states;
 - live provider secret retrieval beyond provider-specific lease validation;
 - provider-specific scheduled live sync beyond the self-hosted execution boundary;
 - live external database adapters behind the Axis connector runtime boundary;

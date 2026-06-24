@@ -205,6 +205,18 @@ class ConnectorManifestCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorManifestLifecycleUpdate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.manifest.lifecycle_transitioned",
+        min_length=1,
+    )
+    note: str = Field(min_length=1)
+
+
 class ConnectorCredentialHandleCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -1186,6 +1198,23 @@ class AxisPersistenceRepository:
             ConnectorManifestRecord.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
+
+    def update_connector_manifest_lifecycle(
+        self,
+        record: ConnectorManifestLifecycleUpdate,
+    ) -> ConnectorManifestRecord:
+        manifest = self.get_connector_manifest(record.tenant_id, record.connector_id)
+        if manifest is None:
+            raise PersistenceRecordNotFound("Connector manifest not found")
+
+        now = utc_now()
+        manifest.status = record.status
+        manifest.audit_event_id = record.audit_event_id
+        manifest.audit_event_type = record.audit_event_type
+        manifest.notes = [*manifest.notes, record.note]
+        manifest.updated_at = now
+        self.session.flush()
+        return manifest
 
     def create_connector_credential_handle(
         self,

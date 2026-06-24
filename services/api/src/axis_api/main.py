@@ -124,12 +124,15 @@ from axis_api.connector_execution import (
 from axis_api.connector_manifests import (
     ConnectorManifestConflict,
     ConnectorManifestCreateRequest,
+    ConnectorManifestLifecycleRequest,
+    ConnectorManifestLifecycleValidationError,
     ConnectorManifestQuery,
     ConnectorManifestRecordView,
     ConnectorManifestValidationError,
     ManufacturingConnectorManifestRegistry,
     build_connector_manifest_registry,
     record_demo_connector_manifest,
+    transition_demo_connector_manifest_lifecycle,
 )
 from axis_api.connector_manual_imports import (
     ConnectorManualImportCreateRequest,
@@ -1419,6 +1422,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ConnectorManifestValidationError as exc:
             raise HTTPException(
                 status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle",
+        response_model=ConnectorManifestRecordView,
+        responses={
+            403: {"description": "Connector manifest lifecycle permission denied"},
+            422: {"description": "Connector manifest lifecycle validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_manifest_lifecycle(
+        connector_id: str,
+        lifecycle_request: ConnectorManifestLifecycleRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorManifestRecordView:
+        try:
+            return transition_demo_connector_manifest_lifecycle(
+                repository,
+                connector_id,
+                lifecycle_request,
+            )
+        except ConnectorManifestLifecycleValidationError as exc:
+            status_code = (
+                403
+                if exc.reason == "missing_manifest_lifecycle_scope"
+                else 422
+            )
+            raise HTTPException(
+                status_code=status_code,
                 detail={
                     "code": AxisErrorCode.VALIDATION_FAILED.value,
                     "message": exc.message,

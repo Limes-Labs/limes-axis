@@ -7,9 +7,12 @@ from sqlalchemy.pool import StaticPool
 from axis_api.config import Settings
 from axis_api.connector_manifests import (
     ConnectorManifestCreateRequest,
+    ConnectorManifestLifecycleRequest,
+    ConnectorManifestLifecycleValidationError,
     ConnectorManifestQuery,
     build_connector_manifest_registry,
     record_demo_connector_manifest,
+    transition_demo_connector_manifest_lifecycle,
 )
 from axis_api.db import session_scope
 from axis_api.main import create_app
@@ -216,6 +219,86 @@ def test_create_connector_manifest_endpoint_rejects_duplicate_manifest(
     assert second.json()["detail"]["connector_id"] == "external_db_shift_orders"
 
 
+def test_transition_connector_manifest_lifecycle_marks_active_preview(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(repository, external_db_manifest_request())
+        transitioned = transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_preview",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Ready for governed preview configuration.",
+                evidence_refs=["approval:connector-manifest-preview-activation"],
+            ),
+        )
+
+    assert transitioned.status == "active_preview"
+    assert transitioned.audit_event_type == "connector.manifest.lifecycle_transitioned"
+    assert transitioned.notes[-1] == "Lifecycle transition: active_preview"
+    assert transitioned.manifest["connector_id"] == "external_db_shift_orders"
+    assert "password" not in transitioned.model_dump_json().lower()
+
+
+def test_transition_connector_manifest_lifecycle_rejects_live_enabled_target(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(repository, external_db_manifest_request())
+        with pytest.raises(ConnectorManifestLifecycleValidationError) as exc_info:
+            transition_demo_connector_manifest_lifecycle(
+                repository,
+                "external_db_shift_orders",
+                ConnectorManifestLifecycleRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    transitioned_by="platform-connector-owner-role",
+                    target_status="live_enabled",
+                    actor_scopes=["connectors:manifest:lifecycle"],
+                    transition_reason="Enable live sync.",
+                    evidence_refs=["approval:live-sync"],
+                ),
+            )
+
+    assert exc_info.value.reason == "unsupported_manifest_lifecycle_target"
+
+
+def test_transition_connector_manifest_endpoint_updates_manifest_with_audit(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        record_demo_connector_manifest(
+            AxisPersistenceRepository(session),
+            external_db_manifest_request(),
+        )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manifests/external_db_shift_orders/lifecycle",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "transitioned_by": "platform-connector-owner-role",
+            "target_status": "active_preview",
+            "actor_scopes": ["connectors:manifest:lifecycle"],
+            "transition_reason": "Ready for governed preview configuration.",
+            "evidence_refs": ["approval:connector-manifest-preview-activation"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "active_preview"
+    assert body["audit_event_type"] == "connector.manifest.lifecycle_transitioned"
+    assert body["notes"][-1] == "Lifecycle transition: active_preview"
+
+
 def test_openapi_exposes_connector_manifest_endpoints() -> None:
     client = TestClient(create_app())
     response = client.get("/openapi.json")
@@ -225,3 +308,10 @@ def test_openapi_exposes_connector_manifest_endpoints() -> None:
     assert "/demo/manufacturing/connectors/manifests" in paths
     assert "get" in paths["/demo/manufacturing/connectors/manifests"]
     assert "post" in paths["/demo/manufacturing/connectors/manifests"]
+    assert (
+        "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle" in paths
+    )
+    assert (
+        "post"
+        in paths["/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle"]
+    )
