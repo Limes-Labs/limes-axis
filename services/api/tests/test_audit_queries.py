@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -10,13 +10,15 @@ from axis_api.audit import AuditEventCreate
 from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportQuery,
+    AuditRetentionDeletionRequest,
+    execute_audit_retention_deletion,
     export_persisted_audit_events,
     query_persisted_audit_events,
 )
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
-from axis_api.models import Base
+from axis_api.models import AuditEvent, Base
 from axis_api.persistence import AxisPersistenceRepository
 
 
@@ -319,6 +321,163 @@ def test_export_persisted_audit_events_preserves_expired_events_under_legal_hold
         "wf_expired_quality_hold",
     }
     assert any("legal hold" in note.lower() for note in export.retention_notes)
+
+
+def test_audit_retention_deletion_dry_run_keeps_expired_events(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        result = execute_audit_retention_deletion(
+            repository,
+            AuditRetentionDeletionRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="audit-retention-operator",
+                actor_scopes=["audit:retention:delete"],
+                retention_days=30,
+                dry_run=True,
+            ),
+        )
+
+    with session_factory() as session:
+        events = list(session.scalars(select(AuditEvent)))
+
+    assert result.status == "dry_run"
+    assert result.candidate_count == 1
+    assert result.deleted_count == 0
+    assert result.audit_event_id is None
+    assert len(events) == 2
+
+
+def test_audit_retention_deletion_blocks_physical_delete_under_legal_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        result = execute_audit_retention_deletion(
+            repository,
+            AuditRetentionDeletionRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="audit-retention-operator",
+                actor_scopes=["audit:retention:delete"],
+                retention_days=30,
+                legal_hold=True,
+                dry_run=False,
+            ),
+        )
+
+    with session_factory() as session:
+        events = list(session.scalars(select(AuditEvent)))
+
+    assert result.status == "blocked_legal_hold"
+    assert result.candidate_count == 1
+    assert result.deleted_count == 0
+    assert len(events) == 2
+
+
+def test_audit_retention_deletion_removes_only_expired_tenant_events_and_records_evidence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_retention_window_events(repository)
+        other_tenant_expired = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_other",
+                actor_id="other-actor",
+                event_type="action.proposal.created",
+                payload={"workflow_id": "wf_other"},
+            )
+        )
+        other_tenant_expired.created_at = datetime.now(UTC) - timedelta(days=90)
+        result = execute_audit_retention_deletion(
+            repository,
+            AuditRetentionDeletionRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="audit-retention-operator",
+                actor_scopes=["audit:retention:delete"],
+                retention_days=30,
+                dry_run=False,
+                reason="scheduled-retention-window",
+            ),
+        )
+
+    with session_factory() as session:
+        events = list(session.scalars(select(AuditEvent).order_by(AuditEvent.created_at.asc())))
+
+    assert result.status == "executed"
+    assert result.candidate_count == 1
+    assert result.deleted_count == 1
+    assert len(result.deleted_event_hashes) == 1
+    assert result.audit_event_type == "audit.retention_deletion.executed"
+    assert {event.tenant_id for event in events} == {
+        "tenant_demo_manufacturing",
+        "tenant_other",
+    }
+    assert {event.event_type for event in events} == {
+        "approval.decision.recorded",
+        "action.proposal.created",
+        "audit.retention_deletion.executed",
+    }
+    evidence = [
+        event for event in events if event.event_type == "audit.retention_deletion.executed"
+    ][0]
+    assert evidence.payload["deleted_count"] == 1
+    assert evidence.payload["raw_payload_exported"] is False
+    assert "wf_expired_quality_hold" not in str(evidence.payload)
+
+
+def test_audit_retention_deletion_endpoint_denies_missing_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/retention/delete",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "audit-retention-operator",
+            "actor_scopes": ["audit:read"],
+            "retention_days": 30,
+            "dry_run": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permissions"] == [
+        "audit:retention:delete"
+    ]
+
+
+def test_audit_retention_deletion_endpoint_executes_dry_run(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_retention_window_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/retention/delete",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "audit-retention-operator",
+            "actor_scopes": ["audit:retention:delete"],
+            "retention_days": 30,
+            "dry_run": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "dry_run"
+    assert body["candidate_count"] == 1
+    assert body["deleted_count"] == 0
 
 
 def test_export_persisted_audit_events_includes_hash_chain_integrity_proof(

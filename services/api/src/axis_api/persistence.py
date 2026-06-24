@@ -568,6 +568,38 @@ class AxisPersistenceRepository:
         )
         return list(self.session.scalars(statement))
 
+    def list_audit_events_before(
+        self,
+        tenant_id: str,
+        cutoff: datetime,
+        event_type: str | None = None,
+        actor_id: str | None = None,
+        limit: int = 100,
+    ) -> list[AuditEvent]:
+        self.session.flush()
+        statement: Select[tuple[AuditEvent]] = select(AuditEvent).where(
+            AuditEvent.tenant_id == tenant_id,
+            AuditEvent.created_at < cutoff,
+            AuditEvent.event_type != "audit.retention_deletion.executed",
+        )
+        if event_type is not None:
+            statement = statement.where(AuditEvent.event_type == event_type)
+        if actor_id is not None:
+            statement = statement.where(AuditEvent.actor_id == actor_id)
+
+        statement = statement.order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(
+            limit
+        )
+        return list(self.session.scalars(statement))
+
+    def delete_audit_events(self, records: list[AuditEvent]) -> int:
+        deleted_count = 0
+        for record in records:
+            self.session.delete(record)
+            deleted_count += 1
+        self.session.flush()
+        return deleted_count
+
     def create_approval_record(self, record: ApprovalRecordCreate) -> ApprovalRecord:
         approval = ApprovalRecord(
             tenant_id=record.tenant_id,
