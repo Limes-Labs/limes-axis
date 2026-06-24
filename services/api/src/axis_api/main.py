@@ -94,6 +94,7 @@ from axis_api.connector_credential_leases import (
     CredentialLeaseRuntime,
     DeferredCredentialLeaseRuntime,
     ManufacturingConnectorCredentialLeaseRegistry,
+    ProviderSpecificVaultKmsLeaseRuntime,
     SelfHostedVaultKmsLeaseRuntime,
     build_connector_credential_lease_registry,
     record_demo_connector_credential_lease,
@@ -764,11 +765,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if resolved_settings.connector_sync_execution_enabled
         else DeferredConnectorSyncExecutionRuntime()
     )
-    app.state.credential_lease_runtime = (
-        SelfHostedVaultKmsLeaseRuntime()
-        if resolved_settings.credential_lease_execution_enabled
-        else DeferredCredentialLeaseRuntime()
-    )
+    if resolved_settings.credential_lease_provider_adapters_enabled:
+        app.state.credential_lease_runtime = ProviderSpecificVaultKmsLeaseRuntime()
+    elif resolved_settings.credential_lease_execution_enabled:
+        app.state.credential_lease_runtime = SelfHostedVaultKmsLeaseRuntime()
+    else:
+        app.state.credential_lease_runtime = DeferredCredentialLeaseRuntime()
     app.state.identity_verifier = RemoteJwksOidcVerifier(
         issuer=resolved_settings.oidc_issuer,
         audience=resolved_settings.oidc_audience,

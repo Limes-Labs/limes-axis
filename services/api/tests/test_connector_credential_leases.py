@@ -10,7 +10,9 @@ from axis_api.config import Settings
 from axis_api.connector_credential_leases import (
     ConnectorCredentialLeaseQuery,
     ConnectorCredentialLeaseRequest,
+    ConnectorCredentialLeaseValidationError,
     CredentialLeaseRuntimeRequest,
+    ProviderSpecificVaultKmsLeaseRuntime,
     SelfHostedVaultKmsLeaseRuntime,
     build_connector_credential_lease_registry,
     record_demo_connector_credential_lease,
@@ -250,6 +252,66 @@ def test_self_hosted_vault_kms_runtime_executes_lease_without_secret_material() 
     assert "secret_value" not in serialized
 
 
+def test_provider_specific_vault_kms_runtime_attests_vault_without_secret_material() -> None:
+    runtime = ProviderSpecificVaultKmsLeaseRuntime()
+
+    result = runtime.request_lease(
+        CredentialLeaseRuntimeRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            handle_id="cred_file_csv_readonly",
+            lease_id="lease_file_csv_readonly_20260622",
+            action="request",
+            secret_provider="external_vault",
+            secret_ref="vault://axis/demo/connectors/file-csv-readonly",
+            vault_kms_policy={
+                "provider_mode": "hashicorp_vault",
+                "lease_path": "axis/demo/connectors/file-csv-readonly",
+                "kms_key_ref": "kms://axis/demo/connectors",
+            },
+            evidence_ref="lease:lease_file_csv_readonly_20260622",
+        )
+    )
+
+    assert result.adapter == "axis-provider-specific-vault-kms-lease-adapter"
+    assert result.status == "lease_executed"
+    assert result.provider_mode == "hashicorp_vault"
+    assert result.provider_lease_ref == (
+        "vault://axis/leases/tenant_demo_manufacturing/lease_file_csv_readonly_20260622"
+    )
+    assert result.external_secret_read == "false"
+    assert result.secret_material_returned == "false"
+    serialized = result.model_dump_json().lower()
+    assert "password" not in serialized
+    assert "credential_value" not in serialized
+    assert "secret_value" not in serialized
+
+
+def test_provider_specific_vault_kms_runtime_rejects_provider_ref_mismatch() -> None:
+    runtime = ProviderSpecificVaultKmsLeaseRuntime()
+
+    with pytest.raises(ConnectorCredentialLeaseValidationError) as exc:
+        runtime.request_lease(
+            CredentialLeaseRuntimeRequest(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="file_csv_manufacturing_assets",
+                handle_id="cred_file_csv_readonly",
+                lease_id="lease_file_csv_readonly_20260622",
+                action="request",
+                secret_provider="external_vault",
+                secret_ref="aws-secrets-manager://axis/demo/connectors/file-csv-readonly",
+                vault_kms_policy={
+                    "provider_mode": "hashicorp_vault",
+                    "lease_path": "axis/demo/connectors/file-csv-readonly",
+                    "kms_key_ref": "kms://axis/demo/connectors",
+                },
+                evidence_ref="lease:lease_file_csv_readonly_20260622",
+            )
+        )
+
+    assert exc.value.reason == "provider_secret_ref_mismatch"
+
+
 def test_request_connector_credential_lease_uses_live_runtime_when_enabled(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -275,6 +337,44 @@ def test_request_connector_credential_lease_uses_live_runtime_when_enabled(
     assert body["lease_result"]["adapter"] == "axis-self-hosted-vault-kms-lease-adapter"
     assert body["lease_result"]["status"] == "lease_executed"
     assert body["lease_result"]["provider_mode"] == "self_hosted_vault"
+    assert body["lease_result"]["external_secret_read"] == "false"
+    assert body["lease_result"]["secret_material_returned"] == "false"
+
+
+def test_request_connector_credential_lease_uses_provider_specific_runtime_when_enabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            credential_lease_provider_adapters_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_handle(AxisPersistenceRepository(session))
+    client = TestClient(app)
+    request = lease_request().model_dump(mode="json")
+    request["lease_id"] = "lease_file_csv_provider_vault_20260622"
+    request["vault_kms_policy"]["provider_mode"] = "hashicorp_vault"
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases",
+        json=request,
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["lease_mode"] == "provider_specific_vault_kms_lease"
+    assert body["lease_result"]["adapter"] == (
+        "axis-provider-specific-vault-kms-lease-adapter"
+    )
+    assert body["lease_result"]["status"] == "lease_executed"
+    assert body["lease_result"]["provider_mode"] == "hashicorp_vault"
+    assert body["lease_result"]["provider_lease_ref"] == (
+        "vault://axis/leases/tenant_demo_manufacturing/"
+        "lease_file_csv_provider_vault_20260622"
+    )
     assert body["lease_result"]["external_secret_read"] == "false"
     assert body["lease_result"]["secret_material_returned"] == "false"
 

@@ -58,6 +58,10 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED",
     )
+    credential_lease_provider_adapters_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED",
+    )
     connector_sync_execution_enabled: bool = Field(
         default=False,
         alias="AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED",

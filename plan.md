@@ -114,6 +114,8 @@ Foundation acceptance is tracked in
   idempotency gates.
 - [x] Add Vault/KMS credential lease records with renew/revoke evidence.
 - [x] Add optional self-hosted Vault/KMS lease runtime adapter.
+- [x] Add provider-specific Vault/KMS credential lease profiles and policy
+  hardening without secret material retrieval.
 - [x] Author connector promotion policies before required enforcement.
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.
@@ -385,7 +387,12 @@ credential leases can now be requested, renewed and revoked through
 timestamps, permission decisions and adapter evidence. The lease runtime is
 deferred by default and can use the optional self-hosted Vault/KMS adapter when
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`, still without returning secret
-material. Connector run records can now be written through
+material. Provider-specific Vault/KMS adapter profiles can be enabled with
+`AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true`; the runtime validates
+the declared provider mode against the credential handle secret provider,
+secret reference prefix and KMS policy metadata for HashiCorp Vault, AWS Secrets
+Manager, GCP Secret Manager, Azure Key Vault, KMS and local env refs, while
+still returning only lease evidence. Connector run records can now be written through
 `/demo/manufacturing/connectors/runs`; each record stores only redacted
 summaries and links to an append-only
 `connector.run.recorded` audit event. Governed dry-run connector execution now
@@ -519,8 +526,8 @@ runtime no longer exports connector registry, preview, credential, run,
 proposal, import, promotion policy or policy-set default records; connector
 unit tests use local fixtures instead of product runtime fallbacks.
 Manifest lifecycle transitions beyond preview-only registration,
-provider-specific Vault/KMS adapters, provider-specific scheduled live sync
-beyond the self-hosted execution boundary, live external database adapters and
+live provider secret retrieval, provider-specific scheduled live sync beyond
+the self-hosted execution boundary, live external database adapters and
 connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and API required. The browser no

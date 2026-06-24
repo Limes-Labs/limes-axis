@@ -258,7 +258,7 @@ records for connector execution. A lease includes:
 - external secret provider and reference;
 - Vault/KMS policy metadata;
 - permission decision;
-- deferred or self-hosted adapter result;
+- deferred, self-hosted or provider-specific adapter result;
 - granted, expiry and renewal timestamps;
 - renewal/revocation evidence;
 - linked audit event id and type;
@@ -275,8 +275,15 @@ evidence. Renewing and revoking leases require
 `connector.credential_lease.revoked`. The default adapter is deferred.
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true` switches the boundary to the
 self-hosted Vault/KMS lease adapter, which records a provider lease reference
-without returning secret material, requiring a managed service, starting live
-sync or mutating the ontology graph.
+without returning secret material, without requiring a managed service, without
+starting live sync and without mutating the ontology graph.
+`AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true` switches the same
+boundary to provider-specific profiles for HashiCorp Vault, AWS Secrets
+Manager, GCP Secret Manager, Azure Key Vault, KMS and local env refs. The
+runtime validates the declared provider mode, credential handle provider,
+secret reference prefix, lease path requirements and optional `kms://` key
+reference before writing lease evidence. It still never reads external secret
+material or returns raw credential values.
 
 The connector run endpoints store and query tenant-scoped run evidence. A run
 record includes:
@@ -628,7 +635,7 @@ contract keeps these boundaries visible:
 Future Platform work should add:
 
 - manifest lifecycle transitions beyond preview-only registration;
-- provider-specific Vault/KMS adapters beyond the self-hosted lease boundary;
+- live provider secret retrieval beyond provider-specific lease validation;
 - provider-specific scheduled live sync beyond the self-hosted execution boundary;
 - live external database adapters behind the Axis connector runtime boundary;
 - connector-backed action invocation behind policy and approval gates.

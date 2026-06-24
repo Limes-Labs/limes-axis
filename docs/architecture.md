@@ -84,8 +84,11 @@ request, renew and revoke audit evidence, permission decisions and runtime
 adapter results while never returning secret material. The boundary is deferred
 by default and can use a self-hosted Vault/KMS lease adapter through
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`, still without requiring managed
-services. Connector run records persist redacted input/result summaries and
-link to append-only
+services. Provider-specific Vault/KMS lease profiles can be enabled through
+`AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true` to validate HashiCorp
+Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, KMS and local
+env references without reading or returning secret material. Connector run
+records persist redacted input/result summaries and link to append-only
 `connector.run.recorded` audit events. Governed dry-run
 connector execution now calls a deferred Axis connector execution adapter,
 requires credential handle ids and writes `connector.run.execution_deferred`
