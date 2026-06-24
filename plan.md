@@ -180,7 +180,7 @@ Foundation acceptance is tracked in
   Maintenance operation records with idempotency and permission checks.
 - [x] Add an audit-backed supplier delay scenario generated from persisted
   Supply operation records with idempotency and permission checks.
-- [ ] Replace remaining API-owned reference endpoints beyond overview, workflow
+- [x] Guard all API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
   tenant-scoped bootstrap records.
@@ -199,9 +199,9 @@ also reads from `surface=agents` and
 an agent registry runtime seed factory. The action registry endpoint reads from
 `surface=actions` and `reference_id=manufacturing-action-registry`; action run
 requests validate their action definitions against that same persisted record
-instead of a runtime seed factory and derive ontology resource relationship scopes from
-`surface=ontology/reference_id=manufacturing-ontology` before writing
-action/audit state.
+instead of a runtime seed factory and derive ontology resource relationship
+scopes from `surface=ontology/reference_id=manufacturing-ontology` before
+writing action/audit state.
 The workflow console reference endpoint reads from `surface=workflows` and
 `reference_id=manufacturing-workflow-console`, while
 `/demo/manufacturing/workflows/runs` continues to query operational workflow run
@@ -228,11 +228,10 @@ The ontology graph and entity detail endpoints read from `surface=ontology` and
 and relationship-scope filtering to that persisted graph instead of loading a
 route-owned seed. The API module no longer defines ontology graph/detail
 runtime seed factories; tests validate the Alembic bootstrap payload directly.
-The API test suite also includes a module-level guard that fails if the API
-module reintroduces any `get_manufacturing_*` runtime reference factory.
-Remaining API-owned reference records are a
-bootstrap boundary and must be moved to persisted tenant-scoped records before
-production use. The full manufacturing reference demo remains open until it has
+The API test suite also includes a consolidated reference-surface guard that
+fails if a listed reference endpoint loses its Alembic bootstrap record or if
+the API reintroduces a `get_manufacturing_*` runtime reference factory.
+The full manufacturing reference demo remains open until it has
 live TypeDB graph response mapping, production relationship metadata, approval
 actions, workflow execution and replay backed by real persistence paths.
 

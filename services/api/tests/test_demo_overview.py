@@ -28,6 +28,71 @@ from axis_api.main import create_app
 from axis_api.models import Base
 from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
 
+REFERENCE_SURFACE_CONTRACTS = {
+    "overview": {
+        "reference_id": "manufacturing-overview",
+        "forbidden_runtime_symbols": ["def get_manufacturing_overview"],
+    },
+    "workflows": {
+        "reference_id": "manufacturing-workflow-console",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_workflow_console",
+            "return get_manufacturing_workflow_console()",
+        ],
+    },
+    "connectors": {
+        "reference_id": "manufacturing-connector-registry",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_connector_registry",
+            "return get_manufacturing_connector_registry()",
+        ],
+    },
+    "agents": {
+        "reference_id": "manufacturing-agent-registry",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_agent_registry",
+            "return get_manufacturing_agent_registry()",
+        ],
+    },
+    "actions": {
+        "reference_id": "manufacturing-action-registry",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_action_registry",
+            "return get_manufacturing_action_registry()",
+        ],
+    },
+    "approvals": {
+        "reference_id": "manufacturing-approval-inbox",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_approval_inbox",
+            "return get_manufacturing_approval_inbox()",
+        ],
+    },
+    "audit": {
+        "reference_id": "manufacturing-audit-explorer",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_audit_explorer",
+            "return get_manufacturing_audit_explorer()",
+        ],
+    },
+    "model-routing": {
+        "reference_id": "manufacturing-model-routing",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_model_routing",
+            "return get_manufacturing_model_routing()",
+        ],
+    },
+    "ontology": {
+        "reference_id": "manufacturing-ontology",
+        "forbidden_runtime_symbols": [
+            "def get_manufacturing_ontology(",
+            "def get_manufacturing_ontology_entity_detail",
+            "get_manufacturing_ontology()",
+            "get_manufacturing_ontology_entity_detail(node_id)",
+        ],
+    },
+}
+
 
 def persisted_overview_payload() -> dict:
     return {
@@ -1591,6 +1656,24 @@ def test_manufacturing_ontology_detail_endpoint_is_not_defined_as_runtime_seed()
     source = Path("src/axis_api/main.py").read_text()
 
     assert "get_manufacturing_ontology_entity_detail(node_id)" not in source
+
+
+def test_reference_surfaces_are_bootstrapped_and_guarded_against_runtime_seeds() -> None:
+    migration_source = "\n".join(
+        path.read_text()
+        for path in sorted(Path("migrations/versions").glob("*.py"))
+    )
+    api_source = "\n".join(
+        path.read_text()
+        for path in sorted(Path("src/axis_api").rglob("*.py"))
+        if "__pycache__" not in path.parts
+    )
+
+    for surface, contract in REFERENCE_SURFACE_CONTRACTS.items():
+        assert f'"surface": "{surface}"' in migration_source
+        assert f'"reference_id": "{contract["reference_id"]}"' in migration_source
+        for forbidden_symbol in contract["forbidden_runtime_symbols"]:
+            assert forbidden_symbol not in api_source
 
 
 def test_manufacturing_ontology_endpoint_returns_persisted_reference_graph(
