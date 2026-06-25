@@ -174,8 +174,8 @@ def record_demo_connector_credential_handle(
     repository: AxisPersistenceRepository,
     request: ConnectorCredentialHandleCreateRequest,
 ) -> ConnectorCredentialHandleRecord:
-    _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_secret_ref(request.secret_ref)
+    _active_preview_manifest_for_connector(repository, request.tenant_id, request.connector_id)
     last_rotated_at = utc_now()
     next_rotation_due_at = last_rotated_at + timedelta(days=request.rotation_interval_days)
     record = repository.create_connector_credential_handle(
@@ -329,6 +329,26 @@ def _manifest_for_connector(
         f"Unsupported connector_id: {connector_id}",
         "unsupported_connector_id",
     )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorCredentialHandleValidationError(
+            "Connector manifest must be registered before credential handle creation.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorCredentialHandleValidationError(
+            "Connector manifest must be active_preview before credential handle creation.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _validate_secret_ref(secret_ref: str) -> None:

@@ -279,8 +279,9 @@ Delivered:
   without requiring a live Temporal worker.
 - tenant-scoped connector configuration records for preview-only connector
   setup, with raw credential fields rejected before persistence.
-- metadata-only connector credential handles with external secret references
-  and rotation history, without storing raw credential values.
+- metadata-only connector credential handles with external secret references,
+  tenant-scoped `active_preview` manifest gating and rotation history, without
+  storing raw credential values.
 - metadata-only connector run records with append-only
   `connector.run.recorded` audit writes and raw payload field rejection.
 - review-only connector ontology proposals with append-only
@@ -347,7 +348,9 @@ Delivered:
   written.
 - connector credential handle creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to validate
-  connector ids before external secret reference metadata is written.
+  connector ids, then requires the tenant-scoped persisted manifest to be
+  `active_preview` before external secret reference metadata or audit evidence
+  is written.
 - connector ontology proposal creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
   connector runtime boundary metadata, then requires the tenant-scoped

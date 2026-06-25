@@ -133,9 +133,10 @@ returning redacted preview output. Connector configuration writes resolve
 manifests from the persisted connector registry reference and require the
 tenant-scoped manifest to be `active_preview` before storing runtime boundary
 metadata, and credential handle creation uses the same persisted registry
-before storing external secret reference metadata. Ontology proposal writes
-also resolve connector runtime boundary metadata from that persisted registry
-and require `active_preview` before recording proposal audit evidence,
+before storing external secret reference metadata and requires `active_preview`
+before writing credential handle metadata or audit evidence. Ontology proposal
+writes also resolve connector runtime boundary metadata from that persisted
+registry and require `active_preview` before recording proposal audit evidence,
 connector run creation uses it and requires `active_preview` before storing
 run/audit runtime boundary metadata, and manual import request creation also
 requires `active_preview` before writing approval-gated import audit evidence.

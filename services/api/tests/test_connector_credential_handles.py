@@ -13,8 +13,15 @@ from axis_api.config import Settings
 from axis_api.connector_credential_handles import (
     ConnectorCredentialHandleCreateRequest,
     ConnectorCredentialHandleQuery,
+    ConnectorCredentialHandleValidationError,
     build_connector_credential_handle_registry,
     record_demo_connector_credential_handle,
+)
+from axis_api.connector_manifests import (
+    ConnectorManifestCreateRequest,
+    ConnectorManifestLifecycleRequest,
+    record_demo_connector_manifest,
+    transition_demo_connector_manifest_lifecycle,
 )
 from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
@@ -77,6 +84,54 @@ def seed_connector_registry_reference(
                 payload=registry_payload,
             )
         )
+
+
+def connector_manifest_request(
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> ConnectorManifestCreateRequest:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    connector = next(
+        item
+        for item in registry_payload["connectors"]
+        if item["manifest"]["connector_id"] == connector_id
+    )
+    return ConnectorManifestCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        registered_by="platform-connector-owner-role",
+        manifest=connector["manifest"],
+        runtime_policy=connector["runtime_policy"],
+        preview_sample=connector["preview_sample"],
+        notes=["Manifest is registered without enabling live sync."],
+    )
+
+
+def seed_registered_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> None:
+    record_demo_connector_manifest(repository, connector_manifest_request(connector_id, payload))
+
+
+def seed_active_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> None:
+    seed_registered_connector_manifest(repository, connector_id, payload)
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        connector_id,
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_preview",
+            actor_scopes=["connectors:manifest:lifecycle"],
+            transition_reason="Validated for tenant connector credential handle tests.",
+            evidence_refs=["test://connector-credential-handle-active-manifest"],
+        ),
+    )
 
 
 def seed_connector_credential_handles(repository: AxisPersistenceRepository) -> None:
@@ -172,6 +227,11 @@ def test_record_demo_connector_credential_handle_uses_persisted_connector_manife
 
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
+        seed_active_connector_manifest(
+            repository,
+            "persisted_credential_handle_connector",
+            payload,
+        )
         handle = record_demo_connector_credential_handle(
             repository,
             connector_credential_handle_request(
@@ -180,6 +240,21 @@ def test_record_demo_connector_credential_handle_uses_persisted_connector_manife
         )
 
     assert handle.connector_id == "persisted_credential_handle_connector"
+
+
+def test_record_demo_connector_credential_handle_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_registered_connector_manifest(repository)
+        with pytest.raises(ConnectorCredentialHandleValidationError) as exc_info:
+            record_demo_connector_credential_handle(
+                repository,
+                connector_credential_handle_request(),
+            )
+
+    assert exc_info.value.reason == "connector_manifest_not_active_preview"
 
 
 def test_build_connector_credential_handle_registry_maps_persisted_handles(
@@ -265,6 +340,8 @@ def test_create_connector_credential_handle_persists_external_reference_only(
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_connector_manifest(AxisPersistenceRepository(session))
     client = TestClient(app)
 
     response = client.post(
@@ -293,6 +370,24 @@ def test_create_connector_credential_handle_persists_external_reference_only(
     assert "password" not in str(body).lower()
     assert "api_key" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
+
+
+def test_create_connector_credential_handle_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_registered_connector_manifest(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-handles",
+        json=connector_credential_handle_request().model_dump(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "connector_manifest_not_active_preview"
 
 
 def test_create_connector_credential_handle_endpoint_reports_missing_connector_registry(

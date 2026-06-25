@@ -33,8 +33,9 @@ is only `registered_preview_only` remains catalogued but cannot be configured
 for tenant use, so configuration writes no longer depend on a service-local
 connector seed or an unreviewed manifest registration.
 Credential handle creation uses the same persisted registry reference before
-storing external secret reference metadata, so credential posture writes also
-avoid service-local connector seeds.
+storing external secret reference metadata, then requires the tenant-scoped
+persisted manifest to be `active_preview`, so credential posture writes also
+avoid service-local connector seeds and unreviewed manifest registrations.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from the persisted registry reference, then requires the tenant-scoped
 persisted manifest to be `active_preview` before writing proposal records or
@@ -137,7 +138,11 @@ requires `active_preview`; missing manifests or manifests still in
 Credential handle creation also reads the persisted registry reference to
 validate the requested connector id before storing external secret reference
 metadata. Missing or invalid registry references return explicit 404/422 errors
-before any credential handle row or audit event is written.
+before any credential handle row or audit event is written. After public-safe
+secret reference validation, the write requires the matching tenant-scoped
+persisted manifest to be `active_preview`; missing manifests or manifests still
+in `registered_preview_only` are rejected before credential handle metadata or
+audit evidence is written.
 
 Ontology proposal creation reads the same registry reference to resolve the
 connector runtime boundary used in audit evidence. It then requires the matching
@@ -694,8 +699,8 @@ The slice is covered by:
   audit evidence, CSV mapping and metadata-only external DB preview;
 - API unit tests for tenant-scoped connector configuration persistence,
   `active_preview` manifest gating and raw credential field rejection;
-- API unit tests for credential handle metadata, secret reference guardrails
-  and rotation history;
+- API unit tests for credential handle metadata, `active_preview` manifest
+  gating, secret reference guardrails and rotation history;
 - API unit tests for credential lease request, renewal, revocation, permission
   checks and raw secret material rejection;
 - API unit tests for tenant-scoped egress policy persistence, endpoint listing
