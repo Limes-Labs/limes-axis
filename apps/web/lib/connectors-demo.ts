@@ -462,6 +462,8 @@ export type ManufacturingConnectorSyncCheckpointRegistry = {
   checkpoint_notes: string[];
 };
 
+const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
+
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
   connector_id: string;
@@ -779,6 +781,14 @@ export function filterConnectorSyncCheckpointsByConnector(
         ? left.checkpoint_id.localeCompare(right.checkpoint_id)
         : createdAtOrder;
     });
+}
+
+export function buildConnectorSyncCheckpointQueryPath(tenantId: string): string {
+  const params = new URLSearchParams({
+    tenant_id: tenantId,
+    actor_scopes: CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE,
+  });
+  return `/demo/manufacturing/connectors/runs/checkpoints?${params.toString()}`;
 }
 
 export function formatConnectorLabel(value: string): string {

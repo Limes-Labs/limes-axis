@@ -428,7 +428,9 @@ secret material. This gives future provider-specific live sync adapters a real
 retry/checkpoint boundary before live query execution is enabled.
 The checkpoint registry is exposed at
 `/demo/manufacturing/connectors/runs/checkpoints` and supports tenant,
-connector, run, status and limit filters.
+connector, run, status and limit filters. The endpoint requires
+`connectors:sync:checkpoint:read` and rejects callers without that scope before
+querying checkpoint storage.
 The `/connectors` console consumes the same endpoint and renders checkpoint
 rows per selected connector without local fallback data or raw payload dumps.
 
@@ -650,9 +652,10 @@ manual import request gates from
 `/demo/manufacturing/connectors/promotion-policies`. It also loads
 tenant-scoped sync checkpoints from
 `/demo/manufacturing/connectors/runs/checkpoints` and shows sequence, adapter,
-cursor summary, result evidence and audit refs for the selected connector. If
-the API is unavailable, it shows an API-required state and does not render local
-connector records.
+cursor summary, result evidence and audit refs for the selected connector. The
+request includes `connectors:sync:checkpoint:read`; if the API is unavailable
+or rejects the request, the page shows an API-required state and does not render
+local connector records.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
 
@@ -703,7 +706,8 @@ contract keeps these boundaries visible:
   preflight can pass;
 - tenant-scoped sync execution checkpoints before provider-specific retry and
   resume logic;
-- connector API checkpoint queries for worker/operator observability;
+- connector API checkpoint queries with dedicated read scope for
+  worker/operator observability;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;

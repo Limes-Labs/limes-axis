@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
   filterConnectorSyncCheckpointsByConnector,
@@ -257,5 +258,13 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("dsn");
     expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("credential_value");
     expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("password");
+  });
+
+  it("builds connector sync checkpoint query paths with the read scope", () => {
+    const path = buildConnectorSyncCheckpointQueryPath("tenant_demo_manufacturing");
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/runs/checkpoints?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aread",
+    );
   });
 });

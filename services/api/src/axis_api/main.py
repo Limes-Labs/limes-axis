@@ -199,6 +199,7 @@ from axis_api.connector_reference import (
     get_persisted_manufacturing_connector_registry,
 )
 from axis_api.connector_runs import (
+    SYNC_CHECKPOINT_READ_SCOPE,
     ConnectorRunCreateRequest,
     ConnectorRunDispatchConflict,
     ConnectorRunDispatchRequest,
@@ -461,6 +462,7 @@ OidcPrincipalDependency = Annotated[
     OidcPrincipal | None,
     Depends(oidc_principal),
 ]
+CheckpointActorScopesQuery = Query(default_factory=list)
 
 
 def _audit_ledger_signer_from_settings(settings: Settings) -> SelfHostedAuditLedgerSigner | None:
@@ -702,6 +704,53 @@ def _authorize_demo_ontology_detail(
                 "message": "The actor cannot read this ontology entity relationship context.",
                 "required_permissions": detail.required_permissions,
                 "reason": decision.reason,
+            },
+        )
+
+
+def _authorize_connector_sync_checkpoint_read(
+    tenant_id: str,
+    actor_scopes: list[str],
+    principal: OidcPrincipal | None,
+) -> None:
+    if principal is not None and principal.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access connector checkpoints.",
+                "required_permission": SYNC_CHECKPOINT_READ_SCOPE,
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=(
+                principal.actor_id
+                if principal is not None
+                else "connector-sync-checkpoint-reader"
+            ),
+            actor_scopes=principal.scopes if principal is not None else actor_scopes,
+            required_scopes=[SYNC_CHECKPOINT_READ_SCOPE],
+            attributes={
+                "surface": "connectors",
+                "resource": "connector_sync_checkpoints",
+            },
+        )
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The actor cannot read connector sync checkpoints.",
+                "required_permission": SYNC_CHECKPOINT_READ_SCOPE,
+                "reason": "missing_required_scope"
+                if decision.reason.startswith("missing_scope:")
+                else decision.reason,
+                "permission_reason": decision.reason,
             },
         )
 
@@ -1926,16 +1975,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/connectors/runs/checkpoints",
         response_model=ManufacturingConnectorSyncCheckpointRegistry,
+        responses={403: {"description": "Connector sync checkpoint read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_run_checkpoints(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         run_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
+        actor_scopes: list[str] = CheckpointActorScopesQuery,
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorSyncCheckpointRegistry:
+        _authorize_connector_sync_checkpoint_read(tenant_id, actor_scopes, principal)
         return build_connector_sync_checkpoint_registry(
             repository,
             ConnectorSyncCheckpointQuery(

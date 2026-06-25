@@ -5,6 +5,7 @@ import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lu
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
   filterConnectorSyncCheckpointsByConnector,
@@ -233,9 +234,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     ),
     fetchConnectorJson<ManufacturingConnectorSyncCheckpointRegistry>(
       apiBaseUrl,
-      `/demo/manufacturing/connectors/runs/checkpoints?tenant_id=${encodeURIComponent(
-        CONNECTOR_TENANT_ID,
-      )}`,
+      buildConnectorSyncCheckpointQueryPath(CONNECTOR_TENANT_ID),
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(

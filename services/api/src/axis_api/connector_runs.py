@@ -194,6 +194,7 @@ SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
 )
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
 SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
+SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read"
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
 SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
 ALLOWED_EXECUTION_MODES = {

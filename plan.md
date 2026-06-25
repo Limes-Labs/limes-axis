@@ -144,6 +144,7 @@ Foundation acceptance is tracked in
 - [x] Persist tenant-scoped sync execution checkpoints for scheduled connector runs.
 - [x] Expose tenant-scoped sync execution checkpoints through the connector API.
 - [x] Show tenant-scoped sync execution checkpoints in the connector console.
+- [x] Require `connectors:sync:checkpoint:read` for checkpoint API reads.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -472,15 +473,16 @@ tenant-scoped `connector_sync_checkpoints` rows with public-safe cursor and
 result evidence for future retry/checkpoint-aware provider adapters. The
 checkpoint registry is queryable at
 `/demo/manufacturing/connectors/runs/checkpoints` with tenant, connector, run,
-status and limit filters.
+status and limit filters, and requires the `connectors:sync:checkpoint:read`
+scope.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.
 The `/connectors` console now fetches connector, credential, egress policy,
 run, sync checkpoint, proposal, import and promotion records from the Axis API.
-Checkpoint rows are shown per selected connector with sequence, adapter, cursor
-summary, result evidence and audit refs. If the backend is unavailable it shows
-an API-required empty state instead of rendering local connector fallback
-records.
+Checkpoint rows are requested with the checkpoint read scope and shown per
+selected connector with sequence, adapter, cursor summary, result evidence and
+audit refs. If the backend is unavailable it shows an API-required empty state
+instead of rendering local connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed, initially marked with `graph_mutation_status=not_applied` and
