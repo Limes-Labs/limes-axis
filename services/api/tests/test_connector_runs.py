@@ -1882,6 +1882,62 @@ def test_connector_sync_checkpoints_endpoint_returns_public_safe_records(
     assert "dsn" not in str(body).lower()
 
 
+def test_connector_sync_checkpoints_endpoint_writes_read_audit_event(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_read_audit",
+            run_id="run_checkpoint_read_audit",
+            sequence=1,
+            created_at=created_at,
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "external_db_operational_mirror",
+            "run_id": "run_checkpoint_read_audit",
+            "status": "sync_execution_preflight_passed",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+            "limit": 25,
+        },
+    )
+
+    assert response.status_code == 200
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoints_read",
+        )
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.actor_id == "connector-sync-checkpoint-reader"
+    assert event.payload == {
+        "connector_id": "external_db_operational_mirror",
+        "run_id": "run_checkpoint_read_audit",
+        "status": "sync_execution_preflight_passed",
+        "created_after": None,
+        "created_before": None,
+        "limit": 25,
+        "returned_checkpoint_count": 1,
+        "checkpoint_ids": ["chk_checkpoint_read_audit"],
+        "required_permission": "connectors:sync:checkpoint:read",
+        "read_scope_source": "demo_actor_scopes",
+    }
+    assert "vault://" not in str(event.payload).lower()
+    assert "credential_value" not in str(event.payload).lower()
+    assert "dsn" not in str(event.payload).lower()
+
+
 def test_connector_sync_checkpoint_repository_filters_created_before(
     session_factory: sessionmaker[Session],
 ) -> None:

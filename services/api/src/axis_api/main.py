@@ -215,9 +215,9 @@ from axis_api.connector_runs import (
     ManufacturingConnectorRunRegistry,
     ManufacturingConnectorSyncCheckpointRegistry,
     build_connector_run_registry,
-    build_connector_sync_checkpoint_registry,
     dispatch_demo_connector_sync,
     execute_demo_connector_sync,
+    read_connector_sync_checkpoint_registry,
     record_demo_connector_run,
 )
 from axis_api.connectors import (
@@ -1998,7 +1998,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> ManufacturingConnectorSyncCheckpointRegistry:
         _authorize_connector_sync_checkpoint_read(tenant_id, actor_scopes, principal)
         try:
-            return build_connector_sync_checkpoint_registry(
+            return read_connector_sync_checkpoint_registry(
                 repository,
                 ConnectorSyncCheckpointQuery(
                     tenant_id=tenant_id,
@@ -2008,6 +2008,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     created_after=created_after,
                     created_before=created_before,
                     limit=limit,
+                ),
+                actor_id=(
+                    principal.actor_id
+                    if principal is not None
+                    else "connector-sync-checkpoint-reader"
+                ),
+                read_scope_source=(
+                    "oidc_principal" if principal is not None else "demo_actor_scopes"
                 ),
             )
         except ConnectorRunValidationError as exc:
