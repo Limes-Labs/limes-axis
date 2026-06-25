@@ -138,10 +138,13 @@ also resolve connector runtime boundary metadata from that persisted registry
 and require `active_preview` before recording proposal audit evidence,
 connector run creation uses it and requires `active_preview` before storing
 run/audit runtime boundary metadata, and manual import request creation also
-requires `active_preview` before writing approval-gated import audit evidence. Promotion policy authoring,
-enablement and revision paths also validate connector ids against the persisted
-registry reference before writing policy/audit evidence, and promotion policy
-set activation/replacement/rollback uses it before writing set/audit evidence.
+requires `active_preview` before writing approval-gated import audit evidence.
+Ontology promotion execution requires the same `active_preview` manifest before
+the controlled mutation adapter or promotion/audit writes can run. Promotion
+policy authoring, enablement and revision paths also validate connector ids
+against the persisted registry reference before writing policy/audit evidence,
+and promotion policy set activation/replacement/rollback uses it before writing
+set/audit evidence.
 The external DB preview slice adds a metadata-only Postgres operational mirror manifest and
 `/demo/manufacturing/connectors/external-db/preview`, using profile ids and
 credential handles while blocking raw DSNs, SQL text and live queries.
@@ -199,7 +202,9 @@ workflow signal evidence and
 `connector.manual_import.decision_recorded` audit events. Approved proposals can
 now be promoted through a controlled TypeDB ontology mutation boundary with
 `connector.ontology_promotion.applied` audit evidence, while still avoiding
-connector execution and external sync. Connector promotion policies can now be
+connector execution and external sync; this promotion path now also requires a
+tenant-scoped connector manifest in `active_preview` before the ontology
+mutation adapter is called. Connector promotion policies can now be
 authored as tenant-scoped governance metadata with
 `connector.promotion_policy.authored` audit evidence and enabled through a
 separate approval/workflow-gated transition with

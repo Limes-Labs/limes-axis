@@ -49,6 +49,11 @@ requires the tenant-scoped persisted manifest to be `active_preview` before
 writing approval-gated import rows or audit evidence. Import runtime boundary
 evidence no longer comes from a service-local connector seed, and import
 requests cannot be created from a manifest that is only registered.
+Ontology promotion execution also uses the persisted registry reference, then
+requires the tenant-scoped persisted manifest to be `active_preview` before the
+ontology mutation adapter is called or promotion/audit evidence is written.
+Promotion audit payloads include the manifest runtime boundary that authorized
+the controlled mutation path.
 Promotion policy authoring, enablement and revision paths also use the
 persisted registry reference before writing policy rows or audit evidence, so
 policy governance no longer validates connector ids against a service-local
@@ -154,6 +159,14 @@ matching tenant-scoped persisted manifest to be `active_preview`; missing
 manifests or manifests still in `registered_preview_only` are rejected before
 any manual import row or audit event is written. Missing or invalid registry
 references return explicit 404/422 errors before lifecycle state is evaluated.
+
+Ontology promotion execution reads the same registry reference to validate the
+connector id on the persisted proposal, then requires the matching
+tenant-scoped persisted manifest to be `active_preview`; missing manifests or
+manifests still in `registered_preview_only` are rejected before the ontology
+mutation adapter runs, before promotion rows are written and before promotion
+audit evidence is appended. Missing or invalid registry references return
+explicit 404/422 errors before lifecycle state is evaluated.
 
 Promotion policy authoring, enablement and revision read the same registry
 reference to validate connector ids before writing policy rows or audit
@@ -466,6 +479,7 @@ promotion endpoint requires:
 - a persisted proposal still waiting for promotion;
 - an approved manual import that references the proposal;
 - workflow signal evidence from the manual import decision;
+- a tenant-scoped connector manifest in `active_preview`;
 - a tenant-scoped idempotency key;
 - actor scope `connectors:ontology:promote`.
 
@@ -473,9 +487,10 @@ Successful promotions write through the Axis ontology mutation runtime adapter
 and record `type_db_mutation_applied` on the proposal. If the TypeDB mutation
 runtime is disabled, the default adapter records `type_db_mutation_deferred`
 without mutating the graph. Runtime failures are recorded as
-`type_db_mutation_unavailable`. Every promotion attempt writes append-only
-`connector.ontology_promotion.*` audit evidence and never stores raw CSV
-content or credential material.
+`type_db_mutation_unavailable`. Successful, deferred and failed promotion
+attempts write append-only `connector.ontology_promotion.*` audit evidence with
+the manifest runtime boundary that authorized the mutation path, and never
+store raw CSV content or credential material.
 
 Promotion policies are authored through
 `POST /demo/manufacturing/connectors/promotion-policies` and listed through
@@ -693,6 +708,9 @@ The slice is covered by:
 - API unit tests for manual import request persistence, `active_preview`
   manifest gating, audit writes, idempotent replay, conflict detection,
   graph-write rejection and raw payload rejection;
+- API unit tests for ontology promotion execution, `active_preview` manifest
+  gating, mutation-runtime blocking, audit writes, policy evidence and
+  idempotent replay;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for connector helper contracts and regression coverage that

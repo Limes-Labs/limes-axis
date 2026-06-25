@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
 from axis_api.connector_ontology_proposals import ConnectorOntologyProposalRecord
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.ontology.mutations import (
     DeferredOntologyMutationRuntime,
     OntologyMutationError,
@@ -176,6 +177,11 @@ def record_demo_connector_ontology_promotion(
         request.manual_import_id,
     )
     _validate_manual_import_for_promotion(manual_import, request.proposal_id)
+    manifest = _active_preview_manifest_for_connector(
+        repository,
+        request.tenant_id,
+        proposal.connector_id,
+    )
     permission_decision = _evaluate_promotion_permission(request, proposal, manual_import)
     policy_decision = _evaluate_promotion_policy(
         repository,
@@ -226,6 +232,7 @@ def record_demo_connector_ontology_promotion(
                 "policy_decision": policy_decision.model_dump() if policy_decision else None,
                 "status": promotion_status,
                 "graph_mutation_status": ontology_mutation.status,
+                "runtime_boundary": manifest.runtime_boundary,
                 "required_permission": REQUIRED_PROMOTION_SCOPE,
                 "permission_decision": permission_decision.model_dump(),
                 "ontology_mutation": ontology_mutation.model_dump(),
@@ -347,6 +354,41 @@ def _validate_manual_import_for_promotion(manual_import, proposal_id: str) -> No
             "Manual import workflow signal must not be unavailable before promotion.",
             "manual_import_workflow_signal_unavailable",
         )
+
+
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
+    for connector in registry.connectors:
+        if connector.manifest.connector_id == connector_id:
+            return connector.manifest
+    raise ConnectorOntologyPromotionValidationError(
+        f"Unsupported connector_id: {connector_id}",
+        "unsupported_connector_id",
+    )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorOntologyPromotionValidationError(
+            "Connector manifest must be registered before ontology promotion.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorOntologyPromotionValidationError(
+            "Connector manifest must be active_preview before ontology promotion.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _evaluate_promotion_permission(request, proposal, manual_import) -> PermissionDecision:

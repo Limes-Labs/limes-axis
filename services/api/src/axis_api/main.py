@@ -2117,6 +2117,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 bound_promotion,
                 ontology_runtime,
             )
+        except ConnectorReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing connector registry reference record not found.",
+                    "surface": "connectors",
+                },
+            ) from exc
+        except ConnectorReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing connector registry reference payload is invalid.",
+                    "surface": "connectors",
+                },
+            ) from exc
         except ConnectorOntologyPromotionNotFound as exc:
             raise HTTPException(
                 status_code=404,

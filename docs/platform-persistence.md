@@ -295,9 +295,10 @@ Delivered:
   `connector.manual_import.decision_recorded` audit writes, while graph
   mutation remains `not_applied`.
 - controlled connector ontology promotions with approval/manual-import
-  evidence, TypeDB mutation adapter result, idempotency enforcement,
-  append-only `connector.ontology_promotion.*` audit writes and latest
-  promotion evidence on the proposal record.
+  evidence, tenant-scoped `active_preview` manifest gating, TypeDB mutation
+  adapter result, idempotency enforcement, append-only
+  `connector.ontology_promotion.*` audit writes and latest promotion evidence
+  on the proposal record.
 - connector promotion policies with authoring permission evidence, required
   promotion scopes, required manual-import/workflow states, enforcement evidence
   on promotions, auto-selected required policy ids on promotion/proposal
@@ -362,6 +363,11 @@ Delivered:
   connector runtime boundary metadata, then requires the tenant-scoped
   persisted manifest to be `active_preview` before approval-gated import rows
   or audit events are written.
+- connector ontology promotion execution now reads
+  `surface=connectors/reference_id=manufacturing-connector-registry` to
+  validate the proposal connector id, then requires the tenant-scoped persisted
+  manifest to be `active_preview` before the ontology mutation adapter runs,
+  promotion rows are written or promotion audit evidence is appended.
 - connector promotion policy authoring, enablement and revision now read
   `surface=connectors/reference_id=manufacturing-connector-registry` to
   validate connector ids before policy rows, revision rows, enablement updates
