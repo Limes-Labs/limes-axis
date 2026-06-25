@@ -428,6 +428,40 @@ export type ManufacturingConnectorRunRegistry = {
   run_notes: string[];
 };
 
+export type ConnectorSyncCheckpointRecord = {
+  tenant_id: string;
+  connector_id: string;
+  run_id: string;
+  checkpoint_id: string;
+  checkpoint_type: string;
+  status: string;
+  sequence: number;
+  runtime_boundary: string;
+  adapter: string;
+  cursor: Record<string, unknown>;
+  result_summary: Record<string, unknown>;
+  evidence_refs: string[];
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorSyncCheckpointRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  checkpoints: ConnectorSyncCheckpointRecord[];
+  checkpoint_notes: string[];
+};
+
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
   connector_id: string;
@@ -726,6 +760,25 @@ export function findConnectorById(
     registry.connectors.find((connector) => connector.manifest.connector_id === connectorId) ??
     registry.connectors[0]
   );
+}
+
+export function filterConnectorSyncCheckpointsByConnector(
+  registry: ManufacturingConnectorSyncCheckpointRegistry,
+  connectorId: string,
+): ConnectorSyncCheckpointRecord[] {
+  return registry.checkpoints
+    .filter((checkpoint) => checkpoint.connector_id === connectorId)
+    .slice()
+    .sort((left, right) => {
+      if (left.sequence !== right.sequence) {
+        return left.sequence - right.sequence;
+      }
+
+      const createdAtOrder = left.created_at.localeCompare(right.created_at);
+      return createdAtOrder === 0
+        ? left.checkpoint_id.localeCompare(right.checkpoint_id)
+        : createdAtOrder;
+    });
 }
 
 export function formatConnectorLabel(value: string): string {

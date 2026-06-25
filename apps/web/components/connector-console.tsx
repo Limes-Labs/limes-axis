@@ -7,6 +7,7 @@ import { getApiBaseUrl } from "@/lib/api-status";
 import {
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointsByConnector,
   formatConnectorLabel,
   type ConnectorCsvPreviewResult,
   type ConnectorPromotionPolicyCreateRequest,
@@ -23,6 +24,7 @@ import {
   type ManufacturingConnectorPromotionPolicySetRegistry,
   type ManufacturingConnectorRunRegistry,
   type ManufacturingConnectorRegistry,
+  type ManufacturingConnectorSyncCheckpointRegistry,
 } from "@/lib/connectors-demo";
 import {
   formatOverviewTimestamp,
@@ -110,6 +112,12 @@ const EMPTY_RUN_REGISTRY: ManufacturingConnectorRunRegistry = {
   run_notes: [],
 };
 
+const EMPTY_SYNC_CHECKPOINT_REGISTRY: ManufacturingConnectorSyncCheckpointRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  checkpoints: [],
+  checkpoint_notes: [],
+};
+
 const EMPTY_ONTOLOGY_PROPOSAL_REGISTRY: ManufacturingConnectorOntologyProposalRegistry = {
   ...EMPTY_REGISTRY_BASE,
   proposals: [],
@@ -182,6 +190,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     credentialLeaseData,
     egressPolicyData,
     runData,
+    syncCheckpointData,
     ontologyProposalData,
     manualImportData,
     promotionPolicyData,
@@ -222,6 +231,13 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
       "/demo/manufacturing/connectors/runs",
       signal,
     ),
+    fetchConnectorJson<ManufacturingConnectorSyncCheckpointRegistry>(
+      apiBaseUrl,
+      `/demo/manufacturing/connectors/runs/checkpoints?tenant_id=${encodeURIComponent(
+        CONNECTOR_TENANT_ID,
+      )}`,
+      signal,
+    ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
       apiBaseUrl,
       "/demo/manufacturing/connectors/ontology-proposals",
@@ -256,6 +272,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     promotionPolicySetData,
     registryData,
     runData,
+    syncCheckpointData,
   };
 }
 
@@ -301,6 +318,14 @@ function connectorRunRuntimeEvidence(run: ConnectorRunRecord): string {
   );
 }
 
+function formatCheckpointScalar(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return "not recorded";
+}
+
 export function ConnectorConsole() {
   const [registry, setRegistry] = useState<ManufacturingConnectorRegistry>(
     EMPTY_CONNECTOR_REGISTRY,
@@ -329,6 +354,10 @@ export function ConnectorConsole() {
     );
   const [runRegistry, setRunRegistry] =
     useState<ManufacturingConnectorRunRegistry>(EMPTY_RUN_REGISTRY);
+  const [syncCheckpointRegistry, setSyncCheckpointRegistry] =
+    useState<ManufacturingConnectorSyncCheckpointRegistry>(
+      EMPTY_SYNC_CHECKPOINT_REGISTRY,
+    );
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -372,6 +401,7 @@ export function ConnectorConsole() {
         setCredentialLeaseRegistry(data.credentialLeaseData);
         setEgressPolicyRegistry(data.egressPolicyData);
         setRunRegistry(data.runData);
+        setSyncCheckpointRegistry(data.syncCheckpointData);
         setOntologyProposalRegistry(data.ontologyProposalData);
         setManualImportRegistry(data.manualImportData);
         setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -437,6 +467,14 @@ export function ConnectorConsole() {
     () => runRegistry.runs.filter((run) => run.connector_id === selectedConnectorId),
     [runRegistry.runs, selectedConnectorId],
   );
+  const selectedSyncCheckpoints = useMemo(
+    () =>
+      filterConnectorSyncCheckpointsByConnector(
+        syncCheckpointRegistry,
+        selectedConnectorId,
+      ),
+    [syncCheckpointRegistry, selectedConnectorId],
+  );
   const selectedOntologyProposals = useMemo(
     () =>
       ontologyProposalRegistry.proposals.filter(
@@ -475,6 +513,7 @@ export function ConnectorConsole() {
     setCredentialLeaseRegistry(data.credentialLeaseData);
     setEgressPolicyRegistry(data.egressPolicyData);
     setRunRegistry(data.runData);
+    setSyncCheckpointRegistry(data.syncCheckpointData);
     setOntologyProposalRegistry(data.ontologyProposalData);
     setManualImportRegistry(data.manualImportData);
     setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -563,6 +602,7 @@ export function ConnectorConsole() {
     .concat(credentialLeaseRegistry.metrics)
     .concat(egressPolicyRegistry.metrics)
     .concat(runRegistry.metrics)
+    .concat(syncCheckpointRegistry.metrics)
     .concat(ontologyProposalRegistry.metrics)
     .concat(manualImportRegistry.metrics)
     .concat(promotionPolicyRegistry.metrics)
@@ -905,6 +945,80 @@ export function ConnectorConsole() {
                   <p className="metric-label">Raw Value</p>
                   <p className="row-title">Never Stored</p>
                   <p className="row-detail">{handle.rotation_count} rotation records</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Sync Checkpoints</p>
+                <h3 className="subsection-title">
+                  {selectedSyncCheckpoints.length} checkpoint record
+                </h3>
+                <p className="row-detail">tenant-scoped retry and resume evidence</p>
+              </div>
+              <ScrollText size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedSyncCheckpoints.map((checkpoint) => (
+                <div className="payload-row" key={checkpoint.checkpoint_id}>
+                  <span>
+                    <span className="metric-label">{checkpoint.checkpoint_id}</span>
+                    <span className="row-detail">{checkpoint.audit_event_type}</span>
+                  </span>
+                  <span className="mono">{checkpoint.status}</span>
+                </div>
+              ))}
+            </div>
+            {selectedSyncCheckpoints.map((checkpoint) => (
+              <div className="audit-detail-grid" key={`${checkpoint.checkpoint_id}-summary`}>
+                <div>
+                  <p className="metric-label">Sequence</p>
+                  <p className="row-title">{checkpoint.sequence}</p>
+                  <p className="row-detail">{checkpoint.checkpoint_type}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Adapter</p>
+                  <p className="row-title">{checkpoint.adapter}</p>
+                  <p className="row-detail">{checkpoint.runtime_boundary}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Run</p>
+                  <p className="row-title">{checkpoint.run_id}</p>
+                  <p className="row-detail">{checkpoint.created_at}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Cursor</p>
+                  <p className="row-title">
+                    {formatCheckpointScalar(checkpoint.cursor.high_watermark_kind)}
+                  </p>
+                  <p className="row-detail">
+                    {formatCheckpointScalar(checkpoint.cursor.high_watermark_value)}
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">External Query</p>
+                  <p className="row-title">
+                    {formatCheckpointScalar(checkpoint.result_summary.external_query_started)}
+                  </p>
+                  <p className="row-detail">
+                    {formatCheckpointScalar(
+                      checkpoint.result_summary.live_query_preflight_status,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">Secret Material</p>
+                  <p className="row-title">
+                    {formatCheckpointScalar(
+                      checkpoint.result_summary.credential_material_returned,
+                    )}
+                  </p>
+                  <p className="row-detail">
+                    {checkpoint.evidence_refs.length} evidence ref
+                  </p>
                 </div>
               </div>
             ))}
@@ -1531,6 +1645,7 @@ export function ConnectorConsole() {
               .concat(credentialLeaseRegistry.lease_notes)
               .concat(egressPolicyRegistry.policy_notes)
               .concat(runRegistry.run_notes)
+              .concat(syncCheckpointRegistry.checkpoint_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
               .concat(promotionPolicyRegistry.policy_notes)
@@ -1541,6 +1656,7 @@ export function ConnectorConsole() {
               .concat(selectedCredentialLeases.flatMap((lease) => lease.notes))
               .concat(selectedEgressPolicies.flatMap((policy) => policy.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
+              .concat(selectedSyncCheckpoints.flatMap((checkpoint) => checkpoint.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))
               .concat(selectedPromotionPolicies.flatMap((policy) => policy.notes))
