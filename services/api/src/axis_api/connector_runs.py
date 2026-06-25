@@ -231,10 +231,14 @@ def record_demo_connector_run(
     execution_runtime: ConnectorExecutionRuntime | None = None,
     sync_scheduler_runtime: ConnectorSyncSchedulerRuntime | None = None,
 ) -> ConnectorRunRecord:
-    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_execution_mode(request.execution_mode)
     _validate_redacted_summary(request.input_summary)
     _validate_redacted_summary(request.result_summary)
+    manifest = _active_preview_manifest_for_connector(
+        repository,
+        request.tenant_id,
+        request.connector_id,
+    )
     schedule_result = _schedule_connector_sync(
         repository,
         request,
@@ -550,6 +554,26 @@ def _manifest_for_connector(
         f"Unsupported connector_id: {connector_id}",
         "unsupported_connector_id",
     )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorRunValidationError(
+            "Connector manifest must be registered before connector run creation.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorRunValidationError(
+            "Connector manifest must be active_preview before connector run creation.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _validate_execution_mode(execution_mode: str) -> None:
