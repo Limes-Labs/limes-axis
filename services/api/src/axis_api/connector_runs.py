@@ -65,6 +65,13 @@ class ConnectorRunSyncExecutionConflict(ValueError):
         self.reason = reason
 
 
+class ConnectorSyncCheckpointClaimConflict(ValueError):
+    def __init__(self, reason: str, active_claim_id: str) -> None:
+        super().__init__("Connector sync checkpoint claim conflict")
+        self.reason = reason
+        self.active_claim_id = active_claim_id
+
+
 class ConnectorRunQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     connector_id: str | None = Field(default=None, min_length=1)
@@ -448,6 +455,18 @@ def claim_connector_sync_checkpoint(
         return _checkpoint_claim_from_record(existing), False
 
     now = utc_now()
+    active_claim = _active_unexpired_checkpoint_claim(
+        repository,
+        request.tenant_id,
+        checkpoint_id,
+        now,
+    )
+    if active_claim is not None:
+        raise ConnectorSyncCheckpointClaimConflict(
+            "active_checkpoint_claim_exists",
+            active_claim.claim_id,
+        )
+
     lease_expires_at = now + timedelta(seconds=request.lease_duration_seconds)
     claim_result = {
         "external_sync_started": False,
@@ -1061,6 +1080,23 @@ def _active_checkpoint_claim(
             "connector_sync_checkpoint_claim_not_active",
         )
     return claim
+
+
+def _active_unexpired_checkpoint_claim(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    checkpoint_id: str,
+    now: datetime,
+):
+    claims = repository.list_connector_sync_checkpoint_claims(
+        tenant_id,
+        checkpoint_id=checkpoint_id,
+        status="claimed",
+    )
+    for claim in claims:
+        if _ensure_timezone(claim.lease_expires_at) > _ensure_timezone(now):
+            return claim
+    return None
 
 
 def _worker_claim_result() -> dict[str, bool]:

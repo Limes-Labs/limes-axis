@@ -151,6 +151,7 @@ Foundation acceptance is tracked in
 - [x] Write append-only audit evidence for valid checkpoint API reads.
 - [x] Persist worker-safe sync checkpoint claims without starting live sync.
 - [x] Add worker-safe sync checkpoint claim renewal and release.
+- [x] Reject competing active worker claims for the same sync checkpoint.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -490,7 +491,9 @@ Worker claim records are persisted at
 the `connectors:sync:checkpoint:claim` scope, lease duration metadata,
 idempotency-key replay and `connector.run.sync_checkpoint_claimed` audit
 evidence. A claim is a worker lease only: it does not start external sync,
-retrieve secret material or execute provider-specific connector code. Claim
+retrieve secret material or execute provider-specific connector code. A second
+unexpired active claim for the same checkpoint is rejected with 409 before a
+duplicate claim/audit record is written. Claim
 renewal and release update the same persisted lease record through dedicated
 scopes, writing `connector.run.sync_checkpoint_claim_renewed` and
 `connector.run.sync_checkpoint_claim_released` audit evidence without

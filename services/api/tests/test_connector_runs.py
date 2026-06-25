@@ -2051,6 +2051,66 @@ def test_connector_sync_checkpoint_claim_replays_same_idempotency_key(
     assert len(events) == 1
 
 
+def test_connector_sync_checkpoint_claim_rejects_second_active_worker_claim(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_worker_conflict",
+            run_id="run_checkpoint_worker_conflict",
+            sequence=1,
+            created_at=created_at,
+        )
+    client = TestClient(app)
+    first_response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_conflict/claims",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "claim_id": "claim_checkpoint_conflict_20260625_1000",
+            "claimed_by": "axis-sync-worker-role-a",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": "idem_claim_checkpoint_conflict_20260625_1000",
+            "lease_duration_seconds": 900,
+        },
+    )
+    assert first_response.status_code == 201
+
+    second_response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_conflict/claims",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "claim_id": "claim_checkpoint_conflict_20260625_1005",
+            "claimed_by": "axis-sync-worker-role-b",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": "idem_claim_checkpoint_conflict_20260625_1005",
+            "lease_duration_seconds": 900,
+        },
+    )
+
+    assert second_response.status_code == 409
+    assert second_response.json()["detail"] == {
+        "code": "CONFLICT",
+        "message": "The connector sync checkpoint claim conflicts with existing evidence.",
+        "reason": "active_checkpoint_claim_exists",
+        "active_claim_id": "claim_checkpoint_conflict_20260625_1000",
+    }
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claimed",
+        )
+
+    assert len(events) == 1
+    assert events[0].actor_id == "axis-sync-worker-role-a"
+
+
 def test_connector_sync_checkpoint_claim_renew_extends_worker_lease_without_live_sync(
     session_factory: sessionmaker[Session],
 ) -> None:

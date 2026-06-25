@@ -14625,6 +14625,9 @@
           "404": {
             "description": "Connector sync checkpoint not found"
           },
+          "409": {
+            "description": "Connector sync checkpoint claim conflict"
+          },
           "422": {
             "description": "Connector sync checkpoint claim validation failed"
           }
