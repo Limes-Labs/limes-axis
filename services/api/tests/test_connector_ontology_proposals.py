@@ -10,10 +10,17 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
+from axis_api.connector_manifests import (
+    ConnectorManifestCreateRequest,
+    ConnectorManifestLifecycleRequest,
+    record_demo_connector_manifest,
+    transition_demo_connector_manifest_lifecycle,
+)
 from axis_api.connector_ontology_proposals import (
     ConnectorOntologyProposalCreateRequest,
     ConnectorOntologyProposalEntity,
     ConnectorOntologyProposalQuery,
+    ConnectorOntologyProposalValidationError,
     build_connector_ontology_proposal_registry,
     record_demo_connector_ontology_proposals,
 )
@@ -167,6 +174,54 @@ def connector_ontology_proposal_request() -> ConnectorOntologyProposalCreateRequ
     )
 
 
+def connector_manifest_request(
+    connector_id: str,
+    payload: dict | None = None,
+) -> ConnectorManifestCreateRequest:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    connector = next(
+        item
+        for item in registry_payload["connectors"]
+        if item["manifest"]["connector_id"] == connector_id
+    )
+    return ConnectorManifestCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        registered_by="platform-connector-owner-role",
+        manifest=connector["manifest"],
+        runtime_policy=connector["runtime_policy"],
+        preview_sample=connector["preview_sample"],
+        notes=["Manifest is registered without enabling live sync."],
+    )
+
+
+def seed_registered_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> None:
+    record_demo_connector_manifest(repository, connector_manifest_request(connector_id, payload))
+
+
+def seed_active_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> None:
+    seed_registered_connector_manifest(repository, connector_id, payload)
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        connector_id,
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_preview",
+            actor_scopes=["connectors:manifest:lifecycle"],
+            transition_reason="Validated for tenant connector ontology proposal tests.",
+            evidence_refs=["test://connector-ontology-proposal-active-manifest"],
+        ),
+    )
+
+
 def test_connector_ontology_proposal_path_does_not_load_demo_connector_registry_seed() -> None:
     source = Path("src/axis_api/connector_ontology_proposals.py").read_text()
 
@@ -196,6 +251,7 @@ def test_record_demo_connector_ontology_proposals_uses_persisted_connector_manif
 
     with session_scope(session_factory) as session:
         repository = AxisPersistenceRepository(session)
+        seed_active_connector_manifest(repository, payload=payload)
         record_demo_connector_ontology_proposals(
             repository,
             connector_ontology_proposal_request(),
@@ -206,6 +262,22 @@ def test_record_demo_connector_ontology_proposals_uses_persisted_connector_manif
         )
 
     assert events[0].payload["runtime_boundary"] == "persisted-proposal-runtime-boundary"
+
+
+def test_record_demo_connector_ontology_proposals_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_registered_connector_manifest(repository)
+
+        with pytest.raises(ConnectorOntologyProposalValidationError) as exc_info:
+            record_demo_connector_ontology_proposals(
+                repository,
+                connector_ontology_proposal_request(),
+            )
+
+    assert exc_info.value.reason == "connector_manifest_not_active_preview"
 
 
 def test_build_connector_ontology_proposal_registry_maps_persisted_proposals(
@@ -268,6 +340,8 @@ def test_create_connector_ontology_proposals_records_audit_event(
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_connector_manifest(AxisPersistenceRepository(session))
     client = TestClient(app)
 
     response = client.post(
@@ -328,6 +402,24 @@ def test_create_connector_ontology_proposals_records_audit_event(
     assert events[0].payload["write_mode"] == "proposal_only"
     assert events[0].payload["graph_mutation_status"] == "not_applied"
     assert "csv_content" not in str(events[0].payload).lower()
+
+
+def test_create_connector_ontology_proposals_endpoint_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_registered_connector_manifest(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals",
+        json=connector_ontology_proposal_request().model_dump(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "connector_manifest_not_active_preview"
 
 
 def test_create_connector_ontology_proposals_endpoint_reports_missing_connector_registry(
