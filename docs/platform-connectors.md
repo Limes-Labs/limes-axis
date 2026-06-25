@@ -36,6 +36,9 @@ Credential handle creation uses the same persisted registry reference before
 storing external secret reference metadata, then requires the tenant-scoped
 persisted manifest to be `active_preview`, so credential posture writes also
 avoid service-local connector seeds and unreviewed manifest registrations.
+Credential lease requests use the same persisted registry reference, then
+require the tenant-scoped persisted manifest to be `active_preview` before
+lease rows, audit evidence or lease runtime adapter calls can occur.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from the persisted registry reference, then requires the tenant-scoped
 persisted manifest to be `active_preview` before writing proposal records or
@@ -143,6 +146,15 @@ secret reference validation, the write requires the matching tenant-scoped
 persisted manifest to be `active_preview`; missing manifests or manifests still
 in `registered_preview_only` are rejected before credential handle metadata or
 audit evidence is written.
+
+Credential lease requests read the same registry reference to validate the
+requested connector id before runtime lease execution is considered. Missing or
+invalid registry references return explicit 404/422 errors before any lease row
+or audit event is written. After raw-secret payload validation and active handle
+validation, the request requires the matching tenant-scoped persisted manifest
+to be `active_preview`; missing manifests or manifests still in
+`registered_preview_only` are rejected before the lease runtime adapter is
+called, before lease metadata is written and before audit evidence is appended.
 
 Ontology proposal creation reads the same registry reference to resolve the
 connector runtime boundary used in audit evidence. It then requires the matching
@@ -311,9 +323,11 @@ records for connector execution. A lease includes:
 
 Creating a lease requires `connectors:credential_lease:request`, an active
 credential handle in the same tenant and connector, and public-safe Vault/KMS
-policy metadata. It writes `connector.credential_lease.requested` audit
-evidence and returns only references, timestamps, decisions and adapter
-evidence. Renewing and revoking leases require
+policy metadata. It also requires the matching tenant-scoped connector manifest
+to be `active_preview` before the lease runtime adapter is called. It writes
+`connector.credential_lease.requested` audit evidence and returns only
+references, timestamps, decisions and adapter evidence. Renewing and revoking
+leases require
 `connectors:credential_lease:renew` and
 `connectors:credential_lease:revoke` respectively, writing
 `connector.credential_lease.renewed` and
@@ -701,8 +715,9 @@ The slice is covered by:
   `active_preview` manifest gating and raw credential field rejection;
 - API unit tests for credential handle metadata, `active_preview` manifest
   gating, secret reference guardrails and rotation history;
-- API unit tests for credential lease request, renewal, revocation, permission
-  checks and raw secret material rejection;
+- API unit tests for credential lease request, `active_preview` manifest
+  gating, renewal, revocation, permission checks and raw secret material
+  rejection;
 - API unit tests for tenant-scoped egress policy persistence, endpoint listing
   and live-query preflight enforcement;
 - API unit tests for connector run records, `active_preview` manifest gating,

@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
+from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.models import utc_now
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
@@ -446,6 +447,7 @@ def record_demo_connector_credential_lease(
             "Connector credential handle must be active before lease request.",
             "credential_handle_not_active",
         )
+    _active_preview_manifest_for_connector(repository, request.tenant_id, request.connector_id)
 
     permission_decision = _evaluate_permission(
         tenant_id=request.tenant_id,
@@ -656,6 +658,41 @@ def _active_lease(repository: AxisPersistenceRepository, tenant_id: str, lease_i
             "credential_lease_not_active",
         )
     return lease
+
+
+def _manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    registry = get_persisted_manufacturing_connector_registry(repository, tenant_id=tenant_id)
+    for connector in registry.connectors:
+        if connector.manifest.connector_id == connector_id:
+            return connector.manifest
+    raise ConnectorCredentialLeaseValidationError(
+        f"Unsupported connector_id: {connector_id}",
+        "unsupported_connector_id",
+    )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector manifest must be registered before credential lease request.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorCredentialLeaseValidationError(
+            "Connector manifest must be active_preview before credential lease request.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _evaluate_permission(
