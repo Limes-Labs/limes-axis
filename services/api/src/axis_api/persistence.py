@@ -23,6 +23,7 @@ from axis_api.models import (
     ConnectorPromotionPolicy,
     ConnectorPromotionPolicySet,
     ConnectorRun,
+    ConnectorSyncCheckpoint,
     DemoReferenceRecord,
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
@@ -334,6 +335,27 @@ class ConnectorRunUpdateRecord(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.run.recorded", min_length=1)
     notes: list[str] | None = None
+
+
+class ConnectorSyncCheckpointCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    checkpoint_type: str = Field(min_length=1)
+    status: str = Field(default="checkpoint_recorded", min_length=1)
+    sequence: int = Field(ge=0)
+    runtime_boundary: str = Field(min_length=1)
+    adapter: str = Field(min_length=1)
+    cursor: dict = Field(default_factory=dict)
+    result_summary: dict = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.run.sync_checkpoint.recorded",
+        min_length=1,
+    )
+    notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorOntologyProposalCreate(BaseModel):
@@ -1555,6 +1577,58 @@ class AxisPersistenceRepository:
         connector_run.updated_at = utc_now()
         self.session.flush()
         return connector_run
+
+    def create_connector_sync_checkpoint(
+        self,
+        record: ConnectorSyncCheckpointCreate,
+    ) -> ConnectorSyncCheckpoint:
+        checkpoint = ConnectorSyncCheckpoint(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            run_id=record.run_id,
+            checkpoint_id=record.checkpoint_id,
+            checkpoint_type=record.checkpoint_type,
+            status=record.status,
+            sequence=record.sequence,
+            runtime_boundary=record.runtime_boundary,
+            adapter=record.adapter,
+            cursor=record.cursor,
+            result_summary=record.result_summary,
+            evidence_refs=record.evidence_refs,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(checkpoint)
+        self.session.flush()
+        return checkpoint
+
+    def list_connector_sync_checkpoints(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        run_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorSyncCheckpoint]:
+        statement: Select[tuple[ConnectorSyncCheckpoint]] = select(
+            ConnectorSyncCheckpoint
+        ).where(ConnectorSyncCheckpoint.tenant_id == tenant_id)
+        if connector_id is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpoint.connector_id == connector_id
+            )
+        if run_id is not None:
+            statement = statement.where(ConnectorSyncCheckpoint.run_id == run_id)
+        if status is not None:
+            statement = statement.where(ConnectorSyncCheckpoint.status == status)
+
+        statement = statement.order_by(
+            ConnectorSyncCheckpoint.sequence.asc(),
+            ConnectorSyncCheckpoint.created_at.asc(),
+            ConnectorSyncCheckpoint.id.asc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
 
     def create_connector_ontology_proposal(
         self,

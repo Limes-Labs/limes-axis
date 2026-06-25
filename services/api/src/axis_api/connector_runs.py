@@ -29,6 +29,7 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorRunCreate,
     ConnectorRunUpdateRecord,
+    ConnectorSyncCheckpointCreate,
 )
 
 
@@ -401,7 +402,6 @@ def dispatch_demo_connector_sync(
             },
         )
     )
-
     updated = repository.update_connector_run(
         ConnectorRunUpdateRecord(
             tenant_id=run.tenant_id,
@@ -513,6 +513,14 @@ def execute_demo_connector_sync(
             },
         )
     )
+    _record_sync_execution_checkpoint(
+        repository,
+        run,
+        request,
+        sync_execution_result,
+        audit_event.id,
+        audit_event_type,
+    )
 
     updated = repository.update_connector_run(
         ConnectorRunUpdateRecord(
@@ -526,6 +534,61 @@ def execute_demo_connector_sync(
         )
     )
     return _run_from_record(updated)
+
+
+def _record_sync_execution_checkpoint(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    sync_execution_result: ConnectorSyncExecutionResult,
+    audit_event_id: UUID,
+    audit_event_type: str,
+) -> None:
+    existing = repository.list_connector_sync_checkpoints(
+        run.tenant_id,
+        run_id=run.run_id,
+    )
+    result_summary = sync_execution_result.result_summary
+    cursor = {
+        "cursor_type": "sync_execution_result",
+        "execution_id": request.execution_id,
+        "runtime_status": result_summary.get("runtime_status", sync_execution_result.status),
+        "source_mode": result_summary.get("source_mode", "unknown"),
+        "external_query_started": result_summary.get("external_query_started", "false"),
+        "graph_mutation_started": result_summary.get("graph_mutation_started", "false"),
+    }
+    for optional_key in (
+        "connection_profile_id",
+        "schema_name",
+        "table_name",
+        "query_mode",
+        "live_query_preflight_status",
+    ):
+        if optional_key in result_summary:
+            cursor[optional_key] = result_summary[optional_key]
+
+    repository.create_connector_sync_checkpoint(
+        ConnectorSyncCheckpointCreate(
+            tenant_id=run.tenant_id,
+            connector_id=run.connector_id,
+            run_id=run.run_id,
+            checkpoint_id=f"chk_{request.execution_id}",
+            checkpoint_type="sync_execution",
+            status=sync_execution_result.status,
+            sequence=len(existing) + 1,
+            runtime_boundary=run.runtime_boundary,
+            adapter=sync_execution_result.adapter,
+            cursor=cursor,
+            result_summary=result_summary,
+            evidence_refs=[str(audit_event_id)],
+            audit_event_id=audit_event_id,
+            audit_event_type=audit_event_type,
+            notes=[
+                "Sync checkpoint captured after the Axis runtime adapter returned.",
+                "Checkpoint payload is public-safe and excludes credential material.",
+            ],
+        )
+    )
 
 
 def _run_from_record(record) -> ConnectorRunRecord:

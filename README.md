@@ -195,6 +195,10 @@ unpersisted or unapproved egress policies are blocked before secret retrieval is
 considered; missing lease references and lease evidence that indicates secret
 material was returned are also blocked. The resolver remains reference-only and
 does not return credential material.
+Sync execution attempts now also persist tenant-scoped
+`connector_sync_checkpoints` rows with public-safe cursor/result evidence so
+future provider adapters have a real retry/checkpoint boundary without storing
+raw credentials or running live queries by default.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

@@ -21,6 +21,7 @@ from axis_api.models import (
     ConnectorOntologyProposal,
     ConnectorPromotionPolicy,
     ConnectorRun,
+    ConnectorSyncCheckpoint,
     DemoReferenceRecord,
 )
 from axis_api.persistence import (
@@ -40,6 +41,7 @@ from axis_api.persistence import (
     ConnectorOntologyProposalCreate,
     ConnectorPromotionPolicyCreate,
     ConnectorRunCreate,
+    ConnectorSyncCheckpointCreate,
     DemoReferenceRecordCreate,
     PersistenceRecordNotFound,
 )
@@ -66,6 +68,7 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
         "connector_credential_handles",
         "connector_credential_rotations",
         "connector_runs",
+        "connector_sync_checkpoints",
         "connector_ontology_proposals",
         "connector_ontology_promotions",
         "connector_promotion_policies",
@@ -82,6 +85,9 @@ def test_persistence_metadata_exposes_foundation_tables() -> None:
     assert ConnectorCredentialHandle.__table__.c.handle_id.index is True
     assert ConnectorCredentialRotation.__table__.c.handle_id.index is True
     assert ConnectorRun.__table__.c.run_id.index is True
+    assert ConnectorSyncCheckpoint.__table__.c.checkpoint_id.index is True
+    assert ConnectorSyncCheckpoint.__table__.c.run_id.index is True
+    assert ConnectorSyncCheckpoint.__table__.c.status.index is True
     assert ConnectorOntologyProposal.__table__.c.proposal_id.index is True
     assert ConnectorOntologyProposal.__table__.c.promotion_id.index is True
     assert ConnectorOntologyProposal.__table__.c.policy_id.index is True
@@ -581,6 +587,101 @@ def test_repository_records_connector_runs_tenant_scoped(session: Session) -> No
         "file_name": "manufacturing-assets-demo.csv",
         "record_count": "2",
     }
+
+
+def test_repository_records_connector_sync_checkpoints_tenant_scoped(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="axis-sync-worker-role",
+            event_type="connector.run.sync_checkpoint.recorded",
+            payload={
+                "connector_id": "external_db_operational_mirror",
+                "run_id": "run_external_db_orders_scheduled_20260625",
+                "checkpoint_id": "chk_external_db_orders_20260625_1400_0001",
+            },
+        )
+    )
+
+    created = repository.create_connector_sync_checkpoint(
+        ConnectorSyncCheckpointCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            run_id="run_external_db_orders_scheduled_20260625",
+            checkpoint_id="chk_external_db_orders_20260625_1400_0001",
+            checkpoint_type="sync_execution",
+            status="checkpoint_recorded",
+            sequence=1,
+            runtime_boundary="axis-connector-sandbox",
+            adapter="axis-postgres-external-db-sync-executor",
+            cursor={
+                "cursor_type": "watermark",
+                "watermark_column": "updated_at",
+                "last_seen_value": "2026-06-25T12:00:00Z",
+            },
+            result_summary={
+                "records_read": "2",
+                "records_accepted": "2",
+                "external_query_started": "false",
+                "credential_material_returned": "false",
+            },
+            evidence_refs=[str(audit_event.id)],
+            audit_event_id=audit_event.id,
+            audit_event_type="connector.run.sync_checkpoint.recorded",
+            notes=["Checkpoint evidence only; no secret material stored."],
+        )
+    )
+    repository.create_connector_sync_checkpoint(
+        ConnectorSyncCheckpointCreate(
+            tenant_id="tenant_other",
+            connector_id="external_db_operational_mirror",
+            run_id="run_external_db_orders_other",
+            checkpoint_id="chk_other",
+            checkpoint_type="sync_execution",
+            status="checkpoint_recorded",
+            sequence=1,
+            runtime_boundary="axis-connector-sandbox",
+            adapter="axis-postgres-external-db-sync-executor",
+            cursor={"cursor_type": "watermark"},
+            result_summary={},
+            evidence_refs=[],
+            audit_event_id=audit_event.id,
+        )
+    )
+
+    records = repository.list_connector_sync_checkpoints(
+        "tenant_demo_manufacturing",
+        run_id="run_external_db_orders_scheduled_20260625",
+    )
+
+    assert records == [created]
+    assert records[0].checkpoint_id == "chk_external_db_orders_20260625_1400_0001"
+    assert records[0].cursor["last_seen_value"] == "2026-06-25T12:00:00Z"
+    assert records[0].result_summary["credential_material_returned"] == "false"
+    assert records[0].audit_event_id == audit_event.id
+    assert "secret" not in str(records[0].cursor).lower()
+
+    with pytest.raises(IntegrityError):
+        repository.create_connector_sync_checkpoint(
+            ConnectorSyncCheckpointCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_external_db_orders_scheduled_20260625",
+                checkpoint_id="chk_external_db_orders_20260625_1400_0001",
+                checkpoint_type="sync_execution",
+                status="checkpoint_recorded",
+                sequence=2,
+                runtime_boundary="axis-connector-sandbox",
+                adapter="axis-postgres-external-db-sync-executor",
+                cursor={"cursor_type": "watermark"},
+                result_summary={},
+                evidence_refs=[],
+                audit_event_id=audit_event.id,
+            )
+        )
 
 
 def test_repository_records_connector_ontology_proposals_tenant_scoped(

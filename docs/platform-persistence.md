@@ -476,12 +476,19 @@ Delivered:
   enforcing supply/workflow/audit scopes, writing append-only
   `manufacturing.risk_scenario.generated` audit evidence and returning
   idempotent replays for duplicate requests.
+- persisted connector sync checkpoints through `connector_sync_checkpoints`,
+  with scheduled sync execution creating tenant-scoped checkpoint rows after
+  the runtime adapter returns. Checkpoints carry connector/run ids,
+  checkpoint type/status/sequence, public-safe cursor metadata, adapter result
+  summaries and audit evidence refs, without raw DSNs, SQL text, credential
+  values or secret material.
 
 Still Platform work:
 
-- connector execution from persisted run records;
-- production vault/KMS integration, secret leasing and automated rotation;
-- scheduled connector sync lifecycle;
+- provider-specific live connector execution beyond the current deferred and
+  checkpointed self-hosted boundaries;
+- production vault/KMS integration beyond provider-specific validation,
+  secret leasing and automated rotation;
 - production connector mutations from action runtime paths;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;

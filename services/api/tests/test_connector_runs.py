@@ -1707,9 +1707,14 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
     assert "dsn" not in str(body).lower()
 
     with session_scope(session_factory) as session:
-        events = AxisPersistenceRepository(session).list_audit_events(
+        repository = AxisPersistenceRepository(session)
+        events = repository.list_audit_events(
             "tenant_demo_manufacturing",
             event_type="connector.run.sync_execution_preflight_passed",
+        )
+        checkpoints = repository.list_connector_sync_checkpoints(
+            "tenant_demo_manufacturing",
+            run_id="run_external_db_orders_live_preflight_passed_20260622",
         )
 
     assert len(events) == 1
@@ -1719,6 +1724,21 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
     assert "vault://" not in str(events[0].payload).lower()
     assert "credential_value" not in str(events[0].payload).lower()
     assert "dsn" not in str(events[0].payload).lower()
+    assert len(checkpoints) == 1
+    assert checkpoints[0].checkpoint_id == (
+        "chk_sync_exec_external_db_orders_live_preflight_passed_20260622_1400"
+    )
+    assert checkpoints[0].checkpoint_type == "sync_execution"
+    assert checkpoints[0].status == "sync_execution_preflight_passed"
+    assert checkpoints[0].sequence == 1
+    assert checkpoints[0].adapter == "axis-postgres-external-db-sync-executor"
+    assert checkpoints[0].result_summary["live_query_preflight_status"] == "passed"
+    assert checkpoints[0].result_summary["external_query_started"] == "false"
+    assert checkpoints[0].result_summary["credential_material_returned"] == "false"
+    assert checkpoints[0].evidence_refs == [str(events[0].id)]
+    assert "vault://" not in str(checkpoints[0].cursor).lower()
+    assert "credential_value" not in str(checkpoints[0].cursor).lower()
+    assert "dsn" not in str(checkpoints[0].cursor).lower()
 
 
 def test_execute_external_db_live_query_preflight_blocks_secret_material_returned(
