@@ -1913,6 +1913,39 @@ def test_connector_sync_checkpoint_repository_filters_created_before(
     ]
 
 
+def test_connector_sync_checkpoint_repository_filters_created_after(
+    session_factory: sessionmaker[Session],
+) -> None:
+    older = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    newer = older + timedelta(hours=1)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_after_older",
+            run_id="run_checkpoint_after_older",
+            sequence=1,
+            created_at=older,
+        )
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_after_newer",
+            run_id="run_checkpoint_after_newer",
+            sequence=2,
+            created_at=newer,
+        )
+
+        checkpoints = repository.list_connector_sync_checkpoints(
+            "tenant_demo_manufacturing",
+            created_after=older,
+        )
+
+    assert [checkpoint.checkpoint_id for checkpoint in checkpoints] == [
+        "chk_checkpoint_after_newer"
+    ]
+
+
 def test_connector_sync_checkpoints_endpoint_filters_created_before(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -1951,6 +1984,47 @@ def test_connector_sync_checkpoints_endpoint_filters_created_before(
     body = response.json()
     assert [checkpoint["checkpoint_id"] for checkpoint in body["checkpoints"]] == [
         "chk_checkpoint_api_page_older"
+    ]
+
+
+def test_connector_sync_checkpoints_endpoint_filters_created_after(
+    session_factory: sessionmaker[Session],
+) -> None:
+    older = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    newer = older + timedelta(hours=1)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_api_after_older",
+            run_id="run_checkpoint_api_after_older",
+            sequence=1,
+            created_at=older,
+        )
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_api_after_newer",
+            run_id="run_checkpoint_api_after_newer",
+            sequence=2,
+            created_at=newer,
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+            "created_after": older.isoformat().replace("+00:00", "Z"),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [checkpoint["checkpoint_id"] for checkpoint in body["checkpoints"]] == [
+        "chk_checkpoint_api_after_newer"
     ]
 
 

@@ -464,6 +464,7 @@ OidcPrincipalDependency = Annotated[
     Depends(oidc_principal),
 ]
 CheckpointActorScopesQuery = Query(default_factory=list)
+CheckpointCreatedAfterQuery = Query(default=None)
 CheckpointCreatedBeforeQuery = Query(default=None)
 
 
@@ -1987,6 +1988,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         connector_id: str | None = Query(default=None, min_length=1),
         run_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
+        created_after: datetime | None = CheckpointCreatedAfterQuery,
         created_before: datetime | None = CheckpointCreatedBeforeQuery,
         actor_scopes: list[str] = CheckpointActorScopesQuery,
         limit: int = Query(default=100, ge=1, le=200),
@@ -1999,6 +2001,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 connector_id=connector_id,
                 run_id=run_id,
                 status=status,
+                created_after=created_after,
                 created_before=created_before,
                 limit=limit,
             ),

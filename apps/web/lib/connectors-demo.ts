@@ -784,6 +784,7 @@ export function filterConnectorSyncCheckpointsByConnector(
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {
+  createdAfter?: string;
   createdBefore?: string;
 };
 
@@ -795,6 +796,9 @@ export function buildConnectorSyncCheckpointQueryPath(
     tenant_id: tenantId,
     actor_scopes: CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE,
   });
+  if (options.createdAfter) {
+    params.set("created_after", options.createdAfter);
+  }
   if (options.createdBefore) {
     params.set("created_before", options.createdBefore);
   }
