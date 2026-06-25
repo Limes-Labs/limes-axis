@@ -1741,6 +1741,93 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
     assert "dsn" not in str(checkpoints[0].cursor).lower()
 
 
+def test_connector_sync_checkpoints_endpoint_returns_public_safe_records(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+        seed_external_db_egress_policy(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_checkpoint_api_20260625",
+        dispatch_id="dispatch_external_db_orders_checkpoint_api_20260625_1400",
+        dispatch_idempotency_key="idem_dispatch_external_db_orders_checkpoint_api_20260625",
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+    execute_response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_checkpoint_api_20260625/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_checkpoint_api_20260625_1400",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_external_db_orders_checkpoint_api_20260625",
+        },
+    )
+    assert execute_response.status_code == 200
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "run_id": "run_external_db_orders_checkpoint_api_20260625",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["registry_status"] == "ready"
+    assert body["metrics"][0]["label"] == "Sync Checkpoints"
+    assert body["metrics"][0]["value"] == "1"
+    assert body["checkpoint_notes"] == [
+        "Sync checkpoints are tenant-scoped runtime evidence for retry/resume.",
+        "Checkpoint cursors are public-safe and exclude raw credentials.",
+    ]
+    assert len(body["checkpoints"]) == 1
+    checkpoint = body["checkpoints"][0]
+    assert checkpoint["connector_id"] == "external_db_operational_mirror"
+    assert checkpoint["run_id"] == "run_external_db_orders_checkpoint_api_20260625"
+    assert checkpoint["checkpoint_id"] == (
+        "chk_sync_exec_external_db_orders_checkpoint_api_20260625_1400"
+    )
+    assert checkpoint["status"] == "sync_execution_preflight_passed"
+    assert checkpoint["sequence"] == 1
+    assert checkpoint["cursor"]["live_query_preflight_status"] == "passed"
+    assert checkpoint["result_summary"]["credential_material_returned"] == "false"
+    assert checkpoint["evidence_refs"]
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+
 def test_execute_external_db_live_query_preflight_blocks_secret_material_returned(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -2195,5 +2282,6 @@ def test_openapi_exposes_connector_run_endpoints() -> None:
     assert response.status_code == 200
     paths = response.json()["paths"]
     assert "/demo/manufacturing/connectors/runs" in paths
+    assert "/demo/manufacturing/connectors/runs/checkpoints" in paths
     assert "/demo/manufacturing/connectors/runs/{run_id}/dispatch" in paths
     assert "/demo/manufacturing/connectors/runs/{run_id}/execute-sync" in paths

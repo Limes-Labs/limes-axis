@@ -69,6 +69,14 @@ class ConnectorRunQuery(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
+class ConnectorSyncCheckpointQuery(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    connector_id: str | None = Field(default=None, min_length=1)
+    run_id: str | None = Field(default=None, min_length=1)
+    status: str | None = Field(default=None, min_length=1)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
 class ConnectorRunCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -133,6 +141,25 @@ class ConnectorRunRecord(BaseModel):
     created_at: datetime
 
 
+class ConnectorSyncCheckpointRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    checkpoint_type: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    sequence: int = Field(ge=0)
+    runtime_boundary: str = Field(min_length=1)
+    adapter: str = Field(min_length=1)
+    cursor: dict = Field(default_factory=dict)
+    result_summary: dict = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
 class ManufacturingConnectorRunRegistry(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -141,6 +168,16 @@ class ManufacturingConnectorRunRegistry(BaseModel):
     metrics: list[OverviewMetric] = Field(default_factory=list)
     runs: list[ConnectorRunRecord] = Field(default_factory=list)
     run_notes: list[str] = Field(default_factory=list)
+
+
+class ManufacturingConnectorSyncCheckpointRegistry(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    registry_status: OverviewStatus
+    metrics: list[OverviewMetric] = Field(default_factory=list)
+    checkpoints: list[ConnectorSyncCheckpointRecord] = Field(default_factory=list)
+    checkpoint_notes: list[str] = Field(default_factory=list)
 
 
 AUDIT_EVENT_TYPE = "connector.run.recorded"
@@ -222,6 +259,56 @@ def build_connector_run_registry(
             "Creating a run record writes an append-only audit event.",
             "Raw payloads, file content and credential material are never stored.",
             "Live sync and connector-backed production actions remain future work.",
+        ],
+    )
+
+
+def build_connector_sync_checkpoint_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorSyncCheckpointQuery,
+) -> ManufacturingConnectorSyncCheckpointRegistry:
+    records = repository.list_connector_sync_checkpoints(
+        tenant_id=query.tenant_id,
+        connector_id=query.connector_id,
+        run_id=query.run_id,
+        status=query.status,
+        limit=query.limit,
+    )
+    checkpoints = [_checkpoint_from_record(record) for record in records]
+    audit_refs = sum(1 for checkpoint in checkpoints if checkpoint.audit_event_id is not None)
+    return ManufacturingConnectorSyncCheckpointRegistry(
+        tenant_id=query.tenant_id,
+        plant_name="Ravenna Works",
+        scenario="Plant Operations Cockpit",
+        registry_status=OverviewStatus.READY if checkpoints else OverviewStatus.WATCH,
+        metrics=[
+            OverviewMetric(
+                label="Sync Checkpoints",
+                value=str(len(checkpoints)),
+                detail="Tenant-scoped connector sync checkpoint records",
+                status=OverviewStatus.READY if checkpoints else OverviewStatus.WATCH,
+            ),
+            OverviewMetric(
+                label="Audit Evidence",
+                value=str(audit_refs),
+                detail="Checkpoints linked to append-only audit events",
+                status=(
+                    OverviewStatus.READY
+                    if audit_refs == len(checkpoints)
+                    else OverviewStatus.WATCH
+                ),
+            ),
+            OverviewMetric(
+                label="Secret Material",
+                value="Excluded",
+                detail="Checkpoint cursors carry public-safe retry metadata only",
+                status=OverviewStatus.READY,
+            ),
+        ],
+        checkpoints=checkpoints,
+        checkpoint_notes=[
+            "Sync checkpoints are tenant-scoped runtime evidence for retry/resume.",
+            "Checkpoint cursors are public-safe and exclude raw credentials.",
         ],
     )
 
@@ -607,6 +694,27 @@ def _run_from_record(record) -> ConnectorRunRecord:
         schedule_result=_schedule_result_from_summary(record.result_summary),
         dispatch_result=_dispatch_result_from_summary(record.result_summary),
         sync_execution_result=_sync_execution_result_from_summary(record.result_summary),
+        audit_event_id=record.audit_event_id,
+        audit_event_type=record.audit_event_type,
+        notes=record.notes,
+        created_at=record.created_at,
+    )
+
+
+def _checkpoint_from_record(record) -> ConnectorSyncCheckpointRecord:
+    return ConnectorSyncCheckpointRecord(
+        tenant_id=record.tenant_id,
+        connector_id=record.connector_id,
+        run_id=record.run_id,
+        checkpoint_id=record.checkpoint_id,
+        checkpoint_type=record.checkpoint_type,
+        status=record.status,
+        sequence=record.sequence,
+        runtime_boundary=record.runtime_boundary,
+        adapter=record.adapter,
+        cursor=record.cursor,
+        result_summary=record.result_summary,
+        evidence_refs=record.evidence_refs,
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,

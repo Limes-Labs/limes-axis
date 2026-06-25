@@ -198,7 +198,9 @@ does not return credential material.
 Sync execution attempts now also persist tenant-scoped
 `connector_sync_checkpoints` rows with public-safe cursor/result evidence so
 future provider adapters have a real retry/checkpoint boundary without storing
-raw credentials or running live queries by default.
+raw credentials or running live queries by default. Those checkpoints are
+queryable through `/demo/manufacturing/connectors/runs/checkpoints` with
+tenant, connector, run and status filters.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

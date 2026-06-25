@@ -481,7 +481,8 @@ Delivered:
   the runtime adapter returns. Checkpoints carry connector/run ids,
   checkpoint type/status/sequence, public-safe cursor metadata, adapter result
   summaries and audit evidence refs, without raw DSNs, SQL text, credential
-  values or secret material.
+  values or secret material. The API exposes these rows through
+  `/demo/manufacturing/connectors/runs/checkpoints` with tenant-scoped filters.
 
 Still Platform work:
 
