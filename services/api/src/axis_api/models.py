@@ -521,6 +521,41 @@ class ConnectorRun(Base):
     )
 
 
+class ConnectorSyncCheckpoint(Base):
+    __tablename__ = "connector_sync_checkpoints"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    checkpoint_id: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
+    checkpoint_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    runtime_boundary: Mapped[str] = mapped_column(String(160), nullable=False)
+    adapter: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    cursor: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "checkpoint_id",
+            name="uq_connector_sync_checkpoints_tenant_checkpoint",
+        ),
+    )
+
+
 class ConnectorOntologyProposal(Base):
     __tablename__ = "connector_ontology_proposals"
 
