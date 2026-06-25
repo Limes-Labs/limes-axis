@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointsByConnector,
   findConnectorById,
   formatConnectorLabel,
+  type ManufacturingConnectorSyncCheckpointRegistry,
   type ManufacturingConnectorRegistry,
 } from "./connectors-demo";
 
@@ -105,6 +107,77 @@ const connectorRegistryFixture: ManufacturingConnectorRegistry = {
   connector_notes: [],
 };
 
+const checkpointRegistryFixture: ManufacturingConnectorSyncCheckpointRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [],
+  checkpoints: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      run_id: "run_external_db_sync_20260625",
+      checkpoint_id: "chk_external_db_sync_2",
+      checkpoint_type: "sync_execution",
+      status: "sync_execution_completed",
+      sequence: 2,
+      runtime_boundary: "axis-workflow-runtime-adapter",
+      adapter: "axis-postgres-external-db-sync-executor",
+      cursor: {
+        high_watermark_kind: "timestamp",
+        high_watermark_value: "2026-06-25T10:15:00+02:00",
+      },
+      result_summary: {
+        external_query_started: "false",
+        credential_material_returned: "false",
+      },
+      evidence_refs: ["audit-external-db-sync-2"],
+      audit_event_id: "7b104c64-0c3a-48f1-aa6d-828c3a51b16c",
+      audit_event_type: "connector.run.sync_execution_completed",
+      notes: ["Checkpoint evidence from the API response."],
+      created_at: "2026-06-25T08:15:00Z",
+    },
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      run_id: "run_file_csv_sync_20260625",
+      checkpoint_id: "chk_file_csv_sync_1",
+      checkpoint_type: "sync_execution",
+      status: "sync_execution_deferred",
+      sequence: 1,
+      runtime_boundary: "axis-workflow-runtime-adapter",
+      adapter: "axis-file-csv-sync-executor",
+      cursor: { asset_ref: "obj://axis/demo/file-csv" },
+      result_summary: { external_query_started: "false" },
+      evidence_refs: ["audit-file-csv-sync-1"],
+      audit_event_id: null,
+      audit_event_type: "connector.run.sync_execution_deferred",
+      notes: [],
+      created_at: "2026-06-25T08:10:00Z",
+    },
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      run_id: "run_external_db_sync_20260625",
+      checkpoint_id: "chk_external_db_sync_1",
+      checkpoint_type: "sync_execution",
+      status: "sync_execution_preflight_passed",
+      sequence: 1,
+      runtime_boundary: "axis-workflow-runtime-adapter",
+      adapter: "axis-postgres-external-db-sync-executor",
+      cursor: { high_watermark_kind: "timestamp" },
+      result_summary: { live_query_preflight_status: "passed" },
+      evidence_refs: ["audit-external-db-sync-1"],
+      audit_event_id: null,
+      audit_event_type: "connector.run.sync_execution_preflight_passed",
+      notes: [],
+      created_at: "2026-06-25T08:05:00Z",
+    },
+  ],
+  checkpoint_notes: ["Sync checkpoints are tenant-scoped runtime evidence for retry/resume."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -169,5 +242,20 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(request).toLowerCase()).not.toContain("csv_content");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("filters connector sync checkpoints for the selected connector without secret material", () => {
+    const checkpoints = filterConnectorSyncCheckpointsByConnector(
+      checkpointRegistryFixture,
+      "external_db_operational_mirror",
+    );
+
+    expect(checkpoints.map((checkpoint) => checkpoint.checkpoint_id)).toEqual([
+      "chk_external_db_sync_1",
+      "chk_external_db_sync_2",
+    ]);
+    expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("dsn");
+    expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("credential_value");
+    expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("password");
   });
 });

@@ -483,6 +483,8 @@ Delivered:
   summaries and audit evidence refs, without raw DSNs, SQL text, credential
   values or secret material. The API exposes these rows through
   `/demo/manufacturing/connectors/runs/checkpoints` with tenant-scoped filters.
+  The `/connectors` console consumes the endpoint directly and renders
+  checkpoint summaries per connector without browser-local fallback records.
 
 Still Platform work:
 
