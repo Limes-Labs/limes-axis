@@ -1,4 +1,6 @@
+from copy import deepcopy
 from datetime import UTC, datetime
+from runpy import run_path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,10 +19,21 @@ from axis_api.connector_credential_leases import (
     build_connector_credential_lease_registry,
     record_demo_connector_credential_lease,
 )
+from axis_api.connector_manifests import (
+    ConnectorManifestCreateRequest,
+    ConnectorManifestLifecycleRequest,
+    record_demo_connector_manifest,
+    transition_demo_connector_manifest_lifecycle,
+)
+from axis_api.connector_reference import ConnectorReferenceRecordNotFound
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import Base
-from axis_api.persistence import AxisPersistenceRepository, ConnectorCredentialHandleCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    ConnectorCredentialHandleCreate,
+    DemoReferenceRecordCreate,
+)
 
 
 @pytest.fixture
@@ -32,11 +45,108 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    seed_connector_registry_reference(factory)
     yield factory
     engine.dispose()
 
 
-def seed_active_handle(repository: AxisPersistenceRepository) -> None:
+@pytest.fixture
+def empty_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield factory
+    engine.dispose()
+
+
+def connector_registry_payload() -> dict:
+    migration = run_path("migrations/versions/0023_connector_registry_reference.py")
+    return deepcopy(migration["CONNECTOR_REGISTRY_PAYLOAD"])
+
+
+def seed_connector_registry_reference(
+    factory: sessionmaker[Session],
+    payload: dict | None = None,
+) -> None:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
+
+
+def connector_manifest_request(
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> ConnectorManifestCreateRequest:
+    registry_payload = deepcopy(payload or connector_registry_payload())
+    connector = next(
+        item
+        for item in registry_payload["connectors"]
+        if item["manifest"]["connector_id"] == connector_id
+    )
+    return ConnectorManifestCreateRequest(
+        tenant_id="tenant_demo_manufacturing",
+        registered_by="platform-connector-owner-role",
+        manifest=connector["manifest"],
+        runtime_policy=connector["runtime_policy"],
+        preview_sample=connector["preview_sample"],
+        notes=["Manifest is registered without enabling live sync."],
+    )
+
+
+def seed_registered_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> None:
+    record_demo_connector_manifest(repository, connector_manifest_request(connector_id, payload))
+
+
+def seed_active_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+    payload: dict | None = None,
+) -> None:
+    seed_registered_connector_manifest(repository, connector_id, payload)
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        connector_id,
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_preview",
+            actor_scopes=["connectors:manifest:lifecycle"],
+            transition_reason="Validated for tenant connector credential lease tests.",
+            evidence_refs=["test://connector-credential-lease-active-manifest"],
+        ),
+    )
+
+
+def seed_active_handle(
+    repository: AxisPersistenceRepository,
+    *,
+    manifest_status: str | None = "active_preview",
+) -> None:
+    if manifest_status == "active_preview":
+        seed_active_connector_manifest(repository)
+    elif manifest_status == "registered_preview_only":
+        seed_registered_connector_manifest(repository)
+    elif manifest_status is not None:
+        raise ValueError(f"Unsupported test manifest_status: {manifest_status}")
+
     repository.create_connector_credential_handle(
         ConnectorCredentialHandleCreate(
             tenant_id="tenant_demo_manufacturing",
@@ -186,6 +296,28 @@ def test_request_connector_credential_lease_rejects_raw_secret_material(
     assert response.json()["detail"]["reason"] == "raw_secret_material"
 
 
+def test_record_demo_connector_credential_lease_requires_persisted_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(empty_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository, manifest_status=None)
+        with pytest.raises(ConnectorReferenceRecordNotFound):
+            record_demo_connector_credential_lease(repository, lease_request())
+
+
+def test_record_demo_connector_credential_lease_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository, manifest_status="registered_preview_only")
+        with pytest.raises(ConnectorCredentialLeaseValidationError) as exc_info:
+            record_demo_connector_credential_lease(repository, lease_request())
+
+    assert exc_info.value.reason == "connector_manifest_not_active_preview"
+
+
 def test_request_connector_credential_lease_persists_deferred_lease(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -215,6 +347,49 @@ def test_request_connector_credential_lease_persists_deferred_lease(
     assert body["audit_event_type"] == "connector.credential_lease.requested"
     assert "password" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
+
+
+def test_request_connector_credential_lease_requires_active_preview_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_active_handle(
+            AxisPersistenceRepository(session),
+            manifest_status="registered_preview_only",
+        )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases",
+        json=lease_request().model_dump(mode="json"),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "connector_manifest_not_active_preview"
+
+
+def test_request_connector_credential_lease_endpoint_reports_missing_connector_registry(
+    empty_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = empty_session_factory
+    with session_scope(empty_session_factory) as session:
+        seed_active_handle(AxisPersistenceRepository(session), manifest_status=None)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases",
+        json=lease_request().model_dump(mode="json"),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "Manufacturing connector registry reference record not found.",
+        "surface": "connectors",
+    }
 
 
 def test_self_hosted_vault_kms_runtime_executes_lease_without_secret_material() -> None:

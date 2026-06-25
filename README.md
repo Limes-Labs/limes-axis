@@ -134,9 +134,11 @@ manifests from the persisted connector registry reference and require the
 tenant-scoped manifest to be `active_preview` before storing runtime boundary
 metadata, and credential handle creation uses the same persisted registry
 before storing external secret reference metadata and requires `active_preview`
-before writing credential handle metadata or audit evidence. Ontology proposal
-writes also resolve connector runtime boundary metadata from that persisted
-registry and require `active_preview` before recording proposal audit evidence,
+before writing credential handle metadata or audit evidence. Credential lease
+requests also require `active_preview` before lease runtime, metadata or audit
+evidence can run. Ontology proposal writes also resolve connector runtime
+boundary metadata from that persisted registry and require `active_preview`
+before recording proposal audit evidence,
 connector run creation uses it and requires `active_preview` before storing
 run/audit runtime boundary metadata, and manual import request creation also
 requires `active_preview` before writing approval-gated import audit evidence.
@@ -158,8 +160,9 @@ metadata-only external secret references and rotation history for connector
 credentials, while still refusing to store raw credential values. Credential
 leases can now be requested, renewed and revoked with Vault/KMS policy metadata,
 permission decisions and adapter evidence, without returning secret material.
-The lease runtime is deferred by default and can switch to the self-hosted
-Vault/KMS adapter with `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`.
+Lease requests require a tenant-scoped connector manifest in `active_preview`;
+the runtime is deferred by default and can switch to the self-hosted Vault/KMS
+adapter with `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`.
 It can also use provider-specific Vault/KMS adapter profiles with
 `AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true`; those profiles validate
 HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, KMS

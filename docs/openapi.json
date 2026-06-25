@@ -12487,6 +12487,9 @@
           "403": {
             "description": "Connector credential lease permission denied"
           },
+          "404": {
+            "description": "Connector registry reference record not found"
+          },
           "409": {
             "description": "Connector credential lease already exists"
           },

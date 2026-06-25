@@ -112,6 +112,7 @@ Foundation acceptance is tracked in
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Require active preview connector manifests before tenant configuration writes.
 - [x] Require active preview connector manifests before credential handle creation.
+- [x] Require active preview connector manifests before credential lease requests.
 - [x] Require active preview connector manifests before connector run creation.
 - [x] Require active preview connector manifests before manual import requests.
 - [x] Require active preview connector manifests before ontology proposal creation.
@@ -373,6 +374,9 @@ configuration state.
 Credential handle creation uses the same persisted registry reference to
 validate connector manifests, then requires a matching tenant-scoped persisted
 manifest in `active_preview` before storing external secret reference metadata.
+Credential lease requests use the same persisted registry reference, then
+require a matching tenant-scoped persisted manifest in `active_preview` before
+writing lease/audit evidence or calling the lease runtime adapter.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from that persisted registry reference, then requires a matching tenant-scoped
 persisted manifest in `active_preview` before writing proposal/audit state.
@@ -407,8 +411,10 @@ the persisted connector registry reference is missing or invalid. Short-lived
 credential leases can now be requested, renewed and revoked through
 `/demo/manufacturing/connectors/credential-leases`, writing
 `connector.credential_lease.*` audit evidence while returning only references,
-timestamps, permission decisions and adapter evidence. The lease runtime is
-deferred by default and can use the optional self-hosted Vault/KMS adapter when
+timestamps, permission decisions and adapter evidence. Lease requests require a
+matching tenant-scoped connector manifest in `active_preview` before runtime or
+audit evidence is written. The lease runtime is deferred by default and can use
+the optional self-hosted Vault/KMS adapter when
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`, still without returning secret
 material. Provider-specific Vault/KMS adapter profiles can be enabled with
 `AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true`; the runtime validates
