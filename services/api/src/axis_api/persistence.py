@@ -379,6 +379,37 @@ class ConnectorSyncCheckpointClaimCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorSyncCheckpointClaimRenewalRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    renewed_by: str = Field(min_length=1)
+    renewed_at: datetime
+    lease_duration_seconds: int = Field(ge=1)
+    lease_expires_at: datetime
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.run.sync_checkpoint_claim_renewed",
+        min_length=1,
+    )
+    note: str | None = None
+
+
+class ConnectorSyncCheckpointClaimReleaseRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    released_by: str = Field(min_length=1)
+    released_at: datetime
+    release_reason: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.run.sync_checkpoint_claim_released",
+        min_length=1,
+    )
+    note: str | None = None
+
+
 class ConnectorOntologyProposalCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -1652,6 +1683,21 @@ class AxisPersistenceRepository:
         )
         return self.session.scalar(statement)
 
+    def get_connector_sync_checkpoint_claim(
+        self,
+        tenant_id: str,
+        checkpoint_id: str,
+        claim_id: str,
+    ) -> ConnectorSyncCheckpointClaim | None:
+        statement: Select[tuple[ConnectorSyncCheckpointClaim]] = select(
+            ConnectorSyncCheckpointClaim
+        ).where(
+            ConnectorSyncCheckpointClaim.tenant_id == tenant_id,
+            ConnectorSyncCheckpointClaim.checkpoint_id == checkpoint_id,
+            ConnectorSyncCheckpointClaim.claim_id == claim_id,
+        )
+        return self.session.scalar(statement)
+
     def create_connector_sync_checkpoint_claim(
         self,
         record: ConnectorSyncCheckpointClaimCreate,
@@ -1673,6 +1719,54 @@ class AxisPersistenceRepository:
             notes=record.notes,
         )
         self.session.add(claim)
+        self.session.flush()
+        return claim
+
+    def renew_connector_sync_checkpoint_claim(
+        self,
+        record: ConnectorSyncCheckpointClaimRenewalRecord,
+    ) -> ConnectorSyncCheckpointClaim:
+        claim = self.get_connector_sync_checkpoint_claim(
+            record.tenant_id,
+            record.checkpoint_id,
+            record.claim_id,
+        )
+        if claim is None:
+            raise PersistenceRecordNotFound("Connector sync checkpoint claim not found")
+        claim.status = "claimed"
+        claim.renewed_at = record.renewed_at
+        claim.renewed_by = record.renewed_by
+        claim.renewal_count += 1
+        claim.lease_duration_seconds = record.lease_duration_seconds
+        claim.lease_expires_at = record.lease_expires_at
+        claim.audit_event_id = record.audit_event_id
+        claim.audit_event_type = record.audit_event_type
+        if record.note is not None:
+            claim.notes = [*claim.notes, record.note]
+        claim.updated_at = utc_now()
+        self.session.flush()
+        return claim
+
+    def release_connector_sync_checkpoint_claim(
+        self,
+        record: ConnectorSyncCheckpointClaimReleaseRecord,
+    ) -> ConnectorSyncCheckpointClaim:
+        claim = self.get_connector_sync_checkpoint_claim(
+            record.tenant_id,
+            record.checkpoint_id,
+            record.claim_id,
+        )
+        if claim is None:
+            raise PersistenceRecordNotFound("Connector sync checkpoint claim not found")
+        claim.status = "released"
+        claim.released_at = record.released_at
+        claim.released_by = record.released_by
+        claim.release_reason = record.release_reason
+        claim.audit_event_id = record.audit_event_id
+        claim.audit_event_type = record.audit_event_type
+        if record.note is not None:
+            claim.notes = [*claim.notes, record.note]
+        claim.updated_at = utc_now()
         self.session.flush()
         return claim
 

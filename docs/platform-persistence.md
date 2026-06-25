@@ -214,6 +214,12 @@ The thirty-sixth Alembic migration adds:
 - indexes for tenant, connector, run, checkpoint, claim, worker actor,
   idempotency and audit event filtering.
 
+The thirty-seventh Alembic migration adds checkpoint claim lifecycle fields:
+
+- nullable renewal actor/timestamp fields and renewal count;
+- nullable release actor/timestamp/reason fields;
+- indexes for renewal and release actor filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -513,6 +519,11 @@ Delivered:
   and idempotency key return the original claim without duplicating audit
   evidence. Claim results explicitly record `external_sync_started=false`,
   `secret_material_returned=false` and `worker_claim_only=true`.
+- checkpoint claim lifecycle updates on the same
+  `connector_sync_checkpoint_claims` row, with renew/release endpoints using
+  dedicated scopes, updating lease expiry or release state and writing
+  `connector.run.sync_checkpoint_claim_renewed` /
+  `connector.run.sync_checkpoint_claim_released` audit evidence.
   The `/connectors` console consumes the endpoint directly and renders
   checkpoint summaries per connector without browser-local fallback records.
 
