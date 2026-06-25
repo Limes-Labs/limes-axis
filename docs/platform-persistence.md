@@ -198,6 +198,22 @@ The thirty-third Alembic migration adds:
 - indexes for tenant, scenario, idempotency key, domain, status, risk, actor,
   owner and audit event type filtering.
 
+The thirty-fifth Alembic migration adds:
+
+- `connector_sync_checkpoints`: tenant-scoped sync execution checkpoint rows
+  with connector/run ids, checkpoint sequence, public-safe cursor metadata,
+  adapter result summaries and audit evidence refs.
+
+The thirty-sixth Alembic migration adds:
+
+- `connector_sync_checkpoint_claims`: tenant-scoped worker claim/lease rows
+  keyed by checkpoint, claim id and idempotency key;
+- lease duration and expiration metadata for retry coordination;
+- public-safe claim results showing that external sync was not started and
+  secret material was not returned;
+- indexes for tenant, connector, run, checkpoint, claim, worker actor,
+  idempotency and audit event filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -217,6 +233,8 @@ The thirty-third Alembic migration adds:
 - connector credential handle creation and tenant-scoped listing.
 - connector credential rotation recording and tenant-scoped history listing.
 - connector run creation and tenant-scoped listing.
+- connector sync checkpoint creation, lookup and tenant-scoped listing.
+- connector sync checkpoint claim creation and idempotency lookup.
 - connector ontology proposal creation and tenant-scoped listing.
 - connector ontology promotion creation, idempotency lookup, tenant-scoped
   listing and proposal promotion update.
@@ -487,6 +505,14 @@ Delivered:
   `connectors:sync:checkpoint:read` scope. Successful checkpoint reads append
   `connector.run.sync_checkpoints_read` audit events with public-safe query
   filters, counts and checkpoint ids.
+- persisted connector sync checkpoint claims through
+  `connector_sync_checkpoint_claims`, with
+  `/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims`
+  creating worker-safe lease records behind the
+  `connectors:sync:checkpoint:claim` scope. Replays with the same checkpoint
+  and idempotency key return the original claim without duplicating audit
+  evidence. Claim results explicitly record `external_sync_started=false`,
+  `secret_material_returned=false` and `worker_claim_only=true`.
   The `/connectors` console consumes the endpoint directly and renders
   checkpoint summaries per connector without browser-local fallback records.
 

@@ -211,10 +211,13 @@ from axis_api.connector_runs import (
     ConnectorRunSyncExecutionConflict,
     ConnectorRunSyncExecutionRequest,
     ConnectorRunValidationError,
+    ConnectorSyncCheckpointClaimRecord,
+    ConnectorSyncCheckpointClaimRequest,
     ConnectorSyncCheckpointQuery,
     ManufacturingConnectorRunRegistry,
     ManufacturingConnectorSyncCheckpointRegistry,
     build_connector_run_registry,
+    claim_connector_sync_checkpoint,
     dispatch_demo_connector_sync,
     execute_demo_connector_sync,
     read_connector_sync_checkpoint_registry,
@@ -2018,6 +2021,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "oidc_principal" if principal is not None else "demo_actor_scopes"
                 ),
             )
+        except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims",
+        response_model=ConnectorSyncCheckpointClaimRecord,
+        status_code=status.HTTP_201_CREATED,
+        responses={
+            403: {"description": "Connector sync checkpoint claim permission denied"},
+            404: {"description": "Connector sync checkpoint not found"},
+            422: {"description": "Connector sync checkpoint claim validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_run_checkpoint_claim(
+        checkpoint_id: str,
+        claim_request: ConnectorSyncCheckpointClaimRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> ConnectorSyncCheckpointClaimRecord:
+        try:
+            claim, created = claim_connector_sync_checkpoint(
+                repository,
+                checkpoint_id,
+                claim_request,
+            )
+            if not created:
+                response.status_code = status.HTTP_200_OK
+            return claim
+        except ConnectorRunPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot claim connector sync checkpoints.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                },
+            ) from exc
+        except ConnectorRunNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The connector sync checkpoint was not found.",
+                    "reason": "connector_sync_checkpoint_not_found",
+                },
+            ) from exc
         except ConnectorRunValidationError as exc:
             raise HTTPException(
                 status_code=422,

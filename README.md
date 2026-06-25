@@ -207,6 +207,11 @@ when the Axis API is available. Invalid time windows are rejected before
 checkpoint storage reads. Valid reads append
 `connector.run.sync_checkpoints_read` audit evidence with public-safe filters,
 counts and checkpoint ids only.
+Worker-safe checkpoint claims are also persisted through
+`/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims`.
+Claims require `connectors:sync:checkpoint:claim`, create a lease-style record
+with append-only `connector.run.sync_checkpoint_claimed` audit evidence and do
+not start external sync or return secret material.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

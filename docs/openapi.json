@@ -6914,6 +6914,168 @@
         "title": "ConnectorSchemaField",
         "type": "object"
       },
+      "ConnectorSyncCheckpointClaimRecord": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "minLength": 1,
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "claim_id": {
+            "minLength": 1,
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claim_result": {
+            "additionalProperties": true,
+            "title": "Claim Result",
+            "type": "object"
+          },
+          "claimed_by": {
+            "minLength": 1,
+            "title": "Claimed By",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "lease_duration_seconds": {
+            "minimum": 1.0,
+            "title": "Lease Duration Seconds",
+            "type": "integer"
+          },
+          "lease_expires_at": {
+            "format": "date-time",
+            "title": "Lease Expires At",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "run_id",
+          "checkpoint_id",
+          "claim_id",
+          "status",
+          "claimed_by",
+          "idempotency_key",
+          "lease_duration_seconds",
+          "lease_expires_at",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorSyncCheckpointClaimRecord",
+        "type": "object"
+      },
+      "ConnectorSyncCheckpointClaimRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "claim_id": {
+            "maxLength": 220,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claimed_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Claimed By",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 220,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "lease_duration_seconds": {
+            "default": 900,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Lease Duration Seconds",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "claimed_by",
+          "idempotency_key"
+        ],
+        "title": "ConnectorSyncCheckpointClaimRequest",
+        "type": "object"
+      },
       "ConnectorSyncCheckpointRecord": {
         "properties": {
           "adapter": {
@@ -14237,6 +14399,57 @@
           }
         },
         "summary": "Manufacturing Connector Run Checkpoints",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims": {
+      "post": {
+        "operationId": "manufacturing_connector_run_checkpoint_claim_demo_manufacturing_connectors_runs_checkpoints__checkpoint_id__claims_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector sync checkpoint claim permission denied"
+          },
+          "404": {
+            "description": "Connector sync checkpoint not found"
+          },
+          "422": {
+            "description": "Connector sync checkpoint claim validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Run Checkpoint Claim",
         "tags": [
           "demo"
         ]

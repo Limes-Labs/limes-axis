@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,6 +29,7 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorRunCreate,
     ConnectorRunUpdateRecord,
+    ConnectorSyncCheckpointClaimCreate,
     ConnectorSyncCheckpointCreate,
 )
 
@@ -77,6 +78,18 @@ class ConnectorSyncCheckpointQuery(BaseModel):
     created_after: datetime | None = None
     created_before: datetime | None = None
     limit: int = Field(default=100, ge=1, le=200)
+
+
+class ConnectorSyncCheckpointClaimRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    claim_id: str = Field(min_length=1, max_length=220, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    claimed_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    idempotency_key: str = Field(min_length=1, max_length=220)
+    lease_duration_seconds: int = Field(default=900, ge=60, le=86_400)
+    notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorRunCreateRequest(BaseModel):
@@ -162,6 +175,24 @@ class ConnectorSyncCheckpointRecord(BaseModel):
     created_at: datetime
 
 
+class ConnectorSyncCheckpointClaimRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    claimed_by: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    lease_duration_seconds: int = Field(ge=1)
+    lease_expires_at: datetime
+    claim_result: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
 class ManufacturingConnectorRunRegistry(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -195,9 +226,11 @@ SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_execution_preflight_passed"
 )
 SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
+SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoint_claimed"
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
 SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
 SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read"
+SYNC_CHECKPOINT_CLAIM_SCOPE = "connectors:sync:checkpoint:claim"
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
 SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
 ALLOWED_EXECUTION_MODES = {
@@ -350,6 +383,79 @@ def read_connector_sync_checkpoint_registry(
         )
     )
     return registry
+
+
+def claim_connector_sync_checkpoint(
+    repository: AxisPersistenceRepository,
+    checkpoint_id: str,
+    request: ConnectorSyncCheckpointClaimRequest,
+) -> tuple[ConnectorSyncCheckpointClaimRecord, bool]:
+    _validate_sync_checkpoint_claim_scope(request)
+    checkpoint = repository.get_connector_sync_checkpoint(request.tenant_id, checkpoint_id)
+    if checkpoint is None:
+        raise ConnectorRunNotFound()
+
+    existing = repository.get_connector_sync_checkpoint_claim_by_idempotency(
+        request.tenant_id,
+        checkpoint_id,
+        request.idempotency_key,
+    )
+    if existing is not None:
+        if existing.claim_id != request.claim_id:
+            raise ConnectorRunValidationError(
+                "Connector sync checkpoint claim idempotency key has a different claim_id.",
+                "idempotency_key_claim_mismatch",
+            )
+        return _checkpoint_claim_from_record(existing), False
+
+    now = utc_now()
+    lease_expires_at = now + timedelta(seconds=request.lease_duration_seconds)
+    claim_result = {
+        "external_sync_started": False,
+        "secret_material_returned": False,
+        "worker_claim_only": True,
+    }
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.claimed_by,
+            event_type=SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": checkpoint.connector_id,
+                "run_id": checkpoint.run_id,
+                "checkpoint_id": checkpoint.checkpoint_id,
+                "claim_id": request.claim_id,
+                "status": "claimed",
+                "claimed_by": request.claimed_by,
+                "idempotency_key": request.idempotency_key,
+                "lease_duration_seconds": request.lease_duration_seconds,
+                "lease_expires_at": _datetime_as_utc_string(lease_expires_at),
+                "runtime_boundary": checkpoint.runtime_boundary,
+                "adapter": checkpoint.adapter,
+                "required_permission": SYNC_CHECKPOINT_CLAIM_SCOPE,
+                **claim_result,
+            },
+        )
+    )
+    claim = repository.create_connector_sync_checkpoint_claim(
+        ConnectorSyncCheckpointClaimCreate(
+            tenant_id=request.tenant_id,
+            connector_id=checkpoint.connector_id,
+            run_id=checkpoint.run_id,
+            checkpoint_id=checkpoint.checkpoint_id,
+            claim_id=request.claim_id,
+            status="claimed",
+            claimed_by=request.claimed_by,
+            idempotency_key=request.idempotency_key,
+            lease_duration_seconds=request.lease_duration_seconds,
+            lease_expires_at=lease_expires_at,
+            claim_result=claim_result,
+            audit_event_id=audit_event.id,
+            audit_event_type=SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE,
+            notes=request.notes,
+        )
+    )
+    return _checkpoint_claim_from_record(claim), True
 
 
 def _validate_checkpoint_time_window(query: ConnectorSyncCheckpointQuery) -> None:
@@ -773,6 +879,26 @@ def _checkpoint_from_record(record) -> ConnectorSyncCheckpointRecord:
     )
 
 
+def _checkpoint_claim_from_record(record) -> ConnectorSyncCheckpointClaimRecord:
+    return ConnectorSyncCheckpointClaimRecord(
+        tenant_id=record.tenant_id,
+        connector_id=record.connector_id,
+        run_id=record.run_id,
+        checkpoint_id=record.checkpoint_id,
+        claim_id=record.claim_id,
+        status=record.status,
+        claimed_by=record.claimed_by,
+        idempotency_key=record.idempotency_key,
+        lease_duration_seconds=record.lease_duration_seconds,
+        lease_expires_at=_ensure_timezone(record.lease_expires_at),
+        claim_result=record.claim_result,
+        audit_event_id=record.audit_event_id,
+        audit_event_type=record.audit_event_type,
+        notes=record.notes,
+        created_at=_ensure_timezone(record.created_at),
+    )
+
+
 def _manifest_for_connector(
     repository: AxisPersistenceRepository,
     tenant_id: str,
@@ -952,6 +1078,13 @@ def _validate_dispatch_scope(request: ConnectorRunDispatchRequest) -> None:
 def _validate_sync_execution_scope(request: ConnectorRunSyncExecutionRequest) -> None:
     if SYNC_EXECUTION_SCOPE not in request.actor_scopes:
         raise ConnectorRunPermissionDenied(SYNC_EXECUTION_SCOPE)
+
+
+def _validate_sync_checkpoint_claim_scope(
+    request: ConnectorSyncCheckpointClaimRequest,
+) -> None:
+    if SYNC_CHECKPOINT_CLAIM_SCOPE not in request.actor_scopes:
+        raise ConnectorRunPermissionDenied(SYNC_CHECKPOINT_CLAIM_SCOPE)
 
 
 def _validate_dispatchable_scheduled_run(record) -> None:
