@@ -23,7 +23,9 @@ from axis_api.connector_runs import (
     ConnectorRunCreateRequest,
     ConnectorRunQuery,
     ConnectorRunValidationError,
+    ConnectorSyncCheckpointQuery,
     build_connector_run_registry,
+    build_connector_sync_checkpoint_registry,
     record_demo_connector_run,
 )
 from axis_api.db import session_scope
@@ -1946,6 +1948,26 @@ def test_connector_sync_checkpoint_repository_filters_created_after(
     ]
 
 
+def test_connector_sync_checkpoint_registry_rejects_invalid_time_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    boundary = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(ConnectorRunValidationError) as exc_info:
+            build_connector_sync_checkpoint_registry(
+                repository,
+                ConnectorSyncCheckpointQuery(
+                    tenant_id="tenant_demo_manufacturing",
+                    created_after=boundary,
+                    created_before=boundary,
+                ),
+            )
+
+    assert exc_info.value.reason == "invalid_checkpoint_time_window"
+
+
 def test_connector_sync_checkpoints_endpoint_filters_created_before(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -2026,6 +2048,29 @@ def test_connector_sync_checkpoints_endpoint_filters_created_after(
     assert [checkpoint["checkpoint_id"] for checkpoint in body["checkpoints"]] == [
         "chk_checkpoint_api_after_newer"
     ]
+
+
+def test_connector_sync_checkpoints_endpoint_rejects_invalid_time_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    boundary = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+            "created_after": boundary.isoformat().replace("+00:00", "Z"),
+            "created_before": boundary.isoformat().replace("+00:00", "Z"),
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
+    assert response.json()["detail"]["reason"] == "invalid_checkpoint_time_window"
 
 
 def test_connector_sync_checkpoints_endpoint_requires_read_scope() -> None:

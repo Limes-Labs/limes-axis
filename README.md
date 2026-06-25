@@ -203,7 +203,8 @@ queryable through `/demo/manufacturing/connectors/runs/checkpoints` with
 tenant, connector, run, status, `created_after`, `created_before` and limit
 filters. Reads require `connectors:sync:checkpoint:read`, and the `/connectors`
 console passes that scope before showing checkpoints per selected connector
-when the Axis API is available.
+when the Axis API is available. Invalid time windows are rejected before
+checkpoint storage reads.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

@@ -430,7 +430,9 @@ The checkpoint registry is exposed at
 `/demo/manufacturing/connectors/runs/checkpoints` and supports tenant,
 connector, run, status, `created_after`, `created_before` and limit filters.
 The endpoint requires `connectors:sync:checkpoint:read` and rejects callers
-without that scope before querying checkpoint storage.
+without that scope before querying checkpoint storage. It also rejects invalid
+time windows where `created_after` is equal to or later than `created_before`
+before querying checkpoint storage.
 The `/connectors` console consumes the same endpoint and renders checkpoint
 rows per selected connector without local fallback data or raw payload dumps.
 
@@ -711,6 +713,7 @@ contract keeps these boundaries visible:
 - checkpoint API pagination through `created_before` for stable operator and
   worker reads;
 - checkpoint API time windows through `created_after` plus `created_before`;
+- checkpoint time-window validation before checkpoint storage reads;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;
