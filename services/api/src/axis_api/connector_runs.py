@@ -194,6 +194,7 @@ SYNC_EXECUTION_PREFLIGHT_BLOCKED_AUDIT_EVENT_TYPE = (
 SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_execution_preflight_passed"
 )
+SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
 SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
 SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read"
@@ -317,6 +318,38 @@ def build_connector_sync_checkpoint_registry(
             "Checkpoint cursors are public-safe and exclude raw credentials.",
         ],
     )
+
+
+def read_connector_sync_checkpoint_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorSyncCheckpointQuery,
+    *,
+    actor_id: str,
+    read_scope_source: str,
+) -> ManufacturingConnectorSyncCheckpointRegistry:
+    registry = build_connector_sync_checkpoint_registry(repository, query)
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            event_type=SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": query.connector_id,
+                "run_id": query.run_id,
+                "status": query.status,
+                "created_after": _datetime_as_utc_string(query.created_after),
+                "created_before": _datetime_as_utc_string(query.created_before),
+                "limit": query.limit,
+                "returned_checkpoint_count": len(registry.checkpoints),
+                "checkpoint_ids": [
+                    checkpoint.checkpoint_id for checkpoint in registry.checkpoints
+                ],
+                "required_permission": SYNC_CHECKPOINT_READ_SCOPE,
+                "read_scope_source": read_scope_source,
+            },
+        )
+    )
+    return registry
 
 
 def _validate_checkpoint_time_window(query: ConnectorSyncCheckpointQuery) -> None:

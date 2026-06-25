@@ -148,6 +148,7 @@ Foundation acceptance is tracked in
 - [x] Add `created_before` pagination filter for checkpoint API reads.
 - [x] Add `created_after` time-window filter for checkpoint API reads.
 - [x] Reject invalid checkpoint time windows before checkpoint storage reads.
+- [x] Write append-only audit evidence for valid checkpoint API reads.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -479,7 +480,9 @@ checkpoint registry is queryable at
 status, `created_after`, `created_before` and limit filters, and requires the
 `connectors:sync:checkpoint:read` scope. Invalid windows where `created_after`
 is equal to or later than `created_before` are rejected before checkpoint
-storage is queried.
+storage is queried. Valid checkpoint reads write
+`connector.run.sync_checkpoints_read` audit evidence with filters, count and
+checkpoint ids only.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.
 The `/connectors` console now fetches connector, credential, egress policy,

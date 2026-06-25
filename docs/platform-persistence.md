@@ -484,7 +484,9 @@ Delivered:
   values or secret material. The API exposes these rows through
   `/demo/manufacturing/connectors/runs/checkpoints` with tenant-scoped filters,
   validated `created_after`/`created_before` time windows and the dedicated
-  `connectors:sync:checkpoint:read` scope.
+  `connectors:sync:checkpoint:read` scope. Successful checkpoint reads append
+  `connector.run.sync_checkpoints_read` audit events with public-safe query
+  filters, counts and checkpoint ids.
   The `/connectors` console consumes the endpoint directly and renders
   checkpoint summaries per connector without browser-local fallback records.
 

@@ -432,7 +432,10 @@ connector, run, status, `created_after`, `created_before` and limit filters.
 The endpoint requires `connectors:sync:checkpoint:read` and rejects callers
 without that scope before querying checkpoint storage. It also rejects invalid
 time windows where `created_after` is equal to or later than `created_before`
-before querying checkpoint storage.
+before querying checkpoint storage. Valid reads append
+`connector.run.sync_checkpoints_read` audit evidence with query filters,
+returned checkpoint count and checkpoint ids only; checkpoint cursor and result
+payloads are not duplicated into the read audit event.
 The `/connectors` console consumes the same endpoint and renders checkpoint
 rows per selected connector without local fallback data or raw payload dumps.
 
@@ -714,6 +717,7 @@ contract keeps these boundaries visible:
   worker reads;
 - checkpoint API time windows through `created_after` plus `created_before`;
 - checkpoint time-window validation before checkpoint storage reads;
+- checkpoint read audit evidence for valid API reads;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;
