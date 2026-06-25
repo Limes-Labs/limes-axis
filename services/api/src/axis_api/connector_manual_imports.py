@@ -230,9 +230,13 @@ def record_demo_connector_manual_import(
     repository: AxisPersistenceRepository,
     request: ConnectorManualImportCreateRequest,
 ) -> ConnectorManualImportRecord:
-    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_import_mode(request.import_mode)
     _validate_redacted_summary(request.import_summary)
+    manifest = _active_preview_manifest_for_connector(
+        repository,
+        request.tenant_id,
+        request.connector_id,
+    )
 
     existing = repository.get_connector_manual_import_request_by_idempotency_key(
         request.tenant_id,
@@ -515,6 +519,26 @@ def _manifest_for_connector(
         f"Unsupported connector_id: {connector_id}",
         "unsupported_connector_id",
     )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorManualImportValidationError(
+            "Connector manifest must be registered before manual import creation.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorManualImportValidationError(
+            "Connector manifest must be active_preview before manual import creation.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _validate_import_mode(import_mode: str) -> None:

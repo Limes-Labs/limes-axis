@@ -43,9 +43,11 @@ requires the tenant-scoped persisted manifest to be `active_preview` before
 writing run records or audit evidence. Run runtime boundaries no longer come
 from a service-local connector seed, and run evidence cannot be created from a
 manifest that is only registered.
-Manual import request creation also uses the persisted registry reference
-before writing approval-gated import rows or audit evidence, so import runtime
-boundary evidence no longer comes from a service-local connector seed.
+Manual import request creation also uses the persisted registry reference, then
+requires the tenant-scoped persisted manifest to be `active_preview` before
+writing approval-gated import rows or audit evidence. Import runtime boundary
+evidence no longer comes from a service-local connector seed, and import
+requests cannot be created from a manifest that is only registered.
 Promotion policy authoring, enablement and revision paths also use the
 persisted registry reference before writing policy rows or audit evidence, so
 policy governance no longer validates connector ids against a service-local
@@ -144,9 +146,11 @@ audit event is written. Missing or invalid registry references return explicit
 404/422 errors before lifecycle state is evaluated.
 
 Manual import request creation reads the same registry reference to resolve the
-connector runtime boundary stored in audit evidence. Missing or invalid
-registry references return explicit 404/422 errors before any manual import row
-or audit event is written.
+connector runtime boundary stored in audit evidence. It then requires the
+matching tenant-scoped persisted manifest to be `active_preview`; missing
+manifests or manifests still in `registered_preview_only` are rejected before
+any manual import row or audit event is written. Missing or invalid registry
+references return explicit 404/422 errors before lifecycle state is evaluated.
 
 Promotion policy authoring, enablement and revision read the same registry
 reference to validate connector ids before writing policy rows or audit
@@ -682,9 +686,9 @@ The slice is covered by:
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, audit writes,
   graph-write rejection and raw payload rejection;
-- API unit tests for manual import request persistence, audit writes,
-  idempotent replay, conflict detection, graph-write rejection and raw payload
-  rejection;
+- API unit tests for manual import request persistence, `active_preview`
+  manifest gating, audit writes, idempotent replay, conflict detection,
+  graph-write rejection and raw payload rejection;
 - API unit tests for required-column and unsupported-connector guardrails;
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for connector helper contracts and regression coverage that

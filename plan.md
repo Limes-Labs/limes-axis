@@ -112,6 +112,7 @@ Foundation acceptance is tracked in
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Require active preview connector manifests before tenant configuration writes.
 - [x] Require active preview connector manifests before connector run creation.
+- [x] Require active preview connector manifests before manual import requests.
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
@@ -373,7 +374,8 @@ from that persisted registry reference before writing proposal/audit state.
 Connector run creation uses the same persisted registry reference, then requires
 a matching tenant-scoped persisted manifest in `active_preview` before writing
 run/audit runtime boundary metadata.
-Manual import request creation also uses the same persisted registry reference
+Manual import request creation also uses the same persisted registry reference,
+then requires a matching tenant-scoped persisted manifest in `active_preview`
 before writing approval-gated import audit evidence.
 Promotion policy authoring, enablement and revision also use that persisted
 registry reference before writing policy/audit evidence.
