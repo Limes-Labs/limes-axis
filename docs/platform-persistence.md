@@ -349,8 +349,9 @@ Delivered:
   connector ids before external secret reference metadata is written.
 - connector ontology proposal creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
-  connector runtime boundary metadata before proposal rows or audit events are
-  written.
+  connector runtime boundary metadata, then requires the tenant-scoped
+  persisted manifest to be `active_preview` before proposal rows or audit
+  events are written.
 - connector run creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
   connector runtime boundary metadata, then requires the tenant-scoped

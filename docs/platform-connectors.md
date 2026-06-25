@@ -36,8 +36,9 @@ Credential handle creation uses the same persisted registry reference before
 storing external secret reference metadata, so credential posture writes also
 avoid service-local connector seeds.
 Ontology proposal creation also resolves connector runtime boundary metadata
-from the persisted registry reference before writing proposal records or audit
-evidence.
+from the persisted registry reference, then requires the tenant-scoped
+persisted manifest to be `active_preview` before writing proposal records or
+audit evidence.
 Connector run creation uses that same persisted registry reference, then
 requires the tenant-scoped persisted manifest to be `active_preview` before
 writing run records or audit evidence. Run runtime boundaries no longer come
@@ -134,9 +135,11 @@ metadata. Missing or invalid registry references return explicit 404/422 errors
 before any credential handle row or audit event is written.
 
 Ontology proposal creation reads the same registry reference to resolve the
-connector runtime boundary used in audit evidence. Missing or invalid registry
-references return explicit 404/422 errors before any proposal row or audit event
-is written.
+connector runtime boundary used in audit evidence. It then requires the matching
+tenant-scoped persisted manifest to be `active_preview`; missing manifests or
+manifests still in `registered_preview_only` are rejected before any proposal
+row or audit event is written. Missing or invalid registry references return
+explicit 404/422 errors before lifecycle state is evaluated.
 
 Connector run creation reads the same registry reference to resolve the runtime
 boundary stored on run records and audit evidence. It then requires the matching
@@ -684,8 +687,9 @@ The slice is covered by:
   and live-query preflight enforcement;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
-- API unit tests for connector ontology proposal persistence, audit writes,
-  graph-write rejection and raw payload rejection;
+- API unit tests for connector ontology proposal persistence, `active_preview`
+  manifest gating, audit writes, graph-write rejection and raw payload
+  rejection;
 - API unit tests for manual import request persistence, `active_preview`
   manifest gating, audit writes, idempotent replay, conflict detection,
   graph-write rejection and raw payload rejection;

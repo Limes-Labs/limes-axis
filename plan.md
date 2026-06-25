@@ -113,6 +113,7 @@ Foundation acceptance is tracked in
 - [x] Require active preview connector manifests before tenant configuration writes.
 - [x] Require active preview connector manifests before connector run creation.
 - [x] Require active preview connector manifests before manual import requests.
+- [x] Require active preview connector manifests before ontology proposal creation.
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
@@ -370,7 +371,8 @@ configuration state.
 Credential handle creation uses the same persisted registry reference to
 validate connector manifests before storing external secret reference metadata.
 Ontology proposal creation also resolves connector runtime boundary metadata
-from that persisted registry reference before writing proposal/audit state.
+from that persisted registry reference, then requires a matching tenant-scoped
+persisted manifest in `active_preview` before writing proposal/audit state.
 Connector run creation uses the same persisted registry reference, then requires
 a matching tenant-scoped persisted manifest in `active_preview` before writing
 run/audit runtime boundary metadata.

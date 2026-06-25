@@ -162,10 +162,14 @@ def record_demo_connector_ontology_proposals(
     repository: AxisPersistenceRepository,
     request: ConnectorOntologyProposalCreateRequest,
 ) -> ManufacturingConnectorOntologyProposalRegistry:
-    manifest = _manifest_for_connector(repository, request.tenant_id, request.connector_id)
     _validate_write_mode(request.write_mode)
     for entity in request.proposed_entities:
         _validate_redacted_summary(entity.field_summary)
+    manifest = _active_preview_manifest_for_connector(
+        repository,
+        request.tenant_id,
+        request.connector_id,
+    )
 
     proposal_ids = [entity.proposal_id for entity in request.proposed_entities]
     audit_event = repository.append_audit_event(
@@ -263,6 +267,26 @@ def _manifest_for_connector(
         f"Unsupported connector_id: {connector_id}",
         "unsupported_connector_id",
     )
+
+
+def _active_preview_manifest_for_connector(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+):
+    _manifest_for_connector(repository, tenant_id, connector_id)
+    manifest = repository.get_connector_manifest(tenant_id, connector_id)
+    if manifest is None:
+        raise ConnectorOntologyProposalValidationError(
+            "Connector manifest must be registered before ontology proposal creation.",
+            "connector_manifest_not_found",
+        )
+    if manifest.status != "active_preview":
+        raise ConnectorOntologyProposalValidationError(
+            "Connector manifest must be active_preview before ontology proposal creation.",
+            "connector_manifest_not_active_preview",
+        )
+    return manifest
 
 
 def _validate_write_mode(write_mode: str) -> None:
