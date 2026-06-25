@@ -1698,6 +1698,28 @@ class AxisPersistenceRepository:
         )
         return self.session.scalar(statement)
 
+    def list_connector_sync_checkpoint_claims(
+        self,
+        tenant_id: str,
+        checkpoint_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[ConnectorSyncCheckpointClaim]:
+        statement: Select[tuple[ConnectorSyncCheckpointClaim]] = select(
+            ConnectorSyncCheckpointClaim
+        ).where(ConnectorSyncCheckpointClaim.tenant_id == tenant_id)
+        if checkpoint_id is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpointClaim.checkpoint_id == checkpoint_id
+            )
+        if status is not None:
+            statement = statement.where(ConnectorSyncCheckpointClaim.status == status)
+        statement = statement.order_by(
+            ConnectorSyncCheckpointClaim.created_at.asc(),
+            ConnectorSyncCheckpointClaim.id.asc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
     def create_connector_sync_checkpoint_claim(
         self,
         record: ConnectorSyncCheckpointClaimCreate,

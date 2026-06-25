@@ -517,7 +517,9 @@ Delivered:
   creating worker-safe lease records behind the
   `connectors:sync:checkpoint:claim` scope. Replays with the same checkpoint
   and idempotency key return the original claim without duplicating audit
-  evidence. Claim results explicitly record `external_sync_started=false`,
+  evidence, while competing unexpired active claims for the same checkpoint
+  return 409 before duplicate worker ownership is written. Claim results
+  explicitly record `external_sync_started=false`,
   `secret_material_returned=false` and `worker_claim_only=true`.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using

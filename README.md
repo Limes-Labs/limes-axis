@@ -211,7 +211,9 @@ Worker-safe checkpoint claims are also persisted through
 `/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims`.
 Claims require `connectors:sync:checkpoint:claim`, create a lease-style record
 with append-only `connector.run.sync_checkpoint_claimed` audit evidence and do
-not start external sync or return secret material. Dedicated renewal/release
+not start external sync or return secret material. A second unexpired active
+claim for the same checkpoint is rejected with 409 before duplicate audit or
+worker ownership evidence is written. Dedicated renewal/release
 endpoints extend or close the same persisted claim with separate scopes and
 audit evidence.
 The connector ontology proposal slice persists preview-derived proposals for review

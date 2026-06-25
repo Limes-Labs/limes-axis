@@ -211,6 +211,7 @@ from axis_api.connector_runs import (
     ConnectorRunSyncExecutionConflict,
     ConnectorRunSyncExecutionRequest,
     ConnectorRunValidationError,
+    ConnectorSyncCheckpointClaimConflict,
     ConnectorSyncCheckpointClaimRecord,
     ConnectorSyncCheckpointClaimReleaseRequest,
     ConnectorSyncCheckpointClaimRenewRequest,
@@ -2042,6 +2043,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         responses={
             403: {"description": "Connector sync checkpoint claim permission denied"},
             404: {"description": "Connector sync checkpoint not found"},
+            409: {"description": "Connector sync checkpoint claim conflict"},
             422: {"description": "Connector sync checkpoint claim validation failed"},
         },
         tags=["demo"],
@@ -2078,6 +2080,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "code": AxisErrorCode.NOT_FOUND.value,
                     "message": "The connector sync checkpoint was not found.",
                     "reason": "connector_sync_checkpoint_not_found",
+                },
+            ) from exc
+        except ConnectorSyncCheckpointClaimConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": (
+                        "The connector sync checkpoint claim conflicts with "
+                        "existing evidence."
+                    ),
+                    "reason": exc.reason,
+                    "active_claim_id": exc.active_claim_id,
                 },
             ) from exc
         except ConnectorRunValidationError as exc:
