@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from runpy import run_path
 
@@ -34,6 +35,7 @@ from axis_api.persistence import (
     ConnectorCredentialLeaseCreate,
     ConnectorEgressPolicyCreate,
     ConnectorRunCreate,
+    ConnectorSyncCheckpointCreate,
     DemoReferenceRecordCreate,
 )
 
@@ -153,6 +155,55 @@ def seed_connector_runs(repository: AxisPersistenceRepository) -> None:
             audit_event_id=audit_event.id,
         )
     )
+
+
+def seed_connector_sync_checkpoint(
+    repository: AxisPersistenceRepository,
+    *,
+    checkpoint_id: str,
+    run_id: str,
+    sequence: int,
+    created_at: datetime,
+) -> None:
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="axis-sync-worker-role",
+            event_type="connector.run.sync_execution_preflight_passed",
+            payload={
+                "connector_id": "external_db_operational_mirror",
+                "run_id": run_id,
+                "checkpoint_id": checkpoint_id,
+            },
+        )
+    )
+    checkpoint = repository.create_connector_sync_checkpoint(
+        ConnectorSyncCheckpointCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            run_id=run_id,
+            checkpoint_id=checkpoint_id,
+            checkpoint_type="sync_execution",
+            status="sync_execution_preflight_passed",
+            sequence=sequence,
+            runtime_boundary="axis-connector-sandbox",
+            adapter="axis-postgres-external-db-sync-executor",
+            cursor={
+                "high_watermark_kind": "timestamp",
+                "high_watermark_value": created_at.isoformat(),
+            },
+            result_summary={
+                "external_query_started": "false",
+                "credential_material_returned": "false",
+            },
+            evidence_refs=[str(audit_event.id)],
+            audit_event_id=audit_event.id,
+            audit_event_type=audit_event.event_type,
+            notes=["Checkpoint seeded for pagination behavior test."],
+        )
+    )
+    checkpoint.created_at = created_at
+    checkpoint.updated_at = created_at
 
 
 def connector_run_request() -> ConnectorRunCreateRequest:
@@ -1827,6 +1878,80 @@ def test_connector_sync_checkpoints_endpoint_returns_public_safe_records(
     assert "vault://" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
     assert "dsn" not in str(body).lower()
+
+
+def test_connector_sync_checkpoint_repository_filters_created_before(
+    session_factory: sessionmaker[Session],
+) -> None:
+    older = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    newer = older + timedelta(hours=1)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_page_older",
+            run_id="run_checkpoint_page_older",
+            sequence=1,
+            created_at=older,
+        )
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_page_newer",
+            run_id="run_checkpoint_page_newer",
+            sequence=2,
+            created_at=newer,
+        )
+
+        checkpoints = repository.list_connector_sync_checkpoints(
+            "tenant_demo_manufacturing",
+            created_before=newer,
+        )
+
+    assert [checkpoint.checkpoint_id for checkpoint in checkpoints] == [
+        "chk_checkpoint_page_older"
+    ]
+
+
+def test_connector_sync_checkpoints_endpoint_filters_created_before(
+    session_factory: sessionmaker[Session],
+) -> None:
+    older = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    newer = older + timedelta(hours=1)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_api_page_older",
+            run_id="run_checkpoint_api_page_older",
+            sequence=1,
+            created_at=older,
+        )
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_api_page_newer",
+            run_id="run_checkpoint_api_page_newer",
+            sequence=2,
+            created_at=newer,
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+            "created_before": newer.isoformat().replace("+00:00", "Z"),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [checkpoint["checkpoint_id"] for checkpoint in body["checkpoints"]] == [
+        "chk_checkpoint_api_page_older"
+    ]
 
 
 def test_connector_sync_checkpoints_endpoint_requires_read_scope() -> None:

@@ -267,4 +267,14 @@ describe("manufacturing connector helpers", () => {
       "/demo/manufacturing/connectors/runs/checkpoints?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aread",
     );
   });
+
+  it("builds connector sync checkpoint query paths with created-before pagination", () => {
+    const path = buildConnectorSyncCheckpointQueryPath("tenant_demo_manufacturing", {
+      createdBefore: "2026-06-25T11:00:00Z",
+    });
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/runs/checkpoints?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aread&created_before=2026-06-25T11%3A00%3A00Z",
+    );
+  });
 });
