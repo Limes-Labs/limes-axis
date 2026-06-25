@@ -358,8 +358,9 @@ Delivered:
   written.
 - connector manual import request creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
-  connector runtime boundary metadata before approval-gated import rows or
-  audit events are written.
+  connector runtime boundary metadata, then requires the tenant-scoped
+  persisted manifest to be `active_preview` before approval-gated import rows
+  or audit events are written.
 - connector promotion policy authoring, enablement and revision now read
   `surface=connectors/reference_id=manufacturing-connector-registry` to
   validate connector ids before policy rows, revision rows, enablement updates
