@@ -114,6 +114,7 @@ Foundation acceptance is tracked in
 - [x] Require active preview connector manifests before connector run creation.
 - [x] Require active preview connector manifests before manual import requests.
 - [x] Require active preview connector manifests before ontology proposal creation.
+- [x] Require active preview connector manifests before ontology promotion execution.
 - [x] Persist connector ontology proposals without graph mutation.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
@@ -379,6 +380,9 @@ run/audit runtime boundary metadata.
 Manual import request creation also uses the same persisted registry reference,
 then requires a matching tenant-scoped persisted manifest in `active_preview`
 before writing approval-gated import audit evidence.
+Ontology promotion execution also uses that persisted registry reference, then
+requires a matching tenant-scoped persisted manifest in `active_preview` before
+calling the ontology mutation adapter or writing promotion/audit evidence.
 Promotion policy authoring, enablement and revision also use that persisted
 registry reference before writing policy/audit evidence.
 Promotion policy set activation, replacement and rollback also use it before
@@ -475,9 +479,10 @@ decision stores the approval outcome, workflow signal status and
 `connector.manual_import.decision_recorded` audit evidence without executing
 the connector. Approved proposal promotion can now be requested through
 `/demo/manufacturing/connectors/ontology-proposals/promotions`; each promotion
-requires approval evidence, workflow signal evidence, idempotency and
-`connectors:ontology:promote`, then applies or defers the TypeDB graph mutation
-through the Axis ontology mutation adapter with append-only
+requires approval evidence, workflow signal evidence, idempotency,
+`connectors:ontology:promote` and a tenant-scoped connector manifest in
+`active_preview`, then applies or defers the TypeDB graph mutation through the
+Axis ontology mutation adapter with append-only
 `connector.ontology_promotion.*` audit evidence. Replays with the same
 idempotency key and payload return the existing request or promotion instead of
 writing duplicate audit events. Connector promotion policies can now be
