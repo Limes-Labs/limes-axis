@@ -352,6 +352,11 @@ def dispatch_demo_connector_sync(
         run,
         request.credential_lease_id,
     )
+    _active_preview_manifest_for_connector(
+        repository,
+        run.tenant_id,
+        run.connector_id,
+    )
 
     dispatch_runtime = sync_dispatch_runtime or DeferredConnectorSyncDispatchRuntime()
     dispatch_result = dispatch_runtime.dispatch(
