@@ -38,9 +38,11 @@ avoid service-local connector seeds.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from the persisted registry reference before writing proposal records or audit
 evidence.
-Connector run creation uses that same persisted registry reference before
-writing run records or audit evidence, so run runtime boundaries no longer come
-from a service-local connector seed.
+Connector run creation uses that same persisted registry reference, then
+requires the tenant-scoped persisted manifest to be `active_preview` before
+writing run records or audit evidence. Run runtime boundaries no longer come
+from a service-local connector seed, and run evidence cannot be created from a
+manifest that is only registered.
 Manual import request creation also uses the persisted registry reference
 before writing approval-gated import rows or audit evidence, so import runtime
 boundary evidence no longer comes from a service-local connector seed.
@@ -135,9 +137,11 @@ references return explicit 404/422 errors before any proposal row or audit event
 is written.
 
 Connector run creation reads the same registry reference to resolve the runtime
-boundary stored on run records and audit evidence. Missing or invalid registry
-references return explicit 404/422 errors before any run row or audit event is
-written.
+boundary stored on run records and audit evidence. It then requires the matching
+tenant-scoped persisted manifest to be `active_preview`; missing manifests or
+manifests still in `registered_preview_only` are rejected before any run row or
+audit event is written. Missing or invalid registry references return explicit
+404/422 errors before lifecycle state is evaluated.
 
 Manual import request creation reads the same registry reference to resolve the
 connector runtime boundary stored in audit evidence. Missing or invalid
@@ -674,8 +678,8 @@ The slice is covered by:
   checks and raw secret material rejection;
 - API unit tests for tenant-scoped egress policy persistence, endpoint listing
   and live-query preflight enforcement;
-- API unit tests for connector run records, audit writes and raw payload
-  rejection;
+- API unit tests for connector run records, `active_preview` manifest gating,
+  audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, audit writes,
   graph-write rejection and raw payload rejection;
 - API unit tests for manual import request persistence, audit writes,
