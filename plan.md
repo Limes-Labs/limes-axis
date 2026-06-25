@@ -146,6 +146,7 @@ Foundation acceptance is tracked in
 - [x] Show tenant-scoped sync execution checkpoints in the connector console.
 - [x] Require `connectors:sync:checkpoint:read` for checkpoint API reads.
 - [x] Add `created_before` pagination filter for checkpoint API reads.
+- [x] Add `created_after` time-window filter for checkpoint API reads.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -474,7 +475,7 @@ tenant-scoped `connector_sync_checkpoints` rows with public-safe cursor and
 result evidence for future retry/checkpoint-aware provider adapters. The
 checkpoint registry is queryable at
 `/demo/manufacturing/connectors/runs/checkpoints` with tenant, connector, run,
-status, `created_before` and limit filters, and requires the
+status, `created_after`, `created_before` and limit filters, and requires the
 `connectors:sync:checkpoint:read` scope.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.

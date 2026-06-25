@@ -1609,6 +1609,7 @@ class AxisPersistenceRepository:
         connector_id: str | None = None,
         run_id: str | None = None,
         status: str | None = None,
+        created_after: datetime | None = None,
         created_before: datetime | None = None,
         limit: int = 100,
     ) -> list[ConnectorSyncCheckpoint]:
@@ -1623,6 +1624,10 @@ class AxisPersistenceRepository:
             statement = statement.where(ConnectorSyncCheckpoint.run_id == run_id)
         if status is not None:
             statement = statement.where(ConnectorSyncCheckpoint.status == status)
+        if created_after is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpoint.created_at > created_after
+            )
         if created_before is not None:
             statement = statement.where(
                 ConnectorSyncCheckpoint.created_at < created_before

@@ -428,9 +428,9 @@ secret material. This gives future provider-specific live sync adapters a real
 retry/checkpoint boundary before live query execution is enabled.
 The checkpoint registry is exposed at
 `/demo/manufacturing/connectors/runs/checkpoints` and supports tenant,
-connector, run, status, `created_before` and limit filters. The endpoint requires
-`connectors:sync:checkpoint:read` and rejects callers without that scope before
-querying checkpoint storage.
+connector, run, status, `created_after`, `created_before` and limit filters.
+The endpoint requires `connectors:sync:checkpoint:read` and rejects callers
+without that scope before querying checkpoint storage.
 The `/connectors` console consumes the same endpoint and renders checkpoint
 rows per selected connector without local fallback data or raw payload dumps.
 
@@ -710,6 +710,7 @@ contract keeps these boundaries visible:
   worker/operator observability;
 - checkpoint API pagination through `created_before` for stable operator and
   worker reads;
+- checkpoint API time windows through `created_after` plus `created_before`;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;
