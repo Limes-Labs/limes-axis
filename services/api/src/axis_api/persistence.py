@@ -410,6 +410,19 @@ class ConnectorSyncCheckpointClaimReleaseRecord(BaseModel):
     note: str | None = None
 
 
+class ConnectorSyncCheckpointClaimExpirationRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    expired_at: datetime
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.run.sync_checkpoint_claim_expired",
+        min_length=1,
+    )
+    note: str | None = None
+
+
 class ConnectorOntologyProposalCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -1789,6 +1802,26 @@ class AxisPersistenceRepository:
         if record.note is not None:
             claim.notes = [*claim.notes, record.note]
         claim.updated_at = utc_now()
+        self.session.flush()
+        return claim
+
+    def expire_connector_sync_checkpoint_claim(
+        self,
+        record: ConnectorSyncCheckpointClaimExpirationRecord,
+    ) -> ConnectorSyncCheckpointClaim:
+        claim = self.get_connector_sync_checkpoint_claim(
+            record.tenant_id,
+            record.checkpoint_id,
+            record.claim_id,
+        )
+        if claim is None:
+            raise PersistenceRecordNotFound("Connector sync checkpoint claim not found")
+        claim.status = "expired"
+        claim.audit_event_id = record.audit_event_id
+        claim.audit_event_type = record.audit_event_type
+        if record.note is not None:
+            claim.notes = [*claim.notes, record.note]
+        claim.updated_at = record.expired_at
         self.session.flush()
         return claim
 

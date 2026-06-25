@@ -521,6 +521,10 @@ Delivered:
   return 409 before duplicate worker ownership is written. Claim results
   explicitly record `external_sync_started=false`,
   `secret_material_returned=false` and `worker_claim_only=true`.
+- stale checkpoint claims are marked `expired` on the same table before
+  replacement ownership is created, with
+  `connector.run.sync_checkpoint_claim_expired` audit evidence linking the
+  expired claim and replacement claim ids.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing

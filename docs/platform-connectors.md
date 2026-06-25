@@ -449,6 +449,9 @@ returns idempotent replays for the same checkpoint/idempotency key and appends
 not start external sync, return secret material or execute provider connector
 code. A second unexpired active claim for the same checkpoint is rejected with
 409 before duplicate audit evidence or competing worker ownership is written.
+Expired claims are marked `expired` with
+`connector.run.sync_checkpoint_claim_expired` before replacement ownership is
+created.
 Claim renewal and release are exposed through dedicated endpoints with
 `connectors:sync:checkpoint:claim:renew` and
 `connectors:sync:checkpoint:claim:release`, updating the same persisted lease
@@ -739,6 +742,7 @@ contract keeps these boundaries visible:
 - checkpoint worker claims with persisted leases and idempotent replay;
 - checkpoint claim renewal/release with dedicated scopes and audit evidence;
 - active checkpoint claim conflict handling before duplicate worker ownership;
+- stale checkpoint claim expiry before replacement worker ownership;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;
