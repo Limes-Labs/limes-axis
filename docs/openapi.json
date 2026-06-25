@@ -14145,6 +14145,18 @@
           },
           {
             "in": "query",
+            "name": "actor_scopes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Actor Scopes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -14153,6 +14165,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -14166,6 +14194,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector sync checkpoint read permission denied"
           },
           "422": {
             "content": {

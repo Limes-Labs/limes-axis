@@ -1798,6 +1798,7 @@ def test_connector_sync_checkpoints_endpoint_returns_public_safe_records(
         params={
             "tenant_id": "tenant_demo_manufacturing",
             "run_id": "run_external_db_orders_checkpoint_api_20260625",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
         },
     )
 
@@ -1826,6 +1827,25 @@ def test_connector_sync_checkpoints_endpoint_returns_public_safe_records(
     assert "vault://" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
     assert "dsn" not in str(body).lower()
+
+
+def test_connector_sync_checkpoints_endpoint_requires_read_scope() -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_scopes": ["connectors:sync:execute"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+    assert response.json()["detail"]["required_permission"] == (
+        "connectors:sync:checkpoint:read"
+    )
 
 
 def test_execute_external_db_live_query_preflight_blocks_secret_material_returned(
