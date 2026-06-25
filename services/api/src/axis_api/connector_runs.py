@@ -30,6 +30,7 @@ from axis_api.persistence import (
     ConnectorRunCreate,
     ConnectorRunUpdateRecord,
     ConnectorSyncCheckpointClaimCreate,
+    ConnectorSyncCheckpointClaimExpirationRecord,
     ConnectorSyncCheckpointClaimReleaseRecord,
     ConnectorSyncCheckpointClaimRenewalRecord,
     ConnectorSyncCheckpointCreate,
@@ -265,6 +266,9 @@ SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
 )
 SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
 SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoint_claimed"
+SYNC_CHECKPOINT_CLAIM_EXPIRED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_checkpoint_claim_expired"
+)
 SYNC_CHECKPOINT_CLAIM_RENEWED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_checkpoint_claim_renewed"
 )
@@ -455,12 +459,19 @@ def claim_connector_sync_checkpoint(
         return _checkpoint_claim_from_record(existing), False
 
     now = utc_now()
-    active_claim = _active_unexpired_checkpoint_claim(
-        repository,
+    active_claims = repository.list_connector_sync_checkpoint_claims(
         request.tenant_id,
-        checkpoint_id,
+        checkpoint_id=checkpoint_id,
+        status="claimed",
+    )
+    _expire_stale_checkpoint_claims(
+        repository,
+        request,
+        checkpoint,
+        active_claims,
         now,
     )
+    active_claim = _active_unexpired_checkpoint_claim(active_claims, now)
     if active_claim is not None:
         raise ConnectorSyncCheckpointClaimConflict(
             "active_checkpoint_claim_exists",
@@ -1083,20 +1094,55 @@ def _active_checkpoint_claim(
 
 
 def _active_unexpired_checkpoint_claim(
-    repository: AxisPersistenceRepository,
-    tenant_id: str,
-    checkpoint_id: str,
+    claims: list,
     now: datetime,
 ):
-    claims = repository.list_connector_sync_checkpoint_claims(
-        tenant_id,
-        checkpoint_id=checkpoint_id,
-        status="claimed",
-    )
     for claim in claims:
         if _ensure_timezone(claim.lease_expires_at) > _ensure_timezone(now):
             return claim
     return None
+
+
+def _expire_stale_checkpoint_claims(
+    repository: AxisPersistenceRepository,
+    request: ConnectorSyncCheckpointClaimRequest,
+    checkpoint,
+    claims: list,
+    now: datetime,
+) -> None:
+    for claim in claims:
+        if _ensure_timezone(claim.lease_expires_at) > _ensure_timezone(now):
+            continue
+        claim_result = _worker_claim_result()
+        audit_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id=request.tenant_id,
+                actor_id=request.claimed_by,
+                event_type=SYNC_CHECKPOINT_CLAIM_EXPIRED_AUDIT_EVENT_TYPE,
+                payload={
+                    "connector_id": checkpoint.connector_id,
+                    "run_id": checkpoint.run_id,
+                    "checkpoint_id": checkpoint.checkpoint_id,
+                    "expired_claim_id": claim.claim_id,
+                    "replacement_claim_id": request.claim_id,
+                    "expired_at": _datetime_as_utc_string(now),
+                    "lease_expires_at": _datetime_as_utc_string(claim.lease_expires_at),
+                    "required_permission": SYNC_CHECKPOINT_CLAIM_SCOPE,
+                    **claim_result,
+                },
+            )
+        )
+        repository.expire_connector_sync_checkpoint_claim(
+            ConnectorSyncCheckpointClaimExpirationRecord(
+                tenant_id=request.tenant_id,
+                checkpoint_id=checkpoint.checkpoint_id,
+                claim_id=claim.claim_id,
+                expired_at=now,
+                audit_event_id=audit_event.id,
+                audit_event_type=SYNC_CHECKPOINT_CLAIM_EXPIRED_AUDIT_EVENT_TYPE,
+                note=f"Claim expired before replacement claim {request.claim_id}.",
+            )
+        )
 
 
 def _worker_claim_result() -> dict[str, bool]:

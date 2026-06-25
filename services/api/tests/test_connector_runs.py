@@ -37,6 +37,7 @@ from axis_api.persistence import (
     ConnectorCredentialLeaseCreate,
     ConnectorEgressPolicyCreate,
     ConnectorRunCreate,
+    ConnectorSyncCheckpointClaimCreate,
     ConnectorSyncCheckpointCreate,
     DemoReferenceRecordCreate,
 )
@@ -2109,6 +2110,86 @@ def test_connector_sync_checkpoint_claim_rejects_second_active_worker_claim(
 
     assert len(events) == 1
     assert events[0].actor_id == "axis-sync-worker-role-a"
+
+
+def test_connector_sync_checkpoint_claim_expires_old_claim_before_takeover(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_worker_takeover",
+            run_id="run_checkpoint_worker_takeover",
+            sequence=1,
+            created_at=created_at,
+        )
+        repository.create_connector_sync_checkpoint_claim(
+            ConnectorSyncCheckpointClaimCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_checkpoint_worker_takeover",
+                checkpoint_id="chk_checkpoint_worker_takeover",
+                claim_id="claim_checkpoint_takeover_expired_20260625_0900",
+                status="claimed",
+                claimed_by="axis-sync-worker-role-old",
+                idempotency_key="idem_claim_checkpoint_takeover_expired_20260625_0900",
+                lease_duration_seconds=60,
+                lease_expires_at=datetime(2026, 1, 1, 9, 1, tzinfo=UTC),
+                claim_result={
+                    "external_sync_started": False,
+                    "secret_material_returned": False,
+                    "worker_claim_only": True,
+                },
+                audit_event_type="connector.run.sync_checkpoint_claimed",
+            )
+        )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_takeover/claims",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "claim_id": "claim_checkpoint_takeover_20260625_1000",
+            "claimed_by": "axis-sync-worker-role-new",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": "idem_claim_checkpoint_takeover_20260625_1000",
+            "lease_duration_seconds": 900,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["claim_id"] == "claim_checkpoint_takeover_20260625_1000"
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        claims = repository.list_connector_sync_checkpoint_claims(
+            "tenant_demo_manufacturing",
+            checkpoint_id="chk_checkpoint_worker_takeover",
+        )
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claim_expired",
+        )
+
+    claims_by_id = {claim.claim_id: claim for claim in claims}
+    assert claims_by_id[
+        "claim_checkpoint_takeover_expired_20260625_0900"
+    ].status == "expired"
+    assert claims_by_id["claim_checkpoint_takeover_20260625_1000"].status == "claimed"
+    assert len(events) == 1
+    assert events[0].actor_id == "axis-sync-worker-role-new"
+    assert events[0].payload["checkpoint_id"] == "chk_checkpoint_worker_takeover"
+    assert (
+        events[0].payload["expired_claim_id"]
+        == "claim_checkpoint_takeover_expired_20260625_0900"
+    )
+    assert events[0].payload["replacement_claim_id"] == "claim_checkpoint_takeover_20260625_1000"
+    assert events[0].payload["external_sync_started"] is False
+    assert events[0].payload["secret_material_returned"] is False
 
 
 def test_connector_sync_checkpoint_claim_renew_extends_worker_lease_without_live_sync(

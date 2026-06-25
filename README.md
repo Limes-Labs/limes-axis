@@ -213,7 +213,9 @@ Claims require `connectors:sync:checkpoint:claim`, create a lease-style record
 with append-only `connector.run.sync_checkpoint_claimed` audit evidence and do
 not start external sync or return secret material. A second unexpired active
 claim for the same checkpoint is rejected with 409 before duplicate audit or
-worker ownership evidence is written. Dedicated renewal/release
+worker ownership evidence is written. Expired claims are marked `expired` with
+`connector.run.sync_checkpoint_claim_expired` before replacement ownership is
+created. Dedicated renewal/release
 endpoints extend or close the same persisted claim with separate scopes and
 audit evidence.
 The connector ontology proposal slice persists preview-derived proposals for review
