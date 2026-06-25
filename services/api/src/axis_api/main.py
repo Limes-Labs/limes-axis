@@ -212,6 +212,8 @@ from axis_api.connector_runs import (
     ConnectorRunSyncExecutionRequest,
     ConnectorRunValidationError,
     ConnectorSyncCheckpointClaimRecord,
+    ConnectorSyncCheckpointClaimReleaseRequest,
+    ConnectorSyncCheckpointClaimRenewRequest,
     ConnectorSyncCheckpointClaimRequest,
     ConnectorSyncCheckpointQuery,
     ManufacturingConnectorRunRegistry,
@@ -222,6 +224,8 @@ from axis_api.connector_runs import (
     execute_demo_connector_sync,
     read_connector_sync_checkpoint_registry,
     record_demo_connector_run,
+    release_connector_sync_checkpoint_claim,
+    renew_connector_sync_checkpoint_claim,
 )
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
@@ -2074,6 +2078,110 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "code": AxisErrorCode.NOT_FOUND.value,
                     "message": "The connector sync checkpoint was not found.",
                     "reason": "connector_sync_checkpoint_not_found",
+                },
+            ) from exc
+        except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew",
+        response_model=ConnectorSyncCheckpointClaimRecord,
+        responses={
+            403: {"description": "Connector sync checkpoint claim renew permission denied"},
+            404: {"description": "Connector sync checkpoint claim not found"},
+            422: {"description": "Connector sync checkpoint claim renew validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_run_checkpoint_claim_renew(
+        checkpoint_id: str,
+        claim_id: str,
+        renew_request: ConnectorSyncCheckpointClaimRenewRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorSyncCheckpointClaimRecord:
+        try:
+            return renew_connector_sync_checkpoint_claim(
+                repository,
+                checkpoint_id,
+                claim_id,
+                renew_request,
+            )
+        except ConnectorRunPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot renew connector sync checkpoint claims.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                },
+            ) from exc
+        except ConnectorRunNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The connector sync checkpoint claim was not found.",
+                    "reason": "connector_sync_checkpoint_claim_not_found",
+                },
+            ) from exc
+        except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release",
+        response_model=ConnectorSyncCheckpointClaimRecord,
+        responses={
+            403: {"description": "Connector sync checkpoint claim release permission denied"},
+            404: {"description": "Connector sync checkpoint claim not found"},
+            422: {"description": "Connector sync checkpoint claim release validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_run_checkpoint_claim_release(
+        checkpoint_id: str,
+        claim_id: str,
+        release_request: ConnectorSyncCheckpointClaimReleaseRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorSyncCheckpointClaimRecord:
+        try:
+            return release_connector_sync_checkpoint_claim(
+                repository,
+                checkpoint_id,
+                claim_id,
+                release_request,
+            )
+        except ConnectorRunPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot release connector sync checkpoint claims.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope",
+                },
+            ) from exc
+        except ConnectorRunNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The connector sync checkpoint claim was not found.",
+                    "reason": "connector_sync_checkpoint_claim_not_found",
                 },
             ) from exc
         except ConnectorRunValidationError as exc:

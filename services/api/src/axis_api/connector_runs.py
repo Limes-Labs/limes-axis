@@ -30,6 +30,8 @@ from axis_api.persistence import (
     ConnectorRunCreate,
     ConnectorRunUpdateRecord,
     ConnectorSyncCheckpointClaimCreate,
+    ConnectorSyncCheckpointClaimReleaseRecord,
+    ConnectorSyncCheckpointClaimRenewalRecord,
     ConnectorSyncCheckpointCreate,
 )
 
@@ -89,6 +91,29 @@ class ConnectorSyncCheckpointClaimRequest(BaseModel):
     actor_scopes: list[str] = Field(default_factory=list)
     idempotency_key: str = Field(min_length=1, max_length=220)
     lease_duration_seconds: int = Field(default=900, ge=60, le=86_400)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorSyncCheckpointClaimRenewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    renewed_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    renewed_at: datetime | None = None
+    lease_duration_seconds: int = Field(default=900, ge=60, le=86_400)
+    renewal_reason: str = Field(min_length=1, max_length=600)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorSyncCheckpointClaimReleaseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    released_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    released_at: datetime | None = None
+    release_reason: str = Field(min_length=1, max_length=600)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -186,6 +211,12 @@ class ConnectorSyncCheckpointClaimRecord(BaseModel):
     idempotency_key: str = Field(min_length=1)
     lease_duration_seconds: int = Field(ge=1)
     lease_expires_at: datetime
+    renewed_at: datetime | None = None
+    renewed_by: str | None = None
+    renewal_count: int = Field(ge=0)
+    released_at: datetime | None = None
+    released_by: str | None = None
+    release_reason: str | None = None
     claim_result: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
@@ -227,10 +258,18 @@ SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
 )
 SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
 SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoint_claimed"
+SYNC_CHECKPOINT_CLAIM_RENEWED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_checkpoint_claim_renewed"
+)
+SYNC_CHECKPOINT_CLAIM_RELEASED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_checkpoint_claim_released"
+)
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
 SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
 SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read"
 SYNC_CHECKPOINT_CLAIM_SCOPE = "connectors:sync:checkpoint:claim"
+SYNC_CHECKPOINT_CLAIM_RENEW_SCOPE = "connectors:sync:checkpoint:claim:renew"
+SYNC_CHECKPOINT_CLAIM_RELEASE_SCOPE = "connectors:sync:checkpoint:claim:release"
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
 SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
 ALLOWED_EXECUTION_MODES = {
@@ -456,6 +495,104 @@ def claim_connector_sync_checkpoint(
         )
     )
     return _checkpoint_claim_from_record(claim), True
+
+
+def renew_connector_sync_checkpoint_claim(
+    repository: AxisPersistenceRepository,
+    checkpoint_id: str,
+    claim_id: str,
+    request: ConnectorSyncCheckpointClaimRenewRequest,
+) -> ConnectorSyncCheckpointClaimRecord:
+    _validate_sync_checkpoint_claim_renew_scope(request)
+    claim = _active_checkpoint_claim(repository, request.tenant_id, checkpoint_id, claim_id)
+    renewed_at = _ensure_timezone(request.renewed_at or utc_now())
+    lease_expires_at = renewed_at + timedelta(seconds=request.lease_duration_seconds)
+    claim_result = _worker_claim_result()
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.renewed_by,
+            event_type=SYNC_CHECKPOINT_CLAIM_RENEWED_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": claim.connector_id,
+                "run_id": claim.run_id,
+                "checkpoint_id": claim.checkpoint_id,
+                "claim_id": claim.claim_id,
+                "status": "claimed",
+                "renewed_by": request.renewed_by,
+                "renewed_at": _datetime_as_utc_string(renewed_at),
+                "renewal_reason": request.renewal_reason,
+                "lease_duration_seconds": request.lease_duration_seconds,
+                "lease_expires_at": _datetime_as_utc_string(lease_expires_at),
+                "required_permission": SYNC_CHECKPOINT_CLAIM_RENEW_SCOPE,
+                **claim_result,
+            },
+        )
+    )
+    renewed = repository.renew_connector_sync_checkpoint_claim(
+        ConnectorSyncCheckpointClaimRenewalRecord(
+            tenant_id=request.tenant_id,
+            checkpoint_id=checkpoint_id,
+            claim_id=claim_id,
+            renewed_by=request.renewed_by,
+            renewed_at=renewed_at,
+            lease_duration_seconds=request.lease_duration_seconds,
+            lease_expires_at=lease_expires_at,
+            audit_event_id=audit_event.id,
+            audit_event_type=SYNC_CHECKPOINT_CLAIM_RENEWED_AUDIT_EVENT_TYPE,
+            note=f"Claim renewed: {request.renewal_reason}",
+        )
+    )
+    if request.notes:
+        renewed.notes = [*renewed.notes, *request.notes]
+    return _checkpoint_claim_from_record(renewed)
+
+
+def release_connector_sync_checkpoint_claim(
+    repository: AxisPersistenceRepository,
+    checkpoint_id: str,
+    claim_id: str,
+    request: ConnectorSyncCheckpointClaimReleaseRequest,
+) -> ConnectorSyncCheckpointClaimRecord:
+    _validate_sync_checkpoint_claim_release_scope(request)
+    claim = _active_checkpoint_claim(repository, request.tenant_id, checkpoint_id, claim_id)
+    released_at = _ensure_timezone(request.released_at or utc_now())
+    claim_result = _worker_claim_result()
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.released_by,
+            event_type=SYNC_CHECKPOINT_CLAIM_RELEASED_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": claim.connector_id,
+                "run_id": claim.run_id,
+                "checkpoint_id": claim.checkpoint_id,
+                "claim_id": claim.claim_id,
+                "status": "released",
+                "released_by": request.released_by,
+                "released_at": _datetime_as_utc_string(released_at),
+                "release_reason": request.release_reason,
+                "required_permission": SYNC_CHECKPOINT_CLAIM_RELEASE_SCOPE,
+                **claim_result,
+            },
+        )
+    )
+    released = repository.release_connector_sync_checkpoint_claim(
+        ConnectorSyncCheckpointClaimReleaseRecord(
+            tenant_id=request.tenant_id,
+            checkpoint_id=checkpoint_id,
+            claim_id=claim_id,
+            released_by=request.released_by,
+            released_at=released_at,
+            release_reason=request.release_reason,
+            audit_event_id=audit_event.id,
+            audit_event_type=SYNC_CHECKPOINT_CLAIM_RELEASED_AUDIT_EVENT_TYPE,
+            note=f"Claim released: {request.release_reason}",
+        )
+    )
+    if request.notes:
+        released.notes = [*released.notes, *request.notes]
+    return _checkpoint_claim_from_record(released)
 
 
 def _validate_checkpoint_time_window(query: ConnectorSyncCheckpointQuery) -> None:
@@ -891,12 +1028,47 @@ def _checkpoint_claim_from_record(record) -> ConnectorSyncCheckpointClaimRecord:
         idempotency_key=record.idempotency_key,
         lease_duration_seconds=record.lease_duration_seconds,
         lease_expires_at=_ensure_timezone(record.lease_expires_at),
+        renewed_at=_optional_ensure_timezone(record.renewed_at),
+        renewed_by=record.renewed_by,
+        renewal_count=record.renewal_count,
+        released_at=_optional_ensure_timezone(record.released_at),
+        released_by=record.released_by,
+        release_reason=record.release_reason,
         claim_result=record.claim_result,
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
         created_at=_ensure_timezone(record.created_at),
     )
+
+
+def _active_checkpoint_claim(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    checkpoint_id: str,
+    claim_id: str,
+):
+    claim = repository.get_connector_sync_checkpoint_claim(
+        tenant_id,
+        checkpoint_id,
+        claim_id,
+    )
+    if claim is None:
+        raise ConnectorRunNotFound()
+    if claim.status != "claimed":
+        raise ConnectorRunValidationError(
+            "Connector sync checkpoint claim is not active.",
+            "connector_sync_checkpoint_claim_not_active",
+        )
+    return claim
+
+
+def _worker_claim_result() -> dict[str, bool]:
+    return {
+        "external_sync_started": False,
+        "secret_material_returned": False,
+        "worker_claim_only": True,
+    }
 
 
 def _manifest_for_connector(
@@ -1087,6 +1259,20 @@ def _validate_sync_checkpoint_claim_scope(
         raise ConnectorRunPermissionDenied(SYNC_CHECKPOINT_CLAIM_SCOPE)
 
 
+def _validate_sync_checkpoint_claim_renew_scope(
+    request: ConnectorSyncCheckpointClaimRenewRequest,
+) -> None:
+    if SYNC_CHECKPOINT_CLAIM_RENEW_SCOPE not in request.actor_scopes:
+        raise ConnectorRunPermissionDenied(SYNC_CHECKPOINT_CLAIM_RENEW_SCOPE)
+
+
+def _validate_sync_checkpoint_claim_release_scope(
+    request: ConnectorSyncCheckpointClaimReleaseRequest,
+) -> None:
+    if SYNC_CHECKPOINT_CLAIM_RELEASE_SCOPE not in request.actor_scopes:
+        raise ConnectorRunPermissionDenied(SYNC_CHECKPOINT_CLAIM_RELEASE_SCOPE)
+
+
 def _validate_dispatchable_scheduled_run(record) -> None:
     if record.execution_mode != SCHEDULED_SYNC_PLAN_MODE:
         raise ConnectorRunValidationError(
@@ -1268,6 +1454,12 @@ def _ensure_timezone(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value
+
+
+def _optional_ensure_timezone(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return _ensure_timezone(value)
 
 
 def _execution_result_from_summary(result_summary: dict) -> ConnectorExecutionResult | None:

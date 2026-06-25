@@ -94,6 +94,8 @@ GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/runs/checkpoints
 POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims
+POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew
+POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release
 GET /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals/promotions
@@ -445,7 +447,11 @@ worker-safe retry coordination. The endpoint requires
 returns idempotent replays for the same checkpoint/idempotency key and appends
 `connector.run.sync_checkpoint_claimed` audit evidence. A claim record does
 not start external sync, return secret material or execute provider connector
-code.
+code. Claim renewal and release are exposed through dedicated endpoints with
+`connectors:sync:checkpoint:claim:renew` and
+`connectors:sync:checkpoint:claim:release`, updating the same persisted lease
+record and writing `connector.run.sync_checkpoint_claim_renewed` /
+`connector.run.sync_checkpoint_claim_released` audit evidence.
 The `/connectors` console consumes the same endpoint and renders checkpoint
 rows per selected connector without local fallback data or raw payload dumps.
 
@@ -729,6 +735,7 @@ contract keeps these boundaries visible:
 - checkpoint time-window validation before checkpoint storage reads;
 - checkpoint read audit evidence for valid API reads;
 - checkpoint worker claims with persisted leases and idempotent replay;
+- checkpoint claim renewal/release with dedicated scopes and audit evidence;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;

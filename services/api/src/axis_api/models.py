@@ -572,6 +572,12 @@ class ConnectorSyncCheckpointClaim(Base):
     lease_expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    renewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    renewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    renewal_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    released_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    release_reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
     claim_result: Mapped[dict] = mapped_column(JSON, nullable=False)
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)

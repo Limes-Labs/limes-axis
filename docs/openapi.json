@@ -6985,6 +6985,68 @@
             "title": "Notes",
             "type": "array"
           },
+          "release_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Reason"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "released_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released By"
+          },
+          "renewal_count": {
+            "minimum": 0.0,
+            "title": "Renewal Count",
+            "type": "integer"
+          },
+          "renewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed At"
+          },
+          "renewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed By"
+          },
           "run_id": {
             "minLength": 1,
             "title": "Run Id",
@@ -7012,10 +7074,128 @@
           "idempotency_key",
           "lease_duration_seconds",
           "lease_expires_at",
+          "renewal_count",
           "audit_event_type",
           "created_at"
         ],
         "title": "ConnectorSyncCheckpointClaimRecord",
+        "type": "object"
+      },
+      "ConnectorSyncCheckpointClaimReleaseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "release_reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Release Reason",
+            "type": "string"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "released_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Released By",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "released_by",
+          "release_reason"
+        ],
+        "title": "ConnectorSyncCheckpointClaimReleaseRequest",
+        "type": "object"
+      },
+      "ConnectorSyncCheckpointClaimRenewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "lease_duration_seconds": {
+            "default": 900,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Lease Duration Seconds",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "renewal_reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Renewal Reason",
+            "type": "string"
+          },
+          "renewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed At"
+          },
+          "renewed_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Renewed By",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "renewed_by",
+          "renewal_reason"
+        ],
+        "title": "ConnectorSyncCheckpointClaimRenewRequest",
         "type": "object"
       },
       "ConnectorSyncCheckpointClaimRequest": {
@@ -14450,6 +14630,126 @@
           }
         },
         "summary": "Manufacturing Connector Run Checkpoint Claim",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release": {
+      "post": {
+        "operationId": "manufacturing_connector_run_checkpoint_claim_release_demo_manufacturing_connectors_runs_checkpoints__checkpoint_id__claims__claim_id__release_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector sync checkpoint claim release permission denied"
+          },
+          "404": {
+            "description": "Connector sync checkpoint claim not found"
+          },
+          "422": {
+            "description": "Connector sync checkpoint claim release validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Run Checkpoint Claim Release",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew": {
+      "post": {
+        "operationId": "manufacturing_connector_run_checkpoint_claim_renew_demo_manufacturing_connectors_runs_checkpoints__checkpoint_id__claims__claim_id__renew_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimRenewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector sync checkpoint claim renew permission denied"
+          },
+          "404": {
+            "description": "Connector sync checkpoint claim not found"
+          },
+          "422": {
+            "description": "Connector sync checkpoint claim renew validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Run Checkpoint Claim Renew",
         "tags": [
           "demo"
         ]

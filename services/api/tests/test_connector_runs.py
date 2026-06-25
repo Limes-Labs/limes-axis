@@ -2051,6 +2051,159 @@ def test_connector_sync_checkpoint_claim_replays_same_idempotency_key(
     assert len(events) == 1
 
 
+def test_connector_sync_checkpoint_claim_renew_extends_worker_lease_without_live_sync(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_worker_renew",
+            run_id="run_checkpoint_worker_renew",
+            sequence=1,
+            created_at=created_at,
+        )
+    client = TestClient(app)
+    claim_response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_renew/claims",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "claim_id": "claim_checkpoint_renew_20260625_1000",
+            "claimed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": "idem_claim_checkpoint_renew_20260625_1000",
+            "lease_duration_seconds": 900,
+        },
+    )
+    assert claim_response.status_code == 201
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_renew/claims/"
+        "claim_checkpoint_renew_20260625_1000/renew",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "renewed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:renew"],
+            "renewed_at": "2026-06-25T10:08:00Z",
+            "lease_duration_seconds": 1200,
+            "renewal_reason": "worker still preparing retry window",
+            "notes": ["Renewed before provider-specific live sync exists."],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "claimed"
+    assert body["claim_id"] == "claim_checkpoint_renew_20260625_1000"
+    assert body["renewal_count"] == 1
+    assert body["renewed_by"] == "axis-sync-worker-role"
+    assert body["renewed_at"] == "2026-06-25T10:08:00Z"
+    assert body["lease_duration_seconds"] == 1200
+    assert body["lease_expires_at"] == "2026-06-25T10:28:00Z"
+    assert body["claim_result"] == {
+        "external_sync_started": False,
+        "secret_material_returned": False,
+        "worker_claim_only": True,
+    }
+    assert body["audit_event_type"] == "connector.run.sync_checkpoint_claim_renewed"
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claim_renewed",
+        )
+
+    assert len(events) == 1
+    assert events[0].actor_id == "axis-sync-worker-role"
+    assert events[0].payload["checkpoint_id"] == "chk_checkpoint_worker_renew"
+    assert events[0].payload["claim_id"] == "claim_checkpoint_renew_20260625_1000"
+    assert events[0].payload["external_sync_started"] is False
+    assert events[0].payload["secret_material_returned"] is False
+
+
+def test_connector_sync_checkpoint_claim_release_closes_worker_lease_without_live_sync(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_worker_release",
+            run_id="run_checkpoint_worker_release",
+            sequence=1,
+            created_at=created_at,
+        )
+    client = TestClient(app)
+    claim_response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_release/claims",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "claim_id": "claim_checkpoint_release_20260625_1000",
+            "claimed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": "idem_claim_checkpoint_release_20260625_1000",
+            "lease_duration_seconds": 900,
+        },
+    )
+    assert claim_response.status_code == 201
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_release/claims/"
+        "claim_checkpoint_release_20260625_1000/release",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "released_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:release"],
+            "released_at": "2026-06-25T10:11:00Z",
+            "release_reason": "retry window handed back to scheduler",
+            "notes": ["Released without external connector execution."],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "released"
+    assert body["claim_id"] == "claim_checkpoint_release_20260625_1000"
+    assert body["released_by"] == "axis-sync-worker-role"
+    assert body["released_at"] == "2026-06-25T10:11:00Z"
+    assert body["release_reason"] == "retry window handed back to scheduler"
+    assert body["claim_result"] == {
+        "external_sync_started": False,
+        "secret_material_returned": False,
+        "worker_claim_only": True,
+    }
+    assert body["audit_event_type"] == "connector.run.sync_checkpoint_claim_released"
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claim_released",
+        )
+
+    assert len(events) == 1
+    assert events[0].actor_id == "axis-sync-worker-role"
+    assert events[0].payload["checkpoint_id"] == "chk_checkpoint_worker_release"
+    assert events[0].payload["claim_id"] == "claim_checkpoint_release_20260625_1000"
+    assert events[0].payload["external_sync_started"] is False
+    assert events[0].payload["secret_material_returned"] is False
+
+
 def test_connector_sync_checkpoint_repository_filters_created_before(
     session_factory: sessionmaker[Session],
 ) -> None:
