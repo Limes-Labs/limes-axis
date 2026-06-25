@@ -74,6 +74,7 @@ class ConnectorSyncCheckpointQuery(BaseModel):
     connector_id: str | None = Field(default=None, min_length=1)
     run_id: str | None = Field(default=None, min_length=1)
     status: str | None = Field(default=None, min_length=1)
+    created_before: datetime | None = None
     limit: int = Field(default=100, ge=1, le=200)
 
 
@@ -273,6 +274,7 @@ def build_connector_sync_checkpoint_registry(
         connector_id=query.connector_id,
         run_id=query.run_id,
         status=query.status,
+        created_before=query.created_before,
         limit=query.limit,
     )
     checkpoints = [_checkpoint_from_record(record) for record in records]

@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
@@ -463,6 +464,7 @@ OidcPrincipalDependency = Annotated[
     Depends(oidc_principal),
 ]
 CheckpointActorScopesQuery = Query(default_factory=list)
+CheckpointCreatedBeforeQuery = Query(default=None)
 
 
 def _audit_ledger_signer_from_settings(settings: Settings) -> SelfHostedAuditLedgerSigner | None:
@@ -1985,6 +1987,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         connector_id: str | None = Query(default=None, min_length=1),
         run_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
+        created_before: datetime | None = CheckpointCreatedBeforeQuery,
         actor_scopes: list[str] = CheckpointActorScopesQuery,
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorSyncCheckpointRegistry:
@@ -1996,6 +1999,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 connector_id=connector_id,
                 run_id=run_id,
                 status=status,
+                created_before=created_before,
                 limit=limit,
             ),
         )

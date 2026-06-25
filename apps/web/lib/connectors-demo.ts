@@ -783,11 +783,21 @@ export function filterConnectorSyncCheckpointsByConnector(
     });
 }
 
-export function buildConnectorSyncCheckpointQueryPath(tenantId: string): string {
+type ConnectorSyncCheckpointQueryPathOptions = {
+  createdBefore?: string;
+};
+
+export function buildConnectorSyncCheckpointQueryPath(
+  tenantId: string,
+  options: ConnectorSyncCheckpointQueryPathOptions = {},
+): string {
   const params = new URLSearchParams({
     tenant_id: tenantId,
     actor_scopes: CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE,
   });
+  if (options.createdBefore) {
+    params.set("created_before", options.createdBefore);
+  }
   return `/demo/manufacturing/connectors/runs/checkpoints?${params.toString()}`;
 }
 
