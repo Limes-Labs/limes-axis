@@ -149,6 +149,7 @@ Foundation acceptance is tracked in
 - [x] Add `created_after` time-window filter for checkpoint API reads.
 - [x] Reject invalid checkpoint time windows before checkpoint storage reads.
 - [x] Write append-only audit evidence for valid checkpoint API reads.
+- [x] Persist worker-safe sync checkpoint claims without starting live sync.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -483,6 +484,12 @@ is equal to or later than `created_before` are rejected before checkpoint
 storage is queried. Valid checkpoint reads write
 `connector.run.sync_checkpoints_read` audit evidence with filters, count and
 checkpoint ids only.
+Worker claim records are persisted at
+`/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims` with
+the `connectors:sync:checkpoint:claim` scope, lease duration metadata,
+idempotency-key replay and `connector.run.sync_checkpoint_claimed` audit
+evidence. A claim is a worker lease only: it does not start external sync,
+retrieve secret material or execute provider-specific connector code.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.
 The `/connectors` console now fetches connector, credential, egress policy,

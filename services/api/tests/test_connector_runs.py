@@ -1938,6 +1938,119 @@ def test_connector_sync_checkpoints_endpoint_writes_read_audit_event(
     assert "dsn" not in str(event.payload).lower()
 
 
+def test_connector_sync_checkpoint_claim_records_worker_lease_without_live_sync(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_worker_claim",
+            run_id="run_checkpoint_worker_claim",
+            sequence=1,
+            created_at=created_at,
+        )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_claim/claims",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "claim_id": "claim_checkpoint_worker_20260625_1000",
+            "claimed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": "idem_claim_checkpoint_worker_20260625_1000",
+            "lease_duration_seconds": 900,
+            "notes": ["Claim checkpoint for retry planning only."],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["connector_id"] == "external_db_operational_mirror"
+    assert body["run_id"] == "run_checkpoint_worker_claim"
+    assert body["checkpoint_id"] == "chk_checkpoint_worker_claim"
+    assert body["claim_id"] == "claim_checkpoint_worker_20260625_1000"
+    assert body["status"] == "claimed"
+    assert body["claimed_by"] == "axis-sync-worker-role"
+    assert body["lease_duration_seconds"] == 900
+    assert body["claim_result"] == {
+        "external_sync_started": False,
+        "secret_material_returned": False,
+        "worker_claim_only": True,
+    }
+    assert body["audit_event_type"] == "connector.run.sync_checkpoint_claimed"
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claimed",
+        )
+
+    assert len(events) == 1
+    assert events[0].actor_id == "axis-sync-worker-role"
+    assert events[0].payload["checkpoint_id"] == "chk_checkpoint_worker_claim"
+    assert events[0].payload["claim_id"] == "claim_checkpoint_worker_20260625_1000"
+    assert events[0].payload["external_sync_started"] is False
+    assert events[0].payload["secret_material_returned"] is False
+
+
+def test_connector_sync_checkpoint_claim_replays_same_idempotency_key(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_worker_replay",
+            run_id="run_checkpoint_worker_replay",
+            sequence=1,
+            created_at=created_at,
+        )
+    client = TestClient(app)
+    payload = {
+        "tenant_id": "tenant_demo_manufacturing",
+        "claim_id": "claim_checkpoint_replay_20260625_1000",
+        "claimed_by": "axis-sync-worker-role",
+        "actor_scopes": ["connectors:sync:checkpoint:claim"],
+        "idempotency_key": "idem_claim_checkpoint_replay_20260625_1000",
+        "lease_duration_seconds": 900,
+    }
+
+    first_response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_replay/claims",
+        json=payload,
+    )
+    second_response = client.post(
+        "/demo/manufacturing/connectors/runs/checkpoints/"
+        "chk_checkpoint_worker_replay/claims",
+        json=payload,
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 200
+    assert second_response.json() == first_response.json()
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claimed",
+        )
+
+    assert len(events) == 1
+
+
 def test_connector_sync_checkpoint_repository_filters_created_before(
     session_factory: sessionmaker[Session],
 ) -> None:

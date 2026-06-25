@@ -556,6 +556,48 @@ class ConnectorSyncCheckpoint(Base):
     )
 
 
+class ConnectorSyncCheckpointClaim(Base):
+    __tablename__ = "connector_sync_checkpoint_claims"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    connector_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    checkpoint_id: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
+    claim_id: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    claimed_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
+    lease_duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    lease_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    claim_result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "claim_id",
+            name="uq_connector_sync_checkpoint_claims_tenant_claim",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "checkpoint_id",
+            "idempotency_key",
+            name="uq_connector_sync_checkpoint_claims_tenant_checkpoint_idempotency",
+        ),
+    )
+
+
 class ConnectorOntologyProposal(Base):
     __tablename__ = "connector_ontology_proposals"
 

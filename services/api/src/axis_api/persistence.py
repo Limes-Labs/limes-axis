@@ -24,6 +24,7 @@ from axis_api.models import (
     ConnectorPromotionPolicySet,
     ConnectorRun,
     ConnectorSyncCheckpoint,
+    ConnectorSyncCheckpointClaim,
     DemoReferenceRecord,
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
@@ -353,6 +354,26 @@ class ConnectorSyncCheckpointCreate(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(
         default="connector.run.sync_checkpoint.recorded",
+        min_length=1,
+    )
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorSyncCheckpointClaimCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    status: str = Field(default="claimed", min_length=1)
+    claimed_by: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    lease_duration_seconds: int = Field(ge=1)
+    lease_expires_at: datetime
+    claim_result: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.run.sync_checkpoint_claimed",
         min_length=1,
     )
     notes: list[str] = Field(default_factory=list)
@@ -1602,6 +1623,58 @@ class AxisPersistenceRepository:
         self.session.add(checkpoint)
         self.session.flush()
         return checkpoint
+
+    def get_connector_sync_checkpoint(
+        self,
+        tenant_id: str,
+        checkpoint_id: str,
+    ) -> ConnectorSyncCheckpoint | None:
+        statement: Select[tuple[ConnectorSyncCheckpoint]] = select(
+            ConnectorSyncCheckpoint
+        ).where(
+            ConnectorSyncCheckpoint.tenant_id == tenant_id,
+            ConnectorSyncCheckpoint.checkpoint_id == checkpoint_id,
+        )
+        return self.session.scalar(statement)
+
+    def get_connector_sync_checkpoint_claim_by_idempotency(
+        self,
+        tenant_id: str,
+        checkpoint_id: str,
+        idempotency_key: str,
+    ) -> ConnectorSyncCheckpointClaim | None:
+        statement: Select[tuple[ConnectorSyncCheckpointClaim]] = select(
+            ConnectorSyncCheckpointClaim
+        ).where(
+            ConnectorSyncCheckpointClaim.tenant_id == tenant_id,
+            ConnectorSyncCheckpointClaim.checkpoint_id == checkpoint_id,
+            ConnectorSyncCheckpointClaim.idempotency_key == idempotency_key,
+        )
+        return self.session.scalar(statement)
+
+    def create_connector_sync_checkpoint_claim(
+        self,
+        record: ConnectorSyncCheckpointClaimCreate,
+    ) -> ConnectorSyncCheckpointClaim:
+        claim = ConnectorSyncCheckpointClaim(
+            tenant_id=record.tenant_id,
+            connector_id=record.connector_id,
+            run_id=record.run_id,
+            checkpoint_id=record.checkpoint_id,
+            claim_id=record.claim_id,
+            status=record.status,
+            claimed_by=record.claimed_by,
+            idempotency_key=record.idempotency_key,
+            lease_duration_seconds=record.lease_duration_seconds,
+            lease_expires_at=record.lease_expires_at,
+            claim_result=record.claim_result,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(claim)
+        self.session.flush()
+        return claim
 
     def list_connector_sync_checkpoints(
         self,

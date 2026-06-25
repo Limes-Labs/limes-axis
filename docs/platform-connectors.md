@@ -92,6 +92,8 @@ GET /demo/manufacturing/connectors/egress-policies
 POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
+GET /demo/manufacturing/connectors/runs/checkpoints
+POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims
 GET /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals
 POST /demo/manufacturing/connectors/ontology-proposals/promotions
@@ -436,6 +438,14 @@ before querying checkpoint storage. Valid reads append
 `connector.run.sync_checkpoints_read` audit evidence with query filters,
 returned checkpoint count and checkpoint ids only; checkpoint cursor and result
 payloads are not duplicated into the read audit event.
+Checkpoint claims are persisted at
+`/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims` for
+worker-safe retry coordination. The endpoint requires
+`connectors:sync:checkpoint:claim`, records a lease duration and expiration,
+returns idempotent replays for the same checkpoint/idempotency key and appends
+`connector.run.sync_checkpoint_claimed` audit evidence. A claim record does
+not start external sync, return secret material or execute provider connector
+code.
 The `/connectors` console consumes the same endpoint and renders checkpoint
 rows per selected connector without local fallback data or raw payload dumps.
 
@@ -718,6 +728,7 @@ contract keeps these boundaries visible:
 - checkpoint API time windows through `created_after` plus `created_before`;
 - checkpoint time-window validation before checkpoint storage reads;
 - checkpoint read audit evidence for valid API reads;
+- checkpoint worker claims with persisted leases and idempotent replay;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;
