@@ -449,6 +449,11 @@ def execute_demo_connector_sync(
         run,
         request.credential_lease_id,
     )
+    _active_preview_manifest_for_connector(
+        repository,
+        run.tenant_id,
+        run.connector_id,
+    )
     egress_policy_evidence = _egress_policy_evidence_for_run(repository, run)
 
     execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
@@ -565,12 +570,12 @@ def _active_preview_manifest_for_connector(
     manifest = repository.get_connector_manifest(tenant_id, connector_id)
     if manifest is None:
         raise ConnectorRunValidationError(
-            "Connector manifest must be registered before connector run creation.",
+            "Connector manifest must be registered before connector run operations.",
             "connector_manifest_not_found",
         )
     if manifest.status != "active_preview":
         raise ConnectorRunValidationError(
-            "Connector manifest must be active_preview before connector run creation.",
+            "Connector manifest must be active_preview before connector run operations.",
             "connector_manifest_not_active_preview",
         )
     return manifest
