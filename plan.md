@@ -111,6 +111,7 @@ Foundation acceptance is tracked in
 - [x] Add governed connector manifest lifecycle transitions for preview states.
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Require active preview connector manifests before tenant configuration writes.
+- [x] Require active preview connector manifests before credential handle creation.
 - [x] Require active preview connector manifests before connector run creation.
 - [x] Require active preview connector manifests before manual import requests.
 - [x] Require active preview connector manifests before ontology proposal creation.
@@ -370,7 +371,8 @@ boundaries from that persisted registry reference, then requires a matching
 tenant-scoped persisted manifest in `active_preview` before storing tenant
 configuration state.
 Credential handle creation uses the same persisted registry reference to
-validate connector manifests before storing external secret reference metadata.
+validate connector manifests, then requires a matching tenant-scoped persisted
+manifest in `active_preview` before storing external secret reference metadata.
 Ontology proposal creation also resolves connector runtime boundary metadata
 from that persisted registry reference, then requires a matching tenant-scoped
 persisted manifest in `active_preview` before writing proposal/audit state.
@@ -399,8 +401,9 @@ queries tenant-scoped preview connector configuration through
 manifest and rejecting raw credential fields in configuration payloads. The API
 now also stores metadata-only credential handles and rotation history through
 `/demo/manufacturing/connectors/credential-handles`, using external secret
-references instead of raw credential values and failing explicitly if the
-persisted connector registry reference is missing or invalid. Short-lived
+references instead of raw credential values, requiring a matching
+tenant-scoped connector manifest in `active_preview` and failing explicitly if
+the persisted connector registry reference is missing or invalid. Short-lived
 credential leases can now be requested, renewed and revoked through
 `/demo/manufacturing/connectors/credential-leases`, writing
 `connector.credential_lease.*` audit evidence while returning only references,
