@@ -1088,6 +1088,70 @@ def test_execute_scheduled_connector_sync_defaults_to_deferred_without_external_
     assert "credential_value" not in str(events[0].payload).lower()
 
 
+def test_execute_scheduled_connector_sync_requires_current_active_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_credential_handle(repository)
+        seed_connector_credential_lease(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_file_csv_assets_scheduled_execute_deprecated_manifest",
+        dispatch_id="dispatch_file_csv_assets_deprecated_manifest",
+        dispatch_idempotency_key="idem_dispatch_file_csv_assets_deprecated_manifest",
+    )
+
+    with session_scope(session_factory) as session:
+        transition_demo_connector_manifest_lifecycle(
+            AxisPersistenceRepository(session),
+            "file_csv_manufacturing_assets",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="deprecated",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Retired before scheduled sync execution.",
+                evidence_refs=["test://connector-run-deprecated-manifest"],
+            ),
+        )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_file_csv_assets_scheduled_execute_deprecated_manifest/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_file_csv_assets_deprecated_manifest",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_file_csv_readonly_20260622",
+            "idempotency_key": "idem_sync_exec_file_csv_assets_deprecated_manifest",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "connector_manifest_not_active_preview"
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        run = repository.get_connector_run(
+            "tenant_demo_manufacturing",
+            "run_file_csv_assets_scheduled_execute_deprecated_manifest",
+        )
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_deferred",
+        )
+
+    assert run is not None
+    assert run.status == "sync_dispatch_deferred"
+    assert run.result_summary.get("sync_execution_result") is None
+    assert events == []
+
+
 def test_execute_scheduled_connector_sync_self_hosted_runtime_when_enabled(
     session_factory: sessionmaker[Session],
 ) -> None:
