@@ -270,6 +270,7 @@ def build_connector_sync_checkpoint_registry(
     repository: AxisPersistenceRepository,
     query: ConnectorSyncCheckpointQuery,
 ) -> ManufacturingConnectorSyncCheckpointRegistry:
+    _validate_checkpoint_time_window(query)
     records = repository.list_connector_sync_checkpoints(
         tenant_id=query.tenant_id,
         connector_id=query.connector_id,
@@ -316,6 +317,18 @@ def build_connector_sync_checkpoint_registry(
             "Checkpoint cursors are public-safe and exclude raw credentials.",
         ],
     )
+
+
+def _validate_checkpoint_time_window(query: ConnectorSyncCheckpointQuery) -> None:
+    if (
+        query.created_after is not None
+        and query.created_before is not None
+        and query.created_after >= query.created_before
+    ):
+        raise ConnectorRunValidationError(
+            "Connector checkpoint created_after must be earlier than created_before.",
+            "invalid_checkpoint_time_window",
+        )
 
 
 def record_demo_connector_run(

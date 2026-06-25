@@ -1978,7 +1978,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/connectors/runs/checkpoints",
         response_model=ManufacturingConnectorSyncCheckpointRegistry,
-        responses={403: {"description": "Connector sync checkpoint read permission denied"}},
+        responses={
+            403: {"description": "Connector sync checkpoint read permission denied"},
+            422: {"description": "Connector sync checkpoint query validation failed"},
+        },
         tags=["demo"],
     )
     def manufacturing_connector_run_checkpoints(
@@ -1994,18 +1997,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorSyncCheckpointRegistry:
         _authorize_connector_sync_checkpoint_read(tenant_id, actor_scopes, principal)
-        return build_connector_sync_checkpoint_registry(
-            repository,
-            ConnectorSyncCheckpointQuery(
-                tenant_id=tenant_id,
-                connector_id=connector_id,
-                run_id=run_id,
-                status=status,
-                created_after=created_after,
-                created_before=created_before,
-                limit=limit,
-            ),
-        )
+        try:
+            return build_connector_sync_checkpoint_registry(
+                repository,
+                ConnectorSyncCheckpointQuery(
+                    tenant_id=tenant_id,
+                    connector_id=connector_id,
+                    run_id=run_id,
+                    status=status,
+                    created_after=created_after,
+                    created_before=created_before,
+                    limit=limit,
+                ),
+            )
+        except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/connectors/runs/{run_id}/dispatch",

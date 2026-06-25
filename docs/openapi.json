@@ -14233,14 +14233,7 @@
             "description": "Connector sync checkpoint read permission denied"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Connector sync checkpoint query validation failed"
           }
         },
         "summary": "Manufacturing Connector Run Checkpoints",
