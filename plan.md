@@ -142,6 +142,7 @@ Foundation acceptance is tracked in
 - [x] Add secret reference resolver evidence hardening for external DB live-query preflight.
 - [x] Persist tenant-scoped egress policy records for external DB preflight.
 - [x] Persist tenant-scoped sync execution checkpoints for scheduled connector runs.
+- [x] Expose tenant-scoped sync execution checkpoints through the connector API.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -467,7 +468,10 @@ resolver evidence and blocks the path if the lease reference is missing or if
 the lease evidence says secret material was returned. Network policy
 preflight and completed/deferred sync execution attempts now also write
 tenant-scoped `connector_sync_checkpoints` rows with public-safe cursor and
-result evidence for future retry/checkpoint-aware provider adapters.
+result evidence for future retry/checkpoint-aware provider adapters. The
+checkpoint registry is queryable at
+`/demo/manufacturing/connectors/runs/checkpoints` with tenant, connector, run,
+status and limit filters.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.
 The `/connectors` console now fetches connector, credential, egress policy,

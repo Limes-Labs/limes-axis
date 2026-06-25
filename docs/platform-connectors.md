@@ -426,6 +426,9 @@ store public-safe cursor metadata, adapter status, result summaries and audit
 evidence refs; they do not store raw DSNs, SQL text, credential values or
 secret material. This gives future provider-specific live sync adapters a real
 retry/checkpoint boundary before live query execution is enabled.
+The checkpoint registry is exposed at
+`/demo/manufacturing/connectors/runs/checkpoints` and supports tenant,
+connector, run, status and limit filters.
 
 The ontology proposal endpoints store and query tenant-scoped proposals derived
 from connector preview output. A proposal includes:
@@ -694,6 +697,7 @@ contract keeps these boundaries visible:
   preflight can pass;
 - tenant-scoped sync execution checkpoints before provider-specific retry and
   resume logic;
+- connector API checkpoint queries for worker/operator observability;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;

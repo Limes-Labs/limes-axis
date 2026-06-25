@@ -6914,6 +6914,116 @@
         "title": "ConnectorSchemaField",
         "type": "object"
       },
+      "ConnectorSyncCheckpointRecord": {
+        "properties": {
+          "adapter": {
+            "minLength": 1,
+            "title": "Adapter",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "minLength": 1,
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "checkpoint_type": {
+            "minLength": 1,
+            "title": "Checkpoint Type",
+            "type": "string"
+          },
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cursor": {
+            "additionalProperties": true,
+            "title": "Cursor",
+            "type": "object"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "result_summary": {
+            "additionalProperties": true,
+            "title": "Result Summary",
+            "type": "object"
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "runtime_boundary": {
+            "minLength": 1,
+            "title": "Runtime Boundary",
+            "type": "string"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "run_id",
+          "checkpoint_id",
+          "checkpoint_type",
+          "status",
+          "sequence",
+          "runtime_boundary",
+          "adapter",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorSyncCheckpointRecord",
+        "type": "object"
+      },
       "ConnectorSyncDispatchResult": {
         "properties": {
           "adapter": {
@@ -8416,6 +8526,57 @@
           "registry_status"
         ],
         "title": "ManufacturingConnectorRunRegistry",
+        "type": "object"
+      },
+      "ManufacturingConnectorSyncCheckpointRegistry": {
+        "properties": {
+          "checkpoint_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Checkpoint Notes",
+            "type": "array"
+          },
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorSyncCheckpointRecord"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorSyncCheckpointRegistry",
         "type": "object"
       },
       "ManufacturingDomainSnapshot": {
@@ -13911,6 +14072,113 @@
           }
         },
         "summary": "Manufacturing Connector Run Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/runs/checkpoints": {
+      "get": {
+        "operationId": "manufacturing_connector_run_checkpoints_demo_manufacturing_connectors_runs_checkpoints_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorSyncCheckpointRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Run Checkpoints",
         "tags": [
           "demo"
         ]

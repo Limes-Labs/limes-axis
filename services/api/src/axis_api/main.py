@@ -209,8 +209,11 @@ from axis_api.connector_runs import (
     ConnectorRunSyncExecutionConflict,
     ConnectorRunSyncExecutionRequest,
     ConnectorRunValidationError,
+    ConnectorSyncCheckpointQuery,
     ManufacturingConnectorRunRegistry,
+    ManufacturingConnectorSyncCheckpointRegistry,
     build_connector_run_registry,
+    build_connector_sync_checkpoint_registry,
     dispatch_demo_connector_sync,
     execute_demo_connector_sync,
     record_demo_connector_run,
@@ -1919,6 +1922,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.reason,
                 },
             ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        response_model=ManufacturingConnectorSyncCheckpointRegistry,
+        tags=["demo"],
+    )
+    def manufacturing_connector_run_checkpoints(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        run_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ManufacturingConnectorSyncCheckpointRegistry:
+        return build_connector_sync_checkpoint_registry(
+            repository,
+            ConnectorSyncCheckpointQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                run_id=run_id,
+                status=status,
+                limit=limit,
+            ),
+        )
 
     @app.post(
         "/demo/manufacturing/connectors/runs/{run_id}/dispatch",
