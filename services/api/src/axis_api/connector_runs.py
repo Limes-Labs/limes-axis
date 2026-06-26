@@ -180,6 +180,7 @@ class ConnectorRunSyncExecutionRequest(BaseModel):
     executed_by: str = Field(min_length=1, max_length=160)
     actor_scopes: list[str] = Field(default_factory=list)
     credential_lease_id: str = Field(min_length=1, max_length=180)
+    checkpoint_claim_id: str | None = Field(default=None, min_length=1, max_length=220)
     idempotency_key: str = Field(min_length=1, max_length=220)
     notes: list[str] = Field(default_factory=list)
 
@@ -1226,12 +1227,22 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
     )
     now = utc_now()
     for claim in claims:
+        if (
+            request.checkpoint_claim_id is not None
+            and claim.claim_id != request.checkpoint_claim_id
+        ):
+            continue
         if _ensure_timezone(claim.lease_expires_at) > now:
             return claim
 
+    reason = (
+        "target_sync_checkpoint_claim_not_active"
+        if request.checkpoint_claim_id is not None
+        else "active_sync_checkpoint_claim_required"
+    )
     raise ConnectorRunValidationError(
         "Live connector sync requires an active checkpoint claim for the executing worker.",
-        "active_sync_checkpoint_claim_required",
+        reason,
     )
 
 
