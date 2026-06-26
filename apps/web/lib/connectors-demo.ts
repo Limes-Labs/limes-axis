@@ -869,12 +869,18 @@ export function buildConnectorSyncCheckpointQueryPath(
 
 export function buildConnectorSyncCheckpointClaimQueryPath(
   tenantId: string,
-  options: { cursor?: string } = {},
+  options: { createdAfter?: string; createdBefore?: string; cursor?: string } = {},
 ): string {
   const params = new URLSearchParams({
     tenant_id: tenantId,
     actor_scopes: CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE,
   });
+  if (options.createdAfter) {
+    params.set("created_after", options.createdAfter);
+  }
+  if (options.createdBefore) {
+    params.set("created_before", options.createdBefore);
+  }
   if (options.cursor) {
     params.set("cursor", options.cursor);
   }

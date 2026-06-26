@@ -2100,6 +2100,8 @@ def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
         "run_id": None,
         "status": "claimed",
         "claimed_by": None,
+        "created_after": None,
+        "created_before": None,
         "cursor": None,
         "limit": 10,
         "returned_claim_count": 1,
@@ -2320,6 +2322,112 @@ def test_connector_sync_checkpoint_claims_endpoint_filters_by_claimed_by(
     assert events[0].payload["claim_ids"] == ["claim_worker_filter_1"]
     assert "credential_value" not in str(events[0].payload).lower()
     assert "dsn" not in str(events[0].payload).lower()
+
+
+def test_connector_sync_checkpoint_claims_endpoint_filters_by_created_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        for sequence, claim_suffix in enumerate(["older", "inside", "newer"], start=1):
+            checkpoint_id = f"chk_claim_window_{claim_suffix}"
+            run_id = f"run_claim_window_{claim_suffix}"
+            record_created_at = created_at + timedelta(minutes=sequence * 10)
+            seed_connector_sync_checkpoint(
+                repository,
+                checkpoint_id=checkpoint_id,
+                run_id=run_id,
+                sequence=sequence,
+                created_at=record_created_at,
+            )
+            claim = repository.create_connector_sync_checkpoint_claim(
+                ConnectorSyncCheckpointClaimCreate(
+                    tenant_id="tenant_demo_manufacturing",
+                    connector_id="external_db_operational_mirror",
+                    run_id=run_id,
+                    checkpoint_id=checkpoint_id,
+                    claim_id=f"claim_window_{claim_suffix}",
+                    status="claimed",
+                    claimed_by="axis-sync-worker-role",
+                    idempotency_key=f"idem_claim_window_{claim_suffix}",
+                    lease_duration_seconds=900,
+                    lease_expires_at=datetime(2026, 6, 25, 11, 0, tzinfo=UTC),
+                    claim_result={
+                        "external_sync_started": False,
+                        "secret_material_returned": False,
+                        "worker_claim_only": True,
+                    },
+                    audit_event_type="connector.run.sync_checkpoint_claimed",
+                )
+            )
+            claim.created_at = record_created_at
+            claim.updated_at = record_created_at
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "external_db_operational_mirror",
+            "created_after": "2026-06-25T10:15:00Z",
+            "created_before": "2026-06-25T10:25:00Z",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [claim["claim_id"] for claim in body["claims"]] == ["claim_window_inside"]
+    assert body["metrics"][0]["value"] == "1"
+    assert body["has_more"] is False
+    assert body["next_cursor"] is None
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claims_read",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["created_after"] == "2026-06-25T10:15:00Z"
+    assert events[0].payload["created_before"] == "2026-06-25T10:25:00Z"
+    assert events[0].payload["claim_ids"] == ["claim_window_inside"]
+    assert "credential_value" not in str(events[0].payload).lower()
+    assert "dsn" not in str(events[0].payload).lower()
+
+
+def test_connector_sync_checkpoint_claims_endpoint_rejects_invalid_created_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "created_after": "2026-06-25T10:15:00Z",
+            "created_before": "2026-06-25T10:15:00Z",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "invalid_checkpoint_claim_time_window"
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claims_read",
+        )
+
+    assert events == []
 
 
 def test_connector_sync_checkpoint_claims_endpoint_paginates_with_cursor(
