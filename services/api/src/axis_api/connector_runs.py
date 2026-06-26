@@ -1261,6 +1261,15 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "Live connector sync checkpoint claim evidence is not eligible.",
                 "target_sync_checkpoint_claim_checkpoint_not_eligible",
             )
+        if (
+            checkpoint.audit_event_type
+            != "connector.run.sync_execution_preflight_passed"
+        ):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim evidence is not backed "
+                "by a preflight-passed audit event.",
+                "target_sync_checkpoint_claim_checkpoint_audit_invalid",
+            )
         return claim
 
     raise ConnectorRunValidationError(
