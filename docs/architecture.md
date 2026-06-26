@@ -113,8 +113,9 @@ tenant-scoped connector egress policy for the connector profile and the run uses
 a lease-scoped secret reference. The executing worker must also hold an active
 checkpoint claim for the same run before the provider-specific runtime is
 called; missing claims are rejected without preflight audit or a new execution
-checkpoint. When `checkpoint_claim_id` is provided, Axis binds the preflight to
-that exact active worker lease rather than choosing any valid claim for the run.
+checkpoint. When `live_query_requested=true`, `execute-sync` must provide
+`checkpoint_claim_id`; Axis binds the preflight to that exact active worker
+lease rather than choosing any valid claim for the run.
 The slice still records `external_query_started=false` and returns no credential
 material. The preflight records redacted egress policy evidence from the
 repository-backed policy record, the already validated credential lease result,

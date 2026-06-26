@@ -534,11 +534,11 @@ Delivered:
   `connectors:sync:checkpoint:claim:read` and append
   `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
   filters, pagination metadata, returned claim count and claim ids only.
-- external DB live-query preflight requires a persisted active checkpoint claim
-  owned by the executing worker before the provider-specific runtime boundary is
-  called. If `checkpoint_claim_id` is supplied, the targeted persisted claim
+- external DB live-query preflight requires `checkpoint_claim_id` and a persisted
+  active checkpoint claim owned by the executing worker before the
+  provider-specific runtime boundary is called. The targeted persisted claim
   must be active, unexpired, owned by the executing worker and attached to the
-  same run.
+  same run. Non-live execution paths do not require a checkpoint claim target.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing
