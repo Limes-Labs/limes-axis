@@ -558,6 +558,13 @@ Delivered:
   worker-lease-only with `external_sync_started=false`,
   `secret_material_returned=false` and `worker_claim_only=true`.
   Non-live execution paths do not require a checkpoint claim target.
+- checkpoint registry reads return public-safe `evidence_invariants` for
+  persisted checkpoint audit drift: missing audit refs, audit ids absent from
+  evidence refs, unresolved ledger events, audit type mismatches,
+  connector/run/checkpoint payload mismatches and unsafe checkpoint evidence.
+  The read audit event stores only filters, returned checkpoint count,
+  invariant count and checkpoint ids. It does not copy checkpoint cursor or
+  result summaries into the read-audit payload.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing

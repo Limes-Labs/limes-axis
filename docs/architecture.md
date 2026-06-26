@@ -137,6 +137,11 @@ Unknown, unpersisted or unapproved egress policies are
 blocked before secret retrieval is considered; missing lease references and
 lease results that say secret material was returned are also blocked. The
 resolver remains reference-only and does not return credential material.
+The sync checkpoint registry reports public-safe evidence invariants for
+checkpoint audit drift, including missing audit refs, unresolved ledger events,
+connector/run/checkpoint payload mismatches and unsafe checkpoint evidence, so
+operators can detect historical drift before provider-specific adapters move
+past the preflight boundary.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

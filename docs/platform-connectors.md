@@ -483,8 +483,12 @@ without that scope before querying checkpoint storage. It also rejects invalid
 time windows where `created_after` is equal to or later than `created_before`
 before querying checkpoint storage. Valid reads append
 `connector.run.sync_checkpoints_read` audit evidence with query filters,
-returned checkpoint count and checkpoint ids only; checkpoint cursor and result
-payloads are not duplicated into the read audit event.
+returned checkpoint count, evidence invariant count and checkpoint ids only;
+checkpoint cursor and result payloads are not duplicated into the read audit
+event. The registry includes public-safe `evidence_invariants` for missing or
+unresolved checkpoint audit events, missing evidence refs, audit event type or
+connector/run/checkpoint payload mismatches, unsafe audit payloads and unsafe
+checkpoint result summaries.
 Checkpoint claims are persisted at
 `/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims` for
 worker-safe retry coordination. The endpoint requires
@@ -734,7 +738,8 @@ manual import request gates from
 `/demo/manufacturing/connectors/promotion-policies`. It also loads
 tenant-scoped sync checkpoints from
 `/demo/manufacturing/connectors/runs/checkpoints` and shows sequence, adapter,
-cursor summary, result evidence and audit refs for the selected connector. The
+cursor summary, result evidence, audit refs and invariant status for the
+selected connector. The
 request includes `connectors:sync:checkpoint:read`; if the API is unavailable
 or rejects the request, the page shows an API-required state and does not render
 local connector records.

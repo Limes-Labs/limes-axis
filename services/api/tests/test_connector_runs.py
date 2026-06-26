@@ -4862,6 +4862,7 @@ def test_connector_sync_checkpoints_endpoint_writes_read_audit_event(
         "created_before": None,
         "limit": 25,
         "returned_checkpoint_count": 1,
+        "evidence_invariant_count": 0,
         "checkpoint_ids": ["chk_checkpoint_read_audit"],
         "required_permission": "connectors:sync:checkpoint:read",
         "read_scope_source": "demo_actor_scopes",
@@ -4869,6 +4870,82 @@ def test_connector_sync_checkpoints_endpoint_writes_read_audit_event(
     assert "vault://" not in str(event.payload).lower()
     assert "credential_value" not in str(event.payload).lower()
     assert "dsn" not in str(event.payload).lower()
+
+
+def test_connector_sync_checkpoint_registry_reports_audit_payload_invariants(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        checkpoint_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="axis-sync-worker-role",
+                event_type="connector.run.sync_execution_preflight_passed",
+                payload={
+                    "connector_id": "external_db_operational_mirror",
+                    "run_id": "run_checkpoint_invariant_20260627",
+                    "checkpoint_id": "chk_checkpoint_invariant_other_20260627",
+                    "external_query_started": False,
+                    "credential_material_returned": False,
+                    "graph_mutation_started": False,
+                },
+            )
+        )
+        repository.create_connector_sync_checkpoint(
+            ConnectorSyncCheckpointCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_checkpoint_invariant_20260627",
+                checkpoint_id="chk_checkpoint_invariant_target_20260627",
+                checkpoint_type="sync_execution",
+                status="sync_execution_preflight_passed",
+                sequence=1,
+                runtime_boundary="axis-connector-sandbox",
+                adapter="axis-postgres-external-db-sync-executor",
+                cursor={"cursor_type": "live_query_preflight"},
+                result_summary={
+                    "external_query_started": "false",
+                    "credential_material_returned": "false",
+                    "graph_mutation_started": "false",
+                },
+                evidence_refs=[str(checkpoint_event.id)],
+                audit_event_id=checkpoint_event.id,
+                audit_event_type="connector.run.sync_execution_preflight_passed",
+                notes=["Checkpoint seeded with mismatched audit payload."],
+            )
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "run_id": "run_checkpoint_invariant_20260627",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metrics"][2]["label"] == "Evidence Invariants"
+    assert body["metrics"][2]["value"] == "1"
+    assert body["metrics"][2]["status"] == "watch"
+    assert body["evidence_invariants"] == [
+        {
+            "checkpoint_id": "chk_checkpoint_invariant_target_20260627",
+            "audit_event_id": str(checkpoint_event.id),
+            "reason": "checkpoint_audit_event_payload_mismatch",
+            "detail": (
+                "Checkpoint audit event payload must match connector_id, "
+                "run_id and checkpoint_id."
+            ),
+        }
+    ]
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
 
 
 def test_connector_sync_checkpoint_claim_records_worker_lease_without_live_sync(

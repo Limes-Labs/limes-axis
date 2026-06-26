@@ -225,6 +225,13 @@ class ConnectorSyncCheckpointRecord(BaseModel):
     created_at: datetime
 
 
+class ConnectorSyncCheckpointEvidenceInvariant(BaseModel):
+    checkpoint_id: str = Field(min_length=1)
+    audit_event_id: str | None = None
+    reason: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
 class ConnectorSyncCheckpointClaimRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
@@ -266,6 +273,9 @@ class ManufacturingConnectorSyncCheckpointRegistry(BaseModel):
     registry_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     checkpoints: list[ConnectorSyncCheckpointRecord] = Field(default_factory=list)
+    evidence_invariants: list[ConnectorSyncCheckpointEvidenceInvariant] = Field(
+        default_factory=list
+    )
     checkpoint_notes: list[str] = Field(default_factory=list)
 
 
@@ -398,6 +408,11 @@ def build_connector_sync_checkpoint_registry(
         limit=query.limit,
     )
     checkpoints = [_checkpoint_from_record(record) for record in records]
+    evidence_invariants = [
+        invariant
+        for record in records
+        if (invariant := _checkpoint_evidence_invariant(repository, record)) is not None
+    ]
     audit_refs = sum(1 for checkpoint in checkpoints if checkpoint.audit_event_id is not None)
     return ManufacturingConnectorSyncCheckpointRegistry(
         tenant_id=query.tenant_id,
@@ -422,6 +437,16 @@ def build_connector_sync_checkpoint_registry(
                 ),
             ),
             OverviewMetric(
+                label="Evidence Invariants",
+                value=str(len(evidence_invariants)),
+                detail="Checkpoint audit ledger binding issues in this result set",
+                status=(
+                    OverviewStatus.WATCH
+                    if evidence_invariants
+                    else OverviewStatus.READY
+                ),
+            ),
+            OverviewMetric(
                 label="Secret Material",
                 value="Excluded",
                 detail="Checkpoint cursors carry public-safe retry metadata only",
@@ -429,6 +454,7 @@ def build_connector_sync_checkpoint_registry(
             ),
         ],
         checkpoints=checkpoints,
+        evidence_invariants=evidence_invariants,
         checkpoint_notes=[
             "Sync checkpoints are tenant-scoped runtime evidence for retry/resume.",
             "Checkpoint cursors are public-safe and exclude raw credentials.",
@@ -457,6 +483,7 @@ def read_connector_sync_checkpoint_registry(
                 "created_before": _datetime_as_utc_string(query.created_before),
                 "limit": query.limit,
                 "returned_checkpoint_count": len(registry.checkpoints),
+                "evidence_invariant_count": len(registry.evidence_invariants),
                 "checkpoint_ids": [
                     checkpoint.checkpoint_id for checkpoint in registry.checkpoints
                 ],
@@ -1118,6 +1145,7 @@ def execute_demo_connector_sync(
             payload={
                 "connector_id": run.connector_id,
                 "run_id": run.run_id,
+                "checkpoint_id": f"chk_{request.execution_id}",
                 "execution_id": request.execution_id,
                 "status": sync_execution_result.status,
                 "execution_mode": run.execution_mode,
@@ -1375,6 +1403,74 @@ def _sync_checkpoint_claim_result_is_worker_lease_only(claim_result: dict) -> bo
     if str(claim_result.get("secret_material_returned", "false")).lower() != "false":
         return False
     return str(claim_result.get("worker_claim_only", "true")).lower() == "true"
+
+
+def _checkpoint_evidence_invariant(
+    repository: AxisPersistenceRepository,
+    checkpoint,
+) -> ConnectorSyncCheckpointEvidenceInvariant | None:
+    audit_event_id = str(checkpoint.audit_event_id) if checkpoint.audit_event_id else None
+    if checkpoint.audit_event_id is None:
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=None,
+            reason="checkpoint_audit_event_missing",
+            detail="Checkpoint must reference an append-only audit event.",
+        )
+    if str(checkpoint.audit_event_id) not in (checkpoint.evidence_refs or []):
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="checkpoint_audit_event_ref_missing",
+            detail="Checkpoint evidence_refs must include its audit event id.",
+        )
+    audit_event = repository.get_audit_event(
+        checkpoint.tenant_id,
+        checkpoint.audit_event_id,
+    )
+    if audit_event is None:
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="checkpoint_audit_event_not_found",
+            detail="Checkpoint audit event id must resolve in the tenant ledger.",
+        )
+    if audit_event.event_type != checkpoint.audit_event_type:
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="checkpoint_audit_event_type_mismatch",
+            detail="Checkpoint audit event type must match the checkpoint record.",
+        )
+    if (
+        audit_event.payload.get("connector_id") != checkpoint.connector_id
+        or audit_event.payload.get("run_id") != checkpoint.run_id
+        or audit_event.payload.get("checkpoint_id") != checkpoint.checkpoint_id
+    ):
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="checkpoint_audit_event_payload_mismatch",
+            detail=(
+                "Checkpoint audit event payload must match connector_id, "
+                "run_id and checkpoint_id."
+            ),
+        )
+    if not _sync_checkpoint_result_is_public_safe(audit_event.payload):
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="checkpoint_audit_payload_unsafe",
+            detail="Checkpoint audit event payload must remain public-safe.",
+        )
+    if not _sync_checkpoint_result_is_public_safe(checkpoint.result_summary):
+        return ConnectorSyncCheckpointEvidenceInvariant(
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="checkpoint_result_unsafe",
+            detail="Checkpoint result evidence must remain public-safe.",
+        )
+    return None
 
 
 def _run_from_record(record) -> ConnectorRunRecord:
