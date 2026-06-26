@@ -1298,6 +1298,11 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "matching audit ledger event.",
                 "target_sync_checkpoint_claim_checkpoint_audit_event_mismatch",
             )
+        if not _sync_checkpoint_result_is_public_safe(checkpoint_audit_event.payload):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint audit payload is not public-safe.",
+                "target_sync_checkpoint_claim_checkpoint_audit_payload_unsafe",
+            )
         if not _sync_checkpoint_result_is_public_safe(checkpoint.result_summary):
             raise ConnectorRunValidationError(
                 "Live connector sync checkpoint result evidence is not public-safe.",

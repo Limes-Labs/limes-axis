@@ -427,7 +427,10 @@ that does not reference its audit event id is rejected with
 evidence referencing a missing audit ledger event is rejected with
 `target_sync_checkpoint_claim_checkpoint_audit_event_not_found`, and a
 connector/run mismatch is rejected with
-`target_sync_checkpoint_claim_checkpoint_audit_event_mismatch`. Checkpoint
+`target_sync_checkpoint_claim_checkpoint_audit_event_mismatch`. Referenced
+audit payload that says an external query started, credential material was
+returned or a graph mutation started is rejected with
+`target_sync_checkpoint_claim_checkpoint_audit_payload_unsafe`. Checkpoint
 result evidence that says an external query started, credential material was
 returned or a graph mutation started is rejected with
 `target_sync_checkpoint_claim_checkpoint_result_unsafe`. When the target
@@ -788,6 +791,7 @@ contract keeps these boundaries visible:
 - active worker checkpoint claim gate before external DB live-query preflight;
 - explicit checkpoint claim target binding for external DB live-query preflight;
 - checkpoint claim audit ledger lookup before external DB live-query preflight;
+- checkpoint audit payload public-safety gate before external DB live-query preflight;
 - checkpoint result public-safety gate before external DB live-query preflight;
 - connector console checkpoint claim observability without browser-local
   fallback records;

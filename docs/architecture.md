@@ -118,10 +118,10 @@ checkpoint. When `live_query_requested=true`, `execute-sync` must provide
 lease and verifies eligible `sync_execution_preflight_passed` checkpoint
 evidence backed by `connector.run.sync_execution_preflight_passed` audit for
 the same connector and run, with the checkpoint audit id present in
-`evidence_refs` and resolving to a tenant-scoped append-only audit event,
-rather than choosing any valid claim for the run. The checkpoint result evidence
-must also remain public-safe: no external query, no returned credential material
-and no graph mutation.
+`evidence_refs` and resolving to a tenant-scoped append-only audit event with
+public-safe payload, rather than choosing any valid claim for the run. The
+checkpoint result evidence must also remain public-safe: no external query, no
+returned credential material and no graph mutation.
 The slice still records `external_query_started=false` and returns no credential
 material. The preflight records redacted egress policy evidence from the
 repository-backed policy record, the already validated credential lease result,
