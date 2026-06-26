@@ -1308,6 +1308,12 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "Live connector sync checkpoint result evidence is not public-safe.",
                 "target_sync_checkpoint_claim_checkpoint_result_unsafe",
             )
+        if not _sync_checkpoint_claim_result_is_worker_lease_only(claim.claim_result):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim result evidence is not "
+                "worker-lease-only.",
+                "target_sync_checkpoint_claim_result_unsafe",
+            )
         return claim
 
     raise ConnectorRunValidationError(
@@ -1322,6 +1328,14 @@ def _sync_checkpoint_result_is_public_safe(result_summary: dict) -> bool:
     if str(result_summary.get("credential_material_returned", "false")).lower() != "false":
         return False
     return str(result_summary.get("graph_mutation_started", "false")).lower() == "false"
+
+
+def _sync_checkpoint_claim_result_is_worker_lease_only(claim_result: dict) -> bool:
+    if str(claim_result.get("external_sync_started", "false")).lower() != "false":
+        return False
+    if str(claim_result.get("secret_material_returned", "false")).lower() != "false":
+        return False
+    return str(claim_result.get("worker_claim_only", "true")).lower() == "true"
 
 
 def _run_from_record(record) -> ConnectorRunRecord:

@@ -547,7 +547,9 @@ Delivered:
   with public-safe audit payload before Axis lets an external DB live-query
   preflight enter the provider runtime. The checkpoint result evidence must also keep
   `external_query_started=false`, `credential_material_returned=false` and
-  `graph_mutation_started=false`.
+  `graph_mutation_started=false`. The target claim result evidence must remain
+  worker-lease-only with `external_sync_started=false`,
+  `secret_material_returned=false` and `worker_claim_only=true`.
   Non-live execution paths do not require a checkpoint claim target.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using

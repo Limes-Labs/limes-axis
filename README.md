@@ -237,8 +237,10 @@ its evidence ref. The referenced audit id must resolve to a tenant-scoped
 append-only audit event for the same connector/run with public-safe audit
 payload before provider runtime entry, and the checkpoint result evidence must keep
 `external_query_started=false`, `credential_material_returned=false` and
-`graph_mutation_started=false`; valid preflights include public-safe claim
-evidence in the sync result.
+`graph_mutation_started=false`. The target claim result must also stay
+worker-lease-only with `external_sync_started=false`,
+`secret_material_returned=false` and `worker_claim_only=true`; valid preflights
+include public-safe claim evidence in the sync result.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

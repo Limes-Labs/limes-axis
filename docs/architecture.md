@@ -121,7 +121,10 @@ the same connector and run, with the checkpoint audit id present in
 `evidence_refs` and resolving to a tenant-scoped append-only audit event with
 public-safe payload, rather than choosing any valid claim for the run. The
 checkpoint result evidence must also remain public-safe: no external query, no
-returned credential material and no graph mutation.
+returned credential material and no graph mutation. The targeted claim result
+must remain worker-lease-only as well:
+`external_sync_started=false`, `secret_material_returned=false` and
+`worker_claim_only=true`.
 The slice still records `external_query_started=false` and returns no credential
 material. The preflight records redacted egress policy evidence from the
 repository-backed policy record, the already validated credential lease result,

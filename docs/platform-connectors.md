@@ -433,10 +433,13 @@ returned or a graph mutation started is rejected with
 `target_sync_checkpoint_claim_checkpoint_audit_payload_unsafe`. Checkpoint
 result evidence that says an external query started, credential material was
 returned or a graph mutation started is rejected with
-`target_sync_checkpoint_claim_checkpoint_result_unsafe`. When the target
-claim is valid, the preflight result summary records public-safe claim
-evidence: claim id, checkpoint id, worker and lease expiry. For non-live
-execution paths, `checkpoint_claim_id` remains optional.
+`target_sync_checkpoint_claim_checkpoint_result_unsafe`. Claim result evidence
+that says external sync started, secret material was returned or the record is
+not worker-lease-only is rejected with
+`target_sync_checkpoint_claim_result_unsafe`. When the target claim is valid,
+the preflight result summary records public-safe claim evidence: claim id,
+checkpoint id, worker and lease expiry. For non-live execution paths,
+`checkpoint_claim_id` remains optional.
 The result summary includes the egress policy runtime boundary, policy
 reference, scope, mode and private endpoint reference. Unknown, unpersisted or
 unapproved egress policies write
@@ -793,6 +796,8 @@ contract keeps these boundaries visible:
 - checkpoint claim audit ledger lookup before external DB live-query preflight;
 - checkpoint audit payload public-safety gate before external DB live-query preflight;
 - checkpoint result public-safety gate before external DB live-query preflight;
+- checkpoint claim result worker-lease-only gate before external DB live-query
+  preflight;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback
