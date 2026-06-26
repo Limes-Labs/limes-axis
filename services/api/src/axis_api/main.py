@@ -97,7 +97,7 @@ from axis_api.connector_credential_leases import (
     ManufacturingConnectorCredentialLeaseRegistry,
     ProviderSpecificVaultKmsLeaseRuntime,
     SelfHostedVaultKmsLeaseRuntime,
-    build_connector_credential_lease_registry,
+    read_connector_credential_lease_registry,
     record_demo_connector_credential_lease,
     renew_demo_connector_credential_lease,
     revoke_demo_connector_credential_lease,
@@ -1749,8 +1749,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         handle_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
+        actor_id: str = Query(default="connector-credential-lease-reader", min_length=1),
     ) -> ManufacturingConnectorCredentialLeaseRegistry:
-        return build_connector_credential_lease_registry(
+        return read_connector_credential_lease_registry(
             repository,
             ConnectorCredentialLeaseQuery(
                 tenant_id=tenant_id,
@@ -1759,6 +1760,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status=status,
                 limit=limit,
             ),
+            actor_id=actor_id,
         )
 
     @app.post(

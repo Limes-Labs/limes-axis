@@ -2525,6 +2525,43 @@
         "title": "ConnectorCredentialHandleRecord",
         "type": "object"
       },
+      "ConnectorCredentialLeaseEvidenceInvariant": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "lease_id": {
+            "minLength": 1,
+            "title": "Lease Id",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lease_id",
+          "reason",
+          "detail"
+        ],
+        "title": "ConnectorCredentialLeaseEvidenceInvariant",
+        "type": "object"
+      },
       "ConnectorCredentialLeaseRecord": {
         "properties": {
           "audit_event_id": {
@@ -8506,6 +8543,13 @@
       },
       "ManufacturingConnectorCredentialLeaseRegistry": {
         "properties": {
+          "lease_evidence_invariants": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorCredentialLeaseEvidenceInvariant"
+            },
+            "title": "Lease Evidence Invariants",
+            "type": "array"
+          },
           "lease_notes": {
             "items": {
               "type": "string"
@@ -13108,6 +13152,17 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "default": "connector-credential-lease-reader",
+              "minLength": 1,
+              "title": "Actor Id",
+              "type": "string"
             }
           }
         ],

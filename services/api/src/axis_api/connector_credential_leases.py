@@ -20,6 +20,7 @@ from axis_api.persistence import (
 REQUEST_SCOPE = "connectors:credential_lease:request"
 RENEW_SCOPE = "connectors:credential_lease:renew"
 REVOKE_SCOPE = "connectors:credential_lease:revoke"
+READ_AUDIT_EVENT_TYPE = "connector.credential_leases_read"
 LEASE_MODE = "deferred_vault_kms_lease"
 LEASE_RUNTIME_BOUNDARY = "axis-credential-lease-broker"
 LEASE_ADAPTER = "axis-deferred-vault-kms-lease-adapter"
@@ -339,6 +340,13 @@ class ConnectorCredentialLeaseRecord(BaseModel):
     created_at: datetime
 
 
+class ConnectorCredentialLeaseEvidenceInvariant(BaseModel):
+    lease_id: str = Field(min_length=1)
+    audit_event_id: str | None = None
+    reason: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
 class ManufacturingConnectorCredentialLeaseRegistry(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -346,6 +354,9 @@ class ManufacturingConnectorCredentialLeaseRegistry(BaseModel):
     registry_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     leases: list[ConnectorCredentialLeaseRecord] = Field(default_factory=list)
+    lease_evidence_invariants: list[
+        ConnectorCredentialLeaseEvidenceInvariant
+    ] = Field(default_factory=list)
     lease_notes: list[str] = Field(default_factory=list)
 
 
@@ -382,6 +393,11 @@ def build_connector_credential_lease_registry(
         limit=query.limit,
     )
     leases = [_lease_from_record(record) for record in records]
+    lease_evidence_invariants = [
+        invariant
+        for record in records
+        if (invariant := _lease_evidence_invariant(repository, record)) is not None
+    ]
     renewal_due = sum(
         1
         for lease in leases
@@ -406,6 +422,16 @@ def build_connector_credential_lease_registry(
                 status=OverviewStatus.WATCH if renewal_due else OverviewStatus.READY,
             ),
             OverviewMetric(
+                label="Lease Evidence Invariants",
+                value=str(len(lease_evidence_invariants)),
+                detail="Credential lease audit ledger binding issues in this result set",
+                status=(
+                    OverviewStatus.WATCH
+                    if lease_evidence_invariants
+                    else OverviewStatus.READY
+                ),
+            ),
+            OverviewMetric(
                 label="Secret Material",
                 value="Never Returned",
                 detail="Lease adapter returns refs and evidence only",
@@ -413,12 +439,41 @@ def build_connector_credential_lease_registry(
             ),
         ],
         leases=leases,
+        lease_evidence_invariants=lease_evidence_invariants,
         lease_notes=[
             "Credential leases are short-lived records for connector execution.",
             "The default adapter is deferred and never returns secret material.",
             "Renewal and revocation write audit evidence before live sync is enabled.",
         ],
     )
+
+
+def read_connector_credential_lease_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorCredentialLeaseQuery,
+    *,
+    actor_id: str,
+) -> ManufacturingConnectorCredentialLeaseRegistry:
+    registry = build_connector_credential_lease_registry(repository, query)
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            event_type=READ_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": query.connector_id,
+                "handle_id": query.handle_id,
+                "status": query.status,
+                "limit": query.limit,
+                "returned_lease_count": len(registry.leases),
+                "lease_evidence_invariant_count": len(
+                    registry.lease_evidence_invariants
+                ),
+                "lease_ids": [lease.lease_id for lease in registry.leases],
+            },
+        )
+    )
+    return registry
 
 
 def record_demo_connector_credential_lease(
@@ -748,6 +803,70 @@ def _lease_from_record(record) -> ConnectorCredentialLeaseRecord:
         notes=record.notes,
         created_at=_aware_datetime(record.created_at),
     )
+
+
+def _lease_evidence_invariant(
+    repository: AxisPersistenceRepository,
+    record,
+) -> ConnectorCredentialLeaseEvidenceInvariant | None:
+    audit_event_id = str(record.audit_event_id) if record.audit_event_id else None
+    if record.audit_event_id is None:
+        return ConnectorCredentialLeaseEvidenceInvariant(
+            lease_id=record.lease_id,
+            audit_event_id=None,
+            reason="lease_audit_event_missing",
+            detail="Lease must reference an append-only audit event.",
+        )
+    audit_event = repository.get_audit_event(record.tenant_id, record.audit_event_id)
+    if audit_event is None:
+        return ConnectorCredentialLeaseEvidenceInvariant(
+            lease_id=record.lease_id,
+            audit_event_id=audit_event_id,
+            reason="lease_audit_event_not_found",
+            detail="Lease audit event id must resolve in the tenant ledger.",
+        )
+    if audit_event.event_type != record.audit_event_type:
+        return ConnectorCredentialLeaseEvidenceInvariant(
+            lease_id=record.lease_id,
+            audit_event_id=audit_event_id,
+            reason="lease_audit_event_type_mismatch",
+            detail="Lease audit event type must match the lease record.",
+        )
+    if (
+        audit_event.payload.get("connector_id") != record.connector_id
+        or audit_event.payload.get("handle_id") != record.handle_id
+        or audit_event.payload.get("lease_id") != record.lease_id
+    ):
+        return ConnectorCredentialLeaseEvidenceInvariant(
+            lease_id=record.lease_id,
+            audit_event_id=audit_event_id,
+            reason="lease_audit_event_payload_mismatch",
+            detail=(
+                "Lease audit event payload must match connector_id, "
+                "handle_id and lease_id."
+            ),
+        )
+    if not _lease_evidence_payload_is_public_safe(audit_event.payload):
+        return ConnectorCredentialLeaseEvidenceInvariant(
+            lease_id=record.lease_id,
+            audit_event_id=audit_event_id,
+            reason="lease_audit_payload_unsafe",
+            detail="Lease audit event payload must not report secret material access.",
+        )
+    if not _lease_evidence_payload_is_public_safe(record.lease_result):
+        return ConnectorCredentialLeaseEvidenceInvariant(
+            lease_id=record.lease_id,
+            audit_event_id=audit_event_id,
+            reason="lease_result_unsafe",
+            detail="Lease result evidence must not include secret material access.",
+        )
+    return None
+
+
+def _lease_evidence_payload_is_public_safe(payload: dict) -> bool:
+    if str(payload.get("secret_material_returned", "false")).lower() != "false":
+        return False
+    return str(payload.get("external_secret_read", "false")).lower() == "false"
 
 
 def _runtime_result(

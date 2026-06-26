@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.connector_credential_leases import (
     ConnectorCredentialLeaseQuery,
@@ -32,6 +33,7 @@ from axis_api.models import Base
 from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorCredentialHandleCreate,
+    ConnectorCredentialLeaseCreate,
     DemoReferenceRecordCreate,
 )
 
@@ -256,6 +258,142 @@ def test_connector_credential_leases_endpoint_returns_tenant_scoped_records(
     assert "tenant_other" not in str(body)
     assert "password" not in str(body).lower()
     assert "api_key" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+
+
+def test_connector_credential_leases_endpoint_writes_read_audit_event(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository)
+        record_demo_connector_credential_lease(repository, lease_request())
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/credential-leases",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "file_csv_manufacturing_assets",
+            "actor_id": "connector-credential-lease-reader",
+        },
+    )
+
+    assert response.status_code == 200
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        events = [
+            event
+            for event in repository.list_audit_events(
+                tenant_id="tenant_demo_manufacturing",
+                event_type="connector.credential_leases_read",
+                limit=10,
+            )
+        ]
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.actor_id == "connector-credential-lease-reader"
+    assert event.payload == {
+        "connector_id": "file_csv_manufacturing_assets",
+        "handle_id": None,
+        "status": None,
+        "limit": 100,
+        "returned_lease_count": 1,
+        "lease_evidence_invariant_count": 0,
+        "lease_ids": ["lease_file_csv_readonly_20260622"],
+    }
+    assert "vault://" not in str(event.payload).lower()
+    assert "credential_value" not in str(event.payload).lower()
+    assert "password" not in str(event.payload).lower()
+
+
+def test_connector_credential_leases_endpoint_reports_audit_payload_invariants(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository)
+        lease_audit_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="axis-connector-runtime-role",
+                event_type="connector.credential_lease.requested",
+                payload={
+                    "connector_id": "file_csv_manufacturing_assets",
+                    "handle_id": "cred_file_csv_readonly",
+                    "lease_id": "lease_payload_mismatch_other",
+                    "lease_mode": "deferred_vault_kms_lease",
+                    "lease_purpose": "governed_dry_run",
+                    "runtime_boundary": "axis-credential-lease-broker",
+                    "secret_provider": "external_vault",
+                    "secret_material_returned": "false",
+                    "adapter": "axis-deferred-vault-kms-lease-adapter",
+                },
+            )
+        )
+        repository.create_connector_credential_lease(
+            ConnectorCredentialLeaseCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="file_csv_manufacturing_assets",
+                handle_id="cred_file_csv_readonly",
+                lease_id="lease_payload_mismatch_target",
+                requested_by="axis-connector-runtime-role",
+                lease_purpose="governed_dry_run",
+                secret_provider="external_vault",
+                secret_ref="vault://axis/demo/connectors/file-csv-readonly",
+                vault_kms_policy={
+                    "provider_mode": "self_hosted_vault",
+                    "lease_path": "axis/demo/connectors/file-csv-readonly",
+                },
+                permission_decision={"allowed": True, "reason": "all_required_scopes_present"},
+                lease_result={
+                    "adapter": "axis-deferred-vault-kms-lease-adapter",
+                    "status": "lease_deferred",
+                    "external_secret_read": "false",
+                    "secret_material_returned": "false",
+                    "provider_mode": "deferred",
+                    "provider_lease_ref": (
+                        "deferred-lease://tenant_demo_manufacturing/"
+                        "lease_payload_mismatch_target"
+                    ),
+                },
+                granted_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC),
+                expires_at=datetime(2026, 6, 27, 10, 15, tzinfo=UTC),
+                renewal_due_at=datetime(2026, 6, 27, 10, 10, tzinfo=UTC),
+                audit_event_id=lease_audit_event.id,
+                audit_event_type="connector.credential_lease.requested",
+                notes=["Lease seeded with mismatched audit payload."],
+            )
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/credential-leases",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metrics"][2]["label"] == "Lease Evidence Invariants"
+    assert body["metrics"][2]["value"] == "1"
+    assert body["metrics"][2]["status"] == "watch"
+    assert body["lease_evidence_invariants"] == [
+        {
+            "lease_id": "lease_payload_mismatch_target",
+            "audit_event_id": str(lease_audit_event.id),
+            "reason": "lease_audit_event_payload_mismatch",
+            "detail": (
+                "Lease audit event payload must match connector_id, "
+                "handle_id and lease_id."
+            ),
+        }
+    ]
+    assert "password" not in str(body).lower()
     assert "credential_value" not in str(body).lower()
 
 

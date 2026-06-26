@@ -303,6 +303,13 @@ export type ConnectorCredentialLeaseRecord = {
   created_at: string;
 };
 
+export type ConnectorCredentialLeaseEvidenceInvariant = {
+  lease_id: string;
+  audit_event_id: string | null;
+  reason: string;
+  detail: string;
+};
+
 export type ManufacturingConnectorCredentialLeaseRegistry = {
   tenant_id: string;
   plant_name: string;
@@ -315,6 +322,7 @@ export type ManufacturingConnectorCredentialLeaseRegistry = {
     status: PlatformStatus;
   }[];
   leases: ConnectorCredentialLeaseRecord[];
+  lease_evidence_invariants: ConnectorCredentialLeaseEvidenceInvariant[];
   lease_notes: string[];
 };
 
@@ -887,6 +895,17 @@ export function filterConnectorSyncCheckpointClaimInvariantsByClaims(
         ? left.claim_id.localeCompare(right.claim_id)
         : checkpointOrder;
     });
+}
+
+export function filterConnectorCredentialLeaseInvariantsByLeases(
+  registry: ManufacturingConnectorCredentialLeaseRegistry,
+  leases: ConnectorCredentialLeaseRecord[],
+): ConnectorCredentialLeaseEvidenceInvariant[] {
+  const leaseIds = new Set(leases.map((lease) => lease.lease_id));
+  return registry.lease_evidence_invariants
+    .filter((invariant) => leaseIds.has(invariant.lease_id))
+    .slice()
+    .sort((left, right) => left.lease_id.localeCompare(right.lease_id));
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {
