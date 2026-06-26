@@ -425,6 +425,13 @@ run and checkpoint before
 created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
 the repository-backed record and does not rely on a hardcoded policy catalog.
+Egress policy registry reads write `connector.egress_policies_read` audit
+evidence with only query filters, returned policy ids and invariant counts. The
+registry also reports `policy_evidence_invariants` for missing audit ids,
+missing audit refs, unresolved audit ids, audit type mismatches,
+connector/policy/profile payload mismatches and evidence that reports external
+query or credential material access. These invariants are exposed in the
+connector console per selected connector policy.
 Missing `checkpoint_claim_id`, inactive target claims or missing checkpoint
 evidence are rejected before the provider-specific runtime is called, before
 preflight audit is written and before a new execution checkpoint is created.

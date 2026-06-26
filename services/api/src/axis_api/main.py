@@ -108,7 +108,7 @@ from axis_api.connector_egress_policies import (
     ConnectorEgressPolicyRecord,
     ConnectorEgressPolicyValidationError,
     ManufacturingConnectorEgressPolicyRegistry,
-    build_connector_egress_policy_registry,
+    read_connector_egress_policy_registry,
     record_demo_connector_egress_policy,
 )
 from axis_api.connector_execution import (
@@ -1932,8 +1932,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
+        actor_id: str = Query(default="connector-egress-policy-reader", min_length=1),
     ) -> ManufacturingConnectorEgressPolicyRegistry:
-        return build_connector_egress_policy_registry(
+        return read_connector_egress_policy_registry(
             repository,
             ConnectorEgressPolicyQuery(
                 tenant_id=tenant_id,
@@ -1941,6 +1942,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status=status,
                 limit=limit,
             ),
+            actor_id=actor_id,
         )
 
     @app.post(

@@ -104,6 +104,9 @@ evidence:
 Subsequent connector migrations through `0021` add policy sets, replacement and
 rollback evidence, draft revision adoption, replay simulation outputs,
 connector manifests, credential leases and egress policy records.
+Egress policy registry reads append public-safe read audit evidence and report
+audit-ledger evidence invariants without copying private endpoint references or
+policy documents into the read audit payload.
 
 The twenty-second Alembic migration adds:
 

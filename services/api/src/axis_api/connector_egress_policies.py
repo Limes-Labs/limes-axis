@@ -7,6 +7,8 @@ from axis_api.audit import AuditEventCreate
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.persistence import AxisPersistenceRepository, ConnectorEgressPolicyCreate
 
+READ_AUDIT_EVENT_TYPE = "connector.egress_policies_read"
+
 
 class ConnectorEgressPolicyValidationError(ValueError):
     def __init__(self, message: str, reason: str) -> None:
@@ -59,6 +61,13 @@ class ConnectorEgressPolicyRecord(BaseModel):
     created_at: datetime
 
 
+class ConnectorEgressPolicyEvidenceInvariant(BaseModel):
+    policy_id: str = Field(min_length=1)
+    audit_event_id: str | None = None
+    reason: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
 class ManufacturingConnectorEgressPolicyRegistry(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -66,6 +75,9 @@ class ManufacturingConnectorEgressPolicyRegistry(BaseModel):
     registry_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     policies: list[ConnectorEgressPolicyRecord] = Field(default_factory=list)
+    policy_evidence_invariants: list[
+        ConnectorEgressPolicyEvidenceInvariant
+    ] = Field(default_factory=list)
     policy_notes: list[str] = Field(default_factory=list)
 
 
@@ -99,6 +111,11 @@ def build_connector_egress_policy_registry(
         limit=query.limit,
     )
     policies = [_egress_policy_from_record(record) for record in records]
+    policy_evidence_invariants = [
+        invariant
+        for record in records
+        if (invariant := _policy_evidence_invariant(repository, record)) is not None
+    ]
     active_count = sum(1 for policy in policies if policy.status == "active")
     return ManufacturingConnectorEgressPolicyRegistry(
         tenant_id=query.tenant_id,
@@ -119,6 +136,16 @@ def build_connector_egress_policy_registry(
                 status=OverviewStatus.READY if active_count else OverviewStatus.WATCH,
             ),
             OverviewMetric(
+                label="Policy Evidence Invariants",
+                value=str(len(policy_evidence_invariants)),
+                detail="Egress policy audit ledger binding issues in this result set",
+                status=(
+                    OverviewStatus.WATCH
+                    if policy_evidence_invariants
+                    else OverviewStatus.READY
+                ),
+            ),
+            OverviewMetric(
                 label="External Query",
                 value="Not Started",
                 detail="Policies validate egress before live query execution",
@@ -126,12 +153,40 @@ def build_connector_egress_policy_registry(
             ),
         ],
         policies=policies,
+        policy_evidence_invariants=policy_evidence_invariants,
         policy_notes=[
             "Egress policies are tenant-scoped persisted records.",
             "The external DB preflight reads these records before considering secret retrieval.",
             "A policy record stores private endpoint references, never raw DSNs or credentials.",
         ],
     )
+
+
+def read_connector_egress_policy_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorEgressPolicyQuery,
+    *,
+    actor_id: str,
+) -> ManufacturingConnectorEgressPolicyRegistry:
+    registry = build_connector_egress_policy_registry(repository, query)
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            event_type=READ_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": query.connector_id,
+                "status": query.status,
+                "limit": query.limit,
+                "returned_policy_count": len(registry.policies),
+                "policy_evidence_invariant_count": len(
+                    registry.policy_evidence_invariants
+                ),
+                "policy_ids": [policy.policy_id for policy in registry.policies],
+            },
+        )
+    )
+    return registry
 
 
 def record_demo_connector_egress_policy(
@@ -222,3 +277,71 @@ def _egress_policy_from_record(record) -> ConnectorEgressPolicyRecord:
         notes=record.notes,
         created_at=record.created_at,
     )
+
+
+def _policy_evidence_invariant(
+    repository: AxisPersistenceRepository,
+    record,
+) -> ConnectorEgressPolicyEvidenceInvariant | None:
+    audit_event_id = str(record.audit_event_id) if record.audit_event_id else None
+    if record.audit_event_id is None:
+        return ConnectorEgressPolicyEvidenceInvariant(
+            policy_id=record.policy_id,
+            audit_event_id=None,
+            reason="egress_policy_audit_event_missing",
+            detail="Egress policy must reference an append-only audit event.",
+        )
+    if str(record.audit_event_id) not in (record.evidence_refs or []):
+        return ConnectorEgressPolicyEvidenceInvariant(
+            policy_id=record.policy_id,
+            audit_event_id=audit_event_id,
+            reason="egress_policy_audit_event_ref_missing",
+            detail="Egress policy evidence_refs must include its audit event id.",
+        )
+    audit_event = repository.get_audit_event(record.tenant_id, record.audit_event_id)
+    if audit_event is None:
+        return ConnectorEgressPolicyEvidenceInvariant(
+            policy_id=record.policy_id,
+            audit_event_id=audit_event_id,
+            reason="egress_policy_audit_event_not_found",
+            detail="Egress policy audit event id must resolve in the tenant ledger.",
+        )
+    if audit_event.event_type != record.audit_event_type:
+        return ConnectorEgressPolicyEvidenceInvariant(
+            policy_id=record.policy_id,
+            audit_event_id=audit_event_id,
+            reason="egress_policy_audit_event_type_mismatch",
+            detail="Egress policy audit event type must match the policy record.",
+        )
+    if (
+        audit_event.payload.get("connector_id") != record.connector_id
+        or audit_event.payload.get("policy_id") != record.policy_id
+        or audit_event.payload.get("connection_profile_id")
+        != record.connection_profile_id
+    ):
+        return ConnectorEgressPolicyEvidenceInvariant(
+            policy_id=record.policy_id,
+            audit_event_id=audit_event_id,
+            reason="egress_policy_audit_event_payload_mismatch",
+            detail=(
+                "Egress policy audit event payload must match connector_id, "
+                "policy_id and connection_profile_id."
+            ),
+        )
+    if not _policy_evidence_payload_is_public_safe(audit_event.payload):
+        return ConnectorEgressPolicyEvidenceInvariant(
+            policy_id=record.policy_id,
+            audit_event_id=audit_event_id,
+            reason="egress_policy_audit_payload_unsafe",
+            detail=(
+                "Egress policy audit event payload must not report external "
+                "query or credential material access."
+            ),
+        )
+    return None
+
+
+def _policy_evidence_payload_is_public_safe(payload: dict) -> bool:
+    if str(payload.get("external_query_started", "false")).lower() != "false":
+        return False
+    return str(payload.get("credential_material_returned", "false")).lower() == "false"

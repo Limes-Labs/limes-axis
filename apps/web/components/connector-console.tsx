@@ -10,6 +10,7 @@ import {
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
   filterConnectorCredentialLeaseInvariantsByLeases,
+  filterConnectorEgressPolicyInvariantsByPolicies,
   filterConnectorSyncCheckpointClaimInvariantsByClaims,
   filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
@@ -111,6 +112,7 @@ const EMPTY_CREDENTIAL_LEASE_REGISTRY: ManufacturingConnectorCredentialLeaseRegi
 const EMPTY_EGRESS_POLICY_REGISTRY: ManufacturingConnectorEgressPolicyRegistry = {
   ...EMPTY_REGISTRY_BASE,
   policies: [],
+  policy_evidence_invariants: [],
   policy_notes: [],
 };
 
@@ -498,6 +500,14 @@ export function ConnectorConsole() {
         (policy) => policy.connector_id === selectedConnectorId,
       ),
     [egressPolicyRegistry.policies, selectedConnectorId],
+  );
+  const selectedEgressPolicyInvariants = useMemo(
+    () =>
+      filterConnectorEgressPolicyInvariantsByPolicies(
+        egressPolicyRegistry,
+        selectedEgressPolicies,
+      ),
+    [egressPolicyRegistry, selectedEgressPolicies],
   );
   const selectedRuns = useMemo(
     () => runRegistry.runs.filter((run) => run.connector_id === selectedConnectorId),
@@ -1253,7 +1263,9 @@ export function ConnectorConsole() {
                 <h3 className="subsection-title">
                   {selectedEgressPolicies.length} persisted policy
                 </h3>
-                <p className="row-detail">private endpoint records from the Axis API</p>
+                <p className="row-detail">
+                  {selectedEgressPolicyInvariants.length} policy invariant
+                </p>
               </div>
               <ShieldCheck size={18} />
             </div>
@@ -1268,6 +1280,22 @@ export function ConnectorConsole() {
                 </div>
               ))}
             </div>
+            {selectedEgressPolicyInvariants.length > 0 ? (
+              <div className="payload-grid">
+                {selectedEgressPolicyInvariants.map((invariant) => (
+                  <div
+                    className="payload-row"
+                    key={`${invariant.policy_id}-${invariant.reason}`}
+                  >
+                    <span>
+                      <span className="metric-label">{invariant.reason}</span>
+                      <span className="row-detail">{invariant.policy_id}</span>
+                    </span>
+                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {selectedEgressPolicies.map((policy) => (
               <div className="audit-detail-grid" key={`${policy.policy_id}-egress`}>
                 <div>

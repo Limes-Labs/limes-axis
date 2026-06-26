@@ -3347,6 +3347,43 @@
         "title": "ConnectorEgressPolicyCreateRequest",
         "type": "object"
       },
+      "ConnectorEgressPolicyEvidenceInvariant": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "policy_id": {
+            "minLength": 1,
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "reason",
+          "detail"
+        ],
+        "title": "ConnectorEgressPolicyEvidenceInvariant",
+        "type": "object"
+      },
       "ConnectorEgressPolicyRecord": {
         "properties": {
           "audit_event_id": {
@@ -8620,6 +8657,13 @@
             "title": "Policies",
             "type": "array"
           },
+          "policy_evidence_invariants": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorEgressPolicyEvidenceInvariant"
+            },
+            "title": "Policy Evidence Invariants",
+            "type": "array"
+          },
           "policy_notes": {
             "items": {
               "type": "string"
@@ -13390,6 +13434,17 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "default": "connector-egress-policy-reader",
+              "minLength": 1,
+              "title": "Actor Id",
+              "type": "string"
             }
           }
         ],

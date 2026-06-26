@@ -346,6 +346,13 @@ export type ConnectorEgressPolicyRecord = {
   created_at: string;
 };
 
+export type ConnectorEgressPolicyEvidenceInvariant = {
+  policy_id: string;
+  audit_event_id: string | null;
+  reason: string;
+  detail: string;
+};
+
 export type ManufacturingConnectorEgressPolicyRegistry = {
   tenant_id: string;
   plant_name: string;
@@ -358,6 +365,7 @@ export type ManufacturingConnectorEgressPolicyRegistry = {
     status: PlatformStatus;
   }[];
   policies: ConnectorEgressPolicyRecord[];
+  policy_evidence_invariants: ConnectorEgressPolicyEvidenceInvariant[];
   policy_notes: string[];
 };
 
@@ -906,6 +914,17 @@ export function filterConnectorCredentialLeaseInvariantsByLeases(
     .filter((invariant) => leaseIds.has(invariant.lease_id))
     .slice()
     .sort((left, right) => left.lease_id.localeCompare(right.lease_id));
+}
+
+export function filterConnectorEgressPolicyInvariantsByPolicies(
+  registry: ManufacturingConnectorEgressPolicyRegistry,
+  policies: ConnectorEgressPolicyRecord[],
+): ConnectorEgressPolicyEvidenceInvariant[] {
+  const policyIds = new Set(policies.map((policy) => policy.policy_id));
+  return registry.policy_evidence_invariants
+    .filter((invariant) => policyIds.has(invariant.policy_id))
+    .slice()
+    .sort((left, right) => left.policy_id.localeCompare(right.policy_id));
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {
