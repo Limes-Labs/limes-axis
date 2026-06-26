@@ -1329,6 +1329,8 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
             checkpoint_audit_event.event_type != checkpoint.audit_event_type
             or checkpoint_audit_event.payload.get("connector_id") != run.connector_id
             or checkpoint_audit_event.payload.get("run_id") != run.run_id
+            or checkpoint_audit_event.payload.get("checkpoint_id")
+            != checkpoint.checkpoint_id
         ):
             raise ConnectorRunValidationError(
                 "Live connector sync checkpoint evidence is not backed by a "

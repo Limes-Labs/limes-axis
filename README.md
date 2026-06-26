@@ -237,7 +237,7 @@ tenant-scoped append-only audit ledger for the same connector, run,
 checkpoint, claim and worker, with worker-lease-only payload and eligible
 persisted checkpoint evidence backed by `connector.run.sync_execution_preflight_passed`
 audit and its evidence ref. The referenced audit id must resolve to a tenant-scoped
-append-only audit event for the same connector/run with public-safe audit
+append-only audit event for the same connector/run/checkpoint with public-safe audit
 payload before provider runtime entry, and the checkpoint result evidence must keep
 `external_query_started=false`, `credential_material_returned=false` and
 `graph_mutation_started=false`. The target claim result must also stay

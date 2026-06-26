@@ -550,7 +550,8 @@ Delivered:
   `connector.run.sync_execution_preflight_passed` for the same connector and
   run, and the checkpoint `evidence_refs` must include its audit event id. That
   audit id must resolve through the tenant-scoped append-only audit ledger
-  with public-safe audit payload before Axis lets an external DB live-query
+  with matching connector, run and checkpoint payload binding plus public-safe
+  audit payload before Axis lets an external DB live-query
   preflight enter the provider runtime. The checkpoint result evidence must also keep
   `external_query_started=false`, `credential_material_returned=false` and
   `graph_mutation_started=false`. The target claim result evidence must remain
