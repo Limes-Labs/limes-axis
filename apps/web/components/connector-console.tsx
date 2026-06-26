@@ -5,9 +5,11 @@ import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lu
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   formatConnectorLabel,
   type ConnectorCsvPreviewResult,
@@ -24,6 +26,7 @@ import {
   type ManufacturingConnectorPromotionPolicyRegistry,
   type ManufacturingConnectorPromotionPolicySetRegistry,
   type ManufacturingConnectorRunRegistry,
+  type ManufacturingConnectorSyncCheckpointClaimRegistry,
   type ManufacturingConnectorRegistry,
   type ManufacturingConnectorSyncCheckpointRegistry,
 } from "@/lib/connectors-demo";
@@ -119,6 +122,12 @@ const EMPTY_SYNC_CHECKPOINT_REGISTRY: ManufacturingConnectorSyncCheckpointRegist
   checkpoint_notes: [],
 };
 
+const EMPTY_SYNC_CHECKPOINT_CLAIM_REGISTRY: ManufacturingConnectorSyncCheckpointClaimRegistry = {
+  ...EMPTY_REGISTRY_BASE,
+  claims: [],
+  claim_notes: [],
+};
+
 const EMPTY_ONTOLOGY_PROPOSAL_REGISTRY: ManufacturingConnectorOntologyProposalRegistry = {
   ...EMPTY_REGISTRY_BASE,
   proposals: [],
@@ -192,6 +201,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     egressPolicyData,
     runData,
     syncCheckpointData,
+    syncCheckpointClaimData,
     ontologyProposalData,
     manualImportData,
     promotionPolicyData,
@@ -237,6 +247,11 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
       buildConnectorSyncCheckpointQueryPath(CONNECTOR_TENANT_ID),
       signal,
     ),
+    fetchConnectorJson<ManufacturingConnectorSyncCheckpointClaimRegistry>(
+      apiBaseUrl,
+      buildConnectorSyncCheckpointClaimQueryPath(CONNECTOR_TENANT_ID),
+      signal,
+    ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
       apiBaseUrl,
       "/demo/manufacturing/connectors/ontology-proposals",
@@ -271,6 +286,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     promotionPolicySetData,
     registryData,
     runData,
+    syncCheckpointClaimData,
     syncCheckpointData,
   };
 }
@@ -357,6 +373,10 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorSyncCheckpointRegistry>(
       EMPTY_SYNC_CHECKPOINT_REGISTRY,
     );
+  const [syncCheckpointClaimRegistry, setSyncCheckpointClaimRegistry] =
+    useState<ManufacturingConnectorSyncCheckpointClaimRegistry>(
+      EMPTY_SYNC_CHECKPOINT_CLAIM_REGISTRY,
+    );
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -401,6 +421,7 @@ export function ConnectorConsole() {
         setEgressPolicyRegistry(data.egressPolicyData);
         setRunRegistry(data.runData);
         setSyncCheckpointRegistry(data.syncCheckpointData);
+        setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
         setOntologyProposalRegistry(data.ontologyProposalData);
         setManualImportRegistry(data.manualImportData);
         setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -474,6 +495,14 @@ export function ConnectorConsole() {
       ),
     [syncCheckpointRegistry, selectedConnectorId],
   );
+  const selectedSyncCheckpointClaims = useMemo(
+    () =>
+      filterConnectorSyncCheckpointClaimsByCheckpoints(
+        syncCheckpointClaimRegistry,
+        selectedSyncCheckpoints,
+      ),
+    [syncCheckpointClaimRegistry, selectedSyncCheckpoints],
+  );
   const selectedOntologyProposals = useMemo(
     () =>
       ontologyProposalRegistry.proposals.filter(
@@ -513,6 +542,7 @@ export function ConnectorConsole() {
     setEgressPolicyRegistry(data.egressPolicyData);
     setRunRegistry(data.runData);
     setSyncCheckpointRegistry(data.syncCheckpointData);
+    setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
     setOntologyProposalRegistry(data.ontologyProposalData);
     setManualImportRegistry(data.manualImportData);
     setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -602,6 +632,7 @@ export function ConnectorConsole() {
     .concat(egressPolicyRegistry.metrics)
     .concat(runRegistry.metrics)
     .concat(syncCheckpointRegistry.metrics)
+    .concat(syncCheckpointClaimRegistry.metrics)
     .concat(ontologyProposalRegistry.metrics)
     .concat(manualImportRegistry.metrics)
     .concat(promotionPolicyRegistry.metrics)
@@ -944,6 +975,70 @@ export function ConnectorConsole() {
                   <p className="metric-label">Raw Value</p>
                   <p className="row-title">Never Stored</p>
                   <p className="row-detail">{handle.rotation_count} rotation records</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Checkpoint Claims</p>
+                <h3 className="subsection-title">
+                  {selectedSyncCheckpointClaims.length} worker claim
+                </h3>
+                <p className="row-detail">tenant-scoped checkpoint ownership leases</p>
+              </div>
+              <ShieldCheck size={18} />
+            </div>
+            <div className="payload-grid">
+              {selectedSyncCheckpointClaims.map((claim) => (
+                <div className="payload-row" key={claim.claim_id}>
+                  <span>
+                    <span className="metric-label">{claim.claim_id}</span>
+                    <span className="row-detail">{claim.checkpoint_id}</span>
+                  </span>
+                  <span className="mono">{formatConnectorLabel(claim.status)}</span>
+                </div>
+              ))}
+            </div>
+            {selectedSyncCheckpointClaims.map((claim) => (
+              <div className="audit-detail-grid" key={`${claim.claim_id}-claim`}>
+                <div>
+                  <p className="metric-label">Worker</p>
+                  <p className="row-title">{claim.claimed_by}</p>
+                  <p className="row-detail">{claim.audit_event_type}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Lease Window</p>
+                  <p className="row-title">{claim.lease_expires_at}</p>
+                  <p className="row-detail">{claim.lease_duration_seconds} seconds</p>
+                </div>
+                <div>
+                  <p className="metric-label">Renewal</p>
+                  <p className="row-title">{claim.renewal_count} renewals</p>
+                  <p className="row-detail">{claim.renewed_by ?? "not renewed"}</p>
+                </div>
+                <div>
+                  <p className="metric-label">Release</p>
+                  <p className="row-title">{claim.released_by ?? "not released"}</p>
+                  <p className="row-detail">{claim.release_reason ?? claim.status}</p>
+                </div>
+                <div>
+                  <p className="metric-label">External Sync</p>
+                  <p className="row-title">
+                    {formatCheckpointScalar(claim.claim_result.external_sync_started)}
+                  </p>
+                  <p className="row-detail">
+                    {formatCheckpointScalar(claim.claim_result.worker_claim_only)}
+                  </p>
+                </div>
+                <div>
+                  <p className="metric-label">Secret Material</p>
+                  <p className="row-title">
+                    {formatCheckpointScalar(claim.claim_result.secret_material_returned)}
+                  </p>
+                  <p className="row-detail">{claim.audit_event_id ?? "pending audit"}</p>
                 </div>
               </div>
             ))}
@@ -1645,6 +1740,7 @@ export function ConnectorConsole() {
               .concat(egressPolicyRegistry.policy_notes)
               .concat(runRegistry.run_notes)
               .concat(syncCheckpointRegistry.checkpoint_notes)
+              .concat(syncCheckpointClaimRegistry.claim_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
               .concat(promotionPolicyRegistry.policy_notes)
@@ -1656,6 +1752,7 @@ export function ConnectorConsole() {
               .concat(selectedEgressPolicies.flatMap((policy) => policy.notes))
               .concat(selectedRuns.flatMap((run) => run.notes))
               .concat(selectedSyncCheckpoints.flatMap((checkpoint) => checkpoint.notes))
+              .concat(selectedSyncCheckpointClaims.flatMap((claim) => claim.notes))
               .concat(selectedOntologyProposals.flatMap((proposal) => proposal.notes))
               .concat(selectedManualImports.flatMap((manualImport) => manualImport.notes))
               .concat(selectedPromotionPolicies.flatMap((policy) => policy.notes))

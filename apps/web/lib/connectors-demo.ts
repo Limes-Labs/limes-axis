@@ -462,7 +462,48 @@ export type ManufacturingConnectorSyncCheckpointRegistry = {
   checkpoint_notes: string[];
 };
 
+export type ConnectorSyncCheckpointClaimRecord = {
+  tenant_id: string;
+  connector_id: string;
+  run_id: string;
+  checkpoint_id: string;
+  claim_id: string;
+  status: string;
+  claimed_by: string;
+  idempotency_key: string;
+  lease_duration_seconds: number;
+  lease_expires_at: string;
+  renewed_at: string | null;
+  renewed_by: string | null;
+  renewal_count: number;
+  released_at: string | null;
+  released_by: string | null;
+  release_reason: string | null;
+  claim_result: Record<string, unknown>;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type ManufacturingConnectorSyncCheckpointClaimRegistry = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  claims: ConnectorSyncCheckpointClaimRecord[];
+  claim_notes: string[];
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
+const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
+  "connectors:sync:checkpoint:claim:read";
 
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
@@ -783,6 +824,25 @@ export function filterConnectorSyncCheckpointsByConnector(
     });
 }
 
+export function filterConnectorSyncCheckpointClaimsByCheckpoints(
+  registry: ManufacturingConnectorSyncCheckpointClaimRegistry,
+  checkpoints: ConnectorSyncCheckpointRecord[],
+): ConnectorSyncCheckpointClaimRecord[] {
+  const checkpointIds = new Set(checkpoints.map((checkpoint) => checkpoint.checkpoint_id));
+  return registry.claims
+    .filter((claim) => checkpointIds.has(claim.checkpoint_id))
+    .slice()
+    .sort((left, right) => {
+      const checkpointOrder = left.checkpoint_id.localeCompare(right.checkpoint_id);
+      if (checkpointOrder !== 0) {
+        return checkpointOrder;
+      }
+
+      const createdAtOrder = left.created_at.localeCompare(right.created_at);
+      return createdAtOrder === 0 ? left.claim_id.localeCompare(right.claim_id) : createdAtOrder;
+    });
+}
+
 type ConnectorSyncCheckpointQueryPathOptions = {
   createdAfter?: string;
   createdBefore?: string;
@@ -803,6 +863,14 @@ export function buildConnectorSyncCheckpointQueryPath(
     params.set("created_before", options.createdBefore);
   }
   return `/demo/manufacturing/connectors/runs/checkpoints?${params.toString()}`;
+}
+
+export function buildConnectorSyncCheckpointClaimQueryPath(tenantId: string): string {
+  const params = new URLSearchParams({
+    tenant_id: tenantId,
+    actor_scopes: CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE,
+  });
+  return `/demo/manufacturing/connectors/runs/checkpoints/claims?${params.toString()}`;
 }
 
 export function formatConnectorLabel(value: string): string {
