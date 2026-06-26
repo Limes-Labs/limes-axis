@@ -455,7 +455,7 @@ Expired claims are marked `expired` with
 created.
 Checkpoint claims are queryable at
 `/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant, connector,
-run, checkpoint, status, cursor and limit filters. The endpoint returns
+run, checkpoint, worker, status, cursor and limit filters. The endpoint returns
 `has_more` and `next_cursor` for stable cursor-based pagination. It requires
 `connectors:sync:checkpoint:claim:read` and appends
 `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
@@ -757,6 +757,7 @@ contract keeps these boundaries visible:
 - checkpoint claim registry reads with dedicated scope and audit evidence;
 - connector/run filters for checkpoint claim registry reads;
 - opaque cursor pagination for checkpoint claim registry reads;
+- claiming-worker filters for checkpoint claim registry reads;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback

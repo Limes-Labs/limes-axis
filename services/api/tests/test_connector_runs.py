@@ -2099,6 +2099,7 @@ def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
         "connector_id": None,
         "run_id": None,
         "status": "claimed",
+        "claimed_by": None,
         "cursor": None,
         "limit": 10,
         "returned_claim_count": 1,
@@ -2234,6 +2235,89 @@ def test_connector_sync_checkpoint_claims_endpoint_filters_by_connector_and_run(
     assert events[0].payload["connector_id"] == "external_db_operational_mirror"
     assert events[0].payload["run_id"] == "run_external_db_claim_filter"
     assert events[0].payload["claim_ids"] == ["claim_external_db_filter_a"]
+    assert "credential_value" not in str(events[0].payload).lower()
+    assert "dsn" not in str(events[0].payload).lower()
+
+
+def test_connector_sync_checkpoint_claims_endpoint_filters_by_claimed_by(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        for sequence, worker_id in enumerate(
+            ["axis-sync-worker-role-a", "axis-sync-worker-role-b", "axis-sync-worker-role-a"],
+            start=1,
+        ):
+            connector_id = (
+                "external_db_operational_mirror"
+                if sequence < 3
+                else "file_csv_manufacturing_assets"
+            )
+            checkpoint_id = f"chk_claim_worker_filter_{sequence}"
+            run_id = f"run_claim_worker_filter_{sequence}"
+            seed_connector_sync_checkpoint(
+                repository,
+                connector_id=connector_id,
+                checkpoint_id=checkpoint_id,
+                run_id=run_id,
+                sequence=sequence,
+                created_at=created_at + timedelta(minutes=sequence),
+            )
+            repository.create_connector_sync_checkpoint_claim(
+                ConnectorSyncCheckpointClaimCreate(
+                    tenant_id="tenant_demo_manufacturing",
+                    connector_id=connector_id,
+                    run_id=run_id,
+                    checkpoint_id=checkpoint_id,
+                    claim_id=f"claim_worker_filter_{sequence}",
+                    status="claimed",
+                    claimed_by=worker_id,
+                    idempotency_key=f"idem_claim_worker_filter_{sequence}",
+                    lease_duration_seconds=900,
+                    lease_expires_at=datetime(2026, 6, 25, 10, 30, tzinfo=UTC),
+                    claim_result={
+                        "external_sync_started": False,
+                        "secret_material_returned": False,
+                        "worker_claim_only": True,
+                    },
+                    audit_event_type="connector.run.sync_checkpoint_claimed",
+                )
+            )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "external_db_operational_mirror",
+            "claimed_by": "axis-sync-worker-role-a",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [claim["claim_id"] for claim in body["claims"]] == [
+        "claim_worker_filter_1"
+    ]
+    assert body["metrics"][0]["value"] == "1"
+    assert body["claims"][0]["claimed_by"] == "axis-sync-worker-role-a"
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claims_read",
+        )
+
+    assert len(events) == 1
+    assert events[0].payload["connector_id"] == "external_db_operational_mirror"
+    assert events[0].payload["claimed_by"] == "axis-sync-worker-role-a"
+    assert events[0].payload["claim_ids"] == ["claim_worker_filter_1"]
     assert "credential_value" not in str(events[0].payload).lower()
     assert "dsn" not in str(events[0].payload).lower()
 
