@@ -308,7 +308,8 @@ Delivered:
   storing raw credential values.
 - short-lived connector credential leases with tenant-scoped `active_preview`
   manifest gating, permission decisions, Vault/KMS policy metadata and adapter
-  evidence, without returning raw secret material.
+  evidence, read audit events and audit-ledger evidence invariants, without
+  returning raw secret material.
 - metadata-only connector run records with append-only
   `connector.run.recorded` audit writes and raw payload field rejection.
 - review-only connector ontology proposals with append-only
@@ -383,6 +384,9 @@ Delivered:
   connector ids, then requires the tenant-scoped persisted manifest to be
   `active_preview` before lease rows, audit evidence or lease runtime adapter
   calls are made.
+- connector credential lease registry reads now append
+  `connector.credential_leases_read` evidence and report missing, unresolved,
+  mismatched or unsafe audit bindings through `lease_evidence_invariants`.
 - connector ontology proposal creation now reads
   `surface=connectors/reference_id=manufacturing-connector-registry` to resolve
   connector runtime boundary metadata, then requires the tenant-scoped

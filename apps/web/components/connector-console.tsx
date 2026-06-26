@@ -9,6 +9,7 @@ import {
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorCredentialLeaseInvariantsByLeases,
   filterConnectorSyncCheckpointClaimInvariantsByClaims,
   filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
@@ -103,6 +104,7 @@ const EMPTY_CREDENTIAL_HANDLE_REGISTRY: ManufacturingConnectorCredentialHandleRe
 const EMPTY_CREDENTIAL_LEASE_REGISTRY: ManufacturingConnectorCredentialLeaseRegistry = {
   ...EMPTY_REGISTRY_BASE,
   leases: [],
+  lease_evidence_invariants: [],
   lease_notes: [],
 };
 
@@ -481,6 +483,14 @@ export function ConnectorConsole() {
         (lease) => lease.connector_id === selectedConnectorId,
       ),
     [credentialLeaseRegistry.leases, selectedConnectorId],
+  );
+  const selectedCredentialLeaseInvariants = useMemo(
+    () =>
+      filterConnectorCredentialLeaseInvariantsByLeases(
+        credentialLeaseRegistry,
+        selectedCredentialLeases,
+      ),
+    [credentialLeaseRegistry, selectedCredentialLeases],
   );
   const selectedEgressPolicies = useMemo(
     () =>
@@ -1177,7 +1187,9 @@ export function ConnectorConsole() {
                 <h3 className="subsection-title">
                   {selectedCredentialLeases.length} vault/kms lease
                 </h3>
-                <p className="row-detail">deferred adapter, no secret material returned</p>
+                <p className="row-detail">
+                  {selectedCredentialLeaseInvariants.length} lease invariant
+                </p>
               </div>
               <KeyRound size={18} />
             </div>
@@ -1192,6 +1204,22 @@ export function ConnectorConsole() {
                 </div>
               ))}
             </div>
+            {selectedCredentialLeaseInvariants.length > 0 ? (
+              <div className="payload-grid">
+                {selectedCredentialLeaseInvariants.map((invariant) => (
+                  <div
+                    className="payload-row"
+                    key={`${invariant.lease_id}-${invariant.reason}`}
+                  >
+                    <span>
+                      <span className="metric-label">{invariant.reason}</span>
+                      <span className="row-detail">{invariant.lease_id}</span>
+                    </span>
+                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {selectedCredentialLeases.map((lease) => (
               <div className="audit-detail-grid" key={`${lease.lease_id}-evidence`}>
                 <div>

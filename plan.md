@@ -124,6 +124,7 @@ Foundation acceptance is tracked in
 - [x] Add optional self-hosted Vault/KMS lease runtime adapter.
 - [x] Add provider-specific Vault/KMS credential lease profiles and policy
   hardening without secret material retrieval.
+- [x] Add credential lease registry read audit and audit-ledger evidence invariants.
 - [x] Author connector promotion policies before required enforcement.
 - [x] Enforce enabled required connector promotion policies before ontology
   mutation execution.

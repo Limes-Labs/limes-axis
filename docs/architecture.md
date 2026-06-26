@@ -81,8 +81,11 @@ handle records persist external secret
 references, rotation metadata and rotation history without storing raw
 credential values. Credential lease records add a Vault/KMS lease boundary with
 request, renew and revoke audit evidence, permission decisions and runtime
-adapter results while never returning secret material. The boundary is deferred
-by default and can use a self-hosted Vault/KMS lease adapter through
+adapter results while never returning secret material. Lease registry reads are
+audited and expose invariant counts for missing, mismatched or unsafe audit
+bindings so connector operators can inspect evidence quality before live
+sync. The boundary is deferred by default and can use a self-hosted Vault/KMS
+lease adapter through
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true`, still without requiring managed
 services. Provider-specific Vault/KMS lease profiles can be enabled through
 `AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true` to validate HashiCorp

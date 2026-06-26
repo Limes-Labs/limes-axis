@@ -167,6 +167,10 @@ It can also use provider-specific Vault/KMS adapter profiles with
 `AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED=true`; those profiles validate
 HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, KMS
 and local env references without reading or returning secret material.
+Credential lease registry reads now write `connector.credential_leases_read`
+audit evidence and report lease evidence invariants when a lease is missing an
+audit event, references a missing or mismatched ledger event, or carries
+evidence that says secret material was accessed.
 The connector run record slice adds metadata-only run records linked to
 append-only audit events, and governed connector dry-runs now pass through a
 deferred execution adapter that writes `connector.run.execution_deferred`

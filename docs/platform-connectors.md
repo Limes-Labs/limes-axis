@@ -348,6 +348,12 @@ runtime validates the declared provider mode, credential handle provider,
 secret reference prefix, lease path requirements and optional `kms://` key
 reference before writing lease evidence. It still never reads external secret
 material or returns raw credential values.
+Credential lease registry reads write `connector.credential_leases_read` audit
+evidence with only query filters, returned lease ids and invariant counts. The
+registry also reports `lease_evidence_invariants` for missing audit ids,
+unresolved audit ids, audit type mismatches, connector/handle/lease payload
+mismatches and evidence that reports secret material access. These invariants
+are exposed in the connector console per selected connector lease.
 
 The connector run endpoints store and query tenant-scoped run evidence. A run
 record includes:

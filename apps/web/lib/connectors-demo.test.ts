@@ -9,8 +9,10 @@ import {
   filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
+  filterConnectorCredentialLeaseInvariantsByLeases,
   findConnectorById,
   formatConnectorLabel,
+  type ManufacturingConnectorCredentialLeaseRegistry,
   type ManufacturingConnectorSyncCheckpointClaimRegistry,
   type ManufacturingConnectorSyncCheckpointRegistry,
   type ManufacturingConnectorRegistry,
@@ -308,6 +310,111 @@ const checkpointClaimRegistryFixture: ManufacturingConnectorSyncCheckpointClaimR
   claim_notes: ["Checkpoint claim records expose worker ownership and lease state."],
 };
 
+const credentialLeaseRegistryFixture: ManufacturingConnectorCredentialLeaseRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [],
+  leases: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      handle_id: "cred_external_db_readonly",
+      lease_id: "lease_external_db_readonly_20260627",
+      status: "active",
+      lease_mode: "deferred_vault_kms_lease",
+      runtime_boundary: "axis-credential-lease-broker",
+      requested_by: "axis-connector-runtime-role",
+      lease_purpose: "scheduled_sync_preflight",
+      secret_provider: "external_vault",
+      secret_ref: "vault://axis/demo/connectors/external-db-readonly",
+      vault_kms_policy: {
+        provider_mode: "self_hosted_vault",
+      },
+      permission_decision: {
+        allowed: true,
+        reason: "all_required_scopes_present",
+      },
+      lease_result: {
+        adapter: "axis-deferred-vault-kms-lease-adapter",
+        status: "lease_deferred",
+        external_secret_read: "false",
+        secret_material_returned: "false",
+        provider_mode: "deferred",
+        provider_lease_ref: "deferred-lease://tenant/lease_external_db_readonly_20260627",
+      },
+      granted_at: "2026-06-27T08:00:00Z",
+      expires_at: "2026-06-27T08:15:00Z",
+      renewal_due_at: "2026-06-27T08:10:00Z",
+      renewed_at: null,
+      renewed_by: null,
+      renewal_count: 0,
+      revoked_at: null,
+      revoked_by: null,
+      revocation_reason: null,
+      audit_event_id: "c59d53df-6f2f-43ea-9c60-12bc4f1391f8",
+      audit_event_type: "connector.credential_lease.requested",
+      notes: [],
+      created_at: "2026-06-27T08:00:00Z",
+    },
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      handle_id: "cred_file_csv_readonly",
+      lease_id: "lease_file_csv_readonly_20260627",
+      status: "active",
+      lease_mode: "deferred_vault_kms_lease",
+      runtime_boundary: "axis-credential-lease-broker",
+      requested_by: "axis-connector-runtime-role",
+      lease_purpose: "manual_import_preview",
+      secret_provider: "external_vault",
+      secret_ref: "vault://axis/demo/connectors/file-csv-readonly",
+      vault_kms_policy: {},
+      permission_decision: {
+        allowed: true,
+        reason: "all_required_scopes_present",
+      },
+      lease_result: {
+        adapter: "axis-deferred-vault-kms-lease-adapter",
+        status: "lease_deferred",
+        external_secret_read: "false",
+        secret_material_returned: "false",
+        provider_mode: "deferred",
+        provider_lease_ref: "deferred-lease://tenant/lease_file_csv_readonly_20260627",
+      },
+      granted_at: "2026-06-27T08:05:00Z",
+      expires_at: "2026-06-27T08:20:00Z",
+      renewal_due_at: "2026-06-27T08:15:00Z",
+      renewed_at: null,
+      renewed_by: null,
+      renewal_count: 0,
+      revoked_at: null,
+      revoked_by: null,
+      revocation_reason: null,
+      audit_event_id: null,
+      audit_event_type: "connector.credential_lease.requested",
+      notes: [],
+      created_at: "2026-06-27T08:05:00Z",
+    },
+  ],
+  lease_evidence_invariants: [
+    {
+      lease_id: "lease_external_db_readonly_20260627",
+      audit_event_id: "c59d53df-6f2f-43ea-9c60-12bc4f1391f8",
+      reason: "lease_audit_event_payload_mismatch",
+      detail: "Lease audit event payload must match connector_id, handle_id and lease_id.",
+    },
+    {
+      lease_id: "lease_file_csv_readonly_20260627",
+      audit_event_id: null,
+      reason: "lease_audit_event_missing",
+      detail: "Lease must reference an append-only audit event.",
+    },
+  ],
+  lease_notes: ["Credential lease records expose broker evidence only."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -482,6 +589,28 @@ describe("manufacturing connector helpers", () => {
         audit_event_id: null,
         reason: "claim_audit_event_missing",
         detail: "Claim must reference an append-only audit event.",
+      },
+    ]);
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("password");
+  });
+
+  it("filters credential lease evidence invariants for selected connector leases", () => {
+    const leases = credentialLeaseRegistryFixture.leases.filter(
+      (lease) => lease.connector_id === "external_db_operational_mirror",
+    );
+
+    const invariants = filterConnectorCredentialLeaseInvariantsByLeases(
+      credentialLeaseRegistryFixture,
+      leases,
+    );
+
+    expect(invariants).toEqual([
+      {
+        lease_id: "lease_external_db_readonly_20260627",
+        audit_event_id: "c59d53df-6f2f-43ea-9c60-12bc4f1391f8",
+        reason: "lease_audit_event_payload_mismatch",
+        detail: "Lease audit event payload must match connector_id, handle_id and lease_id.",
       },
     ]);
     expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
