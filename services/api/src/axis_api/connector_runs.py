@@ -99,6 +99,7 @@ class ConnectorSyncCheckpointClaimQuery(BaseModel):
     connector_id: str | None = Field(default=None, min_length=1)
     run_id: str | None = Field(default=None, min_length=1)
     status: str | None = Field(default=None, min_length=1)
+    claimed_by: str | None = Field(default=None, min_length=1)
     cursor: str | None = Field(default=None, min_length=1, max_length=600)
     limit: int = Field(default=100, ge=1, le=200)
 
@@ -475,6 +476,7 @@ def build_connector_sync_checkpoint_claim_registry(
         connector_id=query.connector_id,
         run_id=query.run_id,
         status=query.status,
+        claimed_by=query.claimed_by,
         cursor_created_at=cursor_created_at,
         cursor_row_id=cursor_row_id,
         limit=query.limit + 1,
@@ -548,6 +550,7 @@ def read_connector_sync_checkpoint_claim_registry(
                 "connector_id": query.connector_id,
                 "run_id": query.run_id,
                 "status": query.status,
+                "claimed_by": query.claimed_by,
                 "cursor": query.cursor,
                 "limit": query.limit,
                 "returned_claim_count": len(registry.claims),

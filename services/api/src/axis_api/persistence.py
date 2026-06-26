@@ -1718,6 +1718,7 @@ class AxisPersistenceRepository:
         connector_id: str | None = None,
         run_id: str | None = None,
         status: str | None = None,
+        claimed_by: str | None = None,
         cursor_created_at: datetime | None = None,
         cursor_row_id: UUID | None = None,
         limit: int = 100,
@@ -1737,6 +1738,10 @@ class AxisPersistenceRepository:
             statement = statement.where(ConnectorSyncCheckpointClaim.run_id == run_id)
         if status is not None:
             statement = statement.where(ConnectorSyncCheckpointClaim.status == status)
+        if claimed_by is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpointClaim.claimed_by == claimed_by
+            )
         if cursor_created_at is not None and cursor_row_id is not None:
             statement = statement.where(
                 or_(
