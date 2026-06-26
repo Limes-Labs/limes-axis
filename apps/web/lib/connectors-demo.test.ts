@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   findConnectorById,
   formatConnectorLabel,
+  type ManufacturingConnectorSyncCheckpointClaimRegistry,
   type ManufacturingConnectorSyncCheckpointRegistry,
   type ManufacturingConnectorRegistry,
 } from "./connectors-demo";
@@ -179,6 +182,98 @@ const checkpointRegistryFixture: ManufacturingConnectorSyncCheckpointRegistry = 
   checkpoint_notes: ["Sync checkpoints are tenant-scoped runtime evidence for retry/resume."],
 };
 
+const checkpointClaimRegistryFixture: ManufacturingConnectorSyncCheckpointClaimRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [],
+  claims: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      run_id: "run_external_db_sync_20260625",
+      checkpoint_id: "chk_external_db_sync_2",
+      claim_id: "claim_external_db_sync_2_worker_b",
+      status: "released",
+      claimed_by: "axis-sync-worker-role-b",
+      idempotency_key: "idem_claim_external_db_sync_2_worker_b",
+      lease_duration_seconds: 900,
+      lease_expires_at: "2026-06-25T08:30:00Z",
+      renewed_at: null,
+      renewed_by: null,
+      renewal_count: 0,
+      released_at: "2026-06-25T08:21:00Z",
+      released_by: "axis-sync-worker-role-b",
+      release_reason: "checkpoint handed back after retry planning",
+      claim_result: {
+        external_sync_started: false,
+        secret_material_returned: false,
+        worker_claim_only: true,
+      },
+      audit_event_id: "9ed40ef1-55bb-4f06-8aa5-d3b0a9100769",
+      audit_event_type: "connector.run.sync_checkpoint_claim_released",
+      notes: ["Released claim from the API response."],
+      created_at: "2026-06-25T08:16:00Z",
+    },
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      run_id: "run_file_csv_sync_20260625",
+      checkpoint_id: "chk_file_csv_sync_1",
+      claim_id: "claim_file_csv_sync_1_worker",
+      status: "claimed",
+      claimed_by: "axis-sync-worker-role-file",
+      idempotency_key: "idem_claim_file_csv_sync_1_worker",
+      lease_duration_seconds: 900,
+      lease_expires_at: "2026-06-25T08:25:00Z",
+      renewed_at: null,
+      renewed_by: null,
+      renewal_count: 0,
+      released_at: null,
+      released_by: null,
+      release_reason: null,
+      claim_result: {
+        external_sync_started: false,
+        secret_material_returned: false,
+        worker_claim_only: true,
+      },
+      audit_event_id: null,
+      audit_event_type: "connector.run.sync_checkpoint_claimed",
+      notes: [],
+      created_at: "2026-06-25T08:11:00Z",
+    },
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      run_id: "run_external_db_sync_20260625",
+      checkpoint_id: "chk_external_db_sync_1",
+      claim_id: "claim_external_db_sync_1_worker_a",
+      status: "claimed",
+      claimed_by: "axis-sync-worker-role-a",
+      idempotency_key: "idem_claim_external_db_sync_1_worker_a",
+      lease_duration_seconds: 600,
+      lease_expires_at: "2026-06-25T08:15:00Z",
+      renewed_at: "2026-06-25T08:08:00Z",
+      renewed_by: "axis-sync-worker-role-a",
+      renewal_count: 1,
+      released_at: null,
+      released_by: null,
+      release_reason: null,
+      claim_result: {
+        external_sync_started: false,
+        secret_material_returned: false,
+        worker_claim_only: true,
+      },
+      audit_event_id: null,
+      audit_event_type: "connector.run.sync_checkpoint_claim_renewed",
+      notes: ["Active claim from the API response."],
+      created_at: "2026-06-25T08:06:00Z",
+    },
+  ],
+  claim_notes: ["Checkpoint claim records expose worker ownership and lease state."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -286,6 +381,33 @@ describe("manufacturing connector helpers", () => {
 
     expect(path).toBe(
       "/demo/manufacturing/connectors/runs/checkpoints?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aread&created_after=2026-06-25T10%3A00%3A00Z&created_before=2026-06-25T11%3A00%3A00Z",
+    );
+  });
+
+  it("filters checkpoint claims for the selected checkpoint records without secret material", () => {
+    const checkpoints = filterConnectorSyncCheckpointsByConnector(
+      checkpointRegistryFixture,
+      "external_db_operational_mirror",
+    );
+    const claims = filterConnectorSyncCheckpointClaimsByCheckpoints(
+      checkpointClaimRegistryFixture,
+      checkpoints,
+    );
+
+    expect(claims.map((claim) => claim.claim_id)).toEqual([
+      "claim_external_db_sync_1_worker_a",
+      "claim_external_db_sync_2_worker_b",
+    ]);
+    expect(JSON.stringify(claims).toLowerCase()).not.toContain("dsn");
+    expect(JSON.stringify(claims).toLowerCase()).not.toContain("credential_value");
+    expect(JSON.stringify(claims).toLowerCase()).not.toContain("password");
+  });
+
+  it("builds connector sync checkpoint claim query paths with the read scope", () => {
+    const path = buildConnectorSyncCheckpointClaimQueryPath("tenant_demo_manufacturing");
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/runs/checkpoints/claims?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aclaim%3Aread",
     );
   });
 });

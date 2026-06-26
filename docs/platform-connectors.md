@@ -458,7 +458,10 @@ Checkpoint claims are queryable at
 checkpoint, status and limit filters. The endpoint requires
 `connectors:sync:checkpoint:claim:read` and appends
 `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
-filters, returned claim count and claim ids only.
+filters, returned claim count and claim ids only. The `/connectors` console
+uses the same read scope and registry endpoint to show worker ownership, lease,
+renewal/release and secret-material evidence for claims attached to the
+selected connector checkpoints.
 Claim renewal and release are exposed through dedicated endpoints with
 `connectors:sync:checkpoint:claim:renew` and
 `connectors:sync:checkpoint:claim:release`, updating the same persisted lease
@@ -751,6 +754,8 @@ contract keeps these boundaries visible:
 - active checkpoint claim conflict handling before duplicate worker ownership;
 - stale checkpoint claim expiry before replacement worker ownership;
 - checkpoint claim registry reads with dedicated scope and audit evidence;
+- connector console checkpoint claim observability without browser-local
+  fallback records;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;

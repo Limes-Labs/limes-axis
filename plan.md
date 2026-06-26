@@ -154,6 +154,7 @@ Foundation acceptance is tracked in
 - [x] Reject competing active worker claims for the same sync checkpoint.
 - [x] Expire stale worker claims before replacement sync checkpoint ownership.
 - [x] Expose worker checkpoint claim registry with read scope and audit evidence.
+- [x] Show worker checkpoint claim registry in the connector console.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -510,11 +511,14 @@ provider-specific connector execution.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.
 The `/connectors` console now fetches connector, credential, egress policy,
-run, sync checkpoint, proposal, import and promotion records from the Axis API.
-Checkpoint rows are requested with the checkpoint read scope and shown per
-selected connector with sequence, adapter, cursor summary, result evidence and
-audit refs. If the backend is unavailable it shows an API-required empty state
-instead of rendering local connector fallback records.
+run, sync checkpoint, checkpoint claim, proposal, import and promotion records
+from the Axis API. Checkpoint rows are requested with the checkpoint read scope
+and shown per selected connector with sequence, adapter, cursor summary, result
+evidence and audit refs. Checkpoint claim rows are requested with
+`connectors:sync:checkpoint:claim:read` and shown next to the selected
+connector checkpoints with worker ownership, lease, renewal/release and
+secret-material evidence. If the backend is unavailable it shows an
+API-required empty state instead of rendering local connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed, initially marked with `graph_mutation_status=not_applied` and
