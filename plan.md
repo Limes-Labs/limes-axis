@@ -154,6 +154,7 @@ Foundation acceptance is tracked in
 - [x] Reject competing active worker claims for the same sync checkpoint.
 - [x] Expire stale worker claims before replacement sync checkpoint ownership.
 - [x] Expose worker checkpoint claim registry with read scope and audit evidence.
+- [x] Filter worker checkpoint claim registry by connector and run.
 - [x] Show worker checkpoint claim registry in the connector console.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
@@ -499,8 +500,8 @@ unexpired active claim for the same checkpoint is rejected with 409 before a
 duplicate claim/audit record is written. Expired claims are marked `expired`
 with `connector.run.sync_checkpoint_claim_expired` before replacement ownership
 is created. Claim records are queryable at
-`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
-checkpoint, status and limit filters. Reads require
+`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant, connector,
+run, checkpoint, status and limit filters. Reads require
 `connectors:sync:checkpoint:claim:read` and append
 `connector.run.sync_checkpoint_claims_read` audit evidence with filters,
 returned claim count and claim ids only. Claim renewal and release update the
