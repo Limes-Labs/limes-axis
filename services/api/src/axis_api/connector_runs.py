@@ -1244,6 +1244,16 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "claim-created audit event.",
                 "target_sync_checkpoint_claim_audit_invalid",
             )
+        claim_audit_event = repository.get_audit_event(
+            run.tenant_id,
+            claim.audit_event_id,
+        )
+        if claim_audit_event is None:
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim references an audit "
+                "event that does not exist.",
+                "target_sync_checkpoint_claim_audit_event_not_found",
+            )
         checkpoint = repository.get_connector_sync_checkpoint(
             run.tenant_id,
             claim.checkpoint_id,
