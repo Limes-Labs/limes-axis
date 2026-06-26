@@ -545,7 +545,9 @@ Delivered:
   run, and the checkpoint `evidence_refs` must include its audit event id. That
   audit id must resolve through the tenant-scoped append-only audit ledger
   before Axis lets an external DB live-query preflight enter the provider
-  runtime.
+  runtime. The checkpoint result evidence must also keep
+  `external_query_started=false`, `credential_material_returned=false` and
+  `graph_mutation_started=false`.
   Non-live execution paths do not require a checkpoint claim target.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using

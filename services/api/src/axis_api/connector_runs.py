@@ -1298,12 +1298,25 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "matching audit ledger event.",
                 "target_sync_checkpoint_claim_checkpoint_audit_event_mismatch",
             )
+        if not _sync_checkpoint_result_is_public_safe(checkpoint.result_summary):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint result evidence is not public-safe.",
+                "target_sync_checkpoint_claim_checkpoint_result_unsafe",
+            )
         return claim
 
     raise ConnectorRunValidationError(
         "Live connector sync requires an active checkpoint claim for the executing worker.",
         "target_sync_checkpoint_claim_not_active",
     )
+
+
+def _sync_checkpoint_result_is_public_safe(result_summary: dict) -> bool:
+    if str(result_summary.get("external_query_started", "false")).lower() != "false":
+        return False
+    if str(result_summary.get("credential_material_returned", "false")).lower() != "false":
+        return False
+    return str(result_summary.get("graph_mutation_started", "false")).lower() == "false"
 
 
 def _run_from_record(record) -> ConnectorRunRecord:

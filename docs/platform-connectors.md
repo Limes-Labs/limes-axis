@@ -427,7 +427,10 @@ that does not reference its audit event id is rejected with
 evidence referencing a missing audit ledger event is rejected with
 `target_sync_checkpoint_claim_checkpoint_audit_event_not_found`, and a
 connector/run mismatch is rejected with
-`target_sync_checkpoint_claim_checkpoint_audit_event_mismatch`. When the target
+`target_sync_checkpoint_claim_checkpoint_audit_event_mismatch`. Checkpoint
+result evidence that says an external query started, credential material was
+returned or a graph mutation started is rejected with
+`target_sync_checkpoint_claim_checkpoint_result_unsafe`. When the target
 claim is valid, the preflight result summary records public-safe claim
 evidence: claim id, checkpoint id, worker and lease expiry. For non-live
 execution paths, `checkpoint_claim_id` remains optional.
@@ -785,6 +788,7 @@ contract keeps these boundaries visible:
 - active worker checkpoint claim gate before external DB live-query preflight;
 - explicit checkpoint claim target binding for external DB live-query preflight;
 - checkpoint claim audit ledger lookup before external DB live-query preflight;
+- checkpoint result public-safety gate before external DB live-query preflight;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback
