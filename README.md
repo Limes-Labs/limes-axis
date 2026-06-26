@@ -227,6 +227,9 @@ requests the same registry with that read scope and renders worker ownership,
 lease, renewal/release and secret-material evidence for claims attached to the
 selected connector checkpoints. Dedicated renewal/release endpoints extend or
 close the same persisted claim with separate scopes and audit evidence.
+External DB live-query preflight now requires an active checkpoint claim owned
+by the executing worker before the provider-specific runtime boundary is
+called; valid preflights include public-safe claim evidence in the sync result.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

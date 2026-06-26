@@ -110,11 +110,14 @@ raw connection strings or credential material. When a live query is requested,
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can mark the preflight as
 passed only when the self-hosted egress policy boundary validates a persisted
 tenant-scoped connector egress policy for the connector profile and the run uses
-a lease-scoped secret reference; the slice still records
-`external_query_started=false` and returns no credential material. The preflight
-records redacted egress policy evidence from the repository-backed policy
-record, the already validated credential lease result and secret reference
-resolver evidence. Unknown, unpersisted or unapproved egress policies are
+a lease-scoped secret reference. The executing worker must also hold an active
+checkpoint claim for the same run before the provider-specific runtime is
+called; missing claims are rejected without preflight audit or a new execution
+checkpoint. The slice still records `external_query_started=false` and returns
+no credential material. The preflight records redacted egress policy evidence
+from the repository-backed policy record, the already validated credential lease
+result, secret reference resolver evidence and public-safe checkpoint claim
+evidence. Unknown, unpersisted or unapproved egress policies are
 blocked before secret retrieval is considered; missing lease references and
 lease results that say secret material was returned are also blocked. The
 resolver remains reference-only and does not return credential material.
