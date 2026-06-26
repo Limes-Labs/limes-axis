@@ -93,6 +93,7 @@ POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/runs/checkpoints
+GET /demo/manufacturing/connectors/runs/checkpoints/claims
 POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims
 POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew
 POST /demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release
@@ -452,6 +453,12 @@ code. A second unexpired active claim for the same checkpoint is rejected with
 Expired claims are marked `expired` with
 `connector.run.sync_checkpoint_claim_expired` before replacement ownership is
 created.
+Checkpoint claims are queryable at
+`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
+checkpoint, status and limit filters. The endpoint requires
+`connectors:sync:checkpoint:claim:read` and appends
+`connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
+filters, returned claim count and claim ids only.
 Claim renewal and release are exposed through dedicated endpoints with
 `connectors:sync:checkpoint:claim:renew` and
 `connectors:sync:checkpoint:claim:release`, updating the same persisted lease
@@ -743,6 +750,7 @@ contract keeps these boundaries visible:
 - checkpoint claim renewal/release with dedicated scopes and audit evidence;
 - active checkpoint claim conflict handling before duplicate worker ownership;
 - stale checkpoint claim expiry before replacement worker ownership;
+- checkpoint claim registry reads with dedicated scope and audit evidence;
 - connector console checkpoint observability without browser-local fallback
   records;
 - persisted ontology proposal records before controlled graph mutation;
