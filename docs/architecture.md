@@ -141,7 +141,10 @@ The sync checkpoint registry reports public-safe evidence invariants for
 checkpoint audit drift, including missing audit refs, unresolved ledger events,
 connector/run/checkpoint payload mismatches and unsafe checkpoint evidence, so
 operators can detect historical drift before provider-specific adapters move
-past the preflight boundary.
+past the preflight boundary. The checkpoint claim registry applies the same
+public-safe invariant pattern to claim ownership evidence, including missing
+or unresolved claim audit refs, connector/run/checkpoint/claim/worker payload
+mismatches and worker-lease-only violations.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

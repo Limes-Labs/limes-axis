@@ -222,10 +222,12 @@ limit filters. Invalid time windows are rejected before storage reads. Reads
 return `has_more` and `next_cursor` for stable cursor-based pagination. Reads require
 `connectors:sync:checkpoint:claim:read` and append
 `connector.run.sync_checkpoint_claims_read` audit evidence with filters,
-pagination metadata, counts and claim ids only. The `/connectors` console
+pagination metadata, counts, claim evidence invariant count and claim ids only.
+The registry reports public-safe `claim_evidence_invariants` for missing,
+unresolved, mismatched or unsafe claim audit evidence. The `/connectors` console
 requests the same registry with that read scope and renders worker ownership,
-lease, renewal/release and secret-material evidence for claims attached to the
-selected connector checkpoints. Dedicated renewal/release endpoints extend or
+lease, renewal/release, invariant status and secret-material evidence for claims
+attached to the selected connector checkpoints. Dedicated renewal/release endpoints extend or
 close the same persisted claim with separate scopes and audit evidence.
 External DB live-query preflight now requires an active checkpoint claim owned
 by the executing worker before the provider-specific runtime boundary is

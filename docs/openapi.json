@@ -6927,6 +6927,49 @@
         "title": "ConnectorSchemaField",
         "type": "object"
       },
+      "ConnectorSyncCheckpointClaimEvidenceInvariant": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "checkpoint_id": {
+            "minLength": 1,
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "claim_id": {
+            "minLength": 1,
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "checkpoint_id",
+          "reason",
+          "detail"
+        ],
+        "title": "ConnectorSyncCheckpointClaimEvidenceInvariant",
+        "type": "object"
+      },
       "ConnectorSyncCheckpointClaimRecord": {
         "properties": {
           "audit_event_id": {
@@ -8922,6 +8965,13 @@
       },
       "ManufacturingConnectorSyncCheckpointClaimRegistry": {
         "properties": {
+          "claim_evidence_invariants": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorSyncCheckpointClaimEvidenceInvariant"
+            },
+            "title": "Claim Evidence Invariants",
+            "type": "array"
+          },
           "claim_notes": {
             "items": {
               "type": "string"

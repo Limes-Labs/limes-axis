@@ -5028,6 +5028,23 @@ def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
             sequence=1,
             created_at=created_at,
         )
+        claim_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="axis-sync-worker-role",
+                event_type="connector.run.sync_checkpoint_claimed",
+                payload={
+                    "connector_id": "external_db_operational_mirror",
+                    "run_id": "run_checkpoint_claim_registry",
+                    "checkpoint_id": "chk_checkpoint_claim_registry",
+                    "claim_id": "claim_checkpoint_registry_20260625_1000",
+                    "claimed_by": "axis-sync-worker-role",
+                    "external_sync_started": False,
+                    "secret_material_returned": False,
+                    "worker_claim_only": True,
+                },
+            )
+        )
         repository.create_connector_sync_checkpoint_claim(
             ConnectorSyncCheckpointClaimCreate(
                 tenant_id="tenant_demo_manufacturing",
@@ -5045,6 +5062,7 @@ def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
                     "secret_material_returned": False,
                     "worker_claim_only": True,
                 },
+                audit_event_id=claim_event.id,
                 audit_event_type="connector.run.sync_checkpoint_claimed",
                 notes=["Seeded worker lease for claim registry read test."],
             )
@@ -5113,6 +5131,7 @@ def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
         "cursor": None,
         "limit": 10,
         "returned_claim_count": 1,
+        "claim_evidence_invariant_count": 0,
         "next_cursor": None,
         "has_more": False,
         "claim_ids": ["claim_checkpoint_registry_20260625_1000"],
@@ -5122,6 +5141,91 @@ def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
     assert "vault://" not in str(event.payload).lower()
     assert "credential_value" not in str(event.payload).lower()
     assert "dsn" not in str(event.payload).lower()
+
+
+def test_connector_sync_checkpoint_claim_registry_reports_audit_payload_invariants(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_claim_invariant_target_20260627",
+            run_id="run_claim_invariant_20260627",
+            sequence=1,
+            created_at=datetime(2026, 6, 27, 9, 0, tzinfo=UTC),
+        )
+        claim_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="axis-sync-worker-role",
+                event_type="connector.run.sync_checkpoint_claimed",
+                payload={
+                    "connector_id": "external_db_operational_mirror",
+                    "run_id": "run_claim_invariant_20260627",
+                    "checkpoint_id": "chk_claim_invariant_target_20260627",
+                    "claim_id": "claim_invariant_target_20260627",
+                    "claimed_by": "axis-sync-worker-other-role",
+                    "external_sync_started": False,
+                    "secret_material_returned": False,
+                    "worker_claim_only": True,
+                },
+            )
+        )
+        repository.create_connector_sync_checkpoint_claim(
+            ConnectorSyncCheckpointClaimCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_claim_invariant_20260627",
+                checkpoint_id="chk_claim_invariant_target_20260627",
+                claim_id="claim_invariant_target_20260627",
+                status="claimed",
+                claimed_by="axis-sync-worker-role",
+                idempotency_key="idem_claim_invariant_target_20260627",
+                lease_duration_seconds=900,
+                lease_expires_at=datetime(2026, 6, 27, 9, 15, tzinfo=UTC),
+                claim_result={
+                    "external_sync_started": False,
+                    "secret_material_returned": False,
+                    "worker_claim_only": True,
+                },
+                audit_event_id=claim_event.id,
+                audit_event_type="connector.run.sync_checkpoint_claimed",
+                notes=["Claim seeded with mismatched audit payload."],
+            )
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "checkpoint_id": "chk_claim_invariant_target_20260627",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metrics"][3]["label"] == "Claim Evidence Invariants"
+    assert body["metrics"][3]["value"] == "1"
+    assert body["metrics"][3]["status"] == "watch"
+    assert body["claim_evidence_invariants"] == [
+        {
+            "claim_id": "claim_invariant_target_20260627",
+            "checkpoint_id": "chk_claim_invariant_target_20260627",
+            "audit_event_id": str(claim_event.id),
+            "reason": "claim_audit_event_payload_mismatch",
+            "detail": (
+                "Claim audit event payload must match connector_id, run_id, "
+                "checkpoint_id, claim_id and claimed_by."
+            ),
+        }
+    ]
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
 
 
 def test_connector_sync_checkpoint_claims_endpoint_filters_by_connector_and_run(
