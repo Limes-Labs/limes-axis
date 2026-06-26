@@ -1226,6 +1226,7 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
 
     claims = repository.list_connector_sync_checkpoint_claims(
         tenant_id=run.tenant_id,
+        connector_id=run.connector_id,
         run_id=run.run_id,
         status="claimed",
         claimed_by=request.executed_by,

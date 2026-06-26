@@ -2117,6 +2117,111 @@ def test_execute_external_db_live_query_preflight_requires_checkpoint_claim_id(
     assert run.result_summary.get("sync_execution_result") is None
 
 
+def test_execute_external_db_live_query_preflight_rejects_claim_for_other_connector(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+        seed_external_db_egress_policy(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_preflight_wrong_connector_claim_20260626",
+        dispatch_id="dispatch_external_db_orders_live_preflight_wrong_connector_claim_20260626",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_wrong_connector_claim_20260626"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+    with session_scope(session_factory) as session:
+        seed_active_sync_checkpoint_claim(
+            AxisPersistenceRepository(session),
+            connector_id="file_csv_manufacturing_assets",
+            run_id="run_external_db_orders_live_preflight_wrong_connector_claim_20260626",
+            checkpoint_id="chk_live_preflight_wrong_connector_claim_20260626",
+            claim_id="claim_live_preflight_wrong_connector_20260626",
+        )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_preflight_wrong_connector_claim_20260626/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": (
+                "sync_exec_external_db_orders_live_preflight_wrong_connector_claim_20260626"
+            ),
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "checkpoint_claim_id": "claim_live_preflight_wrong_connector_20260626",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_preflight_wrong_connector_claim_20260626"
+            ),
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "target_sync_checkpoint_claim_not_active"
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_preflight_passed",
+        )
+        checkpoints = repository.list_connector_sync_checkpoints(
+            "tenant_demo_manufacturing",
+            run_id="run_external_db_orders_live_preflight_wrong_connector_claim_20260626",
+        )
+        run = repository.get_connector_run(
+            "tenant_demo_manufacturing",
+            "run_external_db_orders_live_preflight_wrong_connector_claim_20260626",
+        )
+
+    execution_events = [
+        event
+        for event in events
+        if event.payload.get("execution_id")
+        == "sync_exec_external_db_orders_live_preflight_wrong_connector_claim_20260626"
+    ]
+    execution_checkpoints = [
+        checkpoint
+        for checkpoint in checkpoints
+        if checkpoint.checkpoint_id
+        == "chk_sync_exec_external_db_orders_live_preflight_wrong_connector_claim_20260626"
+    ]
+    assert execution_events == []
+    assert execution_checkpoints == []
+    assert run is not None
+    assert run.status == "sync_dispatch_deferred"
+    assert run.result_summary.get("sync_execution_result") is None
+
+
 def test_execute_external_db_live_query_preflight_requires_active_worker_claim(
     session_factory: sessionmaker[Session],
 ) -> None:
