@@ -541,8 +541,10 @@ Delivered:
   same connector and run. Its audit event type must be
   `connector.run.sync_checkpoint_claimed`, and its audit event id must resolve
   through the tenant-scoped append-only audit ledger with matching connector,
-  run, checkpoint, claim and worker payload binding. Its checkpoint id must
-  resolve to persisted
+  run, checkpoint, claim and worker payload binding. Its audit payload must
+  also remain worker-lease-only with `external_sync_started=false`,
+  `secret_material_returned=false` and `worker_claim_only=true`. Its checkpoint
+  id must resolve to persisted
   `sync_execution` checkpoint evidence with status
   `sync_execution_preflight_passed` and audit event type
   `connector.run.sync_execution_preflight_passed` for the same connector and
