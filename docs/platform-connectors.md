@@ -406,16 +406,17 @@ a live-query preflight path. By default it writes
 policy boundary must validate a persisted tenant-scoped connector egress policy
 for the connector profile, and the executing worker must target an active
 checkpoint claim for the same connector and run with `checkpoint_claim_id`,
-before `connector.run.sync_execution_preflight_passed` can be written. Policies
-are created and listed through
+backed by persisted checkpoint evidence, before
+`connector.run.sync_execution_preflight_passed` can be written. Policies are
+created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
 the repository-backed record and does not rely on a hardcoded policy catalog.
-Missing `checkpoint_claim_id` or inactive target claims are rejected before the
-provider-specific runtime is called, before preflight audit is written and
-before a new execution checkpoint is created. When the target claim is valid,
-the preflight result summary records public-safe claim evidence: claim id,
-checkpoint id, worker and lease expiry. For non-live execution paths,
-`checkpoint_claim_id` remains optional.
+Missing `checkpoint_claim_id`, inactive target claims or missing checkpoint
+evidence are rejected before the provider-specific runtime is called, before
+preflight audit is written and before a new execution checkpoint is created.
+When the target claim is valid, the preflight result summary records public-safe
+claim evidence: claim id, checkpoint id, worker and lease expiry. For non-live
+execution paths, `checkpoint_claim_id` remains optional.
 The result summary includes the egress policy runtime boundary, policy
 reference, scope, mode and private endpoint reference. Unknown, unpersisted or
 unapproved egress policies write
