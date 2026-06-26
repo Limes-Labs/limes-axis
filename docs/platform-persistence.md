@@ -540,7 +540,8 @@ Delivered:
   must be active, unexpired, owned by the executing worker and attached to the
   same connector and run. Its audit event type must be
   `connector.run.sync_checkpoint_claimed`, and its audit event id must resolve
-  through the tenant-scoped append-only audit ledger. Its checkpoint id must
+  through the tenant-scoped append-only audit ledger with matching connector,
+  run, checkpoint, claim and worker payload binding. Its checkpoint id must
   resolve to persisted
   `sync_execution` checkpoint evidence with status
   `sync_execution_preflight_passed` and audit event type

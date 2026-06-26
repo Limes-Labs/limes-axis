@@ -117,7 +117,8 @@ checkpoint. When `live_query_requested=true`, `execute-sync` must provide
 `checkpoint_claim_id`; Axis binds the preflight to that exact active worker
 lease, requires the claim to be backed by
 `connector.run.sync_checkpoint_claimed` audit evidence that resolves in the
-tenant-scoped append-only audit ledger and verifies eligible
+tenant-scoped append-only audit ledger for the same connector, run,
+checkpoint, claim and worker, and verifies eligible
 `sync_execution_preflight_passed` checkpoint
 evidence backed by `connector.run.sync_execution_preflight_passed` audit for
 the same connector and run, with the checkpoint audit id present in
