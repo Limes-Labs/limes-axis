@@ -414,7 +414,9 @@ Missing active worker claims are rejected before the provider-specific runtime
 is called, before preflight audit is written and before a new execution
 checkpoint is created. When a valid claim exists, the preflight result summary
 records public-safe claim evidence: claim id, checkpoint id, worker and lease
-expiry.
+expiry. `execute-sync` may include `checkpoint_claim_id` to target a specific
+worker lease; if present, that exact claim must be active, unexpired, owned by
+the executing worker and attached to the same run.
 The result summary includes the egress policy runtime boundary, policy
 reference, scope, mode and private endpoint reference. Unknown, unpersisted or
 unapproved egress policies write
@@ -767,6 +769,7 @@ contract keeps these boundaries visible:
 - claiming-worker filters for checkpoint claim registry reads;
 - created time-window filters for checkpoint claim registry reads;
 - active worker checkpoint claim gate before external DB live-query preflight;
+- explicit checkpoint claim target binding for external DB live-query preflight;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback

@@ -6777,6 +6777,19 @@
             "title": "Actor Scopes",
             "type": "array"
           },
+          "checkpoint_claim_id": {
+            "anyOf": [
+              {
+                "maxLength": 220,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Claim Id"
+          },
           "credential_lease_id": {
             "maxLength": 180,
             "minLength": 1,

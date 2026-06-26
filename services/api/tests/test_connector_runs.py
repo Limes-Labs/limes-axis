@@ -1925,6 +1925,91 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
     assert "dsn" not in str(checkpoint.cursor).lower()
 
 
+def test_execute_external_db_live_query_preflight_uses_requested_checkpoint_claim(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+        seed_external_db_egress_policy(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_preflight_claim_target_20260626",
+        dispatch_id="dispatch_external_db_orders_live_preflight_claim_target_20260626",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_claim_target_20260626"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_sync_checkpoint_claim(
+            repository,
+            run_id="run_external_db_orders_live_preflight_claim_target_20260626",
+            checkpoint_id="chk_live_preflight_claim_target_first_20260626",
+            claim_id="claim_live_preflight_claim_target_first_20260626",
+        )
+        seed_active_sync_checkpoint_claim(
+            repository,
+            run_id="run_external_db_orders_live_preflight_claim_target_20260626",
+            checkpoint_id="chk_live_preflight_claim_target_requested_20260626",
+            claim_id="claim_live_preflight_claim_target_requested_20260626",
+        )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_preflight_claim_target_20260626/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_live_preflight_claim_target_20260626",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "checkpoint_claim_id": "claim_live_preflight_claim_target_requested_20260626",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_preflight_claim_target_20260626"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    result_summary = response.json()["sync_execution_result"]["result_summary"]
+    assert result_summary["checkpoint_claim_id"] == (
+        "claim_live_preflight_claim_target_requested_20260626"
+    )
+    assert result_summary["checkpoint_claim_checkpoint_id"] == (
+        "chk_live_preflight_claim_target_requested_20260626"
+    )
+    assert "claim_live_preflight_claim_target_first_20260626" not in str(
+        result_summary
+    )
+
+
 def test_execute_external_db_live_query_preflight_requires_active_worker_claim(
     session_factory: sessionmaker[Session],
 ) -> None:

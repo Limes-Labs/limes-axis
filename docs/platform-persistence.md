@@ -536,7 +536,9 @@ Delivered:
   filters, pagination metadata, returned claim count and claim ids only.
 - external DB live-query preflight requires a persisted active checkpoint claim
   owned by the executing worker before the provider-specific runtime boundary is
-  called.
+  called. If `checkpoint_claim_id` is supplied, the targeted persisted claim
+  must be active, unexpired, owned by the executing worker and attached to the
+  same run.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing
