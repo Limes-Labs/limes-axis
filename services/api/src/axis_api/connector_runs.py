@@ -1236,8 +1236,24 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
     for claim in claims:
         if claim.claim_id != request.checkpoint_claim_id:
             continue
-        if _ensure_timezone(claim.lease_expires_at) > now:
-            return claim
+        if _ensure_timezone(claim.lease_expires_at) <= now:
+            continue
+        checkpoint = repository.get_connector_sync_checkpoint(
+            run.tenant_id,
+            claim.checkpoint_id,
+        )
+        if checkpoint is None:
+            raise ConnectorRunValidationError(
+                "Live connector sync requires persisted checkpoint evidence "
+                "for the targeted claim.",
+                "target_sync_checkpoint_claim_checkpoint_not_found",
+            )
+        if checkpoint.connector_id != run.connector_id or checkpoint.run_id != run.run_id:
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim evidence does not match the run.",
+                "target_sync_checkpoint_claim_checkpoint_mismatch",
+            )
+        return claim
 
     raise ConnectorRunValidationError(
         "Live connector sync requires an active checkpoint claim for the executing worker.",

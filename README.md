@@ -231,8 +231,8 @@ External DB live-query preflight now requires an active checkpoint claim owned
 by the executing worker before the provider-specific runtime boundary is
 called. When `live_query_requested=true`, `execute-sync` must provide
 `checkpoint_claim_id` so Axis binds the preflight to one active, unexpired
-worker lease for the same connector and run; valid preflights include
-public-safe claim evidence in the sync result.
+worker lease for the same connector and run with persisted checkpoint evidence;
+valid preflights include public-safe claim evidence in the sync result.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import
