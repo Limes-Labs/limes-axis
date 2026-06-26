@@ -93,6 +93,8 @@ class ConnectorSyncCheckpointQuery(BaseModel):
 class ConnectorSyncCheckpointClaimQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     checkpoint_id: str | None = Field(default=None, min_length=1)
+    connector_id: str | None = Field(default=None, min_length=1)
+    run_id: str | None = Field(default=None, min_length=1)
     status: str | None = Field(default=None, min_length=1)
     limit: int = Field(default=100, ge=1, le=200)
 
@@ -463,6 +465,8 @@ def build_connector_sync_checkpoint_claim_registry(
     records = repository.list_connector_sync_checkpoint_claims(
         tenant_id=query.tenant_id,
         checkpoint_id=query.checkpoint_id,
+        connector_id=query.connector_id,
+        run_id=query.run_id,
         status=query.status,
         limit=query.limit,
     )
@@ -523,6 +527,8 @@ def read_connector_sync_checkpoint_claim_registry(
             event_type=SYNC_CHECKPOINT_CLAIM_READ_AUDIT_EVENT_TYPE,
             payload={
                 "checkpoint_id": query.checkpoint_id,
+                "connector_id": query.connector_id,
+                "run_id": query.run_id,
                 "status": query.status,
                 "limit": query.limit,
                 "returned_claim_count": len(registry.claims),

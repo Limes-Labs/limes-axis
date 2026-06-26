@@ -454,8 +454,8 @@ Expired claims are marked `expired` with
 `connector.run.sync_checkpoint_claim_expired` before replacement ownership is
 created.
 Checkpoint claims are queryable at
-`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
-checkpoint, status and limit filters. The endpoint requires
+`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant, connector,
+run, checkpoint, status and limit filters. The endpoint requires
 `connectors:sync:checkpoint:claim:read` and appends
 `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
 filters, returned claim count and claim ids only. The `/connectors` console
@@ -754,6 +754,7 @@ contract keeps these boundaries visible:
 - active checkpoint claim conflict handling before duplicate worker ownership;
 - stale checkpoint claim expiry before replacement worker ownership;
 - checkpoint claim registry reads with dedicated scope and audit evidence;
+- connector/run filters for checkpoint claim registry reads;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback

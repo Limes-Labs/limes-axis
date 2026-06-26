@@ -216,8 +216,8 @@ claim for the same checkpoint is rejected with 409 before duplicate audit or
 worker ownership evidence is written. Expired claims are marked `expired` with
 `connector.run.sync_checkpoint_claim_expired` before replacement ownership is
 created. Claim records are queryable through
-`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
-checkpoint, status and limit filters. Reads require
+`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant, connector,
+run, checkpoint, status and limit filters. Reads require
 `connectors:sync:checkpoint:claim:read` and append
 `connector.run.sync_checkpoint_claims_read` audit evidence with filters, counts
 and claim ids only. The `/connectors` console requests the same registry with

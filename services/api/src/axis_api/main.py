@@ -2104,6 +2104,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         checkpoint_id: str | None = Query(default=None, min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        run_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         actor_scopes: list[str] = CheckpointActorScopesQuery,
         limit: int = Query(default=100, ge=1, le=200),
@@ -2118,6 +2120,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ConnectorSyncCheckpointClaimQuery(
                 tenant_id=tenant_id,
                 checkpoint_id=checkpoint_id,
+                connector_id=connector_id,
+                run_id=run_id,
                 status=status,
                 limit=limit,
             ),

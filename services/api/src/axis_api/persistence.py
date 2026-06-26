@@ -1715,6 +1715,8 @@ class AxisPersistenceRepository:
         self,
         tenant_id: str,
         checkpoint_id: str | None = None,
+        connector_id: str | None = None,
+        run_id: str | None = None,
         status: str | None = None,
         limit: int = 100,
     ) -> list[ConnectorSyncCheckpointClaim]:
@@ -1725,6 +1727,12 @@ class AxisPersistenceRepository:
             statement = statement.where(
                 ConnectorSyncCheckpointClaim.checkpoint_id == checkpoint_id
             )
+        if connector_id is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpointClaim.connector_id == connector_id
+            )
+        if run_id is not None:
+            statement = statement.where(ConnectorSyncCheckpointClaim.run_id == run_id)
         if status is not None:
             statement = statement.where(ConnectorSyncCheckpointClaim.status == status)
         statement = statement.order_by(

@@ -527,7 +527,7 @@ Delivered:
   expired claim and replacement claim ids.
 - checkpoint claim registry reads are exposed through
   `/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
-  checkpoint, status and limit filters. Reads require
+  connector, run, checkpoint, status and limit filters. Reads require
   `connectors:sync:checkpoint:claim:read` and append
   `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
   filters, returned claim count and claim ids only.
