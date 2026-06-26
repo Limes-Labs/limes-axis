@@ -539,8 +539,9 @@ Delivered:
   provider-specific runtime boundary is called. The targeted persisted claim
   must be active, unexpired, owned by the executing worker and attached to the
   same connector and run. Its checkpoint id must resolve to persisted
-  checkpoint evidence for the same connector and run. Non-live execution paths
-  do not require a checkpoint claim target.
+  `sync_execution` checkpoint evidence with status
+  `sync_execution_preflight_passed` for the same connector and run. Non-live
+  execution paths do not require a checkpoint claim target.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing

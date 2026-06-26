@@ -485,7 +485,8 @@ preflights with a valid target claim include public-safe checkpoint claim
 evidence in the sync result summary. When `live_query_requested=true`,
 `execute-sync` must provide `checkpoint_claim_id`; Axis rejects the request
 unless that exact claim is active, unexpired, owned by `executed_by` and
-attached to a persisted checkpoint for the same connector and run. This still keeps
+attached to an eligible `sync_execution_preflight_passed` checkpoint for the
+same connector and run. This still keeps
 `external_query_started=false`, returns no credential material and performs no
 graph mutation. The passed preflight now depends on validated egress policy
 evidence from persisted tenant-scoped policy records and the validated
