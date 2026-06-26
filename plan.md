@@ -477,14 +477,15 @@ decision is `connector.run.sync_execution_preflight_blocked`; setting
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can produce
 `connector.run.sync_execution_preflight_passed` only when the run carries an
 approved private endpoint egress boundary, egress policy id, lease-scoped
-secret reference and an active checkpoint claim owned by the executing worker.
-Missing worker claims are rejected before the provider-specific runtime is
-called, before preflight audit is written and before a new execution checkpoint
-is created. Passed and blocked preflights with a valid claim include public-safe
-checkpoint claim evidence in the sync result summary. `execute-sync` may also
-provide `checkpoint_claim_id` to bind the preflight to a specific worker lease;
-when it is present, Axis rejects the request unless that exact claim is active,
-unexpired, owned by `executed_by` and attached to the same run. This still keeps
+secret reference and a targeted active checkpoint claim owned by the executing
+worker. Missing `checkpoint_claim_id` or inactive target claims are rejected
+before the provider-specific runtime is called, before preflight audit is
+written and before a new execution checkpoint is created. Passed and blocked
+preflights with a valid target claim include public-safe checkpoint claim
+evidence in the sync result summary. When `live_query_requested=true`,
+`execute-sync` must provide `checkpoint_claim_id`; Axis rejects the request
+unless that exact claim is active, unexpired, owned by `executed_by` and
+attached to the same run. This still keeps
 `external_query_started=false`, returns no credential material and performs no
 graph mutation. The passed preflight now depends on validated egress policy
 evidence from persisted tenant-scoped policy records and the validated

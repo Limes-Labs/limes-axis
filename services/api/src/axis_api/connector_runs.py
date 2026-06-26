@@ -1218,6 +1218,12 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
     if str(run.input_summary.get("live_query_requested", "false")).lower() != "true":
         return None
 
+    if request.checkpoint_claim_id is None:
+        raise ConnectorRunValidationError(
+            "Live connector sync requires checkpoint_claim_id for live-query execution.",
+            "checkpoint_claim_id_required_for_live_query",
+        )
+
     claims = repository.list_connector_sync_checkpoint_claims(
         tenant_id=run.tenant_id,
         run_id=run.run_id,
@@ -1227,22 +1233,14 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
     )
     now = utc_now()
     for claim in claims:
-        if (
-            request.checkpoint_claim_id is not None
-            and claim.claim_id != request.checkpoint_claim_id
-        ):
+        if claim.claim_id != request.checkpoint_claim_id:
             continue
         if _ensure_timezone(claim.lease_expires_at) > now:
             return claim
 
-    reason = (
-        "target_sync_checkpoint_claim_not_active"
-        if request.checkpoint_claim_id is not None
-        else "active_sync_checkpoint_claim_required"
-    )
     raise ConnectorRunValidationError(
         "Live connector sync requires an active checkpoint claim for the executing worker.",
-        reason,
+        "target_sync_checkpoint_claim_not_active",
     )
 
 
