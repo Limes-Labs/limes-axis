@@ -7269,6 +7269,43 @@
         "title": "ConnectorSyncCheckpointClaimRequest",
         "type": "object"
       },
+      "ConnectorSyncCheckpointEvidenceInvariant": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "checkpoint_id": {
+            "minLength": 1,
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkpoint_id",
+          "reason",
+          "detail"
+        ],
+        "title": "ConnectorSyncCheckpointEvidenceInvariant",
+        "type": "object"
+      },
       "ConnectorSyncCheckpointRecord": {
         "properties": {
           "adapter": {
@@ -8964,6 +9001,13 @@
               "$ref": "#/components/schemas/ConnectorSyncCheckpointRecord"
             },
             "title": "Checkpoints",
+            "type": "array"
+          },
+          "evidence_invariants": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorSyncCheckpointEvidenceInvariant"
+            },
+            "title": "Evidence Invariants",
             "type": "array"
           },
           "metrics": {

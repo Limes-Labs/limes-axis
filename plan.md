@@ -149,6 +149,7 @@ Foundation acceptance is tracked in
 - [x] Add `created_after` time-window filter for checkpoint API reads.
 - [x] Reject invalid checkpoint time windows before checkpoint storage reads.
 - [x] Write append-only audit evidence for valid checkpoint API reads.
+- [x] Report public-safe checkpoint evidence invariants on checkpoint API reads.
 - [x] Persist worker-safe sync checkpoint claims without starting live sync.
 - [x] Add worker-safe sync checkpoint claim renewal and release.
 - [x] Reject competing active worker claims for the same sync checkpoint.
@@ -514,8 +515,11 @@ status, `created_after`, `created_before` and limit filters, and requires the
 `connectors:sync:checkpoint:read` scope. Invalid windows where `created_after`
 is equal to or later than `created_before` are rejected before checkpoint
 storage is queried. Valid checkpoint reads write
-`connector.run.sync_checkpoints_read` audit evidence with filters, count and
-checkpoint ids only.
+`connector.run.sync_checkpoints_read` audit evidence with filters, count,
+evidence invariant count and checkpoint ids only. The registry response reports
+public-safe evidence invariants for missing, unresolved, mismatched or unsafe
+checkpoint audit evidence without copying cursor or result summaries into the
+read-audit payload.
 Worker claim records are persisted at
 `/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims` with
 the `connectors:sync:checkpoint:claim` scope, lease duration metadata,

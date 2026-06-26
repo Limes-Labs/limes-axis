@@ -9,6 +9,7 @@ import {
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   formatConnectorLabel,
@@ -119,6 +120,7 @@ const EMPTY_RUN_REGISTRY: ManufacturingConnectorRunRegistry = {
 const EMPTY_SYNC_CHECKPOINT_REGISTRY: ManufacturingConnectorSyncCheckpointRegistry = {
   ...EMPTY_REGISTRY_BASE,
   checkpoints: [],
+  evidence_invariants: [],
   checkpoint_notes: [],
 };
 
@@ -504,6 +506,14 @@ export function ConnectorConsole() {
         selectedSyncCheckpoints,
       ),
     [syncCheckpointClaimRegistry, selectedSyncCheckpoints],
+  );
+  const selectedSyncCheckpointInvariants = useMemo(
+    () =>
+      filterConnectorSyncCheckpointInvariantsByCheckpoints(
+        syncCheckpointRegistry,
+        selectedSyncCheckpoints,
+      ),
+    [syncCheckpointRegistry, selectedSyncCheckpoints],
   );
   const selectedOntologyProposals = useMemo(
     () =>
@@ -1053,7 +1063,9 @@ export function ConnectorConsole() {
                 <h3 className="subsection-title">
                   {selectedSyncCheckpoints.length} checkpoint record
                 </h3>
-                <p className="row-detail">tenant-scoped retry and resume evidence</p>
+                <p className="row-detail">
+                  {selectedSyncCheckpointInvariants.length} evidence invariant
+                </p>
               </div>
               <ScrollText size={18} />
             </div>
@@ -1068,6 +1080,19 @@ export function ConnectorConsole() {
                 </div>
               ))}
             </div>
+            {selectedSyncCheckpointInvariants.length > 0 ? (
+              <div className="payload-grid">
+                {selectedSyncCheckpointInvariants.map((invariant) => (
+                  <div className="payload-row" key={`${invariant.checkpoint_id}-${invariant.reason}`}>
+                    <span>
+                      <span className="metric-label">{invariant.reason}</span>
+                      <span className="row-detail">{invariant.checkpoint_id}</span>
+                    </span>
+                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {selectedSyncCheckpoints.map((checkpoint) => (
               <div className="audit-detail-grid" key={`${checkpoint.checkpoint_id}-summary`}>
                 <div>

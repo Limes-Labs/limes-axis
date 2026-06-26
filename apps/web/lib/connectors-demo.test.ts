@@ -5,6 +5,7 @@ import {
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   findConnectorById,
@@ -177,6 +178,20 @@ const checkpointRegistryFixture: ManufacturingConnectorSyncCheckpointRegistry = 
       audit_event_type: "connector.run.sync_execution_preflight_passed",
       notes: [],
       created_at: "2026-06-25T08:05:00Z",
+    },
+  ],
+  evidence_invariants: [
+    {
+      checkpoint_id: "chk_external_db_sync_1",
+      audit_event_id: null,
+      reason: "checkpoint_audit_event_missing",
+      detail: "Checkpoint must reference an append-only audit event.",
+    },
+    {
+      checkpoint_id: "chk_file_csv_sync_1",
+      audit_event_id: null,
+      reason: "checkpoint_audit_event_missing",
+      detail: "Checkpoint must reference an append-only audit event.",
     },
   ],
   checkpoint_notes: ["Sync checkpoints are tenant-scoped runtime evidence for retry/resume."],
@@ -355,6 +370,29 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("dsn");
     expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("credential_value");
     expect(JSON.stringify(checkpoints).toLowerCase()).not.toContain("password");
+  });
+
+  it("filters checkpoint evidence invariants for selected connector checkpoints", () => {
+    const checkpoints = filterConnectorSyncCheckpointsByConnector(
+      checkpointRegistryFixture,
+      "external_db_operational_mirror",
+    );
+
+    const invariants = filterConnectorSyncCheckpointInvariantsByCheckpoints(
+      checkpointRegistryFixture,
+      checkpoints,
+    );
+
+    expect(invariants).toEqual([
+      {
+        checkpoint_id: "chk_external_db_sync_1",
+        audit_event_id: null,
+        reason: "checkpoint_audit_event_missing",
+        detail: "Checkpoint must reference an append-only audit event.",
+      },
+    ]);
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("password");
   });
 
   it("builds connector sync checkpoint query paths with the read scope", () => {

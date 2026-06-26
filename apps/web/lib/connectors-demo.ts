@@ -447,6 +447,13 @@ export type ConnectorSyncCheckpointRecord = {
   created_at: string;
 };
 
+export type ConnectorSyncCheckpointEvidenceInvariant = {
+  checkpoint_id: string;
+  audit_event_id: string | null;
+  reason: string;
+  detail: string;
+};
+
 export type ManufacturingConnectorSyncCheckpointRegistry = {
   tenant_id: string;
   plant_name: string;
@@ -459,6 +466,7 @@ export type ManufacturingConnectorSyncCheckpointRegistry = {
     status: PlatformStatus;
   }[];
   checkpoints: ConnectorSyncCheckpointRecord[];
+  evidence_invariants: ConnectorSyncCheckpointEvidenceInvariant[];
   checkpoint_notes: string[];
 };
 
@@ -824,6 +832,17 @@ export function filterConnectorSyncCheckpointsByConnector(
         ? left.checkpoint_id.localeCompare(right.checkpoint_id)
         : createdAtOrder;
     });
+}
+
+export function filterConnectorSyncCheckpointInvariantsByCheckpoints(
+  registry: ManufacturingConnectorSyncCheckpointRegistry,
+  checkpoints: ConnectorSyncCheckpointRecord[],
+): ConnectorSyncCheckpointEvidenceInvariant[] {
+  const checkpointIds = new Set(checkpoints.map((checkpoint) => checkpoint.checkpoint_id));
+  return registry.evidence_invariants
+    .filter((invariant) => checkpointIds.has(invariant.checkpoint_id))
+    .slice()
+    .sort((left, right) => left.checkpoint_id.localeCompare(right.checkpoint_id));
 }
 
 export function filterConnectorSyncCheckpointClaimsByCheckpoints(

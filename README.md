@@ -244,6 +244,10 @@ payload before provider runtime entry, and the checkpoint result evidence must k
 worker-lease-only with `external_sync_started=false`,
 `secret_material_returned=false` and `worker_claim_only=true`; valid preflights
 include public-safe claim evidence in the sync result.
+The checkpoint registry reports public-safe `evidence_invariants` when a
+persisted checkpoint has missing, unresolved, mismatched or unsafe audit
+evidence. Sync execution audit payloads include the generated checkpoint id so
+new checkpoint records can satisfy the same invariant contract.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import
