@@ -16,12 +16,14 @@ import {
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   formatConnectorLabel,
+  summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
   type ConnectorPromotionPolicyCreateRequest,
   type ConnectorPromotionPolicyEnableRequest,
   type ConnectorRunRecord,
   type ManufacturingConnectorConfigurationRegistry,
   type ManufacturingConnectorEgressPolicyRegistry,
+  type ManufacturingConnectorEvidenceInvariantReport,
   type ManufacturingConnectorCredentialHandleRegistry,
   type ManufacturingConnectorCredentialLeaseRegistry,
   type ManufacturingConnectorManifestRegistry,
@@ -138,6 +140,18 @@ const EMPTY_SYNC_CHECKPOINT_CLAIM_REGISTRY: ManufacturingConnectorSyncCheckpoint
   claim_notes: [],
 };
 
+const EMPTY_EVIDENCE_INVARIANT_REPORT: ManufacturingConnectorEvidenceInvariantReport = {
+  ...EMPTY_REGISTRY_BASE,
+  invariant_counts: {
+    checkpoint: 0,
+    checkpoint_claim: 0,
+    credential_lease: 0,
+    egress_policy: 0,
+  },
+  invariants: [],
+  report_notes: [],
+};
+
 const EMPTY_ONTOLOGY_PROPOSAL_REGISTRY: ManufacturingConnectorOntologyProposalRegistry = {
   ...EMPTY_REGISTRY_BASE,
   proposals: [],
@@ -212,6 +226,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     runData,
     syncCheckpointData,
     syncCheckpointClaimData,
+    evidenceInvariantData,
     ontologyProposalData,
     manualImportData,
     promotionPolicyData,
@@ -262,6 +277,11 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
       buildConnectorSyncCheckpointClaimQueryPath(CONNECTOR_TENANT_ID),
       signal,
     ),
+    fetchConnectorJson<ManufacturingConnectorEvidenceInvariantReport>(
+      apiBaseUrl,
+      `/demo/manufacturing/connectors/evidence-invariants?tenant_id=${CONNECTOR_TENANT_ID}`,
+      signal,
+    ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
       apiBaseUrl,
       "/demo/manufacturing/connectors/ontology-proposals",
@@ -288,6 +308,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     configurationData,
     credentialHandleData,
     credentialLeaseData,
+    evidenceInvariantData,
     egressPolicyData,
     manifestData,
     manualImportData,
@@ -387,6 +408,10 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorSyncCheckpointClaimRegistry>(
       EMPTY_SYNC_CHECKPOINT_CLAIM_REGISTRY,
     );
+  const [evidenceInvariantReport, setEvidenceInvariantReport] =
+    useState<ManufacturingConnectorEvidenceInvariantReport>(
+      EMPTY_EVIDENCE_INVARIANT_REPORT,
+    );
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -432,6 +457,7 @@ export function ConnectorConsole() {
         setRunRegistry(data.runData);
         setSyncCheckpointRegistry(data.syncCheckpointData);
         setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
+        setEvidenceInvariantReport(data.evidenceInvariantData);
         setOntologyProposalRegistry(data.ontologyProposalData);
         setManualImportRegistry(data.manualImportData);
         setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -573,6 +599,10 @@ export function ConnectorConsole() {
       ),
     [promotionPolicySetRegistry.policy_sets, selectedConnectorId],
   );
+  const evidenceInvariantCounts = useMemo(
+    () => summarizeConnectorEvidenceInvariantCounts(evidenceInvariantReport),
+    [evidenceInvariantReport],
+  );
 
   async function refreshConnectorData() {
     const data = await fetchConnectorData(apiBaseUrl);
@@ -585,6 +615,7 @@ export function ConnectorConsole() {
     setRunRegistry(data.runData);
     setSyncCheckpointRegistry(data.syncCheckpointData);
     setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
+    setEvidenceInvariantReport(data.evidenceInvariantData);
     setOntologyProposalRegistry(data.ontologyProposalData);
     setManualImportRegistry(data.manualImportData);
     setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -675,6 +706,7 @@ export function ConnectorConsole() {
     .concat(runRegistry.metrics)
     .concat(syncCheckpointRegistry.metrics)
     .concat(syncCheckpointClaimRegistry.metrics)
+    .concat(evidenceInvariantReport.metrics)
     .concat(ontologyProposalRegistry.metrics)
     .concat(manualImportRegistry.metrics)
     .concat(promotionPolicyRegistry.metrics)
@@ -973,6 +1005,46 @@ export function ConnectorConsole() {
               </div>
             </section>
           ) : null}
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Evidence Invariant Report</p>
+                <h3 className="subsection-title">
+                  {evidenceInvariantReport.invariants.length} aggregate finding
+                </h3>
+                <p className="row-detail">{evidenceInvariantReport.registry_status}</p>
+              </div>
+              <ShieldCheck size={18} />
+            </div>
+            <div className="audit-detail-grid">
+              {evidenceInvariantCounts.map((count) => (
+                <div key={count.label}>
+                  <p className="metric-label">{count.label}</p>
+                  <p className="row-title">{count.value}</p>
+                  <p className="row-detail">append-only audit invariant</p>
+                </div>
+              ))}
+            </div>
+            {evidenceInvariantReport.invariants.length > 0 ? (
+              <div className="payload-grid">
+                {evidenceInvariantReport.invariants.slice(0, 8).map((invariant) => (
+                  <div
+                    className="payload-row"
+                    key={`${invariant.evidence_type}-${invariant.subject_id}-${invariant.reason}`}
+                  >
+                    <span>
+                      <span className="metric-label">
+                        {formatConnectorLabel(invariant.evidence_type)}
+                      </span>
+                      <span className="row-detail">{invariant.subject_id}</span>
+                    </span>
+                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
 
           <section className="audit-payload">
             <div className="audit-payload-header">
@@ -1849,6 +1921,7 @@ export function ConnectorConsole() {
               .concat(runRegistry.run_notes)
               .concat(syncCheckpointRegistry.checkpoint_notes)
               .concat(syncCheckpointClaimRegistry.claim_notes)
+              .concat(evidenceInvariantReport.report_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
               .concat(promotionPolicyRegistry.policy_notes)

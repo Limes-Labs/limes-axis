@@ -13,6 +13,8 @@ import {
   filterConnectorSyncCheckpointsByConnector,
   findConnectorById,
   formatConnectorLabel,
+  summarizeConnectorEvidenceInvariantCounts,
+  type ManufacturingConnectorEvidenceInvariantReport,
   type ManufacturingConnectorCredentialLeaseRegistry,
   type ManufacturingConnectorEgressPolicyRegistry,
   type ManufacturingConnectorSyncCheckpointClaimRegistry,
@@ -485,6 +487,57 @@ const egressPolicyRegistryFixture: ManufacturingConnectorEgressPolicyRegistry = 
   policy_notes: ["Egress policy records expose private endpoint references only."],
 };
 
+const evidenceInvariantReportFixture: ManufacturingConnectorEvidenceInvariantReport = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "watch",
+  metrics: [],
+  invariant_counts: {
+    checkpoint: 1,
+    checkpoint_claim: 1,
+    credential_lease: 1,
+    egress_policy: 1,
+  },
+  invariants: [
+    {
+      evidence_type: "checkpoint",
+      subject_id: "chk_evidence_report_1",
+      parent_id: "run_evidence_report_20260627",
+      audit_event_id: "3767cdd8-8af5-4cfd-9263-c01aa2b7802e",
+      reason: "checkpoint_audit_event_payload_mismatch",
+      detail: "Checkpoint audit event payload must match connector_id, run_id and checkpoint_id.",
+    },
+    {
+      evidence_type: "checkpoint_claim",
+      subject_id: "claim_evidence_report_1",
+      parent_id: "chk_evidence_report_1",
+      audit_event_id: "98c32fb5-a2f5-4a3c-9ba5-7e42f6afcbfd",
+      reason: "claim_audit_event_payload_mismatch",
+      detail:
+        "Claim audit event payload must match connector_id, run_id, checkpoint_id, claim_id and claimed_by.",
+    },
+    {
+      evidence_type: "credential_lease",
+      subject_id: "lease_evidence_report_1",
+      parent_id: "cred_external_db_readonly",
+      audit_event_id: "b5344094-44d7-4459-b0b1-dd2892f7a859",
+      reason: "lease_audit_event_payload_mismatch",
+      detail: "Lease audit event payload must match connector_id, handle_id and lease_id.",
+    },
+    {
+      evidence_type: "egress_policy",
+      subject_id: "egress_policy_evidence_report_1",
+      parent_id: "profile_postgres_ops_readonly",
+      audit_event_id: "f24bbb6b-3d47-404a-a8c5-a526039ef18e",
+      reason: "egress_policy_audit_event_payload_mismatch",
+      detail:
+        "Egress policy audit event payload must match connector_id, policy_id and connection_profile_id.",
+    },
+  ],
+  report_notes: ["Aggregated public-safe connector evidence invariant report."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -709,6 +762,20 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(invariants).toLowerCase()).not.toContain("postgres://");
     expect(JSON.stringify(invariants).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("summarizes connector evidence invariant counts without leaking source refs", () => {
+    const counts = summarizeConnectorEvidenceInvariantCounts(evidenceInvariantReportFixture);
+
+    expect(counts).toEqual([
+      { label: "Checkpoint", value: 1 },
+      { label: "Checkpoint Claim", value: 1 },
+      { label: "Credential Lease", value: 1 },
+      { label: "Egress Policy", value: 1 },
+    ]);
+    expect(JSON.stringify(counts).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(counts).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(counts).toLowerCase()).not.toContain("password");
   });
 
   it("builds connector sync checkpoint claim query paths with the read scope", () => {

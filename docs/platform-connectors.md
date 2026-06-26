@@ -90,6 +90,7 @@ POST /demo/manufacturing/connectors/credential-leases/{lease_id}/renew
 POST /demo/manufacturing/connectors/credential-leases/{lease_id}/revoke
 GET /demo/manufacturing/connectors/egress-policies
 POST /demo/manufacturing/connectors/egress-policies
+GET /demo/manufacturing/connectors/evidence-invariants
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/runs/checkpoints
@@ -201,6 +202,14 @@ registry reference to validate the requested connector before writing set rows
 or audit evidence. Missing or invalid registry references return explicit
 404/422 errors before any policy-set row, replacement/rollback update or audit
 event is written.
+
+`GET /demo/manufacturing/connectors/evidence-invariants` composes the persisted
+checkpoint, checkpoint-claim, credential-lease and egress-policy registries into
+a single public-safe evidence report. It returns only evidence type, subject id,
+parent id, audit event id, reason and detail fields; it does not copy secret
+references, private endpoint references, DSNs, raw payloads or result summaries
+into the response. Valid reads append `connector.evidence_invariants_read`
+audit evidence with counts and subject ids only.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -756,7 +765,10 @@ manual import request gates from
 tenant-scoped sync checkpoints from
 `/demo/manufacturing/connectors/runs/checkpoints` and shows sequence, adapter,
 cursor summary, result evidence, audit refs and invariant status for the
-selected connector. The
+selected connector. The console also loads the aggregate evidence invariant
+report from `/demo/manufacturing/connectors/evidence-invariants` and renders
+checkpoint, claim, credential lease and egress policy finding counts from the
+API response. The
 request includes `connectors:sync:checkpoint:read`; if the API is unavailable
 or rejects the request, the page shows an API-required state and does not render
 local connector records.
@@ -841,6 +853,8 @@ contract keeps these boundaries visible:
   fallback records;
 - connector console checkpoint observability without browser-local fallback
   records;
+- aggregate connector evidence invariant reports without copying secret or
+  private endpoint references into read payloads;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -876,6 +890,8 @@ The slice is covered by:
   rejection;
 - API unit tests for tenant-scoped egress policy persistence, endpoint listing
   and live-query preflight enforcement;
+- API unit tests for aggregate connector evidence invariant reporting, read
+  audit payloads and public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, `active_preview`
@@ -891,5 +907,6 @@ The slice is covered by:
 - API endpoint and OpenAPI exposure tests;
 - web unit tests for connector helper contracts and regression coverage that
   forbids default connector seed records in runtime libraries;
+- web unit tests for deterministic aggregate evidence invariant count summaries;
 - Playwright smoke tests for `/connectors` API-required behavior when the
   backend is unavailable.
