@@ -408,7 +408,9 @@ for the connector profile, and the executing worker must target an active
 checkpoint claim for the same connector and run with `checkpoint_claim_id`,
 backed by `sync_execution_preflight_passed` checkpoint evidence whose audit
 event type is `connector.run.sync_execution_preflight_passed` and whose audit
-event id is present in `evidence_refs`, before
+event id is present in `evidence_refs`. The referenced audit id must also
+resolve to a persisted tenant-scoped audit ledger event for the same connector
+and run before
 `connector.run.sync_execution_preflight_passed` can be written. Policies are
 created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
@@ -421,7 +423,11 @@ Checkpoint evidence with the wrong type or status is rejected with
 with the wrong audit event type is rejected with
 `target_sync_checkpoint_claim_checkpoint_audit_invalid`; checkpoint evidence
 that does not reference its audit event id is rejected with
-`target_sync_checkpoint_claim_checkpoint_evidence_ref_missing`. When the target
+`target_sync_checkpoint_claim_checkpoint_evidence_ref_missing`; checkpoint
+evidence referencing a missing audit ledger event is rejected with
+`target_sync_checkpoint_claim_checkpoint_audit_event_not_found`, and a
+connector/run mismatch is rejected with
+`target_sync_checkpoint_claim_checkpoint_audit_event_mismatch`. When the target
 claim is valid, the preflight result summary records public-safe claim
 evidence: claim id, checkpoint id, worker and lease expiry. For non-live
 execution paths, `checkpoint_claim_id` remains optional.
@@ -778,6 +784,7 @@ contract keeps these boundaries visible:
 - created time-window filters for checkpoint claim registry reads;
 - active worker checkpoint claim gate before external DB live-query preflight;
 - explicit checkpoint claim target binding for external DB live-query preflight;
+- checkpoint claim audit ledger lookup before external DB live-query preflight;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback

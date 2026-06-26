@@ -668,6 +668,13 @@ class AxisPersistenceRepository:
         self.session.flush()
         return audit_event
 
+    def get_audit_event(self, tenant_id: str, audit_event_id: UUID) -> AuditEvent | None:
+        statement: Select[tuple[AuditEvent]] = select(AuditEvent).where(
+            AuditEvent.tenant_id == tenant_id,
+            AuditEvent.id == audit_event_id,
+        )
+        return self.session.scalar(statement)
+
     def list_audit_events(
         self,
         tenant_id: str,
