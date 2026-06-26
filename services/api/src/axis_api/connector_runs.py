@@ -1254,6 +1254,19 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "event that does not exist.",
                 "target_sync_checkpoint_claim_audit_event_not_found",
             )
+        if (
+            claim_audit_event.event_type != claim.audit_event_type
+            or claim_audit_event.payload.get("connector_id") != run.connector_id
+            or claim_audit_event.payload.get("run_id") != run.run_id
+            or claim_audit_event.payload.get("checkpoint_id") != claim.checkpoint_id
+            or claim_audit_event.payload.get("claim_id") != claim.claim_id
+            or claim_audit_event.payload.get("claimed_by") != claim.claimed_by
+        ):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim is not backed by a "
+                "matching audit ledger event.",
+                "target_sync_checkpoint_claim_audit_event_mismatch",
+            )
         checkpoint = repository.get_connector_sync_checkpoint(
             run.tenant_id,
             claim.checkpoint_id,

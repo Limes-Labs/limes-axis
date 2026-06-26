@@ -233,8 +233,9 @@ called. When `live_query_requested=true`, `execute-sync` must provide
 `checkpoint_claim_id` so Axis binds the preflight to one active, unexpired
 worker lease for the same connector and run. The claim must be backed by
 `connector.run.sync_checkpoint_claimed` audit evidence that resolves in the
-tenant-scoped append-only audit ledger, with eligible persisted checkpoint
-evidence backed by `connector.run.sync_execution_preflight_passed`
+tenant-scoped append-only audit ledger for the same connector, run,
+checkpoint, claim and worker, with eligible persisted checkpoint evidence
+backed by `connector.run.sync_execution_preflight_passed`
 audit and its evidence ref. The referenced audit id must resolve to a tenant-scoped
 append-only audit event for the same connector/run with public-safe audit
 payload before provider runtime entry, and the checkpoint result evidence must keep
