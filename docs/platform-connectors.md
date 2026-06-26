@@ -404,11 +404,17 @@ a live-query preflight path. By default it writes
 `connector.run.sync_execution_preflight_blocked`; with
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, the self-hosted egress
 policy boundary must validate a persisted tenant-scoped connector egress policy
-for the connector profile before
+for the connector profile, and the executing worker must hold an active
+checkpoint claim for the same run, before
 `connector.run.sync_execution_preflight_passed` can be written. Policies are
 created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
 the repository-backed record and does not rely on a hardcoded policy catalog.
+Missing active worker claims are rejected before the provider-specific runtime
+is called, before preflight audit is written and before a new execution
+checkpoint is created. When a valid claim exists, the preflight result summary
+records public-safe claim evidence: claim id, checkpoint id, worker and lease
+expiry.
 The result summary includes the egress policy runtime boundary, policy
 reference, scope, mode and private endpoint reference. Unknown, unpersisted or
 unapproved egress policies write
@@ -760,6 +766,7 @@ contract keeps these boundaries visible:
 - opaque cursor pagination for checkpoint claim registry reads;
 - claiming-worker filters for checkpoint claim registry reads;
 - created time-window filters for checkpoint claim registry reads;
+- active worker checkpoint claim gate before external DB live-query preflight;
 - connector console checkpoint claim observability without browser-local
   fallback records;
 - connector console checkpoint observability without browser-local fallback

@@ -158,6 +158,8 @@ Foundation acceptance is tracked in
 - [x] Paginate worker checkpoint claim registry with opaque cursors.
 - [x] Filter worker checkpoint claim registry by claiming worker.
 - [x] Filter worker checkpoint claim registry by created time window.
+- [x] Require an active worker checkpoint claim before external DB live-query
+  preflight can enter the provider-specific runtime boundary.
 - [x] Show worker checkpoint claim registry in the connector console.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
@@ -472,11 +474,16 @@ records a separate preflight result instead of starting the query. The default
 decision is `connector.run.sync_execution_preflight_blocked`; setting
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can produce
 `connector.run.sync_execution_preflight_passed` only when the run carries an
-approved private endpoint egress boundary, egress policy id and lease-scoped
-secret reference. This still keeps `external_query_started=false`, returns no
-credential material and performs no graph mutation. The passed preflight now
-depends on validated egress policy evidence from persisted tenant-scoped policy
-records and the validated credential lease result: the runtime records policy
+approved private endpoint egress boundary, egress policy id, lease-scoped
+secret reference and an active checkpoint claim owned by the executing worker.
+Missing worker claims are rejected before the provider-specific runtime is
+called, before preflight audit is written and before a new execution checkpoint
+is created. Passed and blocked preflights with a valid claim include public-safe
+checkpoint claim evidence in the sync result summary. This still keeps
+`external_query_started=false`, returns no credential material and performs no
+graph mutation. The passed preflight now depends on validated egress policy
+evidence from persisted tenant-scoped policy records and the validated
+credential lease result: the runtime records policy
 runtime/ref/scope/private-endpoint evidence, blocks unknown or unpersisted
 policies before secret retrieval is considered, records lease
 id/mode/runtime/result status/reference evidence, records reference-only secret

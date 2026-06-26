@@ -1058,6 +1058,11 @@ def execute_demo_connector_sync(
         run.connector_id,
     )
     egress_policy_evidence = _egress_policy_evidence_for_run(repository, run)
+    checkpoint_claim = _validate_active_worker_checkpoint_claim_for_live_query(
+        repository,
+        run,
+        request,
+    )
 
     execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
     sync_execution_result = execution_runtime.execute(
@@ -1082,6 +1087,21 @@ def execute_demo_connector_sync(
             input_summary=run.input_summary,
         )
     )
+    if checkpoint_claim is not None:
+        sync_execution_result = sync_execution_result.model_copy(
+            update={
+                "result_summary": {
+                    **sync_execution_result.result_summary,
+                    "checkpoint_claim_evidence_status": "validated",
+                    "checkpoint_claim_id": checkpoint_claim.claim_id,
+                    "checkpoint_claim_checkpoint_id": checkpoint_claim.checkpoint_id,
+                    "checkpoint_claim_worker": checkpoint_claim.claimed_by,
+                    "checkpoint_claim_lease_expires_at": _datetime_as_utc_string(
+                        checkpoint_claim.lease_expires_at
+                    ),
+                }
+            }
+        )
 
     result_summary = dict(run.result_summary)
     result_summary.update(sync_execution_result.result_summary)
@@ -1186,6 +1206,32 @@ def _record_sync_execution_checkpoint(
                 "Checkpoint payload is public-safe and excludes credential material.",
             ],
         )
+    )
+
+
+def _validate_active_worker_checkpoint_claim_for_live_query(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+):
+    if str(run.input_summary.get("live_query_requested", "false")).lower() != "true":
+        return None
+
+    claims = repository.list_connector_sync_checkpoint_claims(
+        tenant_id=run.tenant_id,
+        run_id=run.run_id,
+        status="claimed",
+        claimed_by=request.executed_by,
+        limit=200,
+    )
+    now = utc_now()
+    for claim in claims:
+        if _ensure_timezone(claim.lease_expires_at) > now:
+            return claim
+
+    raise ConnectorRunValidationError(
+        "Live connector sync requires an active checkpoint claim for the executing worker.",
+        "active_sync_checkpoint_claim_required",
     )
 
 
