@@ -90,6 +90,13 @@ class ConnectorSyncCheckpointQuery(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
+class ConnectorSyncCheckpointClaimQuery(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    checkpoint_id: str | None = Field(default=None, min_length=1)
+    status: str | None = Field(default=None, min_length=1)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
 class ConnectorSyncCheckpointClaimRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -252,6 +259,16 @@ class ManufacturingConnectorSyncCheckpointRegistry(BaseModel):
     checkpoint_notes: list[str] = Field(default_factory=list)
 
 
+class ManufacturingConnectorSyncCheckpointClaimRegistry(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    registry_status: OverviewStatus
+    metrics: list[OverviewMetric] = Field(default_factory=list)
+    claims: list[ConnectorSyncCheckpointClaimRecord] = Field(default_factory=list)
+    claim_notes: list[str] = Field(default_factory=list)
+
+
 AUDIT_EVENT_TYPE = "connector.run.recorded"
 EXECUTION_AUDIT_EVENT_TYPE = "connector.run.execution_deferred"
 SYNC_SCHEDULE_AUDIT_EVENT_TYPE = "connector.run.sync_scheduled"
@@ -265,6 +282,9 @@ SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_execution_preflight_passed"
 )
 SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
+SYNC_CHECKPOINT_CLAIM_READ_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_checkpoint_claims_read"
+)
 SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoint_claimed"
 SYNC_CHECKPOINT_CLAIM_EXPIRED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_checkpoint_claim_expired"
@@ -278,6 +298,7 @@ SYNC_CHECKPOINT_CLAIM_RELEASED_AUDIT_EVENT_TYPE = (
 SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch"
 SYNC_EXECUTION_SCOPE = "connectors:sync:execute"
 SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read"
+SYNC_CHECKPOINT_CLAIM_READ_SCOPE = "connectors:sync:checkpoint:claim:read"
 SYNC_CHECKPOINT_CLAIM_SCOPE = "connectors:sync:checkpoint:claim"
 SYNC_CHECKPOINT_CLAIM_RENEW_SCOPE = "connectors:sync:checkpoint:claim:renew"
 SYNC_CHECKPOINT_CLAIM_RELEASE_SCOPE = "connectors:sync:checkpoint:claim:release"
@@ -428,6 +449,85 @@ def read_connector_sync_checkpoint_registry(
                     checkpoint.checkpoint_id for checkpoint in registry.checkpoints
                 ],
                 "required_permission": SYNC_CHECKPOINT_READ_SCOPE,
+                "read_scope_source": read_scope_source,
+            },
+        )
+    )
+    return registry
+
+
+def build_connector_sync_checkpoint_claim_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorSyncCheckpointClaimQuery,
+) -> ManufacturingConnectorSyncCheckpointClaimRegistry:
+    records = repository.list_connector_sync_checkpoint_claims(
+        tenant_id=query.tenant_id,
+        checkpoint_id=query.checkpoint_id,
+        status=query.status,
+        limit=query.limit,
+    )
+    claims = [_checkpoint_claim_from_record(record) for record in records]
+    active_claims = sum(1 for claim in claims if claim.status == "claimed")
+    closed_claims = sum(1 for claim in claims if claim.status in {"expired", "released"})
+    return ManufacturingConnectorSyncCheckpointClaimRegistry(
+        tenant_id=query.tenant_id,
+        plant_name="Ravenna Works",
+        scenario="Plant Operations Cockpit",
+        registry_status=OverviewStatus.READY if claims else OverviewStatus.WATCH,
+        metrics=[
+            OverviewMetric(
+                label="Checkpoint Claims",
+                value=str(len(claims)),
+                detail="Tenant-scoped worker leases for sync checkpoints",
+                status=OverviewStatus.READY if claims else OverviewStatus.WATCH,
+            ),
+            OverviewMetric(
+                label="Active Claims",
+                value=str(active_claims),
+                detail="Unclosed worker ownership records returned by the query",
+                status=OverviewStatus.READY if active_claims else OverviewStatus.WATCH,
+            ),
+            OverviewMetric(
+                label="Closed Claims",
+                value=str(closed_claims),
+                detail="Released or expired worker leases returned by the query",
+                status=OverviewStatus.READY if closed_claims else OverviewStatus.WATCH,
+            ),
+            OverviewMetric(
+                label="Secret Material",
+                value="Excluded",
+                detail="Claim records expose ownership and lease metadata only",
+                status=OverviewStatus.READY,
+            ),
+        ],
+        claims=claims,
+        claim_notes=[
+            "Checkpoint claim records expose worker ownership and lease state.",
+            "Claim reads are tenant-scoped and audited without secret material.",
+        ],
+    )
+
+
+def read_connector_sync_checkpoint_claim_registry(
+    repository: AxisPersistenceRepository,
+    query: ConnectorSyncCheckpointClaimQuery,
+    *,
+    actor_id: str,
+    read_scope_source: str,
+) -> ManufacturingConnectorSyncCheckpointClaimRegistry:
+    registry = build_connector_sync_checkpoint_claim_registry(repository, query)
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            event_type=SYNC_CHECKPOINT_CLAIM_READ_AUDIT_EVENT_TYPE,
+            payload={
+                "checkpoint_id": query.checkpoint_id,
+                "status": query.status,
+                "limit": query.limit,
+                "returned_claim_count": len(registry.claims),
+                "claim_ids": [claim.claim_id for claim in registry.claims],
+                "required_permission": SYNC_CHECKPOINT_CLAIM_READ_SCOPE,
                 "read_scope_source": read_scope_source,
             },
         )

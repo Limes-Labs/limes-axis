@@ -215,9 +215,13 @@ not start external sync or return secret material. A second unexpired active
 claim for the same checkpoint is rejected with 409 before duplicate audit or
 worker ownership evidence is written. Expired claims are marked `expired` with
 `connector.run.sync_checkpoint_claim_expired` before replacement ownership is
-created. Dedicated renewal/release
-endpoints extend or close the same persisted claim with separate scopes and
-audit evidence.
+created. Claim records are queryable through
+`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
+checkpoint, status and limit filters. Reads require
+`connectors:sync:checkpoint:claim:read` and append
+`connector.run.sync_checkpoint_claims_read` audit evidence with filters, counts
+and claim ids only. Dedicated renewal/release endpoints extend or close the
+same persisted claim with separate scopes and audit evidence.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

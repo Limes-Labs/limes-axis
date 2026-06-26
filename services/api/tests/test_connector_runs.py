@@ -2004,6 +2004,126 @@ def test_connector_sync_checkpoint_claim_records_worker_lease_without_live_sync(
     assert events[0].payload["secret_material_returned"] is False
 
 
+def test_connector_sync_checkpoint_claims_endpoint_returns_public_safe_registry(
+    session_factory: sessionmaker[Session],
+) -> None:
+    created_at = datetime(2026, 6, 25, 10, 0, tzinfo=UTC)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_connector_sync_checkpoint(
+            repository,
+            checkpoint_id="chk_checkpoint_claim_registry",
+            run_id="run_checkpoint_claim_registry",
+            sequence=1,
+            created_at=created_at,
+        )
+        repository.create_connector_sync_checkpoint_claim(
+            ConnectorSyncCheckpointClaimCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_checkpoint_claim_registry",
+                checkpoint_id="chk_checkpoint_claim_registry",
+                claim_id="claim_checkpoint_registry_20260625_1000",
+                status="claimed",
+                claimed_by="axis-sync-worker-role",
+                idempotency_key="idem_claim_checkpoint_registry_20260625_1000",
+                lease_duration_seconds=900,
+                lease_expires_at=datetime(2026, 6, 25, 10, 15, tzinfo=UTC),
+                claim_result={
+                    "external_sync_started": False,
+                    "secret_material_returned": False,
+                    "worker_claim_only": True,
+                },
+                audit_event_type="connector.run.sync_checkpoint_claimed",
+                notes=["Seeded worker lease for claim registry read test."],
+            )
+        )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "checkpoint_id": "chk_checkpoint_claim_registry",
+            "status": "claimed",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+            "limit": 10,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["registry_status"] == "ready"
+    assert body["metrics"][0]["label"] == "Checkpoint Claims"
+    assert body["metrics"][0]["value"] == "1"
+    assert body["claim_notes"] == [
+        "Checkpoint claim records expose worker ownership and lease state.",
+        "Claim reads are tenant-scoped and audited without secret material.",
+    ]
+    assert len(body["claims"]) == 1
+    claim = body["claims"][0]
+    assert claim["connector_id"] == "external_db_operational_mirror"
+    assert claim["run_id"] == "run_checkpoint_claim_registry"
+    assert claim["checkpoint_id"] == "chk_checkpoint_claim_registry"
+    assert claim["claim_id"] == "claim_checkpoint_registry_20260625_1000"
+    assert claim["status"] == "claimed"
+    assert claim["claimed_by"] == "axis-sync-worker-role"
+    assert claim["lease_duration_seconds"] == 900
+    assert claim["lease_expires_at"] == "2026-06-25T10:15:00Z"
+    assert claim["claim_result"] == {
+        "external_sync_started": False,
+        "secret_material_returned": False,
+        "worker_claim_only": True,
+    }
+    assert "vault://" not in str(body).lower()
+    assert "credential_value" not in str(body).lower()
+    assert "dsn" not in str(body).lower()
+
+    with session_scope(session_factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_checkpoint_claims_read",
+        )
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.actor_id == "connector-sync-checkpoint-claim-reader"
+    assert event.payload == {
+        "checkpoint_id": "chk_checkpoint_claim_registry",
+        "status": "claimed",
+        "limit": 10,
+        "returned_claim_count": 1,
+        "claim_ids": ["claim_checkpoint_registry_20260625_1000"],
+        "required_permission": "connectors:sync:checkpoint:claim:read",
+        "read_scope_source": "demo_actor_scopes",
+    }
+    assert "vault://" not in str(event.payload).lower()
+    assert "credential_value" not in str(event.payload).lower()
+    assert "dsn" not in str(event.payload).lower()
+
+
+def test_connector_sync_checkpoint_claims_endpoint_requires_read_scope() -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+    assert response.json()["detail"]["required_permission"] == (
+        "connectors:sync:checkpoint:claim:read"
+    )
+
+
 def test_connector_sync_checkpoint_claim_replays_same_idempotency_key(
     session_factory: sessionmaker[Session],
 ) -> None:

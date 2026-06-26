@@ -153,6 +153,7 @@ Foundation acceptance is tracked in
 - [x] Add worker-safe sync checkpoint claim renewal and release.
 - [x] Reject competing active worker claims for the same sync checkpoint.
 - [x] Expire stale worker claims before replacement sync checkpoint ownership.
+- [x] Expose worker checkpoint claim registry with read scope and audit evidence.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
 - [x] Remove non-connector browser-runtime seed records and guard against
@@ -496,9 +497,14 @@ retrieve secret material or execute provider-specific connector code. A second
 unexpired active claim for the same checkpoint is rejected with 409 before a
 duplicate claim/audit record is written. Expired claims are marked `expired`
 with `connector.run.sync_checkpoint_claim_expired` before replacement ownership
-is created. Claim
-renewal and release update the same persisted lease record through dedicated
-scopes, writing `connector.run.sync_checkpoint_claim_renewed` and
+is created. Claim records are queryable at
+`/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
+checkpoint, status and limit filters. Reads require
+`connectors:sync:checkpoint:claim:read` and append
+`connector.run.sync_checkpoint_claims_read` audit evidence with filters,
+returned claim count and claim ids only. Claim renewal and release update the
+same persisted lease record through dedicated scopes, writing
+`connector.run.sync_checkpoint_claim_renewed` and
 `connector.run.sync_checkpoint_claim_released` audit evidence without
 provider-specific connector execution.
 enforcement, real secret retrieval and real query execution stay outside this
