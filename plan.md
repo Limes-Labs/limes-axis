@@ -490,7 +490,9 @@ same connector and run with `connector.run.sync_execution_preflight_passed`
 audit evidence referenced by `evidence_refs`. The referenced audit id must
 resolve to a persisted tenant-scoped audit ledger event with the same
 connector/run binding, its payload must remain public-safe and the target
-checkpoint result evidence must remain public-safe. This still keeps
+checkpoint result evidence must remain public-safe. The target claim result
+must remain worker-lease-only with `external_sync_started=false`,
+`secret_material_returned=false` and `worker_claim_only=true`. This still keeps
 `external_query_started=false`, returns no credential material and performs no
 graph mutation. The passed preflight now depends on validated egress policy
 evidence from persisted tenant-scoped policy records and the validated
