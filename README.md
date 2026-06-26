@@ -234,8 +234,8 @@ called. When `live_query_requested=true`, `execute-sync` must provide
 worker lease for the same connector and run with eligible persisted checkpoint
 evidence backed by `connector.run.sync_execution_preflight_passed` audit and
 its evidence ref. The referenced audit id must resolve to a tenant-scoped
-append-only audit event for the same connector/run before provider runtime
-entry, and the checkpoint result evidence must keep
+append-only audit event for the same connector/run with public-safe audit
+payload before provider runtime entry, and the checkpoint result evidence must keep
 `external_query_started=false`, `credential_material_returned=false` and
 `graph_mutation_started=false`; valid preflights include public-safe claim
 evidence in the sync result.
