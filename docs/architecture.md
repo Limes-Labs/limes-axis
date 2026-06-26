@@ -139,7 +139,10 @@ secret reference resolver evidence and public-safe checkpoint claim evidence.
 Unknown, unpersisted or unapproved egress policies are
 blocked before secret retrieval is considered; missing lease references and
 lease results that say secret material was returned are also blocked. The
-resolver remains reference-only and does not return credential material.
+resolver remains reference-only and does not return credential material. Egress
+policy registry reads are audited and expose invariant counts for missing,
+mismatched or unsafe audit bindings before provider-specific live sync is
+introduced.
 The sync checkpoint registry reports public-safe evidence invariants for
 checkpoint audit drift, including missing audit refs, unresolved ledger events,
 connector/run/checkpoint payload mismatches and unsafe checkpoint evidence, so

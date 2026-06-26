@@ -142,6 +142,7 @@ Foundation acceptance is tracked in
 - [x] Add egress policy evidence hardening for external DB live-query preflight.
 - [x] Add secret reference resolver evidence hardening for external DB live-query preflight.
 - [x] Persist tenant-scoped egress policy records for external DB preflight.
+- [x] Add egress policy registry read audit and audit-ledger evidence invariants.
 - [x] Persist tenant-scoped sync execution checkpoints for scheduled connector runs.
 - [x] Expose tenant-scoped sync execution checkpoints through the connector API.
 - [x] Show tenant-scoped sync execution checkpoints in the connector console.

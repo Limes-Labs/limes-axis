@@ -5,14 +5,16 @@ import {
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorCredentialLeaseInvariantsByLeases,
+  filterConnectorEgressPolicyInvariantsByPolicies,
   filterConnectorSyncCheckpointClaimInvariantsByClaims,
   filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
-  filterConnectorCredentialLeaseInvariantsByLeases,
   findConnectorById,
   formatConnectorLabel,
   type ManufacturingConnectorCredentialLeaseRegistry,
+  type ManufacturingConnectorEgressPolicyRegistry,
   type ManufacturingConnectorSyncCheckpointClaimRegistry,
   type ManufacturingConnectorSyncCheckpointRegistry,
   type ManufacturingConnectorRegistry,
@@ -415,6 +417,74 @@ const credentialLeaseRegistryFixture: ManufacturingConnectorCredentialLeaseRegis
   lease_notes: ["Credential lease records expose broker evidence only."],
 };
 
+const egressPolicyRegistryFixture: ManufacturingConnectorEgressPolicyRegistry = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  registry_status: "ready",
+  metrics: [],
+  policies: [
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      policy_id: "egress_policy_external_db_readonly",
+      display_name: "External DB private endpoint",
+      status: "active",
+      connection_profile_id: "profile_postgres_ops_readonly",
+      egress_boundary: "approved_private_endpoint",
+      policy_mode: "approved_private_endpoint",
+      runtime_boundary: "axis-egress-policy-enforcer",
+      private_endpoint_ref: "private-endpoint://tenant/external-db-readonly",
+      created_by: "network-policy-owner-role",
+      policy_document: {
+        transport: "private_endpoint",
+      },
+      evidence_refs: ["aef1e366-21f6-4710-a945-2a3417f4b403"],
+      audit_event_id: "aef1e366-21f6-4710-a945-2a3417f4b403",
+      audit_event_type: "connector.egress_policy.registered",
+      notes: [],
+      created_at: "2026-06-27T08:30:00Z",
+    },
+    {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      policy_id: "egress_policy_file_csv_none",
+      display_name: "File CSV no egress policy",
+      status: "active",
+      connection_profile_id: "profile_file_csv_local",
+      egress_boundary: "approved_private_endpoint",
+      policy_mode: "approved_private_endpoint",
+      runtime_boundary: "axis-egress-policy-enforcer",
+      private_endpoint_ref: "private-endpoint://tenant/file-csv-none",
+      created_by: "network-policy-owner-role",
+      policy_document: {
+        transport: "none",
+      },
+      evidence_refs: [],
+      audit_event_id: null,
+      audit_event_type: "connector.egress_policy.registered",
+      notes: [],
+      created_at: "2026-06-27T08:35:00Z",
+    },
+  ],
+  policy_evidence_invariants: [
+    {
+      policy_id: "egress_policy_external_db_readonly",
+      audit_event_id: "aef1e366-21f6-4710-a945-2a3417f4b403",
+      reason: "egress_policy_audit_event_payload_mismatch",
+      detail:
+        "Egress policy audit event payload must match connector_id, policy_id and connection_profile_id.",
+    },
+    {
+      policy_id: "egress_policy_file_csv_none",
+      audit_event_id: null,
+      reason: "egress_policy_audit_event_missing",
+      detail: "Egress policy must reference an append-only audit event.",
+    },
+  ],
+  policy_notes: ["Egress policy records expose private endpoint references only."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -615,6 +685,30 @@ describe("manufacturing connector helpers", () => {
     ]);
     expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
     expect(JSON.stringify(invariants).toLowerCase()).not.toContain("password");
+  });
+
+  it("filters egress policy evidence invariants for selected connector policies", () => {
+    const policies = egressPolicyRegistryFixture.policies.filter(
+      (policy) => policy.connector_id === "external_db_operational_mirror",
+    );
+
+    const invariants = filterConnectorEgressPolicyInvariantsByPolicies(
+      egressPolicyRegistryFixture,
+      policies,
+    );
+
+    expect(invariants).toEqual([
+      {
+        policy_id: "egress_policy_external_db_readonly",
+        audit_event_id: "aef1e366-21f6-4710-a945-2a3417f4b403",
+        reason: "egress_policy_audit_event_payload_mismatch",
+        detail:
+          "Egress policy audit event payload must match connector_id, policy_id and connection_profile_id.",
+      },
+    ]);
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("postgres://");
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
   });
 
   it("builds connector sync checkpoint claim query paths with the read scope", () => {

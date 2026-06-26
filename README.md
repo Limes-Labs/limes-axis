@@ -199,6 +199,10 @@ unpersisted or unapproved egress policies are blocked before secret retrieval is
 considered; missing lease references and lease evidence that indicates secret
 material was returned are also blocked. The resolver remains reference-only and
 does not return credential material.
+Egress policy registry reads now write `connector.egress_policies_read` audit
+evidence and report policy evidence invariants when a policy is missing audit
+evidence, references an unresolved or mismatched ledger event, or carries
+evidence that says an external query or credential material access started.
 Sync execution attempts now also persist tenant-scoped
 `connector_sync_checkpoints` rows with public-safe cursor/result evidence so
 future provider adapters have a real retry/checkpoint boundary without storing
