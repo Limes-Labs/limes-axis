@@ -125,6 +125,8 @@ const EMPTY_SYNC_CHECKPOINT_REGISTRY: ManufacturingConnectorSyncCheckpointRegist
 const EMPTY_SYNC_CHECKPOINT_CLAIM_REGISTRY: ManufacturingConnectorSyncCheckpointClaimRegistry = {
   ...EMPTY_REGISTRY_BASE,
   claims: [],
+  next_cursor: null,
+  has_more: false,
   claim_notes: [],
 };
 

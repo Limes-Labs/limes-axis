@@ -527,10 +527,12 @@ Delivered:
   expired claim and replacement claim ids.
 - checkpoint claim registry reads are exposed through
   `/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
-  connector, run, checkpoint, status and limit filters. Reads require
+  connector, run, checkpoint, status, cursor and limit filters. Responses
+  include `has_more` and `next_cursor` for stable cursor-based pagination.
+  Reads require
   `connectors:sync:checkpoint:claim:read` and append
   `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
-  filters, returned claim count and claim ids only.
+  filters, pagination metadata, returned claim count and claim ids only.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing
