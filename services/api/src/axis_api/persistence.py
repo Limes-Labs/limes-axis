@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, select
+from sqlalchemy import Select, and_, or_, select
 from sqlalchemy.orm import Session
 
 from axis_api.audit import AuditEventCreate
@@ -1718,6 +1718,8 @@ class AxisPersistenceRepository:
         connector_id: str | None = None,
         run_id: str | None = None,
         status: str | None = None,
+        cursor_created_at: datetime | None = None,
+        cursor_row_id: UUID | None = None,
         limit: int = 100,
     ) -> list[ConnectorSyncCheckpointClaim]:
         statement: Select[tuple[ConnectorSyncCheckpointClaim]] = select(
@@ -1735,6 +1737,16 @@ class AxisPersistenceRepository:
             statement = statement.where(ConnectorSyncCheckpointClaim.run_id == run_id)
         if status is not None:
             statement = statement.where(ConnectorSyncCheckpointClaim.status == status)
+        if cursor_created_at is not None and cursor_row_id is not None:
+            statement = statement.where(
+                or_(
+                    ConnectorSyncCheckpointClaim.created_at > cursor_created_at,
+                    and_(
+                        ConnectorSyncCheckpointClaim.created_at == cursor_created_at,
+                        ConnectorSyncCheckpointClaim.id > cursor_row_id,
+                    ),
+                )
+            )
         statement = statement.order_by(
             ConnectorSyncCheckpointClaim.created_at.asc(),
             ConnectorSyncCheckpointClaim.id.asc(),

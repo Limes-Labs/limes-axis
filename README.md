@@ -217,14 +217,15 @@ worker ownership evidence is written. Expired claims are marked `expired` with
 `connector.run.sync_checkpoint_claim_expired` before replacement ownership is
 created. Claim records are queryable through
 `/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant, connector,
-run, checkpoint, status and limit filters. Reads require
+run, checkpoint, status, cursor and limit filters. Reads return `has_more` and
+`next_cursor` for stable cursor-based pagination. Reads require
 `connectors:sync:checkpoint:claim:read` and append
-`connector.run.sync_checkpoint_claims_read` audit evidence with filters, counts
-and claim ids only. The `/connectors` console requests the same registry with
-that read scope and renders worker ownership, lease, renewal/release and
-secret-material evidence for claims attached to the selected connector
-checkpoints. Dedicated renewal/release endpoints extend or close the same
-persisted claim with separate scopes and audit evidence.
+`connector.run.sync_checkpoint_claims_read` audit evidence with filters,
+pagination metadata, counts and claim ids only. The `/connectors` console
+requests the same registry with that read scope and renders worker ownership,
+lease, renewal/release and secret-material evidence for claims attached to the
+selected connector checkpoints. Dedicated renewal/release endpoints extend or
+close the same persisted claim with separate scopes and audit evidence.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

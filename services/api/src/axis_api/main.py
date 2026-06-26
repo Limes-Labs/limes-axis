@@ -2107,6 +2107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         connector_id: str | None = Query(default=None, min_length=1),
         run_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
+        cursor: str | None = Query(default=None, min_length=1, max_length=600),
         actor_scopes: list[str] = CheckpointActorScopesQuery,
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorSyncCheckpointClaimRegistry:
@@ -2115,25 +2116,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             actor_scopes,
             principal,
         )
-        return read_connector_sync_checkpoint_claim_registry(
-            repository,
-            ConnectorSyncCheckpointClaimQuery(
-                tenant_id=tenant_id,
-                checkpoint_id=checkpoint_id,
-                connector_id=connector_id,
-                run_id=run_id,
-                status=status,
-                limit=limit,
-            ),
-            actor_id=(
-                principal.actor_id
-                if principal is not None
-                else "connector-sync-checkpoint-claim-reader"
-            ),
-            read_scope_source=(
-                "oidc_principal" if principal is not None else "demo_actor_scopes"
-            ),
-        )
+        try:
+            return read_connector_sync_checkpoint_claim_registry(
+                repository,
+                ConnectorSyncCheckpointClaimQuery(
+                    tenant_id=tenant_id,
+                    checkpoint_id=checkpoint_id,
+                    connector_id=connector_id,
+                    run_id=run_id,
+                    status=status,
+                    cursor=cursor,
+                    limit=limit,
+                ),
+                actor_id=(
+                    principal.actor_id
+                    if principal is not None
+                    else "connector-sync-checkpoint-claim-reader"
+                ),
+                read_scope_source=(
+                    "oidc_principal" if principal is not None else "demo_actor_scopes"
+                ),
+            )
+        except ConnectorRunValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims",

@@ -498,6 +498,8 @@ export type ManufacturingConnectorSyncCheckpointClaimRegistry = {
     status: PlatformStatus;
   }[];
   claims: ConnectorSyncCheckpointClaimRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
   claim_notes: string[];
 };
 
@@ -865,11 +867,17 @@ export function buildConnectorSyncCheckpointQueryPath(
   return `/demo/manufacturing/connectors/runs/checkpoints?${params.toString()}`;
 }
 
-export function buildConnectorSyncCheckpointClaimQueryPath(tenantId: string): string {
+export function buildConnectorSyncCheckpointClaimQueryPath(
+  tenantId: string,
+  options: { cursor?: string } = {},
+): string {
   const params = new URLSearchParams({
     tenant_id: tenantId,
     actor_scopes: CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE,
   });
+  if (options.cursor) {
+    params.set("cursor", options.cursor);
+  }
   return `/demo/manufacturing/connectors/runs/checkpoints/claims?${params.toString()}`;
 }
 

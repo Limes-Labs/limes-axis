@@ -188,6 +188,8 @@ const checkpointClaimRegistryFixture: ManufacturingConnectorSyncCheckpointClaimR
   scenario: "Plant Operations Cockpit",
   registry_status: "ready",
   metrics: [],
+  next_cursor: null,
+  has_more: false,
   claims: [
     {
       tenant_id: "tenant_demo_manufacturing",
@@ -408,6 +410,16 @@ describe("manufacturing connector helpers", () => {
 
     expect(path).toBe(
       "/demo/manufacturing/connectors/runs/checkpoints/claims?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aclaim%3Aread",
+    );
+  });
+
+  it("builds connector sync checkpoint claim query paths with a cursor", () => {
+    const path = buildConnectorSyncCheckpointClaimQueryPath("tenant_demo_manufacturing", {
+      cursor: "opaque-cursor-page-2",
+    });
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/runs/checkpoints/claims?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aclaim%3Aread&cursor=opaque-cursor-page-2",
     );
   });
 });

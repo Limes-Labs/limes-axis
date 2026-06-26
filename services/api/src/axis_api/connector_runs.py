@@ -1,3 +1,6 @@
+import base64
+import binascii
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -24,7 +27,7 @@ from axis_api.connector_execution import (
 )
 from axis_api.connector_reference import get_persisted_manufacturing_connector_registry
 from axis_api.demo import OverviewMetric, OverviewStatus
-from axis_api.models import utc_now
+from axis_api.models import ConnectorSyncCheckpointClaim, utc_now
 from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorRunCreate,
@@ -96,6 +99,7 @@ class ConnectorSyncCheckpointClaimQuery(BaseModel):
     connector_id: str | None = Field(default=None, min_length=1)
     run_id: str | None = Field(default=None, min_length=1)
     status: str | None = Field(default=None, min_length=1)
+    cursor: str | None = Field(default=None, min_length=1, max_length=600)
     limit: int = Field(default=100, ge=1, le=200)
 
 
@@ -268,6 +272,8 @@ class ManufacturingConnectorSyncCheckpointClaimRegistry(BaseModel):
     registry_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     claims: list[ConnectorSyncCheckpointClaimRecord] = Field(default_factory=list)
+    next_cursor: str | None = None
+    has_more: bool = False
     claim_notes: list[str] = Field(default_factory=list)
 
 
@@ -462,15 +468,25 @@ def build_connector_sync_checkpoint_claim_registry(
     repository: AxisPersistenceRepository,
     query: ConnectorSyncCheckpointClaimQuery,
 ) -> ManufacturingConnectorSyncCheckpointClaimRegistry:
+    cursor_created_at, cursor_row_id = _decode_checkpoint_claim_cursor(query.cursor)
     records = repository.list_connector_sync_checkpoint_claims(
         tenant_id=query.tenant_id,
         checkpoint_id=query.checkpoint_id,
         connector_id=query.connector_id,
         run_id=query.run_id,
         status=query.status,
-        limit=query.limit,
+        cursor_created_at=cursor_created_at,
+        cursor_row_id=cursor_row_id,
+        limit=query.limit + 1,
     )
-    claims = [_checkpoint_claim_from_record(record) for record in records]
+    has_more = len(records) > query.limit
+    page_records = records[: query.limit]
+    claims = [_checkpoint_claim_from_record(record) for record in page_records]
+    next_cursor = (
+        _encode_checkpoint_claim_cursor(page_records[-1])
+        if has_more and page_records
+        else None
+    )
     active_claims = sum(1 for claim in claims if claim.status == "claimed")
     closed_claims = sum(1 for claim in claims if claim.status in {"expired", "released"})
     return ManufacturingConnectorSyncCheckpointClaimRegistry(
@@ -505,6 +521,8 @@ def build_connector_sync_checkpoint_claim_registry(
             ),
         ],
         claims=claims,
+        next_cursor=next_cursor,
+        has_more=has_more,
         claim_notes=[
             "Checkpoint claim records expose worker ownership and lease state.",
             "Claim reads are tenant-scoped and audited without secret material.",
@@ -530,8 +548,11 @@ def read_connector_sync_checkpoint_claim_registry(
                 "connector_id": query.connector_id,
                 "run_id": query.run_id,
                 "status": query.status,
+                "cursor": query.cursor,
                 "limit": query.limit,
                 "returned_claim_count": len(registry.claims),
+                "next_cursor": registry.next_cursor,
+                "has_more": registry.has_more,
                 "claim_ids": [claim.claim_id for claim in registry.claims],
                 "required_permission": SYNC_CHECKPOINT_CLAIM_READ_SCOPE,
                 "read_scope_source": read_scope_source,
@@ -539,6 +560,42 @@ def read_connector_sync_checkpoint_claim_registry(
         )
     )
     return registry
+
+
+def _encode_checkpoint_claim_cursor(record: ConnectorSyncCheckpointClaim) -> str:
+    payload = {
+        "created_at": _datetime_as_utc_string(record.created_at),
+        "row_id": str(record.id),
+    }
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_checkpoint_claim_cursor(
+    cursor: str | None,
+) -> tuple[datetime | None, UUID | None]:
+    if cursor is None:
+        return None, None
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+        created_at = datetime.fromisoformat(
+            str(payload["created_at"]).replace("Z", "+00:00")
+        )
+        row_id = UUID(str(payload["row_id"]))
+    except (
+        KeyError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ) as exc:
+        raise ConnectorRunValidationError(
+            "Connector sync checkpoint claim cursor is invalid.",
+            "invalid_checkpoint_claim_cursor",
+        ) from exc
+    return _ensure_timezone(created_at), row_id
 
 
 def claim_connector_sync_checkpoint(

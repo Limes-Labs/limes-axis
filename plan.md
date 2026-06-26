@@ -155,6 +155,7 @@ Foundation acceptance is tracked in
 - [x] Expire stale worker claims before replacement sync checkpoint ownership.
 - [x] Expose worker checkpoint claim registry with read scope and audit evidence.
 - [x] Filter worker checkpoint claim registry by connector and run.
+- [x] Paginate worker checkpoint claim registry with opaque cursors.
 - [x] Show worker checkpoint claim registry in the connector console.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
@@ -501,11 +502,12 @@ duplicate claim/audit record is written. Expired claims are marked `expired`
 with `connector.run.sync_checkpoint_claim_expired` before replacement ownership
 is created. Claim records are queryable at
 `/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant, connector,
-run, checkpoint, status and limit filters. Reads require
+run, checkpoint, status, cursor and limit filters. Reads return `has_more` and
+`next_cursor` for stable cursor-based pagination. Reads require
 `connectors:sync:checkpoint:claim:read` and append
 `connector.run.sync_checkpoint_claims_read` audit evidence with filters,
-returned claim count and claim ids only. Claim renewal and release update the
-same persisted lease record through dedicated scopes, writing
+pagination metadata, returned claim count and claim ids only. Claim renewal and
+release update the same persisted lease record through dedicated scopes, writing
 `connector.run.sync_checkpoint_claim_renewed` and
 `connector.run.sync_checkpoint_claim_released` audit evidence without
 provider-specific connector execution.
