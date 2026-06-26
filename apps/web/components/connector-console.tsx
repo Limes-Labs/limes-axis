@@ -9,6 +9,7 @@ import {
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointClaimInvariantsByClaims,
   filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
@@ -127,6 +128,7 @@ const EMPTY_SYNC_CHECKPOINT_REGISTRY: ManufacturingConnectorSyncCheckpointRegist
 const EMPTY_SYNC_CHECKPOINT_CLAIM_REGISTRY: ManufacturingConnectorSyncCheckpointClaimRegistry = {
   ...EMPTY_REGISTRY_BASE,
   claims: [],
+  claim_evidence_invariants: [],
   next_cursor: null,
   has_more: false,
   claim_notes: [],
@@ -506,6 +508,14 @@ export function ConnectorConsole() {
         selectedSyncCheckpoints,
       ),
     [syncCheckpointClaimRegistry, selectedSyncCheckpoints],
+  );
+  const selectedSyncCheckpointClaimInvariants = useMemo(
+    () =>
+      filterConnectorSyncCheckpointClaimInvariantsByClaims(
+        syncCheckpointClaimRegistry,
+        selectedSyncCheckpointClaims,
+      ),
+    [syncCheckpointClaimRegistry, selectedSyncCheckpointClaims],
   );
   const selectedSyncCheckpointInvariants = useMemo(
     () =>
@@ -999,7 +1009,9 @@ export function ConnectorConsole() {
                 <h3 className="subsection-title">
                   {selectedSyncCheckpointClaims.length} worker claim
                 </h3>
-                <p className="row-detail">tenant-scoped checkpoint ownership leases</p>
+                <p className="row-detail">
+                  {selectedSyncCheckpointClaimInvariants.length} claim invariant
+                </p>
               </div>
               <ShieldCheck size={18} />
             </div>
@@ -1014,6 +1026,19 @@ export function ConnectorConsole() {
                 </div>
               ))}
             </div>
+            {selectedSyncCheckpointClaimInvariants.length > 0 ? (
+              <div className="payload-grid">
+                {selectedSyncCheckpointClaimInvariants.map((invariant) => (
+                  <div className="payload-row" key={`${invariant.claim_id}-${invariant.reason}`}>
+                    <span>
+                      <span className="metric-label">{invariant.reason}</span>
+                      <span className="row-detail">{invariant.claim_id}</span>
+                    </span>
+                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {selectedSyncCheckpointClaims.map((claim) => (
               <div className="audit-detail-grid" key={`${claim.claim_id}-claim`}>
                 <div>

@@ -5,6 +5,7 @@ import {
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  filterConnectorSyncCheckpointClaimInvariantsByClaims,
   filterConnectorSyncCheckpointInvariantsByCheckpoints,
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
@@ -288,6 +289,22 @@ const checkpointClaimRegistryFixture: ManufacturingConnectorSyncCheckpointClaimR
       created_at: "2026-06-25T08:06:00Z",
     },
   ],
+  claim_evidence_invariants: [
+    {
+      claim_id: "claim_external_db_sync_1_worker_a",
+      checkpoint_id: "chk_external_db_sync_1",
+      audit_event_id: null,
+      reason: "claim_audit_event_missing",
+      detail: "Claim must reference an append-only audit event.",
+    },
+    {
+      claim_id: "claim_file_csv_sync_1_worker",
+      checkpoint_id: "chk_file_csv_sync_1",
+      audit_event_id: null,
+      reason: "claim_audit_event_missing",
+      detail: "Claim must reference an append-only audit event.",
+    },
+  ],
   claim_notes: ["Checkpoint claim records expose worker ownership and lease state."],
 };
 
@@ -441,6 +458,34 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(claims).toLowerCase()).not.toContain("dsn");
     expect(JSON.stringify(claims).toLowerCase()).not.toContain("credential_value");
     expect(JSON.stringify(claims).toLowerCase()).not.toContain("password");
+  });
+
+  it("filters checkpoint claim evidence invariants for selected connector claims", () => {
+    const checkpoints = filterConnectorSyncCheckpointsByConnector(
+      checkpointRegistryFixture,
+      "external_db_operational_mirror",
+    );
+    const claims = filterConnectorSyncCheckpointClaimsByCheckpoints(
+      checkpointClaimRegistryFixture,
+      checkpoints,
+    );
+
+    const invariants = filterConnectorSyncCheckpointClaimInvariantsByClaims(
+      checkpointClaimRegistryFixture,
+      claims,
+    );
+
+    expect(invariants).toEqual([
+      {
+        claim_id: "claim_external_db_sync_1_worker_a",
+        checkpoint_id: "chk_external_db_sync_1",
+        audit_event_id: null,
+        reason: "claim_audit_event_missing",
+        detail: "Claim must reference an append-only audit event.",
+      },
+    ]);
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("credential_value");
+    expect(JSON.stringify(invariants).toLowerCase()).not.toContain("password");
   });
 
   it("builds connector sync checkpoint claim query paths with the read scope", () => {

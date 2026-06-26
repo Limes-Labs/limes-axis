@@ -533,7 +533,11 @@ Delivered:
   Reads require
   `connectors:sync:checkpoint:claim:read` and append
   `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
-  filters, pagination metadata, returned claim count and claim ids only.
+  filters, pagination metadata, returned claim count, claim evidence invariant
+  count and claim ids only. Responses include public-safe
+  `claim_evidence_invariants` for missing audit refs, unresolved ledger events,
+  audit type mismatches, connector/run/checkpoint/claim/worker payload
+  mismatches and worker-lease-only evidence violations.
 - external DB live-query preflight requires `checkpoint_claim_id` and a persisted
   active checkpoint claim owned by the executing worker before the
   provider-specific runtime boundary is called. The targeted persisted claim

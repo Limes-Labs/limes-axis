@@ -159,6 +159,7 @@ Foundation acceptance is tracked in
 - [x] Paginate worker checkpoint claim registry with opaque cursors.
 - [x] Filter worker checkpoint claim registry by claiming worker.
 - [x] Filter worker checkpoint claim registry by created time window.
+- [x] Report public-safe checkpoint claim evidence invariants on claim registry reads.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
@@ -549,8 +550,8 @@ from the Axis API. Checkpoint rows are requested with the checkpoint read scope
 and shown per selected connector with sequence, adapter, cursor summary, result
 evidence and audit refs. Checkpoint claim rows are requested with
 `connectors:sync:checkpoint:claim:read` and shown next to the selected
-connector checkpoints with worker ownership, lease, renewal/release and
-secret-material evidence. If the backend is unavailable it shows an
+connector checkpoints with worker ownership, lease, renewal/release, invariant
+status and secret-material evidence. If the backend is unavailable it shows an
 API-required empty state instead of rendering local connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is

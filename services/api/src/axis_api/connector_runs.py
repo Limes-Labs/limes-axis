@@ -256,6 +256,14 @@ class ConnectorSyncCheckpointClaimRecord(BaseModel):
     created_at: datetime
 
 
+class ConnectorSyncCheckpointClaimEvidenceInvariant(BaseModel):
+    claim_id: str = Field(min_length=1)
+    checkpoint_id: str = Field(min_length=1)
+    audit_event_id: str | None = None
+    reason: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
 class ManufacturingConnectorRunRegistry(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -286,6 +294,9 @@ class ManufacturingConnectorSyncCheckpointClaimRegistry(BaseModel):
     registry_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     claims: list[ConnectorSyncCheckpointClaimRecord] = Field(default_factory=list)
+    claim_evidence_invariants: list[
+        ConnectorSyncCheckpointClaimEvidenceInvariant
+    ] = Field(default_factory=list)
     next_cursor: str | None = None
     has_more: bool = False
     claim_notes: list[str] = Field(default_factory=list)
@@ -524,6 +535,11 @@ def build_connector_sync_checkpoint_claim_registry(
     )
     active_claims = sum(1 for claim in claims if claim.status == "claimed")
     closed_claims = sum(1 for claim in claims if claim.status in {"expired", "released"})
+    claim_evidence_invariants = [
+        invariant
+        for record in page_records
+        if (invariant := _claim_evidence_invariant(repository, record)) is not None
+    ]
     return ManufacturingConnectorSyncCheckpointClaimRegistry(
         tenant_id=query.tenant_id,
         plant_name="Ravenna Works",
@@ -549,6 +565,16 @@ def build_connector_sync_checkpoint_claim_registry(
                 status=OverviewStatus.READY if closed_claims else OverviewStatus.WATCH,
             ),
             OverviewMetric(
+                label="Claim Evidence Invariants",
+                value=str(len(claim_evidence_invariants)),
+                detail="Claim audit ledger binding issues in this result set",
+                status=(
+                    OverviewStatus.WATCH
+                    if claim_evidence_invariants
+                    else OverviewStatus.READY
+                ),
+            ),
+            OverviewMetric(
                 label="Secret Material",
                 value="Excluded",
                 detail="Claim records expose ownership and lease metadata only",
@@ -556,6 +582,7 @@ def build_connector_sync_checkpoint_claim_registry(
             ),
         ],
         claims=claims,
+        claim_evidence_invariants=claim_evidence_invariants,
         next_cursor=next_cursor,
         has_more=has_more,
         claim_notes=[
@@ -589,6 +616,9 @@ def read_connector_sync_checkpoint_claim_registry(
                 "cursor": query.cursor,
                 "limit": query.limit,
                 "returned_claim_count": len(registry.claims),
+                "claim_evidence_invariant_count": len(
+                    registry.claim_evidence_invariants
+                ),
                 "next_cursor": registry.next_cursor,
                 "has_more": registry.has_more,
                 "claim_ids": [claim.claim_id for claim in registry.claims],
@@ -1469,6 +1499,75 @@ def _checkpoint_evidence_invariant(
             audit_event_id=audit_event_id,
             reason="checkpoint_result_unsafe",
             detail="Checkpoint result evidence must remain public-safe.",
+        )
+    return None
+
+
+def _claim_evidence_invariant(
+    repository: AxisPersistenceRepository,
+    claim,
+) -> ConnectorSyncCheckpointClaimEvidenceInvariant | None:
+    audit_event_id = str(claim.audit_event_id) if claim.audit_event_id else None
+    if claim.audit_event_id is None:
+        return ConnectorSyncCheckpointClaimEvidenceInvariant(
+            claim_id=claim.claim_id,
+            checkpoint_id=claim.checkpoint_id,
+            audit_event_id=None,
+            reason="claim_audit_event_missing",
+            detail="Claim must reference an append-only audit event.",
+        )
+    audit_event = repository.get_audit_event(claim.tenant_id, claim.audit_event_id)
+    if audit_event is None:
+        return ConnectorSyncCheckpointClaimEvidenceInvariant(
+            claim_id=claim.claim_id,
+            checkpoint_id=claim.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="claim_audit_event_not_found",
+            detail="Claim audit event id must resolve in the tenant ledger.",
+        )
+    if audit_event.event_type != claim.audit_event_type:
+        return ConnectorSyncCheckpointClaimEvidenceInvariant(
+            claim_id=claim.claim_id,
+            checkpoint_id=claim.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="claim_audit_event_type_mismatch",
+            detail="Claim audit event type must match the claim record.",
+        )
+    if (
+        audit_event.payload.get("connector_id") != claim.connector_id
+        or audit_event.payload.get("run_id") != claim.run_id
+        or audit_event.payload.get("checkpoint_id") != claim.checkpoint_id
+        or audit_event.payload.get("claim_id") != claim.claim_id
+        or (
+            claim.audit_event_type == SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE
+            and audit_event.payload.get("claimed_by") != claim.claimed_by
+        )
+    ):
+        return ConnectorSyncCheckpointClaimEvidenceInvariant(
+            claim_id=claim.claim_id,
+            checkpoint_id=claim.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="claim_audit_event_payload_mismatch",
+            detail=(
+                "Claim audit event payload must match connector_id, run_id, "
+                "checkpoint_id, claim_id and claimed_by."
+            ),
+        )
+    if not _sync_checkpoint_claim_result_is_worker_lease_only(audit_event.payload):
+        return ConnectorSyncCheckpointClaimEvidenceInvariant(
+            claim_id=claim.claim_id,
+            checkpoint_id=claim.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="claim_audit_payload_unsafe",
+            detail="Claim audit event payload must remain worker-lease-only.",
+        )
+    if not _sync_checkpoint_claim_result_is_worker_lease_only(claim.claim_result):
+        return ConnectorSyncCheckpointClaimEvidenceInvariant(
+            claim_id=claim.claim_id,
+            checkpoint_id=claim.checkpoint_id,
+            audit_event_id=audit_event_id,
+            reason="claim_result_unsafe",
+            detail="Claim result evidence must remain worker-lease-only.",
         )
     return None
 

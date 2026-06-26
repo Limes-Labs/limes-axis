@@ -494,6 +494,14 @@ export type ConnectorSyncCheckpointClaimRecord = {
   created_at: string;
 };
 
+export type ConnectorSyncCheckpointClaimEvidenceInvariant = {
+  claim_id: string;
+  checkpoint_id: string;
+  audit_event_id: string | null;
+  reason: string;
+  detail: string;
+};
+
 export type ManufacturingConnectorSyncCheckpointClaimRegistry = {
   tenant_id: string;
   plant_name: string;
@@ -506,6 +514,7 @@ export type ManufacturingConnectorSyncCheckpointClaimRegistry = {
     status: PlatformStatus;
   }[];
   claims: ConnectorSyncCheckpointClaimRecord[];
+  claim_evidence_invariants: ConnectorSyncCheckpointClaimEvidenceInvariant[];
   next_cursor: string | null;
   has_more: boolean;
   claim_notes: string[];
@@ -861,6 +870,22 @@ export function filterConnectorSyncCheckpointClaimsByCheckpoints(
 
       const createdAtOrder = left.created_at.localeCompare(right.created_at);
       return createdAtOrder === 0 ? left.claim_id.localeCompare(right.claim_id) : createdAtOrder;
+    });
+}
+
+export function filterConnectorSyncCheckpointClaimInvariantsByClaims(
+  registry: ManufacturingConnectorSyncCheckpointClaimRegistry,
+  claims: ConnectorSyncCheckpointClaimRecord[],
+): ConnectorSyncCheckpointClaimEvidenceInvariant[] {
+  const claimIds = new Set(claims.map((claim) => claim.claim_id));
+  return registry.claim_evidence_invariants
+    .filter((invariant) => claimIds.has(invariant.claim_id))
+    .slice()
+    .sort((left, right) => {
+      const checkpointOrder = left.checkpoint_id.localeCompare(right.checkpoint_id);
+      return checkpointOrder === 0
+        ? left.claim_id.localeCompare(right.claim_id)
+        : checkpointOrder;
     });
 }
 

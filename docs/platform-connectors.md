@@ -508,10 +508,14 @@ limit filters. Invalid time windows are rejected before storage reads. The
 endpoint returns `has_more` and `next_cursor` for stable cursor-based pagination. It requires
 `connectors:sync:checkpoint:claim:read` and appends
 `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
-filters, pagination metadata, returned claim count and claim ids only. The
-`/connectors` console uses the same read scope and registry endpoint to show
-worker ownership, lease, renewal/release and secret-material evidence for
-claims attached to the selected connector checkpoints.
+filters, pagination metadata, returned claim count, claim evidence invariant
+count and claim ids only. The registry reports public-safe
+`claim_evidence_invariants` for missing or unresolved claim audit events, audit
+event type or connector/run/checkpoint/claim/worker payload mismatches, unsafe
+claim audit payloads and unsafe claim result summaries. The `/connectors`
+console uses the same read scope and registry endpoint to show worker
+ownership, lease, renewal/release, invariant status and secret-material
+evidence for claims attached to the selected connector checkpoints.
 Claim renewal and release are exposed through dedicated endpoints with
 `connectors:sync:checkpoint:claim:renew` and
 `connectors:sync:checkpoint:claim:release`, updating the same persisted lease
@@ -805,6 +809,7 @@ contract keeps these boundaries visible:
 - active checkpoint claim conflict handling before duplicate worker ownership;
 - stale checkpoint claim expiry before replacement worker ownership;
 - checkpoint claim registry reads with dedicated scope and audit evidence;
+- checkpoint claim evidence invariant reporting on registry reads;
 - connector/run filters for checkpoint claim registry reads;
 - opaque cursor pagination for checkpoint claim registry reads;
 - claiming-worker filters for checkpoint claim registry reads;
