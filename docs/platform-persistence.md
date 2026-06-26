@@ -542,7 +542,8 @@ Delivered:
   `sync_execution` checkpoint evidence with status
   `sync_execution_preflight_passed` and audit event type
   `connector.run.sync_execution_preflight_passed` for the same connector and
-  run. Non-live execution paths do not require a checkpoint claim target.
+  run, and the checkpoint `evidence_refs` must include its audit event id.
+  Non-live execution paths do not require a checkpoint claim target.
 - checkpoint claim lifecycle updates on the same
   `connector_sync_checkpoint_claims` row, with renew/release endpoints using
   dedicated scopes, updating lease expiry or release state and writing

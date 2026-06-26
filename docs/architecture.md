@@ -117,7 +117,8 @@ checkpoint. When `live_query_requested=true`, `execute-sync` must provide
 `checkpoint_claim_id`; Axis binds the preflight to that exact active worker
 lease and verifies eligible `sync_execution_preflight_passed` checkpoint
 evidence backed by `connector.run.sync_execution_preflight_passed` audit for
-the same connector and run rather than choosing any valid claim for the run.
+the same connector and run, with the checkpoint audit id present in
+`evidence_refs`, rather than choosing any valid claim for the run.
 The slice still records `external_query_started=false` and returns no credential
 material. The preflight records redacted egress policy evidence from the
 repository-backed policy record, the already validated credential lease result,
