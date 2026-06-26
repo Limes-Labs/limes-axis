@@ -414,7 +414,7 @@ audit payload, plus
 `connector.run.sync_execution_preflight_passed` and whose checkpoint audit event
 id is present in `evidence_refs`. The referenced checkpoint audit id must also
 resolve to a persisted tenant-scoped audit ledger event for the same connector
-and run before
+run and checkpoint before
 `connector.run.sync_execution_preflight_passed` can be written. Policies are
 created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
@@ -439,7 +439,7 @@ that does not reference its audit event id is rejected with
 `target_sync_checkpoint_claim_checkpoint_evidence_ref_missing`; checkpoint
 evidence referencing a missing audit ledger event is rejected with
 `target_sync_checkpoint_claim_checkpoint_audit_event_not_found`, and a
-connector/run mismatch is rejected with
+connector/run/checkpoint mismatch is rejected with
 `target_sync_checkpoint_claim_checkpoint_audit_event_mismatch`. Referenced
 audit payload that says an external query started, credential material was
 returned or a graph mutation started is rejected with

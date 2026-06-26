@@ -121,7 +121,7 @@ tenant-scoped append-only audit ledger for the same connector, run,
 checkpoint, claim and worker, with worker-lease-only payload, and verifies eligible
 `sync_execution_preflight_passed` checkpoint
 evidence backed by `connector.run.sync_execution_preflight_passed` audit for
-the same connector and run, with the checkpoint audit id present in
+the same connector, run and checkpoint, with the checkpoint audit id present in
 `evidence_refs` and resolving to a tenant-scoped append-only audit event with
 public-safe payload, rather than choosing any valid claim for the run. The
 checkpoint result evidence must also remain public-safe: no external query, no

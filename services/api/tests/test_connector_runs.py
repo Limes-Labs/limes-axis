@@ -3211,6 +3211,175 @@ def test_execute_external_db_live_query_preflight_rejects_mismatched_checkpoint_
     assert run.result_summary.get("sync_execution_result") is None
 
 
+def test_execute_external_db_live_query_preflight_rejects_checkpoint_audit_checkpoint_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    run_id = "run_external_db_orders_live_preflight_checkpoint_audit_id_20260626"
+    checkpoint_id = "chk_live_preflight_checkpoint_audit_id_20260626"
+    claim_id = "claim_live_preflight_checkpoint_audit_id_20260626"
+    execution_id = (
+        "sync_exec_external_db_orders_live_preflight_checkpoint_audit_id_20260626"
+    )
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+        seed_external_db_egress_policy(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id=run_id,
+        dispatch_id="dispatch_external_db_orders_live_preflight_checkpoint_audit_id_20260626",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_preflight_checkpoint_audit_id_20260626"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "record_count": "2",
+            "live_query_requested": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        checkpoint_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="axis-sync-worker-role",
+                event_type="connector.run.sync_execution_preflight_passed",
+                payload={
+                    "connector_id": "external_db_operational_mirror",
+                    "run_id": run_id,
+                    "checkpoint_id": "chk_live_preflight_other_checkpoint_20260626",
+                    "external_query_started": False,
+                    "credential_material_returned": False,
+                    "graph_mutation_started": False,
+                },
+            )
+        )
+        claim_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="axis-sync-worker-role",
+                event_type="connector.run.sync_checkpoint_claimed",
+                payload={
+                    "connector_id": "external_db_operational_mirror",
+                    "run_id": run_id,
+                    "checkpoint_id": checkpoint_id,
+                    "claim_id": claim_id,
+                    "claimed_by": "axis-sync-worker-role",
+                },
+            )
+        )
+        repository.create_connector_sync_checkpoint(
+            ConnectorSyncCheckpointCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id=run_id,
+                checkpoint_id=checkpoint_id,
+                checkpoint_type="sync_execution",
+                status="sync_execution_preflight_passed",
+                sequence=1,
+                runtime_boundary="axis-connector-sandbox",
+                adapter="axis-postgres-external-db-sync-executor",
+                cursor={"cursor_type": "live_query_preflight"},
+                result_summary={
+                    "external_query_started": "false",
+                    "credential_material_returned": "false",
+                    "graph_mutation_started": "false",
+                },
+                evidence_refs=[str(checkpoint_event.id)],
+                audit_event_id=checkpoint_event.id,
+                audit_event_type="connector.run.sync_execution_preflight_passed",
+                notes=["Checkpoint seeded with mismatched audit checkpoint id."],
+            )
+        )
+        repository.create_connector_sync_checkpoint_claim(
+            ConnectorSyncCheckpointClaimCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id=run_id,
+                checkpoint_id=checkpoint_id,
+                claim_id=claim_id,
+                status="claimed",
+                claimed_by="axis-sync-worker-role",
+                idempotency_key=f"idem_{claim_id}",
+                lease_duration_seconds=900,
+                lease_expires_at=ACTIVE_CLAIM_LEASE_EXPIRES_AT,
+                claim_result={
+                    "external_sync_started": False,
+                    "secret_material_returned": False,
+                    "worker_claim_only": True,
+                },
+                audit_event_id=claim_event.id,
+                audit_event_type="connector.run.sync_checkpoint_claimed",
+                notes=["Claim seeded for mismatched checkpoint audit id rejection."],
+            )
+        )
+
+    response = client.post(
+        f"/demo/manufacturing/connectors/runs/{run_id}/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": execution_id,
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "checkpoint_claim_id": claim_id,
+            "idempotency_key": f"idem_{execution_id}",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == (
+        "target_sync_checkpoint_claim_checkpoint_audit_event_mismatch"
+    )
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        events = repository.list_audit_events(
+            "tenant_demo_manufacturing",
+            event_type="connector.run.sync_execution_preflight_passed",
+        )
+        checkpoints = repository.list_connector_sync_checkpoints(
+            "tenant_demo_manufacturing",
+            run_id=run_id,
+        )
+        run = repository.get_connector_run("tenant_demo_manufacturing", run_id)
+
+    execution_events = [
+        event for event in events if event.payload.get("execution_id") == execution_id
+    ]
+    execution_checkpoints = [
+        checkpoint
+        for checkpoint in checkpoints
+        if checkpoint.checkpoint_id == f"chk_{execution_id}"
+    ]
+    assert execution_events == []
+    assert execution_checkpoints == []
+    assert run is not None
+    assert run.status == "sync_dispatch_deferred"
+    assert run.result_summary.get("sync_execution_result") is None
+
+
 @pytest.mark.parametrize(
     ("unsafe_result_summary", "case_suffix"),
     [

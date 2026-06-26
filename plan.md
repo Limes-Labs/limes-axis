@@ -492,7 +492,7 @@ attached to an eligible `sync_execution_preflight_passed` checkpoint for the
 same connector and run with `connector.run.sync_execution_preflight_passed`
 audit evidence referenced by `evidence_refs`. The referenced audit id must
 resolve to a persisted tenant-scoped audit ledger event with the same
-connector/run binding, its payload must remain public-safe and the target
+connector/run/checkpoint binding, its payload must remain public-safe and the target
 checkpoint result evidence must remain public-safe. The target claim result
 must remain worker-lease-only with `external_sync_started=false`,
 `secret_material_returned=false` and `worker_claim_only=true`. This still keeps
