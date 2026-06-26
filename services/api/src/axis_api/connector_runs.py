@@ -100,6 +100,8 @@ class ConnectorSyncCheckpointClaimQuery(BaseModel):
     run_id: str | None = Field(default=None, min_length=1)
     status: str | None = Field(default=None, min_length=1)
     claimed_by: str | None = Field(default=None, min_length=1)
+    created_after: datetime | None = None
+    created_before: datetime | None = None
     cursor: str | None = Field(default=None, min_length=1, max_length=600)
     limit: int = Field(default=100, ge=1, le=200)
 
@@ -469,6 +471,7 @@ def build_connector_sync_checkpoint_claim_registry(
     repository: AxisPersistenceRepository,
     query: ConnectorSyncCheckpointClaimQuery,
 ) -> ManufacturingConnectorSyncCheckpointClaimRegistry:
+    _validate_checkpoint_claim_time_window(query)
     cursor_created_at, cursor_row_id = _decode_checkpoint_claim_cursor(query.cursor)
     records = repository.list_connector_sync_checkpoint_claims(
         tenant_id=query.tenant_id,
@@ -477,6 +480,8 @@ def build_connector_sync_checkpoint_claim_registry(
         run_id=query.run_id,
         status=query.status,
         claimed_by=query.claimed_by,
+        created_after=query.created_after,
+        created_before=query.created_before,
         cursor_created_at=cursor_created_at,
         cursor_row_id=cursor_row_id,
         limit=query.limit + 1,
@@ -551,6 +556,8 @@ def read_connector_sync_checkpoint_claim_registry(
                 "run_id": query.run_id,
                 "status": query.status,
                 "claimed_by": query.claimed_by,
+                "created_after": _datetime_as_utc_string(query.created_after),
+                "created_before": _datetime_as_utc_string(query.created_before),
                 "cursor": query.cursor,
                 "limit": query.limit,
                 "returned_claim_count": len(registry.claims),
@@ -599,6 +606,20 @@ def _decode_checkpoint_claim_cursor(
             "invalid_checkpoint_claim_cursor",
         ) from exc
     return _ensure_timezone(created_at), row_id
+
+
+def _validate_checkpoint_claim_time_window(
+    query: ConnectorSyncCheckpointClaimQuery,
+) -> None:
+    if (
+        query.created_after is not None
+        and query.created_before is not None
+        and query.created_after >= query.created_before
+    ):
+        raise ConnectorRunValidationError(
+            "Connector checkpoint claim created_after must be earlier than created_before.",
+            "invalid_checkpoint_claim_time_window",
+        )
 
 
 def claim_connector_sync_checkpoint(

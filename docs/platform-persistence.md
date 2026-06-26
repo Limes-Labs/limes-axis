@@ -527,8 +527,9 @@ Delivered:
   expired claim and replacement claim ids.
 - checkpoint claim registry reads are exposed through
   `/demo/manufacturing/connectors/runs/checkpoints/claims` with tenant,
-  connector, run, checkpoint, worker, status, cursor and limit filters. Responses
-  include `has_more` and `next_cursor` for stable cursor-based pagination.
+  connector, run, checkpoint, worker, status, `created_after`,
+  `created_before`, cursor and limit filters. Invalid time windows are rejected
+  before storage reads. Responses include `has_more` and `next_cursor` for stable cursor-based pagination.
   Reads require
   `connectors:sync:checkpoint:claim:read` and append
   `connector.run.sync_checkpoint_claims_read` audit evidence with public-safe
