@@ -1267,6 +1267,14 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "matching audit ledger event.",
                 "target_sync_checkpoint_claim_audit_event_mismatch",
             )
+        if not _sync_checkpoint_claim_result_is_worker_lease_only(
+            claim_audit_event.payload
+        ):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim audit payload is not "
+                "worker-lease-only.",
+                "target_sync_checkpoint_claim_audit_payload_unsafe",
+            )
         checkpoint = repository.get_connector_sync_checkpoint(
             run.tenant_id,
             claim.checkpoint_id,

@@ -408,7 +408,8 @@ for the connector profile, and the executing worker must target an active
 checkpoint claim for the same connector and run with `checkpoint_claim_id`,
 backed by `connector.run.sync_checkpoint_claimed` claim audit evidence and
 an audit id that resolves in the tenant-scoped append-only audit ledger for the
-same connector, run, checkpoint, claim and worker, plus
+same connector, run, checkpoint, claim and worker, with worker-lease-only claim
+audit payload, plus
 `sync_execution_preflight_passed` checkpoint evidence whose audit event type is
 `connector.run.sync_execution_preflight_passed` and whose checkpoint audit event
 id is present in `evidence_refs`. The referenced checkpoint audit id must also
@@ -426,7 +427,10 @@ Claim evidence with the wrong audit event type is rejected with
 missing audit ledger event is rejected with
 `target_sync_checkpoint_claim_audit_event_not_found`; claim evidence backed by
 a mismatched audit ledger event is rejected with
-`target_sync_checkpoint_claim_audit_event_mismatch`.
+`target_sync_checkpoint_claim_audit_event_mismatch`. Claim audit payload that
+says external sync started, secret material was returned or the record is not
+worker-lease-only is rejected with
+`target_sync_checkpoint_claim_audit_payload_unsafe`.
 Checkpoint evidence with the wrong type or status is rejected with
 `target_sync_checkpoint_claim_checkpoint_not_eligible`; checkpoint evidence
 with the wrong audit event type is rejected with
@@ -804,6 +808,8 @@ contract keeps these boundaries visible:
 - explicit checkpoint claim target binding for external DB live-query preflight;
 - checkpoint claim audit type gate before external DB live-query preflight;
 - checkpoint claim audit ledger lookup before external DB live-query preflight;
+- checkpoint claim audit payload worker-lease-only gate before external DB
+  live-query preflight;
 - checkpoint audit payload public-safety gate before external DB live-query preflight;
 - checkpoint result public-safety gate before external DB live-query preflight;
 - checkpoint claim result worker-lease-only gate before external DB live-query
