@@ -405,9 +405,9 @@ a live-query preflight path. By default it writes
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, the self-hosted egress
 policy boundary must validate a persisted tenant-scoped connector egress policy
 for the connector profile, and the executing worker must target an active
-checkpoint claim for the same run with `checkpoint_claim_id`, before
-`connector.run.sync_execution_preflight_passed` can be written. Policies are
-created and listed through
+checkpoint claim for the same connector and run with `checkpoint_claim_id`,
+before `connector.run.sync_execution_preflight_passed` can be written. Policies
+are created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
 the repository-backed record and does not rely on a hardcoded policy catalog.
 Missing `checkpoint_claim_id` or inactive target claims are rejected before the
