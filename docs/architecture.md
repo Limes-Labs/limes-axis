@@ -151,6 +151,11 @@ past the preflight boundary. The checkpoint claim registry applies the same
 public-safe invariant pattern to claim ownership evidence, including missing
 or unresolved claim audit refs, connector/run/checkpoint/claim/worker payload
 mismatches and worker-lease-only violations.
+The aggregate connector evidence invariant report composes checkpoint,
+checkpoint-claim, credential-lease and egress-policy invariant registries into
+a single read model. Its read audit payload records counts and subject ids only,
+so secret references, private endpoint references, DSNs and raw result payloads
+remain outside aggregate operator-read evidence.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

@@ -536,6 +536,37 @@ export type ManufacturingConnectorSyncCheckpointClaimRegistry = {
   claim_notes: string[];
 };
 
+export type ConnectorEvidenceInvariantType =
+  | "checkpoint"
+  | "checkpoint_claim"
+  | "credential_lease"
+  | "egress_policy";
+
+export type ConnectorEvidenceInvariantItem = {
+  evidence_type: ConnectorEvidenceInvariantType;
+  subject_id: string;
+  parent_id: string | null;
+  audit_event_id: string | null;
+  reason: string;
+  detail: string;
+};
+
+export type ManufacturingConnectorEvidenceInvariantReport = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  registry_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  invariant_counts: Record<ConnectorEvidenceInvariantType, number>;
+  invariants: ConnectorEvidenceInvariantItem[];
+  report_notes: string[];
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
@@ -925,6 +956,22 @@ export function filterConnectorEgressPolicyInvariantsByPolicies(
     .filter((invariant) => policyIds.has(invariant.policy_id))
     .slice()
     .sort((left, right) => left.policy_id.localeCompare(right.policy_id));
+}
+
+export function summarizeConnectorEvidenceInvariantCounts(
+  report: ManufacturingConnectorEvidenceInvariantReport,
+): { label: string; value: number }[] {
+  const countLabels: { evidenceType: ConnectorEvidenceInvariantType; label: string }[] = [
+    { evidenceType: "checkpoint", label: "Checkpoint" },
+    { evidenceType: "checkpoint_claim", label: "Checkpoint Claim" },
+    { evidenceType: "credential_lease", label: "Credential Lease" },
+    { evidenceType: "egress_policy", label: "Egress Policy" },
+  ];
+
+  return countLabels.map(({ evidenceType, label }) => ({
+    label,
+    value: report.invariant_counts[evidenceType] ?? 0,
+  }));
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {

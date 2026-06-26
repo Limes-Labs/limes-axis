@@ -111,6 +111,11 @@ from axis_api.connector_egress_policies import (
     read_connector_egress_policy_registry,
     record_demo_connector_egress_policy,
 )
+from axis_api.connector_evidence_invariants import (
+    ConnectorEvidenceInvariantQuery,
+    ManufacturingConnectorEvidenceInvariantReport,
+    read_connector_evidence_invariant_report,
+)
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
     ConnectorSyncDispatchRuntime,
@@ -1967,6 +1972,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.reason,
                 },
             ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/evidence-invariants",
+        response_model=ManufacturingConnectorEvidenceInvariantReport,
+        tags=["demo"],
+    )
+    def manufacturing_connector_evidence_invariants(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+        actor_id: str = Query(default="connector-evidence-report-reader", min_length=1),
+    ) -> ManufacturingConnectorEvidenceInvariantReport:
+        return read_connector_evidence_invariant_report(
+            repository,
+            ConnectorEvidenceInvariantQuery(
+                tenant_id=tenant_id,
+                connector_id=connector_id,
+                limit=limit,
+            ),
+            actor_id=actor_id,
+        )
 
     @app.get(
         "/demo/manufacturing/connectors/runs",

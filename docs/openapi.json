@@ -3503,6 +3503,60 @@
         "title": "ConnectorEgressPolicyRecord",
         "type": "object"
       },
+      "ConnectorEvidenceInvariantItem": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_type": {
+            "minLength": 1,
+            "title": "Evidence Type",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "subject_id": {
+            "minLength": 1,
+            "title": "Subject Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_type",
+          "subject_id",
+          "reason",
+          "detail"
+        ],
+        "title": "ConnectorEvidenceInvariantItem",
+        "type": "object"
+      },
       "ConnectorExecutionResult": {
         "properties": {
           "adapter": {
@@ -8694,6 +8748,64 @@
         "title": "ManufacturingConnectorEgressPolicyRegistry",
         "type": "object"
       },
+      "ManufacturingConnectorEvidenceInvariantReport": {
+        "properties": {
+          "invariant_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Invariant Counts",
+            "type": "object"
+          },
+          "invariants": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorEvidenceInvariantItem"
+            },
+            "title": "Invariants",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "registry_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "report_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Report Notes",
+            "type": "array"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "registry_status"
+        ],
+        "title": "ManufacturingConnectorEvidenceInvariantReport",
+        "type": "object"
+      },
       "ManufacturingConnectorManifestRegistry": {
         "properties": {
           "manifest_notes": {
@@ -13503,6 +13615,90 @@
           }
         },
         "summary": "Manufacturing Connector Egress Policy Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/evidence-invariants": {
+      "get": {
+        "operationId": "manufacturing_connector_evidence_invariants_demo_manufacturing_connectors_evidence_invariants_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "default": "connector-evidence-report-reader",
+              "minLength": 1,
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingConnectorEvidenceInvariantReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Evidence Invariants",
         "tags": [
           "demo"
         ]
