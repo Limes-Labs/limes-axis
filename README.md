@@ -231,9 +231,10 @@ External DB live-query preflight now requires an active checkpoint claim owned
 by the executing worker before the provider-specific runtime boundary is
 called. When `live_query_requested=true`, `execute-sync` must provide
 `checkpoint_claim_id` so Axis binds the preflight to one active, unexpired
-worker lease for the same connector and run with eligible persisted checkpoint
-evidence backed by `connector.run.sync_execution_preflight_passed` audit and
-its evidence ref. The referenced audit id must resolve to a tenant-scoped
+worker lease for the same connector and run. The claim must be backed by
+`connector.run.sync_checkpoint_claimed` audit evidence, with eligible persisted
+checkpoint evidence backed by `connector.run.sync_execution_preflight_passed`
+audit and its evidence ref. The referenced audit id must resolve to a tenant-scoped
 append-only audit event for the same connector/run with public-safe audit
 payload before provider runtime entry, and the checkpoint result evidence must keep
 `external_query_started=false`, `credential_material_returned=false` and

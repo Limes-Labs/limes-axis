@@ -1238,6 +1238,12 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
             continue
         if _ensure_timezone(claim.lease_expires_at) <= now:
             continue
+        if claim.audit_event_type != SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE:
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint claim is not backed by a "
+                "claim-created audit event.",
+                "target_sync_checkpoint_claim_audit_invalid",
+            )
         checkpoint = repository.get_connector_sync_checkpoint(
             run.tenant_id,
             claim.checkpoint_id,
