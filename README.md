@@ -232,8 +232,9 @@ by the executing worker before the provider-specific runtime boundary is
 called. When `live_query_requested=true`, `execute-sync` must provide
 `checkpoint_claim_id` so Axis binds the preflight to one active, unexpired
 worker lease for the same connector and run with eligible persisted checkpoint
-evidence backed by `connector.run.sync_execution_preflight_passed` audit; valid
-preflights include public-safe claim evidence in the sync result.
+evidence backed by `connector.run.sync_execution_preflight_passed` audit and
+its evidence ref; valid preflights include public-safe claim evidence in the
+sync result.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

@@ -407,7 +407,8 @@ policy boundary must validate a persisted tenant-scoped connector egress policy
 for the connector profile, and the executing worker must target an active
 checkpoint claim for the same connector and run with `checkpoint_claim_id`,
 backed by `sync_execution_preflight_passed` checkpoint evidence whose audit
-event type is `connector.run.sync_execution_preflight_passed`, before
+event type is `connector.run.sync_execution_preflight_passed` and whose audit
+event id is present in `evidence_refs`, before
 `connector.run.sync_execution_preflight_passed` can be written. Policies are
 created and listed through
 `/demo/manufacturing/connectors/egress-policies`; runtime preflight consumes
@@ -418,10 +419,12 @@ preflight audit is written and before a new execution checkpoint is created.
 Checkpoint evidence with the wrong type or status is rejected with
 `target_sync_checkpoint_claim_checkpoint_not_eligible`; checkpoint evidence
 with the wrong audit event type is rejected with
-`target_sync_checkpoint_claim_checkpoint_audit_invalid`. When the target claim
-is valid, the preflight result summary records public-safe claim evidence:
-claim id, checkpoint id, worker and lease expiry. For non-live execution paths,
-`checkpoint_claim_id` remains optional.
+`target_sync_checkpoint_claim_checkpoint_audit_invalid`; checkpoint evidence
+that does not reference its audit event id is rejected with
+`target_sync_checkpoint_claim_checkpoint_evidence_ref_missing`. When the target
+claim is valid, the preflight result summary records public-safe claim
+evidence: claim id, checkpoint id, worker and lease expiry. For non-live
+execution paths, `checkpoint_claim_id` remains optional.
 The result summary includes the egress policy runtime boundary, policy
 reference, scope, mode and private endpoint reference. Unknown, unpersisted or
 unapproved egress policies write

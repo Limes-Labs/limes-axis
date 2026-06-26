@@ -1270,6 +1270,14 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
                 "by a preflight-passed audit event.",
                 "target_sync_checkpoint_claim_checkpoint_audit_invalid",
             )
+        if checkpoint.audit_event_id is None or str(checkpoint.audit_event_id) not in (
+            checkpoint.evidence_refs or []
+        ):
+            raise ConnectorRunValidationError(
+                "Live connector sync checkpoint evidence does not reference "
+                "its audit event.",
+                "target_sync_checkpoint_claim_checkpoint_evidence_ref_missing",
+            )
         return claim
 
     raise ConnectorRunValidationError(
