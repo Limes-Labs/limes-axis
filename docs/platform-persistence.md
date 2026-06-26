@@ -538,7 +538,8 @@ Delivered:
   active checkpoint claim owned by the executing worker before the
   provider-specific runtime boundary is called. The targeted persisted claim
   must be active, unexpired, owned by the executing worker and attached to the
-  same connector and run. Its checkpoint id must resolve to persisted
+  same connector and run. Its audit event type must be
+  `connector.run.sync_checkpoint_claimed`. Its checkpoint id must resolve to persisted
   `sync_execution` checkpoint evidence with status
   `sync_execution_preflight_passed` and audit event type
   `connector.run.sync_execution_preflight_passed` for the same connector and

@@ -406,9 +406,10 @@ a live-query preflight path. By default it writes
 policy boundary must validate a persisted tenant-scoped connector egress policy
 for the connector profile, and the executing worker must target an active
 checkpoint claim for the same connector and run with `checkpoint_claim_id`,
-backed by `sync_execution_preflight_passed` checkpoint evidence whose audit
-event type is `connector.run.sync_execution_preflight_passed` and whose audit
-event id is present in `evidence_refs`. The referenced audit id must also
+backed by `connector.run.sync_checkpoint_claimed` claim audit evidence and
+`sync_execution_preflight_passed` checkpoint evidence whose audit event type is
+`connector.run.sync_execution_preflight_passed` and whose audit event id is
+present in `evidence_refs`. The referenced audit id must also
 resolve to a persisted tenant-scoped audit ledger event for the same connector
 and run before
 `connector.run.sync_execution_preflight_passed` can be written. Policies are
@@ -418,6 +419,8 @@ the repository-backed record and does not rely on a hardcoded policy catalog.
 Missing `checkpoint_claim_id`, inactive target claims or missing checkpoint
 evidence are rejected before the provider-specific runtime is called, before
 preflight audit is written and before a new execution checkpoint is created.
+Claim evidence with the wrong audit event type is rejected with
+`target_sync_checkpoint_claim_audit_invalid`.
 Checkpoint evidence with the wrong type or status is rejected with
 `target_sync_checkpoint_claim_checkpoint_not_eligible`; checkpoint evidence
 with the wrong audit event type is rejected with
@@ -793,6 +796,7 @@ contract keeps these boundaries visible:
 - created time-window filters for checkpoint claim registry reads;
 - active worker checkpoint claim gate before external DB live-query preflight;
 - explicit checkpoint claim target binding for external DB live-query preflight;
+- checkpoint claim audit type gate before external DB live-query preflight;
 - checkpoint claim audit ledger lookup before external DB live-query preflight;
 - checkpoint audit payload public-safety gate before external DB live-query preflight;
 - checkpoint result public-safety gate before external DB live-query preflight;
