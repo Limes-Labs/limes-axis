@@ -3,7 +3,7 @@ import json
 from datetime import UTC, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
 from axis_api.audit_signing import (
@@ -32,15 +32,35 @@ from axis_api.connector_runs import (
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.models import AuditEvent
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.persistence import (
+    ApprovalRecordCreate,
+    AxisPersistenceRepository,
+    ConnectorEvidenceSnapshotExportRequestCreate,
+)
 
 READ_AUDIT_EVENT_TYPE = "connector.evidence_invariants_read"
 SNAPSHOT_AUDIT_EVENT_TYPE = "connector.evidence_invariants.snapshot_persisted"
 SNAPSHOT_REQUIRED_SCOPE = "connectors:evidence:snapshot"
 SNAPSHOT_EXPORT_AUDIT_EVENT_TYPE = "connector.evidence_invariant_snapshots_exported"
+SNAPSHOT_EXPORT_REQUEST_AUDIT_EVENT_TYPE = "connector.evidence_snapshot_export.requested"
+SNAPSHOT_EXPORT_REQUEST_REQUIRED_SCOPE = "connectors:evidence:snapshot:export:request"
 SNAPSHOT_READ_AUDIT_EVENT_TYPE = "connector.evidence_invariant_snapshots_read"
 SNAPSHOT_READ_REQUIRED_SCOPE = "connectors:evidence:snapshot:read"
 REPORT_HASH_ALGORITHM = "sha256-canonical-json-v1"
+SNAPSHOT_EXPORT_REQUEST_STATUS = "approval_required"
+SNAPSHOT_EXPORT_REQUEST_EXPORT_STATUS = "not_exported"
+SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS = "not_written"
+SNAPSHOT_EXPORT_REQUEST_WORKFLOW_SIGNAL_STATUS = "pending_approval_decision"
+SNAPSHOT_EXPORT_REQUEST_REDACTION_POLICY = "connector-snapshot-public-safe"
+
+
+def _default_export_request_controls() -> list[str]:
+    return [
+        "approval_required",
+        "workflow_signal_required",
+        "idempotency_enforced",
+        "public_safe_bundle_only",
+    ]
 
 
 class ConnectorEvidenceInvariantQuery(BaseModel):
@@ -118,6 +138,67 @@ class ConnectorEvidenceInvariantSnapshotExportQuery(ConnectorEvidenceInvariantSn
     format: str = Field(default="json", pattern="^json$")
 
 
+class ConnectorEvidenceInvariantSnapshotExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    export_request_id: str = Field(
+        min_length=1,
+        max_length=180,
+        pattern=r"^[a-z0-9][a-z0-9_-]*$",
+    )
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    requested_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    owner_role: str = Field(min_length=1, max_length=160)
+    risk_level: str = Field(min_length=1, max_length=40)
+    approval_id: str = Field(min_length=1, max_length=160)
+    workflow_id: str = Field(min_length=1, max_length=160)
+    connector_id: str | None = Field(default=None, min_length=1)
+    snapshot_id: str | None = Field(default=None, min_length=1)
+    snapshot_idempotency_key: str | None = Field(default=None, min_length=1)
+    export_reason: str = Field(default="connector-evidence-review", min_length=1, max_length=120)
+    format: str = Field(default="json", pattern="^json$")
+    limit: int = Field(default=100, ge=1, le=200)
+    controls: list[str] = Field(default_factory=_default_export_request_controls)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotExportRequestFilter(BaseModel):
+    connector_id: str | None = None
+    snapshot_id: str | None = None
+    idempotency_key: str | None = None
+    limit: int = Field(ge=1)
+
+
+class ConnectorEvidenceInvariantSnapshotExportRequestRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    export_request_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    export_status: str = Field(min_length=1)
+    storage_status: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    risk_level: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    snapshot_filter: ConnectorEvidenceInvariantSnapshotExportRequestFilter
+    export_reason: str = Field(min_length=1)
+    format: str = Field(min_length=1)
+    requested_snapshot_count: int = Field(ge=0)
+    snapshot_checksum_sha256: str = Field(min_length=64, max_length=64)
+    redaction_policy: str = Field(min_length=1)
+    controls: list[str] = Field(default_factory=list)
+    permission_decision: PermissionDecision
+    workflow_signal_status: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+    created_at: datetime
+    idempotent_replay: bool = False
+
+
 class ConnectorEvidenceInvariantSnapshotHistory(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -173,6 +254,13 @@ class ConnectorEvidenceInvariantSnapshotConflict(ValueError):
     def __init__(self, snapshot_id: str, reason: str) -> None:
         super().__init__(reason)
         self.snapshot_id = snapshot_id
+        self.reason = reason
+
+
+class ConnectorEvidenceInvariantSnapshotExportRequestConflict(ValueError):
+    def __init__(self, export_request_id: str, reason: str) -> None:
+        super().__init__(reason)
+        self.export_request_id = export_request_id
         self.reason = reason
 
 
@@ -478,6 +566,118 @@ def export_connector_evidence_invariant_snapshots(
     )
 
 
+def record_connector_evidence_invariant_snapshot_export_request(
+    repository: AxisPersistenceRepository,
+    request: ConnectorEvidenceInvariantSnapshotExportRequest,
+) -> ConnectorEvidenceInvariantSnapshotExportRequestRecord:
+    permission_decision = _evaluate_snapshot_export_request_permission(request)
+    existing_replay = (
+        repository.get_connector_evidence_snapshot_export_request_by_idempotency_key(
+            request.tenant_id,
+            request.idempotency_key,
+        )
+    )
+    if existing_replay is not None:
+        if _export_request_fingerprint_from_record(
+            existing_replay
+        ) != _export_request_fingerprint_from_request(request):
+            raise ConnectorEvidenceInvariantSnapshotExportRequestConflict(
+                existing_replay.export_request_id,
+                "idempotency_conflict",
+            )
+        return _snapshot_export_request_from_record(existing_replay, idempotent_replay=True)
+
+    existing_request = repository.get_connector_evidence_snapshot_export_request(
+        request.tenant_id,
+        request.export_request_id,
+    )
+    if existing_request is not None:
+        raise ConnectorEvidenceInvariantSnapshotExportRequestConflict(
+            request.export_request_id,
+            "export_request_id_already_exists",
+        )
+
+    query = ConnectorEvidenceInvariantSnapshotQuery(
+        tenant_id=request.tenant_id,
+        connector_id=request.connector_id,
+        snapshot_id=request.snapshot_id,
+        idempotency_key=request.snapshot_idempotency_key,
+        limit=request.limit,
+    )
+    snapshots = _snapshot_records_for_query(repository, query)
+    checksum = _snapshots_checksum(snapshots)
+    snapshot_ids = [snapshot.snapshot_id for snapshot in snapshots]
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type=SNAPSHOT_EXPORT_REQUEST_AUDIT_EVENT_TYPE,
+            payload={
+                "export_request_id": request.export_request_id,
+                "idempotency_key": request.idempotency_key,
+                "connector_id": request.connector_id,
+                "snapshot_id": request.snapshot_id,
+                "snapshot_idempotency_key": request.snapshot_idempotency_key,
+                "limit": request.limit,
+                "export_reason": request.export_reason,
+                "format": request.format,
+                "status": SNAPSHOT_EXPORT_REQUEST_STATUS,
+                "export_status": SNAPSHOT_EXPORT_REQUEST_EXPORT_STATUS,
+                "storage_status": SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS,
+                "approval_id": request.approval_id,
+                "workflow_id": request.workflow_id,
+                "owner_role": request.owner_role,
+                "risk_level": request.risk_level,
+                "required_scope": SNAPSHOT_EXPORT_REQUEST_REQUIRED_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+                "requested_snapshot_count": len(snapshots),
+                "snapshot_checksum_sha256": checksum,
+                "snapshot_ids": snapshot_ids,
+                "redaction_policy": SNAPSHOT_EXPORT_REQUEST_REDACTION_POLICY,
+                "controls": request.controls,
+                "workflow_signal_status": SNAPSHOT_EXPORT_REQUEST_WORKFLOW_SIGNAL_STATUS,
+            },
+        )
+    )
+    _ensure_export_request_approval_record(
+        repository,
+        request,
+        requested_snapshot_count=len(snapshots),
+        snapshot_checksum_sha256=checksum,
+    )
+    record = repository.create_connector_evidence_snapshot_export_request(
+        ConnectorEvidenceSnapshotExportRequestCreate(
+            tenant_id=request.tenant_id,
+            export_request_id=request.export_request_id,
+            idempotency_key=request.idempotency_key,
+            status=SNAPSHOT_EXPORT_REQUEST_STATUS,
+            export_status=SNAPSHOT_EXPORT_REQUEST_EXPORT_STATUS,
+            storage_status=SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS,
+            requested_by=request.requested_by,
+            owner_role=request.owner_role,
+            risk_level=request.risk_level,
+            approval_id=request.approval_id,
+            workflow_id=request.workflow_id,
+            connector_id=request.connector_id,
+            snapshot_id=request.snapshot_id,
+            snapshot_idempotency_key=request.snapshot_idempotency_key,
+            export_reason=request.export_reason,
+            format=request.format,
+            limit=request.limit,
+            requested_snapshot_count=len(snapshots),
+            snapshot_checksum_sha256=checksum,
+            redaction_policy=SNAPSHOT_EXPORT_REQUEST_REDACTION_POLICY,
+            controls=request.controls,
+            permission_decision=permission_decision.model_dump(),
+            workflow_signal_status=SNAPSHOT_EXPORT_REQUEST_WORKFLOW_SIGNAL_STATUS,
+            audit_event_id=audit_event.id,
+            audit_event_type=SNAPSHOT_EXPORT_REQUEST_AUDIT_EVENT_TYPE,
+            notes=request.notes,
+        )
+    )
+    return _snapshot_export_request_from_record(record)
+
+
 def read_connector_evidence_invariant_report(
     repository: AxisPersistenceRepository,
     query: ConnectorEvidenceInvariantQuery,
@@ -535,6 +735,31 @@ def _snapshot_integrity_proof(
     )
 
 
+def _evaluate_snapshot_export_request_permission(
+    request: ConnectorEvidenceInvariantSnapshotExportRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[SNAPSHOT_EXPORT_REQUEST_REQUIRED_SCOPE],
+            attributes={
+                "connector_id": request.connector_id,
+                "snapshot_id": request.snapshot_id,
+                "approval_id": request.approval_id,
+                "workflow_id": request.workflow_id,
+                "risk_level": request.risk_level,
+                "export_reason": request.export_reason,
+                "storage_status": SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ConnectorEvidenceInvariantSnapshotPermissionDenied(decision)
+    return decision
+
+
 def _evaluate_snapshot_history_permission(
     query: ConnectorEvidenceInvariantSnapshotQuery,
     actor_id: str,
@@ -556,6 +781,123 @@ def _evaluate_snapshot_history_permission(
     if not decision.allowed:
         raise ConnectorEvidenceInvariantSnapshotPermissionDenied(decision)
     return decision
+
+
+def _ensure_export_request_approval_record(
+    repository: AxisPersistenceRepository,
+    request: ConnectorEvidenceInvariantSnapshotExportRequest,
+    *,
+    requested_snapshot_count: int,
+    snapshot_checksum_sha256: str,
+) -> None:
+    existing = repository.get_approval_record(request.tenant_id, request.approval_id)
+    if existing is not None:
+        return
+    action_connector = request.connector_id or "tenant"
+    repository.create_approval_record(
+        ApprovalRecordCreate(
+            tenant_id=request.tenant_id,
+            approval_id=request.approval_id,
+            workflow_id=request.workflow_id,
+            action_id=f"connector_evidence_snapshot_export:{action_connector}",
+            requested_by=request.requested_by,
+            owner_role=request.owner_role,
+            risk_level=request.risk_level,
+            payload={
+                "export_request_id": request.export_request_id,
+                "idempotency_key": request.idempotency_key,
+                "connector_id": request.connector_id,
+                "snapshot_id": request.snapshot_id,
+                "snapshot_idempotency_key": request.snapshot_idempotency_key,
+                "export_reason": request.export_reason,
+                "format": request.format,
+                "limit": request.limit,
+                "required_permission": SNAPSHOT_EXPORT_REQUEST_REQUIRED_SCOPE,
+                "requested_snapshot_count": requested_snapshot_count,
+                "snapshot_checksum_sha256": snapshot_checksum_sha256,
+                "redaction_policy": SNAPSHOT_EXPORT_REQUEST_REDACTION_POLICY,
+                "storage_status": SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS,
+            },
+        )
+    )
+
+
+def _snapshot_export_request_from_record(
+    record,
+    idempotent_replay: bool = False,
+) -> ConnectorEvidenceInvariantSnapshotExportRequestRecord:
+    return ConnectorEvidenceInvariantSnapshotExportRequestRecord(
+        tenant_id=record.tenant_id,
+        export_request_id=record.export_request_id,
+        idempotency_key=record.idempotency_key,
+        status=record.status,
+        export_status=record.export_status,
+        storage_status=record.storage_status,
+        requested_by=record.requested_by,
+        owner_role=record.owner_role,
+        risk_level=record.risk_level,
+        approval_id=record.approval_id,
+        workflow_id=record.workflow_id,
+        snapshot_filter=ConnectorEvidenceInvariantSnapshotExportRequestFilter(
+            connector_id=record.connector_id,
+            snapshot_id=record.snapshot_id,
+            idempotency_key=record.snapshot_idempotency_key,
+            limit=record.limit,
+        ),
+        export_reason=record.export_reason,
+        format=record.format,
+        requested_snapshot_count=record.requested_snapshot_count,
+        snapshot_checksum_sha256=record.snapshot_checksum_sha256,
+        redaction_policy=record.redaction_policy,
+        controls=record.controls,
+        permission_decision=PermissionDecision(**record.permission_decision),
+        workflow_signal_status=record.workflow_signal_status,
+        audit_event_id=record.audit_event_id,
+        audit_event_type=record.audit_event_type,
+        notes=record.notes,
+        created_at=record.created_at,
+        idempotent_replay=idempotent_replay,
+    )
+
+
+def _export_request_fingerprint_from_request(
+    request: ConnectorEvidenceInvariantSnapshotExportRequest,
+) -> dict:
+    return {
+        "export_request_id": request.export_request_id,
+        "requested_by": request.requested_by,
+        "owner_role": request.owner_role,
+        "risk_level": request.risk_level,
+        "approval_id": request.approval_id,
+        "workflow_id": request.workflow_id,
+        "connector_id": request.connector_id,
+        "snapshot_id": request.snapshot_id,
+        "snapshot_idempotency_key": request.snapshot_idempotency_key,
+        "export_reason": request.export_reason,
+        "format": request.format,
+        "limit": request.limit,
+        "controls": request.controls,
+        "notes": request.notes,
+    }
+
+
+def _export_request_fingerprint_from_record(record) -> dict:
+    return {
+        "export_request_id": record.export_request_id,
+        "requested_by": record.requested_by,
+        "owner_role": record.owner_role,
+        "risk_level": record.risk_level,
+        "approval_id": record.approval_id,
+        "workflow_id": record.workflow_id,
+        "connector_id": record.connector_id,
+        "snapshot_id": record.snapshot_id,
+        "snapshot_idempotency_key": record.snapshot_idempotency_key,
+        "export_reason": record.export_reason,
+        "format": record.format,
+        "limit": record.limit,
+        "controls": record.controls,
+        "notes": record.notes,
+    }
 
 
 def _evaluate_snapshot_permission(

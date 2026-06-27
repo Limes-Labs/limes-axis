@@ -16,6 +16,7 @@ from axis_api.models import (
     ConnectorCredentialLease,
     ConnectorCredentialRotation,
     ConnectorEgressPolicy,
+    ConnectorEvidenceSnapshotExportRequest,
     ConnectorManifestRecord,
     ConnectorManualImportRequest,
     ConnectorOntologyPromotion,
@@ -586,6 +587,38 @@ class ConnectorManualImportRequestCreate(BaseModel):
     workflow_signal: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.manual_import.requested", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceSnapshotExportRequestCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    export_request_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(default="approval_required", min_length=1)
+    export_status: str = Field(default="not_exported", min_length=1)
+    storage_status: str = Field(default="not_written", min_length=1)
+    requested_by: str = Field(min_length=1)
+    owner_role: str = Field(min_length=1)
+    risk_level: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    connector_id: str | None = None
+    snapshot_id: str | None = None
+    snapshot_idempotency_key: str | None = None
+    export_reason: str = Field(min_length=1)
+    format: str = Field(default="json", min_length=1)
+    limit: int = Field(ge=1)
+    requested_snapshot_count: int = Field(ge=0)
+    snapshot_checksum_sha256: str = Field(min_length=64, max_length=64)
+    redaction_policy: str = Field(default="connector-snapshot-public-safe", min_length=1)
+    controls: list[str] = Field(default_factory=list)
+    permission_decision: dict = Field(default_factory=dict)
+    workflow_signal_status: str = Field(default="pending_approval_decision", min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="connector.evidence_snapshot_export.requested",
+        min_length=1,
+    )
     notes: list[str] = Field(default_factory=list)
 
 
@@ -2396,6 +2429,64 @@ class AxisPersistenceRepository:
         manual_import.updated_at = utc_now()
         self.session.flush()
         return manual_import
+
+    def create_connector_evidence_snapshot_export_request(
+        self,
+        record: ConnectorEvidenceSnapshotExportRequestCreate,
+    ) -> ConnectorEvidenceSnapshotExportRequest:
+        export_request = ConnectorEvidenceSnapshotExportRequest(
+            tenant_id=record.tenant_id,
+            export_request_id=record.export_request_id,
+            idempotency_key=record.idempotency_key,
+            status=record.status,
+            export_status=record.export_status,
+            storage_status=record.storage_status,
+            requested_by=record.requested_by,
+            owner_role=record.owner_role,
+            risk_level=record.risk_level,
+            approval_id=record.approval_id,
+            workflow_id=record.workflow_id,
+            connector_id=record.connector_id,
+            snapshot_id=record.snapshot_id,
+            snapshot_idempotency_key=record.snapshot_idempotency_key,
+            export_reason=record.export_reason,
+            format=record.format,
+            limit=record.limit,
+            requested_snapshot_count=record.requested_snapshot_count,
+            snapshot_checksum_sha256=record.snapshot_checksum_sha256,
+            redaction_policy=record.redaction_policy,
+            controls=record.controls,
+            permission_decision=record.permission_decision,
+            workflow_signal_status=record.workflow_signal_status,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(export_request)
+        self.session.flush()
+        return export_request
+
+    def get_connector_evidence_snapshot_export_request(
+        self,
+        tenant_id: str,
+        export_request_id: str,
+    ) -> ConnectorEvidenceSnapshotExportRequest | None:
+        statement = select(ConnectorEvidenceSnapshotExportRequest).where(
+            ConnectorEvidenceSnapshotExportRequest.tenant_id == tenant_id,
+            ConnectorEvidenceSnapshotExportRequest.export_request_id == export_request_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def get_connector_evidence_snapshot_export_request_by_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ConnectorEvidenceSnapshotExportRequest | None:
+        statement = select(ConnectorEvidenceSnapshotExportRequest).where(
+            ConnectorEvidenceSnapshotExportRequest.tenant_id == tenant_id,
+            ConnectorEvidenceSnapshotExportRequest.idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
 
     def create_manufacturing_operation_record(
         self,

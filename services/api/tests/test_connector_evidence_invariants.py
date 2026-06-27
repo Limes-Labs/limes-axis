@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -9,7 +9,7 @@ from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
-from axis_api.models import Base
+from axis_api.models import ApprovalRecord, Base
 from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorCredentialLeaseCreate,
@@ -283,6 +283,34 @@ def snapshot_payload(**overrides: object) -> dict[str, object]:
         "actor_scopes": ["connectors:evidence:snapshot"],
         "idempotency_key": "idem_connector_evidence_snapshot_20260627_1000",
         "reason": "security-review",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def snapshot_export_request_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "tenant_id": "tenant_demo_manufacturing",
+        "export_request_id": "export_req_connector_evidence_20260627_1000",
+        "idempotency_key": "idem_connector_evidence_export_request_20260627_1000",
+        "requested_by": "connector-compliance-reviewer-role",
+        "actor_scopes": ["connectors:evidence:snapshot:export:request"],
+        "owner_role": "connector-governance-owner",
+        "risk_level": "high",
+        "approval_id": "appr_connector_evidence_export_20260627_1000",
+        "workflow_id": "wf_connector_evidence_export_review",
+        "connector_id": "external_db_operational_mirror",
+        "snapshot_id": "snap_connector_evidence_export_request_match",
+        "export_reason": "regulated-evidence-review",
+        "format": "json",
+        "limit": 20,
+        "controls": [
+            "approval_required",
+            "workflow_signal_required",
+            "idempotency_enforced",
+            "public_safe_bundle_only",
+        ],
+        "notes": ["Governed export request only; object storage is not written."],
     }
     payload.update(overrides)
     return payload
@@ -708,6 +736,191 @@ def test_connector_evidence_invariant_snapshot_export_requires_read_scope() -> N
     assert export_events == []
 
 
+def test_connector_evidence_invariant_snapshot_export_request_records_governed_metadata() -> None:
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["export_request_id"] == "export_req_connector_evidence_20260627_1000"
+    assert body["status"] == "approval_required"
+    assert body["export_status"] == "not_exported"
+    assert body["storage_status"] == "not_written"
+    assert body["workflow_signal_status"] == "pending_approval_decision"
+    assert body["approval_id"] == "appr_connector_evidence_export_20260627_1000"
+    assert body["workflow_id"] == "wf_connector_evidence_export_review"
+    assert body["snapshot_filter"] == {
+        "connector_id": "external_db_operational_mirror",
+        "snapshot_id": "snap_connector_evidence_export_request_match",
+        "idempotency_key": None,
+        "limit": 20,
+    }
+    assert body["requested_snapshot_count"] == 1
+    assert len(body["snapshot_checksum_sha256"]) == 64
+    assert body["format"] == "json"
+    assert body["redaction_policy"] == "connector-snapshot-public-safe"
+    assert body["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    assert body["audit_event_type"] == "connector.evidence_snapshot_export.requested"
+    assert body["idempotent_replay"] is False
+    assert "public_safe_bundle_only" in body["controls"]
+    serialized = str(body).lower()
+    assert "private-endpoint://" not in serialized
+    assert "vault://" not in serialized
+    assert "postgres://" not in serialized
+    assert "password" not in serialized
+    assert "credential_value" not in serialized
+
+    with session_scope(factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.requested",
+            limit=10,
+        )
+        approval = session.execute(
+            select(ApprovalRecord).where(
+                ApprovalRecord.tenant_id == "tenant_demo_manufacturing",
+                ApprovalRecord.approval_id == "appr_connector_evidence_export_20260627_1000",
+            )
+        ).scalar_one()
+        row = session.execute(
+            text(
+                "select export_request_id, requested_snapshot_count, storage_status "
+                "from connector_evidence_snapshot_export_requests "
+                "where tenant_id = :tenant_id and export_request_id = :export_request_id"
+            ),
+            {
+                "tenant_id": "tenant_demo_manufacturing",
+                "export_request_id": "export_req_connector_evidence_20260627_1000",
+            },
+        ).one()
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.actor_id == "connector-compliance-reviewer-role"
+    assert event.payload["export_request_id"] == "export_req_connector_evidence_20260627_1000"
+    assert event.payload["approval_id"] == "appr_connector_evidence_export_20260627_1000"
+    assert event.payload["workflow_id"] == "wf_connector_evidence_export_review"
+    assert event.payload["requested_snapshot_count"] == 1
+    assert event.payload["storage_status"] == "not_written"
+    assert "private-endpoint://" not in str(event.payload).lower()
+    assert approval.status == "pending"
+    assert approval.workflow_id == "wf_connector_evidence_export_review"
+    assert approval.action_id == "connector_evidence_snapshot_export:external_db_operational_mirror"
+    assert approval.payload["export_request_id"] == "export_req_connector_evidence_20260627_1000"
+    assert row.requested_snapshot_count == 1
+    assert row.storage_status == "not_written"
+
+
+def test_connector_evidence_invariant_snapshot_export_request_replays_idempotently() -> None:
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    first = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    replay = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+
+    assert first.status_code == 201
+    assert replay.status_code == 200
+    assert replay.json()["idempotent_replay"] is True
+    assert replay.json()["audit_event_id"] == first.json()["audit_event_id"]
+    with session_scope(factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.requested",
+            limit=10,
+        )
+    assert len(events) == 1
+
+
+def test_connector_evidence_invariant_snapshot_export_request_rejects_conflicting_idempotency(
+) -> None:
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    first = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    conflict = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(export_reason="different-review-purpose"),
+    )
+
+    assert first.status_code == 201
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"]["reason"] == "idempotency_conflict"
+
+
+def test_connector_evidence_invariant_snapshot_export_request_requires_request_scope() -> None:
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(actor_scopes=[]),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_scope"] == (
+        "connectors:evidence:snapshot:export:request"
+    )
+    with session_scope(factory) as session:
+        export_request_events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.requested",
+            limit=10,
+        )
+    assert export_request_events == []
+
+
 def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
 
@@ -716,6 +929,9 @@ def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
     snapshot_path = paths["/demo/manufacturing/connectors/evidence-invariants/snapshots"]
     snapshot_export_path = paths[
         "/demo/manufacturing/connectors/evidence-invariants/snapshots/export"
+    ]
+    snapshot_export_request_path = paths[
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests"
     ]
 
     assert "get" in report_path
@@ -739,4 +955,11 @@ def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
             "schema"
         ]["$ref"]
         == "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportBundle"
+    )
+    assert "post" in snapshot_export_request_path
+    assert (
+        snapshot_export_request_path["post"]["responses"]["201"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        == "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequestRecord"
     )

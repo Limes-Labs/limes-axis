@@ -93,6 +93,7 @@ POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/evidence-invariants
 GET /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/evidence-invariants/snapshots/export
+POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
@@ -245,6 +246,20 @@ SHA-256 hash-chain proof and the same self-hosted audit ledger signature proof
 used by audit exports when a signing secret is configured. The export audit
 event stores only filters, snapshot ids, checksum, export id and signature
 status; it does not store raw connector payloads, DSNs, private endpoint refs,
+secret refs or credential values.
+
+`POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests`
+records a governed export request before enterprise object-store/WORM retention
+exists. The request requires `connectors:evidence:snapshot:export:request`,
+approval id, workflow id, idempotency key, owner role and risk level. Axis
+persists an approval-required metadata record, creates an approval record,
+writes `connector.evidence_snapshot_export.requested` audit evidence and returns
+the snapshot filter, requested snapshot count, checksum preview, redaction
+policy, storage status `not_written` and workflow signal status
+`pending_approval_decision`. Idempotent replays return the original request
+without duplicating audit evidence; conflicting payloads for the same
+idempotency key return 409. The endpoint does not write files, object storage
+keys, WORM retention state, raw connector payloads, DSNs, private endpoint refs,
 secret refs or credential values.
 
 The manifest management endpoints store and query tenant-scoped connector
@@ -825,6 +840,10 @@ The console also loads the API-backed snapshot export bundle and renders export
 id, record count, checksum prefix, redaction policy, integrity algorithm and
 ledger signature status. It does not synthesize a local export when the API is
 unavailable.
+The console can also submit a governed export request for the selected connector
+and newest matching snapshot. The POST response is rendered as an API-backed
+request record with approval id, workflow status, checksum prefix and storage
+status; failed requests do not create local fallback state.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
 
@@ -912,6 +931,8 @@ contract keeps these boundaries visible:
   artifacts before scheduled invariant jobs exist;
 - signed connector evidence snapshot exports before enterprise WORM/object-store
   retention workflows exist;
+- approval/workflow/idempotency-gated connector evidence snapshot export
+  requests before enterprise WORM/object-store retention workflows exist;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -954,6 +975,9 @@ The slice is covered by:
 - API unit tests for connector evidence snapshot export manifests, hash-chain
   integrity proof, self-hosted signature proof, read-scope enforcement and
   public-safety constraints;
+- API unit tests for governed connector evidence snapshot export requests,
+  approval record creation, idempotent replay, conflict handling, request-scope
+  enforcement and public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, `active_preview`
@@ -973,6 +997,8 @@ The slice is covered by:
 - web unit tests for deterministic connector evidence snapshot summaries;
 - web unit tests for evidence snapshot history query path scope and filters;
 - web unit tests for evidence snapshot export query path scope and filters;
+- web unit tests for governed evidence snapshot export request path and payload
+  construction;
 - web unit tests for evidence snapshot creation request scope and public-safety
   constraints;
 - web unit tests for connector snapshot deep-link construction and query

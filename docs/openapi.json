@@ -3710,6 +3710,357 @@
         "title": "ConnectorEvidenceInvariantSnapshotExportManifest",
         "type": "object"
       },
+      "ConnectorEvidenceInvariantSnapshotExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "approval_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "connector_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
+          },
+          "controls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Controls",
+            "type": "array"
+          },
+          "export_reason": {
+            "default": "connector-evidence-review",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Export Reason",
+            "type": "string"
+          },
+          "export_request_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Export Request Id",
+            "type": "string"
+          },
+          "format": {
+            "default": "json",
+            "pattern": "^json$",
+            "title": "Format",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "owner_role": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "requested_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "risk_level": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "snapshot_idempotency_key": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Idempotency Key"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "export_request_id",
+          "idempotency_key",
+          "requested_by",
+          "owner_role",
+          "risk_level",
+          "approval_id",
+          "workflow_id"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportRequest",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotExportRequestFilter": {
+        "properties": {
+          "connector_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "limit": {
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportRequestFilter",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotExportRequestRecord": {
+        "properties": {
+          "approval_id": {
+            "minLength": 1,
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "controls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Controls",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "export_reason": {
+            "minLength": 1,
+            "title": "Export Reason",
+            "type": "string"
+          },
+          "export_request_id": {
+            "minLength": 1,
+            "title": "Export Request Id",
+            "type": "string"
+          },
+          "export_status": {
+            "minLength": 1,
+            "title": "Export Status",
+            "type": "string"
+          },
+          "format": {
+            "minLength": 1,
+            "title": "Format",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "redaction_policy": {
+            "minLength": 1,
+            "title": "Redaction Policy",
+            "type": "string"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "requested_snapshot_count": {
+            "minimum": 0.0,
+            "title": "Requested Snapshot Count",
+            "type": "integer"
+          },
+          "risk_level": {
+            "minLength": 1,
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "snapshot_checksum_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Snapshot Checksum Sha256",
+            "type": "string"
+          },
+          "snapshot_filter": {
+            "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequestFilter"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "storage_status": {
+            "minLength": 1,
+            "title": "Storage Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          },
+          "workflow_signal_status": {
+            "minLength": 1,
+            "title": "Workflow Signal Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "export_request_id",
+          "idempotency_key",
+          "status",
+          "export_status",
+          "storage_status",
+          "requested_by",
+          "owner_role",
+          "risk_level",
+          "approval_id",
+          "workflow_id",
+          "snapshot_filter",
+          "export_reason",
+          "format",
+          "requested_snapshot_count",
+          "snapshot_checksum_sha256",
+          "redaction_policy",
+          "permission_decision",
+          "workflow_signal_status",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportRequestRecord",
+        "type": "object"
+      },
       "ConnectorEvidenceInvariantSnapshotHistory": {
         "properties": {
           "history_notes": {
@@ -14530,6 +14881,53 @@
           }
         },
         "summary": "Manufacturing Connector Evidence Invariant Snapshot Export",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests": {
+      "post": {
+        "operationId": "manufacturing_connector_evidence_invariant_snapshot_export_request_demo_manufacturing_connectors_evidence_invariants_snapshots_export_requests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequestRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector evidence snapshot export request permission denied"
+          },
+          "409": {
+            "description": "Connector evidence snapshot export request conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Evidence Invariant Snapshot Export Request",
         "tags": [
           "demo"
         ]

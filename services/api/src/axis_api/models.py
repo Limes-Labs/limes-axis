@@ -881,6 +881,59 @@ class ConnectorManualImportRequest(Base):
     )
 
 
+class ConnectorEvidenceSnapshotExportRequest(Base):
+    __tablename__ = "connector_evidence_snapshot_export_requests"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    export_request_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    export_status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    storage_status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    owner_role: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    approval_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    workflow_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    connector_id: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    snapshot_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    snapshot_idempotency_key: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, index=True
+    )
+    export_reason: Mapped[str] = mapped_column(String(160), nullable=False)
+    format: Mapped[str] = mapped_column(String(40), nullable=False)
+    limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    requested_snapshot_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    snapshot_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    redaction_policy: Mapped[str] = mapped_column(String(120), nullable=False)
+    controls: Mapped[list] = mapped_column(JSON, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    workflow_signal_status: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "export_request_id",
+            name="uq_connector_evidence_snapshot_export_requests_tenant_request",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_connector_evidence_snapshot_export_requests_tenant_idempotency",
+        ),
+    )
+
+
 class ManufacturingOperationRecord(Base):
     __tablename__ = "manufacturing_operation_records"
 

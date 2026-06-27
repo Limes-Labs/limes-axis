@@ -681,6 +681,61 @@ export type ConnectorEvidenceInvariantSnapshotExportBundle = {
   export_notes: string[];
 };
 
+export type ConnectorEvidenceInvariantSnapshotExportRequestRecord = {
+  tenant_id: string;
+  export_request_id: string;
+  idempotency_key: string;
+  status: string;
+  export_status: string;
+  storage_status: string;
+  requested_by: string;
+  owner_role: string;
+  risk_level: string;
+  approval_id: string;
+  workflow_id: string;
+  snapshot_filter: {
+    connector_id: string | null;
+    snapshot_id: string | null;
+    idempotency_key: string | null;
+    limit: number;
+  };
+  export_reason: string;
+  format: string;
+  requested_snapshot_count: number;
+  snapshot_checksum_sha256: string;
+  redaction_policy: string;
+  controls: string[];
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  workflow_signal_status: string;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  notes: string[];
+  created_at: string;
+  idempotent_replay: boolean;
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportRequestPayload = {
+  tenant_id: string;
+  export_request_id: string;
+  idempotency_key: string;
+  requested_by: string;
+  actor_scopes: string[];
+  owner_role: string;
+  risk_level: string;
+  approval_id: string;
+  workflow_id: string;
+  connector_id?: string;
+  snapshot_id?: string;
+  export_reason: string;
+  format: "json";
+  limit: number;
+  controls: string[];
+  notes: string[];
+};
+
 export type ConnectorEvidenceInvariantSnapshotSummary = {
   snapshotId: string;
   status: string;
@@ -727,12 +782,24 @@ type ConnectorEvidenceInvariantSnapshotExportPathOptions =
     exportReason?: string;
   };
 
+type ConnectorEvidenceInvariantSnapshotExportRequestInput = {
+  tenantId: string;
+  connectorId?: string;
+  snapshotId?: string;
+  requestedBy: string;
+  now?: Date;
+  exportReason?: string;
+  limit?: number;
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
 const CONNECTOR_EVIDENCE_SNAPSHOT_HISTORY_READ_SCOPE =
   "connectors:evidence:snapshot:read";
 const CONNECTOR_EVIDENCE_SNAPSHOT_WRITE_SCOPE = "connectors:evidence:snapshot";
+const CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_REQUEST_SCOPE =
+  "connectors:evidence:snapshot:export:request";
 
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
@@ -1310,6 +1377,55 @@ export function buildConnectorEvidenceInvariantSnapshotExportPath(
   }
 
   return `/demo/manufacturing/connectors/evidence-invariants/snapshots/export?${params.toString()}`;
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportRequestPath(): string {
+  return "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests";
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportRequest({
+  tenantId,
+  connectorId,
+  snapshotId,
+  requestedBy,
+  now = new Date(),
+  exportReason = "connector-evidence-review",
+  limit = 20,
+}: ConnectorEvidenceInvariantSnapshotExportRequestInput): ConnectorEvidenceInvariantSnapshotExportRequestPayload {
+  const scopeId = connectorId ?? "tenant";
+  const stamp = now.toISOString().toLowerCase().replace(/[-:.]/g, "");
+  const requestId = `export_req_${scopeId}_${stamp}`;
+  const request: ConnectorEvidenceInvariantSnapshotExportRequestPayload = {
+    tenant_id: tenantId,
+    export_request_id: requestId,
+    idempotency_key: `idem_${requestId}`,
+    requested_by: requestedBy,
+    actor_scopes: [CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_REQUEST_SCOPE],
+    owner_role: "connector-governance-owner",
+    risk_level: "high",
+    approval_id: `appr_${requestId}`,
+    workflow_id: `wf_${requestId}`,
+    export_reason: exportReason,
+    format: "json",
+    limit,
+    controls: [
+      "approval_required",
+      "workflow_signal_required",
+      "idempotency_enforced",
+      "public_safe_bundle_only",
+    ],
+    notes: ["Governed export request only; object storage is not written."],
+  };
+
+  if (connectorId) {
+    request.connector_id = connectorId;
+  }
+
+  if (snapshotId) {
+    request.snapshot_id = snapshotId;
+  }
+
+  return request;
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {
