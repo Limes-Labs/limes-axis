@@ -32,7 +32,7 @@ def upgrade() -> None:
         ["decision"],
     )
     op.create_index(
-        "ix_connector_evidence_snapshot_export_requests_decision_actor_id",
+        "ix_conn_evidence_export_req_decision_actor",
         table_name,
         ["decision_actor_id"],
     )
@@ -41,7 +41,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     table_name = "connector_evidence_snapshot_export_requests"
     op.drop_index(
-        "ix_connector_evidence_snapshot_export_requests_decision_actor_id",
+        "ix_conn_evidence_export_req_decision_actor",
         table_name=table_name,
     )
     op.drop_index(

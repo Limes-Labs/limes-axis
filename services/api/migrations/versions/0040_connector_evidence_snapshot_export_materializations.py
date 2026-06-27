@@ -43,7 +43,7 @@ def upgrade() -> None:
         "artifact_checksum_sha256",
     ):
         op.create_index(
-            f"ix_connector_evidence_snapshot_export_requests_{column_name}",
+            f"ix_conn_evidence_export_req_{column_name}",
             table_name,
             [column_name],
         )
@@ -59,7 +59,7 @@ def downgrade() -> None:
         "materialization_id",
     ):
         op.drop_index(
-            f"ix_connector_evidence_snapshot_export_requests_{column_name}",
+            f"ix_conn_evidence_export_req_{column_name}",
             table_name=table_name,
         )
     op.drop_column(table_name, "artifact_content_type")
