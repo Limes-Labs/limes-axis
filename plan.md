@@ -174,6 +174,8 @@ Foundation acceptance is tracked in
       snapshots through the API-backed snapshot endpoint.
 - [x] Link connector evidence snapshot artifacts to their audit ledger event
       detail in the audit explorer.
+- [x] Add signed/public-safe connector evidence snapshot export bundles with
+      manifest checksum and hash-chain proof.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
@@ -578,9 +580,15 @@ selects the matching persisted event after loading API-backed ledger records.
 Persisted snapshot audit events expose only redacted `snapshot_id`,
 `connector_id` and idempotency preview fields, and the audit explorer links
 back to `/connectors?snapshot_id=...&connector_id=...` so reviewers can reopen
-the selected API-backed snapshot artifact. If the backend is unavailable it
-shows an API-required empty state instead of rendering local connector fallback
-records.
+the selected API-backed snapshot artifact. The connector console also loads the
+API-backed snapshot export bundle, showing export id, record count, checksum
+prefix, redaction policy, integrity algorithm and ledger signature status.
+`GET /demo/manufacturing/connectors/evidence-invariants/snapshots/export`
+uses `connectors:evidence:snapshot:read`, supports the same snapshot filters
+plus an export reason, returns public-safe snapshot metadata with a manifest
+checksum and SHA-256 hash-chain proof, and uses the self-hosted audit ledger
+signer when configured. If the backend is unavailable the console shows an
+API-required empty state instead of rendering local connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed, initially marked with `graph_mutation_status=not_applied` and

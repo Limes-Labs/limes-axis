@@ -114,12 +114,15 @@ from axis_api.connector_egress_policies import (
 from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantQuery,
     ConnectorEvidenceInvariantSnapshotConflict,
+    ConnectorEvidenceInvariantSnapshotExportBundle,
+    ConnectorEvidenceInvariantSnapshotExportQuery,
     ConnectorEvidenceInvariantSnapshotHistory,
     ConnectorEvidenceInvariantSnapshotPermissionDenied,
     ConnectorEvidenceInvariantSnapshotQuery,
     ConnectorEvidenceInvariantSnapshotRecord,
     ConnectorEvidenceInvariantSnapshotRequest,
     ManufacturingConnectorEvidenceInvariantReport,
+    export_connector_evidence_invariant_snapshots,
     persist_connector_evidence_invariant_snapshot,
     read_connector_evidence_invariant_report,
     read_connector_evidence_invariant_snapshot_history,
@@ -2037,6 +2040,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "message": "The connector evidence snapshot idempotency key conflicts.",
                     "snapshot_id": exc.snapshot_id,
                     "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export",
+        response_model=ConnectorEvidenceInvariantSnapshotExportBundle,
+        tags=["demo"],
+        responses={
+            403: {"description": "Connector evidence snapshot export permission denied"},
+        },
+    )
+    def manufacturing_connector_evidence_invariant_snapshot_export(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        snapshot_id: str | None = Query(default=None, min_length=1),
+        idempotency_key: str | None = Query(default=None, min_length=1),
+        actor_id: str = Query(default="connector-evidence-exporter-role", min_length=1),
+        actor_scopes: list[str] = CheckpointActorScopesQuery,
+        limit: int = Query(default=100, ge=1, le=200),
+        export_reason: str = Query(
+            default="connector-evidence-review",
+            min_length=1,
+            max_length=120,
+        ),
+        format: str = Query(default="json", pattern="^json$"),
+    ) -> ConnectorEvidenceInvariantSnapshotExportBundle:
+        try:
+            return export_connector_evidence_invariant_snapshots(
+                repository,
+                ConnectorEvidenceInvariantSnapshotExportQuery(
+                    tenant_id=tenant_id,
+                    connector_id=connector_id,
+                    snapshot_id=snapshot_id,
+                    idempotency_key=idempotency_key,
+                    limit=limit,
+                    export_reason=export_reason,
+                    format=format,
+                ),
+                actor_id=actor_id,
+                actor_scopes=actor_scopes,
+                ledger_signer=_audit_ledger_signer_from_settings(app.state.settings),
+            )
+        except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot export connector evidence snapshots.",
+                    "required_scope": "connectors:evidence:snapshot:read",
+                    "decision": exc.decision.model_dump(),
                 },
             ) from exc
 

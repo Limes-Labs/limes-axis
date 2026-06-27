@@ -7,6 +7,7 @@ import { getApiBaseUrl } from "@/lib/api-status";
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
+  buildConnectorEvidenceInvariantSnapshotExportPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
@@ -23,6 +24,7 @@ import {
   summarizeConnectorEvidenceInvariantSnapshotHistory,
   summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
+  type ConnectorEvidenceInvariantSnapshotExportBundle,
   type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorEvidenceInvariantSnapshotRecord,
   type ConnectorPromotionPolicyCreateRequest,
@@ -250,6 +252,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     syncCheckpointClaimData,
     evidenceInvariantData,
     evidenceSnapshotHistoryData,
+    evidenceSnapshotExportData,
     ontologyProposalData,
     manualImportData,
     promotionPolicyData,
@@ -312,6 +315,14 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
       }),
       signal,
     ),
+    fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportBundle>(
+      apiBaseUrl,
+      buildConnectorEvidenceInvariantSnapshotExportPath(CONNECTOR_TENANT_ID, {
+        limit: 20,
+        exportReason: "console-review",
+      }),
+      signal,
+    ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
       apiBaseUrl,
       "/demo/manufacturing/connectors/ontology-proposals",
@@ -339,6 +350,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     credentialHandleData,
     credentialLeaseData,
     evidenceInvariantData,
+    evidenceSnapshotExportData,
     evidenceSnapshotHistoryData,
     egressPolicyData,
     manifestData,
@@ -447,6 +459,8 @@ export function ConnectorConsole() {
     useState<ConnectorEvidenceInvariantSnapshotHistory>(
       EMPTY_EVIDENCE_SNAPSHOT_HISTORY,
     );
+  const [evidenceSnapshotExport, setEvidenceSnapshotExport] =
+    useState<ConnectorEvidenceInvariantSnapshotExportBundle | null>(null);
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -506,6 +520,7 @@ export function ConnectorConsole() {
         setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
         setEvidenceInvariantReport(data.evidenceInvariantData);
         setEvidenceSnapshotHistory(data.evidenceSnapshotHistoryData);
+        setEvidenceSnapshotExport(data.evidenceSnapshotExportData);
         setOntologyProposalRegistry(data.ontologyProposalData);
         setManualImportRegistry(data.manualImportData);
         setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -684,6 +699,7 @@ export function ConnectorConsole() {
     setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
     setEvidenceInvariantReport(data.evidenceInvariantData);
     setEvidenceSnapshotHistory(data.evidenceSnapshotHistoryData);
+    setEvidenceSnapshotExport(data.evidenceSnapshotExportData);
     setOntologyProposalRegistry(data.ontologyProposalData);
     setManualImportRegistry(data.manualImportData);
     setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -1181,7 +1197,36 @@ export function ConnectorConsole() {
                 <p className="row-title">{selectedEvidenceSnapshots.length}</p>
                 <p className="row-detail">matching snapshot artifact</p>
               </div>
+              {evidenceSnapshotExport ? (
+                <div>
+                  <p className="metric-label">Signed Export</p>
+                  <p className="row-title">{evidenceSnapshotExport.manifest.record_count}</p>
+                  <p className="row-detail">
+                    {evidenceSnapshotExport.ledger_signature.verification_status}
+                  </p>
+                </div>
+              ) : null}
             </div>
+            {evidenceSnapshotExport ? (
+              <div className="payload-row">
+                <span>
+                  <span className="metric-label">{evidenceSnapshotExport.manifest.export_id}</span>
+                  <span className="row-detail">
+                    {evidenceSnapshotExport.manifest.redaction_policy} /{" "}
+                    {evidenceSnapshotExport.integrity_proof.algorithm}
+                  </span>
+                </span>
+                <span>
+                  <span className="mono">
+                    {evidenceSnapshotExport.manifest.checksum_sha256.slice(0, 12)}
+                  </span>
+                  <span className="row-detail">
+                    {evidenceSnapshotExport.ledger_signature.key_id ??
+                      evidenceSnapshotExport.ledger_signature.signing_mode}
+                  </span>
+                </span>
+              </div>
+            ) : null}
             {selectedEvidenceSnapshots.length > 0 ? (
               <div className="payload-grid">
                 {selectedEvidenceSnapshots.slice(0, 5).map((snapshot) => (
