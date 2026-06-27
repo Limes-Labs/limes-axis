@@ -170,6 +170,8 @@ Foundation acceptance is tracked in
       append-only audit artifacts.
 - [x] Show aggregate connector evidence invariant snapshot history in the
       connector console from the API-backed history endpoint.
+- [x] Add a governed connector console action that creates aggregate evidence
+      snapshots through the API-backed snapshot endpoint.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
@@ -564,7 +566,11 @@ claim rows are requested with
 connector checkpoints with worker ownership, lease, renewal/release, invariant
 status and secret-material evidence. Evidence snapshot history is requested
 with `connectors:evidence:snapshot:read` and shown with newest snapshot id,
-invariant totals, evidence surface count and digest prefixes. If the backend is
+invariant totals, evidence surface count and digest prefixes. The console can
+create a selected-connector evidence snapshot through
+`POST /demo/manufacturing/connectors/evidence-invariants/snapshots` with
+`connectors:evidence:snapshot`, generated snapshot/idempotency ids and a
+public-safe review reason, then refreshes API-backed history. If the backend is
 unavailable it shows an API-required empty state instead of rendering local
 connector fallback records.
 Preview-derived ontology proposals can now be persisted through

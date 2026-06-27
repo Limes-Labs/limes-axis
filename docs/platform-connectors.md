@@ -793,9 +793,14 @@ API response. It loads evidence snapshot history from
 `/demo/manufacturing/connectors/evidence-invariants/snapshots` with
 `connectors:evidence:snapshot:read` and renders newest snapshot id, invariant
 totals, evidence surface count and digest prefixes from the API response. The
-checkpoint request includes `connectors:sync:checkpoint:read`; if the API is
-unavailable or rejects the request, the page shows an API-required state and
-does not render local connector records.
+console can also create a selected-connector snapshot through
+`POST /demo/manufacturing/connectors/evidence-invariants/snapshots` with
+`connectors:evidence:snapshot`; the request carries generated snapshot and
+idempotency ids, public-safe review reason metadata and no raw connector payload
+or credential material. The checkpoint request includes
+`connectors:sync:checkpoint:read`; if the API is unavailable or rejects the
+request, the page shows an API-required state and does not render local
+connector records.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
 
@@ -938,6 +943,8 @@ The slice is covered by:
 - web unit tests for deterministic aggregate evidence invariant count summaries;
 - web unit tests for deterministic connector evidence snapshot summaries;
 - web unit tests for evidence snapshot history query path scope and filters;
+- web unit tests for evidence snapshot creation request scope and public-safety
+  constraints;
 - browser smoke verification for `/connectors` rendering the API-backed snapshot
   history section;
 - Playwright smoke tests for `/connectors` API-required behavior when the
