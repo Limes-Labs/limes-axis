@@ -89,6 +89,8 @@ make demo-stack-down
 - [ ] `make demo-web` starts the Next.js console on `http://127.0.0.1:3000`.
 - [ ] `make demo-check` passes static repository checks.
 - [ ] `make demo-check-live` passes `/health`, `/ready` and web home checks.
+- [ ] `make demo-check-live` passes the browser no-store CORS preflight used by
+      API-required console pages.
 - [ ] The overview page loads from `/demo/manufacturing/overview`.
 - [ ] The ontology page loads from `/demo/manufacturing/ontology`.
 - [ ] The workflow page loads from `/demo/manufacturing/workflows`.
@@ -175,6 +177,7 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Local Docker Compose runtime services.
 - Critical OpenAPI routes.
 - Demo readiness documentation and README links.
+- Browser no-store CORS preflight for API-required console fetches.
 - Optional live API and web checks when URLs are provided.
 
 The check is intentionally conservative. If a demo command, route or document

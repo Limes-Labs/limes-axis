@@ -38,6 +38,21 @@ def test_local_console_origin_is_allowed_for_cors_preflight() -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
+def test_console_no_store_fetch_header_is_allowed_for_cors_preflight() -> None:
+    client = TestClient(create_app())
+    response = client.options(
+        "/demo/manufacturing/overview",
+        headers={
+            "Origin": "http://127.0.0.1:3000",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "cache-control",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+    assert "cache-control" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_openapi_metadata_names_axis() -> None:
     client = TestClient(create_app())
     response = client.get("/openapi.json")

@@ -36,3 +36,20 @@ def test_demo_environment_declares_critical_demo_routes() -> None:
     assert "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests" in (
         required_paths
     )
+
+
+def test_demo_live_checks_include_browser_no_store_cors_preflight(monkeypatch) -> None:
+    checker = load_check_module()
+
+    monkeypatch.setattr(checker, "_fetch_json", lambda _url: (True, "HTTP 200"))
+    monkeypatch.setattr(checker, "_fetch_text", lambda _url: (True, "HTTP 200"))
+    monkeypatch.setattr(
+        checker,
+        "_fetch_cors_no_store_preflight",
+        lambda _api_url, _web_url: (True, "HTTP 200"),
+        raising=False,
+    )
+
+    results = checker.run_live_checks("http://127.0.0.1:8000", "http://127.0.0.1:3000")
+
+    assert any(result.name == "live.api_cors_no_store_preflight" for result in results)

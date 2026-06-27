@@ -877,7 +877,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=resolved_settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Axis-Tenant", "X-Axis-Actor"],
+        allow_headers=[
+            "Authorization",
+            "Cache-Control",
+            "Content-Type",
+            "X-Axis-Tenant",
+            "X-Axis-Actor",
+        ],
     )
     app.state.settings = resolved_settings
     app.state.session_factory = create_session_factory(resolved_settings)
