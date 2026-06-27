@@ -290,6 +290,8 @@ def _payload_preview(payload: dict) -> dict[str, str]:
         "status",
         "execution_mode",
         "idempotency_key",
+        "snapshot_id",
+        "connector_id",
         "workflow_signal_status",
         "permission_decision",
         "payload_field_names",

@@ -231,6 +231,9 @@ snapshot id, idempotency key and bounded limit filters. Valid reads append
 the filters, returned count and returned snapshot ids. The response returns
 public-safe snapshot metadata and report digests; it does not copy secret refs,
 private endpoint refs, DSNs, raw audit payloads or result summaries.
+The public audit event preview exposes only the snapshot id, connector id and
+idempotency key needed for review navigation; the audit explorer can link back
+to `/connectors?snapshot_id=...&connector_id=...` without exposing raw evidence.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -799,9 +802,12 @@ console can also create a selected-connector snapshot through
 idempotency ids, public-safe review reason metadata and no raw connector payload
 or credential material. Snapshot rows with an audit event id link to
 `/audit?event_id=...`, letting reviewers open the matching audit ledger event
-without copying raw payloads into the connector console. The checkpoint request includes
-`connectors:sync:checkpoint:read`; if the API is unavailable or rejects the
-request, the page shows an API-required state and does not render local
+without copying raw payloads into the connector console. Snapshot persisted
+audit events then link back to `/connectors?snapshot_id=...&connector_id=...`;
+the console resolves those query params against API snapshot history, selects
+the matching connector and highlights the selected artifact. The checkpoint
+request includes `connectors:sync:checkpoint:read`; if the API is unavailable
+or rejects the request, the page shows an API-required state and does not render local
 connector records.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
@@ -947,6 +953,8 @@ The slice is covered by:
 - web unit tests for evidence snapshot history query path scope and filters;
 - web unit tests for evidence snapshot creation request scope and public-safety
   constraints;
+- web unit tests for connector snapshot deep-link construction and query
+  selection against API-backed registry/history records;
 - web unit tests for audit event deep-link construction and requested-event
   selection;
 - browser smoke verification for `/connectors` rendering the API-backed snapshot

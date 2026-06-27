@@ -645,6 +645,23 @@ export type ConnectorEvidenceInvariantSnapshotHistorySummary = {
   digestPrefixes: string[];
 };
 
+type ConnectorSnapshotHrefInput = {
+  snapshotId: string | null | undefined;
+  connectorId?: string | null | undefined;
+};
+
+type ConnectorSnapshotSelectionInput = {
+  registry: ManufacturingConnectorRegistry;
+  history: ConnectorEvidenceInvariantSnapshotHistory;
+  requestedConnectorId: string | null | undefined;
+  requestedSnapshotId: string | null | undefined;
+};
+
+export type ConnectorSnapshotSelection = {
+  connectorId: string;
+  snapshotId: string | null;
+};
+
 type ConnectorEvidenceInvariantSnapshotHistoryPathOptions = {
   connectorId?: string;
   snapshotId?: string;
@@ -1118,6 +1135,62 @@ export function summarizeConnectorEvidenceInvariantSnapshotHistory(
     digestPrefixes: history.snapshots.map((snapshot) =>
       snapshot.report_digest_sha256.slice(0, 12),
     ),
+  };
+}
+
+export function buildConnectorSnapshotHref(input: ConnectorSnapshotHrefInput): string {
+  if (!input.snapshotId) {
+    return "/connectors";
+  }
+
+  const params = new URLSearchParams({ snapshot_id: input.snapshotId });
+  if (input.connectorId) {
+    params.set("connector_id", input.connectorId);
+  }
+
+  return `/connectors?${params.toString()}`;
+}
+
+export function resolveConnectorSnapshotSelection(
+  input: ConnectorSnapshotSelectionInput,
+): ConnectorSnapshotSelection {
+  const connectorIds = new Set(
+    input.registry.connectors.map((connector) => connector.manifest.connector_id),
+  );
+  const firstConnectorId = input.registry.connectors[0]?.manifest.connector_id ?? "";
+  const requestedConnectorId = input.requestedConnectorId ?? "";
+  const requestedSnapshotId = input.requestedSnapshotId ?? "";
+  const requestedSnapshot = input.history.snapshots.find(
+    (snapshot) => snapshot.snapshot_id === requestedSnapshotId,
+  );
+
+  if (requestedSnapshot) {
+    const snapshotConnectorId = requestedSnapshot.connector_id;
+    if (snapshotConnectorId && connectorIds.has(snapshotConnectorId)) {
+      return {
+        connectorId: snapshotConnectorId,
+        snapshotId: requestedSnapshot.snapshot_id,
+      };
+    }
+
+    if (requestedConnectorId && connectorIds.has(requestedConnectorId)) {
+      return {
+        connectorId: requestedConnectorId,
+        snapshotId: requestedSnapshot.snapshot_id,
+      };
+    }
+
+    return {
+      connectorId: firstConnectorId,
+      snapshotId: requestedSnapshot.snapshot_id,
+    };
+  }
+
+  return {
+    connectorId: connectorIds.has(requestedConnectorId)
+      ? requestedConnectorId
+      : firstConnectorId,
+    snapshotId: null,
   };
 }
 

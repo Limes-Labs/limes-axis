@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
+  buildConnectorSnapshotHref,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
@@ -15,6 +16,7 @@ import {
   filterConnectorSyncCheckpointsByConnector,
   findConnectorById,
   formatConnectorLabel,
+  resolveConnectorSnapshotSelection,
   summarizeConnectorEvidenceInvariantSnapshot,
   summarizeConnectorEvidenceInvariantSnapshotHistory,
   summarizeConnectorEvidenceInvariantCounts,
@@ -921,6 +923,67 @@ describe("manufacturing connector helpers", () => {
     expect(path).toBe(
       "/demo/manufacturing/connectors/evidence-invariants/snapshots?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Aevidence%3Asnapshot%3Aread&connector_id=external_db_operational_mirror&limit=25",
     );
+  });
+
+  it("builds public connector snapshot deep links from persisted audit fields", () => {
+    expect(
+      buildConnectorSnapshotHref({
+        snapshotId: "snap_connector_evidence_20260627_1000",
+        connectorId: "external_db_operational_mirror",
+      }),
+    ).toBe(
+      "/connectors?snapshot_id=snap_connector_evidence_20260627_1000&connector_id=external_db_operational_mirror",
+    );
+    expect(
+      buildConnectorSnapshotHref({
+        snapshotId: "snap/id:fixture",
+        connectorId: null,
+      }),
+    ).toBe("/connectors?snapshot_id=snap%2Fid%3Afixture");
+    expect(
+      buildConnectorSnapshotHref({
+        snapshotId: null,
+        connectorId: "external_db_operational_mirror",
+      }),
+    ).toBe("/connectors");
+  });
+
+  it("resolves connector snapshot query selections against API records", () => {
+    expect(
+      resolveConnectorSnapshotSelection({
+        registry: connectorRegistryFixture,
+        history: evidenceInvariantSnapshotHistoryFixture,
+        requestedConnectorId: null,
+        requestedSnapshotId: "snap_connector_evidence_20260627_1000",
+      }),
+    ).toEqual({
+      connectorId: "external_db_operational_mirror",
+      snapshotId: "snap_connector_evidence_20260627_1000",
+    });
+
+    expect(
+      resolveConnectorSnapshotSelection({
+        registry: connectorRegistryFixture,
+        history: evidenceInvariantSnapshotHistoryFixture,
+        requestedConnectorId: "file_csv_manufacturing_assets",
+        requestedSnapshotId: "snap_connector_evidence_20260627_1100",
+      }),
+    ).toEqual({
+      connectorId: "file_csv_manufacturing_assets",
+      snapshotId: "snap_connector_evidence_20260627_1100",
+    });
+
+    expect(
+      resolveConnectorSnapshotSelection({
+        registry: connectorRegistryFixture,
+        history: evidenceInvariantSnapshotHistoryFixture,
+        requestedConnectorId: "missing",
+        requestedSnapshotId: "missing",
+      }),
+    ).toEqual({
+      connectorId: "file_csv_manufacturing_assets",
+      snapshotId: null,
+    });
   });
 
   it("builds connector sync checkpoint claim query paths with the read scope", () => {

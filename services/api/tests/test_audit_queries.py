@@ -154,6 +154,46 @@ def test_query_persisted_audit_events_maps_records_to_public_explorer(
     assert "secret" not in explorer.model_dump_json().lower()
 
 
+def test_query_persisted_audit_events_exposes_connector_snapshot_link_fields(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="connector-security-reviewer-role",
+                event_type="connector.evidence_invariants.snapshot_persisted",
+                payload={
+                    "snapshot_id": "snap_connector_evidence_20260627_1000",
+                    "connector_id": "external_db_operational_mirror",
+                    "idempotency_key": "idem_connector_evidence_snapshot_20260627_1000",
+                    "report_digest_sha256": "a" * 64,
+                    "subject_ids": ["chk_evidence_report_1"],
+                    "credential_secret": "never-export-this-value",
+                },
+            )
+        )
+        explorer = query_persisted_audit_events(
+            repository,
+            AuditEventQuery(
+                tenant_id="tenant_demo_manufacturing",
+                event_type="connector.evidence_invariants.snapshot_persisted",
+            ),
+        )
+
+    assert len(explorer.events) == 1
+    event = explorer.events[0]
+    assert event.payload_preview["snapshot_id"] == "snap_connector_evidence_20260627_1000"
+    assert event.payload_preview["connector_id"] == "external_db_operational_mirror"
+    assert event.payload_preview["idempotency_key"] == (
+        "idem_connector_evidence_snapshot_20260627_1000"
+    )
+    assert "report_digest_sha256" not in event.payload_preview
+    assert "credential_secret" not in event.payload_preview
+    assert "never-export-this-value" not in explorer.model_dump_json()
+
+
 def test_query_persisted_audit_events_filters_by_event_actor_and_scope(
     session_factory: sessionmaker[Session],
 ) -> None:
