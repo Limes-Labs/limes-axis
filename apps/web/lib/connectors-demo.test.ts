@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
@@ -876,6 +877,20 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(summary).toLowerCase()).not.toContain("private-endpoint://");
     expect(JSON.stringify(summary).toLowerCase()).not.toContain("vault://");
     expect(JSON.stringify(summary).toLowerCase()).not.toContain("password");
+  });
+
+  it("builds connector evidence snapshot history query paths with the read scope", () => {
+    const path = buildConnectorEvidenceInvariantSnapshotHistoryPath(
+      "tenant_demo_manufacturing",
+      {
+        connectorId: "external_db_operational_mirror",
+        limit: 25,
+      },
+    );
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Aevidence%3Asnapshot%3Aread&connector_id=external_db_operational_mirror&limit=25",
+    );
   });
 
   it("builds connector sync checkpoint claim query paths with the read scope", () => {

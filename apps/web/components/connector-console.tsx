@@ -5,6 +5,7 @@ import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lu
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
   buildConnectorPromotionPolicyDraftRequest,
@@ -16,8 +17,10 @@ import {
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   formatConnectorLabel,
+  summarizeConnectorEvidenceInvariantSnapshotHistory,
   summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
+  type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorPromotionPolicyCreateRequest,
   type ConnectorPromotionPolicyEnableRequest,
   type ConnectorRunRecord,
@@ -152,6 +155,16 @@ const EMPTY_EVIDENCE_INVARIANT_REPORT: ManufacturingConnectorEvidenceInvariantRe
   report_notes: [],
 };
 
+const EMPTY_EVIDENCE_SNAPSHOT_HISTORY: ConnectorEvidenceInvariantSnapshotHistory = {
+  tenant_id: CONNECTOR_TENANT_ID,
+  plant_name: CONNECTOR_PLANT_NAME,
+  scenario: CONNECTOR_SCENARIO,
+  history_status: "watch",
+  metrics: [],
+  snapshots: [],
+  history_notes: [],
+};
+
 const EMPTY_ONTOLOGY_PROPOSAL_REGISTRY: ManufacturingConnectorOntologyProposalRegistry = {
   ...EMPTY_REGISTRY_BASE,
   proposals: [],
@@ -227,6 +240,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     syncCheckpointData,
     syncCheckpointClaimData,
     evidenceInvariantData,
+    evidenceSnapshotHistoryData,
     ontologyProposalData,
     manualImportData,
     promotionPolicyData,
@@ -282,6 +296,13 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
       `/demo/manufacturing/connectors/evidence-invariants?tenant_id=${CONNECTOR_TENANT_ID}`,
       signal,
     ),
+    fetchConnectorJson<ConnectorEvidenceInvariantSnapshotHistory>(
+      apiBaseUrl,
+      buildConnectorEvidenceInvariantSnapshotHistoryPath(CONNECTOR_TENANT_ID, {
+        limit: 20,
+      }),
+      signal,
+    ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
       apiBaseUrl,
       "/demo/manufacturing/connectors/ontology-proposals",
@@ -309,6 +330,7 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     credentialHandleData,
     credentialLeaseData,
     evidenceInvariantData,
+    evidenceSnapshotHistoryData,
     egressPolicyData,
     manifestData,
     manualImportData,
@@ -412,6 +434,10 @@ export function ConnectorConsole() {
     useState<ManufacturingConnectorEvidenceInvariantReport>(
       EMPTY_EVIDENCE_INVARIANT_REPORT,
     );
+  const [evidenceSnapshotHistory, setEvidenceSnapshotHistory] =
+    useState<ConnectorEvidenceInvariantSnapshotHistory>(
+      EMPTY_EVIDENCE_SNAPSHOT_HISTORY,
+    );
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -458,6 +484,7 @@ export function ConnectorConsole() {
         setSyncCheckpointRegistry(data.syncCheckpointData);
         setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
         setEvidenceInvariantReport(data.evidenceInvariantData);
+        setEvidenceSnapshotHistory(data.evidenceSnapshotHistoryData);
         setOntologyProposalRegistry(data.ontologyProposalData);
         setManualImportRegistry(data.manualImportData);
         setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -603,6 +630,18 @@ export function ConnectorConsole() {
     () => summarizeConnectorEvidenceInvariantCounts(evidenceInvariantReport),
     [evidenceInvariantReport],
   );
+  const evidenceSnapshotHistorySummary = useMemo(
+    () => summarizeConnectorEvidenceInvariantSnapshotHistory(evidenceSnapshotHistory),
+    [evidenceSnapshotHistory],
+  );
+  const selectedEvidenceSnapshots = useMemo(
+    () =>
+      evidenceSnapshotHistory.snapshots.filter(
+        (snapshot) =>
+          snapshot.connector_id === null || snapshot.connector_id === selectedConnectorId,
+      ),
+    [evidenceSnapshotHistory.snapshots, selectedConnectorId],
+  );
 
   async function refreshConnectorData() {
     const data = await fetchConnectorData(apiBaseUrl);
@@ -616,6 +655,7 @@ export function ConnectorConsole() {
     setSyncCheckpointRegistry(data.syncCheckpointData);
     setSyncCheckpointClaimRegistry(data.syncCheckpointClaimData);
     setEvidenceInvariantReport(data.evidenceInvariantData);
+    setEvidenceSnapshotHistory(data.evidenceSnapshotHistoryData);
     setOntologyProposalRegistry(data.ontologyProposalData);
     setManualImportRegistry(data.manualImportData);
     setPromotionPolicyRegistry(data.promotionPolicyData);
@@ -707,6 +747,7 @@ export function ConnectorConsole() {
     .concat(syncCheckpointRegistry.metrics)
     .concat(syncCheckpointClaimRegistry.metrics)
     .concat(evidenceInvariantReport.metrics)
+    .concat(evidenceSnapshotHistory.metrics)
     .concat(ontologyProposalRegistry.metrics)
     .concat(manualImportRegistry.metrics)
     .concat(promotionPolicyRegistry.metrics)
@@ -1044,6 +1085,59 @@ export function ConnectorConsole() {
                 ))}
               </div>
             ) : null}
+          </section>
+
+          <section className="audit-payload">
+            <div className="audit-payload-header">
+              <div>
+                <p className="section-label">Snapshot History</p>
+                <h3 className="subsection-title">
+                  {evidenceSnapshotHistorySummary.snapshotCount} audit artifact
+                </h3>
+                <p className="row-detail">
+                  latest {evidenceSnapshotHistorySummary.latestSnapshotId}
+                </p>
+              </div>
+              <ScrollText size={18} />
+            </div>
+            <div className="audit-detail-grid">
+              <div>
+                <p className="metric-label">Total Invariants</p>
+                <p className="row-title">{evidenceSnapshotHistorySummary.totalInvariantCount}</p>
+                <p className="row-detail">{evidenceSnapshotHistory.history_status}</p>
+              </div>
+              <div>
+                <p className="metric-label">Evidence Surfaces</p>
+                <p className="row-title">
+                  {evidenceSnapshotHistorySummary.evidenceSurfaceCount}
+                </p>
+                <p className="row-detail">append-only snapshot history</p>
+              </div>
+              <div>
+                <p className="metric-label">Selected Connector</p>
+                <p className="row-title">{selectedEvidenceSnapshots.length}</p>
+                <p className="row-detail">matching snapshot artifact</p>
+              </div>
+            </div>
+            {selectedEvidenceSnapshots.length > 0 ? (
+              <div className="payload-grid">
+                {selectedEvidenceSnapshots.slice(0, 5).map((snapshot) => (
+                  <div className="payload-row" key={snapshot.snapshot_id}>
+                    <span>
+                      <span className="metric-label">{snapshot.snapshot_id}</span>
+                      <span className="row-detail">
+                        {snapshot.connector_id ?? "tenant-wide"} / {snapshot.status}
+                      </span>
+                    </span>
+                    <span className="mono">
+                      {snapshot.report_digest_sha256.slice(0, 12)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="row-detail">No matching snapshot artifacts recorded.</p>
+            )}
           </section>
 
           <section className="audit-payload">
@@ -1922,6 +2016,7 @@ export function ConnectorConsole() {
               .concat(syncCheckpointRegistry.checkpoint_notes)
               .concat(syncCheckpointClaimRegistry.claim_notes)
               .concat(evidenceInvariantReport.report_notes)
+              .concat(evidenceSnapshotHistory.history_notes)
               .concat(ontologyProposalRegistry.proposal_notes)
               .concat(manualImportRegistry.import_notes)
               .concat(promotionPolicyRegistry.policy_notes)
