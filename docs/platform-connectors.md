@@ -94,6 +94,7 @@ GET /demo/manufacturing/connectors/evidence-invariants
 GET /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/evidence-invariants/snapshots/export
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests
+POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
@@ -261,6 +262,21 @@ without duplicating audit evidence; conflicting payloads for the same
 idempotency key return 409. The endpoint does not write files, object storage
 keys, WORM retention state, raw connector payloads, DSNs, private endpoint refs,
 secret refs or credential values.
+
+`POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision`
+records the human approval decision for a governed export request. The endpoint
+requires `approvals:connectors:export:decide`, records the approval decision on
+the approval row, signals the Axis workflow runtime with
+`connector_evidence_snapshot_export_decided`, writes
+`connector.evidence_snapshot_export.decision_recorded` audit evidence and
+updates the request record with decision actor, decision note, decided timestamp,
+workflow signal status and export status. Approvals become
+`approval_approved` with `export_status=approved_not_exported`; rejections
+become `approval_rejected` with `export_status=rejected_not_exported`.
+`storage_status` remains `not_written` until a real object-storage/WORM
+materializer exists. The decision payload and audit event remain metadata-only
+and do not include connector payloads, DSNs, private endpoint refs, secret refs
+or credential values.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -843,7 +859,11 @@ unavailable.
 The console can also submit a governed export request for the selected connector
 and newest matching snapshot. The POST response is rendered as an API-backed
 request record with approval id, workflow status, checksum prefix and storage
-status; failed requests do not create local fallback state.
+status; failed requests do not create local fallback state. When a request is
+present, the console can submit an approval decision through the API-backed
+decision endpoint and renders the returned decision, export status and workflow
+signal status. The console does not mark a request approved locally if the API
+call fails.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
 
@@ -978,6 +998,9 @@ The slice is covered by:
 - API unit tests for governed connector evidence snapshot export requests,
   approval record creation, idempotent replay, conflict handling, request-scope
   enforcement and public-safety constraints;
+- API unit tests for governed connector evidence snapshot export request
+  decisions, approval decision persistence, workflow signal evidence,
+  decision-scope enforcement and public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, `active_preview`
@@ -999,6 +1022,8 @@ The slice is covered by:
 - web unit tests for evidence snapshot export query path scope and filters;
 - web unit tests for governed evidence snapshot export request path and payload
   construction;
+- web unit tests for governed evidence snapshot export request decision path and
+  payload construction;
 - web unit tests for evidence snapshot creation request scope and public-safety
   constraints;
 - web unit tests for connector snapshot deep-link construction and query

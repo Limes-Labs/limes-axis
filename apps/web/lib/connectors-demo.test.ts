@@ -4,6 +4,8 @@ import {
   buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotExportPath,
   buildConnectorEvidenceInvariantSnapshotExportRequest,
+  buildConnectorEvidenceInvariantSnapshotExportRequestDecision,
+  buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath,
   buildConnectorEvidenceInvariantSnapshotExportRequestPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSnapshotHref,
@@ -987,6 +989,31 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(request).toLowerCase()).not.toContain("vault://");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("builds governed connector evidence snapshot export request decisions", () => {
+    const path = buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath(
+      "export_req_external_db_operational_mirror_20260627t101530456z",
+    );
+    const decision = buildConnectorEvidenceInvariantSnapshotExportRequestDecision({
+      actorId: "connector-compliance-owner-role",
+      decision: "approve",
+      note: "Approved for regulated evidence review.",
+    });
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/export_req_external_db_operational_mirror_20260627t101530456z/decision",
+    );
+    expect(decision).toEqual({
+      decision: "approve",
+      actor_id: "connector-compliance-owner-role",
+      actor_scopes: ["approvals:connectors:export:decide"],
+      note: "Approved for regulated evidence review.",
+    });
+    expect(JSON.stringify(decision).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(decision).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(decision).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(decision).toLowerCase()).not.toContain("credential_value");
   });
 
   it("builds public connector snapshot deep links from persisted audit fields", () => {

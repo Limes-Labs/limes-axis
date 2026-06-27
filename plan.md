@@ -178,6 +178,8 @@ Foundation acceptance is tracked in
       manifest checksum and hash-chain proof.
 - [x] Add governed connector evidence snapshot export requests with approval,
       workflow and idempotency evidence before WORM/object-store retention.
+- [x] Add governed connector evidence snapshot export request decisions with
+      approval decision persistence, workflow signal evidence and audit trail.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
@@ -594,9 +596,13 @@ signer when configured. `POST
 records an approval-required export request with workflow id, idempotency key,
 snapshot filter, requested snapshot count, checksum preview and storage status
 `not_written`; it creates approval/audit evidence but does not write object
-storage or WORM retention artifacts yet. If the backend is unavailable the
-console shows an API-required empty state instead of rendering local connector
-fallback records.
+storage or WORM retention artifacts yet. `POST
+/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision`
+records the approval decision, updates the export request to
+`approval_approved` or `approval_rejected`, signals the workflow runtime through
+the Axis adapter and keeps storage status `not_written` until a real export
+materializer exists. If the backend is unavailable the console shows an
+API-required empty state instead of rendering local connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed, initially marked with `graph_mutation_status=not_applied` and

@@ -17,6 +17,25 @@ from axis_api.persistence import (
     ConnectorSyncCheckpointClaimCreate,
     ConnectorSyncCheckpointCreate,
 )
+from axis_api.workflow_runtime import WorkflowSignalResult
+
+
+class RecordingSnapshotExportWorkflowRuntime:
+    def __init__(self) -> None:
+        self.requests: list[object] = []
+
+    async def signal_connector_evidence_snapshot_export(
+        self,
+        request: object,
+    ) -> WorkflowSignalResult:
+        self.requests.append(request)
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="export_request_signal_requested",
+            adapter="axis-test-workflow-adapter",
+            signal_name=request.signal_name,
+            payload=request.audit_payload,
+        )
 
 
 def session_factory() -> sessionmaker[Session]:
@@ -311,6 +330,17 @@ def snapshot_export_request_payload(**overrides: object) -> dict[str, object]:
             "public_safe_bundle_only",
         ],
         "notes": ["Governed export request only; object storage is not written."],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def snapshot_export_request_decision_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "decision": "approve",
+        "actor_id": "connector-compliance-owner-role",
+        "actor_scopes": ["approvals:connectors:export:decide"],
+        "note": "Approved for regulated evidence review.",
     }
     payload.update(overrides)
     return payload
@@ -921,6 +951,124 @@ def test_connector_evidence_invariant_snapshot_export_request_requires_request_s
     assert export_request_events == []
 
 
+def test_connector_evidence_invariant_snapshot_export_request_decision_signals_workflow() -> None:
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    workflow_runtime = RecordingSnapshotExportWorkflowRuntime()
+    app.state.workflow_runtime = workflow_runtime
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    request_response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/decision",
+        json=snapshot_export_request_decision_payload(),
+    )
+
+    assert request_response.status_code == 201
+    assert response.status_code == 201
+    body = response.json()
+    assert body["export_request"]["status"] == "approval_approved"
+    assert body["export_request"]["decision"] == "approve"
+    assert body["export_request"]["export_status"] == "approved_not_exported"
+    assert body["export_request"]["storage_status"] == "not_written"
+    assert body["export_request"]["workflow_signal_status"] == (
+        "export_request_signal_requested"
+    )
+    assert body["workflow_signal"]["signal_name"] == (
+        "connector_evidence_snapshot_export_decided"
+    )
+    assert body["workflow_signal"]["payload"]["export_request_id"] == (
+        "export_req_connector_evidence_20260627_1000"
+    )
+    assert body["workflow_signal"]["payload"]["storage_status"] == "not_written"
+    assert body["audit_event_type"] == "connector.evidence_snapshot_export.decision_recorded"
+    assert workflow_runtime.requests[0].runtime_payload["approved"] is True
+    serialized = str(body).lower()
+    assert "private-endpoint://" not in serialized
+    assert "vault://" not in serialized
+    assert "postgres://" not in serialized
+    assert "password" not in serialized
+    assert "credential_value" not in serialized
+
+    with session_scope(factory) as session:
+        decision_events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.decision_recorded",
+            limit=10,
+        )
+        row = session.execute(
+            text(
+                "select status, export_status, storage_status, workflow_signal_status "
+                "from connector_evidence_snapshot_export_requests "
+                "where tenant_id = :tenant_id and export_request_id = :export_request_id"
+            ),
+            {
+                "tenant_id": "tenant_demo_manufacturing",
+                "export_request_id": "export_req_connector_evidence_20260627_1000",
+            },
+        ).one()
+    assert len(decision_events) == 1
+    assert decision_events[0].payload["decision"] == "approve"
+    assert decision_events[0].payload["export_status"] == "approved_not_exported"
+    assert row.status == "approval_approved"
+    assert row.export_status == "approved_not_exported"
+    assert row.storage_status == "not_written"
+    assert row.workflow_signal_status == "export_request_signal_requested"
+
+
+def test_connector_evidence_invariant_snapshot_export_request_decision_requires_scope() -> None:
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    app.state.workflow_runtime = RecordingSnapshotExportWorkflowRuntime()
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/decision",
+        json=snapshot_export_request_decision_payload(actor_scopes=[]),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_scope"] == (
+        "approvals:connectors:export:decide"
+    )
+    with session_scope(factory) as session:
+        decision_events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.decision_recorded",
+            limit=10,
+        )
+    assert decision_events == []
+
+
 def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
 
@@ -932,6 +1080,10 @@ def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
     ]
     snapshot_export_request_path = paths[
         "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests"
+    ]
+    snapshot_export_request_decision_path = paths[
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/{export_request_id}/decision"
     ]
 
     assert "get" in report_path
@@ -962,4 +1114,11 @@ def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
             "application/json"
         ]["schema"]["$ref"]
         == "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequestRecord"
+    )
+    assert "post" in snapshot_export_request_decision_path
+    assert (
+        snapshot_export_request_decision_path["post"]["responses"]["201"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        == "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportDecisionResult"
     )

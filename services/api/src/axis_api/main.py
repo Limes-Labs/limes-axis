@@ -115,9 +115,13 @@ from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantQuery,
     ConnectorEvidenceInvariantSnapshotConflict,
     ConnectorEvidenceInvariantSnapshotExportBundle,
+    ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied,
+    ConnectorEvidenceInvariantSnapshotExportDecisionRequest,
+    ConnectorEvidenceInvariantSnapshotExportDecisionResult,
     ConnectorEvidenceInvariantSnapshotExportQuery,
     ConnectorEvidenceInvariantSnapshotExportRequest,
     ConnectorEvidenceInvariantSnapshotExportRequestConflict,
+    ConnectorEvidenceInvariantSnapshotExportRequestNotFound,
     ConnectorEvidenceInvariantSnapshotExportRequestRecord,
     ConnectorEvidenceInvariantSnapshotHistory,
     ConnectorEvidenceInvariantSnapshotPermissionDenied,
@@ -130,6 +134,7 @@ from axis_api.connector_evidence_invariants import (
     read_connector_evidence_invariant_report,
     read_connector_evidence_invariant_snapshot_history,
     record_connector_evidence_invariant_snapshot_export_request,
+    record_connector_evidence_invariant_snapshot_export_request_decision,
 )
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
@@ -2145,6 +2150,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if result.idempotent_replay:
             response.status_code = status.HTTP_200_OK
         return result
+
+    @app.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/{export_request_id}/decision",
+        response_model=ConnectorEvidenceInvariantSnapshotExportDecisionResult,
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+        responses={
+            403: {"description": "Connector evidence snapshot export decision denied"},
+            404: {"description": "Connector evidence snapshot export request not found"},
+        },
+    )
+    async def manufacturing_connector_evidence_invariant_snapshot_export_request_decision(
+        export_request_id: str,
+        decision: ConnectorEvidenceInvariantSnapshotExportDecisionRequest,
+        repository: PersistenceRepository,
+        runtime: WorkflowRuntime,
+        principal: OidcPrincipalDependency,
+    ) -> ConnectorEvidenceInvariantSnapshotExportDecisionResult:
+        try:
+            bound_decision = _bind_demo_actor(decision, principal)
+            return await record_connector_evidence_invariant_snapshot_export_request_decision(
+                repository,
+                export_request_id,
+                bound_decision,
+                runtime,
+            )
+        except ConnectorEvidenceInvariantSnapshotExportRequestNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Connector evidence snapshot export request not found",
+            ) from exc
+        except ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": (
+                        "The actor cannot decide connector evidence snapshot exports."
+                    ),
+                    "required_scope": exc.required_permission,
+                    "decision": exc.decision.model_dump(),
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/connectors/evidence-invariants/snapshots",

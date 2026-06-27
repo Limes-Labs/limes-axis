@@ -165,8 +165,10 @@ tenant, connector, snapshot id and idempotency filters, require a separate read
 scope and append read-audit evidence without copying secret references, private
 endpoint references, DSNs or raw result payloads. Snapshot exports return
 public-safe manifest and hash-chain proofs, while governed export requests
-record approval, workflow and idempotency evidence before enterprise
-object-store/WORM retention is implemented.
+record approval, workflow and idempotency evidence. Export request decisions
+persist the approval outcome and workflow signal evidence while keeping storage
+status `not_written` until enterprise object-store/WORM retention is
+implemented.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

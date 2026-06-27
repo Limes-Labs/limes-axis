@@ -3619,6 +3619,129 @@
         "title": "ConnectorEvidenceInvariantSnapshotExportBundle",
         "type": "object"
       },
+      "ConnectorEvidenceInvariantSnapshotExportDecisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "decision",
+          "actor_id"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportDecisionRequest",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotExportDecisionResult": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "approval_id": {
+            "minLength": 1,
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "format": "uuid",
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "export_request": {
+            "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequestRecord"
+          },
+          "export_request_id": {
+            "minLength": 1,
+            "title": "Export Request Id",
+            "type": "string"
+          },
+          "export_status": {
+            "minLength": 1,
+            "title": "Export Status",
+            "type": "string"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "minLength": 1,
+            "title": "Workflow Id",
+            "type": "string"
+          },
+          "workflow_signal": {
+            "$ref": "#/components/schemas/WorkflowSignalResult"
+          },
+          "workflow_signal_status": {
+            "minLength": 1,
+            "title": "Workflow Signal Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "export_request_id",
+          "approval_id",
+          "workflow_id",
+          "decision",
+          "status",
+          "export_status",
+          "actor_id",
+          "export_request",
+          "permission_decision",
+          "audit_event_id",
+          "audit_event_type",
+          "workflow_signal",
+          "workflow_signal_status"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportDecisionResult",
+        "type": "object"
+      },
       "ConnectorEvidenceInvariantSnapshotExportManifest": {
         "properties": {
           "checksum_sha256": {
@@ -3935,6 +4058,51 @@
             "title": "Created At",
             "type": "string"
           },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "decision_actor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Actor Id"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
           "export_reason": {
             "minLength": 1,
             "title": "Export Reason",
@@ -4028,6 +4196,16 @@
             "minLength": 1,
             "title": "Workflow Id",
             "type": "string"
+          },
+          "workflow_signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowSignalResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "workflow_signal_status": {
             "minLength": 1,
@@ -14928,6 +15106,80 @@
           }
         },
         "summary": "Manufacturing Connector Evidence Invariant Snapshot Export Request",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision": {
+      "post": {
+        "operationId": "manufacturing_connector_evidence_invariant_snapshot_export_request_decision_demo_manufacturing_connectors_evidence_invariants_snapshots_export_requests__export_request_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_request_id",
+            "required": true,
+            "schema": {
+              "title": "Export Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportDecisionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector evidence snapshot export decision denied"
+          },
+          "404": {
+            "description": "Connector evidence snapshot export request not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Evidence Invariant Snapshot Export Request Decision",
         "tags": [
           "demo"
         ]

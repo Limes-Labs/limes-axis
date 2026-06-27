@@ -9,6 +9,8 @@ import {
   buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotExportPath,
   buildConnectorEvidenceInvariantSnapshotExportRequest,
+  buildConnectorEvidenceInvariantSnapshotExportRequestDecision,
+  buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath,
   buildConnectorEvidenceInvariantSnapshotExportRequestPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
@@ -27,6 +29,7 @@ import {
   summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
   type ConnectorEvidenceInvariantSnapshotExportBundle,
+  type ConnectorEvidenceInvariantSnapshotExportDecisionResult,
   type ConnectorEvidenceInvariantSnapshotExportRequestRecord,
   type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorEvidenceInvariantSnapshotRecord,
@@ -59,6 +62,7 @@ type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "error";
 type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "error";
 type EvidenceSnapshotStatus = "idle" | "saving" | "api_created" | "error";
 type EvidenceSnapshotExportRequestStatus = "idle" | "saving" | "api_created" | "error";
+type EvidenceSnapshotExportDecisionStatus = "idle" | "saving" | "api_decided" | "error";
 
 const CONNECTOR_TENANT_ID = "tenant_demo_manufacturing";
 const CONNECTOR_PLANT_NAME = "Ravenna Works";
@@ -469,6 +473,8 @@ export function ConnectorConsole() {
     useState<ConnectorEvidenceInvariantSnapshotExportRequestRecord | null>(null);
   const [evidenceSnapshotExportRequestStatus, setEvidenceSnapshotExportRequestStatus] =
     useState<EvidenceSnapshotExportRequestStatus>("idle");
+  const [evidenceSnapshotExportDecisionStatus, setEvidenceSnapshotExportDecisionStatus] =
+    useState<EvidenceSnapshotExportDecisionStatus>("idle");
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -852,9 +858,44 @@ export function ConnectorConsole() {
       );
       setEvidenceSnapshotExportRequest(result);
       setEvidenceSnapshotExportRequestStatus("api_created");
+      setEvidenceSnapshotExportDecisionStatus("idle");
     } catch {
       setEvidenceSnapshotExportRequest(null);
       setEvidenceSnapshotExportRequestStatus("error");
+      setEvidenceSnapshotExportDecisionStatus("idle");
+    }
+  }
+
+  async function approveEvidenceSnapshotExportRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!evidenceSnapshotExportRequest) {
+      return;
+    }
+
+    const request = buildConnectorEvidenceInvariantSnapshotExportRequestDecision({
+      actorId: "connector-compliance-owner-role",
+      decision: "approve",
+      note: "Approved from the connector evidence console.",
+    });
+
+    setEvidenceSnapshotExportDecisionStatus("saving");
+    try {
+      const result =
+        await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportDecisionResult>(
+          apiBaseUrl,
+          buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath(
+            evidenceSnapshotExportRequest.export_request_id,
+          ),
+          undefined,
+          {
+            body: JSON.stringify(request),
+            method: "POST",
+          },
+        );
+      setEvidenceSnapshotExportRequest(result.export_request);
+      setEvidenceSnapshotExportDecisionStatus("api_decided");
+    } catch {
+      setEvidenceSnapshotExportDecisionStatus("error");
     }
   }
 
@@ -1366,7 +1407,46 @@ export function ConnectorConsole() {
                     {evidenceSnapshotExportRequest.storage_status}
                   </span>
                 </span>
+                {evidenceSnapshotExportRequest.decision ? (
+                  <span>
+                    <span className="metric-label">
+                      {evidenceSnapshotExportRequest.decision}
+                    </span>
+                    <span className="row-detail">
+                      {evidenceSnapshotExportRequest.export_status}
+                    </span>
+                  </span>
+                ) : null}
               </div>
+            ) : null}
+            {evidenceSnapshotExportRequest ? (
+              <form
+                aria-label="Evidence snapshot export decision"
+                className="policy-authoring-form"
+                onSubmit={approveEvidenceSnapshotExportRequest}
+              >
+                <button
+                  className="command-button"
+                  disabled={
+                    evidenceSnapshotExportDecisionStatus === "saving" ||
+                    evidenceSnapshotExportRequest.decision !== null
+                  }
+                  type="submit"
+                >
+                  {evidenceSnapshotExportDecisionStatus === "saving"
+                    ? "Approving"
+                    : "Approve export"}
+                </button>
+              </form>
+            ) : null}
+            {evidenceSnapshotExportDecisionStatus !== "idle" ? (
+              <p className="row-detail">
+                {evidenceSnapshotExportDecisionStatus === "api_decided"
+                  ? "Export request decision recorded."
+                  : evidenceSnapshotExportDecisionStatus === "saving"
+                    ? "Export request decision is being submitted."
+                    : "Export request decision failed."}
+              </p>
             ) : null}
           </section>
 

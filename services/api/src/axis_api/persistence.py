@@ -622,6 +622,20 @@ class ConnectorEvidenceSnapshotExportRequestCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ConnectorEvidenceSnapshotExportRequestDecisionRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    export_request_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    export_status: str = Field(min_length=1)
+    decision: str = Field(min_length=1)
+    decision_actor_id: str = Field(min_length=1)
+    decision_note: str | None = None
+    workflow_signal_status: str = Field(min_length=1)
+    workflow_signal: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
+
+
 class ConnectorManualImportDecisionRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     import_id: str = Field(min_length=1)
@@ -2487,6 +2501,35 @@ class AxisPersistenceRepository:
             ConnectorEvidenceSnapshotExportRequest.idempotency_key == idempotency_key,
         )
         return self.session.scalars(statement).first()
+
+    def record_connector_evidence_snapshot_export_request_decision(
+        self,
+        record: ConnectorEvidenceSnapshotExportRequestDecisionRecord,
+    ) -> ConnectorEvidenceSnapshotExportRequest:
+        export_request = self.get_connector_evidence_snapshot_export_request(
+            record.tenant_id,
+            record.export_request_id,
+        )
+        if export_request is None:
+            raise PersistenceRecordNotFound(
+                "Connector evidence snapshot export request not found"
+            )
+
+        export_request.status = record.status
+        export_request.export_status = record.export_status
+        export_request.decision = record.decision
+        export_request.decision_actor_id = record.decision_actor_id
+        export_request.decision_note = record.decision_note
+        export_request.decided_at = utc_now()
+        export_request.workflow_signal_status = record.workflow_signal_status
+        export_request.workflow_signal = record.workflow_signal
+        if record.audit_event_id is not None:
+            export_request.audit_event_id = record.audit_event_id
+        if record.audit_event_type is not None:
+            export_request.audit_event_type = record.audit_event_type
+        export_request.updated_at = utc_now()
+        self.session.flush()
+        return export_request
 
     def create_manufacturing_operation_record(
         self,

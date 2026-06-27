@@ -681,6 +681,14 @@ export type ConnectorEvidenceInvariantSnapshotExportBundle = {
   export_notes: string[];
 };
 
+export type WorkflowSignalResult = {
+  workflow_id: string;
+  status: string;
+  adapter: string;
+  signal_name: string;
+  payload: Record<string, unknown>;
+};
+
 export type ConnectorEvidenceInvariantSnapshotExportRequestRecord = {
   tenant_id: string;
   export_request_id: string;
@@ -710,6 +718,11 @@ export type ConnectorEvidenceInvariantSnapshotExportRequestRecord = {
     reason: string;
   };
   workflow_signal_status: string;
+  decision: string | null;
+  decision_actor_id: string | null;
+  decision_note: string | null;
+  decided_at: string | null;
+  workflow_signal: WorkflowSignalResult | null;
   audit_event_id: string | null;
   audit_event_type: string;
   notes: string[];
@@ -734,6 +747,33 @@ export type ConnectorEvidenceInvariantSnapshotExportRequestPayload = {
   limit: number;
   controls: string[];
   notes: string[];
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportDecisionPayload = {
+  decision: "approve" | "reject" | "request_changes";
+  actor_id: string;
+  actor_scopes: string[];
+  note?: string;
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportDecisionResult = {
+  tenant_id: string;
+  export_request_id: string;
+  approval_id: string;
+  workflow_id: string;
+  decision: "approve" | "reject" | "request_changes";
+  status: string;
+  export_status: string;
+  actor_id: string;
+  export_request: ConnectorEvidenceInvariantSnapshotExportRequestRecord;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id: string;
+  audit_event_type: string;
+  workflow_signal: WorkflowSignalResult;
+  workflow_signal_status: string;
 };
 
 export type ConnectorEvidenceInvariantSnapshotSummary = {
@@ -792,6 +832,12 @@ type ConnectorEvidenceInvariantSnapshotExportRequestInput = {
   limit?: number;
 };
 
+type ConnectorEvidenceInvariantSnapshotExportDecisionInput = {
+  actorId: string;
+  decision?: "approve" | "reject" | "request_changes";
+  note?: string;
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
@@ -800,6 +846,8 @@ const CONNECTOR_EVIDENCE_SNAPSHOT_HISTORY_READ_SCOPE =
 const CONNECTOR_EVIDENCE_SNAPSHOT_WRITE_SCOPE = "connectors:evidence:snapshot";
 const CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_REQUEST_SCOPE =
   "connectors:evidence:snapshot:export:request";
+const CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_DECISION_SCOPE =
+  "approvals:connectors:export:decide";
 
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
@@ -1423,6 +1471,34 @@ export function buildConnectorEvidenceInvariantSnapshotExportRequest({
 
   if (snapshotId) {
     request.snapshot_id = snapshotId;
+  }
+
+  return request;
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath(
+  exportRequestId: string,
+): string {
+  const encodedRequestId = encodeURIComponent(exportRequestId);
+  return (
+    "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/" +
+    `${encodedRequestId}/decision`
+  );
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportRequestDecision({
+  actorId,
+  decision = "approve",
+  note,
+}: ConnectorEvidenceInvariantSnapshotExportDecisionInput): ConnectorEvidenceInvariantSnapshotExportDecisionPayload {
+  const request: ConnectorEvidenceInvariantSnapshotExportDecisionPayload = {
+    decision,
+    actor_id: actorId,
+    actor_scopes: [CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_DECISION_SCOPE],
+  };
+
+  if (note) {
+    request.note = note;
   }
 
   return request;
