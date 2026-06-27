@@ -119,6 +119,13 @@ export type AuditFilters = {
 
 export const allAuditFilter = "all";
 
+type AuditEventSelectionInput = {
+  explorer: ManufacturingAuditExplorer;
+  filteredEvents: AuditLedgerEvent[];
+  requestedEventId: string | null;
+  selectedEventId: string;
+};
+
 export function filterAuditEvents(
   explorer: ManufacturingAuditExplorer,
   filters: AuditFilters,
@@ -140,6 +147,36 @@ export function findAuditEventById(
   return (
     explorer.events.find((event) => event.audit_event_id === auditEventId) ?? explorer.events[0]
   );
+}
+
+export function buildAuditEventHref(auditEventId: string | null | undefined): string {
+  if (!auditEventId) {
+    return "/audit";
+  }
+
+  const params = new URLSearchParams({ event_id: auditEventId });
+  return `/audit?${params.toString()}`;
+}
+
+export function resolveAuditEventSelection(input: AuditEventSelectionInput): string {
+  const requestedEventId = input.requestedEventId;
+  const requestedEventIsVisible =
+    requestedEventId !== null &&
+    input.filteredEvents.some((event) => event.audit_event_id === requestedEventId);
+
+  if (requestedEventIsVisible) {
+    return requestedEventId;
+  }
+
+  const selectedEventIsVisible = input.filteredEvents.some(
+    (event) => event.audit_event_id === input.selectedEventId,
+  );
+
+  if (selectedEventIsVisible) {
+    return input.selectedEventId;
+  }
+
+  return input.filteredEvents[0]?.audit_event_id ?? input.explorer.events[0]?.audit_event_id ?? "";
 }
 
 export function formatAuditLabel(value: string): string {

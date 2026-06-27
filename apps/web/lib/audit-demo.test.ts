@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   allAuditFilter,
+  buildAuditEventHref,
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
+  resolveAuditEventSelection,
   type ManufacturingAuditExplorer,
 } from "./audit-demo";
 
@@ -100,6 +102,40 @@ describe("audit explorer helpers", () => {
     expect(findAuditEventById(auditExplorerFixture, "missing").event_type).toBe(
       "agent.proposal.created",
     );
+  });
+
+  it("builds public-safe audit event deep links", () => {
+    expect(buildAuditEventHref("audit_egress_fixture")).toBe("/audit?event_id=audit_egress_fixture");
+    expect(buildAuditEventHref("audit event/id:fixture")).toBe(
+      "/audit?event_id=audit+event%2Fid%3Afixture",
+    );
+    expect(buildAuditEventHref(null)).toBe("/audit");
+  });
+
+  it("resolves requested audit event selections before falling back to visible events", () => {
+    const filteredEvents = filterAuditEvents(auditExplorerFixture, {
+      tenant: allAuditFilter,
+      eventType: allAuditFilter,
+      scope: allAuditFilter,
+    });
+
+    expect(
+      resolveAuditEventSelection({
+        explorer: auditExplorerFixture,
+        filteredEvents,
+        requestedEventId: "audit_egress_fixture",
+        selectedEventId: "",
+      }),
+    ).toBe("audit_egress_fixture");
+
+    expect(
+      resolveAuditEventSelection({
+        explorer: auditExplorerFixture,
+        filteredEvents: filteredEvents.slice(0, 1),
+        requestedEventId: "missing",
+        selectedEventId: "audit_egress_fixture",
+      }),
+    ).toBe("audit_supply_fixture");
   });
 
   it("formats audit labels", () => {

@@ -797,7 +797,9 @@ console can also create a selected-connector snapshot through
 `POST /demo/manufacturing/connectors/evidence-invariants/snapshots` with
 `connectors:evidence:snapshot`; the request carries generated snapshot and
 idempotency ids, public-safe review reason metadata and no raw connector payload
-or credential material. The checkpoint request includes
+or credential material. Snapshot rows with an audit event id link to
+`/audit?event_id=...`, letting reviewers open the matching audit ledger event
+without copying raw payloads into the connector console. The checkpoint request includes
 `connectors:sync:checkpoint:read`; if the API is unavailable or rejects the
 request, the page shows an API-required state and does not render local
 connector records.
@@ -945,6 +947,8 @@ The slice is covered by:
 - web unit tests for evidence snapshot history query path scope and filters;
 - web unit tests for evidence snapshot creation request scope and public-safety
   constraints;
+- web unit tests for audit event deep-link construction and requested-event
+  selection;
 - browser smoke verification for `/connectors` rendering the API-backed snapshot
   history section;
 - Playwright smoke tests for `/connectors` API-required behavior when the
