@@ -48,7 +48,7 @@ def upgrade() -> None:
             "tenant_id",
             "checkpoint_id",
             "idempotency_key",
-            name="uq_connector_sync_checkpoint_claims_tenant_checkpoint_idempotency",
+            name="uq_conn_sync_claims_tenant_checkpoint_idem",
         ),
     )
     for column_name in (

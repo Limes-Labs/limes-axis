@@ -58,7 +58,7 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "tenant_id",
             "idempotency_key",
-            name="uq_connector_evidence_snapshot_export_requests_tenant_idempotency",
+            name="uq_conn_evidence_export_req_tenant_idem",
         ),
     )
     for column_name in (
@@ -81,7 +81,7 @@ def upgrade() -> None:
         "audit_event_type",
     ):
         op.create_index(
-            f"ix_connector_evidence_snapshot_export_requests_{column_name}",
+            f"ix_conn_evidence_export_req_{column_name}",
             table_name,
             [column_name],
         )
@@ -109,7 +109,7 @@ def downgrade() -> None:
         "tenant_id",
     ):
         op.drop_index(
-            f"ix_connector_evidence_snapshot_export_requests_{column_name}",
+            f"ix_conn_evidence_export_req_{column_name}",
             table_name=table_name,
         )
     op.drop_table(table_name)
