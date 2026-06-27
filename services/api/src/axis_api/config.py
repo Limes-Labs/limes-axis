@@ -7,7 +7,12 @@ class Settings(BaseSettings):
     public_base_url: str = Field(default="http://localhost:3000", alias="AXIS_PUBLIC_BASE_URL")
     api_base_url: str = Field(default="http://localhost:8000", alias="AXIS_API_BASE_URL")
     cors_origins: list[str] = Field(
-        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        default=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3100",
+            "http://127.0.0.1:3100",
+        ],
         alias="AXIS_CORS_ORIGINS",
     )
     postgres_dsn: str = Field(

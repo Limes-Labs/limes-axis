@@ -61,6 +61,12 @@ Run the governance console in a second terminal:
 make demo-web
 ```
 
+The local console is configured for both `localhost:3000` and
+`127.0.0.1:3000` development access, and the API also allows the
+`localhost:3100` and `127.0.0.1:3100` origins used by Playwright against the
+production Next.js build. This keeps the in-app Browser, local review sessions
+and automated browser checks on the same Axis API.
+
 Run static demo checks:
 
 ```bash
@@ -71,6 +77,18 @@ Run static and live checks after the API and web console are running:
 
 ```bash
 make demo-check-live
+```
+
+Run browser smoke tests against the production Next.js build:
+
+```bash
+pnpm --filter @limes-axis/web test:e2e
+```
+
+Run the live browser smoke test when the local API is running:
+
+```bash
+pnpm --filter @limes-axis/web test:e2e:live
 ```
 
 Stop the stack:
@@ -90,8 +108,20 @@ make demo-stack-down
 - [ ] `make demo-check` passes static repository checks.
 - [ ] `make demo-check-live` passes `/health`, `/ready` and web home checks.
 - [ ] `make demo-check-live` passes the browser no-store CORS preflight used by
-      API-required console pages.
+      API-required console pages, including the `3100` origins used by
+      production-build Playwright checks.
+- [ ] `make demo-check-live` verifies the manufacturing operations snapshot
+      returns persisted tenant-scoped domain rollups.
+- [ ] The console shell uses the Axis brand palette and passes browser checks
+      for dark theme tokens, visible API-backed state and no horizontal
+      overflow.
+- [ ] `pnpm --filter @limes-axis/web test:e2e` passes API-unavailable smoke
+      tests against a production build with browser-local fallbacks disabled.
+- [ ] `pnpm --filter @limes-axis/web test:e2e:live` passes the live overview
+      smoke test against the running Axis API.
 - [ ] The overview page loads from `/demo/manufacturing/overview`.
+- [ ] The overview page composes `/demo/manufacturing/operations/snapshot` into
+      the first-screen operational cockpit.
 - [ ] The ontology page loads from `/demo/manufacturing/ontology`.
 - [ ] The workflow page loads from `/demo/manufacturing/workflows`.
 - [ ] The approval inbox loads from `/demo/manufacturing/approvals`.
@@ -177,7 +207,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Local Docker Compose runtime services.
 - Critical OpenAPI routes.
 - Demo readiness documentation and README links.
-- Browser no-store CORS preflight for API-required console fetches.
+- Browser no-store CORS preflight for API-required console fetches across the
+  local dev and Playwright production-build origins.
+- Manufacturing operations snapshot contract with persisted domain rollups.
 - Optional live API and web checks when URLs are provided.
 
 The check is intentionally conservative. If a demo command, route or document

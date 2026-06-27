@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const expectedApiBaseUrl = process.env.NEXT_PUBLIC_AXIS_API_BASE_URL ?? "http://localhost:8000";
+
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
     const root = document.documentElement;
@@ -30,6 +32,27 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.hasOverflow, JSON.stringify(overflow, null, 2)).toBe(false);
 }
 
+async function expectAxisDarkShell(page: Page) {
+  const shell = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const brandDiamond = document.querySelector<HTMLElement>(".brand-diamond");
+
+    return {
+      axisBlack: root.getPropertyValue("--axis-black").trim(),
+      colorScheme: root.colorScheme,
+      signalBlue: root.getPropertyValue("--signal-blue").trim(),
+      brandDiamondColor: brandDiamond ? getComputedStyle(brandDiamond).backgroundColor : null,
+    };
+  });
+
+  expect(shell).toEqual({
+    axisBlack: "#111317",
+    colorScheme: "dark",
+    signalBlue: "#3e6bff",
+    brandDiamondColor: "rgb(62, 107, 255)",
+  });
+}
+
 test.describe("Axis console smoke", () => {
   test("requires the overview API instead of local overview data", async ({ page }) => {
     const pageErrors: string[] = [];
@@ -46,11 +69,12 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("API Status")).toBeVisible();
     await expect(page.getByText("Control API")).toBeVisible();
     await expect(page.locator(".api-status-panel").getByText("Unavailable")).toBeVisible();
-    await expect(page.getByText("http://localhost:8000")).toBeVisible();
+    await expect(page.getByText(expectedApiBaseUrl)).toBeVisible();
 
     await page.getByRole("button", { name: "Refresh state" }).click();
     await expect(page.locator(".api-status-panel").getByText("Unavailable")).toBeVisible();
 
+    await expectAxisDarkShell(page);
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });

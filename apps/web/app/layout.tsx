@@ -72,8 +72,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body>
         <div className="app-shell">
           <aside className="sidebar">
-            <Link className="brand" href="/">
-              <span className="brand-mark">AX</span>
+            <Link className="brand" href="/" aria-label="Limes Axis home">
+              <span className="brand-mark" aria-hidden="true">
+                <span className="brand-axis brand-axis-vertical" />
+                <span className="brand-axis brand-axis-horizontal" />
+                <span className="brand-axis brand-axis-diagonal-a" />
+                <span className="brand-axis brand-axis-diagonal-b" />
+                <span className="brand-diamond" />
+              </span>
               <span>
                 <span className="brand-title">Limes Axis</span>
                 <span className="brand-subtitle">Control plane</span>

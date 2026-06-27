@@ -111,7 +111,9 @@ Use [`docs/demo-readiness.md`](./docs/demo-readiness.md) for the repeatable SME
 and enterprise evaluation demo runbook. The demo path uses the local
 self-hosted stack, Alembic migrations, Axis API routes and API-required console
 pages. Static checks are available with `make demo-check`; once the API and web
-console are running, `make demo-check-live` verifies the live endpoints.
+console are running, `make demo-check-live` verifies the live endpoints,
+browser no-store CORS for the dev and Playwright demo origins, and the
+persisted manufacturing operations snapshot used by the overview cockpit.
 The manufacturing overview, workflow console, approval inbox, audit explorer,
 model routing, ontology graph/detail, connector registry, agent registry and
 action registry API reference surfaces now read tenant-scoped
@@ -376,9 +378,14 @@ make test-integration
 Run web smoke tests against the production build:
 
 ```bash
-pnpm --filter @limes-axis/web build
 pnpm --filter @limes-axis/web exec playwright install chromium
 pnpm --filter @limes-axis/web test:e2e
+```
+
+Run the live overview smoke test when the local API is running:
+
+```bash
+pnpm --filter @limes-axis/web test:e2e:live
 ```
 
 Run the web console locally:

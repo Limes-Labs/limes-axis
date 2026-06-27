@@ -63,6 +63,85 @@ export type ManufacturingOverview = {
   audit_events: AuditEvidence[];
 };
 
+export type ManufacturingDomainSnapshot = {
+  domain: string;
+  record_count: number;
+  action_required_count: number;
+  watch_count: number;
+  highest_risk_level: string;
+  owner_roles: string[];
+  workflow_ids: string[];
+  evidence_refs: string[];
+};
+
+export type ManufacturingBriefSummary = {
+  brief_id: string;
+  brief_date: string;
+  status: string;
+  requested_by: string;
+  source_record_count: number;
+  generation_boundary: string;
+  audit_event_type: string;
+};
+
+export type ManufacturingRiskScenarioSummary = {
+  scenario_id: string;
+  domain: string;
+  status: string;
+  risk_level: string;
+  owner_role: string;
+  workflow_ids: string[];
+  source_record_count: number;
+  generation_boundary: string;
+  audit_event_type: string;
+};
+
+export type ManufacturingWorkflowSnapshot = {
+  workflow_id: string;
+  name: string;
+  domain: string;
+  state: string;
+  status: string;
+  owner_role: string;
+  autonomy_level: string;
+  blocker: string | null;
+  pending_signal_count: number;
+  replay_ready: boolean;
+};
+
+export type ManufacturingApprovalSnapshot = {
+  approval_id: string;
+  workflow_id: string | null;
+  action_id: string;
+  status: string;
+  owner_role: string;
+  risk_level: string;
+  requested_by: string;
+};
+
+export type ManufacturingAuditEventSummary = {
+  event_type: string;
+  actor_id: string;
+  created_at: string;
+  payload_refs: Record<string, string>;
+};
+
+export type ManufacturingOperationsSnapshot = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  as_of: string;
+  metrics: OverviewMetric[];
+  domain_snapshots: ManufacturingDomainSnapshot[];
+  latest_daily_briefs: ManufacturingBriefSummary[];
+  risk_scenarios: ManufacturingRiskScenarioSummary[];
+  active_workflows: ManufacturingWorkflowSnapshot[];
+  pending_approvals: ManufacturingApprovalSnapshot[];
+  recent_audit_events: ManufacturingAuditEventSummary[];
+  generation_boundary: string;
+  notes: string[];
+};
+
 export function platformStatusLabel(status: PlatformStatus): string {
   if (status === "action_required") {
     return "Action Required";
@@ -80,4 +159,45 @@ export function formatOverviewTimestamp(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+export function getPersistedArtifactCount(snapshot: ManufacturingOperationsSnapshot): number {
+  return snapshot.latest_daily_briefs.length + snapshot.risk_scenarios.length;
+}
+
+export function getOperationsSnapshotStatus(
+  snapshot: ManufacturingOperationsSnapshot,
+): PlatformStatus {
+  const hasActionRequired =
+    snapshot.pending_approvals.length > 0 ||
+    snapshot.domain_snapshots.some((domain) => domain.action_required_count > 0) ||
+    snapshot.active_workflows.some((workflow) => workflow.status === "action_required");
+
+  if (hasActionRequired) {
+    return "action_required";
+  }
+
+  const hasWatch =
+    snapshot.domain_snapshots.some((domain) => domain.watch_count > 0) ||
+    snapshot.risk_scenarios.some((scenario) => scenario.risk_level !== "low");
+
+  return hasWatch ? "watch" : "ready";
+}
+
+export function sortDomainSnapshotsByOperationalPriority(
+  domains: ManufacturingDomainSnapshot[],
+): ManufacturingDomainSnapshot[] {
+  return [...domains].sort((left, right) => {
+    const actionDelta = right.action_required_count - left.action_required_count;
+    if (actionDelta !== 0) {
+      return actionDelta;
+    }
+
+    const watchDelta = right.watch_count - left.watch_count;
+    if (watchDelta !== 0) {
+      return watchDelta;
+    }
+
+    return left.domain.localeCompare(right.domain);
+  });
 }

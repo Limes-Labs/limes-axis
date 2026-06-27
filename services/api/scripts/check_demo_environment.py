@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 
@@ -245,6 +246,35 @@ def _fetch_text(url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_operations_snapshot(api_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/demo/manufacturing/operations/snapshot",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            domains = payload.get("domain_snapshots")
+            metrics = payload.get("metrics")
+            generation_boundary = payload.get("generation_boundary")
+            ok = (
+                200 <= response.status < 300
+                and payload.get("tenant_id") == "tenant_demo_manufacturing"
+                and isinstance(domains, list)
+                and len(domains) > 0
+                and isinstance(metrics, list)
+                and len(metrics) > 0
+                and generation_boundary == "persisted_manufacturing_operations_snapshot"
+            )
+            if ok:
+                return True, f"HTTP {response.status}, {len(domains)} persisted domains"
+            return False, f"HTTP {response.status}, invalid operations snapshot contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/demo/manufacturing/overview",
@@ -274,19 +304,41 @@ def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, st
         return False, str(exc)
 
 
+def _demo_cors_origins(web_url: str) -> tuple[str, ...]:
+    normalized = web_url.rstrip("/")
+    origins = [normalized]
+    parsed = urlsplit(normalized)
+    if parsed.scheme in {"http", "https"} and parsed.hostname in {"localhost", "127.0.0.1"}:
+        for host in ("localhost", "127.0.0.1"):
+            next_start_origin = urlunsplit((parsed.scheme, f"{host}:3100", "", "", ""))
+            if next_start_origin not in origins:
+                origins.append(next_start_origin)
+    return tuple(origins)
+
+
+def _cors_check_name(origin: str, primary_web_url: str) -> str:
+    if origin == primary_web_url.rstrip("/"):
+        return "live.api_cors_no_store_preflight"
+    parsed = urlsplit(origin)
+    host = parsed.hostname or "unknown"
+    port = parsed.port or parsed.scheme
+    return f"live.api_cors_no_store_preflight.{host}_{port}"
+
+
 def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResult]:
     checks: list[CheckResult] = []
     if api_url:
         normalized = api_url.rstrip("/")
         health_ok, health_detail = _fetch_json(f"{normalized}/health")
         ready_ok, ready_detail = _fetch_json(f"{normalized}/ready")
+        snapshot_ok, snapshot_detail = _fetch_operations_snapshot(normalized)
         checks.append(CheckResult("live.api_health", health_ok, health_detail))
         checks.append(CheckResult("live.api_ready", ready_ok, ready_detail))
+        checks.append(CheckResult("live.api_operations_snapshot", snapshot_ok, snapshot_detail))
         if web_url:
-            cors_ok, cors_detail = _fetch_cors_no_store_preflight(normalized, web_url)
-            checks.append(
-                CheckResult("live.api_cors_no_store_preflight", cors_ok, cors_detail)
-            )
+            for origin in _demo_cors_origins(web_url):
+                cors_ok, cors_detail = _fetch_cors_no_store_preflight(normalized, origin)
+                checks.append(CheckResult(_cors_check_name(origin, web_url), cors_ok, cors_detail))
     if web_url:
         normalized = web_url.rstrip("/")
         web_ok, web_detail = _fetch_text(normalized)
