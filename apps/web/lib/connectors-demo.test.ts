@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
@@ -666,6 +667,35 @@ describe("manufacturing connector helpers", () => {
       workflow_signal_status: "policy_enable_signal_recorded",
     });
     expect(JSON.stringify(request).toLowerCase()).not.toContain("csv_content");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("builds connector evidence snapshot requests without raw payloads", () => {
+    const request = buildConnectorEvidenceInvariantSnapshotRequest({
+      tenantId: "tenant_demo_manufacturing",
+      connectorId: "external_db_operational_mirror",
+      snapshotId: "snap_external_db_operational_mirror_20260627_020000",
+      idempotencyKey: "idem_snap_external_db_operational_mirror_20260627_020000",
+      requestedBy: "connector-security-reviewer-role",
+      reason: "console-security-review",
+      limit: 50,
+    });
+
+    expect(request).toEqual({
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "external_db_operational_mirror",
+      snapshot_id: "snap_external_db_operational_mirror_20260627_020000",
+      requested_by: "connector-security-reviewer-role",
+      actor_scopes: ["connectors:evidence:snapshot"],
+      idempotency_key: "idem_snap_external_db_operational_mirror_20260627_020000",
+      reason: "console-security-review",
+      limit: 50,
+      notes: ["Snapshot requested from connector console."],
+    });
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("postgres://");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
   });

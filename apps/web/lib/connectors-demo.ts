@@ -590,6 +590,29 @@ export type ConnectorEvidenceInvariantSnapshotRecord = {
   notes: string[];
 };
 
+export type ConnectorEvidenceInvariantSnapshotRequest = {
+  tenant_id: string;
+  snapshot_id: string;
+  connector_id: string | null;
+  requested_by: string;
+  actor_scopes: string[];
+  idempotency_key: string;
+  reason: string;
+  limit: number;
+  notes: string[];
+};
+
+type ConnectorEvidenceInvariantSnapshotRequestInput = {
+  tenantId: string;
+  connectorId: string | null;
+  snapshotId: string;
+  idempotencyKey: string;
+  requestedBy: string;
+  reason: string;
+  limit: number;
+  notes?: string[];
+};
+
 export type ConnectorEvidenceInvariantSnapshotHistory = {
   tenant_id: string;
   plant_name: string;
@@ -634,6 +657,7 @@ const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
 const CONNECTOR_EVIDENCE_SNAPSHOT_HISTORY_READ_SCOPE =
   "connectors:evidence:snapshot:read";
+const CONNECTOR_EVIDENCE_SNAPSHOT_WRITE_SCOPE = "connectors:evidence:snapshot";
 
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
@@ -922,6 +946,22 @@ export function buildConnectorPromotionPolicyEnableRequest(
     workflow_signal_status: "policy_enable_signal_recorded",
     note: "Enable required policy after governance review.",
     ...overrides,
+  };
+}
+
+export function buildConnectorEvidenceInvariantSnapshotRequest(
+  input: ConnectorEvidenceInvariantSnapshotRequestInput,
+): ConnectorEvidenceInvariantSnapshotRequest {
+  return {
+    tenant_id: input.tenantId,
+    connector_id: input.connectorId,
+    snapshot_id: input.snapshotId,
+    requested_by: input.requestedBy,
+    actor_scopes: [CONNECTOR_EVIDENCE_SNAPSHOT_WRITE_SCOPE],
+    idempotency_key: input.idempotencyKey,
+    reason: input.reason,
+    limit: input.limit,
+    notes: input.notes ?? ["Snapshot requested from connector console."],
   };
 }
 

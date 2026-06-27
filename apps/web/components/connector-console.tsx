@@ -5,6 +5,7 @@ import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lu
 
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
+  buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
@@ -21,6 +22,7 @@ import {
   summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
   type ConnectorEvidenceInvariantSnapshotHistory,
+  type ConnectorEvidenceInvariantSnapshotRecord,
   type ConnectorPromotionPolicyCreateRequest,
   type ConnectorPromotionPolicyEnableRequest,
   type ConnectorRunRecord,
@@ -48,6 +50,7 @@ import {
 type ConnectorSource = "loading" | "api" | "unavailable";
 type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "error";
 type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "error";
+type EvidenceSnapshotStatus = "idle" | "saving" | "api_created" | "error";
 
 const CONNECTOR_TENANT_ID = "tenant_demo_manufacturing";
 const CONNECTOR_PLANT_NAME = "Ravenna Works";
@@ -203,6 +206,10 @@ function sourcePillClass(source: ConnectorSource): string {
   }
 
   return source === "loading" ? "status-checking" : "signal-action-required";
+}
+
+function snapshotIdStamp(date: Date): string {
+  return date.toISOString().replace(/\D/g, "").slice(0, 17);
 }
 
 async function fetchConnectorJson<T>(
@@ -466,6 +473,8 @@ export function ConnectorConsole() {
   const [policyAuthoringStatus, setPolicyAuthoringStatus] =
     useState<PolicyAuthoringStatus>("idle");
   const [policyEnableStatus, setPolicyEnableStatus] = useState<PolicyEnableStatus>("idle");
+  const [evidenceSnapshotStatus, setEvidenceSnapshotStatus] =
+    useState<EvidenceSnapshotStatus>("idle");
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -734,6 +743,41 @@ export function ConnectorConsole() {
       setPolicyEnableStatus("api_enabled");
     } catch {
       setPolicyEnableStatus("error");
+    }
+  }
+
+  async function createEvidenceSnapshot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedConnectorId) {
+      return;
+    }
+
+    const stamp = snapshotIdStamp(new Date());
+    const request = buildConnectorEvidenceInvariantSnapshotRequest({
+      tenantId: registry.tenant_id,
+      connectorId: selectedConnectorId,
+      snapshotId: `snap_${selectedConnectorId}_${stamp}`,
+      idempotencyKey: `idem_snap_${selectedConnectorId}_${stamp}`,
+      requestedBy: "connector-security-reviewer-role",
+      reason: "console-security-review",
+      limit: 100,
+    });
+
+    setEvidenceSnapshotStatus("saving");
+    try {
+      await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotRecord>(
+        apiBaseUrl,
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        undefined,
+        {
+          body: JSON.stringify(request),
+          method: "POST",
+        },
+      );
+      await refreshConnectorData();
+      setEvidenceSnapshotStatus("api_created");
+    } catch {
+      setEvidenceSnapshotStatus("error");
     }
   }
 
@@ -1138,6 +1182,28 @@ export function ConnectorConsole() {
             ) : (
               <p className="row-detail">No matching snapshot artifacts recorded.</p>
             )}
+            <form
+              aria-label="Evidence snapshot creation"
+              className="policy-authoring-form"
+              onSubmit={createEvidenceSnapshot}
+            >
+              <button
+                className="primary-action"
+                disabled={evidenceSnapshotStatus === "saving" || !selectedConnectorId}
+                type="submit"
+              >
+                {evidenceSnapshotStatus === "saving" ? "Creating" : "Create snapshot"}
+              </button>
+            </form>
+            {evidenceSnapshotStatus !== "idle" ? (
+              <p className="row-detail">
+                {evidenceSnapshotStatus === "api_created"
+                  ? "Snapshot persisted in the audit ledger."
+                  : evidenceSnapshotStatus === "saving"
+                    ? "Snapshot creation is being submitted."
+                    : "Snapshot creation failed."}
+              </p>
+            ) : null}
           </section>
 
           <section className="audit-payload">
