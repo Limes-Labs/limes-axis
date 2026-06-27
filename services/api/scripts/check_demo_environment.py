@@ -245,6 +245,35 @@ def _fetch_text(url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/demo/manufacturing/overview",
+        method="OPTIONS",
+        headers={
+            "Origin": web_url.rstrip("/"),
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "cache-control",
+        },
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            allowed_headers = response.headers.get("access-control-allow-headers", "")
+            allowed_origin = response.headers.get("access-control-allow-origin", "")
+            ok = (
+                200 <= response.status < 300
+                and web_url.rstrip("/") == allowed_origin
+                and "cache-control" in allowed_headers.casefold()
+            )
+            detail = f"HTTP {response.status}"
+            if ok:
+                return True, detail
+            return False, f"{detail}, cache-control/origin not allowed"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError) as exc:
+        return False, str(exc)
+
+
 def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResult]:
     checks: list[CheckResult] = []
     if api_url:
@@ -253,6 +282,11 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         ready_ok, ready_detail = _fetch_json(f"{normalized}/ready")
         checks.append(CheckResult("live.api_health", health_ok, health_detail))
         checks.append(CheckResult("live.api_ready", ready_ok, ready_detail))
+        if web_url:
+            cors_ok, cors_detail = _fetch_cors_no_store_preflight(normalized, web_url)
+            checks.append(
+                CheckResult("live.api_cors_no_store_preflight", cors_ok, cors_detail)
+            )
     if web_url:
         normalized = web_url.rstrip("/")
         web_ok, web_detail = _fetch_text(normalized)
