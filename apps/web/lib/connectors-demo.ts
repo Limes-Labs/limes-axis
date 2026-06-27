@@ -590,6 +590,21 @@ export type ConnectorEvidenceInvariantSnapshotRecord = {
   notes: string[];
 };
 
+export type ConnectorEvidenceInvariantSnapshotHistory = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  history_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  snapshots: ConnectorEvidenceInvariantSnapshotRecord[];
+  history_notes: string[];
+};
+
 export type ConnectorEvidenceInvariantSnapshotSummary = {
   snapshotId: string;
   status: string;
@@ -597,6 +612,14 @@ export type ConnectorEvidenceInvariantSnapshotSummary = {
   invariantCount: number;
   evidenceSurfaceCount: number;
   auditEventType: string;
+};
+
+export type ConnectorEvidenceInvariantSnapshotHistorySummary = {
+  snapshotCount: number;
+  latestSnapshotId: string;
+  totalInvariantCount: number;
+  evidenceSurfaceCount: number;
+  digestPrefixes: string[];
 };
 
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
@@ -1018,6 +1041,34 @@ export function summarizeConnectorEvidenceInvariantSnapshot(
       (count) => count > 0,
     ).length,
     auditEventType: snapshot.audit_event_type,
+  };
+}
+
+export function summarizeConnectorEvidenceInvariantSnapshotHistory(
+  history: ConnectorEvidenceInvariantSnapshotHistory,
+): ConnectorEvidenceInvariantSnapshotHistorySummary {
+  const evidenceTypes: ConnectorEvidenceInvariantType[] = [
+    "checkpoint",
+    "checkpoint_claim",
+    "credential_lease",
+    "egress_policy",
+  ];
+
+  return {
+    snapshotCount: history.snapshots.length,
+    latestSnapshotId: history.snapshots[0]?.snapshot_id ?? "none",
+    totalInvariantCount: history.snapshots.reduce(
+      (total, snapshot) => total + snapshot.invariant_count,
+      0,
+    ),
+    evidenceSurfaceCount: evidenceTypes.filter((evidenceType) =>
+      history.snapshots.some(
+        (snapshot) => (snapshot.invariant_counts[evidenceType] ?? 0) > 0,
+      ),
+    ).length,
+    digestPrefixes: history.snapshots.map((snapshot) =>
+      snapshot.report_digest_sha256.slice(0, 12),
+    ),
   };
 }
 

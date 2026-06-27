@@ -30,6 +30,8 @@ from axis_api.persistence import AxisPersistenceRepository
 READ_AUDIT_EVENT_TYPE = "connector.evidence_invariants_read"
 SNAPSHOT_AUDIT_EVENT_TYPE = "connector.evidence_invariants.snapshot_persisted"
 SNAPSHOT_REQUIRED_SCOPE = "connectors:evidence:snapshot"
+SNAPSHOT_READ_AUDIT_EVENT_TYPE = "connector.evidence_invariant_snapshots_read"
+SNAPSHOT_READ_REQUIRED_SCOPE = "connectors:evidence:snapshot:read"
 REPORT_HASH_ALGORITHM = "sha256-canonical-json-v1"
 
 
@@ -93,6 +95,24 @@ class ConnectorEvidenceInvariantSnapshotRecord(BaseModel):
     audit_event_type: str = Field(min_length=1)
     idempotent_replay: bool = False
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotQuery(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    connector_id: str | None = Field(default=None, min_length=1)
+    snapshot_id: str | None = Field(default=None, min_length=1)
+    idempotency_key: str | None = Field(default=None, min_length=1)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+class ConnectorEvidenceInvariantSnapshotHistory(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    history_status: OverviewStatus
+    metrics: list[OverviewMetric] = Field(default_factory=list)
+    snapshots: list[ConnectorEvidenceInvariantSnapshotRecord] = Field(default_factory=list)
+    history_notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorEvidenceInvariantSnapshotPermissionDenied(PermissionError):
@@ -288,6 +308,52 @@ def persist_connector_evidence_invariant_snapshot(
     return _snapshot_record_from_audit_event(audit_event)
 
 
+def read_connector_evidence_invariant_snapshot_history(
+    repository: AxisPersistenceRepository,
+    query: ConnectorEvidenceInvariantSnapshotQuery,
+    *,
+    actor_id: str,
+    actor_scopes: list[str],
+) -> ConnectorEvidenceInvariantSnapshotHistory:
+    _evaluate_snapshot_history_permission(query, actor_id, actor_scopes)
+    snapshots = _snapshot_records_for_query(repository, query)
+    snapshot_ids = [snapshot.snapshot_id for snapshot in snapshots]
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            event_type=SNAPSHOT_READ_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": query.connector_id,
+                "snapshot_id": query.snapshot_id,
+                "idempotency_key": query.idempotency_key,
+                "limit": query.limit,
+                "returned_snapshot_count": len(snapshots),
+                "snapshot_ids": snapshot_ids,
+            },
+        )
+    )
+    return ConnectorEvidenceInvariantSnapshotHistory(
+        tenant_id=query.tenant_id,
+        plant_name="Ravenna Works",
+        scenario="Plant Operations Cockpit",
+        history_status=OverviewStatus.READY if snapshots else OverviewStatus.WATCH,
+        metrics=[
+            OverviewMetric(
+                label="Evidence Snapshots",
+                value=str(len(snapshots)),
+                detail="Persisted connector evidence snapshot audit artifacts",
+                status=OverviewStatus.READY if snapshots else OverviewStatus.WATCH,
+            )
+        ],
+        snapshots=snapshots,
+        history_notes=[
+            "Snapshot history is read from append-only audit events.",
+            "History reads return public-safe snapshot metadata only.",
+        ],
+    )
+
+
 def read_connector_evidence_invariant_report(
     repository: AxisPersistenceRepository,
     query: ConnectorEvidenceInvariantQuery,
@@ -312,6 +378,29 @@ def read_connector_evidence_invariant_report(
     return report
 
 
+def _evaluate_snapshot_history_permission(
+    query: ConnectorEvidenceInvariantSnapshotQuery,
+    actor_id: str,
+    actor_scopes: list[str],
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            actor_scopes=actor_scopes,
+            required_scopes=[SNAPSHOT_READ_REQUIRED_SCOPE],
+            attributes={
+                "connector_id": query.connector_id,
+                "snapshot_id": query.snapshot_id,
+                "idempotency_key": query.idempotency_key,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ConnectorEvidenceInvariantSnapshotPermissionDenied(decision)
+    return decision
+
+
 def _evaluate_snapshot_permission(
     request: ConnectorEvidenceInvariantSnapshotRequest,
 ) -> PermissionDecision:
@@ -330,6 +419,38 @@ def _evaluate_snapshot_permission(
     if not decision.allowed:
         raise ConnectorEvidenceInvariantSnapshotPermissionDenied(decision)
     return decision
+
+
+def _snapshot_records_for_query(
+    repository: AxisPersistenceRepository,
+    query: ConnectorEvidenceInvariantSnapshotQuery,
+) -> list[ConnectorEvidenceInvariantSnapshotRecord]:
+    events = repository.list_audit_events(
+        tenant_id=query.tenant_id,
+        event_type=SNAPSHOT_AUDIT_EVENT_TYPE,
+        limit=200,
+    )
+    records = [
+        _snapshot_record_from_audit_event(event)
+        for event in events
+        if _snapshot_event_matches_query(event, query)
+    ]
+    return records[: query.limit]
+
+
+def _snapshot_event_matches_query(
+    event: AuditEvent,
+    query: ConnectorEvidenceInvariantSnapshotQuery,
+) -> bool:
+    payload = event.payload
+    return (
+        (query.connector_id is None or payload.get("connector_id") == query.connector_id)
+        and (query.snapshot_id is None or payload.get("snapshot_id") == query.snapshot_id)
+        and (
+            query.idempotency_key is None
+            or payload.get("idempotency_key") == query.idempotency_key
+        )
+    )
 
 
 def _find_snapshot_by_idempotency_key(

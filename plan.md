@@ -166,6 +166,8 @@ Foundation acceptance is tracked in
       claims, credential leases and egress policies.
 - [x] Materialize aggregate connector evidence invariant snapshots as
       append-only audit artifacts.
+- [x] Expose aggregate connector evidence invariant snapshot history from
+      append-only audit artifacts.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit

@@ -91,6 +91,7 @@ POST /demo/manufacturing/connectors/credential-leases/{lease_id}/revoke
 GET /demo/manufacturing/connectors/egress-policies
 POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/evidence-invariants
+GET /demo/manufacturing/connectors/evidence-invariants/snapshots
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
@@ -221,6 +222,15 @@ the public-safe report payload. It does not store secret refs, private endpoint
 refs, DSNs, raw audit payloads or result summaries. Replaying the same
 idempotency key returns the existing snapshot event; conflicting idempotency
 reuse is rejected with 409.
+
+`GET /demo/manufacturing/connectors/evidence-invariants/snapshots` reads those
+persisted snapshot artifacts back from the append-only audit ledger. The request
+requires `connectors:evidence:snapshot:read` and supports tenant, connector,
+snapshot id, idempotency key and bounded limit filters. Valid reads append
+`connector.evidence_invariant_snapshots_read` audit evidence containing only
+the filters, returned count and returned snapshot ids. The response returns
+public-safe snapshot metadata and report digests; it does not copy secret refs,
+private endpoint refs, DSNs, raw audit payloads or result summaries.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:

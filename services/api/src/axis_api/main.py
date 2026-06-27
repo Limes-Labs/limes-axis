@@ -114,12 +114,15 @@ from axis_api.connector_egress_policies import (
 from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantQuery,
     ConnectorEvidenceInvariantSnapshotConflict,
+    ConnectorEvidenceInvariantSnapshotHistory,
     ConnectorEvidenceInvariantSnapshotPermissionDenied,
+    ConnectorEvidenceInvariantSnapshotQuery,
     ConnectorEvidenceInvariantSnapshotRecord,
     ConnectorEvidenceInvariantSnapshotRequest,
     ManufacturingConnectorEvidenceInvariantReport,
     persist_connector_evidence_invariant_snapshot,
     read_connector_evidence_invariant_report,
+    read_connector_evidence_invariant_snapshot_history,
 )
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
@@ -2034,6 +2037,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "message": "The connector evidence snapshot idempotency key conflicts.",
                     "snapshot_id": exc.snapshot_id,
                     "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        response_model=ConnectorEvidenceInvariantSnapshotHistory,
+        tags=["demo"],
+        responses={
+            403: {"description": "Connector evidence snapshot history permission denied"},
+        },
+    )
+    def manufacturing_connector_evidence_invariant_snapshot_history(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        connector_id: str | None = Query(default=None, min_length=1),
+        snapshot_id: str | None = Query(default=None, min_length=1),
+        idempotency_key: str | None = Query(default=None, min_length=1),
+        actor_id: str = Query(default="connector-evidence-history-reader", min_length=1),
+        actor_scopes: list[str] = CheckpointActorScopesQuery,
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ConnectorEvidenceInvariantSnapshotHistory:
+        try:
+            return read_connector_evidence_invariant_snapshot_history(
+                repository,
+                ConnectorEvidenceInvariantSnapshotQuery(
+                    tenant_id=tenant_id,
+                    connector_id=connector_id,
+                    snapshot_id=snapshot_id,
+                    idempotency_key=idempotency_key,
+                    limit=limit,
+                ),
+                actor_id=actor_id,
+                actor_scopes=actor_scopes,
+            )
+        except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot read connector evidence snapshots.",
+                    "required_scope": "connectors:evidence:snapshot:read",
+                    "decision": exc.decision.model_dump(),
                 },
             ) from exc
 
