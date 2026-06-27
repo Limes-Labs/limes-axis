@@ -1,6 +1,6 @@
 # Limes Axis Public Plan
 
-Last updated: 2026-06-22
+Last updated: 2026-06-27
 
 ## Summary
 
@@ -246,6 +246,7 @@ Foundation acceptance is tracked in
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
   tenant-scoped bootstrap records.
+- [x] Add repeatable demo environment runbook and automated readiness checks.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -296,6 +297,12 @@ the API reintroduces a `get_manufacturing_*` runtime reference factory.
 The full manufacturing reference demo remains open until it has
 live TypeDB graph response mapping, production relationship metadata, approval
 actions, workflow execution and replay backed by real persistence paths.
+The local demo environment now has a repeatable runbook and automated readiness
+check in `docs/demo-readiness.md` and
+`services/api/scripts/check_demo_environment.py`. The check validates the demo
+Makefile targets, local self-hosted runtime services, critical OpenAPI routes,
+documentation links and optional live API/web endpoints. It is a demo
+readiness gate, not a production enterprise readiness claim.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped
