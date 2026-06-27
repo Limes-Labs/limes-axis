@@ -1,3 +1,7 @@
+import hashlib
+import json
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from axis_api.audit import AuditEventCreate
@@ -19,9 +23,14 @@ from axis_api.connector_runs import (
     build_connector_sync_checkpoint_registry,
 )
 from axis_api.demo import OverviewMetric, OverviewStatus
+from axis_api.models import AuditEvent
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import AxisPersistenceRepository
 
 READ_AUDIT_EVENT_TYPE = "connector.evidence_invariants_read"
+SNAPSHOT_AUDIT_EVENT_TYPE = "connector.evidence_invariants.snapshot_persisted"
+SNAPSHOT_REQUIRED_SCOPE = "connectors:evidence:snapshot"
+REPORT_HASH_ALGORITHM = "sha256-canonical-json-v1"
 
 
 class ConnectorEvidenceInvariantQuery(BaseModel):
@@ -48,6 +57,55 @@ class ManufacturingConnectorEvidenceInvariantReport(BaseModel):
     invariant_counts: dict[str, int] = Field(default_factory=dict)
     invariants: list[ConnectorEvidenceInvariantItem] = Field(default_factory=list)
     report_notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    snapshot_id: str = Field(
+        min_length=1,
+        max_length=180,
+        pattern=r"^[a-z0-9][a-z0-9_-]*$",
+    )
+    connector_id: str | None = Field(default=None, min_length=1)
+    requested_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=1, max_length=240)
+    limit: int = Field(default=100, ge=1, le=200)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    snapshot_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    connector_id: str | None = None
+    requested_by: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    invariant_count: int = Field(ge=0)
+    invariant_counts: dict[str, int] = Field(default_factory=dict)
+    subject_ids: list[str] = Field(default_factory=list)
+    report_digest_sha256: str = Field(min_length=64, max_length=64)
+    report_hash_algorithm: str = Field(min_length=1)
+    permission_decision: PermissionDecision
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    idempotent_replay: bool = False
+    notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+class ConnectorEvidenceInvariantSnapshotConflict(ValueError):
+    def __init__(self, snapshot_id: str, reason: str) -> None:
+        super().__init__(reason)
+        self.snapshot_id = snapshot_id
+        self.reason = reason
 
 
 def build_connector_evidence_invariant_report(
@@ -169,6 +227,67 @@ def build_connector_evidence_invariant_report(
     )
 
 
+def persist_connector_evidence_invariant_snapshot(
+    repository: AxisPersistenceRepository,
+    request: ConnectorEvidenceInvariantSnapshotRequest,
+) -> ConnectorEvidenceInvariantSnapshotRecord:
+    permission_decision = _evaluate_snapshot_permission(request)
+    existing_replay = _find_snapshot_by_idempotency_key(repository, request)
+    if existing_replay is not None:
+        if (
+            existing_replay.payload.get("snapshot_id") != request.snapshot_id
+            or existing_replay.payload.get("connector_id") != request.connector_id
+        ):
+            raise ConnectorEvidenceInvariantSnapshotConflict(
+                str(existing_replay.payload.get("snapshot_id") or request.snapshot_id),
+                "idempotency_conflict",
+            )
+        return _snapshot_record_from_audit_event(existing_replay, idempotent_replay=True)
+
+    existing_snapshot = _find_snapshot_by_id(repository, request)
+    if existing_snapshot is not None:
+        raise ConnectorEvidenceInvariantSnapshotConflict(
+            request.snapshot_id,
+            "snapshot_id_already_exists",
+        )
+
+    report = build_connector_evidence_invariant_report(
+        repository,
+        ConnectorEvidenceInvariantQuery(
+            tenant_id=request.tenant_id,
+            connector_id=request.connector_id,
+            limit=request.limit,
+        ),
+    )
+    subject_ids = [invariant.subject_id for invariant in report.invariants]
+    report_payload = _snapshot_report_payload(report)
+    report_digest = _canonical_sha256(report_payload)
+    audit_payload = {
+        "snapshot_id": request.snapshot_id,
+        "connector_id": request.connector_id,
+        "idempotency_key": request.idempotency_key,
+        "reason": request.reason,
+        "required_scope": SNAPSHOT_REQUIRED_SCOPE,
+        "permission_decision": permission_decision.model_dump(),
+        "invariant_count": len(report.invariants),
+        "invariant_counts": report.invariant_counts,
+        "subject_ids": subject_ids,
+        "report_digest_sha256": report_digest,
+        "report_hash_algorithm": REPORT_HASH_ALGORITHM,
+        "report_reason_ids": [invariant.reason for invariant in report.invariants],
+        "notes": request.notes,
+    }
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            event_type=SNAPSHOT_AUDIT_EVENT_TYPE,
+            payload=audit_payload,
+        )
+    )
+    return _snapshot_record_from_audit_event(audit_event)
+
+
 def read_connector_evidence_invariant_report(
     repository: AxisPersistenceRepository,
     query: ConnectorEvidenceInvariantQuery,
@@ -191,6 +310,110 @@ def read_connector_evidence_invariant_report(
         )
     )
     return report
+
+
+def _evaluate_snapshot_permission(
+    request: ConnectorEvidenceInvariantSnapshotRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.requested_by,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[SNAPSHOT_REQUIRED_SCOPE],
+            attributes={
+                "snapshot_id": request.snapshot_id,
+                "connector_id": request.connector_id,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ConnectorEvidenceInvariantSnapshotPermissionDenied(decision)
+    return decision
+
+
+def _find_snapshot_by_idempotency_key(
+    repository: AxisPersistenceRepository,
+    request: ConnectorEvidenceInvariantSnapshotRequest,
+) -> AuditEvent | None:
+    events = repository.list_audit_events(
+        tenant_id=request.tenant_id,
+        event_type=SNAPSHOT_AUDIT_EVENT_TYPE,
+        limit=200,
+    )
+    return next(
+        (
+            event
+            for event in events
+            if event.payload.get("idempotency_key") == request.idempotency_key
+        ),
+        None,
+    )
+
+
+def _find_snapshot_by_id(
+    repository: AxisPersistenceRepository,
+    request: ConnectorEvidenceInvariantSnapshotRequest,
+) -> AuditEvent | None:
+    events = repository.list_audit_events(
+        tenant_id=request.tenant_id,
+        event_type=SNAPSHOT_AUDIT_EVENT_TYPE,
+        limit=200,
+    )
+    return next(
+        (
+            event
+            for event in events
+            if event.payload.get("snapshot_id") == request.snapshot_id
+        ),
+        None,
+    )
+
+
+def _snapshot_record_from_audit_event(
+    audit_event: AuditEvent,
+    *,
+    idempotent_replay: bool = False,
+) -> ConnectorEvidenceInvariantSnapshotRecord:
+    payload = audit_event.payload
+    return ConnectorEvidenceInvariantSnapshotRecord(
+        tenant_id=audit_event.tenant_id,
+        snapshot_id=str(payload["snapshot_id"]),
+        status="persisted",
+        connector_id=payload.get("connector_id"),
+        requested_by=audit_event.actor_id,
+        idempotency_key=str(payload["idempotency_key"]),
+        reason=str(payload["reason"]),
+        invariant_count=int(payload["invariant_count"]),
+        invariant_counts=dict(payload["invariant_counts"]),
+        subject_ids=list(payload["subject_ids"]),
+        report_digest_sha256=str(payload["report_digest_sha256"]),
+        report_hash_algorithm=str(payload["report_hash_algorithm"]),
+        permission_decision=PermissionDecision.model_validate(payload["permission_decision"]),
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
+        idempotent_replay=idempotent_replay,
+        notes=list(payload.get("notes") or []),
+    )
+
+
+def _snapshot_report_payload(report: ManufacturingConnectorEvidenceInvariantReport) -> dict:
+    return {
+        "tenant_id": report.tenant_id,
+        "invariant_counts": report.invariant_counts,
+        "invariants": [
+            invariant.model_dump(mode="json")
+            for invariant in sorted(
+                report.invariants,
+                key=lambda item: (item.evidence_type, item.subject_id, item.reason),
+            )
+        ],
+    }
+
+
+def _canonical_sha256(payload: dict) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _checkpoint_parent_id(

@@ -164,6 +164,8 @@ Foundation acceptance is tracked in
 - [x] Report public-safe checkpoint claim evidence invariants on claim registry reads.
 - [x] Expose aggregate connector evidence invariant reports across checkpoints,
       claims, credential leases and egress policies.
+- [x] Materialize aggregate connector evidence invariant snapshots as
+      append-only audit artifacts.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
