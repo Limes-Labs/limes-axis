@@ -116,6 +116,9 @@ from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantSnapshotConflict,
     ConnectorEvidenceInvariantSnapshotExportBundle,
     ConnectorEvidenceInvariantSnapshotExportQuery,
+    ConnectorEvidenceInvariantSnapshotExportRequest,
+    ConnectorEvidenceInvariantSnapshotExportRequestConflict,
+    ConnectorEvidenceInvariantSnapshotExportRequestRecord,
     ConnectorEvidenceInvariantSnapshotHistory,
     ConnectorEvidenceInvariantSnapshotPermissionDenied,
     ConnectorEvidenceInvariantSnapshotQuery,
@@ -126,6 +129,7 @@ from axis_api.connector_evidence_invariants import (
     persist_connector_evidence_invariant_snapshot,
     read_connector_evidence_invariant_report,
     read_connector_evidence_invariant_snapshot_history,
+    record_connector_evidence_invariant_snapshot_export_request,
 )
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
@@ -2093,6 +2097,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "decision": exc.decision.model_dump(),
                 },
             ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        response_model=ConnectorEvidenceInvariantSnapshotExportRequestRecord,
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+        responses={
+            403: {"description": "Connector evidence snapshot export request permission denied"},
+            409: {"description": "Connector evidence snapshot export request conflict"},
+        },
+    )
+    def manufacturing_connector_evidence_invariant_snapshot_export_request(
+        request: ConnectorEvidenceInvariantSnapshotExportRequest,
+        repository: PersistenceRepository,
+        response: Response,
+    ) -> ConnectorEvidenceInvariantSnapshotExportRequestRecord:
+        try:
+            result = record_connector_evidence_invariant_snapshot_export_request(
+                repository,
+                request,
+            )
+        except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": (
+                        "The actor cannot request connector evidence snapshot exports."
+                    ),
+                    "required_scope": "connectors:evidence:snapshot:export:request",
+                    "decision": exc.decision.model_dump(),
+                },
+            ) from exc
+        except ConnectorEvidenceInvariantSnapshotExportRequestConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": (
+                        "The connector evidence snapshot export request conflicts."
+                    ),
+                    "export_request_id": exc.export_request_id,
+                    "reason": exc.reason,
+                },
+            ) from exc
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
 
     @app.get(
         "/demo/manufacturing/connectors/evidence-invariants/snapshots",

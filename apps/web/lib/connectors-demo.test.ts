@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotExportPath,
+  buildConnectorEvidenceInvariantSnapshotExportRequest,
+  buildConnectorEvidenceInvariantSnapshotExportRequestPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSnapshotHref,
   buildConnectorSyncCheckpointClaimQueryPath,
@@ -941,6 +943,50 @@ describe("manufacturing connector helpers", () => {
     expect(path).toBe(
       "/demo/manufacturing/connectors/evidence-invariants/snapshots/export?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Aevidence%3Asnapshot%3Aread&connector_id=external_db_operational_mirror&snapshot_id=snap_connector_evidence_20260627_1000&idempotency_key=idem_connector_evidence_snapshot_20260627_1000&limit=10&export_reason=design-partner-review",
     );
+  });
+
+  it("builds governed connector evidence snapshot export requests without raw payload fields", () => {
+    const path = buildConnectorEvidenceInvariantSnapshotExportRequestPath();
+    const request = buildConnectorEvidenceInvariantSnapshotExportRequest({
+      tenantId: "tenant_demo_manufacturing",
+      connectorId: "external_db_operational_mirror",
+      snapshotId: "snap_connector_evidence_20260627_1000",
+      requestedBy: "connector-compliance-reviewer-role",
+      now: new Date("2026-06-27T10:15:30.456Z"),
+    });
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+    );
+    expect(request).toEqual({
+      tenant_id: "tenant_demo_manufacturing",
+      export_request_id:
+        "export_req_external_db_operational_mirror_20260627t101530456z",
+      idempotency_key:
+        "idem_export_req_external_db_operational_mirror_20260627t101530456z",
+      requested_by: "connector-compliance-reviewer-role",
+      actor_scopes: ["connectors:evidence:snapshot:export:request"],
+      owner_role: "connector-governance-owner",
+      risk_level: "high",
+      approval_id: "appr_export_req_external_db_operational_mirror_20260627t101530456z",
+      workflow_id: "wf_export_req_external_db_operational_mirror_20260627t101530456z",
+      connector_id: "external_db_operational_mirror",
+      snapshot_id: "snap_connector_evidence_20260627_1000",
+      export_reason: "connector-evidence-review",
+      format: "json",
+      limit: 20,
+      controls: [
+        "approval_required",
+        "workflow_signal_required",
+        "idempotency_enforced",
+        "public_safe_bundle_only",
+      ],
+      notes: ["Governed export request only; object storage is not written."],
+    });
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
   });
 
   it("builds public connector snapshot deep links from persisted audit fields", () => {

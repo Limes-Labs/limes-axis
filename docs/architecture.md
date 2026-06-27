@@ -159,11 +159,14 @@ remain outside aggregate operator-read evidence.
 The snapshot endpoint materializes the same report as an append-only audit
 artifact with idempotency and a deterministic SHA-256 digest over the public-safe
 report payload, so enterprise review can reference a stable evidence artifact
-before scheduled invariant jobs, signed exports or provider-specific live
-connectors are introduced. Snapshot history reads query those persisted audit
-artifacts with tenant, connector, snapshot id and idempotency filters, require a
-separate read scope and append read-audit evidence without copying secret
-references, private endpoint references, DSNs or raw result payloads.
+before scheduled invariant jobs or provider-specific live connectors are
+introduced. Snapshot history reads query those persisted audit artifacts with
+tenant, connector, snapshot id and idempotency filters, require a separate read
+scope and append read-audit evidence without copying secret references, private
+endpoint references, DSNs or raw result payloads. Snapshot exports return
+public-safe manifest and hash-chain proofs, while governed export requests
+record approval, workflow and idempotency evidence before enterprise
+object-store/WORM retention is implemented.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

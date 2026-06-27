@@ -8,6 +8,8 @@ import { buildAuditEventHref } from "@/lib/audit-demo";
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotExportPath,
+  buildConnectorEvidenceInvariantSnapshotExportRequest,
+  buildConnectorEvidenceInvariantSnapshotExportRequestPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
@@ -25,6 +27,7 @@ import {
   summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
   type ConnectorEvidenceInvariantSnapshotExportBundle,
+  type ConnectorEvidenceInvariantSnapshotExportRequestRecord,
   type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorEvidenceInvariantSnapshotRecord,
   type ConnectorPromotionPolicyCreateRequest,
@@ -55,6 +58,7 @@ type ConnectorSource = "loading" | "api" | "unavailable";
 type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "error";
 type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "error";
 type EvidenceSnapshotStatus = "idle" | "saving" | "api_created" | "error";
+type EvidenceSnapshotExportRequestStatus = "idle" | "saving" | "api_created" | "error";
 
 const CONNECTOR_TENANT_ID = "tenant_demo_manufacturing";
 const CONNECTOR_PLANT_NAME = "Ravenna Works";
@@ -461,6 +465,10 @@ export function ConnectorConsole() {
     );
   const [evidenceSnapshotExport, setEvidenceSnapshotExport] =
     useState<ConnectorEvidenceInvariantSnapshotExportBundle | null>(null);
+  const [evidenceSnapshotExportRequest, setEvidenceSnapshotExportRequest] =
+    useState<ConnectorEvidenceInvariantSnapshotExportRequestRecord | null>(null);
+  const [evidenceSnapshotExportRequestStatus, setEvidenceSnapshotExportRequestStatus] =
+    useState<EvidenceSnapshotExportRequestStatus>("idle");
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -813,6 +821,40 @@ export function ConnectorConsole() {
       setEvidenceSnapshotStatus("api_created");
     } catch {
       setEvidenceSnapshotStatus("error");
+    }
+  }
+
+  async function requestEvidenceSnapshotExport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedConnectorId) {
+      return;
+    }
+
+    const newestSnapshotId = selectedEvidenceSnapshots[0]?.snapshot_id;
+    const request = buildConnectorEvidenceInvariantSnapshotExportRequest({
+      tenantId: registry.tenant_id,
+      connectorId: selectedConnectorId,
+      snapshotId: newestSnapshotId,
+      requestedBy: "connector-compliance-reviewer-role",
+      now: new Date(),
+    });
+
+    setEvidenceSnapshotExportRequestStatus("saving");
+    try {
+      const result = await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportRequestRecord>(
+        apiBaseUrl,
+        buildConnectorEvidenceInvariantSnapshotExportRequestPath(),
+        undefined,
+        {
+          body: JSON.stringify(request),
+          method: "POST",
+        },
+      );
+      setEvidenceSnapshotExportRequest(result);
+      setEvidenceSnapshotExportRequestStatus("api_created");
+    } catch {
+      setEvidenceSnapshotExportRequest(null);
+      setEvidenceSnapshotExportRequestStatus("error");
     }
   }
 
@@ -1262,7 +1304,7 @@ export function ConnectorConsole() {
               onSubmit={createEvidenceSnapshot}
             >
               <button
-                className="primary-action"
+                className="command-button"
                 disabled={evidenceSnapshotStatus === "saving" || !selectedConnectorId}
                 type="submit"
               >
@@ -1277,6 +1319,54 @@ export function ConnectorConsole() {
                     ? "Snapshot creation is being submitted."
                     : "Snapshot creation failed."}
               </p>
+            ) : null}
+            <form
+              aria-label="Evidence snapshot export request"
+              className="policy-authoring-form"
+              onSubmit={requestEvidenceSnapshotExport}
+            >
+              <button
+                className="command-button"
+                disabled={
+                  evidenceSnapshotExportRequestStatus === "saving" || !selectedConnectorId
+                }
+                type="submit"
+              >
+                {evidenceSnapshotExportRequestStatus === "saving"
+                  ? "Requesting"
+                  : "Request export"}
+              </button>
+            </form>
+            {evidenceSnapshotExportRequestStatus !== "idle" ? (
+              <p className="row-detail">
+                {evidenceSnapshotExportRequestStatus === "api_created"
+                  ? "Export request recorded for approval."
+                  : evidenceSnapshotExportRequestStatus === "saving"
+                    ? "Export request is being submitted."
+                    : "Export request failed."}
+              </p>
+            ) : null}
+            {evidenceSnapshotExportRequest ? (
+              <div className="payload-row">
+                <span>
+                  <span className="metric-label">
+                    {evidenceSnapshotExportRequest.export_request_id}
+                  </span>
+                  <span className="row-detail">
+                    {evidenceSnapshotExportRequest.status} /{" "}
+                    {evidenceSnapshotExportRequest.workflow_signal_status}
+                  </span>
+                </span>
+                <span>
+                  <span className="mono">
+                    {evidenceSnapshotExportRequest.snapshot_checksum_sha256.slice(0, 12)}
+                  </span>
+                  <span className="row-detail">
+                    {evidenceSnapshotExportRequest.approval_id} /{" "}
+                    {evidenceSnapshotExportRequest.storage_status}
+                  </span>
+                </span>
+              </div>
             ) : null}
           </section>
 
