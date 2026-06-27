@@ -15,6 +15,7 @@ import {
   type AuditExportBundle,
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
+import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
 import {
   formatOverviewTimestamp,
   platformStatusClass,
@@ -160,6 +161,14 @@ export function AuditExplorer() {
         : null,
     [auditData, effectiveSelectedEventId],
   );
+  const selectedEventConnectorSnapshotHref =
+    selectedEvent?.event_type === "connector.evidence_invariants.snapshot_persisted" &&
+    selectedEvent.payload_preview.snapshot_id
+      ? buildConnectorSnapshotHref({
+          snapshotId: selectedEvent.payload_preview.snapshot_id,
+          connectorId: selectedEvent.payload_preview.connector_id ?? null,
+        })
+      : null;
 
   function updateFilter(filterName: keyof AuditFilters, value: string) {
     setFilters((current) => ({
@@ -399,7 +408,13 @@ export function AuditExplorer() {
                 <p className="section-label">Payload Preview</p>
                 <h3 className="subsection-title">Redacted fields</h3>
               </div>
-              <FileText size={18} />
+              {selectedEventConnectorSnapshotHref ? (
+                <a className="row-detail" href={selectedEventConnectorSnapshotHref}>
+                  Connector snapshot
+                </a>
+              ) : (
+                <FileText size={18} />
+              )}
             </div>
             <div className="payload-grid">
               {Object.entries(selectedEvent.payload_preview).map(([key, value]) => (

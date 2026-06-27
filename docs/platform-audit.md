@@ -140,6 +140,8 @@ The slice is covered by:
 - API unit tests for the manufacturing audit explorer persisted reference
   endpoint, bootstrap payload and missing/invalid record handling;
 - API unit tests for persisted audit event query mapping and filters;
+- API unit tests for connector snapshot audit preview fields used by public
+  audit-to-connector navigation;
 - API unit tests for redacted audit export manifests, retention enforcement and
   integrity proofs;
 - API unit tests for verifiable audit ledger signatures and tamper detection;

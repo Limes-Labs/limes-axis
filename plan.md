@@ -574,9 +574,13 @@ create a selected-connector evidence snapshot through
 `connectors:evidence:snapshot`, generated snapshot/idempotency ids and a
 public-safe review reason, then refreshes API-backed history. Snapshot artifacts
 with audit event ids link to `/audit?event_id=...`, where the audit explorer
-selects the matching persisted event after loading API-backed ledger records. If the backend is
-unavailable it shows an API-required empty state instead of rendering local
-connector fallback records.
+selects the matching persisted event after loading API-backed ledger records.
+Persisted snapshot audit events expose only redacted `snapshot_id`,
+`connector_id` and idempotency preview fields, and the audit explorer links
+back to `/connectors?snapshot_id=...&connector_id=...` so reviewers can reopen
+the selected API-backed snapshot artifact. If the backend is unavailable it
+shows an API-required empty state instead of rendering local connector fallback
+records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed, initially marked with `graph_mutation_status=not_applied` and

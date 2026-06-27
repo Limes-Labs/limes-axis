@@ -19,6 +19,7 @@ import {
   filterConnectorSyncCheckpointClaimsByCheckpoints,
   filterConnectorSyncCheckpointsByConnector,
   formatConnectorLabel,
+  resolveConnectorSnapshotSelection,
   summarizeConnectorEvidenceInvariantSnapshotHistory,
   summarizeConnectorEvidenceInvariantCounts,
   type ConnectorCsvPreviewResult,
@@ -463,6 +464,16 @@ export function ConnectorConsole() {
       EMPTY_PROMOTION_POLICY_SET_REGISTRY,
     );
   const [source, setSource] = useState<ConnectorSource>("loading");
+  const [requestedSnapshotId] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("snapshot_id"),
+  );
+  const [requestedConnectorId] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("connector_id"),
+  );
   const [selectedConnectorId, setSelectedConnectorId] = useState("");
   const [policyForm, setPolicyForm] = useState<ConnectorPromotionPolicyCreateRequest>(() =>
     buildConnectorPromotionPolicyDraftRequest(),
@@ -500,7 +511,14 @@ export function ConnectorConsole() {
         setPromotionPolicyRegistry(data.promotionPolicyData);
         setPromotionPolicySetRegistry(data.promotionPolicySetData);
         setPreview(EMPTY_CSV_PREVIEW);
-        setSelectedConnectorId(data.registryData.connectors[0]?.manifest.connector_id ?? "");
+        setSelectedConnectorId(
+          resolveConnectorSnapshotSelection({
+            registry: data.registryData,
+            history: data.evidenceSnapshotHistoryData,
+            requestedConnectorId,
+            requestedSnapshotId,
+          }).connectorId,
+        );
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
@@ -512,7 +530,7 @@ export function ConnectorConsole() {
     void loadInitialConnectors();
 
     return () => controller.abort();
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, requestedConnectorId, requestedSnapshotId]);
 
   const selectedConnector = useMemo(
     () =>
@@ -1173,6 +1191,9 @@ export function ConnectorConsole() {
                       <span className="row-detail">
                         {snapshot.connector_id ?? "tenant-wide"} / {snapshot.status}
                       </span>
+                      {requestedSnapshotId === snapshot.snapshot_id ? (
+                        <span className="status-pill status-checking">Selected artifact</span>
+                      ) : null}
                     </span>
                     <span>
                       <span className="mono">{snapshot.report_digest_sha256.slice(0, 12)}</span>
