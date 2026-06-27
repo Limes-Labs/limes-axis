@@ -40,16 +40,46 @@ def test_demo_environment_declares_critical_demo_routes() -> None:
 
 def test_demo_live_checks_include_browser_no_store_cors_preflight(monkeypatch) -> None:
     checker = load_check_module()
+    cors_origins: list[str] = []
 
     monkeypatch.setattr(checker, "_fetch_json", lambda _url: (True, "HTTP 200"))
+    monkeypatch.setattr(
+        checker,
+        "_fetch_operations_snapshot",
+        lambda _api_url: (True, "snapshot includes persisted operations"),
+        raising=False,
+    )
     monkeypatch.setattr(checker, "_fetch_text", lambda _url: (True, "HTTP 200"))
+
+    def fake_cors_check(_api_url: str, web_url: str) -> tuple[bool, str]:
+        cors_origins.append(web_url)
+        return True, "HTTP 200"
+
     monkeypatch.setattr(
         checker,
         "_fetch_cors_no_store_preflight",
-        lambda _api_url, _web_url: (True, "HTTP 200"),
+        fake_cors_check,
         raising=False,
     )
 
     results = checker.run_live_checks("http://127.0.0.1:8000", "http://127.0.0.1:3000")
 
     assert any(result.name == "live.api_cors_no_store_preflight" for result in results)
+    assert "http://localhost:3100" in cors_origins
+    assert "http://127.0.0.1:3100" in cors_origins
+
+
+def test_demo_live_checks_include_operations_snapshot_contract(monkeypatch) -> None:
+    checker = load_check_module()
+
+    monkeypatch.setattr(checker, "_fetch_json", lambda _url: (True, "HTTP 200"))
+    monkeypatch.setattr(
+        checker,
+        "_fetch_operations_snapshot",
+        lambda _api_url: (True, "snapshot includes persisted operations"),
+        raising=False,
+    )
+
+    results = checker.run_live_checks("http://127.0.0.1:8000", None)
+
+    assert any(result.name == "live.api_operations_snapshot" for result in results)

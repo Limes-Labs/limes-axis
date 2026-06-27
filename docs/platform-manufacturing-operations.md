@@ -85,6 +85,12 @@ already persisted state from:
 - `approval_records`;
 - `audit_events`.
 
+The governance overview consumes this snapshot together with the overview
+reference endpoint. The first screen therefore shows persisted domain rollups,
+generated daily briefs and risk scenarios, active workflows, pending approvals
+and recent audit evidence from Postgres-backed records instead of browser-local
+fallback data.
+
 ## Boundaries
 
 This slice gives Axis a persisted operational dataset to query and compose into
@@ -119,3 +125,11 @@ persisted `domain=Supply` operation records, writes
 `manufacturing.risk_scenario.generated` audit evidence and enforces
 `supply:read`, `workflows:read` and `audit:read`. It does not mutate Supplier
 Portal or ERP records, approve expedite actions or call a model provider.
+
+## Demo Verification
+
+The live demo checker validates that
+`/demo/manufacturing/operations/snapshot` returns the expected tenant id,
+persisted domain rollups, metrics and
+`persisted_manufacturing_operations_snapshot` generation boundary before a
+feedback session relies on the overview cockpit.

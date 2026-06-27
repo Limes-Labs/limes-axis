@@ -242,6 +242,18 @@ Foundation acceptance is tracked in
   Supply operation records with idempotency and permission checks.
 - [x] Add a read-only manufacturing operations snapshot that composes persisted
   operation records, generated artifacts, workflows, approvals and audit evidence.
+- [x] Make the governance overview compose the persisted manufacturing
+  operations snapshot in the browser console.
+- [x] Add a live demo readiness check for the manufacturing operations
+  snapshot contract.
+- [x] Allow the local Next.js demo console to hydrate from `127.0.0.1` for
+  in-app Browser and local feedback sessions.
+- [x] Allow the API CORS contract to support the `3100` origins used by
+  production-build Playwright demo checks.
+- [x] Apply the public Axis brand palette to the console shell and verify it in
+  unit, Playwright and in-app Browser checks.
+- [x] Split production-build browser checks into deterministic offline and live
+  E2E scripts.
 - [x] Guard all API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -301,8 +313,10 @@ The local demo environment now has a repeatable runbook and automated readiness
 check in `docs/demo-readiness.md` and
 `services/api/scripts/check_demo_environment.py`. The check validates the demo
 Makefile targets, local self-hosted runtime services, critical OpenAPI routes,
-documentation links and optional live API/web endpoints. It is a demo
-readiness gate, not a production enterprise readiness claim.
+documentation links, optional live API/web endpoints, browser no-store CORS for
+dev and production-build demo origins, the persisted manufacturing operations
+snapshot contract and the Axis console brand shell. It is a demo readiness
+gate, not a production enterprise readiness claim.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped
@@ -317,7 +331,10 @@ policy boundaries.
 records with generated daily briefs, risk scenarios, workflow runs, approval
 records and recent audit events. It is read-only, stores no new rows and does
 not generate artifacts, signal workflows, run connectors or query source
-systems.
+systems. The governance overview now consumes this snapshot alongside the
+overview reference endpoint, so the first screen shows persisted domain rollups,
+generated artifacts, active workflows, pending approvals and recent audit
+evidence instead of only the older overview reference payload.
 `POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
 plant brief from those operation records, enforces `briefs:generate`,
 `audit:read` and `workflows:read`, writes
