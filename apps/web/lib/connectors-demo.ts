@@ -622,9 +622,18 @@ export type ConnectorEvidenceInvariantSnapshotHistorySummary = {
   digestPrefixes: string[];
 };
 
+type ConnectorEvidenceInvariantSnapshotHistoryPathOptions = {
+  connectorId?: string;
+  snapshotId?: string;
+  idempotencyKey?: string;
+  limit?: number;
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
+const CONNECTOR_EVIDENCE_SNAPSHOT_HISTORY_READ_SCOPE =
+  "connectors:evidence:snapshot:read";
 
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
@@ -1070,6 +1079,34 @@ export function summarizeConnectorEvidenceInvariantSnapshotHistory(
       snapshot.report_digest_sha256.slice(0, 12),
     ),
   };
+}
+
+export function buildConnectorEvidenceInvariantSnapshotHistoryPath(
+  tenantId: string,
+  options: ConnectorEvidenceInvariantSnapshotHistoryPathOptions = {},
+): string {
+  const params = new URLSearchParams({
+    tenant_id: tenantId,
+    actor_scopes: CONNECTOR_EVIDENCE_SNAPSHOT_HISTORY_READ_SCOPE,
+  });
+
+  if (options.connectorId) {
+    params.set("connector_id", options.connectorId);
+  }
+
+  if (options.snapshotId) {
+    params.set("snapshot_id", options.snapshotId);
+  }
+
+  if (options.idempotencyKey) {
+    params.set("idempotency_key", options.idempotencyKey);
+  }
+
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  return `/demo/manufacturing/connectors/evidence-invariants/snapshots?${params.toString()}`;
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {

@@ -168,6 +168,8 @@ Foundation acceptance is tracked in
       append-only audit artifacts.
 - [x] Expose aggregate connector evidence invariant snapshot history from
       append-only audit artifacts.
+- [x] Show aggregate connector evidence invariant snapshot history in the
+      connector console from the API-backed history endpoint.
 - [x] Require an active worker checkpoint claim before external DB live-query
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
@@ -553,14 +555,18 @@ provider-specific connector execution.
 enforcement, real secret retrieval and real query execution stay outside this
 slice.
 The `/connectors` console now fetches connector, credential, egress policy,
-run, sync checkpoint, checkpoint claim, proposal, import and promotion records
-from the Axis API. Checkpoint rows are requested with the checkpoint read scope
-and shown per selected connector with sequence, adapter, cursor summary, result
-evidence and audit refs. Checkpoint claim rows are requested with
+run, sync checkpoint, checkpoint claim, evidence invariant, evidence snapshot,
+proposal, import and promotion records from the Axis API. Checkpoint rows are
+requested with the checkpoint read scope and shown per selected connector with
+sequence, adapter, cursor summary, result evidence and audit refs. Checkpoint
+claim rows are requested with
 `connectors:sync:checkpoint:claim:read` and shown next to the selected
 connector checkpoints with worker ownership, lease, renewal/release, invariant
-status and secret-material evidence. If the backend is unavailable it shows an
-API-required empty state instead of rendering local connector fallback records.
+status and secret-material evidence. Evidence snapshot history is requested
+with `connectors:evidence:snapshot:read` and shown with newest snapshot id,
+invariant totals, evidence surface count and digest prefixes. If the backend is
+unavailable it shows an API-required empty state instead of rendering local
+connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
 audit-backed, initially marked with `graph_mutation_status=not_applied` and
@@ -638,8 +644,9 @@ blocked operations, tenant configuration, credential handle posture, connector
 run evidence from persisted registry-backed run creation, deferred execution metadata,
 persisted ontology proposal
 evidence, promotion evidence, manual import decision evidence, promotion policy
-authoring/enforcement evidence, versioned policy-set evidence and schema
-mapping from API-backed records only.
+authoring/enforcement evidence, versioned policy-set evidence, aggregate
+evidence invariant posture, evidence snapshot history and schema mapping from
+API-backed records only.
 It can author promotion policies through the API when available, enable them
 with approval/workflow evidence and reports API persistence errors without
 recording local public-safe previews when the API is offline. The browser
