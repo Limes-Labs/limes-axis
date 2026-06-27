@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lucide-react";
 
 import { getApiBaseUrl } from "@/lib/api-status";
+import { buildAuditEventHref } from "@/lib/audit-demo";
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
@@ -1173,8 +1174,15 @@ export function ConnectorConsole() {
                         {snapshot.connector_id ?? "tenant-wide"} / {snapshot.status}
                       </span>
                     </span>
-                    <span className="mono">
-                      {snapshot.report_digest_sha256.slice(0, 12)}
+                    <span>
+                      <span className="mono">{snapshot.report_digest_sha256.slice(0, 12)}</span>
+                      {snapshot.audit_event_id ? (
+                        <a className="row-detail" href={buildAuditEventHref(snapshot.audit_event_id)}>
+                          Audit event
+                        </a>
+                      ) : (
+                        <span className="row-detail">no audit event</span>
+                      )}
                     </span>
                   </div>
                 ))}

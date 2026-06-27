@@ -86,6 +86,9 @@ shows an API-required state and does not render local audit records.
 
 The page supports local filters for tenant, event type and scope. Filtering is
 browser-local after the initial tenant-scoped API query.
+The page also accepts `event_id` in the URL query string. When the requested
+event is present in the API-backed result set, the explorer opens that ledger
+event directly; otherwise it falls back to the visible filtered event list.
 
 The page also loads `/demo/manufacturing/audit/export` to show the current
 export manifest, retention enforcement status and integrity proof. If the

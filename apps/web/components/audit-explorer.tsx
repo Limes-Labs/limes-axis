@@ -10,6 +10,7 @@ import {
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
+  resolveAuditEventSelection,
   type AuditFilters,
   type AuditExportBundle,
   type ManufacturingAuditExplorer,
@@ -54,6 +55,9 @@ export function AuditExplorer() {
   const [auditExport, setAuditExport] = useState<AuditExportBundle | null>(null);
   const [source, setSource] = useState<AuditSource>("loading");
   const [filters, setFilters] = useState<AuditFilters>(defaultFilters);
+  const [requestedEventId, setRequestedEventId] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("event_id"),
+  );
   const [selectedEventId, setSelectedEventId] = useState("");
   const apiBaseUrl = getApiBaseUrl();
 
@@ -140,11 +144,14 @@ export function AuditExplorer() {
     () => (auditData ? filterAuditEvents(auditData, filters) : []),
     [auditData, filters],
   );
-  const effectiveSelectedEventId = filteredEvents.some(
-    (event) => event.audit_event_id === selectedEventId,
-  )
-    ? selectedEventId
-    : (filteredEvents[0]?.audit_event_id ?? auditData?.events[0]?.audit_event_id ?? "");
+  const effectiveSelectedEventId = auditData
+    ? resolveAuditEventSelection({
+        explorer: auditData,
+        filteredEvents,
+        requestedEventId,
+        selectedEventId,
+      })
+    : "";
 
   const selectedEvent = useMemo(
     () =>
@@ -292,7 +299,10 @@ export function AuditExplorer() {
                   aria-pressed={isSelected}
                   className={`audit-list-item${isSelected ? " active" : ""}`}
                   key={event.audit_event_id}
-                  onClick={() => setSelectedEventId(event.audit_event_id)}
+                  onClick={() => {
+                    setRequestedEventId(null);
+                    setSelectedEventId(event.audit_event_id);
+                  }}
                   type="button"
                 >
                   <span>
@@ -327,6 +337,11 @@ export function AuditExplorer() {
           </div>
 
           <div className="audit-detail-grid">
+            <div>
+              <p className="metric-label">Audit Event</p>
+              <p className="row-title mono">{selectedEvent.audit_event_id}</p>
+              <p className="row-detail">{selectedEvent.event_type}</p>
+            </div>
             <div>
               <p className="metric-label">Actor</p>
               <p className="row-title">{selectedEvent.actor_id}</p>
