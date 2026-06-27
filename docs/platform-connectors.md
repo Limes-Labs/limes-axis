@@ -95,6 +95,7 @@ GET /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/evidence-invariants/snapshots/export
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision
+POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/materializations
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
@@ -273,10 +274,26 @@ updates the request record with decision actor, decision note, decided timestamp
 workflow signal status and export status. Approvals become
 `approval_approved` with `export_status=approved_not_exported`; rejections
 become `approval_rejected` with `export_status=rejected_not_exported`.
-`storage_status` remains `not_written` until a real object-storage/WORM
-materializer exists. The decision payload and audit event remain metadata-only
-and do not include connector payloads, DSNs, private endpoint refs, secret refs
-or credential values.
+`storage_status` remains `not_written` until the approved request is explicitly
+materialized. The decision payload and audit event remain metadata-only and do
+not include connector payloads, DSNs, private endpoint refs, secret refs or
+credential values.
+
+`POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/materializations`
+materializes an approved export request through the configured local
+object-store adapter. The endpoint requires
+`connectors:evidence:snapshot:export:materialize`, rejects unapproved requests,
+rejects duplicate conflicting materialization ids, rebuilds the public-safe
+snapshot bundle from the stored request filter, verifies the checksum still
+matches the approved request, writes canonical JSON below
+`AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT` and returns only storage metadata:
+adapter, safe key, opaque local URI, content type, byte size and SHA-256
+checksum. It appends
+`connector.evidence_snapshot_export.materialized` audit evidence with artifact
+metadata only. The local adapter is the self-hostable storage boundary before
+future S3/MinIO/WORM retention profiles; it does not expose filesystem paths,
+raw connector payloads, DSNs, private endpoint refs, secret refs or credential
+values.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -864,6 +881,11 @@ present, the console can submit an approval decision through the API-backed
 decision endpoint and renders the returned decision, export status and workflow
 signal status. The console does not mark a request approved locally if the API
 call fails.
+For approved requests, the console can submit materialization through the
+API-backed materialization endpoint and then renders the returned storage
+adapter, opaque URI, checksum prefix, byte size and storage status. It does not
+write browser-local files and does not infer artifact metadata if the API call
+fails.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
 
@@ -953,6 +975,8 @@ contract keeps these boundaries visible:
   retention workflows exist;
 - approval/workflow/idempotency-gated connector evidence snapshot export
   requests before enterprise WORM/object-store retention workflows exist;
+- approved connector evidence snapshot export materialization to a local
+  object-store adapter before enterprise S3/MinIO/WORM retention workflows;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -1001,6 +1025,9 @@ The slice is covered by:
 - API unit tests for governed connector evidence snapshot export request
   decisions, approval decision persistence, workflow signal evidence,
   decision-scope enforcement and public-safety constraints;
+- API unit tests for approved connector evidence snapshot export
+  materialization, materialization-scope enforcement, approval gating, checksum
+  verification, local object-store writes and public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, `active_preview`

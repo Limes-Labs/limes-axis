@@ -723,6 +723,17 @@ export type ConnectorEvidenceInvariantSnapshotExportRequestRecord = {
   decision_note: string | null;
   decided_at: string | null;
   workflow_signal: WorkflowSignalResult | null;
+  materialization_id: string | null;
+  materialization_idempotency_key: string | null;
+  materialized_by: string | null;
+  materialized_at: string | null;
+  materialization_reason: string | null;
+  storage_adapter: string | null;
+  storage_key: string | null;
+  storage_uri: string | null;
+  artifact_checksum_sha256: string | null;
+  artifact_size_bytes: number | null;
+  artifact_content_type: string | null;
   audit_event_id: string | null;
   audit_event_type: string;
   notes: string[];
@@ -774,6 +785,40 @@ export type ConnectorEvidenceInvariantSnapshotExportDecisionResult = {
   audit_event_type: string;
   workflow_signal: WorkflowSignalResult;
   workflow_signal_status: string;
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportMaterializationPayload = {
+  materialization_id: string;
+  idempotency_key: string;
+  actor_id: string;
+  actor_scopes: string[];
+  reason: string;
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportMaterializationResult = {
+  tenant_id: string;
+  export_request_id: string;
+  materialization_id: string;
+  idempotency_key: string;
+  status: string;
+  export_status: string;
+  storage_status: string;
+  storage_adapter: string;
+  storage_key: string;
+  storage_uri: string;
+  artifact_checksum_sha256: string;
+  artifact_size_bytes: number;
+  artifact_content_type: string;
+  actor_id: string;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id: string;
+  audit_event_type: string;
+  export_request: ConnectorEvidenceInvariantSnapshotExportRequestRecord;
+  materialized_at: string;
+  idempotent_replay: boolean;
 };
 
 export type ConnectorEvidenceInvariantSnapshotSummary = {
@@ -838,6 +883,13 @@ type ConnectorEvidenceInvariantSnapshotExportDecisionInput = {
   note?: string;
 };
 
+type ConnectorEvidenceInvariantSnapshotExportMaterializationInput = {
+  exportRequestId: string;
+  actorId: string;
+  now?: Date;
+  reason?: string;
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
@@ -848,6 +900,8 @@ const CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_REQUEST_SCOPE =
   "connectors:evidence:snapshot:export:request";
 const CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_DECISION_SCOPE =
   "approvals:connectors:export:decide";
+const CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_MATERIALIZATION_SCOPE =
+  "connectors:evidence:snapshot:export:materialize";
 
 export type ConnectorOntologyProposalRecord = {
   tenant_id: string;
@@ -1462,7 +1516,7 @@ export function buildConnectorEvidenceInvariantSnapshotExportRequest({
       "idempotency_enforced",
       "public_safe_bundle_only",
     ],
-    notes: ["Governed export request only; object storage is not written."],
+    notes: ["Governed export request only; materialization requires approval."],
   };
 
   if (connectorId) {
@@ -1502,6 +1556,33 @@ export function buildConnectorEvidenceInvariantSnapshotExportRequestDecision({
   }
 
   return request;
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportRequestMaterializationPath(
+  exportRequestId: string,
+): string {
+  const encodedRequestId = encodeURIComponent(exportRequestId);
+  return (
+    "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/" +
+    `${encodedRequestId}/materializations`
+  );
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportRequestMaterialization({
+  exportRequestId,
+  actorId,
+  now = new Date(),
+  reason = "approved-connector-evidence-export",
+}: ConnectorEvidenceInvariantSnapshotExportMaterializationInput): ConnectorEvidenceInvariantSnapshotExportMaterializationPayload {
+  const stamp = now.toISOString().toLowerCase().replace(/[-:.]/g, "");
+  const materializationId = `mat_${exportRequestId}_${stamp}`;
+  return {
+    materialization_id: materializationId,
+    idempotency_key: `idem_${materializationId}`,
+    actor_id: actorId,
+    actor_scopes: [CONNECTOR_EVIDENCE_SNAPSHOT_EXPORT_MATERIALIZATION_SCOPE],
+    reason,
+  };
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {

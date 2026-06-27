@@ -915,6 +915,21 @@ class ConnectorEvidenceSnapshotExportRequest(Base):
     decision_note: Mapped[str | None] = mapped_column(String(600), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     workflow_signal: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    materialization_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    materialization_idempotency_key: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, index=True
+    )
+    materialized_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    materialized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    materialization_reason: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    storage_adapter: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    storage_uri: Mapped[str | None] = mapped_column(String(700), nullable=True)
+    artifact_checksum_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    artifact_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    artifact_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     notes: Mapped[list] = mapped_column(JSON, nullable=False)

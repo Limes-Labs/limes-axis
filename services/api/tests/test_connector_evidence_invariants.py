@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text
@@ -341,6 +342,18 @@ def snapshot_export_request_decision_payload(**overrides: object) -> dict[str, o
         "actor_id": "connector-compliance-owner-role",
         "actor_scopes": ["approvals:connectors:export:decide"],
         "note": "Approved for regulated evidence review.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def snapshot_export_materialization_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "materialization_id": "mat_connector_evidence_export_20260627_1000",
+        "idempotency_key": "idem_connector_evidence_export_materialization_20260627_1000",
+        "actor_id": "connector-compliance-owner-role",
+        "actor_scopes": ["connectors:evidence:snapshot:export:materialize"],
+        "reason": "approved-regulated-evidence-export",
     }
     payload.update(overrides)
     return payload
@@ -1069,6 +1082,188 @@ def test_connector_evidence_invariant_snapshot_export_request_decision_requires_
     assert decision_events == []
 
 
+def test_connector_evidence_invariant_snapshot_export_materialization_writes_local_artifact(
+    tmp_path: Path,
+) -> None:
+    factory = session_factory()
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_root=str(tmp_path),
+        )
+    )
+    app.state.session_factory = factory
+    app.state.workflow_runtime = RecordingSnapshotExportWorkflowRuntime()
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/decision",
+        json=snapshot_export_request_decision_payload(),
+    )
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/materializations",
+        json=snapshot_export_materialization_payload(),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["export_request_id"] == "export_req_connector_evidence_20260627_1000"
+    assert body["materialization_id"] == "mat_connector_evidence_export_20260627_1000"
+    assert body["status"] == "materialized"
+    assert body["export_status"] == "materialized"
+    assert body["storage_status"] == "written_local_object_store"
+    assert body["storage_adapter"] == "local_filesystem"
+    assert body["storage_uri"].startswith("axis-local-object-store://")
+    assert body["storage_key"].endswith(".json")
+    assert ".." not in body["storage_key"]
+    assert len(body["artifact_checksum_sha256"]) == 64
+    assert body["artifact_size_bytes"] > 0
+    assert body["export_request"]["storage_status"] == "written_local_object_store"
+    assert body["export_request"]["export_status"] == "materialized"
+    assert body["audit_event_type"] == "connector.evidence_snapshot_export.materialized"
+    artifact_path = tmp_path / body["storage_key"]
+    assert artifact_path.exists()
+    artifact_payload = artifact_path.read_text(encoding="utf-8")
+    assert "connector-evidence-snapshot-export" in artifact_payload
+    serialized = str(body).lower() + artifact_payload.lower()
+    assert "private-endpoint://" not in serialized
+    assert "vault://" not in serialized
+    assert "postgres://" not in serialized
+    assert "password" not in serialized
+    assert "credential_value" not in serialized
+
+    with session_scope(factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.materialized",
+            limit=10,
+        )
+        row = session.execute(
+            text(
+                "select export_status, storage_status, storage_key, "
+                "artifact_checksum_sha256 "
+                "from connector_evidence_snapshot_export_requests "
+                "where tenant_id = :tenant_id and export_request_id = :export_request_id"
+            ),
+            {
+                "tenant_id": "tenant_demo_manufacturing",
+                "export_request_id": "export_req_connector_evidence_20260627_1000",
+            },
+        ).one()
+    assert len(events) == 1
+    assert events[0].payload["storage_status"] == "written_local_object_store"
+    assert events[0].payload["storage_uri"].startswith("axis-local-object-store://")
+    assert row.export_status == "materialized"
+    assert row.storage_status == "written_local_object_store"
+    assert row.storage_key == body["storage_key"]
+    assert row.artifact_checksum_sha256 == body["artifact_checksum_sha256"]
+
+
+def test_connector_evidence_invariant_snapshot_export_materialization_requires_approval(
+    tmp_path: Path,
+) -> None:
+    factory = session_factory()
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_root=str(tmp_path),
+        )
+    )
+    app.state.session_factory = factory
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/materializations",
+        json=snapshot_export_materialization_payload(),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["reason"] == "export_request_not_approved"
+    assert list(tmp_path.rglob("*.json")) == []
+
+
+def test_connector_evidence_invariant_snapshot_export_materialization_requires_scope(
+    tmp_path: Path,
+) -> None:
+    factory = session_factory()
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_root=str(tmp_path),
+        )
+    )
+    app.state.session_factory = factory
+    app.state.workflow_runtime = RecordingSnapshotExportWorkflowRuntime()
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/decision",
+        json=snapshot_export_request_decision_payload(),
+    )
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/materializations",
+        json=snapshot_export_materialization_payload(actor_scopes=[]),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_scope"] == (
+        "connectors:evidence:snapshot:export:materialize"
+    )
+    assert list(tmp_path.rglob("*.json")) == []
+    with session_scope(factory) as session:
+        events = AxisPersistenceRepository(session).list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.materialized",
+            limit=10,
+        )
+    assert events == []
+
+
 def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
 
@@ -1084,6 +1279,10 @@ def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
     snapshot_export_request_decision_path = paths[
         "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
         "export-requests/{export_request_id}/decision"
+    ]
+    snapshot_export_request_materialization_path = paths[
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/{export_request_id}/materializations"
     ]
 
     assert "get" in report_path
@@ -1121,4 +1320,11 @@ def test_openapi_exposes_connector_evidence_invariants_endpoint() -> None:
             "application/json"
         ]["schema"]["$ref"]
         == "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportDecisionResult"
+    )
+    assert "post" in snapshot_export_request_materialization_path
+    assert (
+        snapshot_export_request_materialization_path["post"]["responses"]["201"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        == "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportMaterializationResult"
     )

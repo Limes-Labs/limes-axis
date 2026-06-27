@@ -82,5 +82,9 @@ class Settings(BaseSettings):
         default=None,
         alias="AXIS_AUDIT_LEDGER_SIGNING_SECRET",
     )
+    connector_export_object_store_root: str = Field(
+        default=".axis/object-store",
+        alias="AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
