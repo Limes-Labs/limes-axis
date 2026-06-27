@@ -567,6 +567,38 @@ export type ManufacturingConnectorEvidenceInvariantReport = {
   report_notes: string[];
 };
 
+export type ConnectorEvidenceInvariantSnapshotRecord = {
+  tenant_id: string;
+  snapshot_id: string;
+  status: string;
+  connector_id: string | null;
+  requested_by: string;
+  idempotency_key: string;
+  reason: string;
+  invariant_count: number;
+  invariant_counts: Record<ConnectorEvidenceInvariantType, number>;
+  subject_ids: string[];
+  report_digest_sha256: string;
+  report_hash_algorithm: string;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id: string | null;
+  audit_event_type: string;
+  idempotent_replay: boolean;
+  notes: string[];
+};
+
+export type ConnectorEvidenceInvariantSnapshotSummary = {
+  snapshotId: string;
+  status: string;
+  digestPrefix: string;
+  invariantCount: number;
+  evidenceSurfaceCount: number;
+  auditEventType: string;
+};
+
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
   "connectors:sync:checkpoint:claim:read";
@@ -972,6 +1004,21 @@ export function summarizeConnectorEvidenceInvariantCounts(
     label,
     value: report.invariant_counts[evidenceType] ?? 0,
   }));
+}
+
+export function summarizeConnectorEvidenceInvariantSnapshot(
+  snapshot: ConnectorEvidenceInvariantSnapshotRecord,
+): ConnectorEvidenceInvariantSnapshotSummary {
+  return {
+    snapshotId: snapshot.snapshot_id,
+    status: snapshot.status,
+    digestPrefix: snapshot.report_digest_sha256.slice(0, 12),
+    invariantCount: snapshot.invariant_count,
+    evidenceSurfaceCount: Object.values(snapshot.invariant_counts).filter(
+      (count) => count > 0,
+    ).length,
+    auditEventType: snapshot.audit_event_type,
+  };
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {

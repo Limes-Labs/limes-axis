@@ -156,6 +156,11 @@ checkpoint-claim, credential-lease and egress-policy invariant registries into
 a single read model. Its read audit payload records counts and subject ids only,
 so secret references, private endpoint references, DSNs and raw result payloads
 remain outside aggregate operator-read evidence.
+The snapshot endpoint materializes the same report as an append-only audit
+artifact with idempotency and a deterministic SHA-256 digest over the public-safe
+report payload, so enterprise review can reference a stable evidence artifact
+before scheduled invariant jobs, signed exports or provider-specific live
+connectors are introduced.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

@@ -13,7 +13,9 @@ import {
   filterConnectorSyncCheckpointsByConnector,
   findConnectorById,
   formatConnectorLabel,
+  summarizeConnectorEvidenceInvariantSnapshot,
   summarizeConnectorEvidenceInvariantCounts,
+  type ConnectorEvidenceInvariantSnapshotRecord,
   type ManufacturingConnectorEvidenceInvariantReport,
   type ManufacturingConnectorCredentialLeaseRegistry,
   type ManufacturingConnectorEgressPolicyRegistry,
@@ -538,6 +540,39 @@ const evidenceInvariantReportFixture: ManufacturingConnectorEvidenceInvariantRep
   report_notes: ["Aggregated public-safe connector evidence invariant report."],
 };
 
+const evidenceInvariantSnapshotFixture: ConnectorEvidenceInvariantSnapshotRecord = {
+  tenant_id: "tenant_demo_manufacturing",
+  snapshot_id: "snap_connector_evidence_20260627_1000",
+  status: "persisted",
+  connector_id: "external_db_operational_mirror",
+  requested_by: "connector-security-reviewer-role",
+  idempotency_key: "idem_connector_evidence_snapshot_20260627_1000",
+  reason: "security-review",
+  invariant_count: 4,
+  invariant_counts: {
+    checkpoint: 1,
+    checkpoint_claim: 1,
+    credential_lease: 1,
+    egress_policy: 1,
+  },
+  subject_ids: [
+    "chk_evidence_report_1",
+    "claim_evidence_report_1",
+    "lease_evidence_report_1",
+    "egress_policy_evidence_report_1",
+  ],
+  report_digest_sha256: "a".repeat(64),
+  report_hash_algorithm: "sha256-canonical-json-v1",
+  permission_decision: {
+    allowed: true,
+    reason: "allowed",
+  },
+  audit_event_id: "6b20f2ff-e5c6-4b9c-ad0c-3934c7efc991",
+  audit_event_type: "connector.evidence_invariants.snapshot_persisted",
+  idempotent_replay: false,
+  notes: ["Snapshot stores public-safe subject ids and counts only."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -776,6 +811,24 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(counts).toLowerCase()).not.toContain("private-endpoint://");
     expect(JSON.stringify(counts).toLowerCase()).not.toContain("vault://");
     expect(JSON.stringify(counts).toLowerCase()).not.toContain("password");
+  });
+
+  it("summarizes connector evidence snapshot records without leaking source refs", () => {
+    const summary = summarizeConnectorEvidenceInvariantSnapshot(
+      evidenceInvariantSnapshotFixture,
+    );
+
+    expect(summary).toEqual({
+      snapshotId: "snap_connector_evidence_20260627_1000",
+      status: "persisted",
+      digestPrefix: "aaaaaaaaaaaa",
+      invariantCount: 4,
+      evidenceSurfaceCount: 4,
+      auditEventType: "connector.evidence_invariants.snapshot_persisted",
+    });
+    expect(JSON.stringify(summary).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(summary).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(summary).toLowerCase()).not.toContain("password");
   });
 
   it("builds connector sync checkpoint claim query paths with the read scope", () => {

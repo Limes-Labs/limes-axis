@@ -91,6 +91,7 @@ POST /demo/manufacturing/connectors/credential-leases/{lease_id}/revoke
 GET /demo/manufacturing/connectors/egress-policies
 POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/evidence-invariants
+POST /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
 GET /demo/manufacturing/connectors/runs/checkpoints
@@ -210,6 +211,16 @@ parent id, audit event id, reason and detail fields; it does not copy secret
 references, private endpoint references, DSNs, raw payloads or result summaries
 into the response. Valid reads append `connector.evidence_invariants_read`
 audit evidence with counts and subject ids only.
+
+`POST /demo/manufacturing/connectors/evidence-invariants/snapshots`
+materializes that report as an append-only audit artifact. The request requires
+`connectors:evidence:snapshot`, a tenant-scoped idempotency key and a snapshot
+id. The persisted audit payload stores counts, subject ids, reason ids,
+permission evidence and a deterministic `sha256-canonical-json-v1` digest of
+the public-safe report payload. It does not store secret refs, private endpoint
+refs, DSNs, raw audit payloads or result summaries. Replaying the same
+idempotency key returns the existing snapshot event; conflicting idempotency
+reuse is rejected with 409.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -855,6 +866,8 @@ contract keeps these boundaries visible:
   records;
 - aggregate connector evidence invariant reports without copying secret or
   private endpoint references into read payloads;
+- aggregate connector evidence invariant snapshots as append-only audit
+  artifacts before scheduled invariant jobs or signed exports exist;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -892,6 +905,8 @@ The slice is covered by:
   and live-query preflight enforcement;
 - API unit tests for aggregate connector evidence invariant reporting, read
   audit payloads and public-safety constraints;
+- API unit tests for connector evidence invariant snapshot materialization,
+  idempotent replay, conflict handling and public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, `active_preview`
@@ -908,5 +923,6 @@ The slice is covered by:
 - web unit tests for connector helper contracts and regression coverage that
   forbids default connector seed records in runtime libraries;
 - web unit tests for deterministic aggregate evidence invariant count summaries;
+- web unit tests for deterministic connector evidence snapshot summaries;
 - Playwright smoke tests for `/connectors` API-required behavior when the
   backend is unavailable.

@@ -113,7 +113,12 @@ from axis_api.connector_egress_policies import (
 )
 from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantQuery,
+    ConnectorEvidenceInvariantSnapshotConflict,
+    ConnectorEvidenceInvariantSnapshotPermissionDenied,
+    ConnectorEvidenceInvariantSnapshotRecord,
+    ConnectorEvidenceInvariantSnapshotRequest,
     ManufacturingConnectorEvidenceInvariantReport,
+    persist_connector_evidence_invariant_snapshot,
     read_connector_evidence_invariant_report,
 )
 from axis_api.connector_execution import (
@@ -1994,6 +1999,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ),
             actor_id=actor_id,
         )
+
+    @app.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        response_model=ConnectorEvidenceInvariantSnapshotRecord,
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+        responses={
+            403: {"description": "Connector evidence snapshot permission denied"},
+            409: {"description": "Connector evidence snapshot idempotency conflict"},
+        },
+    )
+    def manufacturing_connector_evidence_invariant_snapshot(
+        request: ConnectorEvidenceInvariantSnapshotRequest,
+        repository: PersistenceRepository,
+    ) -> ConnectorEvidenceInvariantSnapshotRecord:
+        try:
+            return persist_connector_evidence_invariant_snapshot(repository, request)
+        except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot persist connector evidence snapshots.",
+                    "required_scope": "connectors:evidence:snapshot",
+                    "decision": exc.decision.model_dump(),
+                },
+            ) from exc
+        except ConnectorEvidenceInvariantSnapshotConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": "The connector evidence snapshot idempotency key conflicts.",
+                    "snapshot_id": exc.snapshot_id,
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/connectors/runs",
