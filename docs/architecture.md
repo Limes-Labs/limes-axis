@@ -167,8 +167,14 @@ endpoint references, DSNs or raw result payloads. Snapshot exports return
 public-safe manifest and hash-chain proofs, while governed export requests
 record approval, workflow and idempotency evidence. Export request decisions
 persist the approval outcome and workflow signal evidence while keeping storage
-status `not_written` until enterprise object-store/WORM retention is
-implemented.
+status `not_written` until the approved request is explicitly materialized.
+The first materializer writes the rebuilt public-safe export bundle through a
+configured local object-store adapter, persists an opaque storage URI, checksum,
+size and content type, and appends
+`connector.evidence_snapshot_export.materialized` audit evidence. The adapter
+is intentionally self-hosted and extractable, so future MinIO/S3/WORM retention
+profiles can replace the storage implementation without bypassing approval,
+checksum or audit gates.
 Connector ontology
 proposal records persist preview-derived proposed nodes for review, link to
 `connector.ontology_proposals.recorded` audit events and keep graph mutation

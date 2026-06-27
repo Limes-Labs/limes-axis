@@ -11,6 +11,8 @@ import {
   buildConnectorEvidenceInvariantSnapshotExportRequest,
   buildConnectorEvidenceInvariantSnapshotExportRequestDecision,
   buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath,
+  buildConnectorEvidenceInvariantSnapshotExportRequestMaterialization,
+  buildConnectorEvidenceInvariantSnapshotExportRequestMaterializationPath,
   buildConnectorEvidenceInvariantSnapshotExportRequestPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
@@ -30,6 +32,7 @@ import {
   type ConnectorCsvPreviewResult,
   type ConnectorEvidenceInvariantSnapshotExportBundle,
   type ConnectorEvidenceInvariantSnapshotExportDecisionResult,
+  type ConnectorEvidenceInvariantSnapshotExportMaterializationResult,
   type ConnectorEvidenceInvariantSnapshotExportRequestRecord,
   type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorEvidenceInvariantSnapshotRecord,
@@ -63,6 +66,11 @@ type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "error";
 type EvidenceSnapshotStatus = "idle" | "saving" | "api_created" | "error";
 type EvidenceSnapshotExportRequestStatus = "idle" | "saving" | "api_created" | "error";
 type EvidenceSnapshotExportDecisionStatus = "idle" | "saving" | "api_decided" | "error";
+type EvidenceSnapshotExportMaterializationStatus =
+  | "idle"
+  | "saving"
+  | "api_materialized"
+  | "error";
 
 const CONNECTOR_TENANT_ID = "tenant_demo_manufacturing";
 const CONNECTOR_PLANT_NAME = "Ravenna Works";
@@ -475,6 +483,10 @@ export function ConnectorConsole() {
     useState<EvidenceSnapshotExportRequestStatus>("idle");
   const [evidenceSnapshotExportDecisionStatus, setEvidenceSnapshotExportDecisionStatus] =
     useState<EvidenceSnapshotExportDecisionStatus>("idle");
+  const [
+    evidenceSnapshotExportMaterializationStatus,
+    setEvidenceSnapshotExportMaterializationStatus,
+  ] = useState<EvidenceSnapshotExportMaterializationStatus>("idle");
   const [ontologyProposalRegistry, setOntologyProposalRegistry] =
     useState<ManufacturingConnectorOntologyProposalRegistry>(
       EMPTY_ONTOLOGY_PROPOSAL_REGISTRY,
@@ -859,10 +871,12 @@ export function ConnectorConsole() {
       setEvidenceSnapshotExportRequest(result);
       setEvidenceSnapshotExportRequestStatus("api_created");
       setEvidenceSnapshotExportDecisionStatus("idle");
+      setEvidenceSnapshotExportMaterializationStatus("idle");
     } catch {
       setEvidenceSnapshotExportRequest(null);
       setEvidenceSnapshotExportRequestStatus("error");
       setEvidenceSnapshotExportDecisionStatus("idle");
+      setEvidenceSnapshotExportMaterializationStatus("idle");
     }
   }
 
@@ -894,8 +908,46 @@ export function ConnectorConsole() {
         );
       setEvidenceSnapshotExportRequest(result.export_request);
       setEvidenceSnapshotExportDecisionStatus("api_decided");
+      setEvidenceSnapshotExportMaterializationStatus("idle");
     } catch {
       setEvidenceSnapshotExportDecisionStatus("error");
+    }
+  }
+
+  async function materializeEvidenceSnapshotExportRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !evidenceSnapshotExportRequest ||
+      evidenceSnapshotExportRequest.decision !== "approve" ||
+      evidenceSnapshotExportRequest.storage_status !== "not_written"
+    ) {
+      return;
+    }
+
+    const request = buildConnectorEvidenceInvariantSnapshotExportRequestMaterialization({
+      exportRequestId: evidenceSnapshotExportRequest.export_request_id,
+      actorId: "connector-compliance-owner-role",
+      now: new Date(),
+    });
+
+    setEvidenceSnapshotExportMaterializationStatus("saving");
+    try {
+      const result =
+        await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportMaterializationResult>(
+          apiBaseUrl,
+          buildConnectorEvidenceInvariantSnapshotExportRequestMaterializationPath(
+            evidenceSnapshotExportRequest.export_request_id,
+          ),
+          undefined,
+          {
+            body: JSON.stringify(request),
+            method: "POST",
+          },
+        );
+      setEvidenceSnapshotExportRequest(result.export_request);
+      setEvidenceSnapshotExportMaterializationStatus("api_materialized");
+    } catch {
+      setEvidenceSnapshotExportMaterializationStatus("error");
     }
   }
 
@@ -1447,6 +1499,60 @@ export function ConnectorConsole() {
                     ? "Export request decision is being submitted."
                     : "Export request decision failed."}
               </p>
+            ) : null}
+            {evidenceSnapshotExportRequest?.decision === "approve" ? (
+              <form
+                aria-label="Evidence snapshot export materialization"
+                className="policy-authoring-form"
+                onSubmit={materializeEvidenceSnapshotExportRequest}
+              >
+                <button
+                  className="command-button"
+                  disabled={
+                    evidenceSnapshotExportMaterializationStatus === "saving" ||
+                    evidenceSnapshotExportRequest.storage_status !== "not_written"
+                  }
+                  type="submit"
+                >
+                  {evidenceSnapshotExportMaterializationStatus === "saving"
+                    ? "Materializing"
+                    : "Materialize export"}
+                </button>
+              </form>
+            ) : null}
+            {evidenceSnapshotExportMaterializationStatus !== "idle" ? (
+              <p className="row-detail">
+                {evidenceSnapshotExportMaterializationStatus === "api_materialized"
+                  ? "Approved export artifact written to the configured object-store adapter."
+                  : evidenceSnapshotExportMaterializationStatus === "saving"
+                    ? "Approved export artifact is being written."
+                    : "Export materialization failed."}
+              </p>
+            ) : null}
+            {evidenceSnapshotExportRequest?.storage_uri ? (
+              <div className="payload-row">
+                <span>
+                  <span className="metric-label">Artifact</span>
+                  <span className="row-detail">
+                    {evidenceSnapshotExportRequest.storage_adapter} /{" "}
+                    {evidenceSnapshotExportRequest.artifact_content_type}
+                  </span>
+                </span>
+                <span>
+                  <span className="mono">
+                    {evidenceSnapshotExportRequest.artifact_checksum_sha256?.slice(0, 12)}
+                  </span>
+                  <span className="row-detail">
+                    {evidenceSnapshotExportRequest.artifact_size_bytes ?? 0} bytes
+                  </span>
+                </span>
+                <span>
+                  <span className="metric-label">
+                    {evidenceSnapshotExportRequest.storage_status}
+                  </span>
+                  <span className="row-detail">{evidenceSnapshotExportRequest.storage_uri}</span>
+                </span>
+              </div>
             ) : null}
           </section>
 

@@ -118,6 +118,10 @@ from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied,
     ConnectorEvidenceInvariantSnapshotExportDecisionRequest,
     ConnectorEvidenceInvariantSnapshotExportDecisionResult,
+    ConnectorEvidenceInvariantSnapshotExportMaterializationConflict,
+    ConnectorEvidenceInvariantSnapshotExportMaterializationPermissionDenied,
+    ConnectorEvidenceInvariantSnapshotExportMaterializationRequest,
+    ConnectorEvidenceInvariantSnapshotExportMaterializationResult,
     ConnectorEvidenceInvariantSnapshotExportQuery,
     ConnectorEvidenceInvariantSnapshotExportRequest,
     ConnectorEvidenceInvariantSnapshotExportRequestConflict,
@@ -130,6 +134,7 @@ from axis_api.connector_evidence_invariants import (
     ConnectorEvidenceInvariantSnapshotRequest,
     ManufacturingConnectorEvidenceInvariantReport,
     export_connector_evidence_invariant_snapshots,
+    materialize_connector_evidence_invariant_snapshot_export_request,
     persist_connector_evidence_invariant_snapshot,
     read_connector_evidence_invariant_report,
     read_connector_evidence_invariant_snapshot_history,
@@ -328,6 +333,7 @@ from axis_api.model_routing_reference import (
     ModelRoutingReferenceRecordNotFound,
     get_persisted_manufacturing_model_routing,
 )
+from axis_api.object_storage import LocalObjectStore, ObjectStore
 from axis_api.ontology.mutations import (
     DeferredOntologyMutationRuntime,
     OntologyMutationRuntime,
@@ -393,6 +399,16 @@ def workflow_runtime(request: Request) -> WorkflowSignalRuntime:
 WorkflowRuntime = Annotated[
     WorkflowSignalRuntime,
     Depends(workflow_runtime),
+]
+
+
+def connector_export_object_store(request: Request) -> ObjectStore:
+    return LocalObjectStore(request.app.state.settings.connector_export_object_store_root)
+
+
+ConnectorExportObjectStore = Annotated[
+    ObjectStore,
+    Depends(connector_export_object_store),
 ]
 
 
@@ -2199,6 +2215,71 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "decision": exc.decision.model_dump(),
                     "reason": reason,
                     "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/{export_request_id}/materializations",
+        response_model=ConnectorEvidenceInvariantSnapshotExportMaterializationResult,
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+        responses={
+            403: {"description": "Connector evidence snapshot export materialization denied"},
+            404: {"description": "Connector evidence snapshot export request not found"},
+            409: {"description": "Connector evidence snapshot export materialization conflict"},
+        },
+    )
+    def manufacturing_connector_evidence_invariant_snapshot_export_materialization(
+        export_request_id: str,
+        materialization: ConnectorEvidenceInvariantSnapshotExportMaterializationRequest,
+        repository: PersistenceRepository,
+        object_store: ConnectorExportObjectStore,
+        principal: OidcPrincipalDependency,
+    ) -> ConnectorEvidenceInvariantSnapshotExportMaterializationResult:
+        try:
+            bound_materialization = _bind_demo_actor(materialization, principal)
+            return materialize_connector_evidence_invariant_snapshot_export_request(
+                repository,
+                export_request_id,
+                bound_materialization,
+                object_store,
+                ledger_signer=_audit_ledger_signer_from_settings(app.state.settings),
+            )
+        except ConnectorEvidenceInvariantSnapshotExportRequestNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Connector evidence snapshot export request not found",
+            ) from exc
+        except ConnectorEvidenceInvariantSnapshotExportMaterializationPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": (
+                        "The actor cannot materialize connector evidence snapshot exports."
+                    ),
+                    "required_scope": exc.required_permission,
+                    "decision": exc.decision.model_dump(),
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ConnectorEvidenceInvariantSnapshotExportMaterializationConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": (
+                        "The connector evidence snapshot export materialization conflicts."
+                    ),
+                    "export_request_id": exc.export_request_id,
+                    "reason": exc.reason,
                 },
             ) from exc
 

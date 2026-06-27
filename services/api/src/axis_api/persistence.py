@@ -636,6 +636,26 @@ class ConnectorEvidenceSnapshotExportRequestDecisionRecord(BaseModel):
     audit_event_type: str | None = None
 
 
+class ConnectorEvidenceSnapshotExportMaterializationRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    export_request_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    export_status: str = Field(min_length=1)
+    storage_status: str = Field(min_length=1)
+    materialization_id: str = Field(min_length=1)
+    materialization_idempotency_key: str = Field(min_length=1)
+    materialized_by: str = Field(min_length=1)
+    materialization_reason: str = Field(min_length=1)
+    storage_adapter: str = Field(min_length=1)
+    storage_key: str = Field(min_length=1)
+    storage_uri: str = Field(min_length=1)
+    artifact_checksum_sha256: str = Field(min_length=64, max_length=64)
+    artifact_size_bytes: int = Field(ge=0)
+    artifact_content_type: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
+
+
 class ConnectorManualImportDecisionRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     import_id: str = Field(min_length=1)
@@ -2523,6 +2543,43 @@ class AxisPersistenceRepository:
         export_request.decided_at = utc_now()
         export_request.workflow_signal_status = record.workflow_signal_status
         export_request.workflow_signal = record.workflow_signal
+        if record.audit_event_id is not None:
+            export_request.audit_event_id = record.audit_event_id
+        if record.audit_event_type is not None:
+            export_request.audit_event_type = record.audit_event_type
+        export_request.updated_at = utc_now()
+        self.session.flush()
+        return export_request
+
+    def record_connector_evidence_snapshot_export_materialization(
+        self,
+        record: ConnectorEvidenceSnapshotExportMaterializationRecord,
+    ) -> ConnectorEvidenceSnapshotExportRequest:
+        export_request = self.get_connector_evidence_snapshot_export_request(
+            record.tenant_id,
+            record.export_request_id,
+        )
+        if export_request is None:
+            raise PersistenceRecordNotFound(
+                "Connector evidence snapshot export request not found"
+            )
+
+        export_request.status = record.status
+        export_request.export_status = record.export_status
+        export_request.storage_status = record.storage_status
+        export_request.materialization_id = record.materialization_id
+        export_request.materialization_idempotency_key = (
+            record.materialization_idempotency_key
+        )
+        export_request.materialized_by = record.materialized_by
+        export_request.materialized_at = utc_now()
+        export_request.materialization_reason = record.materialization_reason
+        export_request.storage_adapter = record.storage_adapter
+        export_request.storage_key = record.storage_key
+        export_request.storage_uri = record.storage_uri
+        export_request.artifact_checksum_sha256 = record.artifact_checksum_sha256
+        export_request.artifact_size_bytes = record.artifact_size_bytes
+        export_request.artifact_content_type = record.artifact_content_type
         if record.audit_event_id is not None:
             export_request.audit_event_id = record.audit_event_id
         if record.audit_event_type is not None:

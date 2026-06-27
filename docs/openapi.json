@@ -3833,6 +3833,163 @@
         "title": "ConnectorEvidenceInvariantSnapshotExportManifest",
         "type": "object"
       },
+      "ConnectorEvidenceInvariantSnapshotExportMaterializationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "materialization_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Materialization Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "materialization_id",
+          "idempotency_key",
+          "actor_id",
+          "reason"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportMaterializationRequest",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotExportMaterializationResult": {
+        "properties": {
+          "artifact_checksum_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Artifact Checksum Sha256",
+            "type": "string"
+          },
+          "artifact_content_type": {
+            "minLength": 1,
+            "title": "Artifact Content Type",
+            "type": "string"
+          },
+          "artifact_size_bytes": {
+            "minimum": 0.0,
+            "title": "Artifact Size Bytes",
+            "type": "integer"
+          },
+          "audit_event_id": {
+            "format": "uuid",
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "export_request": {
+            "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportRequestRecord"
+          },
+          "export_request_id": {
+            "minLength": 1,
+            "title": "Export Request Id",
+            "type": "string"
+          },
+          "export_status": {
+            "minLength": 1,
+            "title": "Export Status",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "materialization_id": {
+            "minLength": 1,
+            "title": "Materialization Id",
+            "type": "string"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "storage_adapter": {
+            "minLength": 1,
+            "title": "Storage Adapter",
+            "type": "string"
+          },
+          "storage_key": {
+            "minLength": 1,
+            "title": "Storage Key",
+            "type": "string"
+          },
+          "storage_status": {
+            "minLength": 1,
+            "title": "Storage Status",
+            "type": "string"
+          },
+          "storage_uri": {
+            "minLength": 1,
+            "title": "Storage Uri",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "export_request_id",
+          "materialization_id",
+          "idempotency_key",
+          "status",
+          "export_status",
+          "storage_status",
+          "storage_adapter",
+          "storage_key",
+          "storage_uri",
+          "artifact_checksum_sha256",
+          "artifact_size_bytes",
+          "artifact_content_type",
+          "export_request",
+          "permission_decision",
+          "audit_event_id",
+          "audit_event_type"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportMaterializationResult",
+        "type": "object"
+      },
       "ConnectorEvidenceInvariantSnapshotExportRequest": {
         "additionalProperties": false,
         "properties": {
@@ -4029,6 +4186,39 @@
             "title": "Approval Id",
             "type": "string"
           },
+          "artifact_checksum_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Checksum Sha256"
+          },
+          "artifact_content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Content Type"
+          },
+          "artifact_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Size Bytes"
+          },
           "audit_event_id": {
             "anyOf": [
               {
@@ -4133,6 +4323,62 @@
             "title": "Idempotent Replay",
             "type": "boolean"
           },
+          "materialization_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialization Id"
+          },
+          "materialization_idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialization Idempotency Key"
+          },
+          "materialization_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialization Reason"
+          },
+          "materialized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialized At"
+          },
+          "materialized_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialized By"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -4182,10 +4428,43 @@
             "title": "Status",
             "type": "string"
           },
+          "storage_adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Adapter"
+          },
+          "storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Key"
+          },
           "storage_status": {
             "minLength": 1,
             "title": "Storage Status",
             "type": "string"
+          },
+          "storage_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Uri"
           },
           "tenant_id": {
             "minLength": 1,
@@ -15180,6 +15459,83 @@
           }
         },
         "summary": "Manufacturing Connector Evidence Invariant Snapshot Export Request Decision",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/materializations": {
+      "post": {
+        "operationId": "manufacturing_connector_evidence_invariant_snapshot_export_materialization_demo_manufacturing_connectors_evidence_invariants_snapshots_export_requests__export_request_id__materializations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_request_id",
+            "required": true,
+            "schema": {
+              "title": "Export Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportMaterializationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportMaterializationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector evidence snapshot export materialization denied"
+          },
+          "404": {
+            "description": "Connector evidence snapshot export request not found"
+          },
+          "409": {
+            "description": "Connector evidence snapshot export materialization conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Evidence Invariant Snapshot Export Materialization",
         "tags": [
           "demo"
         ]

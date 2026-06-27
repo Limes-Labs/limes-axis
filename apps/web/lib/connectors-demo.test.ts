@@ -6,6 +6,8 @@ import {
   buildConnectorEvidenceInvariantSnapshotExportRequest,
   buildConnectorEvidenceInvariantSnapshotExportRequestDecision,
   buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath,
+  buildConnectorEvidenceInvariantSnapshotExportRequestMaterialization,
+  buildConnectorEvidenceInvariantSnapshotExportRequestMaterializationPath,
   buildConnectorEvidenceInvariantSnapshotExportRequestPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSnapshotHref,
@@ -983,7 +985,7 @@ describe("manufacturing connector helpers", () => {
         "idempotency_enforced",
         "public_safe_bundle_only",
       ],
-      notes: ["Governed export request only; object storage is not written."],
+      notes: ["Governed export request only; materialization requires approval."],
     });
     expect(JSON.stringify(request).toLowerCase()).not.toContain("private-endpoint://");
     expect(JSON.stringify(request).toLowerCase()).not.toContain("vault://");
@@ -1014,6 +1016,34 @@ describe("manufacturing connector helpers", () => {
     expect(JSON.stringify(decision).toLowerCase()).not.toContain("vault://");
     expect(JSON.stringify(decision).toLowerCase()).not.toContain("password");
     expect(JSON.stringify(decision).toLowerCase()).not.toContain("credential_value");
+  });
+
+  it("builds governed connector evidence snapshot export materialization requests", () => {
+    const path = buildConnectorEvidenceInvariantSnapshotExportRequestMaterializationPath(
+      "export_req_external_db_operational_mirror_20260627t101530456z",
+    );
+    const request = buildConnectorEvidenceInvariantSnapshotExportRequestMaterialization({
+      exportRequestId: "export_req_external_db_operational_mirror_20260627t101530456z",
+      actorId: "connector-compliance-owner-role",
+      now: new Date("2026-06-27T10:20:30.456Z"),
+    });
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/export_req_external_db_operational_mirror_20260627t101530456z/materializations",
+    );
+    expect(request).toEqual({
+      materialization_id:
+        "mat_export_req_external_db_operational_mirror_20260627t101530456z_20260627t102030456z",
+      idempotency_key:
+        "idem_mat_export_req_external_db_operational_mirror_20260627t101530456z_20260627t102030456z",
+      actor_id: "connector-compliance-owner-role",
+      actor_scopes: ["connectors:evidence:snapshot:export:materialize"],
+      reason: "approved-connector-evidence-export",
+    });
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("password");
+    expect(JSON.stringify(request).toLowerCase()).not.toContain("credential_value");
   });
 
   it("builds public connector snapshot deep links from persisted audit fields", () => {

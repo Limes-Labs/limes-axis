@@ -31,11 +31,13 @@ from axis_api.connector_runs import (
 )
 from axis_api.demo import ApprovalDecision, OverviewMetric, OverviewStatus
 from axis_api.models import AuditEvent
+from axis_api.object_storage import ObjectStore
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
     AxisPersistenceRepository,
+    ConnectorEvidenceSnapshotExportMaterializationRecord,
     ConnectorEvidenceSnapshotExportRequestCreate,
     ConnectorEvidenceSnapshotExportRequestDecisionRecord,
 )
@@ -57,6 +59,12 @@ SNAPSHOT_EXPORT_REQUEST_DECISION_AUDIT_EVENT_TYPE = (
     "connector.evidence_snapshot_export.decision_recorded"
 )
 SNAPSHOT_EXPORT_REQUEST_DECISION_REQUIRED_SCOPE = "approvals:connectors:export:decide"
+SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_AUDIT_EVENT_TYPE = (
+    "connector.evidence_snapshot_export.materialized"
+)
+SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_REQUIRED_SCOPE = (
+    "connectors:evidence:snapshot:export:materialize"
+)
 SNAPSHOT_EXPORT_REQUEST_REQUIRED_SCOPE = "connectors:evidence:snapshot:export:request"
 SNAPSHOT_READ_AUDIT_EVENT_TYPE = "connector.evidence_invariant_snapshots_read"
 SNAPSHOT_READ_REQUIRED_SCOPE = "connectors:evidence:snapshot:read"
@@ -66,6 +74,8 @@ SNAPSHOT_EXPORT_REQUEST_EXPORT_STATUS = "not_exported"
 SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS = "not_written"
 SNAPSHOT_EXPORT_REQUEST_WORKFLOW_SIGNAL_STATUS = "pending_approval_decision"
 SNAPSHOT_EXPORT_REQUEST_REDACTION_POLICY = "connector-snapshot-public-safe"
+SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STATUS = "materialized"
+SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STORAGE_STATUS = "written_local_object_store"
 
 
 def _default_export_request_controls() -> list[str]:
@@ -211,6 +221,17 @@ class ConnectorEvidenceInvariantSnapshotExportRequestRecord(BaseModel):
     decision_note: str | None = None
     decided_at: datetime | None = None
     workflow_signal: WorkflowSignalResult | None = None
+    materialization_id: str | None = None
+    materialization_idempotency_key: str | None = None
+    materialized_by: str | None = None
+    materialized_at: datetime | None = None
+    materialization_reason: str | None = None
+    storage_adapter: str | None = None
+    storage_key: str | None = None
+    storage_uri: str | None = None
+    artifact_checksum_sha256: str | None = None
+    artifact_size_bytes: int | None = None
+    artifact_content_type: str | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
@@ -289,6 +310,41 @@ class ConnectorEvidenceInvariantSnapshotExportDecisionResult(BaseModel):
     workflow_signal_status: str = Field(min_length=1)
 
 
+class ConnectorEvidenceInvariantSnapshotExportMaterializationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    materialization_id: str = Field(
+        min_length=1,
+        max_length=180,
+        pattern=r"^[a-z0-9][a-z0-9_-]*$",
+    )
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    actor_id: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=1, max_length=240)
+
+
+class ConnectorEvidenceInvariantSnapshotExportMaterializationResult(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    export_request_id: str = Field(min_length=1)
+    materialization_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    export_status: str = Field(min_length=1)
+    storage_status: str = Field(min_length=1)
+    storage_adapter: str = Field(min_length=1)
+    storage_key: str = Field(min_length=1)
+    storage_uri: str = Field(min_length=1)
+    artifact_checksum_sha256: str = Field(min_length=64, max_length=64)
+    artifact_size_bytes: int = Field(ge=0)
+    artifact_content_type: str = Field(min_length=1)
+    export_request: ConnectorEvidenceInvariantSnapshotExportRequestRecord
+    permission_decision: PermissionDecision
+    audit_event_id: UUID
+    audit_event_type: str = Field(min_length=1)
+    idempotent_replay: bool = False
+
+
 class ConnectorEvidenceInvariantSnapshotPermissionDenied(PermissionError):
     def __init__(self, decision: PermissionDecision) -> None:
         super().__init__(decision.reason)
@@ -313,7 +369,21 @@ class ConnectorEvidenceInvariantSnapshotExportRequestNotFound(LookupError):
     pass
 
 
+class ConnectorEvidenceInvariantSnapshotExportMaterializationConflict(ValueError):
+    def __init__(self, export_request_id: str, reason: str) -> None:
+        super().__init__(reason)
+        self.export_request_id = export_request_id
+        self.reason = reason
+
+
 class ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied(PermissionError):
+    def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.required_permission = required_permission
+        self.decision = decision
+
+
+class ConnectorEvidenceInvariantSnapshotExportMaterializationPermissionDenied(PermissionError):
     def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
         super().__init__(decision.reason)
         self.required_permission = required_permission
@@ -556,27 +626,7 @@ def export_connector_evidence_invariant_snapshots(
 ) -> ConnectorEvidenceInvariantSnapshotExportBundle:
     _evaluate_snapshot_history_permission(query, actor_id, actor_scopes)
     snapshots = _snapshot_records_for_query(repository, query)
-    checksum = _snapshots_checksum(snapshots)
-    integrity_proof = _snapshot_integrity_proof(snapshots)
-    manifest = ConnectorEvidenceInvariantSnapshotExportManifest(
-        export_id=f"connector-evidence-snapshot-export-{checksum[:16]}",
-        generated_at=datetime.now(UTC).isoformat(),
-        tenant_id=query.tenant_id,
-        record_count=len(snapshots),
-        format=query.format,
-        redaction_policy="connector-snapshot-public-safe",
-        checksum_sha256=checksum,
-        integrity_chain_tip_sha256=integrity_proof.chain_tip_sha256,
-        connector_id=query.connector_id,
-        snapshot_id=query.snapshot_id,
-        idempotency_key=query.idempotency_key,
-    )
-    signature_payload = canonical_ledger_signature_payload(manifest, integrity_proof)
-    ledger_signature = (
-        ledger_signer.sign_payload(signature_payload)
-        if ledger_signer is not None
-        else unsigned_audit_ledger_signature(signature_payload)
-    )
+    bundle = _snapshot_export_bundle_for_records(query, snapshots, ledger_signer=ledger_signer)
     snapshot_ids = [snapshot.snapshot_id for snapshot in snapshots]
     repository.append_audit_event(
         AuditEventCreate(
@@ -589,37 +639,15 @@ def export_connector_evidence_invariant_snapshots(
                 "idempotency_key": query.idempotency_key,
                 "limit": query.limit,
                 "export_reason": query.export_reason,
-                "export_id": manifest.export_id,
-                "checksum_sha256": manifest.checksum_sha256,
-                "signature_status": ledger_signature.verification_status,
+                "export_id": bundle.manifest.export_id,
+                "checksum_sha256": bundle.manifest.checksum_sha256,
+                "signature_status": bundle.ledger_signature.verification_status,
                 "exported_snapshot_count": len(snapshots),
                 "snapshot_ids": snapshot_ids,
             },
         )
     )
-    return ConnectorEvidenceInvariantSnapshotExportBundle(
-        tenant_id=query.tenant_id,
-        scenario="Plant Operations Cockpit",
-        format=query.format,
-        export_reason=query.export_reason,
-        filters=ConnectorEvidenceInvariantSnapshotQuery(
-            tenant_id=query.tenant_id,
-            connector_id=query.connector_id,
-            snapshot_id=query.snapshot_id,
-            idempotency_key=query.idempotency_key,
-            limit=query.limit,
-        ),
-        manifest=manifest,
-        integrity_proof=integrity_proof,
-        ledger_signature=ledger_signature,
-        snapshots=snapshots,
-        export_notes=[
-            "Snapshot export bundle is tenant-scoped before optional filters are applied.",
-            "Snapshots include public-safe invariant counts, subject ids and report digests only.",
-            "Manifest checksum covers exported connector evidence snapshot metadata.",
-            "Integrity proof links exported snapshots with a deterministic SHA-256 hash chain.",
-        ],
-    )
+    return bundle
 
 
 def record_connector_evidence_invariant_snapshot_export_request(
@@ -836,6 +864,116 @@ async def record_connector_evidence_invariant_snapshot_export_request_decision(
     )
 
 
+def materialize_connector_evidence_invariant_snapshot_export_request(
+    repository: AxisPersistenceRepository,
+    export_request_id: str,
+    request: ConnectorEvidenceInvariantSnapshotExportMaterializationRequest,
+    object_store: ObjectStore,
+    ledger_signer: AuditLedgerSigner | None = None,
+    tenant_id: str = "tenant_demo_manufacturing",
+) -> ConnectorEvidenceInvariantSnapshotExportMaterializationResult:
+    export_request = repository.get_connector_evidence_snapshot_export_request(
+        tenant_id,
+        export_request_id,
+    )
+    if export_request is None:
+        raise ConnectorEvidenceInvariantSnapshotExportRequestNotFound(
+            "Connector evidence snapshot export request not found"
+        )
+
+    permission_decision = _evaluate_snapshot_export_request_materialization_permission(
+        export_request,
+        request,
+    )
+    existing_materialization = _existing_materialization_result(
+        export_request,
+        request,
+        permission_decision,
+    )
+    if existing_materialization is not None:
+        return existing_materialization
+    _ensure_export_request_can_materialize(export_request)
+
+    query = ConnectorEvidenceInvariantSnapshotExportQuery(
+        tenant_id=export_request.tenant_id,
+        connector_id=export_request.connector_id,
+        snapshot_id=export_request.snapshot_id,
+        idempotency_key=export_request.snapshot_idempotency_key,
+        limit=export_request.limit,
+        export_reason=export_request.export_reason,
+        format=export_request.format,
+    )
+    snapshots = _snapshot_records_for_query(repository, query)
+    checksum = _snapshots_checksum(snapshots)
+    if checksum != export_request.snapshot_checksum_sha256:
+        raise ConnectorEvidenceInvariantSnapshotExportMaterializationConflict(
+            export_request.export_request_id,
+            "snapshot_checksum_changed",
+        )
+    bundle = _snapshot_export_bundle_for_records(
+        query,
+        snapshots,
+        ledger_signer=ledger_signer,
+    )
+    artifact_payload = bundle.model_dump(mode="json")
+    storage_key = _materialization_storage_key(export_request, request)
+    stored_object = object_store.put_json(storage_key, artifact_payload)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=export_request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_AUDIT_EVENT_TYPE,
+            payload={
+                "export_request_id": export_request.export_request_id,
+                "materialization_id": request.materialization_id,
+                "idempotency_key": request.idempotency_key,
+                "connector_id": export_request.connector_id,
+                "snapshot_id": export_request.snapshot_id,
+                "approval_id": export_request.approval_id,
+                "workflow_id": export_request.workflow_id,
+                "decision": export_request.decision,
+                "export_status": SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STATUS,
+                "storage_status": SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STORAGE_STATUS,
+                "storage_adapter": stored_object.storage_adapter,
+                "storage_key": stored_object.storage_key,
+                "storage_uri": stored_object.storage_uri,
+                "artifact_checksum_sha256": stored_object.checksum_sha256,
+                "artifact_size_bytes": stored_object.size_bytes,
+                "artifact_content_type": stored_object.content_type,
+                "requested_snapshot_count": export_request.requested_snapshot_count,
+                "redaction_policy": export_request.redaction_policy,
+                "required_permission": SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_REQUIRED_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+            },
+        )
+    )
+    updated_export_request = repository.record_connector_evidence_snapshot_export_materialization(
+        ConnectorEvidenceSnapshotExportMaterializationRecord(
+            tenant_id=export_request.tenant_id,
+            export_request_id=export_request.export_request_id,
+            status=SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STATUS,
+            export_status=SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STATUS,
+            storage_status=SNAPSHOT_EXPORT_REQUEST_MATERIALIZED_STORAGE_STATUS,
+            materialization_id=request.materialization_id,
+            materialization_idempotency_key=request.idempotency_key,
+            materialized_by=request.actor_id,
+            materialization_reason=request.reason,
+            storage_adapter=stored_object.storage_adapter,
+            storage_key=stored_object.storage_key,
+            storage_uri=stored_object.storage_uri,
+            artifact_checksum_sha256=stored_object.checksum_sha256,
+            artifact_size_bytes=stored_object.size_bytes,
+            artifact_content_type=stored_object.content_type,
+            audit_event_id=audit_event.id,
+            audit_event_type=SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_AUDIT_EVENT_TYPE,
+        )
+    )
+    return _materialization_result_from_record(
+        updated_export_request,
+        permission_decision,
+    )
+
+
 def read_connector_evidence_invariant_report(
     repository: AxisPersistenceRepository,
     query: ConnectorEvidenceInvariantQuery,
@@ -867,6 +1005,58 @@ def _snapshots_checksum(snapshots: list[ConnectorEvidenceInvariantSnapshotRecord
         separators=(",", ":"),
     )
     return hashlib.sha256(encoded_snapshots.encode("utf-8")).hexdigest()
+
+
+def _snapshot_export_bundle_for_records(
+    query: ConnectorEvidenceInvariantSnapshotExportQuery,
+    snapshots: list[ConnectorEvidenceInvariantSnapshotRecord],
+    *,
+    ledger_signer: AuditLedgerSigner | None,
+) -> ConnectorEvidenceInvariantSnapshotExportBundle:
+    checksum = _snapshots_checksum(snapshots)
+    integrity_proof = _snapshot_integrity_proof(snapshots)
+    manifest = ConnectorEvidenceInvariantSnapshotExportManifest(
+        export_id=f"connector-evidence-snapshot-export-{checksum[:16]}",
+        generated_at=datetime.now(UTC).isoformat(),
+        tenant_id=query.tenant_id,
+        record_count=len(snapshots),
+        format=query.format,
+        redaction_policy="connector-snapshot-public-safe",
+        checksum_sha256=checksum,
+        integrity_chain_tip_sha256=integrity_proof.chain_tip_sha256,
+        connector_id=query.connector_id,
+        snapshot_id=query.snapshot_id,
+        idempotency_key=query.idempotency_key,
+    )
+    signature_payload = canonical_ledger_signature_payload(manifest, integrity_proof)
+    ledger_signature = (
+        ledger_signer.sign_payload(signature_payload)
+        if ledger_signer is not None
+        else unsigned_audit_ledger_signature(signature_payload)
+    )
+    return ConnectorEvidenceInvariantSnapshotExportBundle(
+        tenant_id=query.tenant_id,
+        scenario="Plant Operations Cockpit",
+        format=query.format,
+        export_reason=query.export_reason,
+        filters=ConnectorEvidenceInvariantSnapshotQuery(
+            tenant_id=query.tenant_id,
+            connector_id=query.connector_id,
+            snapshot_id=query.snapshot_id,
+            idempotency_key=query.idempotency_key,
+            limit=query.limit,
+        ),
+        manifest=manifest,
+        integrity_proof=integrity_proof,
+        ledger_signature=ledger_signature,
+        snapshots=snapshots,
+        export_notes=[
+            "Snapshot export bundle is tenant-scoped before optional filters are applied.",
+            "Snapshots include public-safe invariant counts, subject ids and report digests only.",
+            "Manifest checksum covers exported connector evidence snapshot metadata.",
+            "Integrity proof links exported snapshots with a deterministic SHA-256 hash chain.",
+        ],
+    )
 
 
 def _snapshot_integrity_proof(
@@ -943,6 +1133,36 @@ def _evaluate_snapshot_export_request_decision_permission(
     if not decision.allowed:
         raise ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied(
             SNAPSHOT_EXPORT_REQUEST_DECISION_REQUIRED_SCOPE,
+            decision,
+        )
+    return decision
+
+
+def _evaluate_snapshot_export_request_materialization_permission(
+    export_request,
+    request: ConnectorEvidenceInvariantSnapshotExportMaterializationRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=export_request.tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_REQUIRED_SCOPE],
+            attributes={
+                "connector_id": export_request.connector_id,
+                "snapshot_id": export_request.snapshot_id,
+                "export_request_id": export_request.export_request_id,
+                "approval_id": export_request.approval_id,
+                "workflow_id": export_request.workflow_id,
+                "decision": export_request.decision,
+                "storage_status": export_request.storage_status,
+                "materialization_id": request.materialization_id,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise ConnectorEvidenceInvariantSnapshotExportMaterializationPermissionDenied(
+            SNAPSHOT_EXPORT_REQUEST_MATERIALIZATION_REQUIRED_SCOPE,
             decision,
         )
     return decision
@@ -1049,6 +1269,55 @@ def _ensure_export_request_approval_record_from_record(
     )
 
 
+def _ensure_export_request_can_materialize(export_request) -> None:
+    if (
+        export_request.status != "approval_approved"
+        or export_request.export_status != "approved_not_exported"
+        or export_request.decision != ApprovalDecision.APPROVE.value
+    ):
+        raise ConnectorEvidenceInvariantSnapshotExportMaterializationConflict(
+            export_request.export_request_id,
+            "export_request_not_approved",
+        )
+    if export_request.storage_status != SNAPSHOT_EXPORT_REQUEST_STORAGE_STATUS:
+        raise ConnectorEvidenceInvariantSnapshotExportMaterializationConflict(
+            export_request.export_request_id,
+            "export_request_already_materialized",
+        )
+
+
+def _existing_materialization_result(
+    export_request,
+    request: ConnectorEvidenceInvariantSnapshotExportMaterializationRequest,
+    permission_decision: PermissionDecision,
+) -> ConnectorEvidenceInvariantSnapshotExportMaterializationResult | None:
+    if export_request.materialization_id is None:
+        return None
+    if (
+        export_request.materialization_id == request.materialization_id
+        and export_request.materialization_idempotency_key == request.idempotency_key
+    ):
+        return _materialization_result_from_record(
+            export_request,
+            permission_decision,
+            idempotent_replay=True,
+        )
+    raise ConnectorEvidenceInvariantSnapshotExportMaterializationConflict(
+        export_request.export_request_id,
+        "materialization_idempotency_conflict",
+    )
+
+
+def _materialization_storage_key(
+    export_request,
+    request: ConnectorEvidenceInvariantSnapshotExportMaterializationRequest,
+) -> str:
+    return (
+        f"{export_request.tenant_id}/connector-evidence-snapshot-exports/"
+        f"{export_request.export_request_id}/{request.materialization_id}.json"
+    )
+
+
 def _snapshot_export_request_from_record(
     record,
     idempotent_replay: bool = False,
@@ -1084,10 +1353,63 @@ def _snapshot_export_request_from_record(
         decision_note=record.decision_note,
         decided_at=record.decided_at,
         workflow_signal=record.workflow_signal,
+        materialization_id=record.materialization_id,
+        materialization_idempotency_key=record.materialization_idempotency_key,
+        materialized_by=record.materialized_by,
+        materialized_at=record.materialized_at,
+        materialization_reason=record.materialization_reason,
+        storage_adapter=record.storage_adapter,
+        storage_key=record.storage_key,
+        storage_uri=record.storage_uri,
+        artifact_checksum_sha256=record.artifact_checksum_sha256,
+        artifact_size_bytes=record.artifact_size_bytes,
+        artifact_content_type=record.artifact_content_type,
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
         notes=record.notes,
         created_at=record.created_at,
+        idempotent_replay=idempotent_replay,
+    )
+
+
+def _materialization_result_from_record(
+    record,
+    permission_decision: PermissionDecision,
+    idempotent_replay: bool = False,
+) -> ConnectorEvidenceInvariantSnapshotExportMaterializationResult:
+    if (
+        record.materialization_id is None
+        or record.materialization_idempotency_key is None
+        or record.storage_adapter is None
+        or record.storage_key is None
+        or record.storage_uri is None
+        or record.artifact_checksum_sha256 is None
+        or record.artifact_size_bytes is None
+        or record.artifact_content_type is None
+        or record.audit_event_id is None
+    ):
+        raise ConnectorEvidenceInvariantSnapshotExportMaterializationConflict(
+            record.export_request_id,
+            "materialization_metadata_incomplete",
+        )
+    return ConnectorEvidenceInvariantSnapshotExportMaterializationResult(
+        tenant_id=record.tenant_id,
+        export_request_id=record.export_request_id,
+        materialization_id=record.materialization_id,
+        idempotency_key=record.materialization_idempotency_key,
+        status=record.status,
+        export_status=record.export_status,
+        storage_status=record.storage_status,
+        storage_adapter=record.storage_adapter,
+        storage_key=record.storage_key,
+        storage_uri=record.storage_uri,
+        artifact_checksum_sha256=record.artifact_checksum_sha256,
+        artifact_size_bytes=record.artifact_size_bytes,
+        artifact_content_type=record.artifact_content_type,
+        export_request=_snapshot_export_request_from_record(record),
+        permission_decision=permission_decision,
+        audit_event_id=record.audit_event_id,
+        audit_event_type=record.audit_event_type,
         idempotent_replay=idempotent_replay,
     )
 
