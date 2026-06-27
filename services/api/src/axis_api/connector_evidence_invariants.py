@@ -1,10 +1,17 @@
 import hashlib
 import json
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from axis_api.audit import AuditEventCreate
+from axis_api.audit_signing import (
+    AuditLedgerSignatureProof,
+    AuditLedgerSigner,
+    canonical_ledger_signature_payload,
+    unsigned_audit_ledger_signature,
+)
 from axis_api.connector_credential_leases import (
     ConnectorCredentialLeaseQuery,
     ManufacturingConnectorCredentialLeaseRegistry,
@@ -30,6 +37,7 @@ from axis_api.persistence import AxisPersistenceRepository
 READ_AUDIT_EVENT_TYPE = "connector.evidence_invariants_read"
 SNAPSHOT_AUDIT_EVENT_TYPE = "connector.evidence_invariants.snapshot_persisted"
 SNAPSHOT_REQUIRED_SCOPE = "connectors:evidence:snapshot"
+SNAPSHOT_EXPORT_AUDIT_EVENT_TYPE = "connector.evidence_invariant_snapshots_exported"
 SNAPSHOT_READ_AUDIT_EVENT_TYPE = "connector.evidence_invariant_snapshots_read"
 SNAPSHOT_READ_REQUIRED_SCOPE = "connectors:evidence:snapshot:read"
 REPORT_HASH_ALGORITHM = "sha256-canonical-json-v1"
@@ -105,6 +113,11 @@ class ConnectorEvidenceInvariantSnapshotQuery(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
+class ConnectorEvidenceInvariantSnapshotExportQuery(ConnectorEvidenceInvariantSnapshotQuery):
+    export_reason: str = Field(default="connector-evidence-review", min_length=1, max_length=120)
+    format: str = Field(default="json", pattern="^json$")
+
+
 class ConnectorEvidenceInvariantSnapshotHistory(BaseModel):
     tenant_id: str = Field(min_length=1)
     plant_name: str = Field(min_length=1)
@@ -113,6 +126,41 @@ class ConnectorEvidenceInvariantSnapshotHistory(BaseModel):
     metrics: list[OverviewMetric] = Field(default_factory=list)
     snapshots: list[ConnectorEvidenceInvariantSnapshotRecord] = Field(default_factory=list)
     history_notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotExportManifest(BaseModel):
+    export_id: str = Field(min_length=1)
+    generated_at: str = Field(min_length=1)
+    tenant_id: str = Field(min_length=1)
+    record_count: int = Field(ge=0)
+    format: str = Field(min_length=1)
+    redaction_policy: str = Field(min_length=1)
+    checksum_sha256: str = Field(min_length=64, max_length=64)
+    integrity_chain_tip_sha256: str = Field(min_length=64, max_length=64)
+    connector_id: str | None = None
+    snapshot_id: str | None = None
+    idempotency_key: str | None = None
+
+
+class ConnectorEvidenceInvariantSnapshotIntegrityProof(BaseModel):
+    algorithm: str = Field(min_length=1)
+    verification_status: str = Field(min_length=1)
+    record_count: int = Field(ge=0)
+    chain_tip_sha256: str = Field(min_length=64, max_length=64)
+    snapshot_hashes: list[str] = Field(default_factory=list)
+
+
+class ConnectorEvidenceInvariantSnapshotExportBundle(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    format: str = Field(min_length=1)
+    export_reason: str = Field(min_length=1)
+    filters: ConnectorEvidenceInvariantSnapshotQuery
+    manifest: ConnectorEvidenceInvariantSnapshotExportManifest
+    integrity_proof: ConnectorEvidenceInvariantSnapshotIntegrityProof
+    ledger_signature: AuditLedgerSignatureProof
+    snapshots: list[ConnectorEvidenceInvariantSnapshotRecord] = Field(default_factory=list)
+    export_notes: list[str] = Field(default_factory=list)
 
 
 class ConnectorEvidenceInvariantSnapshotPermissionDenied(PermissionError):
@@ -354,6 +402,82 @@ def read_connector_evidence_invariant_snapshot_history(
     )
 
 
+def export_connector_evidence_invariant_snapshots(
+    repository: AxisPersistenceRepository,
+    query: ConnectorEvidenceInvariantSnapshotExportQuery,
+    *,
+    actor_id: str,
+    actor_scopes: list[str],
+    ledger_signer: AuditLedgerSigner | None = None,
+) -> ConnectorEvidenceInvariantSnapshotExportBundle:
+    _evaluate_snapshot_history_permission(query, actor_id, actor_scopes)
+    snapshots = _snapshot_records_for_query(repository, query)
+    checksum = _snapshots_checksum(snapshots)
+    integrity_proof = _snapshot_integrity_proof(snapshots)
+    manifest = ConnectorEvidenceInvariantSnapshotExportManifest(
+        export_id=f"connector-evidence-snapshot-export-{checksum[:16]}",
+        generated_at=datetime.now(UTC).isoformat(),
+        tenant_id=query.tenant_id,
+        record_count=len(snapshots),
+        format=query.format,
+        redaction_policy="connector-snapshot-public-safe",
+        checksum_sha256=checksum,
+        integrity_chain_tip_sha256=integrity_proof.chain_tip_sha256,
+        connector_id=query.connector_id,
+        snapshot_id=query.snapshot_id,
+        idempotency_key=query.idempotency_key,
+    )
+    signature_payload = canonical_ledger_signature_payload(manifest, integrity_proof)
+    ledger_signature = (
+        ledger_signer.sign_payload(signature_payload)
+        if ledger_signer is not None
+        else unsigned_audit_ledger_signature(signature_payload)
+    )
+    snapshot_ids = [snapshot.snapshot_id for snapshot in snapshots]
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=query.tenant_id,
+            actor_id=actor_id,
+            event_type=SNAPSHOT_EXPORT_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": query.connector_id,
+                "snapshot_id": query.snapshot_id,
+                "idempotency_key": query.idempotency_key,
+                "limit": query.limit,
+                "export_reason": query.export_reason,
+                "export_id": manifest.export_id,
+                "checksum_sha256": manifest.checksum_sha256,
+                "signature_status": ledger_signature.verification_status,
+                "exported_snapshot_count": len(snapshots),
+                "snapshot_ids": snapshot_ids,
+            },
+        )
+    )
+    return ConnectorEvidenceInvariantSnapshotExportBundle(
+        tenant_id=query.tenant_id,
+        scenario="Plant Operations Cockpit",
+        format=query.format,
+        export_reason=query.export_reason,
+        filters=ConnectorEvidenceInvariantSnapshotQuery(
+            tenant_id=query.tenant_id,
+            connector_id=query.connector_id,
+            snapshot_id=query.snapshot_id,
+            idempotency_key=query.idempotency_key,
+            limit=query.limit,
+        ),
+        manifest=manifest,
+        integrity_proof=integrity_proof,
+        ledger_signature=ledger_signature,
+        snapshots=snapshots,
+        export_notes=[
+            "Snapshot export bundle is tenant-scoped before optional filters are applied.",
+            "Snapshots include public-safe invariant counts, subject ids and report digests only.",
+            "Manifest checksum covers exported connector evidence snapshot metadata.",
+            "Integrity proof links exported snapshots with a deterministic SHA-256 hash chain.",
+        ],
+    )
+
+
 def read_connector_evidence_invariant_report(
     repository: AxisPersistenceRepository,
     query: ConnectorEvidenceInvariantQuery,
@@ -376,6 +500,39 @@ def read_connector_evidence_invariant_report(
         )
     )
     return report
+
+
+def _snapshots_checksum(snapshots: list[ConnectorEvidenceInvariantSnapshotRecord]) -> str:
+    encoded_snapshots = json.dumps(
+        [snapshot.model_dump(mode="json") for snapshot in snapshots],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded_snapshots.encode("utf-8")).hexdigest()
+
+
+def _snapshot_integrity_proof(
+    snapshots: list[ConnectorEvidenceInvariantSnapshotRecord],
+) -> ConnectorEvidenceInvariantSnapshotIntegrityProof:
+    snapshot_hashes: list[str] = []
+    chain_tip = "0" * 64
+    for snapshot in snapshots:
+        encoded_snapshot = json.dumps(
+            snapshot.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        snapshot_hash = hashlib.sha256(encoded_snapshot.encode("utf-8")).hexdigest()
+        chain_tip = hashlib.sha256(f"{chain_tip}:{snapshot_hash}".encode()).hexdigest()
+        snapshot_hashes.append(snapshot_hash)
+
+    return ConnectorEvidenceInvariantSnapshotIntegrityProof(
+        algorithm="sha256-hash-chain-v1",
+        verification_status="verified",
+        record_count=len(snapshots),
+        chain_tip_sha256=chain_tip,
+        snapshot_hashes=snapshot_hashes,
+    )
 
 
 def _evaluate_snapshot_history_permission(

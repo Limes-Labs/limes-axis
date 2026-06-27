@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
+  buildConnectorEvidenceInvariantSnapshotExportPath,
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSnapshotHref,
   buildConnectorSyncCheckpointClaimQueryPath,
@@ -922,6 +923,23 @@ describe("manufacturing connector helpers", () => {
 
     expect(path).toBe(
       "/demo/manufacturing/connectors/evidence-invariants/snapshots?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Aevidence%3Asnapshot%3Aread&connector_id=external_db_operational_mirror&limit=25",
+    );
+  });
+
+  it("builds connector evidence snapshot export paths with the read scope", () => {
+    const path = buildConnectorEvidenceInvariantSnapshotExportPath(
+      "tenant_demo_manufacturing",
+      {
+        connectorId: "external_db_operational_mirror",
+        snapshotId: "snap_connector_evidence_20260627_1000",
+        idempotencyKey: "idem_connector_evidence_snapshot_20260627_1000",
+        limit: 10,
+        exportReason: "design-partner-review",
+      },
+    );
+
+    expect(path).toBe(
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots/export?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Aevidence%3Asnapshot%3Aread&connector_id=external_db_operational_mirror&snapshot_id=snap_connector_evidence_20260627_1000&idempotency_key=idem_connector_evidence_snapshot_20260627_1000&limit=10&export_reason=design-partner-review",
     );
   });
 

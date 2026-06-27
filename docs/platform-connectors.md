@@ -92,6 +92,7 @@ GET /demo/manufacturing/connectors/egress-policies
 POST /demo/manufacturing/connectors/egress-policies
 GET /demo/manufacturing/connectors/evidence-invariants
 GET /demo/manufacturing/connectors/evidence-invariants/snapshots
+GET /demo/manufacturing/connectors/evidence-invariants/snapshots/export
 POST /demo/manufacturing/connectors/evidence-invariants/snapshots
 GET /demo/manufacturing/connectors/runs
 POST /demo/manufacturing/connectors/runs
@@ -234,6 +235,17 @@ private endpoint refs, DSNs, raw audit payloads or result summaries.
 The public audit event preview exposes only the snapshot id, connector id and
 idempotency key needed for review navigation; the audit explorer can link back
 to `/connectors?snapshot_id=...&connector_id=...` without exposing raw evidence.
+
+`GET /demo/manufacturing/connectors/evidence-invariants/snapshots/export`
+returns a signed/exportable public-safe bundle for persisted snapshot
+artifacts. The request uses the same `connectors:evidence:snapshot:read` scope
+and supports tenant, connector, snapshot id, idempotency key, limit and export
+reason filters. The bundle includes a manifest checksum, deterministic
+SHA-256 hash-chain proof and the same self-hosted audit ledger signature proof
+used by audit exports when a signing secret is configured. The export audit
+event stores only filters, snapshot ids, checksum, export id and signature
+status; it does not store raw connector payloads, DSNs, private endpoint refs,
+secret refs or credential values.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -809,6 +821,10 @@ the matching connector and highlights the selected artifact. The checkpoint
 request includes `connectors:sync:checkpoint:read`; if the API is unavailable
 or rejects the request, the page shows an API-required state and does not render local
 connector records.
+The console also loads the API-backed snapshot export bundle and renders export
+id, record count, checksum prefix, redaction policy, integrity algorithm and
+ledger signature status. It does not synthesize a local export when the API is
+unavailable.
 The runtime library keeps connector types, request builders and formatting
 helpers only; fixture data lives in tests and is not exported to product code.
 
@@ -893,7 +909,9 @@ contract keeps these boundaries visible:
 - aggregate connector evidence invariant reports without copying secret or
   private endpoint references into read payloads;
 - aggregate connector evidence invariant snapshots as append-only audit
-  artifacts before scheduled invariant jobs or signed exports exist;
+  artifacts before scheduled invariant jobs exist;
+- signed connector evidence snapshot exports before enterprise WORM/object-store
+  retention workflows exist;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;
@@ -933,6 +951,9 @@ The slice is covered by:
   audit payloads and public-safety constraints;
 - API unit tests for connector evidence invariant snapshot materialization,
   idempotent replay, conflict handling and public-safety constraints;
+- API unit tests for connector evidence snapshot export manifests, hash-chain
+  integrity proof, self-hosted signature proof, read-scope enforcement and
+  public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
 - API unit tests for connector ontology proposal persistence, `active_preview`
@@ -951,6 +972,7 @@ The slice is covered by:
 - web unit tests for deterministic aggregate evidence invariant count summaries;
 - web unit tests for deterministic connector evidence snapshot summaries;
 - web unit tests for evidence snapshot history query path scope and filters;
+- web unit tests for evidence snapshot export query path scope and filters;
 - web unit tests for evidence snapshot creation request scope and public-safety
   constraints;
 - web unit tests for connector snapshot deep-link construction and query

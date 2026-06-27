@@ -3557,6 +3557,159 @@
         "title": "ConnectorEvidenceInvariantItem",
         "type": "object"
       },
+      "ConnectorEvidenceInvariantSnapshotExportBundle": {
+        "properties": {
+          "export_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Export Notes",
+            "type": "array"
+          },
+          "export_reason": {
+            "minLength": 1,
+            "title": "Export Reason",
+            "type": "string"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotQuery"
+          },
+          "format": {
+            "minLength": 1,
+            "title": "Format",
+            "type": "string"
+          },
+          "integrity_proof": {
+            "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotIntegrityProof"
+          },
+          "ledger_signature": {
+            "$ref": "#/components/schemas/AuditLedgerSignatureProof"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportManifest"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotRecord"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "scenario",
+          "format",
+          "export_reason",
+          "filters",
+          "manifest",
+          "integrity_proof",
+          "ledger_signature"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportBundle",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotExportManifest": {
+        "properties": {
+          "checksum_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Checksum Sha256",
+            "type": "string"
+          },
+          "connector_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
+          },
+          "export_id": {
+            "minLength": 1,
+            "title": "Export Id",
+            "type": "string"
+          },
+          "format": {
+            "minLength": 1,
+            "title": "Format",
+            "type": "string"
+          },
+          "generated_at": {
+            "minLength": 1,
+            "title": "Generated At",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "integrity_chain_tip_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Integrity Chain Tip Sha256",
+            "type": "string"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "redaction_policy": {
+            "minLength": 1,
+            "title": "Redaction Policy",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "export_id",
+          "generated_at",
+          "tenant_id",
+          "record_count",
+          "format",
+          "redaction_policy",
+          "checksum_sha256",
+          "integrity_chain_tip_sha256"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotExportManifest",
+        "type": "object"
+      },
       "ConnectorEvidenceInvariantSnapshotHistory": {
         "properties": {
           "history_notes": {
@@ -3606,6 +3759,101 @@
           "history_status"
         ],
         "title": "ConnectorEvidenceInvariantSnapshotHistory",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotIntegrityProof": {
+        "properties": {
+          "algorithm": {
+            "minLength": 1,
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "chain_tip_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Chain Tip Sha256",
+            "type": "string"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "snapshot_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Snapshot Hashes",
+            "type": "array"
+          },
+          "verification_status": {
+            "minLength": 1,
+            "title": "Verification Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "verification_status",
+          "record_count",
+          "chain_tip_sha256"
+        ],
+        "title": "ConnectorEvidenceInvariantSnapshotIntegrityProof",
+        "type": "object"
+      },
+      "ConnectorEvidenceInvariantSnapshotQuery": {
+        "properties": {
+          "connector_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "title": "ConnectorEvidenceInvariantSnapshotQuery",
         "type": "object"
       },
       "ConnectorEvidenceInvariantSnapshotRecord": {
@@ -14126,6 +14374,162 @@
           }
         },
         "summary": "Manufacturing Connector Evidence Invariant Snapshot",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/connectors/evidence-invariants/snapshots/export": {
+      "get": {
+        "operationId": "manufacturing_connector_evidence_invariant_snapshot_export_demo_manufacturing_connectors_evidence_invariants_snapshots_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snapshot Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "idempotency_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "default": "connector-evidence-exporter-role",
+              "minLength": 1,
+              "title": "Actor Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_scopes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Actor Scopes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "export_reason",
+            "required": false,
+            "schema": {
+              "default": "connector-evidence-review",
+              "maxLength": 120,
+              "minLength": 1,
+              "title": "Export Reason",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "pattern": "^json$",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorEvidenceInvariantSnapshotExportBundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector evidence snapshot export permission denied"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Evidence Invariant Snapshot Export",
         "tags": [
           "demo"
         ]

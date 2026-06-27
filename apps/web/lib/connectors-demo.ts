@@ -628,6 +628,59 @@ export type ConnectorEvidenceInvariantSnapshotHistory = {
   history_notes: string[];
 };
 
+export type ConnectorEvidenceInvariantSnapshotExportManifest = {
+  export_id: string;
+  generated_at: string;
+  tenant_id: string;
+  record_count: number;
+  format: string;
+  redaction_policy: string;
+  checksum_sha256: string;
+  integrity_chain_tip_sha256: string;
+  connector_id: string | null;
+  snapshot_id: string | null;
+  idempotency_key: string | null;
+};
+
+export type ConnectorEvidenceInvariantSnapshotIntegrityProof = {
+  algorithm: string;
+  verification_status: string;
+  record_count: number;
+  chain_tip_sha256: string;
+  snapshot_hashes: string[];
+};
+
+export type ConnectorEvidenceInvariantSnapshotLedgerSignatureProof = {
+  algorithm: string;
+  key_id: string | null;
+  signing_mode: string;
+  verification_status: string;
+  signed_payload_sha256: string;
+  signature: string | null;
+  notes: string[];
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportFilters = {
+  tenant_id: string;
+  connector_id: string | null;
+  snapshot_id: string | null;
+  idempotency_key: string | null;
+  limit: number;
+};
+
+export type ConnectorEvidenceInvariantSnapshotExportBundle = {
+  tenant_id: string;
+  scenario: string;
+  format: string;
+  export_reason: string;
+  filters: ConnectorEvidenceInvariantSnapshotExportFilters;
+  manifest: ConnectorEvidenceInvariantSnapshotExportManifest;
+  integrity_proof: ConnectorEvidenceInvariantSnapshotIntegrityProof;
+  ledger_signature: ConnectorEvidenceInvariantSnapshotLedgerSignatureProof;
+  snapshots: ConnectorEvidenceInvariantSnapshotRecord[];
+  export_notes: string[];
+};
+
 export type ConnectorEvidenceInvariantSnapshotSummary = {
   snapshotId: string;
   status: string;
@@ -668,6 +721,11 @@ type ConnectorEvidenceInvariantSnapshotHistoryPathOptions = {
   idempotencyKey?: string;
   limit?: number;
 };
+
+type ConnectorEvidenceInvariantSnapshotExportPathOptions =
+  ConnectorEvidenceInvariantSnapshotHistoryPathOptions & {
+    exportReason?: string;
+  };
 
 const CONNECTOR_SYNC_CHECKPOINT_READ_SCOPE = "connectors:sync:checkpoint:read";
 const CONNECTOR_SYNC_CHECKPOINT_CLAIM_READ_SCOPE =
@@ -1220,6 +1278,38 @@ export function buildConnectorEvidenceInvariantSnapshotHistoryPath(
   }
 
   return `/demo/manufacturing/connectors/evidence-invariants/snapshots?${params.toString()}`;
+}
+
+export function buildConnectorEvidenceInvariantSnapshotExportPath(
+  tenantId: string,
+  options: ConnectorEvidenceInvariantSnapshotExportPathOptions = {},
+): string {
+  const params = new URLSearchParams({
+    tenant_id: tenantId,
+    actor_scopes: CONNECTOR_EVIDENCE_SNAPSHOT_HISTORY_READ_SCOPE,
+  });
+
+  if (options.connectorId) {
+    params.set("connector_id", options.connectorId);
+  }
+
+  if (options.snapshotId) {
+    params.set("snapshot_id", options.snapshotId);
+  }
+
+  if (options.idempotencyKey) {
+    params.set("idempotency_key", options.idempotencyKey);
+  }
+
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  if (options.exportReason) {
+    params.set("export_reason", options.exportReason);
+  }
+
+  return `/demo/manufacturing/connectors/evidence-invariants/snapshots/export?${params.toString()}`;
 }
 
 type ConnectorSyncCheckpointQueryPathOptions = {
