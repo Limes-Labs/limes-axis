@@ -14,7 +14,9 @@ import {
   findConnectorById,
   formatConnectorLabel,
   summarizeConnectorEvidenceInvariantSnapshot,
+  summarizeConnectorEvidenceInvariantSnapshotHistory,
   summarizeConnectorEvidenceInvariantCounts,
+  type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorEvidenceInvariantSnapshotRecord,
   type ManufacturingConnectorEvidenceInvariantReport,
   type ManufacturingConnectorCredentialLeaseRegistry,
@@ -573,6 +575,34 @@ const evidenceInvariantSnapshotFixture: ConnectorEvidenceInvariantSnapshotRecord
   notes: ["Snapshot stores public-safe subject ids and counts only."],
 };
 
+const evidenceInvariantSnapshotHistoryFixture: ConnectorEvidenceInvariantSnapshotHistory = {
+  tenant_id: "tenant_demo_manufacturing",
+  plant_name: "Ravenna Works",
+  scenario: "Plant Operations Cockpit",
+  history_status: "ready",
+  metrics: [],
+  snapshots: [
+    {
+      ...evidenceInvariantSnapshotFixture,
+      snapshot_id: "snap_connector_evidence_20260627_1100",
+      connector_id: null,
+      idempotency_key: "idem_connector_evidence_snapshot_20260627_1100",
+      invariant_count: 2,
+      invariant_counts: {
+        checkpoint: 1,
+        checkpoint_claim: 1,
+        credential_lease: 0,
+        egress_policy: 0,
+      },
+      subject_ids: ["chk_evidence_report_2", "claim_evidence_report_2"],
+      report_digest_sha256: "b".repeat(64),
+      audit_event_id: "404cab0c-55d5-4dff-8866-6f6dc4c6b71c",
+    },
+    evidenceInvariantSnapshotFixture,
+  ],
+  history_notes: ["Snapshot history is read from append-only audit events."],
+};
+
 describe("manufacturing connector helpers", () => {
   it("finds connectors from caller-provided records without runtime defaults", () => {
     expect(
@@ -825,6 +855,23 @@ describe("manufacturing connector helpers", () => {
       invariantCount: 4,
       evidenceSurfaceCount: 4,
       auditEventType: "connector.evidence_invariants.snapshot_persisted",
+    });
+    expect(JSON.stringify(summary).toLowerCase()).not.toContain("private-endpoint://");
+    expect(JSON.stringify(summary).toLowerCase()).not.toContain("vault://");
+    expect(JSON.stringify(summary).toLowerCase()).not.toContain("password");
+  });
+
+  it("summarizes connector evidence snapshot history without leaking source refs", () => {
+    const summary = summarizeConnectorEvidenceInvariantSnapshotHistory(
+      evidenceInvariantSnapshotHistoryFixture,
+    );
+
+    expect(summary).toEqual({
+      snapshotCount: 2,
+      latestSnapshotId: "snap_connector_evidence_20260627_1100",
+      totalInvariantCount: 6,
+      evidenceSurfaceCount: 4,
+      digestPrefixes: ["bbbbbbbbbbbb", "aaaaaaaaaaaa"],
     });
     expect(JSON.stringify(summary).toLowerCase()).not.toContain("private-endpoint://");
     expect(JSON.stringify(summary).toLowerCase()).not.toContain("vault://");
