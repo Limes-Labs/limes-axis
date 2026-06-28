@@ -246,6 +246,8 @@ Foundation acceptance is tracked in
   operations snapshot in the browser console.
 - [x] Add a live demo readiness check for the manufacturing operations
   snapshot contract.
+- [x] Add an API-backed demo readiness report for SME feedback and enterprise
+  evaluation walkthroughs.
 - [x] Allow the local Next.js demo console to hydrate from `127.0.0.1` for
   in-app Browser and local feedback sessions.
 - [x] Allow the API CORS contract to support the `3100` origins used by
@@ -315,8 +317,9 @@ check in `docs/demo-readiness.md` and
 Makefile targets, local self-hosted runtime services, critical OpenAPI routes,
 documentation links, optional live API/web endpoints, browser no-store CORS for
 dev and production-build demo origins, the persisted manufacturing operations
-snapshot contract and the Axis console brand shell. It is a demo readiness
-gate, not a production enterprise readiness claim.
+snapshot contract, the demo readiness report contract and the Axis console
+brand shell. It is a demo readiness gate, not a production enterprise readiness
+claim.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped
@@ -335,6 +338,12 @@ systems. The governance overview now consumes this snapshot alongside the
 overview reference endpoint, so the first screen shows persisted domain rollups,
 generated artifacts, active workflows, pending approvals and recent audit
 evidence instead of only the older overview reference payload.
+`GET /demo/manufacturing/demo-readiness` derives SME feedback and enterprise
+evaluation walkthrough readiness from the persisted operations snapshot. It
+returns tracks, evidence checks, production-readiness limitations, next actions
+and the `derived_from_persisted_demo_evidence` boundary. The governance
+overview consumes this endpoint in the browser, with no local readiness
+fallback records.
 `POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
 plant brief from those operation records, enforces `briefs:generate`,
 `audit:read` and `workflows:read`, writes

@@ -1,7 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const expectedApiBaseUrl = process.env.NEXT_PUBLIC_AXIS_API_BASE_URL ?? "http://localhost:8000";
-
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
     const root = document.documentElement;
@@ -46,7 +44,7 @@ async function expectAxisDarkShell(page: Page) {
   });
 
   expect(shell).toEqual({
-    axisBlack: "#111317",
+    axisBlack: "#070b10",
     colorScheme: "dark",
     signalBlue: "#3e6bff",
     brandDiamondColor: "rgb(62, 107, 255)",
@@ -60,19 +58,17 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "Operations control plane" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Overview API unavailable" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operations API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback overview records are disabled.")).toBeVisible();
     await expect(page.getByText("/demo/manufacturing/overview")).toBeVisible();
+    await expect(page.getByText("/demo/manufacturing/model-routing")).toBeVisible();
     await expect(page.getByText("Fallback demo seed")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Ravenna Works" })).toHaveCount(0);
-    await expect(page.getByText("API Status")).toBeVisible();
-    await expect(page.getByText("Control API")).toBeVisible();
-    await expect(page.locator(".api-status-panel").getByText("Unavailable")).toBeVisible();
-    await expect(page.getByText(expectedApiBaseUrl)).toBeVisible();
+    await expect(page.getByText("Live API")).toHaveCount(0);
+    await expect(page.getByText("API unavailable", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Refresh state" }).click();
-    await expect(page.locator(".api-status-panel").getByText("Unavailable")).toBeVisible();
+    await expect(page.getByText("API unavailable", { exact: true })).toBeVisible();
 
     await expectAxisDarkShell(page);
     await expectNoHorizontalOverflow(page);

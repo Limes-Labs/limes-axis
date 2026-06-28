@@ -330,6 +330,46 @@ def test_manufacturing_operations_snapshot_endpoint_returns_persisted_compositio
     assert body["pending_approvals"][0]["status"] == "pending"
 
 
+def test_manufacturing_demo_readiness_endpoint_reports_demo_ready_evidence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_snapshot_records(AxisPersistenceRepository(session))
+
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/demo-readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["readiness_status"] == "watch"
+    assert body["generation_boundary"] == "derived_from_persisted_demo_evidence"
+    assert body["summary"] == (
+        "Axis is ready for structured SME feedback and enterprise evaluation walkthroughs, "
+        "with production-readiness limits made explicit."
+    )
+    assert [track["name"] for track in body["tracks"]] == [
+        "SME feedback demo",
+        "Enterprise evaluation walkthrough",
+    ]
+    assert body["tracks"][0]["status"] == "ready"
+    assert body["tracks"][1]["status"] == "watch"
+
+    checks_by_id = {check["check_id"]: check for check in body["checks"]}
+    assert checks_by_id["operations_snapshot"]["status"] == "ready"
+    assert checks_by_id["operations_snapshot"]["observed_count"] == 2
+    assert checks_by_id["generated_artifacts"]["observed_count"] == 2
+    assert checks_by_id["human_approval_gates"]["observed_count"] == 1
+    assert checks_by_id["audit_evidence"]["observed_count"] >= 1
+    assert checks_by_id["production_readiness_limits"]["status"] == "watch"
+
+    assert "tenant_other" not in str(body)
+    assert "password" not in str(body).lower()
+    assert "secret" not in str(body).lower()
+
+
 def test_openapi_exposes_manufacturing_operations_snapshot_endpoint() -> None:
     client = TestClient(create_app())
     response = client.get("/openapi.json")
@@ -337,7 +377,9 @@ def test_openapi_exposes_manufacturing_operations_snapshot_endpoint() -> None:
     assert response.status_code == 200
     paths = response.json()["paths"]
     assert "/demo/manufacturing/operations/snapshot" in paths
+    assert "/demo/manufacturing/demo-readiness" in paths
     assert "get" in paths["/demo/manufacturing/operations/snapshot"]
+    assert "get" in paths["/demo/manufacturing/demo-readiness"]
 
 
 def test_manufacturing_operation_bootstrap_records_cover_operational_domains() -> None:

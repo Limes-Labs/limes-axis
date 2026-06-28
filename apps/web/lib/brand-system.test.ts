@@ -8,8 +8,8 @@ describe("Axis brand system", () => {
 
   it("uses the public Axis brand palette for the console shell", () => {
     expect(globalsCss).toContain("color-scheme: dark");
-    expect(globalsCss).toContain("--axis-black: #111317");
-    expect(globalsCss).toContain("--graphite: #262c35");
+    expect(globalsCss).toContain("--axis-black: #070b10");
+    expect(globalsCss).toContain("--graphite: #1c2530");
     expect(globalsCss).toContain("--cloud: #f7f8fa");
     expect(globalsCss).toContain("--mist: #dce2ea");
     expect(globalsCss).toContain("--signal-blue: #3e6bff");

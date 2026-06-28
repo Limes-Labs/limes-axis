@@ -63,6 +63,18 @@ Graphite surfaces, Signal Blue state emphasis, Teal Pulse success emphasis and
 compact operational cards. The visual layer is tested separately from the data
 contract so that brand changes do not reintroduce browser-local records.
 
+The overview also composes:
+
+```text
+GET /demo/manufacturing/demo-readiness
+```
+
+The readiness report is computed from the persisted manufacturing operations
+snapshot. It exposes SME feedback and enterprise evaluation tracks, evidence
+checks, explicit production-readiness limitations and next actions. It does not
+generate artifacts, query source systems, run connectors or rely on
+browser-local mock data.
+
 This is an API reference path, not a production data loading path. Future
 Platform work will replace remaining bootstrap records with tenant-scoped,
 authenticated API surfaces backed by Postgres, TypeDB and workflow state.

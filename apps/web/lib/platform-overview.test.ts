@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatOverviewTimestamp,
+  getDemoReadinessCounts,
+  getDemoReadinessPriorityStatus,
   getOperationsSnapshotStatus,
   getPersistedArtifactCount,
   platformStatusClass,
   platformStatusLabel,
   sortDomainSnapshotsByOperationalPriority,
+  type ManufacturingDemoReadinessReport,
   type ManufacturingOperationsSnapshot,
 } from "./platform-overview";
 
@@ -118,5 +121,58 @@ describe("platform overview helpers", () => {
       "Supply",
       "Maintenance",
     ]);
+  });
+
+  it("summarizes demo readiness checks for the overview console", () => {
+    const report: ManufacturingDemoReadinessReport = {
+      tenant_id: "tenant_demo_manufacturing",
+      plant_name: "Ravenna Works",
+      scenario: "Plant Operations Cockpit",
+      as_of: "2026-06-22T09:00:00+02:00",
+      readiness_status: "watch",
+      summary:
+        "Axis is ready for structured SME feedback and enterprise evaluation walkthroughs, with production-readiness limits made explicit.",
+      tracks: [
+        {
+          name: "SME feedback demo",
+          status: "ready",
+          detail: "Core operations demo evidence is present.",
+        },
+        {
+          name: "Enterprise evaluation walkthrough",
+          status: "watch",
+          detail: "Architecture evaluation is available, production limits remain explicit.",
+        },
+      ],
+      checks: [
+        {
+          check_id: "operations_snapshot",
+          label: "Persisted operations snapshot",
+          status: "ready",
+          observed_count: 2,
+          detail: "2 operation records across 2 domains.",
+          evidence_refs: ["erp:orders:PO-4812"],
+        },
+        {
+          check_id: "production_readiness_limits",
+          label: "Production readiness limits",
+          status: "watch",
+          observed_count: 4,
+          detail: "Enterprise production hardening remains open.",
+          evidence_refs: [],
+        },
+      ],
+      limitations: ["Not a production readiness claim."],
+      next_actions: ["Run the walkthrough with a design partner."],
+      generation_boundary: "derived_from_persisted_demo_evidence",
+      notes: ["No browser-local mock data is used."],
+    };
+
+    expect(getDemoReadinessCounts(report)).toEqual({
+      action_required: 0,
+      ready: 1,
+      watch: 1,
+    });
+    expect(getDemoReadinessPriorityStatus(report)).toBe("watch");
   });
 });

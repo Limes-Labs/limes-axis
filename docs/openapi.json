@@ -10600,6 +10600,158 @@
         "title": "ManufacturingConnectorSyncCheckpointRegistry",
         "type": "object"
       },
+      "ManufacturingDemoReadinessCheck": {
+        "properties": {
+          "check_id": {
+            "minLength": 1,
+            "title": "Check Id",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "observed_count": {
+            "minimum": 0.0,
+            "title": "Observed Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          }
+        },
+        "required": [
+          "check_id",
+          "label",
+          "status",
+          "observed_count",
+          "detail"
+        ],
+        "title": "ManufacturingDemoReadinessCheck",
+        "type": "object"
+      },
+      "ManufacturingDemoReadinessReport": {
+        "properties": {
+          "as_of": {
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ManufacturingDemoReadinessCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "generation_boundary": {
+            "minLength": 1,
+            "title": "Generation Boundary",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "next_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next Actions",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "readiness_status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/components/schemas/ManufacturingDemoReadinessTrack"
+            },
+            "title": "Tracks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "plant_name",
+          "scenario",
+          "as_of",
+          "readiness_status",
+          "summary",
+          "tracks",
+          "checks",
+          "generation_boundary"
+        ],
+        "title": "ManufacturingDemoReadinessReport",
+        "type": "object"
+      },
+      "ManufacturingDemoReadinessTrack": {
+        "properties": {
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "detail"
+        ],
+        "title": "ManufacturingDemoReadinessTrack",
+        "type": "object"
+      },
       "ManufacturingDomainSnapshot": {
         "properties": {
           "action_required_count": {
@@ -17395,6 +17547,110 @@
           }
         },
         "summary": "Manufacturing Connector Run Execute Sync",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/demo-readiness": {
+      "get": {
+        "operationId": "manufacturing_demo_readiness_demo_manufacturing_demo_readiness_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation_limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Operation Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workflow_limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Workflow Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "approval_limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Approval Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Artifact Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "audit_limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Audit Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingDemoReadinessReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Demo Readiness",
         "tags": [
           "demo"
         ]

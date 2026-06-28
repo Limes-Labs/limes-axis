@@ -142,6 +142,38 @@ export type ManufacturingOperationsSnapshot = {
   notes: string[];
 };
 
+export type ManufacturingDemoReadinessTrack = {
+  name: string;
+  status: PlatformStatus;
+  detail: string;
+};
+
+export type ManufacturingDemoReadinessCheck = {
+  check_id: string;
+  label: string;
+  status: PlatformStatus;
+  observed_count: number;
+  detail: string;
+  evidence_refs: string[];
+};
+
+export type ManufacturingDemoReadinessReport = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  as_of: string;
+  readiness_status: PlatformStatus;
+  summary: string;
+  tracks: ManufacturingDemoReadinessTrack[];
+  checks: ManufacturingDemoReadinessCheck[];
+  limitations: string[];
+  next_actions: string[];
+  generation_boundary: string;
+  notes: string[];
+};
+
+export type DemoReadinessCounts = Record<PlatformStatus, number>;
+
 export function platformStatusLabel(status: PlatformStatus): string {
   if (status === "action_required") {
     return "Action Required";
@@ -200,4 +232,35 @@ export function sortDomainSnapshotsByOperationalPriority(
 
     return left.domain.localeCompare(right.domain);
   });
+}
+
+export function getDemoReadinessCounts(
+  report: ManufacturingDemoReadinessReport,
+): DemoReadinessCounts {
+  return report.checks.reduce<DemoReadinessCounts>(
+    (counts, check) => ({
+      ...counts,
+      [check.status]: counts[check.status] + 1,
+    }),
+    {
+      action_required: 0,
+      ready: 0,
+      watch: 0,
+    },
+  );
+}
+
+export function getDemoReadinessPriorityStatus(
+  report: ManufacturingDemoReadinessReport,
+): PlatformStatus {
+  if (report.readiness_status === "action_required") {
+    return "action_required";
+  }
+
+  const counts = getDemoReadinessCounts(report);
+  if (counts.action_required > 0) {
+    return "action_required";
+  }
+
+  return report.readiness_status === "watch" || counts.watch > 0 ? "watch" : "ready";
 }

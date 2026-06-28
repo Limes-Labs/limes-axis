@@ -219,6 +219,36 @@ class ManufacturingOperationsSnapshot(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ManufacturingDemoReadinessTrack(BaseModel):
+    name: str = Field(min_length=1)
+    status: OverviewStatus
+    detail: str = Field(min_length=1)
+
+
+class ManufacturingDemoReadinessCheck(BaseModel):
+    check_id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    status: OverviewStatus
+    observed_count: int = Field(ge=0)
+    detail: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class ManufacturingDemoReadinessReport(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    as_of: str = Field(min_length=1)
+    readiness_status: OverviewStatus
+    summary: str = Field(min_length=1)
+    tracks: list[ManufacturingDemoReadinessTrack]
+    checks: list[ManufacturingDemoReadinessCheck]
+    limitations: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    generation_boundary: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
 class ManufacturingOperationQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     domain: str | None = Field(default=None, min_length=1)
@@ -704,6 +734,183 @@ def build_manufacturing_operations_snapshot(
             "Snapshot composes persisted operations, workflows, approvals and audit artifacts.",
             "It does not generate new briefs, scenarios, workflow signals or connector runs.",
             "No source-system query, model provider call or credential retrieval is performed.",
+        ],
+    )
+
+
+def _ready_if_has_records(count: int) -> OverviewStatus:
+    return OverviewStatus.READY if count > 0 else OverviewStatus.ACTION_REQUIRED
+
+
+def _watch_if_empty(count: int) -> OverviewStatus:
+    return OverviewStatus.READY if count > 0 else OverviewStatus.WATCH
+
+
+def _demo_readiness_status(checks: list[ManufacturingDemoReadinessCheck]) -> OverviewStatus:
+    if any(check.status == OverviewStatus.ACTION_REQUIRED for check in checks):
+        return OverviewStatus.ACTION_REQUIRED
+    if any(check.status == OverviewStatus.WATCH for check in checks):
+        return OverviewStatus.WATCH
+    return OverviewStatus.READY
+
+
+def _limited_evidence_refs(values: list[str]) -> list[str]:
+    return sorted({value for value in values if value})[:6]
+
+
+def build_manufacturing_demo_readiness_report(
+    repository: AxisPersistenceRepository,
+    query: ManufacturingOperationsSnapshotQuery,
+) -> ManufacturingDemoReadinessReport:
+    snapshot = build_manufacturing_operations_snapshot(repository, query)
+    operation_count = sum(domain.record_count for domain in snapshot.domain_snapshots)
+    generated_artifact_count = len(snapshot.latest_daily_briefs) + len(snapshot.risk_scenarios)
+    pending_gate_count = len(snapshot.pending_approvals)
+    audit_event_count = len(snapshot.recent_audit_events)
+    replay_ready_count = sum(1 for workflow in snapshot.active_workflows if workflow.replay_ready)
+
+    operation_evidence = _limited_evidence_refs(
+        [ref for domain in snapshot.domain_snapshots for ref in domain.evidence_refs]
+    )
+    generated_evidence = _limited_evidence_refs(
+        [brief.brief_id for brief in snapshot.latest_daily_briefs]
+        + [scenario.scenario_id for scenario in snapshot.risk_scenarios]
+    )
+    approval_evidence = _limited_evidence_refs(
+        [approval.approval_id for approval in snapshot.pending_approvals]
+    )
+    audit_evidence = _limited_evidence_refs(
+        [event.event_type for event in snapshot.recent_audit_events]
+    )
+
+    limitations = [
+        "Not a production readiness claim.",
+        "Enterprise HA, backup and restore are not yet acceptance-gated.",
+        "SSO/Keycloak hardening is not complete for customer production rollout.",
+        "S3/MinIO WORM retention and production KMS policy remain Enterprise work.",
+        (
+            "Live customer connector execution requires explicit credential, egress "
+            "and support runbooks."
+        ),
+    ]
+    checks = [
+        ManufacturingDemoReadinessCheck(
+            check_id="operations_snapshot",
+            label="Persisted operations snapshot",
+            status=_ready_if_has_records(operation_count),
+            observed_count=operation_count,
+            detail=(
+                f"{operation_count} operation records across "
+                f"{len(snapshot.domain_snapshots)} persisted domains."
+            ),
+            evidence_refs=operation_evidence,
+        ),
+        ManufacturingDemoReadinessCheck(
+            check_id="generated_artifacts",
+            label="Generated governed artifacts",
+            status=_ready_if_has_records(generated_artifact_count),
+            observed_count=generated_artifact_count,
+            detail="Daily briefs and risk scenarios are persisted and audit-backed.",
+            evidence_refs=generated_evidence,
+        ),
+        ManufacturingDemoReadinessCheck(
+            check_id="human_approval_gates",
+            label="Human approval gates",
+            status=_watch_if_empty(pending_gate_count),
+            observed_count=pending_gate_count,
+            detail=(
+                "Pending approval records prove the operations snapshot can show "
+                "human-in-the-loop control."
+            ),
+            evidence_refs=approval_evidence,
+        ),
+        ManufacturingDemoReadinessCheck(
+            check_id="audit_evidence",
+            label="Append-only audit evidence",
+            status=_ready_if_has_records(audit_event_count),
+            observed_count=audit_event_count,
+            detail=(
+                "Recent persisted audit events are available for walkthrough "
+                "and evidence review."
+            ),
+            evidence_refs=audit_evidence,
+        ),
+        ManufacturingDemoReadinessCheck(
+            check_id="workflow_replay",
+            label="Replay-aware workflow state",
+            status=OverviewStatus.READY if replay_ready_count > 0 else OverviewStatus.WATCH,
+            observed_count=replay_ready_count,
+            detail="Replay-ready active workflows are available when workflow state is pending.",
+            evidence_refs=_limited_evidence_refs(
+                [
+                    workflow.workflow_id
+                    for workflow in snapshot.active_workflows
+                    if workflow.replay_ready
+                ]
+            ),
+        ),
+        ManufacturingDemoReadinessCheck(
+            check_id="production_readiness_limits",
+            label="Production readiness limits",
+            status=OverviewStatus.WATCH,
+            observed_count=len(limitations),
+            detail=(
+                "Enterprise production gaps are explicit before design-partner "
+                "or buyer feedback."
+            ),
+            evidence_refs=[],
+        ),
+    ]
+    sme_check_ids = {
+        "operations_snapshot",
+        "generated_artifacts",
+        "human_approval_gates",
+        "audit_evidence",
+    }
+    sme_checks = [check for check in checks if check.check_id in sme_check_ids]
+    sme_status = _demo_readiness_status(sme_checks)
+    readiness_status = _demo_readiness_status(checks)
+
+    return ManufacturingDemoReadinessReport(
+        tenant_id=snapshot.tenant_id,
+        plant_name=snapshot.plant_name,
+        scenario=snapshot.scenario,
+        as_of=snapshot.as_of,
+        readiness_status=readiness_status,
+        summary=(
+            "Axis is ready for structured SME feedback and enterprise evaluation walkthroughs, "
+            "with production-readiness limits made explicit."
+        ),
+        tracks=[
+            ManufacturingDemoReadinessTrack(
+                name="SME feedback demo",
+                status=sme_status,
+                detail=(
+                    "Use for manufacturing operations, governance, approval and audit feedback "
+                    "when all core evidence checks are ready."
+                ),
+            ),
+            ManufacturingDemoReadinessTrack(
+                name="Enterprise evaluation walkthrough",
+                status=OverviewStatus.WATCH,
+                detail=(
+                    "Use for architecture and product evaluation while production deployment "
+                    "hardening remains explicit."
+                ),
+            ),
+        ],
+        checks=checks,
+        limitations=limitations,
+        next_actions=[
+            "Run the SME walkthrough against the local Docker-backed demo stack.",
+            "Collect workflow, approval and audit feedback from design partners.",
+            "Prioritize Enterprise hardening only after demo feedback confirms the buying path.",
+        ],
+        generation_boundary="derived_from_persisted_demo_evidence",
+        notes=[
+            "Readiness is computed from the persisted manufacturing operations snapshot.",
+            "The endpoint does not generate new artifacts, run connectors or query source systems.",
+            "No browser-local mock data is used.",
         ],
     )
 

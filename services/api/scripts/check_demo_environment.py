@@ -25,6 +25,7 @@ def required_openapi_paths() -> tuple[str, ...]:
         "/demo/manufacturing/workflows/runs",
         "/demo/manufacturing/operations",
         "/demo/manufacturing/operations/snapshot",
+        "/demo/manufacturing/demo-readiness",
         "/demo/manufacturing/operations/daily-brief",
         "/demo/manufacturing/operations/risk-scenarios/quality",
         "/demo/manufacturing/operations/risk-scenarios/maintenance",
@@ -275,6 +276,37 @@ def _fetch_operations_snapshot(api_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_demo_readiness_report(api_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/demo/manufacturing/demo-readiness",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            tracks = payload.get("tracks")
+            checks = payload.get("checks")
+            generation_boundary = payload.get("generation_boundary")
+            readiness_status = payload.get("readiness_status")
+            ok = (
+                200 <= response.status < 300
+                and payload.get("tenant_id") == "tenant_demo_manufacturing"
+                and isinstance(tracks, list)
+                and len(tracks) >= 2
+                and isinstance(checks, list)
+                and len(checks) >= 5
+                and readiness_status in {"ready", "watch", "action_required"}
+                and generation_boundary == "derived_from_persisted_demo_evidence"
+            )
+            if ok:
+                return True, f"HTTP {response.status}, {len(checks)} readiness checks"
+            return False, f"HTTP {response.status}, invalid demo readiness contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/demo/manufacturing/overview",
@@ -332,9 +364,13 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         health_ok, health_detail = _fetch_json(f"{normalized}/health")
         ready_ok, ready_detail = _fetch_json(f"{normalized}/ready")
         snapshot_ok, snapshot_detail = _fetch_operations_snapshot(normalized)
+        demo_readiness_ok, demo_readiness_detail = _fetch_demo_readiness_report(normalized)
         checks.append(CheckResult("live.api_health", health_ok, health_detail))
         checks.append(CheckResult("live.api_ready", ready_ok, ready_detail))
         checks.append(CheckResult("live.api_operations_snapshot", snapshot_ok, snapshot_detail))
+        checks.append(
+            CheckResult("live.api_demo_readiness", demo_readiness_ok, demo_readiness_detail)
+        )
         if web_url:
             for origin in _demo_cors_origins(web_url):
                 cors_ok, cors_detail = _fetch_cors_no_store_preflight(normalized, origin)
