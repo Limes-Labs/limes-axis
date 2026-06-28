@@ -18548,6 +18548,29 @@
         ]
       }
     },
+    "/identity/oidc/readiness": {
+      "get": {
+        "operationId": "oidc_readiness_identity_oidc_readiness_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Oidc Readiness Identity Oidc Readiness Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Readiness",
+        "tags": [
+          "system"
+        ]
+      }
+    },
     "/ready": {
       "get": {
         "operationId": "ready_ready_get",

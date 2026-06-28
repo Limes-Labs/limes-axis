@@ -20,6 +20,7 @@ def required_openapi_paths() -> tuple[str, ...]:
     return (
         "/health",
         "/ready",
+        "/identity/oidc/readiness",
         "/demo/manufacturing/overview",
         "/demo/manufacturing/workflows",
         "/demo/manufacturing/workflows/runs",
@@ -183,6 +184,7 @@ def check_demo_docs(repo_root: Path) -> list[CheckResult]:
             "SME feedback demo",
             "Enterprise evaluation demo",
             "No browser-local mock data",
+            "OIDC readiness",
             "Current limitations",
             "Acceptance checklist",
         )
@@ -365,6 +367,42 @@ def _fetch_demo_readiness_report(api_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_oidc_readiness_report(api_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/identity/oidc/readiness",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            checks = payload.get("checks")
+            token_binding = payload.get("token_binding")
+            body_text = json.dumps(payload, sort_keys=True).casefold()
+            ok = (
+                200 <= response.status < 300
+                and payload.get("status") in {"ready", "action_required"}
+                and isinstance(payload.get("enterprise_sso_ready"), bool)
+                and isinstance(payload.get("auth_required"), bool)
+                and payload.get("jwks_source") in {"configured", "derived_from_issuer"}
+                and isinstance(checks, list)
+                and len(checks) >= 6
+                and isinstance(token_binding, dict)
+                and "secret" not in body_text
+                and "password" not in body_text
+            )
+            if ok:
+                return True, (
+                    f"HTTP {response.status}, "
+                    f"{payload.get('status')} enterprise_sso_ready="
+                    f"{payload.get('enterprise_sso_ready')}"
+                )
+            return False, f"HTTP {response.status}, invalid OIDC readiness contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/demo/manufacturing/overview",
@@ -423,11 +461,15 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         ready_ok, ready_detail = _fetch_json(f"{normalized}/ready")
         snapshot_ok, snapshot_detail = _fetch_operations_snapshot(normalized)
         demo_readiness_ok, demo_readiness_detail = _fetch_demo_readiness_report(normalized)
+        oidc_readiness_ok, oidc_readiness_detail = _fetch_oidc_readiness_report(normalized)
         checks.append(CheckResult("live.api_health", health_ok, health_detail))
         checks.append(CheckResult("live.api_ready", ready_ok, ready_detail))
         checks.append(CheckResult("live.api_operations_snapshot", snapshot_ok, snapshot_detail))
         checks.append(
             CheckResult("live.api_demo_readiness", demo_readiness_ok, demo_readiness_detail)
+        )
+        checks.append(
+            CheckResult("live.api_oidc_readiness", oidc_readiness_ok, oidc_readiness_detail)
         )
         if web_url:
             for origin in _demo_cors_origins(web_url):

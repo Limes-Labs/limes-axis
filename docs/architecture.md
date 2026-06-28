@@ -222,6 +222,14 @@ and scopes used by mutation endpoints. Demo request-body actor fields remain
 available only as optional request metadata when OIDC auth is optional and no
 bearer token is supplied.
 
+The API exposes `/identity/oidc/readiness` as a public-safe SSO posture report.
+It reports whether bearer tokens are required, whether the issuer is HTTPS,
+whether JWKS is explicitly configured, whether asymmetric algorithms are used,
+which actor and tenant claims are bound and whether the current profile is
+enterprise SSO ready. It deliberately avoids returning tokens, secrets,
+passwords or raw JWKS material. `/ready` includes the same OIDC status as a
+short dependency summary.
+
 The governance console currently includes a local session bridge that stores a
 bearer token in browser session storage, decodes actor, tenant and scopes for
 the toolbar state, and attaches `Authorization: Bearer ...` to protected demo

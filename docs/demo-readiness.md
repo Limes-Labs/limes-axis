@@ -88,6 +88,15 @@ Run static and live checks after the API and web console are running:
 make demo-check-live
 ```
 
+The live check includes the OIDC readiness contract at
+`/identity/oidc/readiness`. The report is public-safe: it shows whether bearer
+tokens are required, whether the issuer is HTTPS, whether JWKS is explicitly
+configured, whether asymmetric algorithms are used and which actor/tenant
+claims are bound. It does not expose tokens, secrets, passwords or raw JWKS
+material. A local default profile can pass the demo contract while still
+showing `enterprise_sso_ready=false`; enterprise evaluation sessions should
+share that status honestly.
+
 Run browser smoke tests against the production Next.js build:
 
 ```bash
@@ -130,6 +139,8 @@ make demo-stack-down
       returns persisted tenant-scoped domain rollups.
 - [ ] `make demo-check-live` verifies the demo readiness report is derived
       from persisted demo evidence.
+- [ ] `make demo-check-live` verifies the OIDC readiness report is explicit,
+      public-safe and clear about whether enterprise SSO hardening is ready.
 - [ ] The console shell uses the Axis brand palette and passes browser checks
       for dark theme tokens, visible API-backed state and no horizontal
       overflow.
@@ -194,7 +205,8 @@ walkthrough, not a production readiness claim.
 Show:
 
 - The self-hosted local stack and absence of required managed services.
-- The OIDC/Keycloak direction and token-bound mutation paths.
+- The OIDC/Keycloak direction, token-bound mutation paths and OIDC readiness
+  report.
 - Tenant-scoped persisted reference records.
 - Append-only audit events, export manifests and signature evidence.
 - Deferred runtime boundaries for risky or external operations.
@@ -218,7 +230,9 @@ Confirm before the session:
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
-- Enterprise SSO hardening is not complete.
+- Enterprise SSO hardening now has an explicit API readiness profile, but full
+  authorization-code login, refresh, secure-cookie sessions, IdP onboarding
+  runbooks and production SSO operations are not complete.
 - WORM/object-store retention for enterprise audit exports is not complete.
 - Production support and operations runbooks are not complete.
 - External model-provider execution is disabled by default.
@@ -239,6 +253,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Manufacturing operations snapshot contract with persisted domain rollups.
 - Demo readiness report contract with tracks, checks and an explicit
   `derived_from_persisted_demo_evidence` boundary.
+- OIDC readiness report contract with public-safe identity configuration
+  status and no secret disclosure.
 - Optional live API and web checks when URLs are provided.
 
 The check is intentionally conservative. If a demo command, route or document

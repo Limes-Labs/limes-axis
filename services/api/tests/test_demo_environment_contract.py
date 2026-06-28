@@ -32,6 +32,7 @@ def test_demo_environment_declares_critical_demo_routes() -> None:
 
     assert "/health" in required_paths
     assert "/ready" in required_paths
+    assert "/identity/oidc/readiness" in required_paths
     assert "/demo/manufacturing/operations/snapshot" in required_paths
     assert "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests" in (
         required_paths
@@ -115,3 +116,31 @@ def test_demo_live_checks_include_demo_readiness_contract(monkeypatch) -> None:
     results = checker.run_live_checks("http://127.0.0.1:8000", None)
 
     assert any(result.name == "live.api_demo_readiness" for result in results)
+
+
+def test_demo_live_checks_include_oidc_readiness_contract(monkeypatch) -> None:
+    checker = load_check_module()
+
+    monkeypatch.setattr(checker, "_fetch_json", lambda _url: (True, "HTTP 200"))
+    monkeypatch.setattr(
+        checker,
+        "_fetch_operations_snapshot",
+        lambda _api_url: (True, "snapshot includes persisted operations"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_fetch_demo_readiness_report",
+        lambda _api_url: (True, "readiness derived from persisted evidence"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_fetch_oidc_readiness_report",
+        lambda _api_url: (True, "OIDC readiness is explicit"),
+        raising=False,
+    )
+
+    results = checker.run_live_checks("http://127.0.0.1:8000", None)
+
+    assert any(result.name == "live.api_oidc_readiness" for result in results)
