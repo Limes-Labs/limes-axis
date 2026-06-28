@@ -13,8 +13,8 @@ below passes on the demo machine.
 Axis is ready for an enterprise evaluation demo as an architecture and product
 workflow walkthrough when the same checklist passes and the limitations section
 is shared before the session. It is not yet a production enterprise deployment:
-Helm, backup/restore, SSO hardening, WORM retention and production operations
-runbooks remain tracked Enterprise work.
+Helm, production disaster recovery, SSO hardening, WORM retention and
+production operations runbooks remain tracked Enterprise work.
 
 ## No Browser-Local Mock Data
 
@@ -73,6 +73,15 @@ Run static demo checks:
 make demo-check
 ```
 
+Plan, capture or restore repeatable local demo state with the
+[`backup and restore runbook`](./backup-restore.md):
+
+```bash
+make demo-backup-plan
+make demo-backup-local
+AXIS_BACKUP_DIR=.axis/backups/<backup-id> make demo-restore-local
+```
+
 Run static and live checks after the API and web console are running:
 
 ```bash
@@ -106,6 +115,13 @@ make demo-stack-down
 - [ ] `make demo-api` starts FastAPI on `http://127.0.0.1:8000`.
 - [ ] `make demo-web` starts the Next.js console on `http://127.0.0.1:3000`.
 - [ ] `make demo-check` passes static repository checks.
+- [ ] `make demo-backup-plan` prints the local backup commands and artifacts
+      without touching local runtime state.
+- [ ] `make demo-backup-local` captures `postgres.dump`, `minio-data.tar.gz`,
+      `typedb-data.tar.gz` and a checksum manifest for the Docker Compose demo
+      stack.
+- [ ] `AXIS_BACKUP_DIR=.axis/backups/<backup-id> make demo-restore-local`
+      restores local demo state only after explicit confirmation in the target.
 - [ ] `make demo-check-live` passes `/health`, `/ready` and web home checks.
 - [ ] `make demo-check-live` passes the browser no-store CORS preflight used by
       API-required console pages, including the `3100` origins used by
@@ -199,7 +215,9 @@ Confirm before the session:
   response mapping, production relationship metadata, approval actions,
   workflow execution and replay are fully backed by real persistence paths.
 - Helm charts and production Kubernetes deployment guides are not complete.
-- Backup and restore procedures are not complete.
+- Local Docker Compose backup and restore procedures are available for
+  repeatable demos; production backup, restore, retention, HA and disaster
+  recovery procedures are not complete.
 - Enterprise SSO hardening is not complete.
 - WORM/object-store retention for enterprise audit exports is not complete.
 - Production support and operations runbooks are not complete.
@@ -210,9 +228,12 @@ Confirm before the session:
 The `services/api/scripts/check_demo_environment.py` script verifies:
 
 - Demo Makefile targets.
+- Local demo backup and restore Makefile targets.
 - Local Docker Compose runtime services.
 - Critical OpenAPI routes.
 - Demo readiness documentation and README links.
+- Backup and restore runbook commands, artifact names and destructive-restore
+  warning language.
 - Browser no-store CORS preflight for API-required console fetches across the
   local dev and Playwright production-build origins.
 - Manufacturing operations snapshot contract with persisted domain rollups.

@@ -114,6 +114,10 @@ pages. Static checks are available with `make demo-check`; once the API and web
 console are running, `make demo-check-live` verifies the live endpoints,
 browser no-store CORS for the dev and Playwright demo origins, and the
 persisted manufacturing operations snapshot used by the overview cockpit.
+Use [`docs/backup-restore.md`](./docs/backup-restore.md) to plan, capture and
+restore the local Docker Compose demo state with `pg_dump`, MinIO and TypeDB
+volume archives and checksum manifests. This is a repeatable demo runbook, not
+a production disaster recovery claim.
 The manufacturing overview, workflow console, approval inbox, audit explorer,
 model routing, ontology graph/detail, connector registry, agent registry and
 action registry API reference surfaces now read tenant-scoped

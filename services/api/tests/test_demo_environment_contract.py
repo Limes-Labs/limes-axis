@@ -38,6 +38,16 @@ def test_demo_environment_declares_critical_demo_routes() -> None:
     )
 
 
+def test_demo_static_checks_include_backup_restore_contract() -> None:
+    checker = load_check_module()
+
+    results = checker.run_static_checks(REPO_ROOT)
+    names = {result.name for result in results}
+
+    assert "makefile.backup_restore_targets" in names
+    assert "docs.backup_restore_runbook" in names
+
+
 def test_demo_live_checks_include_browser_no_store_cors_preflight(monkeypatch) -> None:
     checker = load_check_module()
     cors_origins: list[str] = []

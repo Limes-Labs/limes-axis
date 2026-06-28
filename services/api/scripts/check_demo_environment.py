@@ -100,6 +100,29 @@ def check_make_targets(repo_root: Path) -> list[CheckResult]:
     ]
 
 
+def check_backup_restore_targets(repo_root: Path) -> list[CheckResult]:
+    required_targets = {
+        "demo-backup-plan",
+        "demo-backup-local",
+        "demo-restore-local",
+    }
+    makefile = repo_root / "Makefile"
+    if not makefile.exists():
+        return [CheckResult("makefile.backup_restore_targets", False, "Makefile is missing.")]
+
+    targets = _make_targets(_read_text(makefile))
+    missing = sorted(required_targets - targets)
+    return [
+        CheckResult(
+            "makefile.backup_restore_targets",
+            not missing,
+            "backup and restore demo targets are present"
+            if not missing
+            else f"missing: {', '.join(missing)}",
+        )
+    ]
+
+
 def check_compose_services(repo_root: Path) -> list[CheckResult]:
     compose_file = repo_root / "infra" / "docker" / "docker-compose.yml"
     required_services = ("postgres", "typedb", "temporal", "temporal-ui", "minio", "keycloak")
@@ -208,13 +231,48 @@ def check_demo_docs(repo_root: Path) -> list[CheckResult]:
     return results
 
 
+def check_backup_restore_runbook(repo_root: Path) -> list[CheckResult]:
+    runbook_file = repo_root / "docs" / "backup-restore.md"
+    if not runbook_file.exists():
+        return [
+            CheckResult("docs.backup_restore_runbook", False, "docs/backup-restore.md is missing.")
+        ]
+
+    runbook_text = _read_text(runbook_file)
+    required_phrases = (
+        "demo-backup-plan",
+        "demo-backup-local",
+        "demo-restore-local",
+        "--confirm-restore",
+        "postgres.dump",
+        "minio-data.tar.gz",
+        "typedb-data.tar.gz",
+        "production disaster recovery",
+    )
+    normalized_runbook_text = runbook_text.casefold()
+    missing = [
+        phrase for phrase in required_phrases if phrase.casefold() not in normalized_runbook_text
+    ]
+    return [
+        CheckResult(
+            "docs.backup_restore_runbook",
+            not missing,
+            "backup and restore runbook is explicit"
+            if not missing
+            else f"missing phrases: {', '.join(missing)}",
+        )
+    ]
+
+
 def run_static_checks(repo_root: Path) -> list[CheckResult]:
     repo_root = repo_root.resolve()
     checks: list[CheckResult] = []
     checks.extend(check_make_targets(repo_root))
+    checks.extend(check_backup_restore_targets(repo_root))
     checks.extend(check_compose_services(repo_root))
     checks.extend(check_openapi_contract(repo_root))
     checks.extend(check_demo_docs(repo_root))
+    checks.extend(check_backup_restore_runbook(repo_root))
     return checks
 
 

@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify
+.PHONY: install lint test typecheck build-web openapi openapi-check test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
@@ -64,3 +64,13 @@ demo-check-live:
 	cd services/api && uv run python scripts/check_demo_environment.py --api-url http://127.0.0.1:8000 --web-url http://127.0.0.1:3000
 
 demo-verify: openapi-check demo-check
+
+demo-backup-plan:
+	cd services/api && uv run python scripts/demo_backup_restore.py --repo-root ../.. plan
+
+demo-backup-local:
+	cd services/api && uv run python scripts/demo_backup_restore.py --repo-root ../.. backup
+
+demo-restore-local:
+	@test -n "$(AXIS_BACKUP_DIR)" || (echo "Set AXIS_BACKUP_DIR=.axis/backups/<backup-id>"; exit 2)
+	cd services/api && uv run python scripts/demo_backup_restore.py --repo-root ../.. restore --backup-dir "$(AXIS_BACKUP_DIR)" --confirm-restore
