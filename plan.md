@@ -94,6 +94,8 @@ Foundation acceptance is tracked in
 - [x] Route ontology graph reads through a permission-aware query adapter with
   optional TypeDB read boundary.
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.
+- [x] Add a public-safe OIDC readiness report and `/ready` identity summary for
+  enterprise SSO posture checks.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Add self-hosted KMS-style ledger signature proof for audit export bundles.
@@ -781,7 +783,8 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add production backup, restore, retention and disaster recovery procedures.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
-- [ ] Add enterprise identity and SSO hardening.
+- [ ] Add enterprise identity and SSO hardening beyond the current OIDC
+  readiness/profile report.
 - [ ] Add security review and threat model documentation.
 - [ ] Add support and operations runbooks.
 

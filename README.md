@@ -84,6 +84,11 @@ token-bound API paths without a full production login flow. Ontology graph list
 reads now pass through an Axis query runtime boundary that can filter returned
 relationships by OIDC-derived scopes and can be switched from the deferred
 reference runtime to a TypeDB read boundary independently from graph mutations.
+The API also exposes a public-safe OIDC readiness report at
+`/identity/oidc/readiness`, and `/ready` includes a short identity summary, so
+demo and enterprise evaluation sessions can distinguish local OIDC demos from a
+profile configured for enterprise SSO without exposing tokens, passwords or raw
+JWKS material.
 The audit query slice reads persisted `audit_events` through a tenant-scoped API
 endpoint and the web console now requires API-backed audit/export records
 instead of constructing browser-local bundles. The audit retention/export slice adds a demo

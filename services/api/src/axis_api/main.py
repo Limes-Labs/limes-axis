@@ -538,6 +538,110 @@ def _oidc_jwks_url(settings: Settings) -> str:
     return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/certs"
 
 
+OIDC_ASYMMETRIC_ALGORITHMS = {
+    "RS256",
+    "RS384",
+    "RS512",
+    "ES256",
+    "ES384",
+    "ES512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "EdDSA",
+}
+
+
+def _readiness_check(
+    check_id: str,
+    ok: bool,
+    ready_detail: str,
+    action_detail: str,
+) -> dict[str, str]:
+    return {
+        "check_id": check_id,
+        "status": "ready" if ok else "action_required",
+        "detail": ready_detail if ok else action_detail,
+    }
+
+
+def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
+    algorithms = [str(algorithm) for algorithm in settings.oidc_algorithms]
+    has_asymmetric_algorithms = bool(algorithms) and all(
+        algorithm in OIDC_ASYMMETRIC_ALGORITHMS for algorithm in algorithms
+    )
+    checks = [
+        _readiness_check(
+            "auth_required",
+            settings.oidc_auth_required,
+            "OIDC bearer-token verification is required for protected API paths.",
+            "OIDC verification is optional; this is acceptable for local demos only.",
+        ),
+        _readiness_check(
+            "https_issuer",
+            settings.oidc_issuer.startswith("https://"),
+            "OIDC issuer uses HTTPS.",
+            "OIDC issuer is not HTTPS; use a TLS issuer for enterprise SSO.",
+        ),
+        _readiness_check(
+            "explicit_jwks_url",
+            bool(settings.oidc_jwks_url),
+            "JWKS URL is explicitly configured.",
+            "JWKS URL is derived from the issuer; configure it explicitly for enterprise SSO.",
+        ),
+        _readiness_check(
+            "asymmetric_algorithms",
+            has_asymmetric_algorithms,
+            "OIDC verifier accepts asymmetric signing algorithms only.",
+            "OIDC verifier must use asymmetric signing algorithms for enterprise SSO.",
+        ),
+        _readiness_check(
+            "tenant_claim",
+            bool(settings.oidc_tenant_claim),
+            "Tenant claim binding is configured.",
+            "Tenant claim binding is missing.",
+        ),
+        _readiness_check(
+            "actor_claim",
+            bool(settings.oidc_actor_claim),
+            "Actor claim binding is configured.",
+            "Actor claim binding is missing.",
+        ),
+    ]
+    enterprise_ready = all(check["status"] == "ready" for check in checks)
+    return {
+        "status": "ready" if enterprise_ready else "action_required",
+        "enterprise_sso_ready": enterprise_ready,
+        "auth_required": settings.oidc_auth_required,
+        "issuer": settings.oidc_issuer,
+        "audience": settings.oidc_audience,
+        "jwks_source": "configured" if settings.oidc_jwks_url else "derived_from_issuer",
+        "jwks_url_configured": bool(settings.oidc_jwks_url),
+        "jwks_cache_seconds": settings.oidc_jwks_cache_seconds,
+        "algorithms": algorithms,
+        "token_binding": {
+            "actor_claim": settings.oidc_actor_claim,
+            "tenant_claim": settings.oidc_tenant_claim,
+            "scope_sources": [
+                "scope",
+                "scp",
+                "realm_access.roles",
+                f"resource_access[{settings.oidc_audience}].roles",
+            ],
+        },
+        "checks": checks,
+    }
+
+
+def _oidc_readiness_summary(settings: Settings) -> dict[str, object]:
+    report = _oidc_readiness_report(settings)
+    return {
+        "oidc_auth_required": report["auth_required"],
+        "enterprise_sso_ready": report["enterprise_sso_ready"],
+        "readiness_status": report["status"],
+    }
+
+
 def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
     try:
         return bind_request_actor(
@@ -968,8 +1072,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "typedb_queries": resolved_settings.ontology_queries_enabled,
                 "temporal": bool(resolved_settings.temporal_address),
             },
+            "identity": _oidc_readiness_summary(resolved_settings),
             "external_model_egress_enabled": resolved_settings.external_model_egress_enabled,
         }
+
+    @app.get("/identity/oidc/readiness", tags=["system"])
+    def oidc_readiness() -> dict[str, object]:
+        return _oidc_readiness_report(resolved_settings)
 
     @app.get(
         "/demo/manufacturing/overview",
