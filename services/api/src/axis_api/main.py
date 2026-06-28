@@ -288,6 +288,10 @@ from axis_api.demo_reference import (
     DemoReferenceRecordNotFound,
     get_persisted_manufacturing_overview,
 )
+from axis_api.deployment_readiness import (
+    DeploymentReadinessReport,
+    build_deployment_readiness_report,
+)
 from axis_api.errors import AxisErrorCode
 from axis_api.identity import (
     ActorBindingError,
@@ -1079,6 +1083,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/identity/oidc/readiness", tags=["system"])
     def oidc_readiness() -> dict[str, object]:
         return _oidc_readiness_report(resolved_settings)
+
+    @app.get(
+        "/deployment/readiness",
+        response_model=DeploymentReadinessReport,
+        tags=["system"],
+    )
+    def deployment_readiness() -> DeploymentReadinessReport:
+        return build_deployment_readiness_report(
+            resolved_settings,
+            oidc_readiness_report=_oidc_readiness_report(resolved_settings),
+        )
 
     @app.get(
         "/demo/manufacturing/overview",

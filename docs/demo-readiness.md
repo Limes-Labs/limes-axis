@@ -103,6 +103,12 @@ material. A local default profile can pass the demo contract while still
 showing `enterprise_sso_ready=false`; enterprise evaluation sessions should
 share that status honestly.
 
+The live check also includes `/deployment/readiness`, which aggregates identity,
+external model egress, live connector execution, audit signing and object-store
+posture into explicit production blockers. The current local profile can be
+demo-safe while `production_ready=false`; that is intentional until enterprise
+deployment, S3/MinIO WORM retention and support runbooks are complete.
+
 Run browser smoke tests against the production Next.js build:
 
 ```bash
@@ -149,6 +155,8 @@ make demo-stack-down
       from persisted demo evidence.
 - [ ] `make demo-check-live` verifies the OIDC readiness report is explicit,
       public-safe and clear about whether enterprise SSO hardening is ready.
+- [ ] `make demo-check-live` verifies the deployment readiness report is
+      explicit, public-safe and clear about current production blockers.
 - [ ] The console shell uses the Axis brand palette and passes browser checks
       for dark theme tokens, visible API-backed state and no horizontal
       overflow.
@@ -265,6 +273,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   `derived_from_persisted_demo_evidence` boundary.
 - OIDC readiness report contract with public-safe identity configuration
   status and no secret disclosure.
+- Deployment readiness report contract with public-safe production blockers for
+  identity, external model egress, connector execution, audit signing and
+  object-store posture.
 - Threat model and security posture contract through `make security-check`.
 - Optional live API and web checks when URLs are provided.
 
