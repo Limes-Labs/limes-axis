@@ -785,7 +785,10 @@ def build_manufacturing_demo_readiness_report(
 
     limitations = [
         "Not a production readiness claim.",
-        "Enterprise HA, backup and restore are not yet acceptance-gated.",
+        (
+            "Local demo backup and restore are available; Enterprise HA and "
+            "disaster recovery are not yet acceptance-gated."
+        ),
         "SSO/Keycloak hardening is not complete for customer production rollout.",
         "S3/MinIO WORM retention and production KMS policy remain Enterprise work.",
         (

@@ -777,7 +777,8 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add single-tenant managed deployment path.
 - [ ] Add on-prem/private cloud reference architecture.
 - [ ] Add Helm charts and production deployment guides.
-- [ ] Add backup and restore procedures.
+- [x] Add local Docker Compose backup and restore procedures for repeatable demos.
+- [ ] Add production backup, restore, retention and disaster recovery procedures.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening.
