@@ -21,6 +21,7 @@ def required_openapi_paths() -> tuple[str, ...]:
         "/health",
         "/ready",
         "/identity/oidc/readiness",
+        "/deployment/readiness",
         "/demo/manufacturing/overview",
         "/demo/manufacturing/workflows",
         "/demo/manufacturing/workflows/runs",
@@ -403,6 +404,44 @@ def _fetch_oidc_readiness_report(api_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/deployment/readiness",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            checks = payload.get("checks")
+            capabilities = payload.get("capabilities")
+            blockers = payload.get("production_blockers")
+            body_text = json.dumps(payload, sort_keys=True).casefold()
+            ok = (
+                200 <= response.status < 300
+                and payload.get("status") in {"ready", "action_required"}
+                and isinstance(payload.get("production_ready"), bool)
+                and isinstance(payload.get("demo_safe"), bool)
+                and isinstance(blockers, list)
+                and isinstance(checks, list)
+                and len(checks) >= 5
+                and isinstance(capabilities, dict)
+                and capabilities.get("object_store_adapter") == "local_filesystem"
+                and "secret" not in body_text
+                and "password" not in body_text
+            )
+            if ok:
+                return True, (
+                    f"HTTP {response.status}, "
+                    f"{payload.get('profile')} production_ready="
+                    f"{payload.get('production_ready')}"
+                )
+            return False, f"HTTP {response.status}, invalid deployment readiness contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/demo/manufacturing/overview",
@@ -462,6 +501,9 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         snapshot_ok, snapshot_detail = _fetch_operations_snapshot(normalized)
         demo_readiness_ok, demo_readiness_detail = _fetch_demo_readiness_report(normalized)
         oidc_readiness_ok, oidc_readiness_detail = _fetch_oidc_readiness_report(normalized)
+        deployment_readiness_ok, deployment_readiness_detail = (
+            _fetch_deployment_readiness_report(normalized)
+        )
         checks.append(CheckResult("live.api_health", health_ok, health_detail))
         checks.append(CheckResult("live.api_ready", ready_ok, ready_detail))
         checks.append(CheckResult("live.api_operations_snapshot", snapshot_ok, snapshot_detail))
@@ -470,6 +512,13 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         )
         checks.append(
             CheckResult("live.api_oidc_readiness", oidc_readiness_ok, oidc_readiness_detail)
+        )
+        checks.append(
+            CheckResult(
+                "live.api_deployment_readiness",
+                deployment_readiness_ok,
+                deployment_readiness_detail,
+            )
         )
         if web_url:
             for origin in _demo_cors_origins(web_url):

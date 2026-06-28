@@ -88,7 +88,10 @@ The API also exposes a public-safe OIDC readiness report at
 `/identity/oidc/readiness`, and `/ready` includes a short identity summary, so
 demo and enterprise evaluation sessions can distinguish local OIDC demos from a
 profile configured for enterprise SSO without exposing tokens, passwords or raw
-JWKS material.
+JWKS material. `/deployment/readiness` adds a wider public-safe deployment
+posture report for identity, external model egress, live connector execution,
+audit signing and object-store readiness. It is a gate for evaluation and
+hardening work, not a production certification.
 The audit query slice reads persisted `audit_events` through a tenant-scoped API
 endpoint and the web console now requires API-backed audit/export records
 instead of constructing browser-local bundles. The audit retention/export slice adds a demo
@@ -117,8 +120,9 @@ and enterprise evaluation demo runbook. The demo path uses the local
 self-hosted stack, Alembic migrations, Axis API routes and API-required console
 pages. Static checks are available with `make demo-check`; once the API and web
 console are running, `make demo-check-live` verifies the live endpoints,
-browser no-store CORS for the dev and Playwright demo origins, and the
-persisted manufacturing operations snapshot used by the overview cockpit.
+browser no-store CORS for the dev and Playwright demo origins, OIDC readiness,
+deployment readiness and the persisted manufacturing operations snapshot used
+by the overview cockpit.
 Use [`docs/backup-restore.md`](./docs/backup-restore.md) to plan, capture and
 restore the local Docker Compose demo state with `pg_dump`, MinIO and TypeDB
 volume archives and checksum manifests. This is a repeatable demo runbook, not

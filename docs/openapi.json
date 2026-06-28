@@ -9270,6 +9270,149 @@
         "title": "DailyPlantBriefRequest",
         "type": "object"
       },
+      "DeploymentReadinessCapabilities": {
+        "properties": {
+          "audit_ledger_signing_configured": {
+            "title": "Audit Ledger Signing Configured",
+            "type": "boolean"
+          },
+          "connector_sync_execution_enabled": {
+            "title": "Connector Sync Execution Enabled",
+            "type": "boolean"
+          },
+          "credential_lease_execution_enabled": {
+            "title": "Credential Lease Execution Enabled",
+            "type": "boolean"
+          },
+          "credential_lease_provider_adapters_enabled": {
+            "title": "Credential Lease Provider Adapters Enabled",
+            "type": "boolean"
+          },
+          "external_db_live_query_preflight_enabled": {
+            "title": "External Db Live Query Preflight Enabled",
+            "type": "boolean"
+          },
+          "external_db_sync_execution_enabled": {
+            "title": "External Db Sync Execution Enabled",
+            "type": "boolean"
+          },
+          "external_model_egress_enabled": {
+            "title": "External Model Egress Enabled",
+            "type": "boolean"
+          },
+          "object_store_adapter": {
+            "minLength": 1,
+            "title": "Object Store Adapter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_model_egress_enabled",
+          "connector_sync_execution_enabled",
+          "external_db_sync_execution_enabled",
+          "external_db_live_query_preflight_enabled",
+          "credential_lease_execution_enabled",
+          "credential_lease_provider_adapters_enabled",
+          "audit_ledger_signing_configured",
+          "object_store_adapter"
+        ],
+        "title": "DeploymentReadinessCapabilities",
+        "type": "object"
+      },
+      "DeploymentReadinessCheck": {
+        "properties": {
+          "check_id": {
+            "minLength": 1,
+            "title": "Check Id",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "production_required": {
+            "title": "Production Required",
+            "type": "boolean"
+          },
+          "status": {
+            "pattern": "^(ready|action_required)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_id",
+          "status",
+          "production_required",
+          "detail"
+        ],
+        "title": "DeploymentReadinessCheck",
+        "type": "object"
+      },
+      "DeploymentReadinessReport": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/DeploymentReadinessCapabilities"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/DeploymentReadinessCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "demo_safe": {
+            "title": "Demo Safe",
+            "type": "boolean"
+          },
+          "environment": {
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "production_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Production Blockers",
+            "type": "array"
+          },
+          "production_ready": {
+            "title": "Production Ready",
+            "type": "boolean"
+          },
+          "profile": {
+            "minLength": 1,
+            "title": "Profile",
+            "type": "string"
+          },
+          "status": {
+            "pattern": "^(ready|action_required)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "environment",
+          "profile",
+          "production_ready",
+          "demo_safe",
+          "capabilities",
+          "production_blockers",
+          "checks"
+        ],
+        "title": "DeploymentReadinessReport",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -18520,6 +18663,27 @@
         "summary": "Manufacturing Persisted Workflow Runs",
         "tags": [
           "demo"
+        ]
+      }
+    },
+    "/deployment/readiness": {
+      "get": {
+        "operationId": "deployment_readiness_deployment_readiness_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReadinessReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Deployment Readiness",
+        "tags": [
+          "system"
         ]
       }
     },

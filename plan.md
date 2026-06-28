@@ -265,6 +265,8 @@ Foundation acceptance is tracked in
 - [x] Add repeatable demo environment runbook and automated readiness checks.
 - [x] Add initial security review and threat model documentation with automated
   security posture checks.
+- [x] Add a public-safe deployment readiness posture report with explicit
+  production blockers.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -787,6 +789,8 @@ audit writes from live route decisions remain Platform work.
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
   readiness/profile report.
+- [x] Add deployment readiness profile reporting for identity, egress,
+  connector execution, audit signing and object-store posture.
 - [x] Add initial security review and threat model documentation.
 - [ ] Add external security review, penetration testing and production threat
   model validation.
