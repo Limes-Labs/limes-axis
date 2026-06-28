@@ -123,6 +123,10 @@ Use [`docs/backup-restore.md`](./docs/backup-restore.md) to plan, capture and
 restore the local Docker Compose demo state with `pg_dump`, MinIO and TypeDB
 volume archives and checksum manifests. This is a repeatable demo runbook, not
 a production disaster recovery claim.
+Use [`docs/threat-model.md`](./docs/threat-model.md) and `make security-check`
+for the current repository-grounded security review baseline. It covers assets,
+trust boundaries, abuse paths, existing controls and open enterprise hardening
+risks; it is not a production certification.
 The manufacturing overview, workflow console, approval inbox, audit explorer,
 model routing, ontology graph/detail, connector registry, agent registry and
 action registry API reference surfaces now read tenant-scoped
@@ -445,6 +449,7 @@ Architecture and acceptance notes:
 - [`docs/platform-simulation.md`](./docs/platform-simulation.md)
 - [`docs/platform-manufacturing-operations.md`](./docs/platform-manufacturing-operations.md)
 - [`docs/platform-connectors.md`](./docs/platform-connectors.md)
+- [`docs/threat-model.md`](./docs/threat-model.md)
 
 Reference examples:
 

@@ -73,6 +73,12 @@ Run static demo checks:
 make demo-check
 ```
 
+Run the security posture and threat model contract:
+
+```bash
+make security-check
+```
+
 Plan, capture or restore repeatable local demo state with the
 [`backup and restore runbook`](./backup-restore.md):
 
@@ -124,6 +130,8 @@ make demo-stack-down
 - [ ] `make demo-api` starts FastAPI on `http://127.0.0.1:8000`.
 - [ ] `make demo-web` starts the Next.js console on `http://127.0.0.1:3000`.
 - [ ] `make demo-check` passes static repository checks.
+- [ ] `make security-check` passes the threat model and security posture
+      contract for the current repository state.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
       without touching local runtime state.
 - [ ] `make demo-backup-local` captures `postgres.dump`, `minio-data.tar.gz`,
@@ -207,6 +215,8 @@ Show:
 - The self-hosted local stack and absence of required managed services.
 - The OIDC/Keycloak direction, token-bound mutation paths and OIDC readiness
   report.
+- The current threat model, including assets, trust boundaries, abuse paths,
+  existing controls and open production hardening work.
 - Tenant-scoped persisted reference records.
 - Append-only audit events, export manifests and signature evidence.
 - Deferred runtime boundaries for risky or external operations.
@@ -255,6 +265,7 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   `derived_from_persisted_demo_evidence` boundary.
 - OIDC readiness report contract with public-safe identity configuration
   status and no secret disclosure.
+- Threat model and security posture contract through `make security-check`.
 - Optional live API and web checks when URLs are provided.
 
 The check is intentionally conservative. If a demo command, route or document

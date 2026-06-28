@@ -263,6 +263,8 @@ Foundation acceptance is tracked in
   connector registry, agent registry and action registry with persisted,
   tenant-scoped bootstrap records.
 - [x] Add repeatable demo environment runbook and automated readiness checks.
+- [x] Add initial security review and threat model documentation with automated
+  security posture checks.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -785,7 +787,9 @@ audit writes from live route decisions remain Platform work.
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
   readiness/profile report.
-- [ ] Add security review and threat model documentation.
+- [x] Add initial security review and threat model documentation.
+- [ ] Add external security review, penetration testing and production threat
+  model validation.
 - [ ] Add support and operations runbooks.
 
 ## Expansion Rule
