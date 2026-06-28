@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { OidcSessionBridge } from "@/components/oidc-session-bridge";
 import { getApiBaseUrl } from "@/lib/api-status";
 import {
   countBlockedModelRoutes,
@@ -864,7 +863,6 @@ export function PlatformOverview() {
           >
             <RefreshCw size={17} />
           </button>
-          <OidcSessionBridge />
         </div>
       </section>
 
@@ -884,6 +882,8 @@ export function PlatformOverview() {
             <ApprovalQueue overview={overview} />
             <AuditObservability snapshot={operationsSnapshot} />
           </div>
+
+          <ModelRoutingStrip routing={modelRouting} />
 
           <section className="ops-panel readiness-panel">
             <div className="ops-panel-header">
@@ -920,8 +920,6 @@ export function PlatformOverview() {
               ))}
             </div>
           </section>
-
-          <ModelRoutingStrip routing={modelRouting} />
         </main>
 
         <aside className="ops-right-rail" aria-label="Operations side rail">
