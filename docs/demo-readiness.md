@@ -112,6 +112,8 @@ make demo-stack-down
       production-build Playwright checks.
 - [ ] `make demo-check-live` verifies the manufacturing operations snapshot
       returns persisted tenant-scoped domain rollups.
+- [ ] `make demo-check-live` verifies the demo readiness report is derived
+      from persisted demo evidence.
 - [ ] The console shell uses the Axis brand palette and passes browser checks
       for dark theme tokens, visible API-backed state and no horizontal
       overflow.
@@ -122,6 +124,8 @@ make demo-stack-down
 - [ ] The overview page loads from `/demo/manufacturing/overview`.
 - [ ] The overview page composes `/demo/manufacturing/operations/snapshot` into
       the first-screen operational cockpit.
+- [ ] The overview page composes `/demo/manufacturing/demo-readiness` into the
+      first-screen feedback readiness panel.
 - [ ] The ontology page loads from `/demo/manufacturing/ontology`.
 - [ ] The workflow page loads from `/demo/manufacturing/workflows`.
 - [ ] The approval inbox loads from `/demo/manufacturing/approvals`.
@@ -133,6 +137,8 @@ make demo-stack-down
 - [ ] The connectors page loads from `/demo/manufacturing/connectors`.
 - [ ] The manufacturing operations snapshot loads from
       `/demo/manufacturing/operations/snapshot`.
+- [ ] The demo readiness report loads from
+      `/demo/manufacturing/demo-readiness`.
 - [ ] A daily plant brief can be generated with persisted audit evidence.
 - [ ] Quality, maintenance and supplier risk scenarios can be generated with
       persisted audit evidence.
@@ -210,6 +216,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Browser no-store CORS preflight for API-required console fetches across the
   local dev and Playwright production-build origins.
 - Manufacturing operations snapshot contract with persisted domain rollups.
+- Demo readiness report contract with tracks, checks and an explicit
+  `derived_from_persisted_demo_evidence` boundary.
 - Optional live API and web checks when URLs are provided.
 
 The check is intentionally conservative. If a demo command, route or document

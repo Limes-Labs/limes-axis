@@ -39,7 +39,7 @@ export type AuditEvent = {
 };
 
 export const navigationItems: NavigationItem[] = [
-  { href: "/", label: "Overview", icon: "gauge" },
+  { href: "/", label: "Operations", icon: "gauge" },
   { href: "/ontology", label: "Ontology", icon: "network" },
   { href: "/workflows", label: "Workflows", icon: "workflow" },
   { href: "/agents", label: "Agents", icon: "bot" },

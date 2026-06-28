@@ -14,6 +14,7 @@ connector surfaces.
 ```text
 GET /demo/manufacturing/operations
 GET /demo/manufacturing/operations/snapshot
+GET /demo/manufacturing/demo-readiness
 POST /demo/manufacturing/operations/daily-brief
 POST /demo/manufacturing/operations/risk-scenarios/quality
 POST /demo/manufacturing/operations/risk-scenarios/maintenance
@@ -91,6 +92,12 @@ generated daily briefs and risk scenarios, active workflows, pending approvals
 and recent audit evidence from Postgres-backed records instead of browser-local
 fallback data.
 
+The demo readiness report is a read-only composition derived from the same
+operations snapshot. It summarizes SME feedback readiness, enterprise
+evaluation walkthrough readiness, evidence checks and production-readiness
+limitations. It stores no new rows and does not replace the production
+hardening roadmap.
+
 ## Boundaries
 
 This slice gives Axis a persisted operational dataset to query and compose into
@@ -133,3 +140,7 @@ The live demo checker validates that
 persisted domain rollups, metrics and
 `persisted_manufacturing_operations_snapshot` generation boundary before a
 feedback session relies on the overview cockpit.
+
+The same checker validates that `/demo/manufacturing/demo-readiness` returns
+tracks, checks and the `derived_from_persisted_demo_evidence` boundary before a
+feedback session relies on the readiness panel.

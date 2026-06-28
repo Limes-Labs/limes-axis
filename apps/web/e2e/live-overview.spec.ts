@@ -42,16 +42,22 @@ test.describe("Axis live overview demo", () => {
 
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "Ravenna Works" })).toBeVisible();
-    await expect(page.getByText("API-backed control plane")).toBeVisible();
-    await expect(
-      page.locator(".overview-meta").getByText("Operations snapshot", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Persisted plant state" })).toBeVisible();
-    await expect(page.getByText("Generated Artifacts")).toBeVisible();
-    await expect(page.getByText("Pending Gates")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    await expect(page.locator(".ops-page-subtitle")).toContainText("Ravenna Works");
+    await expect(page.getByText("Live API", { exact: true })).toBeVisible();
+    await expect(page.getByText("Evidence present", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Domain graph" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Human-gated flow" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
+    await expect(page.getByText("Risk signals")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Persisted routing posture" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Feedback environment" })).toBeVisible();
+    await expect(page.getByText("SME feedback demo", { exact: true })).toBeVisible();
+    await expect(page.getByText("Enterprise evaluation walkthrough", { exact: true })).toBeVisible();
+    await expect(page.getByText("governed artifacts")).toBeVisible();
+    await expect(page.getByText("Approval gate")).toBeVisible();
     await expect(page.getByText("Local fallback overview records are disabled.")).toHaveCount(0);
-    await expect(page.getByText("Overview API unavailable")).toHaveCount(0);
+    await expect(page.getByText("Operations API unavailable")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
