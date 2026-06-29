@@ -138,7 +138,10 @@ for the first Kubernetes/Helm deployment baseline. The chart in
 `infra/helm/limes-axis` deploys the API and web console around operator-supplied
 images and externally managed Postgres, TypeDB, Temporal, OIDC and object-store
 dependencies. It is an evaluation and hardening baseline, not a production
-certification.
+certification. Use `make container-check`, `make container-build-api` and
+`make container-build-web` for the first local API/web container image build
+baseline; image provenance, signing and registry release automation remain
+Enterprise hardening work.
 Use [`docs/threat-model.md`](./docs/threat-model.md) and `make security-check`
 for the current repository-grounded security review baseline. It covers assets,
 trust boundaries, abuse paths, existing controls and open enterprise hardening

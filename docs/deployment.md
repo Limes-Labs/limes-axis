@@ -5,7 +5,8 @@ Limes Axis open core. It is a self-hostable package for enterprise evaluation,
 cluster planning and future hardening. It is not a production certification.
 
 The chart lives in `infra/helm/limes-axis` and currently deploys only the Axis
-API and web console. Production operators must supply container images and the
+API and web console. The repository includes local API and web image builds,
+while production operators must still supply signed, published images and the
 external services that the open core depends on.
 
 ## Scope
@@ -20,10 +21,12 @@ The baseline covers:
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
+- Local API and web Dockerfile baselines.
 
 The baseline does not yet cover:
 
-- Production image build and release automation.
+- Production registry release automation.
+- Image provenance, signing and SBOM publication.
 - High availability validation under load.
 - Horizontal autoscaling and disruption budgets.
 - TLS ingress and certificate automation.
@@ -48,6 +51,28 @@ The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
 Docker Compose stack remains the local demo path; Kubernetes production
 operators should bring hardened dependencies that match their infrastructure
 policy.
+
+## Container Images
+
+The repository includes local container image baselines:
+
+```bash
+make container-check
+make container-build-api
+make container-build-web
+```
+
+`services/api/Dockerfile` builds the FastAPI service with `uv`, installs only
+production Python dependencies, runs as UID `10001`, exposes port `8000` and
+uses the API `/health` route as a container healthcheck.
+
+`apps/web/Dockerfile` builds the Next.js console with `pnpm`, installs
+production Node dependencies for runtime, runs as UID `10001`, exposes port
+`3000` and uses the web home route as a container healthcheck.
+
+These local builds are useful for hardening the Helm path and for evaluation
+clusters. They are not image provenance, signing, SBOM publication or registry
+release automation.
 
 ## Runtime Secrets
 
@@ -97,8 +122,8 @@ helm upgrade --install limes-axis infra/helm/limes-axis \
   --set api.env.AXIS_OIDC_JWKS_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/certs
 ```
 
-The repository does not yet include production image build automation or
-Dockerfiles, so image coordinates must point to images built by the operator or
+The repository includes local Dockerfiles, but production image coordinates
+should point to images built, scanned, signed and published by the operator or
 a future Axis release pipeline.
 
 ## Verification
@@ -107,6 +132,7 @@ Run the static repository deployment check:
 
 ```bash
 make deployment-check
+make container-check
 ```
 
 After a cluster install, verify Kubernetes state and API readiness:
@@ -128,6 +154,7 @@ hardened.
 Before customer production use, the deployment package must add and verify:
 
 - production image build and provenance.
+- registry publication, image signing and SBOM generation.
 - TLS ingress and secure cookie/session behavior.
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.
