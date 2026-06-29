@@ -142,8 +142,11 @@ certification. Use `make container-check`, `make container-build-api` and
 `make container-build-web` for the first local API/web container image build
 baseline; image provenance, signing and registry release automation remain
 Enterprise hardening work. Use `make container-release-check` for the first
-GHCR release workflow baseline: it verifies the tag/manual release path,
-keyless signing, SBOM and provenance boundaries before future release runs.
+GHCR release workflow baseline: it verifies the tag/manual build path, manual
+publish evidence gate, keyless signing, SBOM and provenance boundaries before
+future release runs. Image publication now requires a release approval issue,
+a rollback plan issue, a rollback drill id and an explicit rollback-plan
+acknowledgement.
 Use `make container-security-check` for the container vulnerability scanning
 policy baseline and `make container-scan-local` to run the same Trivy
 CRITICAL/fixed-vulnerability gate against local API and web images, with JSON

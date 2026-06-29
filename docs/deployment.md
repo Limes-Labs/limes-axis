@@ -22,8 +22,8 @@ The baseline covers:
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
 - Local API and web Dockerfile baselines.
-- GHCR container release workflow with SBOM, keyless signing and provenance
-  attestations for tag or manually approved release runs.
+- GHCR container release workflow with SBOM, keyless signing, provenance
+  attestations and an evidence gate for manually approved publish runs.
 - Container vulnerability scanning policy baseline for API and web images.
 - Vulnerability management baseline with SARIF publication and expiring
   exception policy.
@@ -90,9 +90,17 @@ The workflow builds both public images:
 - `ghcr.io/${{ github.repository_owner }}/limes-axis-web`
 
 It runs on `v*` Git tags and can also be started manually with
-`workflow_dispatch`. Manual runs default to build-only mode; setting the
-`push` input to `true` publishes images to GHCR. Published images use GitHub
-OIDC for keyless signing through cosign, BuildKit `sbom: true`, BuildKit
+`workflow_dispatch`. Tag pushes and default manual runs are build-only checks;
+they do not publish images to GHCR. Publishing is only allowed from a manual
+run where `push=true` and the operator supplies a release approval issue, a
+rollback plan issue, a rollback drill identifier and
+`rollback_plan_acknowledged=true`.
+
+The promotion evidence gate checks that the approval and rollback issue URLs
+belong to `Limes-Labs/limes-axis`, verifies them with `gh issue view`, requires
+a non-empty rollback drill id and blocks publication if the rollback plan has
+not been explicitly acknowledged. Published images use GitHub OIDC for keyless
+signing through cosign, BuildKit `sbom: true`, BuildKit
 `provenance: mode=max`, and GitHub registry-backed build provenance
 attestations.
 
@@ -103,9 +111,10 @@ make container-release-check
 ```
 
 This baseline is intended to make release artifacts inspectable and
-repeatable. It is not a production certification: registry retention policy,
-promotion approvals, vulnerability exception lifecycle, long-term SBOM archival
-and customer-specific deployment gates still need production hardening.
+repeatable. It is not a production certification: GitHub environment reviewer
+protection, registry retention policy, vulnerability exception lifecycle,
+long-term SBOM archival, periodic rollback drill operations and
+customer-specific deployment gates still need production hardening.
 
 ## Container Vulnerability Scanning
 
@@ -162,9 +171,9 @@ make vulnerability-management-check
 ```
 
 This is a real vulnerability scan gate, but it is not a production
-certification. Enterprise hardening still needs enforced release promotion
-approvals, operational exception review meetings, registry retention, release
-rollback criteria and customer-specific deployment gates.
+certification. Enterprise hardening still needs GitHub environment reviewer
+protection, operational exception review meetings, registry retention,
+release rollback criteria and customer-specific deployment gates.
 
 ## Runtime Secrets
 
@@ -248,9 +257,9 @@ hardened.
 
 Before customer production use, the deployment package must add and verify:
 
-- promotion approval rules for production image release.
+- release approval issue and reviewer rules for production image release.
 - registry retention and long-term SBOM archive.
-- enforced release promotion approvals and rollback drills.
+- enforced release promotion approvals and recurring rollback drills.
 - operational review cadence for high-severity findings and expiring
   vulnerability exceptions.
 - TLS ingress and secure cookie/session behavior.

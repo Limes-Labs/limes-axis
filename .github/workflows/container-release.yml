@@ -12,6 +12,23 @@ on:
         description: Optional additional image tag for manual releases
         required: false
         type: string
+      release_approval_issue:
+        description: GitHub issue URL containing release approval evidence
+        required: false
+        type: string
+      rollback_plan_issue:
+        description: GitHub issue URL containing rollback plan evidence
+        required: false
+        type: string
+      rollback_drill_id:
+        description: Identifier for the latest rollback drill or rehearsal
+        required: false
+        type: string
+      rollback_plan_acknowledged:
+        description: Confirm the rollback plan has been reviewed before publishing
+        required: true
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -41,11 +58,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate promotion evidence
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_APPROVAL_ISSUE: ${{ inputs.release_approval_issue }}
+          ROLLBACK_PLAN_ISSUE: ${{ inputs.rollback_plan_issue }}
+          ROLLBACK_DRILL_ID: ${{ inputs.rollback_drill_id }}
+          ROLLBACK_PLAN_ACKNOWLEDGED: ${{ inputs.rollback_plan_acknowledged }}
+        run: |
+          set -euo pipefail
+          issue_pattern='^https://github\.com/Limes-Labs/limes-axis/issues/[0-9]+$'
+          if [[ ! "${RELEASE_APPROVAL_ISSUE}" =~ ${issue_pattern} ]]; then
+            echo "release_approval_issue must be a limes-axis GitHub issue URL" >&2
+            exit 1
+          fi
+          if [[ ! "${ROLLBACK_PLAN_ISSUE}" =~ ${issue_pattern} ]]; then
+            echo "rollback_plan_issue must be a limes-axis GitHub issue URL" >&2
+            exit 1
+          fi
+          if [[ -z "${ROLLBACK_DRILL_ID}" ]]; then
+            echo "rollback_drill_id is required for publishing" >&2
+            exit 1
+          fi
+          if [[ "${ROLLBACK_PLAN_ACKNOWLEDGED}" != "true" ]]; then
+            echo "rollback_plan_acknowledged must be true for publishing" >&2
+            exit 1
+          fi
+          gh issue view "$RELEASE_APPROVAL_ISSUE" --json number,state,title,url >/tmp/release-approval.json
+          gh issue view "$ROLLBACK_PLAN_ISSUE" --json number,state,title,url >/tmp/rollback-plan.json
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v4.1.0
 
       - name: Login to GHCR
-        if: ${{ github.event_name == 'push' || inputs.push == true }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         uses: docker/login-action@v4.2.0
         with:
           registry: ghcr.io
@@ -74,24 +121,24 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' || inputs.push == true }}
+          push: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: mode=max
           sbom: true
 
       - name: Install cosign
-        if: ${{ github.event_name == 'push' || inputs.push == true }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         uses: sigstore/cosign-installer@v4.1.2
 
       - name: Sign image digest
-        if: ${{ github.event_name == 'push' || inputs.push == true }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         env:
           IMAGE_DIGEST_REF: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${IMAGE_DIGEST_REF}"
 
       - name: Attest build provenance
-        if: ${{ github.event_name == 'push' || inputs.push == true }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         uses: actions/attest-build-provenance@v4.1.1
         with:
           subject-name: ${{ matrix.image }}
