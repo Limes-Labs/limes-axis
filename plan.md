@@ -274,11 +274,13 @@ Foundation acceptance is tracked in
 - [x] Add container release provenance, signing and SBOM workflow baseline.
 - [x] Add release promotion evidence and rollback drill gate for container
   publication.
+- [x] Add a GitHub Environment reviewer hook for governed container publish
+  runs without blocking build-only tag checks.
 - [x] Add container vulnerability scanning policy baseline.
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA, TLS ingress, GitHub environment reviewer protection,
+- [ ] Add production HA, TLS ingress, GitHub environment reviewer settings,
   operational vulnerability review cadence, external-secret, backup/restore,
   S3/MinIO WORM retention and cluster operations hardening.
 
@@ -355,15 +357,18 @@ baseline is still not image provenance, signing or registry release automation.
 The container release supply-chain baseline now includes
 `.github/workflows/container-release.yml`, `make container-release-check` and
 `services/api/scripts/check_container_release.py`. The workflow builds the API
-and web images for GHCR, supports build-only tag and manual runs, and only
-publishes from a manual `workflow_dispatch` run with `push=true`. Publish runs
-must include a release approval issue, a rollback plan issue, a rollback drill
-id and `rollback_plan_acknowledged=true`; the workflow verifies the issue URLs
-with `gh issue view` before logging into GHCR. Published digests use BuildKit
-SBOM and provenance attestations and GitHub OIDC keyless signing. This is still
-not a production deployment certification: GitHub environment reviewer
-protection, registry retention, recurring rollback drill operations and
-long-term SBOM archival remain Enterprise hardening work.
+and web images for GHCR through a build-only `build-images` job for tag and
+default manual runs. Publish runs are separate: `validate-promotion-evidence`
+requires a release approval issue, a rollback plan issue, a rollback drill id
+and `rollback_plan_acknowledged=true`, then verifies the issue URLs with
+`gh issue view`; `publish-images` depends on that evidence gate and declares
+the `axis-container-release` GitHub Environment so repository administrators
+can attach required reviewer settings to publication without blocking build-only
+checks. Published digests use BuildKit SBOM and provenance attestations and
+GitHub OIDC keyless signing. This is still not a production deployment
+certification: GitHub environment reviewer settings, registry retention,
+recurring rollback drill operations and long-term SBOM archival remain
+Enterprise hardening work.
 The container vulnerability scanning baseline now includes
 `.github/workflows/container-security.yml`, `make container-security-check`,
 `make container-scan-local` and

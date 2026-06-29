@@ -23,7 +23,8 @@ The baseline covers:
 - Public-safe install notes and local readiness checks.
 - Local API and web Dockerfile baselines.
 - GHCR container release workflow with SBOM, keyless signing, provenance
-  attestations and an evidence gate for manually approved publish runs.
+  attestations, build-only checks and a GitHub Environment reviewer protection
+  hook for manually approved publish runs.
 - Container vulnerability scanning policy baseline for API and web images.
 - Vulnerability management baseline with SARIF publication and expiring
   exception policy.
@@ -90,19 +91,27 @@ The workflow builds both public images:
 - `ghcr.io/${{ github.repository_owner }}/limes-axis-web`
 
 It runs on `v*` Git tags and can also be started manually with
-`workflow_dispatch`. Tag pushes and default manual runs are build-only checks;
-they do not publish images to GHCR. Publishing is only allowed from a manual
-run where `push=true` and the operator supplies a release approval issue, a
-rollback plan issue, a rollback drill identifier and
-`rollback_plan_acknowledged=true`.
+`workflow_dispatch`. Tag pushes and default manual runs execute the
+`build-images` job only; they do not publish images to GHCR.
 
-The promotion evidence gate checks that the approval and rollback issue URLs
-belong to `Limes-Labs/limes-axis`, verifies them with `gh issue view`, requires
-a non-empty rollback drill id and blocks publication if the rollback plan has
-not been explicitly acknowledged. Published images use GitHub OIDC for keyless
-signing through cosign, BuildKit `sbom: true`, BuildKit
-`provenance: mode=max`, and GitHub registry-backed build provenance
-attestations.
+Publishing is split into a separate governed path. The
+`validate-promotion-evidence` job runs only for a manual run where `push=true`
+and checks that the operator supplied a release approval issue, the required
+rollback plan issue evidence, a rollback drill identifier and
+`rollback_plan_acknowledged=true`. The
+gate checks that the approval and rollback issue URLs belong to
+`Limes-Labs/limes-axis`, verifies them with `gh issue view`, requires a
+non-empty rollback drill id and blocks publication if the rollback plan has not
+been explicitly acknowledged.
+
+The `publish-images` job depends on the evidence gate and declares the
+`axis-container-release` GitHub Environment. Repository administrators must
+configure required reviewers on that environment before production use; the
+workflow declaration provides the hook for GitHub Environment reviewer
+protection without forcing reviewer approval for build-only tag checks.
+Published images use GitHub OIDC for keyless signing through cosign, BuildKit
+`sbom: true`, BuildKit `provenance: mode=max`, and GitHub registry-backed build
+provenance attestations.
 
 Validate the release workflow contract locally with:
 
@@ -112,7 +121,7 @@ make container-release-check
 
 This baseline is intended to make release artifacts inspectable and
 repeatable. It is not a production certification: GitHub environment reviewer
-protection, registry retention policy, vulnerability exception lifecycle,
+settings, registry retention policy, vulnerability exception lifecycle,
 long-term SBOM archival, periodic rollback drill operations and
 customer-specific deployment gates still need production hardening.
 
@@ -172,8 +181,8 @@ make vulnerability-management-check
 
 This is a real vulnerability scan gate, but it is not a production
 certification. Enterprise hardening still needs GitHub environment reviewer
-protection, operational exception review meetings, registry retention,
-release rollback criteria and customer-specific deployment gates.
+settings, operational exception review meetings, registry retention, release
+rollback criteria and customer-specific deployment gates.
 
 ## Runtime Secrets
 
@@ -257,7 +266,7 @@ hardened.
 
 Before customer production use, the deployment package must add and verify:
 
-- release approval issue and reviewer rules for production image release.
+- release approval issue and reviewer settings for production image release.
 - registry retention and long-term SBOM archive.
 - enforced release promotion approvals and recurring rollback drills.
 - operational review cadence for high-severity findings and expiring

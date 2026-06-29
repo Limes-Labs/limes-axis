@@ -40,8 +40,8 @@ permissions:
   attestations: write
 
 jobs:
-  release-images:
-    name: Build and release ${{ matrix.component }} image
+  build-images:
+    name: Build ${{ matrix.component }} image
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -58,8 +58,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4.1.0
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6.1.0
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=ref,event=tag
+            type=sha,prefix=git-
+            type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
+          labels: |
+            org.opencontainers.image.title=Limes Axis ${{ matrix.component }}
+            org.opencontainers.image.description=The sovereign AI control plane for European operations
+            org.opencontainers.image.vendor=Limes Labs
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+
+  validate-promotion-evidence:
+    name: Validate promotion evidence
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
+    needs: build-images
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Validate promotion evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_APPROVAL_ISSUE: ${{ inputs.release_approval_issue }}
@@ -88,11 +125,32 @@ jobs:
           gh issue view "$RELEASE_APPROVAL_ISSUE" --json number,state,title,url >/tmp/release-approval.json
           gh issue view "$ROLLBACK_PLAN_ISSUE" --json number,state,title,url >/tmp/rollback-plan.json
 
+  publish-images:
+    name: Publish governed ${{ matrix.component }} image
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
+    needs: validate-promotion-evidence
+    runs-on: ubuntu-latest
+    environment:
+      name: axis-container-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            image: ghcr.io/${{ github.repository_owner }}/limes-axis-api
+            dockerfile: services/api/Dockerfile
+          - component: web
+            image: ghcr.io/${{ github.repository_owner }}/limes-axis-web
+            dockerfile: apps/web/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v4.1.0
 
       - name: Login to GHCR
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         uses: docker/login-action@v4.2.0
         with:
           registry: ghcr.io
@@ -114,7 +172,7 @@ jobs:
             org.opencontainers.image.vendor=Limes Labs
             org.opencontainers.image.licenses=Apache-2.0
 
-      - name: Build image
+      - name: Build and publish image
         id: build
         uses: docker/build-push-action@v7.2.0
         with:
@@ -128,17 +186,14 @@ jobs:
           sbom: true
 
       - name: Install cosign
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         uses: sigstore/cosign-installer@v4.1.2
 
       - name: Sign image digest
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         env:
           IMAGE_DIGEST_REF: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${IMAGE_DIGEST_REF}"
 
       - name: Attest build provenance
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
         uses: actions/attest-build-provenance@v4.1.1
         with:
           subject-name: ${{ matrix.image }}

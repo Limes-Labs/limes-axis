@@ -31,6 +31,12 @@ def required_workflow_terms() -> tuple[str, ...]:
         "workflow_dispatch",
         "push:",
         '"v*"',
+        "build-images:",
+        "validate-promotion-evidence:",
+        "publish-images:",
+        "needs: build-images",
+        "environment:",
+        "name: axis-container-release",
         "release_approval_issue",
         "rollback_plan_issue",
         "rollback_drill_id",
@@ -64,6 +70,8 @@ def required_docs_terms() -> tuple[str, ...]:
         "release approval issue",
         "rollback plan issue",
         "rollback drill",
+        "GitHub Environment reviewer protection",
+        "axis-container-release",
         "not a production certification",
     )
 
