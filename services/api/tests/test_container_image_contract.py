@@ -53,6 +53,9 @@ def test_container_image_package_declares_runtime_boundaries() -> None:
     assert "EXPOSE 3000" in web_terms
     assert "USER 10001" in web_terms
     assert "HEALTHCHECK" in web_terms
+    assert "rm -rf /usr/local/lib/node_modules/npm" in web_terms
+    assert "/usr/local/bin/npm" in web_terms
+    assert "/usr/local/bin/npx" in web_terms
 
 
 def test_container_docs_and_targets_are_tracked() -> None:

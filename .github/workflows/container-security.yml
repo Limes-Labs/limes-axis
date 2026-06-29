@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/container-security.yml"
+      - ".github/vulnerability-exceptions.json"
       - ".dockerignore"
       - "services/api/Dockerfile"
       - "apps/web/Dockerfile"
@@ -15,6 +16,7 @@ on:
       - main
     paths:
       - ".github/workflows/container-security.yml"
+      - ".github/vulnerability-exceptions.json"
       - ".dockerignore"
       - "services/api/Dockerfile"
       - "apps/web/Dockerfile"
@@ -25,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   trivy-image-scan:
@@ -45,6 +48,29 @@ jobs:
 
       - name: Build image for scan
         run: docker build -f ${{ matrix.dockerfile }} -t limes-axis-${{ matrix.component }}:scan .
+
+      - name: Generate SARIF vulnerability report
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: image
+          image-ref: limes-axis-${{ matrix.component }}:scan
+          version: v0.71.2
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          vuln-type: os,library
+          scanners: vuln
+          format: sarif
+          output: trivy-${{ matrix.component }}.sarif
+          limit-severities-for-sarif: true
+          exit-code: "0"
+          timeout: 10m
+
+      - name: Upload SARIF vulnerability report
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e
+        with:
+          sarif_file: trivy-${{ matrix.component }}.sarif
+          category: trivy-${{ matrix.component }}
 
       - name: Scan image for critical fixed vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25

@@ -37,7 +37,8 @@ ENV HOSTNAME=0.0.0.0 \
     PORT=3000
 
 RUN groupadd --system --gid 10001 axis \
-    && useradd --system --uid 10001 --gid axis --home-dir /app --shell /usr/sbin/nologin axis
+    && useradd --system --uid 10001 --gid axis --home-dir /app --shell /usr/sbin/nologin axis \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=prod-deps --chown=axis:axis /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=prod-deps --chown=axis:axis /app/node_modules ./node_modules

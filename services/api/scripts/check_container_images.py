@@ -44,6 +44,9 @@ def required_web_dockerfile_terms() -> tuple[str, ...]:
         "EXPOSE 3000",
         "USER 10001",
         "HEALTHCHECK",
+        "rm -rf /usr/local/lib/node_modules/npm",
+        "/usr/local/bin/npm",
+        "/usr/local/bin/npx",
     )
 
 

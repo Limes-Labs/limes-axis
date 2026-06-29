@@ -93,6 +93,9 @@ jobs:
       - name: Check container security scan package
         run: make container-security-check
 
+      - name: Check vulnerability management package
+        run: make vulnerability-management-check
+
       - name: Install worker dependencies
         working-directory: services/worker
         run: uv sync --locked
