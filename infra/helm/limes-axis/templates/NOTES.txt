@@ -1,0 +1,23 @@
+Limes Axis has been installed as {{ include "limes-axis.fullname" . }}.
+
+This chart deploys the Axis API and web console only. It expects production
+operators to provide external Postgres, TypeDB, Temporal, OIDC and object-store
+dependencies through values and Kubernetes Secrets.
+
+Required runtime secret:
+  {{ .Values.secrets.existingSecret }}
+
+Required secret keys:
+  AXIS_POSTGRES_DSN
+  AXIS_TYPEDB_USERNAME
+  AXIS_TYPEDB_PASSWORD
+  AXIS_AUDIT_LEDGER_SIGNING_SECRET
+
+Post-install checks:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "limes-axis.fullname" . }}-api 8000:{{ .Values.api.service.port }}
+  curl http://127.0.0.1:8000/ready
+
+This baseline is not a production certification. Complete HA, backup/restore,
+TLS ingress, external secret management, S3/MinIO WORM retention and operations
+runbooks before production customer use.

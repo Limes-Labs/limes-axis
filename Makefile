@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check security-check test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
+.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
@@ -40,6 +40,9 @@ openapi-check:
 
 security-check:
 	cd services/api && uv run python scripts/check_security_posture.py
+
+deployment-check:
+	cd services/api && uv run python scripts/check_deployment_package.py
 
 dev-stack-up:
 	docker compose -f infra/docker/docker-compose.yml up -d

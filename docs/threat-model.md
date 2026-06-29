@@ -27,6 +27,8 @@ In scope:
 - `apps/web`: API-required Next.js governance console.
 - `infra/docker`: local self-hosted Postgres, TypeDB, Temporal, MinIO and
   Keycloak runtime.
+- `infra/helm/limes-axis`: initial Kubernetes/Helm deployment baseline for API
+  and web workloads around externally managed dependencies.
 - `docs` and root Makefile checks that define demo and security posture.
 
 Out of scope for this initial model:
@@ -66,6 +68,8 @@ Evidence anchors:
 - `services/api/src/axis_api/main.py` mounts the API routes and OIDC verifier.
 - `services/api/scripts/check_demo_environment.py` verifies the local demo
   readiness contract.
+- `services/api/scripts/check_deployment_package.py` verifies the initial Helm
+  package and public deployment guide contract.
 
 ## System Model
 
@@ -244,13 +248,17 @@ flowchart LR
 | `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |
 | `apps/web/e2e/smoke.spec.ts` | Guards API-required UI behavior and prevents fallback data | TM-006 |
 | `infra/docker/docker-compose.yml` | Local runtime topology and exposed service ports | TM-006 |
+| `infra/helm/limes-axis` | Kubernetes deployment baseline, external dependency wiring and secret references | TM-006 |
 | `docs/demo-readiness.md` | Demo limitations and enterprise evaluation framing | TM-006 |
 | `docs/backup-restore.md` | Local demo backup boundary and non-production DR warning | TM-006 |
+| `docs/deployment.md` | Helm baseline, external Postgres/OIDC/object-store dependencies and production hardening gates | TM-006 |
 
 ## Review Cadence
 
 - Run `make security-check` before PRs that change identity, permissions,
   connectors, audit, model routing, deployment, backup/restore or demo claims.
+- Run `make deployment-check` before PRs that change `infra/helm/limes-axis`,
+  production deployment docs or Kubernetes readiness claims.
 - Review this document after each merged enterprise hardening slice.
 - Re-run the threat model before connecting customer production systems,
   enabling live connector execution or claiming production deployment readiness.

@@ -1,0 +1,140 @@
+# Deployment Baseline
+
+This page defines the first Kubernetes and Helm deployment baseline for the
+Limes Axis open core. It is a self-hostable package for enterprise evaluation,
+cluster planning and future hardening. It is not a production certification.
+
+The chart lives in `infra/helm/limes-axis` and currently deploys only the Axis
+API and web console. Production operators must supply container images and the
+external services that the open core depends on.
+
+## Scope
+
+The baseline covers:
+
+- API deployment and service.
+- Web console deployment and service.
+- ConfigMap for public-safe runtime configuration.
+- Kubernetes Secret reference for sensitive runtime values.
+- Example Secret template disabled by default.
+- Service account and pod security context.
+- Initial NetworkPolicy for ingress and egress shaping.
+- Public-safe install notes and local readiness checks.
+
+The baseline does not yet cover:
+
+- Production image build and release automation.
+- High availability validation under load.
+- Horizontal autoscaling and disruption budgets.
+- TLS ingress and certificate automation.
+- Sealed Secrets, External Secrets Operator or cloud KMS binding.
+- Production backup, restore and disaster recovery.
+- S3/MinIO WORM retention, legal hold operations and provider KMS policy.
+- Cluster observability, alerting and on-call runbooks.
+
+## Dependencies
+
+Axis remains self-hostable and does not require managed services, but the Helm
+chart expects production-grade dependencies to be provided outside the chart:
+
+- external Postgres with `AXIS_POSTGRES_DSN` stored in a Kubernetes Secret.
+- TypeDB reachable through `AXIS_TYPEDB_ADDRESS`.
+- Temporal OSS reachable through `AXIS_TEMPORAL_ADDRESS`.
+- OIDC provider, normally Keycloak or an enterprise IdP, with issuer, audience
+  and JWKS URL configured.
+- S3-compatible object storage for governed export paths.
+
+The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
+Docker Compose stack remains the local demo path; Kubernetes production
+operators should bring hardened dependencies that match their infrastructure
+policy.
+
+## Runtime Secrets
+
+The chart uses `secrets.existingSecret` for sensitive values. The default name
+is `limes-axis-runtime`.
+
+Required keys:
+
+- `AXIS_POSTGRES_DSN`
+- `AXIS_TYPEDB_USERNAME`
+- `AXIS_TYPEDB_PASSWORD`
+- `AXIS_AUDIT_LEDGER_SIGNING_SECRET`
+
+Do not put customer secrets in `values.yaml`. Use an external secret manager,
+sealed secret workflow or platform-specific KMS integration before production
+use. The disabled example Secret uses
+`REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE` placeholders so accidental demo
+secrets are not shipped as chart defaults.
+
+## Install
+
+Create or sync the runtime Secret before installing the chart:
+
+```bash
+kubectl create namespace limes-axis
+kubectl -n limes-axis create secret generic limes-axis-runtime \
+  --from-literal=AXIS_POSTGRES_DSN='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_TYPEDB_USERNAME='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_TYPEDB_PASSWORD='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_AUDIT_LEDGER_SIGNING_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE'
+```
+
+Install or upgrade the release:
+
+```bash
+helm upgrade --install limes-axis infra/helm/limes-axis \
+  --namespace limes-axis \
+  --create-namespace \
+  --set api.image.repository=ghcr.io/limes-labs/limes-axis-api \
+  --set api.image.tag=0.1.0 \
+  --set web.image.repository=ghcr.io/limes-labs/limes-axis-web \
+  --set web.image.tag=0.1.0 \
+  --set api.env.AXIS_PUBLIC_BASE_URL=https://axis.example.com \
+  --set api.env.AXIS_API_BASE_URL=https://api.axis.example.com \
+  --set web.env.NEXT_PUBLIC_AXIS_API_BASE_URL=https://api.axis.example.com \
+  --set api.env.AXIS_OIDC_ISSUER=https://keycloak.example.com/realms/axis \
+  --set api.env.AXIS_OIDC_JWKS_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/certs
+```
+
+The repository does not yet include production image build automation or
+Dockerfiles, so image coordinates must point to images built by the operator or
+a future Axis release pipeline.
+
+## Verification
+
+Run the static repository deployment check:
+
+```bash
+make deployment-check
+```
+
+After a cluster install, verify Kubernetes state and API readiness:
+
+```bash
+kubectl -n limes-axis get pods,svc
+kubectl -n limes-axis port-forward svc/limes-axis-api 8000:8000
+curl http://127.0.0.1:8000/ready
+curl http://127.0.0.1:8000/deployment/readiness
+```
+
+The readiness endpoint should be shared honestly during enterprise evaluation.
+It may report `production_ready=false` until OIDC, audit signing, connector
+execution, object storage, S3/MinIO WORM retention and support operations are
+hardened.
+
+## Promotion Gate
+
+Before customer production use, the deployment package must add and verify:
+
+- production image build and provenance.
+- TLS ingress and secure cookie/session behavior.
+- high availability, autoscaling and upgrade rollback tests.
+- backup, restore and disaster recovery runbooks.
+- External Secrets or equivalent integration.
+- S3/MinIO WORM retention and KMS-backed audit signing.
+- production observability and incident response runbooks.
+- cluster-specific threat review and penetration test scope.
+
+Until those items are complete, this chart is an evaluation and hardening
+baseline, not a production-ready enterprise deployment.
