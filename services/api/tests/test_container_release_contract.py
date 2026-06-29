@@ -41,6 +41,24 @@ def test_container_release_workflow_declares_supply_chain_boundaries() -> None:
     assert "cosign sign --yes" in required_terms
 
 
+def test_container_release_workflow_requires_promotion_and_rollback_evidence() -> None:
+    checker = load_check_module()
+
+    required_terms = checker.required_workflow_terms()
+
+    assert "release_approval_issue" in required_terms
+    assert "rollback_plan_issue" in required_terms
+    assert "rollback_drill_id" in required_terms
+    assert "rollback_plan_acknowledged" in required_terms
+    assert "Validate promotion evidence" in required_terms
+    assert "gh issue view \"$RELEASE_APPROVAL_ISSUE\"" in required_terms
+    assert "gh issue view \"$ROLLBACK_PLAN_ISSUE\"" in required_terms
+    assert (
+        "push: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}"
+        in required_terms
+    )
+
+
 def test_container_release_permissions_are_keyless_and_registry_scoped() -> None:
     checker = load_check_module()
 
@@ -60,4 +78,7 @@ def test_container_release_docs_track_remaining_enterprise_gaps() -> None:
     assert "container-release-check" in required_terms
     assert "keyless signing" in required_terms
     assert "SBOM" in required_terms
+    assert "release approval issue" in required_terms
+    assert "rollback plan issue" in required_terms
+    assert "rollback drill" in required_terms
     assert "not a production certification" in required_terms

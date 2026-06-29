@@ -31,6 +31,13 @@ def required_workflow_terms() -> tuple[str, ...]:
         "workflow_dispatch",
         "push:",
         '"v*"',
+        "release_approval_issue",
+        "rollback_plan_issue",
+        "rollback_drill_id",
+        "rollback_plan_acknowledged",
+        "Validate promotion evidence",
+        "gh issue view \"$RELEASE_APPROVAL_ISSUE\"",
+        "gh issue view \"$ROLLBACK_PLAN_ISSUE\"",
         "ghcr.io/${{ github.repository_owner }}/limes-axis-api",
         "ghcr.io/${{ github.repository_owner }}/limes-axis-web",
         "docker/setup-buildx-action@v4.1.0",
@@ -41,6 +48,7 @@ def required_workflow_terms() -> tuple[str, ...]:
         "sigstore/cosign-installer@v4.1.2",
         "provenance: mode=max",
         "sbom: true",
+        "push: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}",
         "cosign sign --yes",
         "push-to-registry: true",
     )
@@ -53,6 +61,9 @@ def required_docs_terms() -> tuple[str, ...]:
         "keyless signing",
         "SBOM",
         "provenance",
+        "release approval issue",
+        "rollback plan issue",
+        "rollback drill",
         "not a production certification",
     )
 
