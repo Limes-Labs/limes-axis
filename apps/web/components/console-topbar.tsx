@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Bell, CircleHelp, RefreshCw, Search, ShieldCheck } from "lucide-react";
 
+import { ConsoleCommandMenu } from "@/components/console-command-menu";
 import { OidcSessionBridge } from "@/components/oidc-session-bridge";
 import { useConsole } from "@/providers/console-provider";
 
@@ -25,6 +28,31 @@ export function ConsoleTopbar({
   evidenceLabel?: string;
 }) {
   const { apiStatus, triggerRefresh } = useConsole();
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isTextInput =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandMenuOpen(true);
+        return;
+      }
+
+      if (!isTextInput && event.key === "/") {
+        event.preventDefault();
+        setCommandMenuOpen(true);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <header className="ops-topbar" aria-label="Console status bar">
@@ -56,25 +84,44 @@ export function ConsoleTopbar({
         >
           <RefreshCw size={17} />
         </button>
-        <button className="ops-icon-button" type="button" aria-label="Search" title="Search">
-          <Search size={17} />
-        </button>
         <button
           className="ops-icon-button"
           type="button"
-          aria-label="Notifications"
-          title="Notifications"
+          aria-label="Search console"
+          title="Search console"
+          onClick={() => setCommandMenuOpen(true)}
+        >
+          <Search size={17} />
+        </button>
+        <Link
+          className="ops-icon-button"
+          aria-label="Open audit notifications"
+          href="/audit"
+          title="Open audit notifications"
         >
           <Bell size={17} />
-        </button>
-        <button className="ops-icon-button" type="button" aria-label="Help" title="Help">
+        </Link>
+        <a
+          className="ops-icon-button"
+          aria-label="Open Axis docs"
+          href="https://github.com/Limes-Labs/limes-axis/tree/main/docs"
+          rel="noreferrer"
+          target="_blank"
+          title="Open Axis docs"
+        >
           <CircleHelp size={17} />
-        </button>
+        </a>
         <OidcSessionBridge />
         <span className="ops-user-chip" aria-label="Operator role">
           OP
         </span>
       </div>
+      <ConsoleCommandMenu
+        apiLabel={apiStatus.label}
+        onClose={() => setCommandMenuOpen(false)}
+        onRefresh={triggerRefresh}
+        open={commandMenuOpen}
+      />
     </header>
   );
 }

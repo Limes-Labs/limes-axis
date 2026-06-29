@@ -75,6 +75,30 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("keeps shell utilities actionable without mock controls", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.getByRole("link", { name: "Open audit notifications" })).toHaveAttribute(
+      "href",
+      "/audit",
+    );
+    await expect(page.getByRole("link", { name: "Open Axis docs" })).toHaveAttribute(
+      "href",
+      "https://github.com/Limes-Labs/limes-axis/tree/main/docs",
+    );
+
+    await page.getByRole("button", { name: "Search console" }).click();
+    await expect(page.getByRole("dialog", { name: "Console command menu" })).toBeVisible();
+    await page.getByLabel("Search console commands").fill("audit");
+    await expect(page.getByRole("link", { name: /Open audit stream/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Console command menu" })).toHaveCount(0);
+
+    await expect(page.getByRole("combobox", { name: "Environment" })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Evidence window" })).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("keeps navigation and requires agent/action APIs on mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");

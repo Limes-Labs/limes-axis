@@ -779,12 +779,8 @@ export function PlatformOverview() {
           </p>
         </div>
         <div className="ops-controls" aria-label="Operations controls">
-          <select aria-label="Environment">
-            <option>Demo tenant</option>
-          </select>
-          <select aria-label="Evidence window">
-            <option>Latest evidence</option>
-          </select>
+          <span className="control-chip">Demo tenant</span>
+          <span className="control-chip">Latest evidence</span>
           <button
             className="ops-icon-button"
             type="button"
@@ -816,7 +812,7 @@ export function PlatformOverview() {
 
           <ModelRoutingStrip routing={modelRouting} />
 
-          <section className="ops-panel readiness-panel">
+          <section className="ops-panel readiness-panel" id="readiness">
             <div className="ops-panel-header">
               <div>
                 <p className="section-label">Demo readiness</p>
