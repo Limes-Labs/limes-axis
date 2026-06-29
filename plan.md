@@ -273,10 +273,11 @@ Foundation acceptance is tracked in
 - [x] Add buildable API and web container image baseline.
 - [x] Add container release provenance, signing and SBOM workflow baseline.
 - [x] Add container vulnerability scanning policy baseline.
+- [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA, TLS ingress, release promotion approvals,
-  vulnerability exception lifecycle, external-secret, backup/restore,
+- [ ] Add production HA, TLS ingress, enforced release promotion approvals,
+  operational vulnerability review cadence, external-secret, backup/restore,
   S3/MinIO WORM retention and cluster operations hardening.
 
 The browser governance console no longer ships local overview fallback records.
@@ -345,8 +346,10 @@ S3/MinIO WORM retention are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
 `make container-build-api` and `make container-build-web`. These images are
-locally buildable and align with the Helm defaults, but they are not image
-provenance, signing or registry release automation.
+locally buildable and align with the Helm defaults. The web runtime stage
+removes the bundled `npm`/`npx` package-manager surface from the final image
+because production starts through the app-local Next.js binary. The container
+baseline is still not image provenance, signing or registry release automation.
 The container release supply-chain baseline now includes
 `.github/workflows/container-release.yml`, `make container-release-check` and
 `services/api/scripts/check_container_release.py`. The workflow builds the API
@@ -366,6 +369,18 @@ to the v0.36.0 commit SHA. The local scan writes JSON evidence under
 not a production vulnerability management program: `HIGH` escalation, exception
 expiry, SARIF publication, registry retention and promotion-review policy remain
 Enterprise hardening work.
+The vulnerability management baseline now adds HIGH/CRITICAL SARIF publication
+to GitHub code scanning through the same container security workflow, with
+`github/codeql-action/upload-sarif` pinned to
+`8aad20d150bbac5944a9f9d289da16a4b0d87c1e`. It also adds
+`.github/vulnerability-exceptions.json`, `make vulnerability-management-check`
+and `services/api/scripts/check_vulnerability_management.py`. Exceptions must
+have owner roles, review tickets, promotion review and expiry; HIGH exceptions
+may last at most 45 days, and CRITICAL exceptions may last at most 14 days.
+There are no approved vulnerability exceptions in the current baseline. This is
+still not an enterprise vulnerability management operating model: registry
+retention, release rollback drills, customer-specific gates and operational
+review cadence remain hardening work.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped

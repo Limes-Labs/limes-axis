@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check container-check container-release-check container-security-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
+.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
@@ -52,6 +52,9 @@ container-release-check:
 
 container-security-check:
 	cd services/api && uv run python scripts/check_container_security_scan.py
+
+vulnerability-management-check:
+	cd services/api && uv run python scripts/check_vulnerability_management.py
 
 container-build-api:
 	docker build -f services/api/Dockerfile -t limes-axis-api:local .

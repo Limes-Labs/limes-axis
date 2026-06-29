@@ -18,7 +18,10 @@ def required_workflow_files() -> tuple[str, ...]:
 
 
 def required_workflow_permissions() -> tuple[str, ...]:
-    return ("contents: read",)
+    return (
+        "contents: read",
+        "security-events: write",
+    )
 
 
 def required_workflow_terms() -> tuple[str, ...]:
@@ -43,7 +46,6 @@ def required_workflow_terms() -> tuple[str, ...]:
 
 def forbidden_workflow_terms() -> tuple[str, ...]:
     return (
-        "security-events: write",
         "packages: write",
         "id-token: write",
         "aquasecurity/trivy-action@v0.",
@@ -159,7 +161,7 @@ def check_workflow_permissions(repo_root: Path) -> list[CheckResult]:
     elif forbidden:
         detail = f"unexpected privileged terms: {', '.join(forbidden)}"
     else:
-        detail = "workflow uses minimal read-only repository permissions"
+        detail = "workflow uses read and code-scanning scoped repository permissions"
     return [CheckResult("container_security.workflow_permissions", ok, detail)]
 
 

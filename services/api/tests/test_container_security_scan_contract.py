@@ -45,12 +45,12 @@ def test_container_security_scan_workflow_builds_and_scans_both_images() -> None
     assert build_command in terms
 
 
-def test_container_security_scan_has_minimal_permissions() -> None:
+def test_container_security_scan_has_scoped_code_scanning_permissions() -> None:
     checker = load_check_module()
 
     permissions = checker.required_workflow_permissions()
 
-    assert permissions == ("contents: read",)
+    assert permissions == ("contents: read", "security-events: write")
 
 
 def test_container_security_scan_docs_record_local_real_scan_command() -> None:

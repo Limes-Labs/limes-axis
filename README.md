@@ -147,7 +147,11 @@ keyless signing, SBOM and provenance boundaries before future release runs.
 Use `make container-security-check` for the container vulnerability scanning
 policy baseline and `make container-scan-local` to run the same Trivy
 CRITICAL/fixed-vulnerability gate against local API and web images, with JSON
-reports written under `.axis/trivy-reports/`.
+reports written under `.axis/trivy-reports/`. Use
+`make vulnerability-management-check` for the SARIF/code-scanning and
+vulnerability exceptions baseline: the workflow publishes HIGH/CRITICAL SARIF
+for API and web images, and `.github/vulnerability-exceptions.json` keeps
+exception expiry, owner-role and promotion-review rules explicit.
 Use [`docs/threat-model.md`](./docs/threat-model.md) and `make security-check`
 for the current repository-grounded security review baseline. It covers assets,
 trust boundaries, abuse paths, existing controls and open enterprise hardening

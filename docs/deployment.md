@@ -25,6 +25,8 @@ The baseline covers:
 - GHCR container release workflow with SBOM, keyless signing and provenance
   attestations for tag or manually approved release runs.
 - Container vulnerability scanning policy baseline for API and web images.
+- Vulnerability management baseline with SARIF publication and expiring
+  exception policy.
 
 The baseline does not yet cover:
 
@@ -69,7 +71,9 @@ uses the API `/health` route as a container healthcheck.
 
 `apps/web/Dockerfile` builds the Next.js console with `pnpm`, installs
 production Node dependencies for runtime, runs as UID `10001`, exposes port
-`3000` and uses the web home route as a container healthcheck.
+`3000` and uses the web home route as a container healthcheck. The runtime
+stage removes the bundled `npm` and `npx` package-manager surface because the
+production command does not require them.
 
 These local builds are useful for hardening the Helm path and for evaluation
 clusters. They are not image provenance, signing, SBOM publication or registry
@@ -137,11 +141,30 @@ The local scan writes machine-readable JSON reports under
 `.axis/trivy-reports/`, which is ignored by git with the rest of the local Axis
 runtime state.
 
+The workflow also generates `HIGH` and `CRITICAL` vulnerability SARIF reports
+for each image and uploads them to GitHub code scanning with
+`github/codeql-action/upload-sarif` pinned to
+`8aad20d150bbac5944a9f9d289da16a4b0d87c1e`. This requires the workflow-scoped
+`security-events: write` permission. SARIF upload is skipped for pull requests
+from forks because GitHub does not grant the same code-scanning write capability
+to untrusted fork contexts.
+
+The repository tracks vulnerability exceptions in
+`.github/vulnerability-exceptions.json`. The first policy requires owner roles,
+review tickets, promotion review and exception expiry. `HIGH` exceptions may
+last at most 45 days and `CRITICAL` exceptions may last at most 14 days. There
+are no approved vulnerability exceptions in the current baseline.
+
+Validate the vulnerability management baseline with:
+
+```bash
+make vulnerability-management-check
+```
+
 This is a real vulnerability scan gate, but it is not a production
-certification. Enterprise hardening still needs a promotion review process,
-severity escalation policy for `HIGH` findings, exception expiry, SARIF/code
-scanning publication, registry retention, release rollback criteria and
-customer-specific deployment gates.
+certification. Enterprise hardening still needs enforced release promotion
+approvals, operational exception review meetings, registry retention, release
+rollback criteria and customer-specific deployment gates.
 
 ## Runtime Secrets
 
@@ -204,6 +227,7 @@ make deployment-check
 make container-check
 make container-release-check
 make container-security-check
+make vulnerability-management-check
 ```
 
 After a cluster install, verify Kubernetes state and API readiness:
@@ -226,8 +250,9 @@ Before customer production use, the deployment package must add and verify:
 
 - promotion approval rules for production image release.
 - registry retention and long-term SBOM archive.
-- escalation policy for high-severity findings and expiring vulnerability
-  exceptions.
+- enforced release promotion approvals and rollback drills.
+- operational review cadence for high-severity findings and expiring
+  vulnerability exceptions.
 - TLS ingress and secure cookie/session behavior.
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.
