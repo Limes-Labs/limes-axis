@@ -13361,6 +13361,240 @@
         "title": "SupplierDelayScenarioRequest",
         "type": "object"
       },
+      "SupportArtifact": {
+        "properties": {
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "path"
+        ],
+        "title": "SupportArtifact",
+        "type": "object"
+      },
+      "SupportDeploymentSummary": {
+        "properties": {
+          "demo_safe": {
+            "title": "Demo Safe",
+            "type": "boolean"
+          },
+          "production_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Production Blockers",
+            "type": "array"
+          },
+          "production_ready": {
+            "title": "Production Ready",
+            "type": "boolean"
+          },
+          "profile": {
+            "minLength": 1,
+            "title": "Profile",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile",
+          "demo_safe",
+          "production_ready",
+          "production_blockers"
+        ],
+        "title": "SupportDeploymentSummary",
+        "type": "object"
+      },
+      "SupportDiagnosticsCheck": {
+        "properties": {
+          "check_id": {
+            "minLength": 1,
+            "title": "Check Id",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "status": {
+            "pattern": "^(ready|action_required)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_id",
+          "status",
+          "detail"
+        ],
+        "title": "SupportDiagnosticsCheck",
+        "type": "object"
+      },
+      "SupportDiagnosticsPayload": {
+        "properties": {
+          "audit_ledger_signing_configured": {
+            "title": "Audit Ledger Signing Configured",
+            "type": "boolean"
+          },
+          "deployment": {
+            "$ref": "#/components/schemas/SupportDeploymentSummary"
+          },
+          "external_model_egress_enabled": {
+            "title": "External Model Egress Enabled",
+            "type": "boolean"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/SupportIdentitySummary"
+          },
+          "live_connector_execution_enabled": {
+            "title": "Live Connector Execution Enabled",
+            "type": "boolean"
+          },
+          "object_store_adapter": {
+            "minLength": 1,
+            "title": "Object Store Adapter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deployment",
+          "identity",
+          "external_model_egress_enabled",
+          "live_connector_execution_enabled",
+          "audit_ledger_signing_configured",
+          "object_store_adapter"
+        ],
+        "title": "SupportDiagnosticsPayload",
+        "type": "object"
+      },
+      "SupportDiagnosticsReport": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/SupportDiagnosticsCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "demo_support_ready": {
+            "title": "Demo Support Ready",
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/SupportDiagnosticsPayload"
+          },
+          "environment": {
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "production_support_ready": {
+            "title": "Production Support Ready",
+            "type": "boolean"
+          },
+          "redaction_policy": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Redaction Policy",
+            "type": "array"
+          },
+          "safe_to_share": {
+            "title": "Safe To Share",
+            "type": "boolean"
+          },
+          "service": {
+            "minLength": 1,
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "pattern": "^(ready|action_required)$",
+            "title": "Status",
+            "type": "string"
+          },
+          "support_artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/SupportArtifact"
+            },
+            "title": "Support Artifacts",
+            "type": "array"
+          },
+          "support_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Support Blockers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "environment",
+          "safe_to_share",
+          "demo_support_ready",
+          "production_support_ready",
+          "support_blockers",
+          "diagnostics",
+          "checks",
+          "support_artifacts",
+          "redaction_policy"
+        ],
+        "title": "SupportDiagnosticsReport",
+        "type": "object"
+      },
+      "SupportIdentitySummary": {
+        "properties": {
+          "enterprise_sso_ready": {
+            "title": "Enterprise Sso Ready",
+            "type": "boolean"
+          },
+          "jwks_source": {
+            "minLength": 1,
+            "title": "Jwks Source",
+            "type": "string"
+          },
+          "jwks_url_configured": {
+            "title": "Jwks Url Configured",
+            "type": "boolean"
+          },
+          "oidc_auth_required": {
+            "title": "Oidc Auth Required",
+            "type": "boolean"
+          },
+          "readiness_status": {
+            "minLength": 1,
+            "title": "Readiness Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "readiness_status",
+          "enterprise_sso_ready",
+          "oidc_auth_required",
+          "jwks_source",
+          "jwks_url_configured"
+        ],
+        "title": "SupportIdentitySummary",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -18753,6 +18987,27 @@
           }
         },
         "summary": "Ready",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/support/diagnostics": {
+      "get": {
+        "operationId": "support_diagnostics_support_diagnostics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportDiagnosticsReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Support Diagnostics",
         "tags": [
           "system"
         ]

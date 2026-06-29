@@ -186,3 +186,51 @@ def test_demo_live_checks_include_deployment_readiness_contract(monkeypatch) -> 
     results = checker.run_live_checks("http://127.0.0.1:8000", None)
 
     assert any(result.name == "live.api_deployment_readiness" for result in results)
+
+
+def test_demo_environment_declares_support_diagnostics_route() -> None:
+    checker = load_check_module()
+
+    required_paths = checker.required_openapi_paths()
+
+    assert "/support/diagnostics" in required_paths
+
+
+def test_demo_live_checks_include_support_diagnostics_contract(monkeypatch) -> None:
+    checker = load_check_module()
+
+    monkeypatch.setattr(checker, "_fetch_json", lambda _url: (True, "HTTP 200"))
+    monkeypatch.setattr(
+        checker,
+        "_fetch_operations_snapshot",
+        lambda _api_url: (True, "snapshot includes persisted operations"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_fetch_demo_readiness_report",
+        lambda _api_url: (True, "readiness derived from persisted evidence"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_fetch_oidc_readiness_report",
+        lambda _api_url: (True, "OIDC readiness is explicit"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_fetch_deployment_readiness_report",
+        lambda _api_url: (True, "deployment readiness is explicit"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_fetch_support_diagnostics_report",
+        lambda _api_url: (True, "support diagnostics are explicit"),
+        raising=False,
+    )
+
+    results = checker.run_live_checks("http://127.0.0.1:8000", None)
+
+    assert any(result.name == "live.api_support_diagnostics" for result in results)

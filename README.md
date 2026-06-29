@@ -91,7 +91,10 @@ profile configured for enterprise SSO without exposing tokens, passwords or raw
 JWKS material. `/deployment/readiness` adds a wider public-safe deployment
 posture report for identity, external model egress, live connector execution,
 audit signing and object-store readiness. It is a gate for evaluation and
-hardening work, not a production certification.
+hardening work, not a production certification. `/support/diagnostics` provides
+a public-safe support bundle for design-partner triage and demo operations,
+including support blockers and links to the relevant runbooks without exposing
+sensitive runtime material.
 The audit query slice reads persisted `audit_events` through a tenant-scoped API
 endpoint and the web console now requires API-backed audit/export records
 instead of constructing browser-local bundles. The audit retention/export slice adds a demo
@@ -121,8 +124,11 @@ self-hosted stack, Alembic migrations, Axis API routes and API-required console
 pages. Static checks are available with `make demo-check`; once the API and web
 console are running, `make demo-check-live` verifies the live endpoints,
 browser no-store CORS for the dev and Playwright demo origins, OIDC readiness,
-deployment readiness and the persisted manufacturing operations snapshot used
-by the overview cockpit.
+deployment readiness, support diagnostics and the persisted manufacturing
+operations snapshot used by the overview cockpit.
+Use [`docs/support-operations.md`](./docs/support-operations.md) for the
+current support and operations baseline for demo and design-partner evaluation
+environments. It is not a production support contract or SLA.
 Use [`docs/backup-restore.md`](./docs/backup-restore.md) to plan, capture and
 restore the local Docker Compose demo state with `pg_dump`, MinIO and TypeDB
 volume archives and checksum manifests. This is a repeatable demo runbook, not
@@ -454,6 +460,7 @@ Architecture and acceptance notes:
 - [`docs/platform-manufacturing-operations.md`](./docs/platform-manufacturing-operations.md)
 - [`docs/platform-connectors.md`](./docs/platform-connectors.md)
 - [`docs/threat-model.md`](./docs/threat-model.md)
+- [`docs/support-operations.md`](./docs/support-operations.md)
 
 Reference examples:
 
