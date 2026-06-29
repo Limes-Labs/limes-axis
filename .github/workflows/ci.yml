@@ -87,6 +87,9 @@ jobs:
       - name: Check container image package
         run: make container-check
 
+      - name: Check container release package
+        run: make container-release-check
+
       - name: Install worker dependencies
         working-directory: services/worker
         run: uv sync --locked

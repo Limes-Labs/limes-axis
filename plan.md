@@ -271,11 +271,12 @@ Foundation acceptance is tracked in
   runbook baseline.
 - [x] Add initial Helm charts and production deployment guide baseline.
 - [x] Add buildable API and web container image baseline.
+- [x] Add container release provenance, signing and SBOM workflow baseline.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA, TLS ingress, registry release automation, image
-  provenance/signing, external-secret, backup/restore, S3/MinIO WORM retention
-  and cluster operations hardening.
+- [ ] Add production HA, TLS ingress, release promotion approvals,
+  vulnerability scanning policy, external-secret, backup/restore, S3/MinIO
+  WORM retention and cluster operations hardening.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -345,6 +346,15 @@ The API and web container image baseline now includes `services/api/Dockerfile`,
 `make container-build-api` and `make container-build-web`. These images are
 locally buildable and align with the Helm defaults, but they are not image
 provenance, signing or registry release automation.
+The container release supply-chain baseline now includes
+`.github/workflows/container-release.yml`, `make container-release-check` and
+`services/api/scripts/check_container_release.py`. The workflow builds the API
+and web images for GHCR, supports build-only manual runs, publishes on `v*`
+tags or approved manual push runs, enables BuildKit SBOM and provenance
+attestations and signs pushed digests with GitHub OIDC keyless signing. This is
+still not a production deployment certification: promotion approvals,
+vulnerability scanning policy, registry retention and long-term SBOM archival
+remain Enterprise hardening work.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped
