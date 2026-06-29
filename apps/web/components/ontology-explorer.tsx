@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Database, Network, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
 import {
   countNodesByType,
   formatNodeType,
@@ -14,10 +13,9 @@ import {
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
+import { useAxisQuery } from "@/lib/use-axis-query";
 
-type OntologySource = "loading" | "api" | "unavailable";
-
-function sourceLabel(source: OntologySource): string {
+function sourceLabel(source: "loading" | "api" | "unavailable"): string {
   if (source === "api") {
     return "API ontology graph";
   }
@@ -26,38 +24,9 @@ function sourceLabel(source: OntologySource): string {
 }
 
 export function OntologyExplorer() {
-  const [ontology, setOntology] = useState<ManufacturingOntology | null>(null);
-  const [source, setSource] = useState<OntologySource>("loading");
-  const apiBaseUrl = getApiBaseUrl();
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchOntology() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/ontology`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Ontology request failed with ${response.status}`);
-        }
-
-        setOntology((await response.json()) as ManufacturingOntology);
-        setSource("api");
-      } catch {
-        if (!controller.signal.aborted) {
-          setOntology(null);
-          setSource("unavailable");
-        }
-      }
-    }
-
-    void fetchOntology();
-
-    return () => controller.abort();
-  }, [apiBaseUrl]);
+  const { data: ontology, source } = useAxisQuery<ManufacturingOntology>(
+    "/demo/manufacturing/ontology",
+  );
 
   const nodeLabels = useMemo(
     () => (ontology ? nodeLabelById(ontology) : new Map<string, string>()),
@@ -79,7 +48,7 @@ export function OntologyExplorer() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Ontology</p>

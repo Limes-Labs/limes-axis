@@ -4,22 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
-  Bell,
   Bot,
-  CheckCircle2,
-  CircleHelp,
   ClipboardCheck,
   FileCheck2,
   GitBranch,
   Play,
   RefreshCw,
-  Search,
   ShieldCheck,
   Workflow,
 } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
+import { ConsoleTopbar } from "@/components/console-topbar";
+import { axisFetchJson } from "@/lib/axis-api";
 import {
   countBlockedModelRoutes,
   formatEuroCost,
@@ -45,6 +42,7 @@ import {
   type OverviewMetric,
   type PlatformStatus,
 } from "@/lib/platform-overview";
+import { useConsole } from "@/providers/console-provider";
 
 type OverviewSource = "loading" | "api" | "unavailable";
 
@@ -156,43 +154,6 @@ function StatusPill({ status }: { status: PlatformStatus }) {
 
 function StatusDot({ status }: { status: PlatformStatus }) {
   return <span aria-hidden="true" className={`status-dot ${platformStatusClass(status)}`} />;
-}
-
-function ApiTopbar({ source }: { source: OverviewSource }) {
-  return (
-    <header className="ops-topbar" aria-label="Operations status bar">
-      <div className="ops-topbar-left">
-        <span className="ops-product-pill">
-          <ShieldCheck size={17} />
-          Sovereign Control
-        </span>
-      </div>
-      <div className="ops-live-pills">
-        <span className={`status-pill ${source === "api" ? "signal-ready" : "signal-watch"}`}>
-          <StatusDot status={source === "api" ? "ready" : "watch"} />
-          {sourceLabel(source)}
-        </span>
-        <span className="status-pill signal-ready">
-          <CheckCircle2 size={15} />
-          {source === "api" ? "Evidence present" : "Evidence required"}
-        </span>
-      </div>
-      <div className="ops-toolbar-icons" aria-label="Utility actions">
-        <button className="ops-icon-button" type="button" aria-label="Search" title="Search">
-          <Search size={17} />
-        </button>
-        <button className="ops-icon-button" type="button" aria-label="Notifications" title="Notifications">
-          <Bell size={17} />
-        </button>
-        <button className="ops-icon-button" type="button" aria-label="Help" title="Help">
-          <CircleHelp size={17} />
-        </button>
-        <span className="ops-user-chip" aria-label="Operator role">
-          OP
-        </span>
-      </div>
-    </header>
-  );
 }
 
 function TopKpis({
@@ -721,8 +682,7 @@ export function PlatformOverview() {
   );
   const [modelRouting, setModelRouting] = useState<ManufacturingModelRouting | null>(null);
   const [source, setSource] = useState<OverviewSource>("loading");
-  const [refreshNonce, setRefreshNonce] = useState(0);
-  const apiBaseUrl = getApiBaseUrl();
+  const { refreshNonce, triggerRefresh } = useConsole();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -732,63 +692,30 @@ export function PlatformOverview() {
 
       try {
         const [
-          overviewResponse,
-          operationsSnapshotResponse,
-          demoReadinessResponse,
-          modelRoutingResponse,
-        ] = await Promise.all([
-          fetch(`${apiBaseUrl}/demo/manufacturing/overview`, {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
-          fetch(`${apiBaseUrl}/demo/manufacturing/operations/snapshot`, {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
-          fetch(`${apiBaseUrl}/demo/manufacturing/demo-readiness`, {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
-          fetch(`${apiBaseUrl}/demo/manufacturing/model-routing`, {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
-        ]);
-
-        if (!overviewResponse.ok) {
-          throw new Error(`Overview request failed with ${overviewResponse.status}`);
-        }
-
-        if (!operationsSnapshotResponse.ok) {
-          throw new Error(
-            `Operations snapshot request failed with ${operationsSnapshotResponse.status}`,
-          );
-        }
-
-        if (!demoReadinessResponse.ok) {
-          throw new Error(`Demo readiness request failed with ${demoReadinessResponse.status}`);
-        }
-
-        if (!modelRoutingResponse.ok) {
-          throw new Error(`Model routing request failed with ${modelRoutingResponse.status}`);
-        }
-
-        const [
           overviewPayload,
           operationsSnapshotPayload,
           demoReadinessPayload,
           modelRoutingPayload,
         ] = await Promise.all([
-          overviewResponse.json(),
-          operationsSnapshotResponse.json(),
-          demoReadinessResponse.json(),
-          modelRoutingResponse.json(),
+          axisFetchJson<ManufacturingOverview>("/demo/manufacturing/overview", {
+            signal: controller.signal,
+          }),
+          axisFetchJson<ManufacturingOperationsSnapshot>(
+            "/demo/manufacturing/operations/snapshot",
+            { signal: controller.signal },
+          ),
+          axisFetchJson<ManufacturingDemoReadinessReport>("/demo/manufacturing/demo-readiness", {
+            signal: controller.signal,
+          }),
+          axisFetchJson<ManufacturingModelRouting>("/demo/manufacturing/model-routing", {
+            signal: controller.signal,
+          }),
         ]);
 
-        setOverview(overviewPayload as ManufacturingOverview);
-        setOperationsSnapshot(operationsSnapshotPayload as ManufacturingOperationsSnapshot);
-        setDemoReadiness(demoReadinessPayload as ManufacturingDemoReadinessReport);
-        setModelRouting(modelRoutingPayload as ManufacturingModelRouting);
+        setOverview(overviewPayload);
+        setOperationsSnapshot(operationsSnapshotPayload);
+        setDemoReadiness(demoReadinessPayload);
+        setModelRouting(modelRoutingPayload);
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
@@ -804,7 +731,7 @@ export function PlatformOverview() {
     void fetchOverview();
 
     return () => controller.abort();
-  }, [apiBaseUrl, refreshNonce]);
+  }, [refreshNonce]);
 
   const readinessCounts = useMemo(
     () =>
@@ -817,21 +744,22 @@ export function PlatformOverview() {
   if (!overview || !operationsSnapshot || !demoReadiness || !modelRouting) {
     return (
       <div className="ops-console">
-        <ApiTopbar source={source} />
+        <ConsoleTopbar
+          evidenceLabel={source === "api" ? "Evidence present" : "Evidence required"}
+          sourceLabel={
+            source === "api"
+              ? "Live API"
+              : source === "loading"
+                ? "Loading API"
+                : "API unavailable"
+          }
+        />
         <div className="ops-loading-shell">
           <ApiRequiredState
             detail="Axis did not receive API-backed overview, operations snapshot, demo-readiness and model-routing records. Local fallback overview records are disabled."
             endpoint="/demo/manufacturing/overview + /demo/manufacturing/operations/snapshot + /demo/manufacturing/demo-readiness + /demo/manufacturing/model-routing"
             title={source === "loading" ? "Loading operations API" : "Operations API unavailable"}
           />
-          <button
-            className="command-button"
-            type="button"
-            onClick={() => setRefreshNonce((value) => value + 1)}
-          >
-            <RefreshCw size={16} />
-            Refresh state
-          </button>
         </div>
       </div>
     );
@@ -839,7 +767,10 @@ export function PlatformOverview() {
 
   return (
     <div className="ops-console">
-      <ApiTopbar source={source} />
+      <ConsoleTopbar
+        evidenceLabel={source === "api" ? "Evidence present" : "Evidence required"}
+        sourceLabel={source === "api" ? "Live API" : sourceLabel(source)}
+      />
       <section className="ops-page-header">
         <div>
           <h1 className="ops-page-title">Operations</h1>
@@ -859,7 +790,7 @@ export function PlatformOverview() {
             type="button"
             aria-label="Refresh state"
             title="Refresh state"
-            onClick={() => setRefreshNonce((value) => value + 1)}
+            onClick={triggerRefresh}
           >
             <RefreshCw size={17} />
           </button>

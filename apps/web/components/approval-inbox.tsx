@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { axisFetchJson } from "@/lib/axis-api";
 import {
   approvalDecisionLabel,
   approvalDecisionActorId,
@@ -22,12 +23,9 @@ import {
   type ApprovalDecisionPersistenceResult,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
-import { getApiBaseUrl } from "@/lib/api-status";
-import { buildAxisAuthInit } from "@/lib/oidc-session";
 import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
+import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
-
-type ApprovalSource = "loading" | "api" | "unavailable";
 
 type LocalApprovalDecision = {
   decision: ApprovalDecision;
@@ -43,7 +41,7 @@ type LocalApprovalDecision = {
   workflowSignalDetail?: string;
 };
 
-function sourceLabel(source: ApprovalSource): string {
+function sourceLabel(source: "loading" | "api" | "unavailable"): string {
   if (source === "api") {
     return "API approval queue";
   }
@@ -73,51 +71,19 @@ function countLocalDecisions(
 }
 
 export function ApprovalInbox() {
-  const [inbox, setInbox] = useState<ManufacturingApprovalInbox | null>(null);
-  const [source, setSource] = useState<ApprovalSource>("loading");
+  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(
+    "/demo/manufacturing/approvals",
+  );
   const [selectedApprovalId, setSelectedApprovalId] = useState("");
   const [localDecisions, setLocalDecisions] = useState<Record<string, LocalApprovalDecision>>({});
   const [decisionErrors, setDecisionErrors] = useState<Record<string, string>>({});
-  const apiBaseUrl = getApiBaseUrl();
   const { session } = useOidcConsoleSession();
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchApprovals() {
-      try {
-        const response = await fetch(
-          `${apiBaseUrl}/demo/manufacturing/approvals`,
-          buildAxisAuthInit(
-            {
-              signal: controller.signal,
-              cache: "no-store",
-            },
-            session,
-          ),
-        );
-
-        if (!response.ok) {
-          throw new Error(`Approval inbox request failed with ${response.status}`);
-        }
-
-        const nextInbox = (await response.json()) as ManufacturingApprovalInbox;
-        setInbox(nextInbox);
-        setSelectedApprovalId(nextInbox.approvals[0]?.approval_id ?? "");
-        setSource("api");
-      } catch {
-        if (!controller.signal.aborted) {
-          setInbox(null);
-          setSelectedApprovalId("");
-          setSource("unavailable");
-        }
-      }
+    if (inbox?.approvals[0]) {
+      setSelectedApprovalId(inbox.approvals[0].approval_id);
     }
-
-    void fetchApprovals();
-
-    return () => controller.abort();
-  }, [apiBaseUrl, session]);
+  }, [inbox]);
 
   const selectedApproval = useMemo(
     () =>
@@ -174,23 +140,14 @@ export function ApprovalInbox() {
     });
 
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/demo/manufacturing/approvals/${approvalId}/decision`,
-        buildAxisAuthInit(
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildApprovalDecisionPayload(selectedApproval, option.decision)),
-          },
+      const result = await axisFetchJson<ApprovalDecisionPersistenceResult>(
+        `/demo/manufacturing/approvals/${approvalId}/decision`,
+        {
           session,
-        ),
+          method: "POST",
+          body: buildApprovalDecisionPayload(selectedApproval, option.decision),
+        },
       );
-
-      if (!response.ok) {
-        throw new Error(`Approval decision request failed with ${response.status}`);
-      }
-
-      const result = (await response.json()) as ApprovalDecisionPersistenceResult;
       updateDecisionState(approvalId, {
         decision: result.decision,
         label: option.label,
@@ -241,7 +198,7 @@ export function ApprovalInbox() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Approval Queue</p>

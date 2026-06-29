@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, GitBranch, History, RadioTower, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
+import { axisFetchJson } from "@/lib/axis-api";
 import {
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
@@ -18,6 +18,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { useConsole } from "@/providers/console-provider";
 
 type SimulationSource = "loading" | "persisted" | "unavailable";
 
@@ -42,40 +43,22 @@ export function SimulationConsole() {
   const [simulationData, setSimulationData] = useState<ManufacturingReplaySimulation | null>(null);
   const [source, setSource] = useState<SimulationSource>("loading");
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
-  const apiBaseUrl = getApiBaseUrl();
+  const { refreshNonce } = useConsole();
 
   useEffect(() => {
     const controller = new AbortController();
 
-    async function fetchReplaySimulation(): Promise<ManufacturingReplaySimulation> {
-      const response = await fetch(
-        `${apiBaseUrl}/demo/manufacturing/simulation/replay?tenant_id=tenant_demo_manufacturing&limit=20`,
-        {
-          signal: controller.signal,
-          cache: "no-store",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`Replay simulation request failed with ${response.status}`);
-      }
-
-      return (await response.json()) as ManufacturingReplaySimulation;
-    }
-
     async function loadReplaySimulation() {
-      try {
-        const data = await fetchReplaySimulation();
-        if (shouldUsePersistedReplayData(data)) {
-          setSimulationData(data);
-          setSelectedArtifactId(data.artifacts[0]?.artifact_id ?? "");
-          setSource("persisted");
-          return;
-        }
+      setSource("loading");
 
+      try {
+        const data = await axisFetchJson<ManufacturingReplaySimulation>(
+          "/demo/manufacturing/simulation/replay?tenant_id=tenant_demo_manufacturing&limit=20",
+          { signal: controller.signal },
+        );
         setSimulationData(data);
         setSelectedArtifactId(data.artifacts[0]?.artifact_id ?? "");
-        setSource("persisted");
+        setSource(shouldUsePersistedReplayData(data) ? "persisted" : "persisted");
       } catch {
         if (!controller.signal.aborted) {
           setSimulationData(null);
@@ -88,7 +71,7 @@ export function SimulationConsole() {
     void loadReplaySimulation();
 
     return () => controller.abort();
-  }, [apiBaseUrl]);
+  }, [refreshNonce]);
 
   const selectedArtifact = useMemo(
     () =>
@@ -130,7 +113,7 @@ export function SimulationConsole() {
     retentionWindow.excluded_output_count;
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Replay Foundation</p>

@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RadioTower, RotateCcw, Send, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
-import { buildAxisAuthInit } from "@/lib/oidc-session";
+import { axisFetchJson } from "@/lib/axis-api";
 import {
   actionRunWorkflowSignalLabel,
   allActionFilter,
@@ -25,9 +24,8 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
-
-type ActionSource = "loading" | "api" | "unavailable";
 type ActionRunSource = "api";
 
 type LocalActionRunResult = {
@@ -48,7 +46,7 @@ const defaultFilters: ActionFilters = {
   status: allActionFilter,
 };
 
-function sourceLabel(source: ActionSource): string {
+function sourceLabel(source: "loading" | "api" | "unavailable"): string {
   if (source === "api") {
     return "API action registry";
   }
@@ -82,8 +80,9 @@ function PayloadRows({ payload }: { payload: Record<string, string> }) {
 }
 
 export function ActionRegistry() {
-  const [registry, setRegistry] = useState<ManufacturingActionRegistry | null>(null);
-  const [source, setSource] = useState<ActionSource>("loading");
+  const { data: registry, source } = useAxisQuery<ManufacturingActionRegistry>(
+    "/demo/manufacturing/actions",
+  );
   const [filters, setFilters] = useState<ActionFilters>(defaultFilters);
   const [selectedActionId, setSelectedActionId] = useState("");
   const [actionRunResults, setActionRunResults] = useState<Record<string, LocalActionRunResult>>(
@@ -91,46 +90,13 @@ export function ActionRegistry() {
   );
   const [actionRunErrors, setActionRunErrors] = useState<Record<string, string>>({});
   const [submittingActionId, setSubmittingActionId] = useState<string | null>(null);
-  const apiBaseUrl = getApiBaseUrl();
   const { session } = useOidcConsoleSession();
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchActions() {
-      try {
-        const response = await fetch(
-          `${apiBaseUrl}/demo/manufacturing/actions`,
-          buildAxisAuthInit(
-            {
-              signal: controller.signal,
-              cache: "no-store",
-            },
-            session,
-          ),
-        );
-
-        if (!response.ok) {
-          throw new Error(`Action registry request failed with ${response.status}`);
-        }
-
-        const nextRegistry = (await response.json()) as ManufacturingActionRegistry;
-        setRegistry(nextRegistry);
-        setSelectedActionId(nextRegistry.actions[0]?.definition.action_id ?? "");
-        setSource("api");
-      } catch {
-        if (!controller.signal.aborted) {
-          setRegistry(null);
-          setSelectedActionId("");
-          setSource("unavailable");
-        }
-      }
+    if (registry?.actions[0]) {
+      setSelectedActionId(registry.actions[0].definition.action_id);
     }
-
-    void fetchActions();
-
-    return () => controller.abort();
-  }, [apiBaseUrl, session]);
+  }, [registry]);
 
   const filteredActions = useMemo(
     () => (registry ? filterActions(registry, filters) : []),
@@ -182,23 +148,14 @@ export function ActionRegistry() {
     });
 
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/demo/manufacturing/actions/${action.definition.action_id}/runs`,
-        buildAxisAuthInit(
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(request),
-          },
+      const result = await axisFetchJson<ActionRunPersistenceResult>(
+        `/demo/manufacturing/actions/${action.definition.action_id}/runs`,
+        {
           session,
-        ),
+          method: "POST",
+          body: request,
+        },
       );
-
-      if (!response.ok) {
-        throw new Error(`Action run request failed with ${response.status}`);
-      }
-
-      const result = (await response.json()) as ActionRunPersistenceResult;
       setActionRunResults((current) => ({
         ...current,
         [action.definition.action_id]: {
@@ -248,7 +205,7 @@ export function ActionRegistry() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Action Registry</p>

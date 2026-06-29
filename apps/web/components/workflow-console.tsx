@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GitBranch, History, RadioTower, Route, TimerReset } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
+import { axisFetchJson } from "@/lib/axis-api";
 import {
   countWaitingWorkflowSignals,
   findWorkflowById,
@@ -17,6 +17,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { useConsole } from "@/providers/console-provider";
 
 type WorkflowSource = "loading" | "persisted" | "api" | "unavailable";
 
@@ -45,28 +46,18 @@ export function WorkflowConsole() {
   const [workflowData, setWorkflowData] = useState<ManufacturingWorkflowConsole | null>(null);
   const [source, setSource] = useState<WorkflowSource>("loading");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
-  const apiBaseUrl = getApiBaseUrl();
+  const { refreshNonce } = useConsole();
 
   useEffect(() => {
     const controller = new AbortController();
 
-    async function fetchWorkflowData(path: string): Promise<ManufacturingWorkflowConsole> {
-      const response = await fetch(`${apiBaseUrl}${path}`, {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Workflow console request failed with ${response.status}`);
-      }
-
-      return (await response.json()) as ManufacturingWorkflowConsole;
-    }
-
     async function fetchWorkflows() {
+      setSource("loading");
+
       try {
-        const persistedWorkflowData = await fetchWorkflowData(
+        const persistedWorkflowData = await axisFetchJson<ManufacturingWorkflowConsole>(
           "/demo/manufacturing/workflows/runs?tenant_id=tenant_demo_manufacturing&limit=100",
+          { signal: controller.signal },
         );
         if (shouldUsePersistedWorkflowData(persistedWorkflowData)) {
           setWorkflowData(persistedWorkflowData);
@@ -75,9 +66,12 @@ export function WorkflowConsole() {
           return;
         }
 
-        const seedWorkflowData = await fetchWorkflowData("/demo/manufacturing/workflows");
-        setWorkflowData(seedWorkflowData);
-        setSelectedWorkflowId(seedWorkflowData.workflow_runs[0]?.workflow_id ?? "");
+        const referenceWorkflowData = await axisFetchJson<ManufacturingWorkflowConsole>(
+          "/demo/manufacturing/workflows",
+          { signal: controller.signal },
+        );
+        setWorkflowData(referenceWorkflowData);
+        setSelectedWorkflowId(referenceWorkflowData.workflow_runs[0]?.workflow_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
@@ -91,7 +85,7 @@ export function WorkflowConsole() {
     void fetchWorkflows();
 
     return () => controller.abort();
-  }, [apiBaseUrl]);
+  }, [refreshNonce]);
 
   const selectedWorkflow = useMemo(
     () =>
@@ -123,7 +117,7 @@ export function WorkflowConsole() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Workflow Runtime</p>

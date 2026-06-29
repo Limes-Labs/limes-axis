@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Bot, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allAgentFilter,
   countPendingAgentProposals,
@@ -19,8 +18,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
-
-type AgentSource = "loading" | "api" | "unavailable";
+import { useAxisQuery } from "@/lib/use-axis-query";
 
 const defaultFilters: AgentFilters = {
   domain: allAgentFilter,
@@ -28,7 +26,7 @@ const defaultFilters: AgentFilters = {
   status: allAgentFilter,
 };
 
-function sourceLabel(source: AgentSource): string {
+function sourceLabel(source: "loading" | "api" | "unavailable"): string {
   if (source === "api") {
     return "API agent registry";
   }
@@ -37,43 +35,11 @@ function sourceLabel(source: AgentSource): string {
 }
 
 export function AgentRegistry() {
-  const [registry, setRegistry] = useState<ManufacturingAgentRegistry | null>(null);
-  const [source, setSource] = useState<AgentSource>("loading");
+  const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(
+    "/demo/manufacturing/agents",
+  );
   const [filters, setFilters] = useState<AgentFilters>(defaultFilters);
   const [selectedAgentId, setSelectedAgentId] = useState("");
-  const apiBaseUrl = getApiBaseUrl();
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchAgents() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/agents`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Agent registry request failed with ${response.status}`);
-        }
-
-        const nextRegistry = (await response.json()) as ManufacturingAgentRegistry;
-        setRegistry(nextRegistry);
-        setSelectedAgentId(nextRegistry.agents[0]?.agent_id ?? "");
-        setSource("api");
-      } catch {
-        if (!controller.signal.aborted) {
-          setRegistry(null);
-          setSelectedAgentId("");
-          setSource("unavailable");
-        }
-      }
-    }
-
-    void fetchAgents();
-
-    return () => controller.abort();
-  }, [apiBaseUrl]);
 
   const filteredAgents = useMemo(
     () => (registry ? filterAgents(registry, filters) : []),
@@ -125,7 +91,7 @@ export function AgentRegistry() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Agent Registry</p>
