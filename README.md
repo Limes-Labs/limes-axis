@@ -146,7 +146,9 @@ GHCR release workflow baseline: it verifies the tag/manual build path, manual
 publish evidence gate, keyless signing, SBOM and provenance boundaries before
 future release runs. Image publication now requires a release approval issue,
 a rollback plan issue, a rollback drill id and an explicit rollback-plan
-acknowledgement.
+acknowledgement, then runs through the `axis-container-release` GitHub
+Environment so repository admins can enforce reviewer protection on publish
+runs without blocking build-only tag checks.
 Use `make container-security-check` for the container vulnerability scanning
 policy baseline and `make container-scan-local` to run the same Trivy
 CRITICAL/fixed-vulnerability gate against local API and web images, with JSON

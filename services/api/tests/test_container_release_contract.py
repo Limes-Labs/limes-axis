@@ -59,6 +59,18 @@ def test_container_release_workflow_requires_promotion_and_rollback_evidence() -
     )
 
 
+def test_container_release_publish_uses_dedicated_github_environment() -> None:
+    checker = load_check_module()
+
+    required_terms = checker.required_workflow_terms()
+
+    assert "build-images:" in required_terms
+    assert "publish-images:" in required_terms
+    assert "needs: build-images" in required_terms
+    assert "name: axis-container-release" in required_terms
+    assert "GitHub Environment reviewer protection" in checker.required_docs_terms()
+
+
 def test_container_release_permissions_are_keyless_and_registry_scoped() -> None:
     checker = load_check_module()
 
