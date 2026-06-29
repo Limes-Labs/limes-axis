@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ConsoleProvider>
       <div className="app-shell">
-        <aside className="sidebar">
+        <aside className="sidebar" data-console-sidebar>
           <Link className="brand" href="/" aria-label="Limes Axis home">
             <span className="brand-mark" aria-hidden="true">
               <span className="brand-axis brand-axis-vertical" />

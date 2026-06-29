@@ -62,4 +62,47 @@ test.describe("Axis live overview demo", () => {
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
   });
+
+  test("keeps the enterprise navigation stable while the live dashboard scrolls", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+    const navigation = await page.evaluate(() => {
+      const element = document.querySelector<HTMLElement>("[data-console-sidebar]");
+      const topnav = document.querySelector<HTMLElement>(".topnav");
+      const viewportWidth = window.innerWidth;
+
+      if (!element) {
+        return null;
+      }
+
+      const rect = element.getBoundingClientRect();
+      return {
+        bottom: Math.round(rect.bottom),
+        display: window.getComputedStyle(element).display,
+        height: Math.round(rect.height),
+        navVisible: element.textContent?.includes("Connectors") ?? false,
+        top: Math.round(rect.top),
+        topnavVisible: topnav ? window.getComputedStyle(topnav).display !== "none" : false,
+        viewportHeight: window.innerHeight,
+        viewportWidth,
+      };
+    });
+
+    expect(navigation).not.toBeNull();
+
+    if ((navigation?.viewportWidth ?? 0) <= 920) {
+      expect(navigation?.display).toBe("none");
+      expect(navigation?.topnavVisible).toBe(true);
+      return;
+    }
+
+    expect(navigation?.display).not.toBe("none");
+    expect(navigation?.top).toBe(0);
+    expect(navigation?.bottom).toBe(navigation?.viewportHeight);
+    expect(navigation?.height).toBe(navigation?.viewportHeight);
+    expect(navigation?.navVisible).toBe(true);
+  });
 });
