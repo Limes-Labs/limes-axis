@@ -22,6 +22,7 @@ def required_openapi_paths() -> tuple[str, ...]:
         "/ready",
         "/identity/oidc/readiness",
         "/deployment/readiness",
+        "/support/diagnostics",
         "/demo/manufacturing/overview",
         "/demo/manufacturing/workflows",
         "/demo/manufacturing/workflows/runs",
@@ -442,6 +443,48 @@ def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_support_diagnostics_report(api_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/support/diagnostics",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            diagnostics = payload.get("diagnostics")
+            checks = payload.get("checks")
+            support_artifacts = payload.get("support_artifacts")
+            support_blockers = payload.get("support_blockers")
+            body_text = json.dumps(payload, sort_keys=True).casefold()
+            ok = (
+                200 <= response.status < 300
+                and payload.get("service") == "axis-api"
+                and payload.get("status") in {"ready", "action_required"}
+                and payload.get("safe_to_share") is True
+                and isinstance(payload.get("demo_support_ready"), bool)
+                and isinstance(payload.get("production_support_ready"), bool)
+                and isinstance(support_blockers, list)
+                and isinstance(diagnostics, dict)
+                and isinstance(checks, list)
+                and len(checks) >= 5
+                and isinstance(support_artifacts, list)
+                and len(support_artifacts) >= 3
+                and "secret" not in body_text
+                and "password" not in body_text
+            )
+            if ok:
+                return True, (
+                    f"HTTP {response.status}, "
+                    f"demo_support_ready={payload.get('demo_support_ready')} "
+                    f"production_support_ready={payload.get('production_support_ready')}"
+                )
+            return False, f"HTTP {response.status}, invalid support diagnostics contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def _fetch_cors_no_store_preflight(api_url: str, web_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/demo/manufacturing/overview",
@@ -504,6 +547,9 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         deployment_readiness_ok, deployment_readiness_detail = (
             _fetch_deployment_readiness_report(normalized)
         )
+        support_diagnostics_ok, support_diagnostics_detail = (
+            _fetch_support_diagnostics_report(normalized)
+        )
         checks.append(CheckResult("live.api_health", health_ok, health_detail))
         checks.append(CheckResult("live.api_ready", ready_ok, ready_detail))
         checks.append(CheckResult("live.api_operations_snapshot", snapshot_ok, snapshot_detail))
@@ -518,6 +564,13 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
                 "live.api_deployment_readiness",
                 deployment_readiness_ok,
                 deployment_readiness_detail,
+            )
+        )
+        checks.append(
+            CheckResult(
+                "live.api_support_diagnostics",
+                support_diagnostics_ok,
+                support_diagnostics_detail,
             )
         )
         if web_url:

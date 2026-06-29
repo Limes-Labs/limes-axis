@@ -109,6 +109,12 @@ posture into explicit production blockers. The current local profile can be
 demo-safe while `production_ready=false`; that is intentional until enterprise
 deployment, S3/MinIO WORM retention and support runbooks are complete.
 
+The live check also includes `/support/diagnostics`, a public-safe support
+bundle for design-partner triage. It reports demo-support readiness,
+production-support blockers, support artifact links and redaction policy
+without returning bearer tokens, raw JWKS, credential material, signing
+material or database DSNs.
+
 Run browser smoke tests against the production Next.js build:
 
 ```bash
@@ -157,6 +163,8 @@ make demo-stack-down
       public-safe and clear about whether enterprise SSO hardening is ready.
 - [ ] `make demo-check-live` verifies the deployment readiness report is
       explicit, public-safe and clear about current production blockers.
+- [ ] `make demo-check-live` verifies the support diagnostics bundle is
+      explicit, public-safe and clear about support blockers.
 - [ ] The console shell uses the Axis brand palette and passes browser checks
       for dark theme tokens, visible API-backed state and no horizontal
       overflow.
@@ -223,6 +231,7 @@ Show:
 - The self-hosted local stack and absence of required managed services.
 - The OIDC/Keycloak direction, token-bound mutation paths and OIDC readiness
   report.
+- The support diagnostics bundle and current support operations runbook.
 - The current threat model, including assets, trust boundaries, abuse paths,
   existing controls and open production hardening work.
 - Tenant-scoped persisted reference records.
@@ -276,6 +285,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Deployment readiness report contract with public-safe production blockers for
   identity, external model egress, connector execution, audit signing and
   object-store posture.
+- Support diagnostics report contract with public-safe support blockers,
+  artifact links and redaction policy.
 - Threat model and security posture contract through `make security-check`.
 - Optional live API and web checks when URLs are provided.
 

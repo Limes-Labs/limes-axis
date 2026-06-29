@@ -373,6 +373,10 @@ from axis_api.replay_simulation import (
     build_replay_simulation,
     persist_replay_simulation_output,
 )
+from axis_api.support_diagnostics import (
+    SupportDiagnosticsReport,
+    build_support_diagnostics_report,
+)
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_reference import (
     WorkflowReferenceRecordInvalid,
@@ -1093,6 +1097,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return build_deployment_readiness_report(
             resolved_settings,
             oidc_readiness_report=_oidc_readiness_report(resolved_settings),
+        )
+
+    @app.get(
+        "/support/diagnostics",
+        response_model=SupportDiagnosticsReport,
+        tags=["system"],
+    )
+    def support_diagnostics() -> SupportDiagnosticsReport:
+        oidc_report = _oidc_readiness_report(resolved_settings)
+        deployment_report = build_deployment_readiness_report(
+            resolved_settings,
+            oidc_readiness_report=oidc_report,
+        )
+        return build_support_diagnostics_report(
+            resolved_settings,
+            oidc_readiness_report=oidc_report,
+            deployment_readiness_report=deployment_report,
         )
 
     @app.get(

@@ -267,6 +267,8 @@ Foundation acceptance is tracked in
   security posture checks.
 - [x] Add a public-safe deployment readiness posture report with explicit
   production blockers.
+- [x] Add a public-safe support diagnostics bundle and support operations
+  runbook baseline.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 
@@ -794,7 +796,9 @@ audit writes from live route decisions remain Platform work.
 - [x] Add initial security review and threat model documentation.
 - [ ] Add external security review, penetration testing and production threat
   model validation.
-- [ ] Add support and operations runbooks.
+- [x] Add support and operations runbook baseline.
+- [ ] Add production support model, escalation paths, SLOs and customer-facing
+  operations commitments.
 
 ## Expansion Rule
 
