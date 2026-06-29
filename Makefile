@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
+.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check container-check container-build-api container-build-web container-build test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
@@ -43,6 +43,17 @@ security-check:
 
 deployment-check:
 	cd services/api && uv run python scripts/check_deployment_package.py
+
+container-check:
+	cd services/api && uv run python scripts/check_container_images.py
+
+container-build-api:
+	docker build -f services/api/Dockerfile -t limes-axis-api:local .
+
+container-build-web:
+	docker build -f apps/web/Dockerfile -t limes-axis-web:local .
+
+container-build: container-build-api container-build-web
 
 dev-stack-up:
 	docker compose -f infra/docker/docker-compose.yml up -d

@@ -86,6 +86,12 @@ Run the Kubernetes/Helm deployment package contract:
 make deployment-check
 ```
 
+Run the API/web container image contract:
+
+```bash
+make container-check
+```
+
 Plan, capture or restore repeatable local demo state with the
 [`backup and restore runbook`](./backup-restore.md):
 
@@ -153,6 +159,8 @@ make demo-stack-down
       contract for the current repository state.
 - [ ] `make deployment-check` passes the Helm chart, public deployment guide
       and externalized secret/configuration contract.
+- [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
+      Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
       without touching local runtime state.
 - [ ] `make demo-backup-local` captures `postgres.dump`, `minio-data.tar.gz`,
@@ -243,6 +251,8 @@ Show:
 - The support diagnostics bundle and current support operations runbook.
 - The first Helm deployment baseline in `infra/helm/limes-axis`, the
   deployment guide and the `deployment-check` output.
+- The API and web image baseline, local build commands and the
+  `container-check` output.
 - The current threat model, including assets, trust boundaries, abuse paths,
   existing controls and open production hardening work.
 - Tenant-scoped persisted reference records.
@@ -265,9 +275,9 @@ Confirm before the session:
   response mapping, production relationship metadata, approval actions,
   workflow execution and replay are fully backed by real persistence paths.
 - The first Helm chart and Kubernetes deployment guide are present, but
-  production HA validation, image build provenance, TLS ingress,
-  external-secret integration, cluster backup/restore, autoscaling and rollout
-  operations are not complete.
+  production HA validation, image build provenance/signing, registry release
+  automation, TLS ingress, external-secret integration, cluster backup/restore,
+  autoscaling and rollout operations are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
@@ -301,6 +311,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   object-store posture.
 - Deployment package contract for `infra/helm/limes-axis`, public deployment
   docs and externalized Kubernetes Secret usage through `make deployment-check`.
+- Container image package contract for API/web Dockerfiles, local build
+  commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support blockers,
   artifact links and redaction policy.
 - Threat model and security posture contract through `make security-check`.

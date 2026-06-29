@@ -29,6 +29,8 @@ In scope:
   Keycloak runtime.
 - `infra/helm/limes-axis`: initial Kubernetes/Helm deployment baseline for API
   and web workloads around externally managed dependencies.
+- `services/api/Dockerfile` and `apps/web/Dockerfile`: local container image
+  build baselines for the API and web console.
 - `docs` and root Makefile checks that define demo and security posture.
 
 Out of scope for this initial model:
@@ -70,6 +72,8 @@ Evidence anchors:
   readiness contract.
 - `services/api/scripts/check_deployment_package.py` verifies the initial Helm
   package and public deployment guide contract.
+- `services/api/scripts/check_container_images.py` verifies the API/web
+  Dockerfile, Makefile and public deployment documentation contract.
 
 ## System Model
 
@@ -228,7 +232,8 @@ flowchart LR
 ## Open Risks And Next Hardening Work
 
 - Production backup, restore, retention and disaster recovery are not complete.
-- Helm/Kubernetes deployment guides and HA runbooks are not complete.
+- Helm/Kubernetes deployment guides and local image build baselines exist, but
+  HA runbooks, image provenance/signing and release automation are not complete.
 - WORM/S3 retention and provider KMS signing are not production complete.
 - Enterprise SSO still needs authorization-code login, refresh handling,
   secure-cookie sessions, IdP onboarding and operations runbooks.
@@ -249,6 +254,7 @@ flowchart LR
 | `apps/web/e2e/smoke.spec.ts` | Guards API-required UI behavior and prevents fallback data | TM-006 |
 | `infra/docker/docker-compose.yml` | Local runtime topology and exposed service ports | TM-006 |
 | `infra/helm/limes-axis` | Kubernetes deployment baseline, external dependency wiring and secret references | TM-006 |
+| `services/api/Dockerfile`, `apps/web/Dockerfile` | Local API/web image build baselines and runtime boundaries | TM-006 |
 | `docs/demo-readiness.md` | Demo limitations and enterprise evaluation framing | TM-006 |
 | `docs/backup-restore.md` | Local demo backup boundary and non-production DR warning | TM-006 |
 | `docs/deployment.md` | Helm baseline, external Postgres/OIDC/object-store dependencies and production hardening gates | TM-006 |
