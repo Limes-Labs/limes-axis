@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FileText, Filter, Gauge, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
 import {
   allModelRoutingFilter,
   countBlockedModelRoutes,
@@ -22,8 +21,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
-
-type ModelRoutingSource = "loading" | "api" | "unavailable";
+import { useAxisQuery } from "@/lib/use-axis-query";
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -31,7 +29,7 @@ const defaultFilters: ModelRoutingFilters = {
   decision: allModelRoutingFilter,
 };
 
-function sourceLabel(source: ModelRoutingSource): string {
+function sourceLabel(source: "loading" | "api" | "unavailable"): string {
   if (source === "api") {
     return "API routing telemetry";
   }
@@ -48,43 +46,11 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 }
 
 export function ModelRoutingConsole() {
-  const [routing, setRouting] = useState<ManufacturingModelRouting | null>(null);
-  const [source, setSource] = useState<ModelRoutingSource>("loading");
+  const { data: routing, source } = useAxisQuery<ManufacturingModelRouting>(
+    "/demo/manufacturing/model-routing",
+  );
   const [filters, setFilters] = useState<ModelRoutingFilters>(defaultFilters);
   const [selectedRouteId, setSelectedRouteId] = useState("");
-  const apiBaseUrl = getApiBaseUrl();
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchRouting() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/demo/manufacturing/model-routing`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Model routing request failed with ${response.status}`);
-        }
-
-        const nextRouting = (await response.json()) as ManufacturingModelRouting;
-        setRouting(nextRouting);
-        setSelectedRouteId(nextRouting.routes[0]?.route_id ?? "");
-        setSource("api");
-      } catch {
-        if (!controller.signal.aborted) {
-          setRouting(null);
-          setSelectedRouteId("");
-          setSource("unavailable");
-        }
-      }
-    }
-
-    void fetchRouting();
-
-    return () => controller.abort();
-  }, [apiBaseUrl]);
 
   const filteredRoutes = useMemo(
     () => (routing ? filterModelRoutes(routing, filters) : []),
@@ -144,7 +110,7 @@ export function ModelRoutingConsole() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Model Router</p>

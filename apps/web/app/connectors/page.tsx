@@ -1,22 +1,14 @@
-import { PageActions } from "@/components/page-actions";
+import { ConsolePage } from "@/components/console-page";
 import { ConnectorConsole } from "@/components/connector-console";
 
 export default function ConnectorsPage() {
   return (
-    <div className="stack">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Connectors</p>
-          <h1 className="page-title">Connector intake</h1>
-          <p className="page-copy">
-            Connector manifests define source boundaries, schema mappings, credentials and sync
-            posture before any data leaves a tenant-controlled runtime.
-          </p>
-        </div>
-        <PageActions />
-      </header>
-
+    <ConsolePage
+      eyebrow="Connectors"
+      subtitle="Manifests, credentials, sync checkpoints, promotion policies and evidence snapshots from the Axis API."
+      title="Connector intake"
+    >
       <ConnectorConsole />
-    </div>
+    </ConsolePage>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
+import { axisFetchJson } from "@/lib/axis-api";
 import {
   allAuditFilter,
   filterAuditEvents,
@@ -21,6 +21,7 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { useConsole } from "@/providers/console-provider";
 
 type AuditSource = "loading" | "persisted" | "api" | "unavailable";
 
@@ -60,45 +61,17 @@ export function AuditExplorer() {
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("event_id"),
   );
   const [selectedEventId, setSelectedEventId] = useState("");
-  const apiBaseUrl = getApiBaseUrl();
+  const { refreshNonce } = useConsole();
 
   useEffect(() => {
     const controller = new AbortController();
 
-    async function fetchAuditData(path: string): Promise<ManufacturingAuditExplorer> {
-      const response = await fetch(`${apiBaseUrl}${path}`, {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Audit explorer request failed with ${response.status}`);
-      }
-
-      return (await response.json()) as ManufacturingAuditExplorer;
-    }
-
-    async function fetchAuditExport(): Promise<AuditExportBundle> {
-      const params = new URLSearchParams({
-        tenant_id: "tenant_demo_manufacturing",
-        limit: "100",
-        export_reason: "console-review",
-      });
-      const response = await fetch(`${apiBaseUrl}/demo/manufacturing/audit/export?${params}`, {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Audit export request failed with ${response.status}`);
-      }
-
-      return (await response.json()) as AuditExportBundle;
-    }
-
     async function loadAuditExport() {
       try {
-        const exportData = await fetchAuditExport();
+        const exportData = await axisFetchJson<AuditExportBundle>(
+          "/demo/manufacturing/audit/export?tenant_id=tenant_demo_manufacturing&limit=100&export_reason=console-review",
+          { signal: controller.signal },
+        );
         if (!controller.signal.aborted) {
           setAuditExport(exportData);
         }
@@ -110,9 +83,12 @@ export function AuditExplorer() {
     }
 
     async function fetchAudit() {
+      setSource("loading");
+
       try {
-        const persistedAuditData = await fetchAuditData(
+        const persistedAuditData = await axisFetchJson<ManufacturingAuditExplorer>(
           "/demo/manufacturing/audit/events?tenant_id=tenant_demo_manufacturing&limit=100",
+          { signal: controller.signal },
         );
         await loadAuditExport();
         if (persistedAuditData.events.length > 0) {
@@ -122,9 +98,12 @@ export function AuditExplorer() {
           return;
         }
 
-        const seedAuditData = await fetchAuditData("/demo/manufacturing/audit");
-        setAuditData(seedAuditData);
-        setSelectedEventId(seedAuditData.events[0]?.audit_event_id ?? "");
+        const referenceAuditData = await axisFetchJson<ManufacturingAuditExplorer>(
+          "/demo/manufacturing/audit",
+          { signal: controller.signal },
+        );
+        setAuditData(referenceAuditData);
+        setSelectedEventId(referenceAuditData.events[0]?.audit_event_id ?? "");
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
@@ -139,7 +118,7 @@ export function AuditExplorer() {
     void fetchAudit();
 
     return () => controller.abort();
-  }, [apiBaseUrl]);
+  }, [refreshNonce]);
 
   const filteredEvents = useMemo(
     () => (auditData ? filterAuditEvents(auditData, filters) : []),
@@ -202,7 +181,7 @@ export function AuditExplorer() {
   }
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Demo Audit Ledger</p>

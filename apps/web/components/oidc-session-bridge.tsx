@@ -62,11 +62,11 @@ export function OidcSessionBridge() {
               {error}
             </span>
           ) : null}
-          <button className="icon-button" type="submit" aria-label="Connect OIDC session">
+          <button className="ops-icon-button" type="submit" aria-label="Connect OIDC session">
             <Check size={16} />
           </button>
           <button
-            className="icon-button"
+            className="ops-icon-button"
             type="button"
             onClick={cancelEdit}
             aria-label="Cancel OIDC session entry"
@@ -79,13 +79,13 @@ export function OidcSessionBridge() {
 
     return (
       <button
-        className="command-button"
+        className="ops-icon-button"
         type="button"
         onClick={() => setIsEditing(true)}
         title="Connect OIDC bearer token"
+        aria-label="Connect OIDC bearer token"
       >
         <KeyRound size={17} />
-        OIDC
       </button>
     );
   }
@@ -97,7 +97,7 @@ export function OidcSessionBridge() {
         {compactActorLabel(session.actorId)}
       </span>
       <button
-        className="icon-button"
+        className="ops-icon-button"
         type="button"
         onClick={clearSession}
         aria-label="Clear OIDC session"

@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Database, Network, RadioTower, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
-import { getApiBaseUrl } from "@/lib/api-status";
-import { buildAxisAuthInit } from "@/lib/oidc-session";
+import { axisFetch } from "@/lib/axis-api";
 import {
   formatNodeType,
   type ManufacturingOntologyEntityDetail,
@@ -17,6 +16,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { useConsole } from "@/providers/console-provider";
 
 type EntitySource = "loading" | "api" | "unavailable" | "missing";
 
@@ -51,23 +51,20 @@ function TagList({ items, emptyLabel }: { items: string[]; emptyLabel: string })
 export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   const [detail, setDetail] = useState<ManufacturingOntologyEntityDetail | null>(null);
   const [source, setSource] = useState<EntitySource>("loading");
-  const apiBaseUrl = getApiBaseUrl();
   const { session } = useOidcConsoleSession();
+  const { refreshNonce } = useConsole();
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function fetchEntity() {
       try {
-        const response = await fetch(
-          `${apiBaseUrl}/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId)}`,
-          buildAxisAuthInit(
-            {
-              signal: controller.signal,
-              cache: "no-store",
-            },
+        const response = await axisFetch(
+          `/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId)}`,
+          {
             session,
-          ),
+            signal: controller.signal,
+          },
         );
 
         if (response.status === 404) {
@@ -93,7 +90,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     void fetchEntity();
 
     return () => controller.abort();
-  }, [apiBaseUrl, nodeId, session]);
+  }, [nodeId, session, refreshNonce]);
 
   if (!detail) {
     if (source !== "missing") {
@@ -107,11 +104,11 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     }
 
     return (
-      <div className="stack">
-        <section className="panel overview-context">
-          <div>
-            <p className="section-label">Ontology Entity</p>
-            <h2 className="panel-title">Entity not found</h2>
+    <div className="console-stack">
+      <section className="panel overview-context">
+        <div>
+          <p className="section-label">Ontology Entity</p>
+          <h2 className="panel-title">Entity not found</h2>
             <p className="row-detail mono">{nodeId}</p>
           </div>
           <Link className="command-button" href="/ontology">

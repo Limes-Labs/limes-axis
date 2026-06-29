@@ -3,7 +3,8 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Cable, Database, FileText, KeyRound, ScrollText, ShieldCheck } from "lucide-react";
 
-import { getApiBaseUrl } from "@/lib/api-status";
+import { axisFetch } from "@/lib/axis-api";
+import { useConsole } from "@/providers/console-provider";
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import {
   buildConnectorEvidenceInvariantSnapshotRequest,
@@ -233,15 +234,13 @@ function snapshotIdStamp(date: Date): string {
 }
 
 async function fetchConnectorJson<T>(
-  apiBaseUrl: string,
   path: string,
   signal?: AbortSignal,
-  init?: RequestInit,
+  init?: Parameters<typeof axisFetch>[1],
 ): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await axisFetch(path, {
     ...init,
     signal,
-    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -255,7 +254,7 @@ async function fetchConnectorJson<T>(
   return (await response.json()) as T;
 }
 
-async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
+async function fetchConnectorData(signal?: AbortSignal) {
   const [
     registryData,
     manifestData,
@@ -274,65 +273,50 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
     promotionPolicyData,
     promotionPolicySetData,
   ] = await Promise.all([
-    fetchConnectorJson<ManufacturingConnectorRegistry>(
-      apiBaseUrl,
-      "/demo/manufacturing/connectors",
-      signal,
-    ),
+    fetchConnectorJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors", signal),
     fetchConnectorJson<ManufacturingConnectorManifestRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/manifests",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorConfigurationRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/configurations",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorCredentialHandleRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/credential-handles",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorCredentialLeaseRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/credential-leases",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorEgressPolicyRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/egress-policies",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorRunRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/runs",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorSyncCheckpointRegistry>(
-      apiBaseUrl,
       buildConnectorSyncCheckpointQueryPath(CONNECTOR_TENANT_ID),
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorSyncCheckpointClaimRegistry>(
-      apiBaseUrl,
       buildConnectorSyncCheckpointClaimQueryPath(CONNECTOR_TENANT_ID),
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorEvidenceInvariantReport>(
-      apiBaseUrl,
       `/demo/manufacturing/connectors/evidence-invariants?tenant_id=${CONNECTOR_TENANT_ID}`,
       signal,
     ),
     fetchConnectorJson<ConnectorEvidenceInvariantSnapshotHistory>(
-      apiBaseUrl,
       buildConnectorEvidenceInvariantSnapshotHistoryPath(CONNECTOR_TENANT_ID, {
         limit: 20,
       }),
       signal,
     ),
     fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportBundle>(
-      apiBaseUrl,
       buildConnectorEvidenceInvariantSnapshotExportPath(CONNECTOR_TENANT_ID, {
         limit: 20,
         exportReason: "console-review",
@@ -340,22 +324,18 @@ async function fetchConnectorData(apiBaseUrl: string, signal?: AbortSignal) {
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorOntologyProposalRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/ontology-proposals",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorManualImportRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/manual-imports",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorPromotionPolicyRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/promotion-policies",
       signal,
     ),
     fetchConnectorJson<ManufacturingConnectorPromotionPolicySetRegistry>(
-      apiBaseUrl,
       "/demo/manufacturing/connectors/promotion-policy-sets",
       signal,
     ),
@@ -527,14 +507,14 @@ export function ConnectorConsole() {
   const [policyEnableStatus, setPolicyEnableStatus] = useState<PolicyEnableStatus>("idle");
   const [evidenceSnapshotStatus, setEvidenceSnapshotStatus] =
     useState<EvidenceSnapshotStatus>("idle");
-  const apiBaseUrl = getApiBaseUrl();
+  const { refreshNonce } = useConsole();
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadInitialConnectors() {
       try {
-        const data = await fetchConnectorData(apiBaseUrl, controller.signal);
+        const data = await fetchConnectorData(controller.signal);
         setRegistry(data.registryData);
         setManifestRegistry(data.manifestData);
         setConfigurationRegistry(data.configurationData);
@@ -571,7 +551,7 @@ export function ConnectorConsole() {
     void loadInitialConnectors();
 
     return () => controller.abort();
-  }, [apiBaseUrl, requestedConnectorId, requestedSnapshotId]);
+  }, [refreshNonce, requestedConnectorId, requestedSnapshotId]);
 
   const selectedConnector = useMemo(
     () =>
@@ -713,7 +693,7 @@ export function ConnectorConsole() {
   );
 
   async function refreshConnectorData() {
-    const data = await fetchConnectorData(apiBaseUrl);
+    const data = await fetchConnectorData();
     setRegistry(data.registryData);
     setManifestRegistry(data.manifestData);
     setConfigurationRegistry(data.configurationData);
@@ -758,15 +738,10 @@ export function ConnectorConsole() {
 
     setPolicyAuthoringStatus("saving");
     try {
-      await fetchConnectorJson<unknown>(
-        apiBaseUrl,
-        "/demo/manufacturing/connectors/promotion-policies",
-        undefined,
-        {
-          body: JSON.stringify(request),
-          method: "POST",
-        },
-      );
+      await fetchConnectorJson<unknown>("/demo/manufacturing/connectors/promotion-policies", undefined, {
+        body: request,
+        method: "POST",
+      });
       await refreshConnectorData();
       setPolicyEnableForm(
         buildConnectorPromotionPolicyEnableRequest({
@@ -792,11 +767,10 @@ export function ConnectorConsole() {
     setPolicyEnableStatus("saving");
     try {
       await fetchConnectorJson<unknown>(
-        apiBaseUrl,
         `/demo/manufacturing/connectors/promotion-policies/${request.policy_id}/enable`,
         undefined,
         {
-          body: JSON.stringify(request),
+          body: request,
           method: "POST",
         },
       );
@@ -827,11 +801,10 @@ export function ConnectorConsole() {
     setEvidenceSnapshotStatus("saving");
     try {
       await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotRecord>(
-        apiBaseUrl,
         "/demo/manufacturing/connectors/evidence-invariants/snapshots",
         undefined,
         {
-          body: JSON.stringify(request),
+          body: request,
           method: "POST",
         },
       );
@@ -860,11 +833,10 @@ export function ConnectorConsole() {
     setEvidenceSnapshotExportRequestStatus("saving");
     try {
       const result = await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportRequestRecord>(
-        apiBaseUrl,
         buildConnectorEvidenceInvariantSnapshotExportRequestPath(),
         undefined,
         {
-          body: JSON.stringify(request),
+          body: request,
           method: "POST",
         },
       );
@@ -896,13 +868,12 @@ export function ConnectorConsole() {
     try {
       const result =
         await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportDecisionResult>(
-          apiBaseUrl,
           buildConnectorEvidenceInvariantSnapshotExportRequestDecisionPath(
             evidenceSnapshotExportRequest.export_request_id,
           ),
           undefined,
           {
-            body: JSON.stringify(request),
+            body: request,
             method: "POST",
           },
         );
@@ -934,13 +905,12 @@ export function ConnectorConsole() {
     try {
       const result =
         await fetchConnectorJson<ConnectorEvidenceInvariantSnapshotExportMaterializationResult>(
-          apiBaseUrl,
           buildConnectorEvidenceInvariantSnapshotExportRequestMaterializationPath(
             evidenceSnapshotExportRequest.export_request_id,
           ),
           undefined,
           {
-            body: JSON.stringify(request),
+            body: request,
             method: "POST",
           },
         );
@@ -969,7 +939,7 @@ export function ConnectorConsole() {
 
   if (!selectedConnector) {
     return (
-      <div className="stack">
+      <div className="console-stack">
         <section className="panel overview-context">
           <div>
             <p className="section-label">Connector Foundation</p>
@@ -1047,7 +1017,7 @@ export function ConnectorConsole() {
       : "no stored credentials";
 
   return (
-    <div className="stack">
+    <div className="console-stack">
       <section className="panel overview-context">
         <div>
           <p className="section-label">Connector Foundation</p>
