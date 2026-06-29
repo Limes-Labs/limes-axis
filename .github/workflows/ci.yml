@@ -90,6 +90,9 @@ jobs:
       - name: Check container release package
         run: make container-release-check
 
+      - name: Check container security scan package
+        run: make container-security-check
+
       - name: Install worker dependencies
         working-directory: services/worker
         run: uv sync --locked

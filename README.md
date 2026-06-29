@@ -144,6 +144,10 @@ baseline; image provenance, signing and registry release automation remain
 Enterprise hardening work. Use `make container-release-check` for the first
 GHCR release workflow baseline: it verifies the tag/manual release path,
 keyless signing, SBOM and provenance boundaries before future release runs.
+Use `make container-security-check` for the container vulnerability scanning
+policy baseline and `make container-scan-local` to run the same Trivy
+CRITICAL/fixed-vulnerability gate against local API and web images, with JSON
+reports written under `.axis/trivy-reports/`.
 Use [`docs/threat-model.md`](./docs/threat-model.md) and `make security-check`
 for the current repository-grounded security review baseline. It covers assets,
 trust boundaries, abuse paths, existing controls and open enterprise hardening
