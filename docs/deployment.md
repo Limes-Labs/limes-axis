@@ -24,6 +24,7 @@ The baseline covers:
 - Local API and web Dockerfile baselines.
 - GHCR container release workflow with SBOM, keyless signing and provenance
   attestations for tag or manually approved release runs.
+- Container vulnerability scanning policy baseline for API and web images.
 
 The baseline does not yet cover:
 
@@ -99,8 +100,48 @@ make container-release-check
 
 This baseline is intended to make release artifacts inspectable and
 repeatable. It is not a production certification: registry retention policy,
-promotion approvals, vulnerability scanning policy, long-term SBOM archival and
-customer-specific deployment gates still need production hardening.
+promotion approvals, vulnerability exception lifecycle, long-term SBOM archival
+and customer-specific deployment gates still need production hardening.
+
+## Container Vulnerability Scanning
+
+The repository includes a container security workflow in
+`.github/workflows/container-security.yml`. It builds the API and web images
+from the repository Dockerfiles and scans both with Trivy.
+
+The first blocking policy is intentionally narrow and repeatable:
+
+- scan API and web images on relevant pull requests, pushes to `main` and
+  manual runs;
+- scan OS and library vulnerabilities;
+- block fixed `CRITICAL` vulnerabilities;
+- use `ignore-unfixed` so the gate focuses on issues with an available upgrade
+  path;
+- pinned to the v0.36.0 commit for `aquasecurity/trivy-action`:
+  `ed142fd0673e97e23eac54620cfb913e5ce36c25`;
+- run Trivy `v0.71.2`.
+
+Validate the workflow contract locally with:
+
+```bash
+make container-security-check
+```
+
+Run the same critical fixed-vulnerability policy against local images with:
+
+```bash
+make container-scan-local
+```
+
+The local scan writes machine-readable JSON reports under
+`.axis/trivy-reports/`, which is ignored by git with the rest of the local Axis
+runtime state.
+
+This is a real vulnerability scan gate, but it is not a production
+certification. Enterprise hardening still needs a promotion review process,
+severity escalation policy for `HIGH` findings, exception expiry, SARIF/code
+scanning publication, registry retention, release rollback criteria and
+customer-specific deployment gates.
 
 ## Runtime Secrets
 
@@ -162,6 +203,7 @@ Run the static repository deployment check:
 make deployment-check
 make container-check
 make container-release-check
+make container-security-check
 ```
 
 After a cluster install, verify Kubernetes state and API readiness:
@@ -183,7 +225,9 @@ hardened.
 Before customer production use, the deployment package must add and verify:
 
 - promotion approval rules for production image release.
-- registry retention, vulnerability scanning policy and long-term SBOM archive.
+- registry retention and long-term SBOM archive.
+- escalation policy for high-severity findings and expiring vulnerability
+  exceptions.
 - TLS ingress and secure cookie/session behavior.
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.

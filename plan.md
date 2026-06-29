@@ -272,11 +272,12 @@ Foundation acceptance is tracked in
 - [x] Add initial Helm charts and production deployment guide baseline.
 - [x] Add buildable API and web container image baseline.
 - [x] Add container release provenance, signing and SBOM workflow baseline.
+- [x] Add container vulnerability scanning policy baseline.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Add production HA, TLS ingress, release promotion approvals,
-  vulnerability scanning policy, external-secret, backup/restore, S3/MinIO
-  WORM retention and cluster operations hardening.
+  vulnerability exception lifecycle, external-secret, backup/restore,
+  S3/MinIO WORM retention and cluster operations hardening.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -353,8 +354,18 @@ and web images for GHCR, supports build-only manual runs, publishes on `v*`
 tags or approved manual push runs, enables BuildKit SBOM and provenance
 attestations and signs pushed digests with GitHub OIDC keyless signing. This is
 still not a production deployment certification: promotion approvals,
-vulnerability scanning policy, registry retention and long-term SBOM archival
-remain Enterprise hardening work.
+registry retention and long-term SBOM archival remain Enterprise hardening work.
+The container vulnerability scanning baseline now includes
+`.github/workflows/container-security.yml`, `make container-security-check`,
+`make container-scan-local` and
+`services/api/scripts/check_container_security_scan.py`. The workflow builds
+the API and web images from their Dockerfiles and blocks fixed `CRITICAL`
+OS/library vulnerabilities using Trivy `v0.71.2`, with the Trivy action pinned
+to the v0.36.0 commit SHA. The local scan writes JSON evidence under
+`.axis/trivy-reports/`. This is a real scan gate for the current release path,
+not a production vulnerability management program: `HIGH` escalation, exception
+expiry, SARIF publication, registry retention and promotion-review policy remain
+Enterprise hardening work.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped
