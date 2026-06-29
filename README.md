@@ -133,6 +133,12 @@ Use [`docs/backup-restore.md`](./docs/backup-restore.md) to plan, capture and
 restore the local Docker Compose demo state with `pg_dump`, MinIO and TypeDB
 volume archives and checksum manifests. This is a repeatable demo runbook, not
 a production disaster recovery claim.
+Use [`docs/deployment.md`](./docs/deployment.md) and `make deployment-check`
+for the first Kubernetes/Helm deployment baseline. The chart in
+`infra/helm/limes-axis` deploys the API and web console around operator-supplied
+images and externally managed Postgres, TypeDB, Temporal, OIDC and object-store
+dependencies. It is an evaluation and hardening baseline, not a production
+certification.
 Use [`docs/threat-model.md`](./docs/threat-model.md) and `make security-check`
 for the current repository-grounded security review baseline. It covers assets,
 trust boundaries, abuse paths, existing controls and open enterprise hardening

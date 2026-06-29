@@ -13,8 +13,9 @@ below passes on the demo machine.
 Axis is ready for an enterprise evaluation demo as an architecture and product
 workflow walkthrough when the same checklist passes and the limitations section
 is shared before the session. It is not yet a production enterprise deployment:
-Helm, production disaster recovery, SSO hardening, WORM retention and
-production operations runbooks remain tracked Enterprise work.
+the first Helm baseline exists, but production disaster recovery, SSO
+hardening, WORM retention, high availability and production operations runbooks
+remain tracked Enterprise work.
 
 ## No Browser-Local Mock Data
 
@@ -77,6 +78,12 @@ Run the security posture and threat model contract:
 
 ```bash
 make security-check
+```
+
+Run the Kubernetes/Helm deployment package contract:
+
+```bash
+make deployment-check
 ```
 
 Plan, capture or restore repeatable local demo state with the
@@ -144,6 +151,8 @@ make demo-stack-down
 - [ ] `make demo-check` passes static repository checks.
 - [ ] `make security-check` passes the threat model and security posture
       contract for the current repository state.
+- [ ] `make deployment-check` passes the Helm chart, public deployment guide
+      and externalized secret/configuration contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
       without touching local runtime state.
 - [ ] `make demo-backup-local` captures `postgres.dump`, `minio-data.tar.gz`,
@@ -232,6 +241,8 @@ Show:
 - The OIDC/Keycloak direction, token-bound mutation paths and OIDC readiness
   report.
 - The support diagnostics bundle and current support operations runbook.
+- The first Helm deployment baseline in `infra/helm/limes-axis`, the
+  deployment guide and the `deployment-check` output.
 - The current threat model, including assets, trust boundaries, abuse paths,
   existing controls and open production hardening work.
 - Tenant-scoped persisted reference records.
@@ -253,7 +264,10 @@ Confirm before the session:
 - Full manufacturing operations reference demo remains open until TypeDB graph
   response mapping, production relationship metadata, approval actions,
   workflow execution and replay are fully backed by real persistence paths.
-- Helm charts and production Kubernetes deployment guides are not complete.
+- The first Helm chart and Kubernetes deployment guide are present, but
+  production HA validation, image build provenance, TLS ingress,
+  external-secret integration, cluster backup/restore, autoscaling and rollout
+  operations are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
@@ -285,6 +299,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Deployment readiness report contract with public-safe production blockers for
   identity, external model egress, connector execution, audit signing and
   object-store posture.
+- Deployment package contract for `infra/helm/limes-axis`, public deployment
+  docs and externalized Kubernetes Secret usage through `make deployment-check`.
 - Support diagnostics report contract with public-safe support blockers,
   artifact links and redaction policy.
 - Threat model and security posture contract through `make security-check`.

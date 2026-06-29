@@ -1,0 +1,160 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+secrets:
+  existingSecret: limes-axis-runtime
+  createExample: false
+  exampleData:
+    AXIS_POSTGRES_DSN: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+    AXIS_TYPEDB_USERNAME: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+    AXIS_TYPEDB_PASSWORD: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+    AXIS_AUDIT_LEDGER_SIGNING_SECRET: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+
+api:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/limes-labs/limes-axis-api
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    AXIS_ENV: production
+    AXIS_PUBLIC_BASE_URL: https://axis.example.com
+    AXIS_API_BASE_URL: https://api.axis.example.com
+    AXIS_CORS_ORIGINS:
+      - https://axis.example.com
+    AXIS_TYPEDB_ADDRESS: typedb.axis.svc.cluster.local:1729
+    AXIS_TYPEDB_DATABASE: axis
+    AXIS_TEMPORAL_ADDRESS: temporal-frontend.axis.svc.cluster.local:7233
+    AXIS_TEMPORAL_NAMESPACE: default
+    AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS: "2.0"
+    AXIS_WORKFLOW_SIGNALS_ENABLED: "true"
+    AXIS_OIDC_ISSUER: https://keycloak.example.com/realms/axis
+    AXIS_OIDC_AUDIENCE: limes-axis-api
+    AXIS_OIDC_JWKS_URL: https://keycloak.example.com/realms/axis/protocol/openid-connect/certs
+    AXIS_OIDC_ALGORITHMS:
+      - RS256
+    AXIS_OIDC_ACTOR_CLAIM: sub
+    AXIS_OIDC_TENANT_CLAIM: axis_tenant
+    AXIS_OIDC_JWKS_CACHE_SECONDS: "300"
+    AXIS_OIDC_AUTH_REQUIRED: "true"
+    AXIS_ONTOLOGY_MUTATIONS_ENABLED: "false"
+    AXIS_ONTOLOGY_QUERIES_ENABLED: "false"
+    AXIS_EXTERNAL_MODEL_EGRESS_ENABLED: "false"
+    AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED: "false"
+    AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED: "false"
+    AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED: "false"
+    AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED: "false"
+    AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED: "false"
+    AXIS_AUDIT_LEDGER_SIGNING_KEY_ID: axis-self-hosted-audit-ledger
+    AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT: s3://limes-axis-evidence
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+  podSecurityContext:
+    fsGroup: 10001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+web:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/limes-labs/limes-axis-web
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  env:
+    NEXT_PUBLIC_AXIS_API_BASE_URL: https://api.axis.example.com
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+  podSecurityContext:
+    fsGroup: 10001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: axis.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+    - host: api.axis.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: api
+  tls: []
+
+networkPolicy:
+  enabled: true
+  dnsPort: 53
+  allowedEgressPorts:
+    - 443
+    - 5432
+    - 1729
+    - 7233
+    - 9000
+
+externalServices:
+  postgres:
+    mode: external
+    description: Use an external Postgres instance with AXIS_POSTGRES_DSN supplied by secrets.existingSecret.
+  typedb:
+    mode: external
+    addressEnv: AXIS_TYPEDB_ADDRESS
+  temporal:
+    mode: external
+    addressEnv: AXIS_TEMPORAL_ADDRESS
+  objectStore:
+    mode: s3-compatible
+    rootEnv: AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT
+    wormRetention: not-configured
+  oidc:
+    mode: external
+    issuerEnv: AXIS_OIDC_ISSUER

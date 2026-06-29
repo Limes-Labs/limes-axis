@@ -1,0 +1,16 @@
+apiVersion: v2
+name: limes-axis
+description: Self-hosted deployment baseline for the Limes Axis open core.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/Limes-Labs/limes-axis
+sources:
+  - https://github.com/Limes-Labs/limes-axis
+keywords:
+  - sovereign-ai
+  - ai-agents
+  - workflow
+  - ontology
+  - enterprise
+  - europe

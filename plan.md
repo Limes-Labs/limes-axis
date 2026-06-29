@@ -1,6 +1,6 @@
 # Limes Axis Public Plan
 
-Last updated: 2026-06-27
+Last updated: 2026-06-29
 
 ## Summary
 
@@ -269,8 +269,11 @@ Foundation acceptance is tracked in
   production blockers.
 - [x] Add a public-safe support diagnostics bundle and support operations
   runbook baseline.
+- [x] Add initial Helm charts and production deployment guide baseline.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
+- [ ] Add production HA, TLS ingress, image provenance, external-secret,
+  backup/restore, S3/MinIO WORM retention and cluster operations hardening.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -328,6 +331,13 @@ dev and production-build demo origins, the persisted manufacturing operations
 snapshot contract, the demo readiness report contract and the Axis console
 brand shell. It is a demo readiness gate, not a production enterprise readiness
 claim.
+The Kubernetes deployment baseline now lives in `infra/helm/limes-axis`, with
+`docs/deployment.md` and `services/api/scripts/check_deployment_package.py`
+guarding chart files, externalized runtime configuration, public-safe docs and
+the `deployment-check` Make target. It is an initial production deployment
+guide baseline, not a claim that high availability, image release automation,
+TLS ingress, external secret management, production backup/restore or
+S3/MinIO WORM retention are complete.
 
 The manufacturing operations dataset now has a dedicated persisted surface:
 `GET /demo/manufacturing/operations` reads tenant-scoped
