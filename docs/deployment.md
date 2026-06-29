@@ -22,11 +22,11 @@ The baseline covers:
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
 - Local API and web Dockerfile baselines.
+- GHCR container release workflow with SBOM, keyless signing and provenance
+  attestations for tag or manually approved release runs.
 
 The baseline does not yet cover:
 
-- Production registry release automation.
-- Image provenance, signing and SBOM publication.
 - High availability validation under load.
 - Horizontal autoscaling and disruption budgets.
 - TLS ingress and certificate automation.
@@ -73,6 +73,34 @@ production Node dependencies for runtime, runs as UID `10001`, exposes port
 These local builds are useful for hardening the Helm path and for evaluation
 clusters. They are not image provenance, signing, SBOM publication or registry
 release automation.
+
+## Container Release Workflow
+
+The repository includes a real release supply-chain baseline in
+`.github/workflows/container-release.yml`.
+
+The workflow builds both public images:
+
+- `ghcr.io/${{ github.repository_owner }}/limes-axis-api`
+- `ghcr.io/${{ github.repository_owner }}/limes-axis-web`
+
+It runs on `v*` Git tags and can also be started manually with
+`workflow_dispatch`. Manual runs default to build-only mode; setting the
+`push` input to `true` publishes images to GHCR. Published images use GitHub
+OIDC for keyless signing through cosign, BuildKit `sbom: true`, BuildKit
+`provenance: mode=max`, and GitHub registry-backed build provenance
+attestations.
+
+Validate the release workflow contract locally with:
+
+```bash
+make container-release-check
+```
+
+This baseline is intended to make release artifacts inspectable and
+repeatable. It is not a production certification: registry retention policy,
+promotion approvals, vulnerability scanning policy, long-term SBOM archival and
+customer-specific deployment gates still need production hardening.
 
 ## Runtime Secrets
 
@@ -133,6 +161,7 @@ Run the static repository deployment check:
 ```bash
 make deployment-check
 make container-check
+make container-release-check
 ```
 
 After a cluster install, verify Kubernetes state and API readiness:
@@ -153,8 +182,8 @@ hardened.
 
 Before customer production use, the deployment package must add and verify:
 
-- production image build and provenance.
-- registry publication, image signing and SBOM generation.
+- promotion approval rules for production image release.
+- registry retention, vulnerability scanning policy and long-term SBOM archive.
 - TLS ingress and secure cookie/session behavior.
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.

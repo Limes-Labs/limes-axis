@@ -141,7 +141,9 @@ dependencies. It is an evaluation and hardening baseline, not a production
 certification. Use `make container-check`, `make container-build-api` and
 `make container-build-web` for the first local API/web container image build
 baseline; image provenance, signing and registry release automation remain
-Enterprise hardening work.
+Enterprise hardening work. Use `make container-release-check` for the first
+GHCR release workflow baseline: it verifies the tag/manual release path,
+keyless signing, SBOM and provenance boundaries before future release runs.
 Use [`docs/threat-model.md`](./docs/threat-model.md) and `make security-check`
 for the current repository-grounded security review baseline. It covers assets,
 trust boundaries, abuse paths, existing controls and open enterprise hardening
