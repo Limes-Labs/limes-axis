@@ -159,6 +159,7 @@ def _map_typedb_rows_to_ontology(
                         "relation_type": row.get("relation_type"),
                         "summary": row.get("summary"),
                         "permission_scope": row.get("permission_scope"),
+                        "metadata": row.get("metadata"),
                     }
                 )
             )

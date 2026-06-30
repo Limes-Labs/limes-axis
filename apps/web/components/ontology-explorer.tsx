@@ -169,6 +169,7 @@ export function OntologyExplorer() {
               <th>From</th>
               <th>To</th>
               <th>Permission</th>
+              <th>Owner</th>
             </tr>
           </thead>
           <tbody>
@@ -180,7 +181,19 @@ export function OntologyExplorer() {
                 </td>
                 <td>{nodeLabels.get(relationship.source_id)}</td>
                 <td>{nodeLabels.get(relationship.target_id)}</td>
-                <td className="mono">{relationship.permission_scope}</td>
+                <td>
+                  <span className="mono">{relationship.permission_scope}</span>
+                  <p className="row-detail">
+                    {Math.round(relationship.metadata.confidence * 100)}% confidence
+                  </p>
+                </td>
+                <td>
+                  {relationship.metadata.owner_role}
+                  <p className="row-detail mono">
+                    {relationship.metadata.verification_status} /{" "}
+                    {relationship.metadata.last_verified_at}
+                  </p>
+                </td>
               </tr>
             ))}
           </tbody>

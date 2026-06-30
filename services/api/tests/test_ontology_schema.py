@@ -26,6 +26,39 @@ def test_meta_ontology_schema_contains_required_primitives() -> None:
         assert f"entity {primitive}" in schema
 
 
+def test_meta_ontology_schema_contains_relationship_metadata_primitives() -> None:
+    schema = Path("src/axis_api/ontology/schema.tql").read_text()
+
+    for attribute in [
+        "relationship_id",
+        "permission_scope",
+        "owner_role",
+        "source_adapter",
+        "confidence",
+        "evidence_ref",
+        "valid_from",
+        "valid_to",
+        "last_verified_at",
+        "verification_status",
+    ]:
+        assert f"attribute {attribute}" in schema
+
+    for relation in [
+        "axis_owns_relation",
+        "axis_uses_relation",
+        "axis_requires_approval",
+    ]:
+        assert f"relation {relation}" in schema
+        relation_block = schema.split(f"relation {relation},", maxsplit=1)[1].split(
+            ";\n",
+            maxsplit=1,
+        )[0]
+        assert "owns relationship_id" in relation_block
+        assert "owns permission_scope" in relation_block
+        assert "owns owner_role" in relation_block
+        assert "owns evidence_ref" in relation_block
+
+
 def test_connector_proposal_promotion_typeql_is_public_safe() -> None:
     request = OntologyMutationRequest(
         tenant_id="tenant_demo_manufacturing",

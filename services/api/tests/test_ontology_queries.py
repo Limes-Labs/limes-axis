@@ -145,6 +145,16 @@ class StructuredTypeDBClient:
                 "relation_type": "requires_release",
                 "summary": "Line 7 requires quality release before shipment.",
                 "permission_scope": "quality:read",
+                "metadata": {
+                    "owner_role": "Quality Steward",
+                    "source_adapter": "typedb-read-boundary",
+                    "confidence": 0.98,
+                    "evidence_refs": ["typedb:quality_release:line_7"],
+                    "valid_from": "2026-06-30T09:00:00+02:00",
+                    "valid_to": None,
+                    "last_verified_at": "2026-06-30T09:10:00+02:00",
+                    "verification_status": "typedb_verified",
+                },
             },
         ]
 
@@ -182,6 +192,11 @@ def test_typedb_ontology_query_runtime_maps_structured_rows() -> None:
     assert [relationship.relationship_id for relationship in ontology.relationships] == [
         "typedb_rel_line_requires_release"
     ]
+    assert ontology.relationships[0].metadata.owner_role == "Quality Steward"
+    assert ontology.relationships[0].metadata.evidence_refs == [
+        "typedb:quality_release:line_7"
+    ]
+    assert ontology.relationships[0].metadata.source_adapter == "typedb-read-boundary"
     assert ontology.source_systems == ["TypeDB"]
 
 
@@ -329,6 +344,12 @@ def test_ontology_openapi_allows_empty_filtered_graph_lists() -> None:
     response = client.get("/openapi.json")
 
     assert response.status_code == 200
-    schema = response.json()["components"]["schemas"]["ManufacturingOntology"]
+    components = response.json()["components"]["schemas"]
+    schema = components["ManufacturingOntology"]
     assert "minItems" not in schema["properties"]["nodes"]
     assert "minItems" not in schema["properties"]["relationships"]
+    relationship_schema = components["OntologyRelationship"]
+    assert "metadata" in relationship_schema["properties"]
+    assert "OntologyRelationshipMetadata" in str(
+        relationship_schema["properties"]["metadata"]
+    )

@@ -436,6 +436,16 @@ def persisted_ontology_payload() -> dict:
                 "relation_type": "contains",
                 "summary": "Persisted operations context contains the line.",
                 "permission_scope": "operations:read",
+                "metadata": {
+                    "owner_role": "Operations Steward",
+                    "source_adapter": "axis-reference-ontology",
+                    "confidence": 0.91,
+                    "evidence_refs": ["audit:persisted_operations_context"],
+                    "valid_from": "2026-06-22T12:00:00+02:00",
+                    "valid_to": None,
+                    "last_verified_at": "2026-06-22T12:00:00+02:00",
+                    "verification_status": "reference_verified",
+                },
             },
             {
                 "relationship_id": "rel_persisted_risk_impacts_line",
@@ -444,6 +454,16 @@ def persisted_ontology_payload() -> dict:
                 "relation_type": "impacts",
                 "summary": "Persisted risk impacts the line.",
                 "permission_scope": "supply:read",
+                "metadata": {
+                    "owner_role": "Supply Steward",
+                    "source_adapter": "axis-reference-ontology",
+                    "confidence": 0.94,
+                    "evidence_refs": ["audit:persisted_supplier_delay"],
+                    "valid_from": "2026-06-22T12:00:00+02:00",
+                    "valid_to": None,
+                    "last_verified_at": "2026-06-22T12:00:00+02:00",
+                    "verification_status": "reference_verified",
+                },
             },
         ],
         "source_systems": ["Axis", "MES"],
@@ -1611,6 +1631,14 @@ def test_manufacturing_ontology_bootstrap_seed_has_valid_relationships() -> None
     assert OntologyNodeType.APPROVAL in {node.node_type for node in ontology.nodes}
     assert all(edge.source_id in node_ids for edge in ontology.relationships)
     assert all(edge.target_id in node_ids for edge in ontology.relationships)
+    assert all(edge.metadata.owner_role for edge in ontology.relationships)
+    assert all(edge.metadata.evidence_refs for edge in ontology.relationships)
+    assert all(0 <= edge.metadata.confidence <= 1 for edge in ontology.relationships)
+    assert all(
+        edge.metadata.source_adapter == "axis-reference-ontology"
+        for edge in ontology.relationships
+    )
+    assert all(edge.metadata.last_verified_at for edge in ontology.relationships)
     assert all("@" not in note for note in ontology.permission_notes)
 
 
@@ -1621,6 +1649,10 @@ def test_manufacturing_ontology_reference_contract_is_valid() -> None:
     assert ontology.scenario == "Persisted Ontology Graph"
     assert ontology.nodes[1].node_id == "asset_persisted_line"
     assert ontology.relationships[1].permission_scope == "supply:read"
+    assert ontology.relationships[1].metadata.owner_role == "Supply Steward"
+    assert ontology.relationships[1].metadata.evidence_refs == [
+        "audit:persisted_supplier_delay"
+    ]
 
 
 def test_manufacturing_ontology_bootstrap_payload_matches_contract() -> None:
@@ -1695,6 +1727,14 @@ def test_manufacturing_ontology_endpoint_returns_persisted_reference_graph(
         edge["relationship_id"] == "rel_persisted_risk_impacts_line"
         for edge in body["relationships"]
     )
+    persisted_edge = next(
+        edge
+        for edge in body["relationships"]
+        if edge["relationship_id"] == "rel_persisted_risk_impacts_line"
+    )
+    assert persisted_edge["metadata"]["owner_role"] == "Supply Steward"
+    assert persisted_edge["metadata"]["evidence_refs"] == ["audit:persisted_supplier_delay"]
+    assert persisted_edge["metadata"]["source_adapter"] == "axis-reference-ontology"
     assert "password" not in str(body).lower()
 
 
