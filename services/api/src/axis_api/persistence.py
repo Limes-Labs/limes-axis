@@ -168,6 +168,17 @@ class WorkflowActionRunUpdate(BaseModel):
     approval_id: str | None = None
 
 
+class WorkflowActionRunOutcomeUpdate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    action_id: str = Field(min_length=1)
+    action_run_id: UUID
+    idempotency_key: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    result_summary: str = Field(min_length=1)
+
+
 class ReplaySimulationOutputCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     simulation_output_id: str = Field(min_length=1)
@@ -1051,6 +1062,13 @@ class AxisPersistenceRepository:
         )
         return self.session.scalars(statement).first()
 
+    def get_action_run(self, tenant_id: str, action_run_id: UUID) -> ActionRun | None:
+        statement = select(ActionRun).where(
+            ActionRun.tenant_id == tenant_id,
+            ActionRun.id == action_run_id,
+        )
+        return self.session.scalars(statement).first()
+
     def record_action_run_result(self, result: ActionRunResultRecord) -> ActionRun:
         statement = select(ActionRun).where(
             ActionRun.tenant_id == result.tenant_id,
@@ -1329,6 +1347,72 @@ class AxisPersistenceRepository:
                 summary=(
                     f"Action run {record.action_run_id} for {record.action_id} "
                     "was persisted and signaled through the workflow boundary."
+                ),
+            )
+        )
+        return workflow_run
+
+    def record_workflow_action_run_outcome(
+        self,
+        record: WorkflowActionRunOutcomeUpdate,
+    ) -> WorkflowRunRecord | None:
+        workflow_run = self.get_workflow_run(record.tenant_id, record.workflow_id)
+        if workflow_run is None:
+            return None
+
+        pending_signals = list(workflow_run.pending_signals)
+        pending_signals.append(
+            {
+                "signal": "action.outcome",
+                "status": record.status,
+                "action_id": record.action_id,
+                "action_run_id": str(record.action_run_id),
+                "idempotency_key": record.idempotency_key,
+            }
+        )
+
+        if record.status in {"dry_run_completed", "execution_completed"}:
+            workflow_run.state = "action_completed"
+            workflow_run.status = "ready"
+            workflow_run.current_step = "Action outcome recorded"
+            workflow_run.blocker = None
+        elif record.status == "execution_failed":
+            workflow_run.state = "action_failed"
+            workflow_run.status = "watch"
+            workflow_run.current_step = "Action outcome failed"
+            workflow_run.blocker = "Action run outcome recorded a failure."
+        else:
+            workflow_run.state = "action_blocked"
+            workflow_run.status = "action_required"
+            workflow_run.current_step = "Action outcome blocked"
+            workflow_run.blocker = "Action run outcome requires operator follow-up."
+
+        workflow_run.pending_signals = pending_signals
+        workflow_run.replay_ready = True
+        workflow_run.updated_at = utc_now()
+        self.session.flush()
+
+        latest_sequence = self.session.scalars(
+            select(WorkflowTimelineRecord.sequence)
+            .where(
+                WorkflowTimelineRecord.tenant_id == record.tenant_id,
+                WorkflowTimelineRecord.workflow_id == record.workflow_id,
+            )
+            .order_by(WorkflowTimelineRecord.sequence.desc())
+            .limit(1)
+        ).first()
+        self.append_workflow_timeline_event(
+            WorkflowTimelineEventCreate(
+                tenant_id=record.tenant_id,
+                workflow_id=record.workflow_id,
+                sequence=(latest_sequence or 0) + 1,
+                event="workflow.action_run.completed",
+                occurred_at=workflow_run.updated_at,
+                actor=record.actor_id,
+                result=record.status,
+                summary=(
+                    f"Action run {record.action_run_id} recorded outcome "
+                    f"{record.status}: {record.result_summary}"
                 ),
             )
         )

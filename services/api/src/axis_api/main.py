@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,10 +15,17 @@ from axis_api.action_runs import (
     ActionPayloadValidationError,
     ActionPermissionDenied,
     ActionRunIdempotencyConflict,
+    ActionRunOutcomeConflict,
+    ActionRunOutcomePermissionDenied,
+    ActionRunOutcomePersistenceResult,
+    ActionRunOutcomeRequest,
+    ActionRunOutcomeValidationError,
     ActionRunPersistenceResult,
     ActionRunRequest,
     DemoActionNotFound,
+    DemoActionRunNotFound,
     record_demo_action_run,
+    record_demo_action_run_outcome,
 )
 from axis_api.agent_reference import (
     AgentReferenceRecordInvalid,
@@ -3952,6 +3960,76 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail={
                     "code": AxisErrorCode.VALIDATION_FAILED.value,
                     "message": "The action payload does not match the typed input schema.",
+                    "issues": exc.issues,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+
+        return result
+
+    @app.post(
+        "/demo/manufacturing/actions/runs/{action_run_id}/outcome",
+        response_model=ActionRunOutcomePersistenceResult,
+        responses={
+            403: {"description": "Action run outcome permission denied"},
+            404: {"description": "Action run not found"},
+            409: {"description": "Action run outcome idempotency conflict"},
+            422: {"description": "Action run outcome validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    async def manufacturing_action_run_outcome(
+        action_run_id: UUID,
+        outcome: ActionRunOutcomeRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        response: Response,
+    ) -> ActionRunOutcomePersistenceResult:
+        try:
+            bound_outcome = _bind_demo_actor(outcome, principal)
+            result = await record_demo_action_run_outcome(
+                repository,
+                action_run_id,
+                bound_outcome,
+            )
+        except DemoActionRunNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Action run not found.",
+                    "surface": "actions",
+                },
+            ) from exc
+        except ActionRunOutcomePermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot record this action run outcome.",
+                    "required_permission": exc.required_permission,
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except ActionRunOutcomeConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The action run outcome conflicts with existing evidence.",
+                    "reason": exc.reason,
+                    "action_run_id": str(exc.action_run_id),
+                },
+            ) from exc
+        except ActionRunOutcomeValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The action run outcome cannot be recorded.",
                     "issues": exc.issues,
                 },
             ) from exc

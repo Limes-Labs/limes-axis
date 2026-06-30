@@ -271,6 +271,215 @@
         "title": "ActionRiskLevel",
         "type": "string"
       },
+      "ActionRunOutcomePersistenceResult": {
+        "properties": {
+          "action_id": {
+            "minLength": 1,
+            "title": "Action Id",
+            "type": "string"
+          },
+          "action_run_id": {
+            "format": "uuid",
+            "title": "Action Run Id",
+            "type": "string"
+          },
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Id"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Type"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "execution_mode": {
+            "minLength": 1,
+            "title": "Execution Mode",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "persisted": {
+            "title": "Persisted",
+            "type": "boolean"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "result_summary": {
+            "minLength": 1,
+            "title": "Result Summary",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Id"
+          },
+          "workflow_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow State"
+          },
+          "workflow_state_updated": {
+            "default": false,
+            "title": "Workflow State Updated",
+            "type": "boolean"
+          },
+          "workflow_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Status"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "action_run_id",
+          "action_id",
+          "idempotency_key",
+          "status",
+          "execution_mode",
+          "requested_by",
+          "result_summary",
+          "persisted",
+          "idempotent_replay",
+          "permission_decision"
+        ],
+        "title": "ActionRunOutcomePersistenceResult",
+        "type": "object"
+      },
+      "ActionRunOutcomeRequest": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "external_mutation_started": {
+            "default": false,
+            "title": "External Mutation Started",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "title": "Metrics",
+            "type": "object"
+          },
+          "result_summary": {
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Result Summary",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_id",
+          "idempotency_key",
+          "status",
+          "result_summary",
+          "evidence_refs"
+        ],
+        "title": "ActionRunOutcomeRequest",
+        "type": "object"
+      },
       "ActionRunPersistenceResult": {
         "properties": {
           "action_id": {
@@ -14599,6 +14808,77 @@
           }
         },
         "summary": "Manufacturing Action Registry",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/actions/runs/{action_run_id}/outcome": {
+      "post": {
+        "operationId": "manufacturing_action_run_outcome_demo_manufacturing_actions_runs__action_run_id__outcome_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionRunOutcomeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionRunOutcomePersistenceResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Action run outcome permission denied"
+          },
+          "404": {
+            "description": "Action run not found"
+          },
+          "409": {
+            "description": "Action run outcome idempotency conflict"
+          },
+          "422": {
+            "description": "Action run outcome validation failed"
+          }
+        },
+        "summary": "Manufacturing Action Run Outcome",
         "tags": [
           "demo"
         ]
