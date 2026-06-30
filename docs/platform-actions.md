@@ -33,6 +33,8 @@ slice does not execute production actions.
   scopes attached to their connected ontology relationships before persistence.
 - Approval-gated action runs signal the Axis workflow runtime adapter after
   persistence when a workflow binding and runtime policy are present.
+- Bound action runs update known persisted workflow runs with
+  `workflow.action_run.recorded` timeline evidence and replay readiness.
 - Approval decisions transition linked approval-gated action runs, or create an
   idempotent approval gate action record when the reviewer acts directly from
   the approval inbox before an action proposal exists.
@@ -90,6 +92,8 @@ authenticated deployments, the API binds the action run to the bearer token
 principal instead. Action payloads cannot use an otherwise valid action scope
 to reference cross-domain ontology resources unless the actor also has the
 relationship scope for those resources from the persisted ontology reference.
+When a bound workflow row already exists, the action run path also updates that
+workflow's state, pending signal history and timeline through the repository.
 Approval decision persistence also writes the approval outcome back into
 `action_runs` through the same tenant-scoped action evidence boundary. This
 keeps approval outcomes queryable as action evidence without enabling live
@@ -122,6 +126,8 @@ approval inbox and append-only audit ledger boundaries.
   typed action payloads.
 - Relationship-scope tests also prove action runs use the persisted ontology
   reference row, not a service-local ontology seed, for payload resource refs.
+- Action-run tests cover persisted workflow timeline updates for bound workflow
+  runs.
 - Approval decision tests cover action-run status transitions and idempotent
   approval gate creation.
 - Web unit tests cover the OIDC session bridge token parsing and authorization

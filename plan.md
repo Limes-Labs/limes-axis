@@ -89,6 +89,8 @@ Foundation acceptance is tracked in
   are recorded, with idempotent approval gate records.
 - [x] Persist typed action run requests with idempotency enforcement.
 - [x] Signal workflow runtime from typed action payloads behind policy.
+- [x] Append persisted workflow timeline evidence when action runs are recorded
+  against known workflow runs.
 - [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
   and scopes.
 - [x] Enforce relationship-derived ontology scopes on entity detail reads and

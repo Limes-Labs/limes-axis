@@ -71,7 +71,11 @@ Typed action run persistence now also uses this boundary for approval-gated
 action payloads. The API sends an `action_requested` signal after the action run
 is persisted and records either the adapter result or an explicit degraded
 status in the action audit event. The signal result is redacted in API and UI
-responses and does not expose raw payload content in audit metadata.
+responses and does not expose raw payload content in audit metadata. When the
+bound workflow run already exists in `workflow_runs`, action run persistence
+also appends `workflow.action_run.recorded` timeline evidence, updates the
+workflow state/current step and marks the run replay-ready for read-only
+simulation previews.
 
 Future Platform work should connect this contract to:
 
@@ -92,6 +96,8 @@ The slice is covered by:
 - API unit tests for persisted workflow run state and tenant-scoped history;
 - API unit tests for approval decisions mutating persisted workflow state and
   timeline history;
+- API unit tests for action runs mutating persisted workflow state and timeline
+  history;
 - OpenAPI schema export/check;
 - web unit tests for the persisted-data selection contract;
 - Playwright smoke tests for API-required workflow behavior on desktop and mobile.

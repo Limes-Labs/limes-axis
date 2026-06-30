@@ -156,6 +156,18 @@ class WorkflowApprovalDecisionUpdate(BaseModel):
     actor_id: str = Field(min_length=1)
 
 
+class WorkflowActionRunUpdate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    action_id: str = Field(min_length=1)
+    action_run_id: UUID
+    idempotency_key: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    workflow_signal_status: str = Field(min_length=1)
+    requires_approval: bool
+    approval_id: str | None = None
+
+
 class ReplaySimulationOutputCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     simulation_output_id: str = Field(min_length=1)
@@ -1255,6 +1267,68 @@ class AxisPersistenceRepository:
                 summary=(
                     f"Approval {record.approval_id} recorded decision "
                     f"{record.decision} and updated persisted workflow state."
+                ),
+            )
+        )
+        return workflow_run
+
+    def record_workflow_action_run(
+        self,
+        record: WorkflowActionRunUpdate,
+    ) -> WorkflowRunRecord | None:
+        workflow_run = self.get_workflow_run(record.tenant_id, record.workflow_id)
+        if workflow_run is None:
+            return None
+
+        pending_signals = list(workflow_run.pending_signals)
+        pending_signals.append(
+            {
+                "signal": "action.requested",
+                "status": record.workflow_signal_status,
+                "action_id": record.action_id,
+                "action_run_id": str(record.action_run_id),
+                "approval_id": record.approval_id,
+                "idempotency_key": record.idempotency_key,
+            }
+        )
+
+        if record.requires_approval:
+            workflow_run.state = "action_proposed"
+            workflow_run.status = "action_required"
+            workflow_run.current_step = "Action proposal recorded"
+            workflow_run.blocker = "Approval required before governed action execution."
+        else:
+            workflow_run.state = "action_requested"
+            workflow_run.status = "running"
+            workflow_run.current_step = "Action requested"
+            workflow_run.blocker = None
+
+        workflow_run.pending_signals = pending_signals
+        workflow_run.replay_ready = True
+        workflow_run.updated_at = utc_now()
+        self.session.flush()
+
+        latest_sequence = self.session.scalars(
+            select(WorkflowTimelineRecord.sequence)
+            .where(
+                WorkflowTimelineRecord.tenant_id == record.tenant_id,
+                WorkflowTimelineRecord.workflow_id == record.workflow_id,
+            )
+            .order_by(WorkflowTimelineRecord.sequence.desc())
+            .limit(1)
+        ).first()
+        self.append_workflow_timeline_event(
+            WorkflowTimelineEventCreate(
+                tenant_id=record.tenant_id,
+                workflow_id=record.workflow_id,
+                sequence=(latest_sequence or 0) + 1,
+                event="workflow.action_run.recorded",
+                occurred_at=workflow_run.updated_at,
+                actor=record.actor_id,
+                result=record.workflow_signal_status,
+                summary=(
+                    f"Action run {record.action_run_id} for {record.action_id} "
+                    "was persisted and signaled through the workflow boundary."
                 ),
             )
         )
