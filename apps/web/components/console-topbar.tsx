@@ -14,7 +14,7 @@ import {
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
-import type { ManufacturingOverview, PlatformStatus } from "@/lib/platform-overview";
+import type { ManufacturingNotificationCenter } from "@/lib/platform-overview";
 import { useConsole } from "@/providers/console-provider";
 
 type TopbarPanel = "notifications" | "help" | "account" | null;
@@ -29,14 +29,6 @@ function apiStatusClass(state: string): string {
   }
 
   return "signal-action-required";
-}
-
-function platformTone(status: PlatformStatus): string {
-  if (status === "ready") {
-    return "signal-ready";
-  }
-
-  return status === "watch" ? "signal-watch" : "signal-action-required";
 }
 
 function compactActorLabel(actorId: string): string {
@@ -70,8 +62,16 @@ function formatExpiry(expiresAt?: number): string {
   }).format(new Date(expiresAt * 1000));
 }
 
-function NotificationPanel({ overview }: { overview: ManufacturingOverview | null }) {
-  if (!overview) {
+function notificationTone(severity: string): string {
+  if (severity === "ready") {
+    return "signal-ready";
+  }
+
+  return severity === "watch" ? "signal-watch" : "signal-action-required";
+}
+
+function NotificationPanel({ center }: { center: ManufacturingNotificationCenter | null }) {
+  if (!center) {
     return (
       <section className="topbar-popover" aria-label="Notifications">
         <div className="topbar-popover-header">
@@ -79,42 +79,45 @@ function NotificationPanel({ overview }: { overview: ManufacturingOverview | nul
           <span className="status-pill signal-action-required">API required</span>
         </div>
         <p className="row-detail">
-          Live notification data requires `/demo/manufacturing/overview`.
+          Live notification data requires `/demo/manufacturing/notifications`.
         </p>
       </section>
     );
   }
 
-  const approvalItems = overview.approvals.slice(0, 3).map((approval) => ({
-    detail: `${approval.requested_by} / ${approval.due}`,
-    key: approval.approval_id,
-    label: approval.action,
-    tone: approval.risk_level === "high" ? "signal-watch" : "signal-ready",
-  }));
-  const riskItems = overview.risk_signals.slice(0, 3).map((signal) => ({
-    detail: signal.evidence,
-    key: signal.title,
-    label: signal.title,
-    tone: platformTone(signal.severity),
-  }));
-  const items = [...riskItems, ...approvalItems].slice(0, 5);
+  const items = center.notifications.slice(0, 5);
 
   return (
     <section className="topbar-popover" aria-label="Notifications">
       <div className="topbar-popover-header">
         <p className="section-label">Notifications</p>
-        <span className="status-pill signal-ready">{items.length} live</span>
+        <span className="status-pill signal-ready">{center.unread_count} live</span>
       </div>
       <div className="topbar-popover-list">
-        {items.map((item) => (
-          <div className="topbar-popover-row" key={item.key}>
-            <span aria-hidden="true" className={`status-dot ${item.tone}`} />
+        {items.length > 0 ? (
+          items.map((item) => (
+            <a
+              aria-label={`${item.action_label}: ${item.title}`}
+              className="topbar-popover-row"
+              href={item.route}
+              key={item.notification_id}
+            >
+              <span aria-hidden="true" className={`status-dot ${notificationTone(item.severity)}`} />
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </span>
+            </a>
+          ))
+        ) : (
+          <div className="topbar-popover-row">
+            <span aria-hidden="true" className="status-dot signal-ready" />
             <span>
-              <strong>{item.label}</strong>
-              <small>{item.detail}</small>
+              <strong>No active notifications</strong>
+              <small>Axis did not derive pending alerts from persisted platform state.</small>
             </span>
           </div>
-        ))}
+        )}
       </div>
       <a className="topbar-popover-link" href="/audit">
         Open audit evidence
@@ -265,16 +268,17 @@ export function ConsoleTopbar({
   const { apiStatus, triggerRefresh } = useConsole();
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
-  const { data: overview } = useAxisQuery<ManufacturingOverview>("/demo/manufacturing/overview");
+  const { data: notificationCenter } =
+    useAxisQuery<ManufacturingNotificationCenter>("/demo/manufacturing/notifications");
   const { session } = useOidcConsoleSession();
 
   const notificationCount = useMemo(() => {
-    if (!overview) {
+    if (!notificationCenter) {
       return 0;
     }
 
-    return Math.min(9, overview.risk_signals.length + overview.approvals.length);
-  }, [overview]);
+    return Math.min(9, notificationCenter.unread_count);
+  }, [notificationCenter]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -384,7 +388,7 @@ export function ConsoleTopbar({
         >
           {operatorInitials(session?.actorId)}
         </button>
-        {activePanel === "notifications" ? <NotificationPanel overview={overview} /> : null}
+        {activePanel === "notifications" ? <NotificationPanel center={notificationCenter} /> : null}
         {activePanel === "help" ? <HelpPanel /> : null}
         {activePanel === "account" ? <AccountPanel /> : null}
       </div>

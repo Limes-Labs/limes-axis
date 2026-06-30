@@ -75,6 +75,19 @@ checks, explicit production-readiness limitations and next actions. It does not
 generate artifacts, query source systems, run connectors or rely on
 browser-local mock data.
 
+The console shell notification panel also uses:
+
+```text
+GET /demo/manufacturing/notifications
+```
+
+The endpoint derives a notification read model from the persisted operations
+snapshot rather than from browser-local state. It surfaces operation-domain
+attention, pending approvals, blocked workflow signals and recent audit
+evidence with stable notification ids, routes and evidence references. It does
+not create user notification rows, mark notifications read or acknowledge
+events; authenticated read/ack state remains future Platform work.
+
 This is an API reference path, not a production data loading path. Future
 Platform work will replace remaining bootstrap records with tenant-scoped,
 authenticated API surfaces backed by Postgres, TypeDB and workflow state.
@@ -91,3 +104,5 @@ Covered by:
 - web unit tests for the Axis brand tokens;
 - Playwright smoke tests for API-required overview behavior, Axis shell tokens
   and no horizontal overflow on desktop and mobile.
+- API and Playwright coverage for the API-backed notification panel and its
+  no-fallback behavior.

@@ -258,6 +258,8 @@ Foundation acceptance is tracked in
   unit, Playwright and in-app Browser checks.
 - [x] Split production-build browser checks into deterministic offline and live
   E2E scripts.
+- [x] Add an API-backed platform notification center derived from persisted
+  operations, workflow, approval and audit state.
 - [x] Guard all API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -416,6 +418,13 @@ returns tracks, evidence checks, production-readiness limitations, next actions
 and the `derived_from_persisted_demo_evidence` boundary. The governance
 overview consumes this endpoint in the browser, with no local readiness
 fallback records.
+`GET /demo/manufacturing/notifications` derives topbar platform notifications
+from the same persisted operations snapshot, including operation-domain
+attention, pending approval gates, blocked workflow signals and recent audit
+evidence. The browser no longer synthesizes notifications from the overview
+reference payload. Read/ack state remains future authenticated Platform work,
+but the visible notification surface is API-owned and has no browser-local
+fallback data.
 `POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
 plant brief from those operation records, enforces `briefs:generate`,
 `audit:read` and `workflows:read`, writes
