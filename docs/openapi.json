@@ -383,6 +383,33 @@
             "minLength": 1,
             "title": "Workflow Signal Status",
             "type": "string"
+          },
+          "workflow_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow State"
+          },
+          "workflow_state_updated": {
+            "default": false,
+            "title": "Workflow State Updated",
+            "type": "boolean"
+          },
+          "workflow_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Status"
           }
         },
         "required": [

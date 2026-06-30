@@ -7,7 +7,7 @@ from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry
 from axis_api.ontology_reference import get_persisted_manufacturing_ontology
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
-from axis_api.persistence import ActionRunCreate, AxisPersistenceRepository
+from axis_api.persistence import ActionRunCreate, AxisPersistenceRepository, WorkflowActionRunUpdate
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     WorkflowActionSignalRequest,
@@ -66,6 +66,9 @@ class ActionRunPersistenceResult(BaseModel):
     audit_event_type: str | None = None
     workflow_signal: WorkflowSignalResult | None = None
     workflow_signal_status: str = Field(default="not_required", min_length=1)
+    workflow_state_updated: bool = False
+    workflow_state: str | None = None
+    workflow_status: str | None = None
 
 
 def _find_demo_action(
@@ -269,6 +272,9 @@ def _result_from_action_run(
     idempotent_replay: bool,
     workflow_signal: WorkflowSignalResult | None = None,
     workflow_signal_status: str | None = None,
+    workflow_state_updated: bool = False,
+    workflow_state: str | None = None,
+    workflow_status: str | None = None,
 ) -> ActionRunPersistenceResult:
     return ActionRunPersistenceResult(
         tenant_id=tenant_id,
@@ -288,6 +294,9 @@ def _result_from_action_run(
         audit_event_type=audit_event_type,
         workflow_signal=workflow_signal,
         workflow_signal_status=workflow_signal_status or _workflow_signal_status(workflow_signal),
+        workflow_state_updated=workflow_state_updated,
+        workflow_state=workflow_state,
+        workflow_status=workflow_status,
     )
 
 
@@ -380,6 +389,21 @@ async def record_demo_action_run(
             },
         )
     )
+    workflow_run = None
+    if action.workflow_bindings:
+        workflow_run = repository.record_workflow_action_run(
+            WorkflowActionRunUpdate(
+                tenant_id=tenant_id,
+                workflow_id=action.workflow_bindings[0],
+                action_id=action.definition.action_id,
+                action_run_id=action_run.id,
+                idempotency_key=idempotency_key,
+                actor_id=request.actor_id,
+                workflow_signal_status=workflow_signal_status,
+                requires_approval=action.definition.requires_approval,
+                approval_id=action.approval_refs[0] if action.approval_refs else None,
+            )
+        )
 
     return _result_from_action_run(
         tenant_id=tenant_id,
@@ -394,4 +418,7 @@ async def record_demo_action_run(
         idempotent_replay=False,
         workflow_signal=workflow_signal,
         workflow_signal_status=workflow_signal_status,
+        workflow_state_updated=workflow_run is not None,
+        workflow_state=workflow_run.state if workflow_run is not None else None,
+        workflow_status=workflow_run.status if workflow_run is not None else None,
     )
