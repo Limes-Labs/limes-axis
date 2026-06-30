@@ -11160,6 +11160,120 @@
         "title": "ManufacturingModelRouting",
         "type": "object"
       },
+      "ManufacturingNotificationAcknowledgementRequest": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "state": {
+            "default": "acknowledged",
+            "pattern": "^(read|acknowledged)$",
+            "title": "State",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_id",
+          "reason"
+        ],
+        "title": "ManufacturingNotificationAcknowledgementRequest",
+        "type": "object"
+      },
+      "ManufacturingNotificationAcknowledgementResult": {
+        "properties": {
+          "acknowledged_at": {
+            "minLength": 1,
+            "title": "Acknowledged At",
+            "type": "string"
+          },
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "generation_boundary": {
+            "minLength": 1,
+            "title": "Generation Boundary",
+            "type": "string"
+          },
+          "notification_id": {
+            "minLength": 1,
+            "title": "Notification Id",
+            "type": "string"
+          },
+          "read_state": {
+            "minLength": 1,
+            "title": "Read State",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "title": "State",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "notification_id",
+          "actor_id",
+          "state",
+          "reason",
+          "audit_event_type",
+          "read_state",
+          "acknowledged_at",
+          "generation_boundary"
+        ],
+        "title": "ManufacturingNotificationAcknowledgementResult",
+        "type": "object"
+      },
       "ManufacturingNotificationCenter": {
         "properties": {
           "action_required_count": {
@@ -11772,6 +11886,39 @@
       },
       "ManufacturingPlatformNotification": {
         "properties": {
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "acknowledged_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By"
+          },
+          "acknowledgement_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgement Reason"
+          },
           "action_label": {
             "minLength": 1,
             "title": "Action Label",
@@ -18457,6 +18604,39 @@
               "title": "Notification Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -18482,6 +18662,80 @@
           }
         },
         "summary": "Manufacturing Notifications",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/notifications/{notification_id}/acknowledgement": {
+      "post": {
+        "operationId": "manufacturing_notification_acknowledgement_demo_manufacturing_notifications__notification_id__acknowledgement_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "title": "Notification Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManufacturingNotificationAcknowledgementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManufacturingNotificationAcknowledgementResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Notification acknowledgement permission denied"
+          },
+          "404": {
+            "description": "Notification not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Notification Acknowledgement",
         "tags": [
           "demo"
         ]

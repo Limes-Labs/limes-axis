@@ -30,6 +30,7 @@ from axis_api.models import (
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
     ManufacturingRiskScenario,
+    PlatformNotificationAcknowledgement,
     ReplaySimulationOutput,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -720,6 +721,25 @@ class ManufacturingRiskScenarioCreate(BaseModel):
     )
 
 
+class PlatformNotificationAcknowledgementCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    notification_id: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+    reason: str = Field(min_length=1, max_length=600)
+    source: str = Field(min_length=1)
+    notification_title: str = Field(min_length=1)
+    notification_category: str = Field(min_length=1)
+    notification_severity: str = Field(min_length=1)
+    payload: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(
+        default="platform.notification.acknowledged",
+        min_length=1,
+    )
+    acknowledged_at: datetime
+
+
 class AxisPersistenceRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -856,6 +876,86 @@ class AxisPersistenceRepository:
         legal_hold.updated_at = now
         self.session.flush()
         return legal_hold
+
+    def upsert_platform_notification_acknowledgement(
+        self,
+        record: PlatformNotificationAcknowledgementCreate,
+    ) -> PlatformNotificationAcknowledgement:
+        acknowledgement = self.get_platform_notification_acknowledgement(
+            tenant_id=record.tenant_id,
+            notification_id=record.notification_id,
+            actor_id=record.actor_id,
+        )
+        if acknowledgement is None:
+            acknowledgement = PlatformNotificationAcknowledgement(
+                tenant_id=record.tenant_id,
+                notification_id=record.notification_id,
+                actor_id=record.actor_id,
+                state=record.state,
+                reason=record.reason,
+                source=record.source,
+                notification_title=record.notification_title,
+                notification_category=record.notification_category,
+                notification_severity=record.notification_severity,
+                payload=record.payload,
+                audit_event_id=record.audit_event_id,
+                audit_event_type=record.audit_event_type,
+                acknowledged_at=record.acknowledged_at,
+            )
+            self.session.add(acknowledgement)
+        else:
+            acknowledgement.state = record.state
+            acknowledgement.reason = record.reason
+            acknowledgement.source = record.source
+            acknowledgement.notification_title = record.notification_title
+            acknowledgement.notification_category = record.notification_category
+            acknowledgement.notification_severity = record.notification_severity
+            acknowledgement.payload = record.payload
+            acknowledgement.audit_event_id = record.audit_event_id
+            acknowledgement.audit_event_type = record.audit_event_type
+            acknowledgement.acknowledged_at = record.acknowledged_at
+            acknowledgement.updated_at = utc_now()
+
+        self.session.flush()
+        return acknowledgement
+
+    def get_platform_notification_acknowledgement(
+        self,
+        tenant_id: str,
+        notification_id: str,
+        actor_id: str,
+    ) -> PlatformNotificationAcknowledgement | None:
+        statement: Select[tuple[PlatformNotificationAcknowledgement]] = select(
+            PlatformNotificationAcknowledgement
+        ).where(
+            PlatformNotificationAcknowledgement.tenant_id == tenant_id,
+            PlatformNotificationAcknowledgement.notification_id == notification_id,
+            PlatformNotificationAcknowledgement.actor_id == actor_id,
+        )
+        return self.session.scalars(statement).first()
+
+    def list_platform_notification_acknowledgements(
+        self,
+        tenant_id: str,
+        actor_id: str,
+        notification_ids: list[str] | None = None,
+    ) -> list[PlatformNotificationAcknowledgement]:
+        statement: Select[tuple[PlatformNotificationAcknowledgement]] = select(
+            PlatformNotificationAcknowledgement
+        ).where(
+            PlatformNotificationAcknowledgement.tenant_id == tenant_id,
+            PlatformNotificationAcknowledgement.actor_id == actor_id,
+        )
+        if notification_ids:
+            statement = statement.where(
+                PlatformNotificationAcknowledgement.notification_id.in_(notification_ids)
+            )
+
+        statement = statement.order_by(
+            PlatformNotificationAcknowledgement.updated_at.desc(),
+            PlatformNotificationAcknowledgement.id.desc(),
+        )
+        return list(self.session.scalars(statement))
 
     def create_approval_record(self, record: ApprovalRecordCreate) -> ApprovalRecord:
         approval = ApprovalRecord(

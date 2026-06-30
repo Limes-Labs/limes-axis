@@ -223,6 +223,15 @@ The thirty-seventh Alembic migration adds checkpoint claim lifecycle fields:
 - nullable release actor/timestamp/reason fields;
 - indexes for renewal and release actor filtering.
 
+The forty-first Alembic migration adds:
+
+- `platform_notification_acknowledgements`: tenant-scoped, actor-scoped
+  notification read/ack state keyed by tenant, notification id and actor id;
+- public-safe notification metadata, reason, acknowledgement timestamp and
+  linked audit event id/type for each persisted acknowledgement;
+- indexes for tenant, notification, actor, state, source, category, severity
+  and audit event type filtering.
+
 ## Repository Boundary
 
 `AxisPersistenceRepository` provides:
@@ -252,6 +261,8 @@ The thirty-seventh Alembic migration adds checkpoint claim lifecycle fields:
 - connector manual import request creation, idempotency lookup and
   tenant-scoped listing.
 - connector manual import decision recording with workflow signal evidence.
+- platform notification acknowledgement upsert, lookup and actor-scoped
+  listing for notification read models.
 
 Repository methods flush but do not commit. Callers keep transaction ownership
 through `session_scope` or an explicit SQLAlchemy session.
