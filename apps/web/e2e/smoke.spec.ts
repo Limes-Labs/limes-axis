@@ -78,14 +78,10 @@ test.describe("Axis console smoke", () => {
   test("keeps shell utilities actionable without mock controls", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "Open audit notifications" })).toHaveAttribute(
-      "href",
-      "/audit",
-    );
-    await expect(page.getByRole("link", { name: "Open Axis docs" })).toHaveAttribute(
-      "href",
-      "https://github.com/Limes-Labs/limes-axis/tree/main/docs",
-    );
+    await expect(page.getByRole("button", { name: "Open notifications" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open platform help" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open operator account" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Connect OIDC bearer token" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Search console" }).click();
     await expect(page.getByRole("dialog", { name: "Console command menu" })).toBeVisible();
@@ -93,6 +89,38 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("link", { name: /Open audit stream/ })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Console command menu" })).toHaveCount(0);
+
+    const topbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    );
+    expect(topbarHeight).toBeLessThanOrEqual(80);
+
+    await page.getByRole("button", { name: "Open notifications" }).click();
+    const notificationsPanel = page.locator('[aria-label="Notifications"]');
+    await expect(notificationsPanel).toBeVisible();
+    await expect(notificationsPanel.getByText("API required", { exact: true })).toBeVisible();
+    const notificationsTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    );
+    expect(notificationsTopbarHeight).toBe(topbarHeight);
+    await page.keyboard.press("Escape");
+    await expect(page.locator('[aria-label="Notifications"]')).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Open platform help" }).click();
+    await expect(page.locator('[aria-label="Platform help"]')).toBeVisible();
+    await expect(page.getByRole("link", { name: /Architecture docs/ })).toHaveAttribute(
+      "href",
+      "https://github.com/Limes-Labs/limes-axis/blob/main/docs/architecture.md",
+    );
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Open operator account" }).click();
+    await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Connect session" })).toBeVisible();
+    const accountTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    );
+    expect(accountTopbarHeight).toBe(topbarHeight);
 
     await expect(page.getByRole("combobox", { name: "Environment" })).toHaveCount(0);
     await expect(page.getByRole("combobox", { name: "Evidence window" })).toHaveCount(0);
