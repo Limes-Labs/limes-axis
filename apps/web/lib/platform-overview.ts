@@ -202,6 +202,25 @@ export type ManufacturingNotificationCenter = {
   notes: string[];
 };
 
+export type IdentitySessionReadModel = {
+  authenticated: boolean;
+  mode: string;
+  actor_id: string | null;
+  tenant_id: string | null;
+  scopes: string[];
+  expires_at: number | null;
+  api_auth_required: boolean;
+  enterprise_sso_ready: boolean;
+  readiness_status: PlatformStatus;
+  issuer: string;
+  audience: string;
+  jwks_source: string;
+  session_boundary: string;
+  capabilities: string[];
+  limitations: string[];
+  notes: string[];
+};
+
 export type DemoReadinessCounts = Record<PlatformStatus, number>;
 
 export function platformStatusLabel(status: PlatformStatus): string {

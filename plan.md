@@ -260,6 +260,8 @@ Foundation acceptance is tracked in
   E2E scripts.
 - [x] Add an API-backed platform notification center derived from persisted
   operations, workflow, approval and audit state.
+- [x] Add an API-validated identity session read model for the console account
+  surface, without returning token material or trusting browser-only claims.
 - [x] Guard all API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -452,10 +454,15 @@ Portal or ERP records, approve expedite actions or call a model provider.
 
 The governance console includes a local OIDC session bridge for demo and
 developer workflows. A user can attach a bearer token in the console toolbar;
-the console decodes actor, tenant and scopes for display and sends the token as
-`Authorization: Bearer ...` to approval decision, action run and ontology entity
-detail API calls. Full OIDC authorization-code login, refresh, secure cookie
-session management and provider configuration remain Platform/Enterprise work.
+the console stores it in browser session storage and sends it as
+`Authorization: Bearer ...` to protected API calls. `GET /identity/session`
+validates the attached token through the API, returns the API-owned actor,
+tenant, scopes, expiry and SSO posture for the account panel, and never returns
+bearer token material. Without a token, the endpoint reports explicit
+public-evaluation state when OIDC auth is optional; when OIDC auth is required,
+it returns `401` until a valid bearer token is attached. Full OIDC
+authorization-code login, refresh, secure cookie session management and provider
+configuration remain Platform/Enterprise work.
 
 The ontology explorer and entity detail pages are currently read-only and API
 required; the browser no longer carries a local graph fallback. Graph reads now
@@ -863,7 +870,7 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
-  readiness/profile report.
+  readiness/profile and session read-model reports.
 - [x] Add deployment readiness profile reporting for identity, egress,
   connector execution, audit signing and object-store posture.
 - [x] Add initial security review and threat model documentation.

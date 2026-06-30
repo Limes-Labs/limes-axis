@@ -9426,6 +9426,127 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IdentitySessionReadModel": {
+        "properties": {
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "api_auth_required": {
+            "title": "Api Auth Required",
+            "type": "boolean"
+          },
+          "audience": {
+            "minLength": 1,
+            "title": "Audience",
+            "type": "string"
+          },
+          "authenticated": {
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "enterprise_sso_ready": {
+            "title": "Enterprise Sso Ready",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "issuer": {
+            "minLength": 1,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "jwks_source": {
+            "minLength": 1,
+            "title": "Jwks Source",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "mode": {
+            "minLength": 1,
+            "title": "Mode",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "readiness_status": {
+            "minLength": 1,
+            "title": "Readiness Status",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "session_boundary": {
+            "minLength": 1,
+            "title": "Session Boundary",
+            "type": "string"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          }
+        },
+        "required": [
+          "authenticated",
+          "mode",
+          "api_auth_required",
+          "enterprise_sso_ready",
+          "readiness_status",
+          "issuer",
+          "audience",
+          "jwks_source",
+          "session_boundary"
+        ],
+        "title": "IdentitySessionReadModel",
+        "type": "object"
+      },
       "MaintenanceRiskScenarioRecord": {
         "properties": {
           "audit_event_id": {
@@ -19257,6 +19378,55 @@
           }
         },
         "summary": "Oidc Readiness",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/identity/session": {
+      "get": {
+        "operationId": "identity_session_identity_session_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySessionReadModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Identity Session",
         "tags": [
           "system"
         ]

@@ -2225,6 +2225,8 @@ textarea {
   display: grid;
   gap: 12px;
   width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 94px);
+  overflow-y: auto;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background:
@@ -2346,6 +2348,11 @@ textarea {
 
 .account-scope-list {
   max-height: 86px;
+  overflow-y: auto;
+}
+
+.account-readiness-list {
+  max-height: 188px;
   overflow-y: auto;
 }
 

@@ -88,6 +88,19 @@ evidence with stable notification ids, routes and evidence references. It does
 not create user notification rows, mark notifications read or acknowledge
 events; authenticated read/ack state remains future Platform work.
 
+The account popover uses:
+
+```text
+GET /identity/session
+```
+
+The endpoint returns a public-safe identity session read model. With a bearer
+token it reports the API-validated actor, tenant, scopes, expiry and OIDC
+posture. Without a token it reports public-evaluation state when OIDC auth is
+optional, or `401` when the environment requires authentication. The response
+does not include bearer token material, secrets, passwords or raw JWKS content.
+It is an identity posture surface, not a full production login flow.
+
 This is an API reference path, not a production data loading path. Future
 Platform work will replace remaining bootstrap records with tenant-scoped,
 authenticated API surfaces backed by Postgres, TypeDB and workflow state.
@@ -106,3 +119,4 @@ Covered by:
   and no horizontal overflow on desktop and mobile.
 - API and Playwright coverage for the API-backed notification panel and its
   no-fallback behavior.
+- API and Playwright coverage for the API-validated account/session popover.

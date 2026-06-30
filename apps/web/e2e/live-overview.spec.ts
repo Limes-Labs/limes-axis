@@ -89,7 +89,9 @@ test.describe("Axis live overview demo", () => {
 
     await page.getByRole("button", { name: "Open operator account" }).click();
     await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
-    await expect(page.getByText("Public evaluation data / OIDC bridge not connected")).toBeVisible();
+    await expect(page.getByText("Public evaluation operator")).toBeVisible();
+    await expect(page.getByText("no_authenticated_api_actor")).toBeVisible();
+    await expect(page.getByText("No authenticated API actor is attached.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Connect session" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });

@@ -119,6 +119,10 @@ test.describe("Axis console smoke", () => {
 
     await page.getByRole("button", { name: "Open operator account" }).click();
     await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
+    await expect(page.getByText("Session API unavailable")).toBeVisible();
+    await expect(
+      page.getByText("The account panel needs `/identity/session` before it can display an API-verified actor."),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Connect session" })).toBeVisible();
     const accountTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
