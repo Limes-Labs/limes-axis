@@ -1054,6 +1054,23 @@ class AxisPersistenceRepository:
         self.session.flush()
         return action_run
 
+    def list_action_runs_for_approval(
+        self,
+        tenant_id: str,
+        action_id: str,
+        approval_id: str,
+    ) -> list[ActionRun]:
+        statement: Select[tuple[ActionRun]] = (
+            select(ActionRun)
+            .where(
+                ActionRun.tenant_id == tenant_id,
+                ActionRun.action_id == action_id,
+                ActionRun.approval_id == approval_id,
+            )
+            .order_by(ActionRun.updated_at.desc(), ActionRun.created_at.desc())
+        )
+        return list(self.session.scalars(statement))
+
     def list_action_runs(
         self,
         tenant_id: str,

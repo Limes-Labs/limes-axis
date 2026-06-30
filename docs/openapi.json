@@ -828,6 +828,50 @@
             "title": "Action Id",
             "type": "string"
           },
+          "action_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Run Id"
+          },
+          "action_run_idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Run Idempotency Key"
+          },
+          "action_run_idempotent_replay": {
+            "default": false,
+            "title": "Action Run Idempotent Replay",
+            "type": "boolean"
+          },
+          "action_run_recorded": {
+            "default": false,
+            "title": "Action Run Recorded",
+            "type": "boolean"
+          },
+          "action_run_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Run Status"
+          },
           "actor_id": {
             "minLength": 1,
             "title": "Actor Id",

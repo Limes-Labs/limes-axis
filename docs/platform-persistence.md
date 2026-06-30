@@ -288,6 +288,9 @@ Delivered:
   idempotency replay/conflict behavior and append-only action audit events.
 - workflow signal execution from approval-gated action payloads after action
   run persistence, with redacted signal metadata in audit events.
+- approval decision transitions for linked `action_runs`, including idempotent
+  approval gate records when a reviewer decides directly from the inbox before
+  an action proposal exists.
 - OIDC/JWKS token validation and actor binding for approval decision and action
   run mutation endpoints, with demo body actor/scopes kept as optional request
   metadata only when no bearer token is supplied.

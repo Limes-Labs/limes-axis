@@ -33,6 +33,9 @@ slice does not execute production actions.
   scopes attached to their connected ontology relationships before persistence.
 - Approval-gated action runs signal the Axis workflow runtime adapter after
   persistence when a workflow binding and runtime policy are present.
+- Approval decisions transition linked approval-gated action runs, or create an
+  idempotent approval gate action record when the reviewer acts directly from
+  the approval inbox before an action proposal exists.
 - The Next.js console renders the registry on `/agents`, below the agent
   registry.
 - The UI supports local filters for domain, risk level, approval mode and
@@ -87,6 +90,10 @@ authenticated deployments, the API binds the action run to the bearer token
 principal instead. Action payloads cannot use an otherwise valid action scope
 to reference cross-domain ontology resources unless the actor also has the
 relationship scope for those resources from the persisted ontology reference.
+Approval decision persistence also writes the approval outcome back into
+`action_runs` through the same tenant-scoped action evidence boundary. This
+keeps approval outcomes queryable as action evidence without enabling live
+production mutation.
 The action registry UI requires the API for catalog data. When an OIDC session is attached in the
 console toolbar, action registry fetches and action run requests include the
 bearer token. The UI does not execute production actions or connector
@@ -115,6 +122,8 @@ approval inbox and append-only audit ledger boundaries.
   typed action payloads.
 - Relationship-scope tests also prove action runs use the persisted ontology
   reference row, not a service-local ontology seed, for payload resource refs.
+- Approval decision tests cover action-run status transitions and idempotent
+  approval gate creation.
 - Web unit tests cover the OIDC session bridge token parsing and authorization
   header construction.
 - The web console shows an API-required state when action records are unavailable.
