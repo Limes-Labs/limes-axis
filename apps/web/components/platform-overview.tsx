@@ -779,7 +779,7 @@ export function PlatformOverview() {
           </p>
         </div>
         <div className="ops-controls" aria-label="Operations controls">
-          <span className="control-chip">Demo tenant</span>
+          <span className="control-chip">{overview.plant_name}</span>
           <span className="control-chip">Latest evidence</span>
           <button
             className="ops-icon-button"

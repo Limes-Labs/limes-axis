@@ -63,6 +63,35 @@ test.describe("Axis live overview demo", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("opens live platform utility panels without leaving the console", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+
+    const topbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    );
+    expect(topbarHeight).toBeLessThanOrEqual(80);
+
+    await page.getByRole("button", { name: "Open notifications" }).click();
+    const notificationsPanel = page.locator('[aria-label="Notifications"]');
+    await expect(notificationsPanel).toBeVisible();
+    await expect(notificationsPanel.getByText("live", { exact: false })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open audit evidence" })).toHaveAttribute(
+      "href",
+      "/audit",
+    );
+    const notificationsTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    );
+    expect(notificationsTopbarHeight).toBe(topbarHeight);
+
+    await page.getByRole("button", { name: "Open operator account" }).click();
+    await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
+    await expect(page.getByText("Public evaluation data / OIDC bridge not connected")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Connect session" })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("keeps the enterprise navigation stable while the live dashboard scrolls", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
