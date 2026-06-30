@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -50,6 +51,10 @@ class OntologyGraphQueryRuntime(Protocol):
     ) -> "ManufacturingOntology": ...
 
 
+class OntologyReadClient(Protocol):
+    def execute_read(self, query_text: str) -> Sequence[object]: ...
+
+
 class DeferredOntologyQueryRuntime:
     adapter_name = "axis-deferred-ontology-query-adapter"
 
@@ -78,14 +83,22 @@ class TypeDBOntologyQueryConfig:
 class TypeDBOntologyQueryRuntime:
     adapter_name = "axis-typedb-ontology-query-adapter"
 
-    def __init__(self, config: TypeDBOntologyQueryConfig) -> None:
-        self.client = OntologyClient(
-            OntologyClientConfig(
-                address=config.address,
-                username=config.username,
-                password=config.password,
-                database=config.database,
-                tls_enabled=config.tls_enabled,
+    def __init__(
+        self,
+        config: TypeDBOntologyQueryConfig,
+        client: OntologyReadClient | None = None,
+    ) -> None:
+        self.client = (
+            client
+            if client is not None
+            else OntologyClient(
+                OntologyClientConfig(
+                    address=config.address,
+                    username=config.username,
+                    password=config.password,
+                    database=config.database,
+                    tls_enabled=config.tls_enabled,
+                )
             )
         )
 
@@ -95,7 +108,8 @@ class TypeDBOntologyQueryRuntime:
         ontology: "ManufacturingOntology",
     ) -> "ManufacturingOntology":
         try:
-            self.client.execute_read(request.typeql)
+            rows = self.client.execute_read(request.typeql)
+            ontology = _map_typedb_rows_to_ontology(ontology, rows)
         except Exception as exc:
             raise OntologyQueryError(exc.__class__.__name__) from exc
 
@@ -105,6 +119,61 @@ class TypeDBOntologyQueryRuntime:
             adapter=self.adapter_name,
             source="typedb-read-boundary",
         )
+
+
+def _map_typedb_rows_to_ontology(
+    ontology: "ManufacturingOntology",
+    rows: Sequence[object],
+) -> "ManufacturingOntology":
+    structured_rows = [row for row in rows if isinstance(row, Mapping)]
+    if not structured_rows:
+        return ontology
+
+    from axis_api.demo import OntologyNode, OntologyRelationship
+
+    nodes: list[OntologyNode] = []
+    relationships: list[OntologyRelationship] = []
+    for row in structured_rows:
+        kind = str(row.get("kind", "")).lower()
+        if kind == "node":
+            nodes.append(
+                OntologyNode.model_validate(
+                    {
+                        "node_id": row.get("node_id"),
+                        "label": row.get("label"),
+                        "node_type": row.get("node_type"),
+                        "domain": row.get("domain"),
+                        "status": row.get("status"),
+                        "source_system": row.get("source_system"),
+                        "summary": row.get("summary"),
+                    }
+                )
+            )
+        elif kind == "relationship":
+            relationships.append(
+                OntologyRelationship.model_validate(
+                    {
+                        "relationship_id": row.get("relationship_id"),
+                        "source_id": row.get("source_id"),
+                        "target_id": row.get("target_id"),
+                        "relation_type": row.get("relation_type"),
+                        "summary": row.get("summary"),
+                        "permission_scope": row.get("permission_scope"),
+                    }
+                )
+            )
+
+    if not nodes and not relationships:
+        return ontology
+
+    source_systems = sorted({node.source_system for node in nodes})
+    return ontology.model_copy(
+        update={
+            "nodes": nodes,
+            "relationships": relationships,
+            "source_systems": source_systems or ontology.source_systems,
+        }
+    )
 
 
 def query_manufacturing_ontology_graph(
@@ -178,7 +247,13 @@ def _apply_graph_query_metadata(
                         if request.enforce_relationship_scopes
                         else "Public reference graph is unfiltered when no OIDC principal is bound."
                     ),
-                    "TypeDB live result mapping remains behind the ontology query runtime.",
+                    (
+                        "Structured TypeDB read-boundary rows are mapped before "
+                        "relationship-scope filtering."
+                        if source == "typedb-read-boundary"
+                        else "Deferred runtime serves the persisted reference graph "
+                        "until TypeDB reads are enabled."
+                    ),
                 ],
             ),
         }

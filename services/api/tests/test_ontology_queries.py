@@ -17,6 +17,8 @@ from axis_api.ontology.queries import (
     DeferredOntologyQueryRuntime,
     OntologyGraphQueryMetadata,
     OntologyGraphQueryRequest,
+    TypeDBOntologyQueryConfig,
+    TypeDBOntologyQueryRuntime,
     query_manufacturing_ontology_graph,
 )
 from axis_api.permissions import PermissionDecision
@@ -106,6 +108,81 @@ class RecordingOntologyQueryRuntime:
                 )
             }
         )
+
+
+class StructuredTypeDBClient:
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    def execute_read(self, query_text: str) -> list[dict[str, object]]:
+        self.queries.append(query_text)
+        return [
+            {
+                "kind": "node",
+                "node_id": "typedb_asset_line_7",
+                "label": "Line 7 Finishing",
+                "node_type": "asset",
+                "domain": "Production",
+                "status": "ready",
+                "source_system": "TypeDB",
+                "summary": "Asset row mapped from the TypeDB read boundary.",
+            },
+            {
+                "kind": "node",
+                "node_id": "typedb_process_quality_release",
+                "label": "Quality Release",
+                "node_type": "process",
+                "domain": "Quality",
+                "status": "watch",
+                "source_system": "TypeDB",
+                "summary": "Process row mapped from the TypeDB read boundary.",
+            },
+            {
+                "kind": "relationship",
+                "relationship_id": "typedb_rel_line_requires_release",
+                "source_id": "typedb_asset_line_7",
+                "target_id": "typedb_process_quality_release",
+                "relation_type": "requires_release",
+                "summary": "Line 7 requires quality release before shipment.",
+                "permission_scope": "quality:read",
+            },
+        ]
+
+
+def test_typedb_ontology_query_runtime_maps_structured_rows() -> None:
+    client = StructuredTypeDBClient()
+    runtime = TypeDBOntologyQueryRuntime(
+        TypeDBOntologyQueryConfig(),
+        client=client,
+    )
+
+    ontology = query_manufacturing_ontology_graph(
+        runtime,
+        OntologyGraphQueryRequest(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="quality-reader",
+            actor_scopes=["quality:read"],
+            enforce_relationship_scopes=True,
+        ),
+        ontology_bootstrap_model(),
+    )
+
+    assert client.queries == [
+        "match\n  $entity isa $entity_type, has axis_id $axis_id;\nlimit 200;"
+    ]
+    assert ontology.graph_query.adapter == "axis-typedb-ontology-query-adapter"
+    assert ontology.graph_query.source == "typedb-read-boundary"
+    assert ontology.graph_query.query_mode == "permission_filtered"
+    assert ontology.graph_query.returned_node_count == 2
+    assert ontology.graph_query.returned_relationship_count == 1
+    assert [node.node_id for node in ontology.nodes] == [
+        "typedb_asset_line_7",
+        "typedb_process_quality_release",
+    ]
+    assert [relationship.relationship_id for relationship in ontology.relationships] == [
+        "typedb_rel_line_requires_release"
+    ]
+    assert ontology.source_systems == ["TypeDB"]
 
 
 def test_deferred_ontology_query_runtime_filters_relationships_by_scope() -> None:
