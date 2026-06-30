@@ -176,6 +176,7 @@ test.describe("Axis console smoke", () => {
       "Audit",
       "Simulation",
       "Connectors",
+      "Settings",
     ]);
     expect(sidebarState.sidebar?.clientHeight).toBe(sidebarState.viewportHeight);
     expect(sidebarState.sidebar?.scrollHeight ?? 0).toBeLessThanOrEqual(
@@ -391,6 +392,24 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("API required")).toBeVisible();
     await expect(page.getByText("Fallback connector seed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toHaveCount(0);
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("requires the settings readiness APIs instead of local settings data", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/settings");
+
+    await expect(page.getByRole("heading", { name: "Platform settings" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Settings API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback settings records are disabled.")).toBeVisible();
+    await expect(page.getByText("/ready")).toBeVisible();
+    await expect(page.getByText("/deployment/readiness")).toBeVisible();
+    await expect(page.getByText("/support/diagnostics")).toBeVisible();
+    await expect(page.getByText("Fallback settings seed")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

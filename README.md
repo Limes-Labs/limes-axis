@@ -94,7 +94,10 @@ audit signing and object-store readiness. It is a gate for evaluation and
 hardening work, not a production certification. `/support/diagnostics` provides
 a public-safe support bundle for design-partner triage and demo operations,
 including support blockers and links to the relevant runbooks without exposing
-sensitive runtime material.
+sensitive runtime material. The `/settings` console reads those readiness,
+identity, deployment and support contracts directly from the API and shows an
+API-required state instead of browser-local settings fallback records when they
+are unavailable.
 The audit query slice reads persisted `audit_events` through a tenant-scoped API
 endpoint and the web console now requires API-backed audit/export records
 instead of constructing browser-local bundles. The audit retention/export slice adds a demo
@@ -483,6 +486,7 @@ Architecture and acceptance notes:
 - [`docs/platform-simulation.md`](./docs/platform-simulation.md)
 - [`docs/platform-manufacturing-operations.md`](./docs/platform-manufacturing-operations.md)
 - [`docs/platform-connectors.md`](./docs/platform-connectors.md)
+- [`docs/platform-settings.md`](./docs/platform-settings.md)
 - [`docs/threat-model.md`](./docs/threat-model.md)
 - [`docs/support-operations.md`](./docs/support-operations.md)
 

@@ -274,6 +274,9 @@ Foundation acceptance is tracked in
   `notifications:acknowledge` and write append-only audit evidence.
 - [x] Add an API-validated identity session read model for the console account
   surface, without returning token material or trusting browser-only claims.
+- [x] Add an API-backed Settings/Readiness console for identity, deployment,
+  support diagnostics and runtime dependency posture, without browser-local
+  fallback settings records.
 - [x] Guard all API-owned reference endpoints beyond overview, workflow
   console, approval inbox, audit explorer, model routing, ontology,
   connector registry, agent registry and action registry with persisted,
@@ -443,6 +446,11 @@ reference payload. `POST
 read/ack state per tenant actor, enforces `notifications:acknowledge`, writes
 `platform.notification.acknowledged` audit evidence and refreshes the
 notification read model without browser-local fallback data.
+The `/settings` console reads `/ready`, `/identity/oidc/readiness`,
+`/identity/session`, `/deployment/readiness` and `/support/diagnostics`
+directly from the API. It shows enterprise SSO posture, deployment blockers,
+support diagnostics, redaction policy and runtime dependencies, and falls back
+only to an API-required empty state when those endpoints are unavailable.
 `POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
 plant brief from those operation records, enforces `briefs:generate`,
 `audit:read` and `workflows:read`, writes
