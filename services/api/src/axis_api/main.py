@@ -316,7 +316,11 @@ from axis_api.manufacturing_operations import (
     MaintenanceRiskScenarioRequest,
     MaintenanceRiskScenarioValidationError,
     ManufacturingDemoReadinessReport,
+    ManufacturingNotificationAcknowledgementPermissionDenied,
+    ManufacturingNotificationAcknowledgementRequest,
+    ManufacturingNotificationAcknowledgementResult,
     ManufacturingNotificationCenter,
+    ManufacturingNotificationNotFound,
     ManufacturingNotificationQuery,
     ManufacturingOperationQuery,
     ManufacturingOperationsDataset,
@@ -340,6 +344,7 @@ from axis_api.manufacturing_operations import (
     generate_quality_risk_scenario,
     generate_supplier_delay_scenario,
     query_manufacturing_operations_dataset,
+    record_manufacturing_notification_acknowledgement,
 )
 from axis_api.model_routing_reference import (
     ModelRoutingReferenceRecordInvalid,
@@ -1371,6 +1376,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def manufacturing_notifications(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         operation_limit: int = Query(default=100, ge=1, le=200),
         workflow_limit: int = Query(default=25, ge=1, le=100),
@@ -1378,7 +1384,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         artifact_limit: int = Query(default=10, ge=1, le=50),
         audit_limit: int = Query(default=25, ge=1, le=100),
         notification_limit: int = Query(default=8, ge=1, le=25),
+        actor_id: str | None = Query(default=None, min_length=1),
     ) -> ManufacturingNotificationCenter:
+        if principal is not None:
+            if principal.tenant_id != tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": AxisErrorCode.PERMISSION_DENIED.value,
+                        "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                        "reason": "tenant_mismatch",
+                    },
+                )
+            if actor_id is not None and actor_id != principal.actor_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": AxisErrorCode.PERMISSION_DENIED.value,
+                        "message": (
+                            "The requested notification actor does not match the OIDC actor."
+                        ),
+                        "reason": "actor_mismatch",
+                    },
+                )
+            actor_id = principal.actor_id
+
         return build_manufacturing_notification_center(
             repository,
             ManufacturingNotificationQuery(
@@ -1389,8 +1419,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 artifact_limit=artifact_limit,
                 audit_limit=audit_limit,
                 notification_limit=notification_limit,
+                actor_id=actor_id,
             ),
         )
+
+    @app.post(
+        "/demo/manufacturing/notifications/{notification_id}/acknowledgement",
+        response_model=ManufacturingNotificationAcknowledgementResult,
+        responses={
+            403: {"description": "Notification acknowledgement permission denied"},
+            404: {"description": "Notification not found"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_notification_acknowledgement(
+        notification_id: str,
+        acknowledgement_request: ManufacturingNotificationAcknowledgementRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> ManufacturingNotificationAcknowledgementResult:
+        bound_request = _bind_demo_actor(acknowledgement_request, principal)
+        try:
+            return record_manufacturing_notification_acknowledgement(
+                repository,
+                notification_id,
+                bound_request,
+            )
+        except ManufacturingNotificationAcknowledgementPermissionDenied as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot acknowledge this notification.",
+                    "required_permissions": ["notifications:acknowledge"],
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except ManufacturingNotificationNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": (
+                        "The notification is not present in the current tenant "
+                        "notification window."
+                    ),
+                    "notification_id": exc.notification_id,
+                },
+            ) from exc
 
     @app.get(
         "/demo/manufacturing/demo-readiness",

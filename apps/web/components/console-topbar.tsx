@@ -12,11 +12,14 @@ import {
 } from "lucide-react";
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
+import { axisFetchJson } from "@/lib/axis-api";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import type {
   IdentitySessionReadModel,
+  ManufacturingNotificationAcknowledgementResult,
   ManufacturingNotificationCenter,
+  ManufacturingPlatformNotification,
 } from "@/lib/platform-overview";
 import { useConsole } from "@/providers/console-provider";
 
@@ -93,7 +96,18 @@ function identitySessionTone(identitySession: IdentitySessionReadModel | null): 
   return identitySession.api_auth_required ? "signal-action-required" : "signal-watch";
 }
 
-function NotificationPanel({ center }: { center: ManufacturingNotificationCenter | null }) {
+function NotificationPanel({
+  center,
+  onAcknowledged,
+  session,
+}: {
+  center: ManufacturingNotificationCenter | null;
+  onAcknowledged: () => void;
+  session: ReturnType<typeof useOidcConsoleSession>["session"];
+}) {
+  const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
+  const [acknowledgementError, setAcknowledgementError] = useState<string | null>(null);
+
   if (!center) {
     return (
       <section className="topbar-popover" aria-label="Notifications">
@@ -109,6 +123,42 @@ function NotificationPanel({ center }: { center: ManufacturingNotificationCenter
   }
 
   const items = center.notifications.slice(0, 5);
+  const canAcknowledge = Boolean(
+    session?.actorId && session.scopes.includes("notifications:acknowledge"),
+  );
+  const sessionRequiredLabel = session
+    ? "Your OIDC session needs notifications:acknowledge."
+    : "Connect an OIDC session to acknowledge notifications.";
+
+  async function acknowledgeNotification(item: ManufacturingPlatformNotification) {
+    if (!session?.actorId || !canAcknowledge || item.read_state === "acknowledged") {
+      return;
+    }
+
+    setPendingNotificationId(item.notification_id);
+    setAcknowledgementError(null);
+    try {
+      await axisFetchJson<ManufacturingNotificationAcknowledgementResult>(
+        `/demo/manufacturing/notifications/${item.notification_id}/acknowledgement`,
+        {
+          method: "POST",
+          session,
+          body: {
+            tenant_id: session.tenantId,
+            actor_id: session.actorId,
+            actor_scopes: session.scopes,
+            state: "acknowledged",
+            reason: "Acknowledged from the Axis console notification center.",
+          },
+        },
+      );
+      onAcknowledged();
+    } catch {
+      setAcknowledgementError("Axis could not persist the acknowledgement.");
+    } finally {
+      setPendingNotificationId(null);
+    }
+  }
 
   return (
     <section className="topbar-popover" aria-label="Notifications">
@@ -118,20 +168,45 @@ function NotificationPanel({ center }: { center: ManufacturingNotificationCenter
       </div>
       <div className="topbar-popover-list">
         {items.length > 0 ? (
-          items.map((item) => (
-            <a
-              aria-label={`${item.action_label}: ${item.title}`}
-              className="topbar-popover-row"
-              href={item.route}
-              key={item.notification_id}
-            >
-              <span aria-hidden="true" className={`status-dot ${notificationTone(item.severity)}`} />
-              <span>
-                <strong>{item.title}</strong>
-                <small>{item.detail}</small>
-              </span>
-            </a>
-          ))
+          items.map((item) => {
+            const acknowledged = item.read_state === "acknowledged";
+            const pending = pendingNotificationId === item.notification_id;
+            return (
+              <div
+                aria-label={`${item.action_label}: ${item.title}`}
+                className={`topbar-popover-row notification-row${
+                  acknowledged ? " notification-row-acknowledged" : ""
+                }`}
+                key={item.notification_id}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`status-dot ${notificationTone(item.severity)}`}
+                />
+                <span className="notification-row-copy">
+                  <strong>{item.title}</strong>
+                  <small>
+                    {acknowledged
+                      ? item.acknowledgement_reason ?? "Acknowledged"
+                      : item.detail}
+                  </small>
+                </span>
+                <span className="notification-row-actions">
+                  <a className="notification-open-link" href={item.route} title={item.action_label}>
+                    Open
+                  </a>
+                  <button
+                    className="notification-ack-button"
+                    disabled={!canAcknowledge || acknowledged || pending}
+                    onClick={() => void acknowledgeNotification(item)}
+                    type="button"
+                  >
+                    {acknowledged ? "Acked" : pending ? "Saving" : "Ack"}
+                  </button>
+                </span>
+              </div>
+            );
+          })
         ) : (
           <div className="topbar-popover-row">
             <span aria-hidden="true" className="status-dot signal-ready" />
@@ -142,6 +217,14 @@ function NotificationPanel({ center }: { center: ManufacturingNotificationCenter
           </div>
         )}
       </div>
+      {items.length > 0 && !canAcknowledge ? (
+        <p className="notification-panel-note">{sessionRequiredLabel}</p>
+      ) : null}
+      {acknowledgementError ? (
+        <p className="notification-panel-error" role="status">
+          {acknowledgementError}
+        </p>
+      ) : null}
       <a className="topbar-popover-link" href="/audit">
         Open audit evidence
       </a>
@@ -469,7 +552,13 @@ export function ConsoleTopbar({
         >
           {operatorInitials(session?.actorId)}
         </button>
-        {activePanel === "notifications" ? <NotificationPanel center={notificationCenter} /> : null}
+        {activePanel === "notifications" ? (
+          <NotificationPanel
+            center={notificationCenter}
+            onAcknowledged={triggerRefresh}
+            session={session}
+          />
+        ) : null}
         {activePanel === "help" ? <HelpPanel /> : null}
         {activePanel === "account" ? <AccountPanel /> : null}
       </div>

@@ -12,12 +12,14 @@ from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.manufacturing_operations import (
+    ManufacturingNotificationAcknowledgementRequest,
     ManufacturingNotificationQuery,
     ManufacturingOperationQuery,
     ManufacturingOperationsSnapshotQuery,
     build_manufacturing_notification_center,
     build_manufacturing_operations_snapshot,
     query_manufacturing_operations_dataset,
+    record_manufacturing_notification_acknowledgement,
 )
 from axis_api.models import Base
 from axis_api.persistence import (
@@ -373,6 +375,58 @@ def test_build_manufacturing_notification_center_derives_from_persisted_snapshot
     assert "secret" not in serialized
 
 
+def test_platform_notification_acknowledgement_is_persisted_and_audited(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_snapshot_records(repository)
+        center = build_manufacturing_notification_center(
+            repository,
+            ManufacturingNotificationQuery(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="plant-operations-owner-role",
+                notification_limit=4,
+            ),
+        )
+        notification = center.notifications[0]
+
+        result = record_manufacturing_notification_acknowledgement(
+            repository,
+            notification.notification_id,
+            ManufacturingNotificationAcknowledgementRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="plant-operations-owner-role",
+                actor_scopes=["notifications:acknowledge"],
+                reason="Reviewed by operations lead during the morning control-room check.",
+            ),
+        )
+        refreshed = build_manufacturing_notification_center(
+            repository,
+            ManufacturingNotificationQuery(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="plant-operations-owner-role",
+                notification_limit=4,
+            ),
+        )
+
+    acknowledged = next(
+        item
+        for item in refreshed.notifications
+        if item.notification_id == notification.notification_id
+    )
+    assert result.notification_id == notification.notification_id
+    assert result.state == "acknowledged"
+    assert result.read_state == "acknowledged"
+    assert result.audit_event_type == "platform.notification.acknowledged"
+    assert result.audit_event_id is not None
+    assert acknowledged.read_state == "acknowledged"
+    assert acknowledged.acknowledged_by == "plant-operations-owner-role"
+    assert acknowledged.acknowledgement_reason.startswith("Reviewed by operations")
+    assert refreshed.unread_count == center.unread_count - 1
+    assert "browser-local fallback" not in " ".join(refreshed.notes).lower()
+
+
 def test_manufacturing_notifications_endpoint_returns_platform_read_model(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -391,6 +445,68 @@ def test_manufacturing_notifications_endpoint_returns_platform_read_model(
     assert body["notifications"][0]["read_state"] == "unread"
     assert body["notifications"][0]["route"] in {"/", "/approvals", "/workflows"}
     assert body["generation_boundary"] == "derived_from_persisted_operations_snapshot"
+
+
+def test_manufacturing_notification_acknowledgement_endpoint_requires_scope_and_persists(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_snapshot_records(repository)
+        center = build_manufacturing_notification_center(
+            repository,
+            ManufacturingNotificationQuery(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="plant-operations-owner-role",
+                notification_limit=3,
+            ),
+        )
+        notification_id = center.notifications[0].notification_id
+
+    client = TestClient(app)
+    denied = client.post(
+        f"/demo/manufacturing/notifications/{notification_id}/acknowledgement",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["audit:read"],
+            "reason": "Operator reviewed the signal.",
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "PERMISSION_DENIED"
+
+    response = client.post(
+        f"/demo/manufacturing/notifications/{notification_id}/acknowledgement",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "plant-operations-owner-role",
+            "actor_scopes": ["notifications:acknowledge"],
+            "reason": "Operator reviewed the signal.",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["notification_id"] == notification_id
+    assert body["read_state"] == "acknowledged"
+    assert body["audit_event_type"] == "platform.notification.acknowledged"
+
+    refreshed = client.get(
+        "/demo/manufacturing/notifications"
+        "?notification_limit=3&actor_id=plant-operations-owner-role"
+    )
+    assert refreshed.status_code == 200
+    refreshed_body = refreshed.json()
+    acknowledged = next(
+        item
+        for item in refreshed_body["notifications"]
+        if item["notification_id"] == notification_id
+    )
+    assert acknowledged["read_state"] == "acknowledged"
+    assert acknowledged["acknowledged_by"] == "plant-operations-owner-role"
+    assert refreshed_body["unread_count"] == 2
 
 
 def test_manufacturing_demo_readiness_endpoint_reports_demo_ready_evidence(
@@ -444,6 +560,7 @@ def test_openapi_exposes_manufacturing_operations_snapshot_endpoint() -> None:
     assert "/demo/manufacturing/demo-readiness" in paths
     assert "get" in paths["/demo/manufacturing/operations/snapshot"]
     assert "get" in paths["/demo/manufacturing/notifications"]
+    assert "post" in paths["/demo/manufacturing/notifications/{notification_id}/acknowledgement"]
     assert "get" in paths["/demo/manufacturing/demo-readiness"]
 
 

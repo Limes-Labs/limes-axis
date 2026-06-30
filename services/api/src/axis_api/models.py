@@ -1061,3 +1061,37 @@ class ManufacturingRiskScenario(Base):
             name="uq_manufacturing_risk_scenarios_tenant_idempotency",
         ),
     )
+
+
+class PlatformNotificationAcknowledgement(Base):
+    __tablename__ = "platform_notification_acknowledgements"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    notification_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    state: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(String(600), nullable=False)
+    source: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notification_title: Mapped[str] = mapped_column(String(300), nullable=False)
+    notification_category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    notification_severity: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    acknowledged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "notification_id",
+            "actor_id",
+            name="uq_platform_notification_ack_tenant_notification_actor",
+        ),
+    )

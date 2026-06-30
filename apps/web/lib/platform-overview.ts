@@ -187,6 +187,9 @@ export type ManufacturingPlatformNotification = {
   evidence_refs: string[];
   action_label: string;
   read_state: string;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  acknowledgement_reason: string | null;
 };
 
 export type ManufacturingNotificationCenter = {
@@ -200,6 +203,19 @@ export type ManufacturingNotificationCenter = {
   notifications: ManufacturingPlatformNotification[];
   generation_boundary: string;
   notes: string[];
+};
+
+export type ManufacturingNotificationAcknowledgementResult = {
+  tenant_id: string;
+  notification_id: string;
+  actor_id: string;
+  state: string;
+  reason: string;
+  audit_event_id: string | null;
+  audit_event_type: string;
+  read_state: string;
+  acknowledged_at: string;
+  generation_boundary: string;
 };
 
 export type IdentitySessionReadModel = {

@@ -10,12 +10,14 @@ from axis_api.models import (
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
     ManufacturingRiskScenario,
+    utc_now,
 )
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
     AxisPersistenceRepository,
     ManufacturingDailyBriefCreate,
     ManufacturingRiskScenarioCreate,
+    PlatformNotificationAcknowledgementCreate,
 )
 
 DAILY_BRIEF_REQUIRED_SCOPES = ["briefs:generate", "audit:read", "workflows:read"]
@@ -26,6 +28,7 @@ MAINTENANCE_RISK_REQUIRED_SCOPES = [
     "audit:read",
 ]
 SUPPLIER_DELAY_REQUIRED_SCOPES = ["supply:read", "workflows:read", "audit:read"]
+NOTIFICATION_ACKNOWLEDGEMENT_REQUIRED_SCOPES = ["notifications:acknowledge"]
 
 
 class DailyPlantBriefPermissionDenied(PermissionError):
@@ -102,6 +105,18 @@ class SupplierDelayScenarioIdempotencyConflict(ValueError):
     def __init__(self, scenario_id: str) -> None:
         super().__init__("Idempotency key already exists with a different request")
         self.scenario_id = scenario_id
+
+
+class ManufacturingNotificationAcknowledgementPermissionDenied(PermissionError):
+    def __init__(self, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+class ManufacturingNotificationNotFound(LookupError):
+    def __init__(self, notification_id: str) -> None:
+        super().__init__("Notification not found")
+        self.notification_id = notification_id
 
 
 class ManufacturingOperationRecordView(BaseModel):
@@ -251,6 +266,7 @@ class ManufacturingDemoReadinessReport(BaseModel):
 
 class ManufacturingNotificationQuery(ManufacturingOperationsSnapshotQuery):
     notification_limit: int = Field(default=8, ge=1, le=25)
+    actor_id: str | None = Field(default=None, min_length=1)
 
 
 class ManufacturingPlatformNotification(BaseModel):
@@ -268,6 +284,9 @@ class ManufacturingPlatformNotification(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     action_label: str = Field(min_length=1)
     read_state: str = Field(default="unread", min_length=1)
+    acknowledged_by: str | None = None
+    acknowledged_at: str | None = None
+    acknowledgement_reason: str | None = None
 
 
 class ManufacturingNotificationCenter(BaseModel):
@@ -281,6 +300,27 @@ class ManufacturingNotificationCenter(BaseModel):
     notifications: list[ManufacturingPlatformNotification]
     generation_boundary: str = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
+
+
+class ManufacturingNotificationAcknowledgementRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    actor_id: str = Field(min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
+    state: str = Field(default="acknowledged", pattern="^(read|acknowledged)$")
+    reason: str = Field(min_length=1, max_length=600)
+
+
+class ManufacturingNotificationAcknowledgementResult(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    notification_id: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    read_state: str = Field(min_length=1)
+    acknowledged_at: str = Field(min_length=1)
+    generation_boundary: str = Field(min_length=1)
 
 
 class ManufacturingOperationQuery(BaseModel):
@@ -811,6 +851,53 @@ def _notification_priority(notification: ManufacturingPlatformNotification) -> t
     return (severity_order[notification.severity], notification.notification_id)
 
 
+def _acknowledged_notification_count(
+    notifications: list[ManufacturingPlatformNotification],
+) -> int:
+    return sum(
+        1
+        for notification in notifications
+        if notification.read_state in {"read", "acknowledged"}
+    )
+
+
+def _with_acknowledgement_state(
+    repository: AxisPersistenceRepository,
+    query: ManufacturingNotificationQuery,
+    notifications: list[ManufacturingPlatformNotification],
+) -> list[ManufacturingPlatformNotification]:
+    if query.actor_id is None or not notifications:
+        return notifications
+
+    acknowledgements = repository.list_platform_notification_acknowledgements(
+        tenant_id=query.tenant_id,
+        actor_id=query.actor_id,
+        notification_ids=[notification.notification_id for notification in notifications],
+    )
+    acknowledgements_by_id = {
+        acknowledgement.notification_id: acknowledgement
+        for acknowledgement in acknowledgements
+    }
+    resolved_notifications: list[ManufacturingPlatformNotification] = []
+    for notification in notifications:
+        acknowledgement = acknowledgements_by_id.get(notification.notification_id)
+        if acknowledgement is None:
+            resolved_notifications.append(notification)
+            continue
+
+        resolved_notifications.append(
+            notification.model_copy(
+                update={
+                    "read_state": acknowledgement.state,
+                    "acknowledged_by": acknowledgement.actor_id,
+                    "acknowledged_at": _isoformat_utc(acknowledgement.acknowledged_at),
+                    "acknowledgement_reason": acknowledgement.reason,
+                }
+            )
+        )
+    return resolved_notifications
+
+
 def build_manufacturing_notification_center(
     repository: AxisPersistenceRepository,
     query: ManufacturingNotificationQuery,
@@ -945,12 +1032,13 @@ def build_manufacturing_notification_center(
     notifications = sorted(notifications, key=_notification_priority)[
         : query.notification_limit
     ]
+    notifications = _with_acknowledgement_state(repository, query, notifications)
     return ManufacturingNotificationCenter(
         tenant_id=snapshot.tenant_id,
         plant_name=snapshot.plant_name,
         scenario=snapshot.scenario,
         as_of=snapshot.as_of,
-        unread_count=len(notifications),
+        unread_count=len(notifications) - _acknowledged_notification_count(notifications),
         action_required_count=sum(
             1
             for notification in notifications
@@ -966,9 +1054,129 @@ def build_manufacturing_notification_center(
                 "Notifications are derived from persisted operations, workflow, "
                 "approval and audit state."
             ),
-            "This endpoint does not create notification rows or browser-local fallback data.",
-            "Read/ack state remains a future authenticated platform surface.",
+            "Notification read and acknowledgement state is persisted per tenant actor.",
+            "The API does not use local fallback data for notification state.",
         ],
+    )
+
+
+def _notification_acknowledgement_event_type(state: str) -> str:
+    if state == "read":
+        return "platform.notification.read"
+    return "platform.notification.acknowledged"
+
+
+def _notification_acknowledgement_permission(
+    request: ManufacturingNotificationAcknowledgementRequest,
+    notification: ManufacturingPlatformNotification,
+) -> PermissionDecision:
+    return evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=NOTIFICATION_ACKNOWLEDGEMENT_REQUIRED_SCOPES,
+            attributes={
+                "notification_id": notification.notification_id,
+                "category": notification.category,
+                "severity": notification.severity.value,
+                "source": notification.source,
+                "route": notification.route,
+                "owner_role": notification.owner_role,
+            },
+        )
+    )
+
+
+def _notification_acknowledgement_payload(
+    request: ManufacturingNotificationAcknowledgementRequest,
+    notification: ManufacturingPlatformNotification,
+) -> dict:
+    return {
+        "notification_id": notification.notification_id,
+        "state": request.state,
+        "reason": request.reason,
+        "title": notification.title,
+        "category": notification.category,
+        "severity": notification.severity.value,
+        "source": notification.source,
+        "route": notification.route,
+        "owner_role": notification.owner_role,
+        "related_workflow_id": notification.related_workflow_id,
+        "related_approval_id": notification.related_approval_id,
+        "evidence_refs": notification.evidence_refs,
+        "generation_boundary": "derived_from_persisted_operations_snapshot",
+    }
+
+
+def record_manufacturing_notification_acknowledgement(
+    repository: AxisPersistenceRepository,
+    notification_id: str,
+    request: ManufacturingNotificationAcknowledgementRequest,
+) -> ManufacturingNotificationAcknowledgementResult:
+    center = build_manufacturing_notification_center(
+        repository,
+        ManufacturingNotificationQuery(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            notification_limit=25,
+        ),
+    )
+    notification = next(
+        (
+            item
+            for item in center.notifications
+            if item.notification_id == notification_id
+        ),
+        None,
+    )
+    if notification is None:
+        raise ManufacturingNotificationNotFound(notification_id)
+
+    decision = _notification_acknowledgement_permission(request, notification)
+    if not decision.allowed:
+        raise ManufacturingNotificationAcknowledgementPermissionDenied(decision)
+
+    event_type = _notification_acknowledgement_event_type(request.state)
+    acknowledged_at = utc_now()
+    payload = _notification_acknowledgement_payload(request, notification)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=event_type,
+            payload=payload,
+        )
+    )
+    acknowledgement = repository.upsert_platform_notification_acknowledgement(
+        PlatformNotificationAcknowledgementCreate(
+            tenant_id=request.tenant_id,
+            notification_id=notification.notification_id,
+            actor_id=request.actor_id,
+            state=request.state,
+            reason=request.reason,
+            source=notification.source,
+            notification_title=notification.title,
+            notification_category=notification.category,
+            notification_severity=notification.severity.value,
+            payload=payload,
+            audit_event_id=audit_event.id,
+            audit_event_type=event_type,
+            acknowledged_at=acknowledged_at,
+        )
+    )
+
+    return ManufacturingNotificationAcknowledgementResult(
+        tenant_id=acknowledgement.tenant_id,
+        notification_id=acknowledgement.notification_id,
+        actor_id=acknowledgement.actor_id,
+        state=acknowledgement.state,
+        reason=acknowledgement.reason,
+        audit_event_id=acknowledgement.audit_event_id,
+        audit_event_type=acknowledgement.audit_event_type,
+        read_state=acknowledgement.state,
+        acknowledged_at=_isoformat_utc(acknowledgement.acknowledged_at),
+        generation_boundary="persisted_platform_notification_acknowledgement",
     )
 
 

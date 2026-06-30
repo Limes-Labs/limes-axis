@@ -79,14 +79,20 @@ The console shell notification panel also uses:
 
 ```text
 GET /demo/manufacturing/notifications
+POST /demo/manufacturing/notifications/{notification_id}/acknowledgement
 ```
 
 The endpoint derives a notification read model from the persisted operations
 snapshot rather than from browser-local state. It surfaces operation-domain
 attention, pending approvals, blocked workflow signals and recent audit
-evidence with stable notification ids, routes and evidence references. It does
-not create user notification rows, mark notifications read or acknowledge
-events; authenticated read/ack state remains future Platform work.
+evidence with stable notification ids, routes and evidence references. When an
+actor is known through OIDC or the demo actor query, Axis overlays persisted
+read/ack state from `platform_notification_acknowledgements`.
+
+The acknowledgement endpoint enforces `notifications:acknowledge`, writes
+`platform.notification.acknowledged` or `platform.notification.read` audit
+evidence, and persists the actor-scoped state without storing bearer token
+material or relying on browser-local fallback data.
 
 The account popover uses:
 
@@ -117,6 +123,6 @@ Covered by:
 - web unit tests for the Axis brand tokens;
 - Playwright smoke tests for API-required overview behavior, Axis shell tokens
   and no horizontal overflow on desktop and mobile.
-- API and Playwright coverage for the API-backed notification panel and its
-  no-fallback behavior.
+- API and Playwright coverage for the API-backed notification panel, persisted
+  acknowledgement state and no-fallback behavior.
 - API and Playwright coverage for the API-validated account/session popover.

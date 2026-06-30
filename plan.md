@@ -260,6 +260,8 @@ Foundation acceptance is tracked in
   E2E scripts.
 - [x] Add an API-backed platform notification center derived from persisted
   operations, workflow, approval and audit state.
+- [x] Persist platform notification read/ack state per tenant actor, enforce
+  `notifications:acknowledge` and write append-only audit evidence.
 - [x] Add an API-validated identity session read model for the console account
   surface, without returning token material or trusting browser-only claims.
 - [x] Guard all API-owned reference endpoints beyond overview, workflow
@@ -424,9 +426,11 @@ fallback records.
 from the same persisted operations snapshot, including operation-domain
 attention, pending approval gates, blocked workflow signals and recent audit
 evidence. The browser no longer synthesizes notifications from the overview
-reference payload. Read/ack state remains future authenticated Platform work,
-but the visible notification surface is API-owned and has no browser-local
-fallback data.
+reference payload. `POST
+/demo/manufacturing/notifications/{notification_id}/acknowledgement` persists
+read/ack state per tenant actor, enforces `notifications:acknowledge`, writes
+`platform.notification.acknowledged` audit evidence and refreshes the
+notification read model without browser-local fallback data.
 `POST /demo/manufacturing/operations/daily-brief` creates a persisted daily
 plant brief from those operation records, enforces `briefs:generate`,
 `audit:read` and `workflows:read`, writes
