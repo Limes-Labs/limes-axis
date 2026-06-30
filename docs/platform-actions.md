@@ -19,6 +19,9 @@ slice does not execute production actions.
   tests validate the Alembic bootstrap payload directly.
 - `POST /demo/manufacturing/actions/{action_id}/runs` records a typed dry-run
   or proposal request with action idempotency enforcement and append-only audit.
+- `POST /demo/manufacturing/actions/runs/{action_run_id}/outcome` records the
+  governed result of a persisted action run with idempotency, audit evidence and
+  workflow timeline updates.
 - Action run requests validate action ids, schemas, workflow bindings and policy
   metadata against the same persisted action registry reference record instead
   of an in-route or in-service demo seed.
@@ -35,6 +38,9 @@ slice does not execute production actions.
   persistence when a workflow binding and runtime policy are present.
 - Bound action runs update known persisted workflow runs with
   `workflow.action_run.recorded` timeline evidence and replay readiness.
+- Action-run outcomes update the persisted run result, append
+  `action.run.outcome.recorded` audit evidence and close the linked workflow
+  with `workflow.action_run.completed` timeline evidence.
 - Approval decisions transition linked approval-gated action runs, or create an
   idempotent approval gate action record when the reviewer acts directly from
   the approval inbox before an action proposal exists.
@@ -94,6 +100,10 @@ to reference cross-domain ontology resources unless the actor also has the
 relationship scope for those resources from the persisted ontology reference.
 When a bound workflow row already exists, the action run path also updates that
 workflow's state, pending signal history and timeline through the repository.
+The action-run outcome path records the observed result of an approved or
+preview action run. It refuses public demo requests that claim unmanaged
+external mutation, requires the `actions:result:record` scope and returns
+idempotent replays without duplicate audit events.
 Approval decision persistence also writes the approval outcome back into
 `action_runs` through the same tenant-scoped action evidence boundary. This
 keeps approval outcomes queryable as action evidence without enabling live
@@ -128,6 +138,8 @@ approval inbox and append-only audit ledger boundaries.
   reference row, not a service-local ontology seed, for payload resource refs.
 - Action-run tests cover persisted workflow timeline updates for bound workflow
   runs.
+- Action-run outcome tests cover idempotency, permission denial, unsafe mutation
+  rejection, audit persistence and workflow completion timeline updates.
 - Approval decision tests cover action-run status transitions and idempotent
   approval gate creation.
 - Web unit tests cover the OIDC session bridge token parsing and authorization

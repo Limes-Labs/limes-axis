@@ -14,8 +14,14 @@ from axis_api.action_runs import (
     ActionPayloadValidationError,
     ActionPermissionDenied,
     ActionRunIdempotencyConflict,
+    ActionRunOutcomeConflict,
+    ActionRunOutcomePermissionDenied,
+    ActionRunOutcomeRequest,
+    ActionRunOutcomeValidationError,
     ActionRunRequest,
+    DemoActionRunNotFound,
     record_demo_action_run,
+    record_demo_action_run_outcome,
 )
 from axis_api.config import Settings
 from axis_api.db import session_scope
@@ -24,6 +30,7 @@ from axis_api.main import create_app
 from axis_api.models import ActionRun, AuditEvent, Base, WorkflowRunRecord, WorkflowTimelineRecord
 from axis_api.ontology_reference import OntologyReferenceRecordNotFound
 from axis_api.persistence import (
+    ActionRunCreate,
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
     WorkflowRunCreate,
@@ -228,6 +235,31 @@ def seed_supplier_delay_workflow(repository: AxisPersistenceRepository) -> None:
     )
 
 
+def seed_approved_supplier_action_run(repository: AxisPersistenceRepository) -> ActionRun:
+    return repository.create_action_run(
+        ActionRunCreate(
+            tenant_id="tenant_demo_manufacturing",
+            action_id="request_supplier_expedite",
+            idempotency_key="supplier-expedite-approved-run",
+            execution_mode="approval_gated_dry_run",
+            requested_by="agent_supply_risk",
+            approval_id="appr_expedite_supplier_batch",
+            workflow_id="wf_supplier_delay_review",
+            payload={
+                "input": {
+                    "supplier_batch_id": "asset_motors_batch",
+                    "target_arrival": "2026-06-22T08:00:00+02:00",
+                    "reason": "Line 2 packaging risk",
+                    "cost_ceiling_eur": "1200",
+                },
+                "schema_version": "test",
+                "dry_run": True,
+            },
+            status="approved_for_execution",
+        )
+    )
+
+
 def supplier_action_request(
     *,
     idempotency_key: str = "tenant_demo_manufacturing:request_supplier_expedite:test",
@@ -243,6 +275,22 @@ def supplier_action_request(
             "reason": reason,
             "cost_ceiling_eur": "1200",
         },
+    )
+
+
+def supplier_outcome_request(
+    *,
+    idempotency_key: str = "supplier-expedite-outcome-1",
+    result_summary: str = "Supplier expedite dry-run package generated.",
+) -> ActionRunOutcomeRequest:
+    return ActionRunOutcomeRequest(
+        actor_id="workflow-runtime",
+        actor_scopes=["actions:result:record"],
+        idempotency_key=idempotency_key,
+        status="dry_run_completed",
+        result_summary=result_summary,
+        evidence_refs=["audit_supplier_expedite_preview"],
+        metrics={"external_mutations": 0, "records_written": 0},
     )
 
 
@@ -500,6 +548,138 @@ async def test_record_demo_action_run_records_signal_failure_without_blocking_pe
     assert result.workflow_signal is not None
     assert result.workflow_signal.payload["reason"] == "synthetic_action_runtime_down"
     assert audit_event.payload["workflow_signal"]["status"] == "runtime_signal_unavailable"
+
+
+async def test_record_demo_action_run_outcome_persists_audit_and_workflow_history(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_supplier_delay_workflow(repository)
+        action_run = seed_approved_supplier_action_run(repository)
+        result = await record_demo_action_run_outcome(
+            repository,
+            action_run.id,
+            supplier_outcome_request(),
+        )
+
+    with session_factory() as session:
+        persisted_action_run = session.scalars(select(ActionRun)).one()
+        audit_event = session.scalars(select(AuditEvent)).one()
+        workflow_run = session.scalars(select(WorkflowRunRecord)).one()
+        timeline = list(
+            session.scalars(
+                select(WorkflowTimelineRecord).order_by(WorkflowTimelineRecord.sequence)
+            )
+        )
+
+    assert result.persisted is True
+    assert result.idempotent_replay is False
+    assert result.action_run_id == action_run.id
+    assert result.status == "dry_run_completed"
+    assert result.workflow_state_updated is True
+    assert result.workflow_state == "action_completed"
+    assert result.workflow_status == "ready"
+    assert result.audit_event_id == audit_event.id
+    assert persisted_action_run.status == "dry_run_completed"
+    assert persisted_action_run.result_payload == {
+        "source": "action_run_outcome",
+        "outcome_idempotency_key": "supplier-expedite-outcome-1",
+        "status": "dry_run_completed",
+        "result_summary": "Supplier expedite dry-run package generated.",
+        "evidence_refs": ["audit_supplier_expedite_preview"],
+        "metrics": {"external_mutations": 0, "records_written": 0},
+        "external_mutation_started": False,
+        "recorded_by": "workflow-runtime",
+    }
+    assert audit_event.event_type == "action.run.outcome.recorded"
+    assert audit_event.payload["action_run_id"] == str(action_run.id)
+    assert audit_event.payload["status"] == "dry_run_completed"
+    assert audit_event.payload["result_summary"] == (
+        "Supplier expedite dry-run package generated."
+    )
+    assert audit_event.payload["external_mutation_started"] is False
+    assert workflow_run.state == "action_completed"
+    assert workflow_run.status == "ready"
+    assert workflow_run.current_step == "Action outcome recorded"
+    assert workflow_run.blocker is None
+    assert workflow_run.pending_signals[-1] == {
+        "signal": "action.outcome",
+        "status": "dry_run_completed",
+        "action_id": "request_supplier_expedite",
+        "action_run_id": str(action_run.id),
+        "idempotency_key": "supplier-expedite-outcome-1",
+    }
+    assert timeline[-1].event == "workflow.action_run.completed"
+    assert timeline[-1].actor == "workflow-runtime"
+    assert timeline[-1].result == "dry_run_completed"
+    assert str(action_run.id) in timeline[-1].summary
+
+
+async def test_record_demo_action_run_outcome_is_idempotent_without_duplicate_audit(
+    session_factory: sessionmaker[Session],
+) -> None:
+    request = supplier_outcome_request()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        action_run = seed_approved_supplier_action_run(repository)
+        first = await record_demo_action_run_outcome(repository, action_run.id, request)
+        second = await record_demo_action_run_outcome(repository, action_run.id, request)
+
+    with session_factory() as session:
+        audit_events = list(session.scalars(select(AuditEvent)))
+        action_runs = list(session.scalars(select(ActionRun)))
+
+    assert first.action_run_id == second.action_run_id
+    assert first.idempotent_replay is False
+    assert second.idempotent_replay is True
+    assert second.audit_event_id is None
+    assert len(audit_events) == 1
+    assert len(action_runs) == 1
+
+
+async def test_record_demo_action_run_outcome_rejects_conflicting_or_unsafe_results(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        action_run = seed_approved_supplier_action_run(repository)
+        await record_demo_action_run_outcome(
+            repository,
+            action_run.id,
+            supplier_outcome_request(result_summary="First result."),
+        )
+        with pytest.raises(ActionRunOutcomeConflict):
+            await record_demo_action_run_outcome(
+                repository,
+                action_run.id,
+                supplier_outcome_request(result_summary="Changed result."),
+            )
+        unsafe_request = supplier_outcome_request(idempotency_key="unsafe-outcome")
+        unsafe_request.external_mutation_started = True
+        with pytest.raises(ActionRunOutcomeValidationError):
+            await record_demo_action_run_outcome(repository, action_run.id, unsafe_request)
+
+
+async def test_record_demo_action_run_outcome_requires_permission_and_existing_run(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        action_run = seed_approved_supplier_action_run(repository)
+        denied_request = supplier_outcome_request()
+        denied_request.actor_scopes = []
+        with pytest.raises(ActionRunOutcomePermissionDenied):
+            await record_demo_action_run_outcome(repository, action_run.id, denied_request)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(DemoActionRunNotFound):
+            await record_demo_action_run_outcome(
+                repository,
+                "00000000-0000-0000-0000-000000000000",
+                supplier_outcome_request(idempotency_key="missing-run"),
+            )
 
 
 async def test_record_demo_action_run_replays_same_idempotency_key_without_duplicate_audit(
@@ -824,9 +1004,42 @@ def test_action_run_endpoint_returns_idempotency_conflict(
     assert conflict.json()["detail"]["action_run_id"] == first.json()["action_run_id"]
 
 
+def test_action_run_outcome_endpoint_persists_result(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    with session_scope(session_factory) as session:
+        action_run = seed_approved_supplier_action_run(AxisPersistenceRepository(session))
+
+    first = client.post(
+        f"/demo/manufacturing/actions/runs/{action_run.id}/outcome",
+        json=supplier_outcome_request().model_dump(),
+    )
+    second = client.post(
+        f"/demo/manufacturing/actions/runs/{action_run.id}/outcome",
+        json=supplier_outcome_request().model_dump(),
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    first_body = first.json()
+    second_body = second.json()
+    assert first_body["action_run_id"] == str(action_run.id)
+    assert first_body["status"] == "dry_run_completed"
+    assert first_body["audit_event_type"] == "action.run.outcome.recorded"
+    assert first_body["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    assert second_body["idempotent_replay"] is True
+    assert second_body["audit_event_id"] is None
+
+
 def test_openapi_exposes_action_run_endpoint() -> None:
     client = TestClient(create_app())
     response = client.get("/openapi.json")
 
     assert response.status_code == 200
     assert "/demo/manufacturing/actions/{action_id}/runs" in response.json()["paths"]
+    assert "/demo/manufacturing/actions/runs/{action_run_id}/outcome" in response.json()[
+        "paths"
+    ]

@@ -290,6 +290,9 @@ Delivered:
   run persistence, with redacted signal metadata in audit events.
 - persisted workflow state and timeline updates when action runs are recorded
   against known workflow runs.
+- governed action-run outcome persistence with `action.run.outcome.recorded`
+  audit evidence, idempotency checks and linked workflow completion timeline
+  updates.
 - approval decision transitions for linked `action_runs`, including idempotent
   approval gate records when a reviewer decides directly from the inbox before
   an action proposal exists.

@@ -77,6 +77,12 @@ also appends `workflow.action_run.recorded` timeline evidence, updates the
 workflow state/current step and marks the run replay-ready for read-only
 simulation previews.
 
+Action-run outcome persistence closes this loop for governed dry-run/execution
+results. When a linked workflow exists, the API appends
+`workflow.action_run.completed`, updates the workflow state/status/current step
+from the recorded outcome and keeps the history replay-ready for simulation
+previews.
+
 Future Platform work should connect this contract to:
 
 - workflow history retention and replay artifacts.
@@ -98,6 +104,8 @@ The slice is covered by:
   timeline history;
 - API unit tests for action runs mutating persisted workflow state and timeline
   history;
+- API unit tests for action-run outcomes mutating persisted workflow state and
+  completion timeline history;
 - OpenAPI schema export/check;
 - web unit tests for the persisted-data selection contract;
 - Playwright smoke tests for API-required workflow behavior on desktop and mobile.

@@ -7,7 +7,13 @@ from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry
 from axis_api.ontology_reference import get_persisted_manufacturing_ontology
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
-from axis_api.persistence import ActionRunCreate, AxisPersistenceRepository, WorkflowActionRunUpdate
+from axis_api.persistence import (
+    ActionRunCreate,
+    ActionRunResultRecord,
+    AxisPersistenceRepository,
+    WorkflowActionRunOutcomeUpdate,
+    WorkflowActionRunUpdate,
+)
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     WorkflowActionSignalRequest,
@@ -19,6 +25,10 @@ from axis_api.workflow_runtime import (
 
 
 class DemoActionNotFound(LookupError):
+    pass
+
+
+class DemoActionRunNotFound(LookupError):
     pass
 
 
@@ -39,6 +49,26 @@ class ActionRunIdempotencyConflict(ValueError):
     def __init__(self, action_run_id: UUID) -> None:
         super().__init__("Idempotency key already exists with a different payload")
         self.action_run_id = action_run_id
+
+
+class ActionRunOutcomeValidationError(ValueError):
+    def __init__(self, issues: list[str]) -> None:
+        super().__init__("Action run outcome validation failed")
+        self.issues = issues
+
+
+class ActionRunOutcomePermissionDenied(PermissionError):
+    def __init__(self, required_permission: str, decision: PermissionDecision) -> None:
+        super().__init__(decision.reason)
+        self.required_permission = required_permission
+        self.decision = decision
+
+
+class ActionRunOutcomeConflict(ValueError):
+    def __init__(self, action_run_id: UUID, reason: str) -> None:
+        super().__init__(reason)
+        self.action_run_id = action_run_id
+        self.reason = reason
 
 
 class ActionRunRequest(BaseModel):
@@ -69,6 +99,49 @@ class ActionRunPersistenceResult(BaseModel):
     workflow_state_updated: bool = False
     workflow_state: str | None = None
     workflow_status: str | None = None
+
+
+class ActionRunOutcomeRequest(BaseModel):
+    actor_id: str = Field(min_length=1)
+    actor_scopes: list[str] = Field(default_factory=list)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    status: str = Field(min_length=1)
+    result_summary: str = Field(min_length=1, max_length=800)
+    evidence_refs: list[str] = Field(min_length=1)
+    metrics: dict = Field(default_factory=dict)
+    external_mutation_started: bool = False
+
+
+class ActionRunOutcomePersistenceResult(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    action_run_id: UUID
+    action_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    execution_mode: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    approval_id: str | None = None
+    workflow_id: str | None = None
+    result_summary: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(default_factory=list)
+    persisted: bool
+    idempotent_replay: bool
+    permission_decision: PermissionDecision
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
+    workflow_state_updated: bool = False
+    workflow_state: str | None = None
+    workflow_status: str | None = None
+
+
+ACTION_RUN_OUTCOME_RECORD_SCOPE = "actions:result:record"
+ACTION_RUN_OUTCOME_STATUSES = {
+    "dry_run_completed",
+    "execution_completed",
+    "execution_failed",
+    "execution_blocked",
+}
+ACTION_RUN_TERMINAL_OUTCOME_STATUSES = ACTION_RUN_OUTCOME_STATUSES
 
 
 def _find_demo_action(
@@ -230,6 +303,51 @@ def _workflow_signal_status(workflow_signal: WorkflowSignalResult | None) -> str
     return workflow_signal.status
 
 
+def _outcome_permission_decision(
+    tenant_id: str,
+    request: ActionRunOutcomeRequest,
+) -> PermissionDecision:
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[ACTION_RUN_OUTCOME_RECORD_SCOPE],
+            attributes={"operation": "record_action_run_outcome"},
+        )
+    )
+    if not decision.allowed:
+        raise ActionRunOutcomePermissionDenied(ACTION_RUN_OUTCOME_RECORD_SCOPE, decision)
+
+    return decision
+
+
+def _validate_outcome_request(action_status: str, request: ActionRunOutcomeRequest) -> None:
+    issues: list[str] = []
+    if request.status not in ACTION_RUN_OUTCOME_STATUSES:
+        issues.append(f"invalid_status:{request.status}")
+    if request.external_mutation_started:
+        issues.append("external_mutation_not_enabled")
+    if action_status == "approval_required":
+        issues.append("approval_required_before_outcome")
+
+    if issues:
+        raise ActionRunOutcomeValidationError(issues)
+
+
+def _outcome_payload(request: ActionRunOutcomeRequest) -> dict:
+    return {
+        "source": "action_run_outcome",
+        "outcome_idempotency_key": request.idempotency_key,
+        "status": request.status,
+        "result_summary": request.result_summary,
+        "evidence_refs": request.evidence_refs,
+        "metrics": request.metrics,
+        "external_mutation_started": request.external_mutation_started,
+        "recorded_by": request.actor_id,
+    }
+
+
 async def _signal_action_workflow(
     workflow_runtime: WorkflowSignalRuntime,
     *,
@@ -297,6 +415,116 @@ def _result_from_action_run(
         workflow_state_updated=workflow_state_updated,
         workflow_state=workflow_state,
         workflow_status=workflow_status,
+    )
+
+
+async def record_demo_action_run_outcome(
+    repository: AxisPersistenceRepository,
+    action_run_id: UUID | str,
+    request: ActionRunOutcomeRequest,
+) -> ActionRunOutcomePersistenceResult:
+    tenant_id = "tenant_demo_manufacturing"
+    try:
+        action_run_uuid = action_run_id if isinstance(action_run_id, UUID) else UUID(action_run_id)
+    except ValueError as exc:
+        raise DemoActionRunNotFound("Action run not found") from exc
+
+    action_run = repository.get_action_run(tenant_id, action_run_uuid)
+    if action_run is None:
+        raise DemoActionRunNotFound("Action run not found")
+
+    permission_decision = _outcome_permission_decision(tenant_id, request)
+    _validate_outcome_request(action_run.status, request)
+    payload = _outcome_payload(request)
+    existing_payload = action_run.result_payload or {}
+    existing_key = existing_payload.get("outcome_idempotency_key")
+
+    if existing_key == request.idempotency_key:
+        if existing_payload != payload:
+            raise ActionRunOutcomeConflict(action_run.id, "outcome_idempotency_conflict")
+        return ActionRunOutcomePersistenceResult(
+            tenant_id=tenant_id,
+            action_run_id=action_run.id,
+            action_id=action_run.action_id,
+            idempotency_key=request.idempotency_key,
+            status=action_run.status,
+            execution_mode=action_run.execution_mode,
+            requested_by=action_run.requested_by,
+            approval_id=action_run.approval_id,
+            workflow_id=action_run.workflow_id,
+            result_summary=request.result_summary,
+            evidence_refs=request.evidence_refs,
+            persisted=True,
+            idempotent_replay=True,
+            permission_decision=permission_decision,
+        )
+    if existing_key is not None or action_run.status in ACTION_RUN_TERMINAL_OUTCOME_STATUSES:
+        raise ActionRunOutcomeConflict(action_run.id, "action_run_outcome_already_recorded")
+
+    action_run = repository.record_action_run_result(
+        ActionRunResultRecord(
+            tenant_id=tenant_id,
+            action_run_id=action_run.id,
+            status=request.status,
+            result_payload=payload,
+        )
+    )
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=tenant_id,
+            actor_id=request.actor_id,
+            event_type="action.run.outcome.recorded",
+            payload={
+                "action_run_id": str(action_run.id),
+                "action_id": action_run.action_id,
+                "idempotency_key": request.idempotency_key,
+                "status": request.status,
+                "execution_mode": action_run.execution_mode,
+                "approval_id": action_run.approval_id,
+                "workflow_id": action_run.workflow_id,
+                "result_summary": request.result_summary,
+                "evidence_refs": request.evidence_refs,
+                "metric_names": sorted(request.metrics.keys()),
+                "external_mutation_started": request.external_mutation_started,
+                "permission_decision": permission_decision.model_dump(),
+            },
+        )
+    )
+    workflow_run = None
+    if action_run.workflow_id is not None:
+        workflow_run = repository.record_workflow_action_run_outcome(
+            WorkflowActionRunOutcomeUpdate(
+                tenant_id=tenant_id,
+                workflow_id=action_run.workflow_id,
+                action_id=action_run.action_id,
+                action_run_id=action_run.id,
+                idempotency_key=request.idempotency_key,
+                actor_id=request.actor_id,
+                status=request.status,
+                result_summary=request.result_summary,
+            )
+        )
+
+    return ActionRunOutcomePersistenceResult(
+        tenant_id=tenant_id,
+        action_run_id=action_run.id,
+        action_id=action_run.action_id,
+        idempotency_key=request.idempotency_key,
+        status=action_run.status,
+        execution_mode=action_run.execution_mode,
+        requested_by=action_run.requested_by,
+        approval_id=action_run.approval_id,
+        workflow_id=action_run.workflow_id,
+        result_summary=request.result_summary,
+        evidence_refs=request.evidence_refs,
+        persisted=True,
+        idempotent_replay=False,
+        permission_decision=permission_decision,
+        audit_event_id=audit_event.id,
+        audit_event_type=audit_event.event_type,
+        workflow_state_updated=workflow_run is not None,
+        workflow_state=workflow_run.state if workflow_run is not None else None,
+        workflow_status=workflow_run.status if workflow_run is not None else None,
     )
 
 
