@@ -249,6 +249,40 @@ class ManufacturingDemoReadinessReport(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ManufacturingNotificationQuery(ManufacturingOperationsSnapshotQuery):
+    notification_limit: int = Field(default=8, ge=1, le=25)
+
+
+class ManufacturingPlatformNotification(BaseModel):
+    notification_id: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    severity: OverviewStatus
+    title: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    route: str = Field(min_length=1)
+    occurred_at: str = Field(min_length=1)
+    owner_role: str | None = None
+    related_workflow_id: str | None = None
+    related_approval_id: str | None = None
+    evidence_refs: list[str] = Field(default_factory=list)
+    action_label: str = Field(min_length=1)
+    read_state: str = Field(default="unread", min_length=1)
+
+
+class ManufacturingNotificationCenter(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    plant_name: str = Field(min_length=1)
+    scenario: str = Field(min_length=1)
+    as_of: str = Field(min_length=1)
+    unread_count: int = Field(ge=0)
+    action_required_count: int = Field(ge=0)
+    watch_count: int = Field(ge=0)
+    notifications: list[ManufacturingPlatformNotification]
+    generation_boundary: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
 class ManufacturingOperationQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     domain: str | None = Field(default=None, min_length=1)
@@ -756,6 +790,186 @@ def _demo_readiness_status(checks: list[ManufacturingDemoReadinessCheck]) -> Ove
 
 def _limited_evidence_refs(values: list[str]) -> list[str]:
     return sorted({value for value in values if value})[:6]
+
+
+def _notification_id(*parts: str | None) -> str:
+    stable_parts = [part or "" for part in parts]
+    digest = sha256("|".join(stable_parts).encode()).hexdigest()[:12]
+    return f"notif_{digest}"
+
+
+def _status_label(status: str) -> str:
+    return status.replace("_", " ")
+
+
+def _notification_priority(notification: ManufacturingPlatformNotification) -> tuple[int, str]:
+    severity_order = {
+        OverviewStatus.ACTION_REQUIRED: 0,
+        OverviewStatus.WATCH: 1,
+        OverviewStatus.READY: 2,
+    }
+    return (severity_order[notification.severity], notification.notification_id)
+
+
+def build_manufacturing_notification_center(
+    repository: AxisPersistenceRepository,
+    query: ManufacturingNotificationQuery,
+) -> ManufacturingNotificationCenter:
+    snapshot = build_manufacturing_operations_snapshot(repository, query)
+    notifications: list[ManufacturingPlatformNotification] = []
+
+    for domain in snapshot.domain_snapshots:
+        if domain.action_required_count == 0 and domain.watch_count == 0:
+            continue
+
+        severity = (
+            OverviewStatus.ACTION_REQUIRED
+            if domain.action_required_count > 0
+            else OverviewStatus.WATCH
+        )
+        detail = (
+            f"{domain.action_required_count} action-required and "
+            f"{domain.watch_count} watch records across {domain.record_count} "
+            f"{domain.domain} records."
+        )
+        notifications.append(
+            ManufacturingPlatformNotification(
+                notification_id=_notification_id(
+                    snapshot.tenant_id,
+                    "domain",
+                    domain.domain,
+                    str(domain.action_required_count),
+                    str(domain.watch_count),
+                ),
+                category="operations",
+                severity=severity,
+                title=f"{domain.domain} needs operator attention",
+                detail=detail,
+                source="operations_snapshot",
+                route="/",
+                occurred_at=snapshot.as_of,
+                owner_role=domain.owner_roles[0] if domain.owner_roles else None,
+                related_workflow_id=domain.workflow_ids[0] if domain.workflow_ids else None,
+                evidence_refs=domain.evidence_refs[:4],
+                action_label="Open operations",
+            )
+        )
+
+    for approval in snapshot.pending_approvals:
+        severity = (
+            OverviewStatus.ACTION_REQUIRED
+            if approval.risk_level.lower() in {"critical", "high"}
+            else OverviewStatus.WATCH
+        )
+        notifications.append(
+            ManufacturingPlatformNotification(
+                notification_id=_notification_id(
+                    snapshot.tenant_id,
+                    "approval",
+                    approval.approval_id,
+                    approval.status,
+                ),
+                category="approval",
+                severity=severity,
+                title=f"Approval pending for {approval.action_id}",
+                detail=(
+                    f"{approval.requested_by} requested {approval.owner_role} review; "
+                    f"risk level is {approval.risk_level}."
+                ),
+                source="approval_records",
+                route="/approvals",
+                occurred_at=snapshot.as_of,
+                owner_role=approval.owner_role,
+                related_workflow_id=approval.workflow_id,
+                related_approval_id=approval.approval_id,
+                evidence_refs=[approval.approval_id],
+                action_label="Review approval",
+            )
+        )
+
+    for workflow in snapshot.active_workflows:
+        if workflow.pending_signal_count == 0 and workflow.blocker is None:
+            continue
+
+        severity = (
+            OverviewStatus.ACTION_REQUIRED
+            if workflow.status == "action_required"
+            else OverviewStatus.WATCH
+        )
+        notifications.append(
+            ManufacturingPlatformNotification(
+                notification_id=_notification_id(
+                    snapshot.tenant_id,
+                    "workflow",
+                    workflow.workflow_id,
+                    workflow.state,
+                    str(workflow.pending_signal_count),
+                ),
+                category="workflow",
+                severity=severity,
+                title=f"{workflow.name} is {_status_label(workflow.state)}",
+                detail=workflow.blocker
+                or f"{workflow.pending_signal_count} pending workflow signals.",
+                source="workflow_runs",
+                route="/workflows",
+                occurred_at=snapshot.as_of,
+                owner_role=workflow.owner_role,
+                related_workflow_id=workflow.workflow_id,
+                evidence_refs=[workflow.workflow_id],
+                action_label="Open workflow",
+            )
+        )
+
+    for event in snapshot.recent_audit_events[:3]:
+        notifications.append(
+            ManufacturingPlatformNotification(
+                notification_id=_notification_id(
+                    snapshot.tenant_id,
+                    "audit",
+                    event.event_type,
+                    event.created_at,
+                ),
+                category="audit",
+                severity=OverviewStatus.READY,
+                title=f"Audit evidence recorded: {event.event_type}",
+                detail=f"{event.actor_id} wrote append-only evidence.",
+                source="audit_events",
+                route="/audit",
+                occurred_at=event.created_at,
+                owner_role=None,
+                evidence_refs=[event.event_type],
+                action_label="Open audit",
+            )
+        )
+
+    notifications = sorted(notifications, key=_notification_priority)[
+        : query.notification_limit
+    ]
+    return ManufacturingNotificationCenter(
+        tenant_id=snapshot.tenant_id,
+        plant_name=snapshot.plant_name,
+        scenario=snapshot.scenario,
+        as_of=snapshot.as_of,
+        unread_count=len(notifications),
+        action_required_count=sum(
+            1
+            for notification in notifications
+            if notification.severity == OverviewStatus.ACTION_REQUIRED
+        ),
+        watch_count=sum(
+            1 for notification in notifications if notification.severity == OverviewStatus.WATCH
+        ),
+        notifications=notifications,
+        generation_boundary="derived_from_persisted_operations_snapshot",
+        notes=[
+            (
+                "Notifications are derived from persisted operations, workflow, "
+                "approval and audit state."
+            ),
+            "This endpoint does not create notification rows or browser-local fallback data.",
+            "Read/ack state remains a future authenticated platform surface.",
+        ],
+    )
 
 
 def build_manufacturing_demo_readiness_report(

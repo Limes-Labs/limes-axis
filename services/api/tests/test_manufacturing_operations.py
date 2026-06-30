@@ -12,8 +12,10 @@ from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.manufacturing_operations import (
+    ManufacturingNotificationQuery,
     ManufacturingOperationQuery,
     ManufacturingOperationsSnapshotQuery,
+    build_manufacturing_notification_center,
     build_manufacturing_operations_snapshot,
     query_manufacturing_operations_dataset,
 )
@@ -330,6 +332,67 @@ def test_manufacturing_operations_snapshot_endpoint_returns_persisted_compositio
     assert body["pending_approvals"][0]["status"] == "pending"
 
 
+def test_build_manufacturing_notification_center_derives_from_persisted_snapshot(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_snapshot_records(repository)
+        center = build_manufacturing_notification_center(
+            repository,
+            ManufacturingNotificationQuery(
+                tenant_id="tenant_demo_manufacturing",
+                notification_limit=4,
+            ),
+        )
+
+    assert center.tenant_id == "tenant_demo_manufacturing"
+    assert center.generation_boundary == "derived_from_persisted_operations_snapshot"
+    assert center.unread_count == 4
+    assert center.action_required_count >= 1
+    assert center.watch_count >= 1
+    assert [notification.severity for notification in center.notifications][:2] == [
+        "action_required",
+        "action_required",
+    ]
+
+    categories = {notification.category for notification in center.notifications}
+    assert {"operations", "approval", "workflow"} <= categories
+    approval = next(
+        notification
+        for notification in center.notifications
+        if notification.category == "approval"
+    )
+    assert approval.related_approval_id == "appr_supplier_expedite"
+    assert approval.route == "/approvals"
+    assert approval.action_label == "Review approval"
+
+    serialized = center.model_dump_json().lower()
+    assert "tenant_other" not in serialized
+    assert "password" not in serialized
+    assert "secret" not in serialized
+
+
+def test_manufacturing_notifications_endpoint_returns_platform_read_model(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_snapshot_records(AxisPersistenceRepository(session))
+
+    client = TestClient(app)
+    response = client.get("/demo/manufacturing/notifications?notification_limit=3")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["unread_count"] == 3
+    assert body["notifications"][0]["read_state"] == "unread"
+    assert body["notifications"][0]["route"] in {"/", "/approvals", "/workflows"}
+    assert body["generation_boundary"] == "derived_from_persisted_operations_snapshot"
+
+
 def test_manufacturing_demo_readiness_endpoint_reports_demo_ready_evidence(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -377,8 +440,10 @@ def test_openapi_exposes_manufacturing_operations_snapshot_endpoint() -> None:
     assert response.status_code == 200
     paths = response.json()["paths"]
     assert "/demo/manufacturing/operations/snapshot" in paths
+    assert "/demo/manufacturing/notifications" in paths
     assert "/demo/manufacturing/demo-readiness" in paths
     assert "get" in paths["/demo/manufacturing/operations/snapshot"]
+    assert "get" in paths["/demo/manufacturing/notifications"]
     assert "get" in paths["/demo/manufacturing/demo-readiness"]
 
 

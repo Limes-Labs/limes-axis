@@ -99,6 +99,9 @@ test.describe("Axis console smoke", () => {
     const notificationsPanel = page.locator('[aria-label="Notifications"]');
     await expect(notificationsPanel).toBeVisible();
     await expect(notificationsPanel.getByText("API required", { exact: true })).toBeVisible();
+    await expect(
+      notificationsPanel.getByText("Live notification data requires `/demo/manufacturing/notifications`."),
+    ).toBeVisible();
     const notificationsTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
     );

@@ -312,6 +312,8 @@ from axis_api.manufacturing_operations import (
     MaintenanceRiskScenarioRequest,
     MaintenanceRiskScenarioValidationError,
     ManufacturingDemoReadinessReport,
+    ManufacturingNotificationCenter,
+    ManufacturingNotificationQuery,
     ManufacturingOperationQuery,
     ManufacturingOperationsDataset,
     ManufacturingOperationsSnapshot,
@@ -327,6 +329,7 @@ from axis_api.manufacturing_operations import (
     SupplierDelayScenarioRequest,
     SupplierDelayScenarioValidationError,
     build_manufacturing_demo_readiness_report,
+    build_manufacturing_notification_center,
     build_manufacturing_operations_snapshot,
     generate_daily_plant_brief,
     generate_maintenance_risk_scenario,
@@ -1340,6 +1343,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 approval_limit=approval_limit,
                 artifact_limit=artifact_limit,
                 audit_limit=audit_limit,
+            ),
+        )
+
+    @app.get(
+        "/demo/manufacturing/notifications",
+        response_model=ManufacturingNotificationCenter,
+        tags=["demo"],
+    )
+    def manufacturing_notifications(
+        repository: PersistenceRepository,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        operation_limit: int = Query(default=100, ge=1, le=200),
+        workflow_limit: int = Query(default=25, ge=1, le=100),
+        approval_limit: int = Query(default=25, ge=1, le=100),
+        artifact_limit: int = Query(default=10, ge=1, le=50),
+        audit_limit: int = Query(default=25, ge=1, le=100),
+        notification_limit: int = Query(default=8, ge=1, le=25),
+    ) -> ManufacturingNotificationCenter:
+        return build_manufacturing_notification_center(
+            repository,
+            ManufacturingNotificationQuery(
+                tenant_id=tenant_id,
+                operation_limit=operation_limit,
+                workflow_limit=workflow_limit,
+                approval_limit=approval_limit,
+                artifact_limit=artifact_limit,
+                audit_limit=audit_limit,
+                notification_limit=notification_limit,
             ),
         )
 

@@ -172,6 +172,36 @@ export type ManufacturingDemoReadinessReport = {
   notes: string[];
 };
 
+export type ManufacturingPlatformNotification = {
+  notification_id: string;
+  category: string;
+  severity: PlatformStatus;
+  title: string;
+  detail: string;
+  source: string;
+  route: string;
+  occurred_at: string;
+  owner_role: string | null;
+  related_workflow_id: string | null;
+  related_approval_id: string | null;
+  evidence_refs: string[];
+  action_label: string;
+  read_state: string;
+};
+
+export type ManufacturingNotificationCenter = {
+  tenant_id: string;
+  plant_name: string;
+  scenario: string;
+  as_of: string;
+  unread_count: number;
+  action_required_count: number;
+  watch_count: number;
+  notifications: ManufacturingPlatformNotification[];
+  generation_boundary: string;
+  notes: string[];
+};
+
 export type DemoReadinessCounts = Record<PlatformStatus, number>;
 
 export function platformStatusLabel(status: PlatformStatus): string {

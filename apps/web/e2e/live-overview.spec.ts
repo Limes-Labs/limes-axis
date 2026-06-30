@@ -75,7 +75,9 @@ test.describe("Axis live overview demo", () => {
     await page.getByRole("button", { name: "Open notifications" }).click();
     const notificationsPanel = page.locator('[aria-label="Notifications"]');
     await expect(notificationsPanel).toBeVisible();
-    await expect(notificationsPanel.getByText("live", { exact: false })).toBeVisible();
+    await expect(notificationsPanel.getByText("API required", { exact: true })).toHaveCount(0);
+    await expect(notificationsPanel.locator(".topbar-popover-header")).toContainText("live");
+    expect(await notificationsPanel.locator("a.topbar-popover-row").count()).toBeGreaterThan(0);
     await expect(page.getByRole("link", { name: "Open audit evidence" })).toHaveAttribute(
       "href",
       "/audit",
