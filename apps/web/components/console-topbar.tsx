@@ -14,7 +14,10 @@ import {
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
-import type { ManufacturingNotificationCenter } from "@/lib/platform-overview";
+import type {
+  IdentitySessionReadModel,
+  ManufacturingNotificationCenter,
+} from "@/lib/platform-overview";
 import { useConsole } from "@/providers/console-provider";
 
 type TopbarPanel = "notifications" | "help" | "account" | null;
@@ -68,6 +71,26 @@ function notificationTone(severity: string): string {
   }
 
   return severity === "watch" ? "signal-watch" : "signal-action-required";
+}
+
+function identitySessionLabel(identitySession: IdentitySessionReadModel | null): string {
+  if (!identitySession) {
+    return "API required";
+  }
+
+  return identitySession.authenticated ? "API verified" : "Public";
+}
+
+function identitySessionTone(identitySession: IdentitySessionReadModel | null): string {
+  if (!identitySession) {
+    return "signal-action-required";
+  }
+
+  if (identitySession.authenticated) {
+    return "signal-ready";
+  }
+
+  return identitySession.api_auth_required ? "signal-action-required" : "signal-watch";
 }
 
 function NotificationPanel({ center }: { center: ManufacturingNotificationCenter | null }) {
@@ -161,6 +184,8 @@ function HelpPanel() {
 function AccountPanel() {
   const { session, saveAccessToken, clearSession } = useOidcConsoleSession();
   const { apiBaseUrl, apiStatus } = useConsole();
+  const { data: identitySession, isUnavailable: identitySessionUnavailable } =
+    useAxisQuery<IdentitySessionReadModel>("/identity/session");
   const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -186,15 +211,27 @@ function AccountPanel() {
     <section className="topbar-popover account-popover" aria-label="Operator account">
       <div className="topbar-popover-header">
         <p className="section-label">Operator</p>
-        <span className={`status-pill ${apiStatusClass(apiStatus.state)}`}>{apiStatus.label}</span>
+        <span className={`status-pill ${identitySessionTone(identitySession)}`}>
+          {identitySessionLabel(identitySession)}
+        </span>
       </div>
 
       <div className="account-summary">
-        <div className="account-avatar">{operatorInitials(session?.actorId)}</div>
+        <div className="account-avatar">
+          {operatorInitials(identitySession?.actor_id ?? undefined)}
+        </div>
         <div>
-          <p className="row-title">{session ? compactActorLabel(session.actorId) : "Unauthenticated operator"}</p>
+          <p className="row-title">
+            {identitySession?.authenticated && identitySession.actor_id
+              ? compactActorLabel(identitySession.actor_id)
+              : identitySessionUnavailable
+                ? "Session API unavailable"
+                : "Public evaluation operator"}
+          </p>
           <p className="row-detail">
-            {session ? session.tenantId : "Public evaluation data / OIDC bridge not connected"}
+            {identitySession?.authenticated && identitySession.tenant_id
+              ? identitySession.tenant_id
+              : identitySession?.session_boundary ?? "Identity session requires `/identity/session`."}
           </p>
         </div>
       </div>
@@ -205,22 +242,66 @@ function AccountPanel() {
           <strong>{apiBaseUrl}</strong>
         </span>
         <span>
+          <small>API status</small>
+          <strong>{apiStatus.label}</strong>
+        </span>
+        <span>
+          <small>SSO posture</small>
+          <strong>
+            {identitySession
+              ? identitySession.enterprise_sso_ready
+                ? "Enterprise ready"
+                : "Needs hardening"
+              : "Unknown"}
+          </strong>
+        </span>
+        <span>
           <small>Session expires</small>
-          <strong>{formatExpiry(session?.expiresAt)}</strong>
+          <strong>{formatExpiry(identitySession?.expires_at ?? undefined)}</strong>
         </span>
       </div>
+
+      {identitySession ? (
+        <div className="topbar-popover-list account-readiness-list">
+          {identitySession.capabilities.slice(0, 2).map((capability) => (
+            <div className="topbar-popover-row" key={capability}>
+              <span aria-hidden="true" className="status-dot signal-ready" />
+              <span>
+                <strong>Capability</strong>
+                <small>{capability}</small>
+              </span>
+            </div>
+          ))}
+          {identitySession.limitations.slice(0, 2).map((limitation) => (
+            <div className="topbar-popover-row" key={limitation}>
+              <span aria-hidden="true" className="status-dot signal-watch" />
+              <span>
+                <strong>Limitation</strong>
+                <small>{limitation}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="row-detail">
+          The account panel needs `/identity/session` before it can display an API-verified
+          actor.
+        </p>
+      )}
 
       {session ? (
         <>
           <div className="tag-list account-scope-list">
-            {session.scopes.length > 0 ? (
-              session.scopes.slice(0, 6).map((scope) => (
+            {(identitySession?.scopes ?? []).length > 0 ? (
+              (identitySession?.scopes ?? []).slice(0, 6).map((scope) => (
                 <span className="tag" key={scope}>
                   {scope}
                 </span>
               ))
             ) : (
-              <span className="tag">No scopes in token</span>
+              <span className="tag">
+                {identitySession?.authenticated ? "No scopes in token" : "Awaiting API validation"}
+              </span>
             )}
           </div>
           <button className="command-button account-command" onClick={clearSession} type="button">

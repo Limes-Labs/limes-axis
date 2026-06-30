@@ -54,6 +54,7 @@ def test_static_jwks_oidc_verifier_validates_token_and_extracts_actor_context() 
 
     assert principal.actor_id == "plant-operations-owner-role"
     assert principal.tenant_id == "tenant_demo_manufacturing"
+    assert principal.expires_at == 4102444800
     assert principal.scopes == [
         "approvals:maintenance:decide",
         "approvals:supply:decide",

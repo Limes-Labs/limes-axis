@@ -230,11 +230,20 @@ enterprise SSO ready. It deliberately avoids returning tokens, secrets,
 passwords or raw JWKS material. `/ready` includes the same OIDC status as a
 short dependency summary.
 
+The API also exposes `/identity/session` as a public-safe session read model for
+the console. When a bearer token is attached, the endpoint returns the
+API-validated actor, tenant, scopes, expiry and identity posture without
+returning token material. When no token is attached and OIDC auth is optional,
+it returns an explicit public-evaluation state. When OIDC auth is required, the
+same endpoint requires a valid bearer token.
+
 The governance console currently includes a local session bridge that stores a
-bearer token in browser session storage, decodes actor, tenant and scopes for
-the toolbar state, and attaches `Authorization: Bearer ...` to protected demo
-API calls. This is a developer/demo bridge, not a replacement for a production
-OIDC authorization-code flow, refresh handling or secure cookie session layer.
+bearer token in browser session storage and attaches
+`Authorization: Bearer ...` to protected demo API calls. The account popover
+uses `/identity/session` as the displayed source of truth instead of trusting
+browser-decoded claims. This is a developer/demo bridge, not a replacement for
+a production OIDC authorization-code flow, refresh handling or secure cookie
+session layer.
 
 ## Permission Boundaries
 

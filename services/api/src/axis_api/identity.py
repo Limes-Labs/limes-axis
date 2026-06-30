@@ -24,6 +24,7 @@ class OidcPrincipal(BaseModel):
     actor_id: str = Field(min_length=1)
     tenant_id: str = Field(min_length=1)
     scopes: list[str] = Field(default_factory=list)
+    expires_at: int | None = Field(default=None, ge=0)
 
 
 def _authorization_token(authorization: str | None) -> str:
@@ -108,6 +109,7 @@ class StaticJwksOidcVerifier:
             actor_id=actor_id,
             tenant_id=tenant_id,
             scopes=_claim_scopes(claims, self.audience),
+            expires_at=claims.get("exp") if isinstance(claims.get("exp"), int) else None,
         )
 
     def _key_for_token(self, token: str) -> dict:

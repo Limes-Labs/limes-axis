@@ -300,6 +300,10 @@ from axis_api.identity import (
     RemoteJwksOidcVerifier,
     bind_request_actor,
 )
+from axis_api.identity_session import (
+    IdentitySessionReadModel,
+    build_identity_session_read_model,
+)
 from axis_api.manufacturing_operations import (
     DailyPlantBriefIdempotencyConflict,
     DailyPlantBriefPermissionDenied,
@@ -1090,6 +1094,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/identity/oidc/readiness", tags=["system"])
     def oidc_readiness() -> dict[str, object]:
         return _oidc_readiness_report(resolved_settings)
+
+    @app.get(
+        "/identity/session",
+        response_model=IdentitySessionReadModel,
+        tags=["system"],
+    )
+    def identity_session(
+        principal: OidcPrincipalDependency,
+    ) -> IdentitySessionReadModel:
+        return build_identity_session_read_model(
+            settings=resolved_settings,
+            oidc_readiness_report=_oidc_readiness_report(resolved_settings),
+            principal=principal,
+        )
 
     @app.get(
         "/deployment/readiness",
