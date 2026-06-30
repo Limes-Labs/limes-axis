@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from axis_api.actions import ActionDefinition, ActionRiskLevel, ApprovalMode
 from axis_api.ontology.queries import OntologyGraphQueryMetadata
@@ -371,6 +371,17 @@ class OntologyNode(BaseModel):
     summary: str = Field(min_length=1)
 
 
+class OntologyRelationshipMetadata(BaseModel):
+    owner_role: str = Field(min_length=1)
+    source_adapter: str = Field(min_length=1)
+    confidence: float = Field(ge=0, le=1)
+    evidence_refs: list[str] = Field(min_length=1)
+    valid_from: str = Field(min_length=1)
+    valid_to: str | None = None
+    last_verified_at: str = Field(min_length=1)
+    verification_status: str = Field(min_length=1)
+
+
 class OntologyRelationship(BaseModel):
     relationship_id: str = Field(min_length=1)
     source_id: str = Field(min_length=1)
@@ -378,6 +389,73 @@ class OntologyRelationship(BaseModel):
     relation_type: str = Field(min_length=1)
     summary: str = Field(min_length=1)
     permission_scope: str = Field(min_length=1)
+    metadata: OntologyRelationshipMetadata | None = None
+
+    @model_validator(mode="after")
+    def ensure_metadata(self) -> "OntologyRelationship":
+        if self.metadata is None:
+            self.metadata = default_ontology_relationship_metadata(
+                self.relationship_id,
+                self.permission_scope,
+            )
+        return self
+
+
+def default_ontology_relationship_metadata(
+    relationship_id: str,
+    permission_scope: str,
+) -> OntologyRelationshipMetadata:
+    owner_by_scope = {
+        "agents": "Agent Operations Steward",
+        "approvals": "Approval Steward",
+        "audit": "Audit Steward",
+        "maintenance": "Maintenance Steward",
+        "operations": "Operations Steward",
+        "quality": "Quality Steward",
+        "security": "Security Steward",
+        "supply": "Supply Steward",
+    }
+    scope_prefix = permission_scope.split(":", maxsplit=1)[0]
+    return OntologyRelationshipMetadata(
+        owner_role=owner_by_scope.get(scope_prefix, "Ontology Steward"),
+        source_adapter="axis-reference-ontology",
+        confidence=0.9,
+        evidence_refs=[f"ontology:{relationship_id}"],
+        valid_from="2026-06-21T16:30:00+02:00",
+        valid_to=None,
+        last_verified_at="2026-06-21T16:30:00+02:00",
+        verification_status="reference_verified",
+    )
+
+
+def ontology_relationship_metadata_payload(
+    relationship_id: str,
+    permission_scope: str,
+    *,
+    evidence_refs: list[str] | None = None,
+    confidence: float = 0.9,
+    source_adapter: str = "axis-reference-ontology",
+    valid_from: str = "2026-06-21T16:30:00+02:00",
+    valid_to: str | None = None,
+    last_verified_at: str = "2026-06-21T16:30:00+02:00",
+    verification_status: str = "reference_verified",
+) -> dict:
+    metadata = default_ontology_relationship_metadata(
+        relationship_id,
+        permission_scope,
+    )
+    metadata = metadata.model_copy(
+        update={
+            "source_adapter": source_adapter,
+            "confidence": confidence,
+            "evidence_refs": evidence_refs or metadata.evidence_refs,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+            "last_verified_at": last_verified_at,
+            "verification_status": verification_status,
+        }
+    )
+    return metadata.model_dump()
 
 
 class ManufacturingOntology(BaseModel):

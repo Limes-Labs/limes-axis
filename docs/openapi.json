@@ -12790,6 +12790,16 @@
       },
       "OntologyRelationship": {
         "properties": {
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OntologyRelationshipMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "permission_scope": {
             "minLength": 1,
             "title": "Permission Scope",
@@ -12830,6 +12840,71 @@
           "permission_scope"
         ],
         "title": "OntologyRelationship",
+        "type": "object"
+      },
+      "OntologyRelationshipMetadata": {
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "last_verified_at": {
+            "minLength": 1,
+            "title": "Last Verified At",
+            "type": "string"
+          },
+          "owner_role": {
+            "minLength": 1,
+            "title": "Owner Role",
+            "type": "string"
+          },
+          "source_adapter": {
+            "minLength": 1,
+            "title": "Source Adapter",
+            "type": "string"
+          },
+          "valid_from": {
+            "minLength": 1,
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "verification_status": {
+            "minLength": 1,
+            "title": "Verification Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner_role",
+          "source_adapter",
+          "confidence",
+          "evidence_refs",
+          "valid_from",
+          "last_verified_at",
+          "verification_status"
+        ],
+        "title": "OntologyRelationshipMetadata",
         "type": "object"
       },
       "OverviewMetric": {

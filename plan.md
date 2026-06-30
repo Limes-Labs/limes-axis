@@ -95,6 +95,8 @@ Foundation acceptance is tracked in
   optional TypeDB read boundary.
 - [x] Normalize TypeDB read answers and map structured ontology document rows
   into the public graph response shape.
+- [x] Add relationship ownership, evidence, confidence, validity and
+  verification metadata to ontology API responses and TypeDB graph primitives.
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.
 - [x] Add a public-safe OIDC readiness report and `/ready` identity summary for
   enterprise SSO posture checks.
@@ -337,8 +339,8 @@ The API test suite also includes a consolidated reference-surface guard that
 fails if a listed reference endpoint loses its Alembic bootstrap record or if
 the API reintroduces a `get_manufacturing_*` runtime reference factory.
 The full manufacturing reference demo remains open until it has
-production relationship metadata, approval actions, workflow execution and
-replay backed by real persistence paths.
+approval actions, workflow execution and replay backed by real persistence
+paths.
 The local demo environment now has a repeatable runbook and automated readiness
 check in `docs/demo-readiness.md` and
 `services/api/scripts/check_demo_environment.py`. The check validates the demo
@@ -477,9 +479,10 @@ filter relationships by OIDC-derived relationship scopes when a bearer token is
 present or OIDC auth is required by configuration. The TypeDB read boundary is
 optional and separated from graph mutations. TypeDB read answers are normalized
 at the client boundary, and structured ontology document rows can be mapped into
-the public graph response before relationship-scope filtering. Broader TypeDB
-query coverage, production relationship metadata and broader graph authorization
-remain Platform work.
+the public graph response before relationship-scope filtering. Ontology
+relationships now include ownership, source adapter, confidence, evidence,
+validity and verification metadata. Broader TypeDB query coverage, live graph
+promotion coverage and broader graph authorization remain Platform work.
 
 The workflow console is currently read-only and API required, with a persisted
 workflow run endpoint available when Postgres records exist. The browser no

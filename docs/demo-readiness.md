@@ -271,9 +271,9 @@ Confirm before the session:
 ## Current Limitations
 
 - Full live connector execution is not yet the default demo path.
-- Full manufacturing operations reference demo remains open until TypeDB graph
-  response mapping, production relationship metadata, approval actions,
-  workflow execution and replay are fully backed by real persistence paths.
+- Full manufacturing operations reference demo remains open until broader
+  TypeDB query coverage, approval actions, workflow execution and replay are
+  fully backed by real persistence paths.
 - The first Helm chart and Kubernetes deployment guide are present, but
   production HA validation, image build provenance/signing, registry release
   automation, TLS ingress, external-secret integration, cluster backup/restore,

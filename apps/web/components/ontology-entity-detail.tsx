@@ -196,6 +196,13 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
                   </p>
                   <p className="row-detail">{item.relationship.summary}</p>
                   <p className="row-detail mono">{item.relationship.permission_scope}</p>
+                  <p className="row-detail">
+                    {item.relationship.metadata.owner_role} /{" "}
+                    {item.relationship.metadata.verification_status}
+                  </p>
+                  <p className="row-detail mono">
+                    {item.relationship.metadata.evidence_refs.join(", ")}
+                  </p>
                 </div>
                 <Link className="tag" href={`/ontology/${item.peer_node.node_id}`}>
                   {item.peer_node.label}

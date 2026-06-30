@@ -6,7 +6,24 @@ import {
   formatNodeType,
   nodeLabelById,
   type ManufacturingOntology,
+  type OntologyRelationship,
 } from "./ontology-demo";
+
+function relationshipMetadata(
+  relationshipId: string,
+  ownerRole = "Operations Steward",
+): OntologyRelationship["metadata"] {
+  return {
+    owner_role: ownerRole,
+    source_adapter: "axis-reference-ontology",
+    confidence: 0.9,
+    evidence_refs: [`ontology:${relationshipId}`],
+    valid_from: "2026-06-22T09:00:00+02:00",
+    valid_to: null,
+    last_verified_at: "2026-06-22T09:00:00+02:00",
+    verification_status: "reference_verified",
+  };
+}
 
 const ontologyFixture: ManufacturingOntology = {
   tenant_id: "tenant_fixture",
@@ -88,6 +105,7 @@ const ontologyFixture: ManufacturingOntology = {
       relation_type: "impacts",
       summary: "The supplier delay can impact the production line.",
       permission_scope: "operations:read",
+      metadata: relationshipMetadata("rel_risk_impacts_asset"),
     },
     {
       relationship_id: "rel_workflow_mitigates_risk",
@@ -96,6 +114,7 @@ const ontologyFixture: ManufacturingOntology = {
       relation_type: "mitigates",
       summary: "The workflow mitigates the supply risk.",
       permission_scope: "operations:read",
+      metadata: relationshipMetadata("rel_workflow_mitigates_risk"),
     },
     {
       relationship_id: "rel_workflow_requires_approval",
@@ -104,6 +123,10 @@ const ontologyFixture: ManufacturingOntology = {
       relation_type: "requires",
       summary: "The workflow requires owner approval.",
       permission_scope: "approvals:read",
+      metadata: relationshipMetadata(
+        "rel_workflow_requires_approval",
+        "Approval Steward",
+      ),
     },
     {
       relationship_id: "rel_agent_requests_workflow",
@@ -112,6 +135,10 @@ const ontologyFixture: ManufacturingOntology = {
       relation_type: "requests",
       summary: "The agent requested the workflow.",
       permission_scope: "agents:read",
+      metadata: relationshipMetadata(
+        "rel_agent_requests_workflow",
+        "Agent Operations Steward",
+      ),
     },
   ],
 };
@@ -125,6 +152,13 @@ describe("ontology helpers", () => {
       ontologyFixture.relationships.every(
         (relationship) =>
           labels.has(relationship.source_id) && labels.has(relationship.target_id),
+      ),
+    ).toBe(true);
+    expect(
+      ontologyFixture.relationships.every(
+        (relationship) =>
+          relationship.metadata.owner_role.length > 0 &&
+          relationship.metadata.evidence_refs.length > 0,
       ),
     ).toBe(true);
   });

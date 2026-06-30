@@ -91,11 +91,12 @@ the console.
 
 The current graph and detail pages are read-only. The ontology page now exposes
 the active graph query adapter, mode, source, returned counts, denied
-relationship count and permission decision. Future Platform work should expand
-TypeDB query coverage beyond the current structured read-boundary mapping,
-promote relationship metadata from the reference graph into production graph
-storage and broaden graph authorization beyond the current demo
-relationship-scope checks.
+relationship count, permission decision and relationship metadata. Each
+relationship carries owner role, source adapter, confidence, evidence refs,
+validity window, last verification time and verification status. Future Platform
+work should expand TypeDB query coverage beyond the current structured
+read-boundary mapping, broaden live graph promotion coverage and broaden graph
+authorization beyond the current demo relationship-scope checks.
 
 Connector-driven ontology mutation is handled outside the read-only explorer.
 The connector promotion endpoint can promote an approved proposal through the
@@ -107,7 +108,10 @@ request; enabled required policies enforce the required scopes, manual import
 status, workflow signal status, risk levels and ontology types before the TypeDB
 mutation boundary is called. The TypeDB schema includes manufacturing
 asset attributes needed by the promotion path: `axis_id`, `display_name`,
-`asset_type`, `domain`, `source_system_ref` and `risk_level`.
+`asset_type`, `domain`, `source_system_ref` and `risk_level`. The TypeDB schema
+also includes relationship metadata primitives for relationship id, permission
+scope, owner role, source adapter, confidence, evidence refs, validity and
+verification status.
 
 ## Verification
 
@@ -120,6 +124,9 @@ Covered by:
   mismatch rejection and relationship-scope filtering;
 - API tests for TypeDB read-answer normalization and structured graph response
   mapping;
+- API tests for ontology relationship ownership, evidence, confidence,
+  validity and verification metadata;
+- API tests for TypeDB relationship metadata primitives;
 - API tests for entity detail, 404 handling, relationship-scope enforcement and
   endpoint exposure;
 - web unit tests for OIDC session token parsing and authorization headers;

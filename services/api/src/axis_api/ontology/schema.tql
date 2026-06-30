@@ -11,6 +11,16 @@ attribute event_type, value string;
 attribute decision_status, value string;
 attribute risk_level, value string;
 attribute approval_status, value string;
+attribute relationship_id, value string;
+attribute permission_scope, value string;
+attribute owner_role, value string;
+attribute source_adapter, value string;
+attribute confidence, value double;
+attribute evidence_ref, value string;
+attribute valid_from, value string;
+attribute valid_to, value string;
+attribute last_verified_at, value string;
+attribute verification_status, value string;
 
 entity axis_actor,
   owns axis_id,
@@ -111,13 +121,43 @@ entity axis_audit_event,
   plays axis_owns_relation:owned;
 
 relation axis_owns_relation,
+  owns relationship_id,
+  owns permission_scope,
+  owns owner_role,
+  owns source_adapter,
+  owns confidence,
+  owns evidence_ref,
+  owns valid_from,
+  owns valid_to,
+  owns last_verified_at,
+  owns verification_status,
   relates owner,
   relates owned;
 
 relation axis_uses_relation,
+  owns relationship_id,
+  owns permission_scope,
+  owns owner_role,
+  owns source_adapter,
+  owns confidence,
+  owns evidence_ref,
+  owns valid_from,
+  owns valid_to,
+  owns last_verified_at,
+  owns verification_status,
   relates user,
   relates used;
 
 relation axis_requires_approval,
+  owns relationship_id,
+  owns permission_scope,
+  owns owner_role,
+  owns source_adapter,
+  owns confidence,
+  owns evidence_ref,
+  owns valid_from,
+  owns valid_to,
+  owns last_verified_at,
+  owns verification_status,
   relates action_requiring_approval,
   relates approval_policy;

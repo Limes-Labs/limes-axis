@@ -29,6 +29,18 @@ export type OntologyRelationship = {
   relation_type: string;
   summary: string;
   permission_scope: string;
+  metadata: OntologyRelationshipMetadata;
+};
+
+export type OntologyRelationshipMetadata = {
+  owner_role: string;
+  source_adapter: string;
+  confidence: number;
+  evidence_refs: string[];
+  valid_from: string;
+  valid_to: string | null;
+  last_verified_at: string;
+  verification_status: string;
 };
 
 export type OntologyGraphQueryMetadata = {
