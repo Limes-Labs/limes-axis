@@ -15,8 +15,9 @@ from axis_api.db import session_scope
 from axis_api.demo import ApprovalDecision
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
-from axis_api.models import ApprovalRecord, AuditEvent, Base, WorkflowRunRecord
+from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, Base, WorkflowRunRecord
 from axis_api.persistence import (
+    ActionRunCreate,
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
     WorkflowRunCreate,
@@ -311,6 +312,125 @@ async def test_record_demo_approval_decision_updates_persisted_workflow_state(
     assert audit_event.payload["workflow_state_updated"] is True
     assert audit_event.payload["workflow_state"] == "approval_approved"
     assert audit_event.payload["workflow_status"] == "ready"
+
+
+async def test_record_demo_approval_decision_transitions_existing_action_run(
+    session_factory: sessionmaker[Session],
+) -> None:
+    workflow_runtime = RecordingWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        existing_run = repository.create_action_run(
+            ActionRunCreate(
+                tenant_id="tenant_demo_manufacturing",
+                action_id="request_supplier_expedite",
+                idempotency_key="agent-proposal-before-approval",
+                execution_mode="approval_gated_dry_run",
+                requested_by="supply-risk-agent",
+                approval_id="appr_expedite_supplier_batch",
+                workflow_id="wf_supplier_delay_review",
+                payload={
+                    "input": {
+                        "supplier_batch_id": "asset_motors_batch",
+                        "target_arrival": "2026-06-22T08:00:00+02:00",
+                        "reason": "Line 2 packaging risk",
+                        "cost_ceiling_eur": "1200",
+                    },
+                    "schema_version": "test",
+                    "dry_run": True,
+                },
+                status="approval_required",
+            )
+        )
+        result = await record_demo_approval_decision(
+            repository,
+            "appr_expedite_supplier_batch",
+            ApprovalDecisionRequest(
+                decision=ApprovalDecision.APPROVE,
+                actor_id="plant-operations-owner-role",
+                actor_scopes=["approvals:supply:decide"],
+                note="Action proposal approved for governed execution.",
+            ),
+            workflow_runtime,
+        )
+
+    with session_factory() as session:
+        action_run = session.scalars(select(ActionRun)).one()
+        audit_event = session.scalars(select(AuditEvent)).one()
+
+    assert result.action_run_recorded is True
+    assert result.action_run_idempotent_replay is False
+    assert result.action_run_id == existing_run.id
+    assert result.action_run_status == "approved_for_execution"
+    assert result.action_run_idempotency_key == "agent-proposal-before-approval"
+    assert action_run.id == existing_run.id
+    assert action_run.status == "approved_for_execution"
+    assert action_run.result_payload == {
+        "source": "approval_decision",
+        "approval_id": "appr_expedite_supplier_batch",
+        "workflow_id": "wf_supplier_delay_review",
+        "action_id": "request_supplier_expedite",
+        "decision": "approve",
+        "decision_actor_id": "plant-operations-owner-role",
+        "decision_note_recorded": "true",
+        "workflow_signal_status": "approval_signaled",
+        "workflow_state_updated": False,
+        "workflow_state": None,
+        "workflow_status": None,
+    }
+    assert audit_event.payload["action_run"] == {
+        "action_run_id": str(existing_run.id),
+        "idempotency_key": "agent-proposal-before-approval",
+        "status": "approved_for_execution",
+        "execution_mode": "approval_gated_dry_run",
+        "recorded": True,
+        "idempotent_replay": False,
+    }
+
+
+async def test_record_demo_approval_decision_creates_idempotent_gate_action_run(
+    session_factory: sessionmaker[Session],
+) -> None:
+    workflow_runtime = RecordingWorkflowRuntime()
+    request = ApprovalDecisionRequest(
+        decision=ApprovalDecision.APPROVE,
+        actor_id="plant-operations-owner-role",
+        actor_scopes=["approvals:supply:decide"],
+    )
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        first = await record_demo_approval_decision(
+            repository,
+            "appr_expedite_supplier_batch",
+            request,
+            workflow_runtime,
+        )
+        second = await record_demo_approval_decision(
+            repository,
+            "appr_expedite_supplier_batch",
+            request,
+            workflow_runtime,
+        )
+
+    with session_factory() as session:
+        action_runs = list(session.scalars(select(ActionRun)))
+        audit_events = list(session.scalars(select(AuditEvent)))
+
+    assert first.action_run_recorded is True
+    assert second.action_run_recorded is True
+    assert first.action_run_id == second.action_run_id
+    assert first.action_run_idempotent_replay is False
+    assert second.action_run_idempotent_replay is True
+    assert first.action_run_idempotency_key == (
+        "tenant_demo_manufacturing:request_supplier_expedite:"
+        "appr_expedite_supplier_batch:approval-gate"
+    )
+    assert len(action_runs) == 1
+    assert action_runs[0].status == "approved_for_execution"
+    assert action_runs[0].payload["source"] == "approval_decision_gate"
+    assert action_runs[0].payload["approval_id"] == "appr_expedite_supplier_batch"
+    assert len(audit_events) == 2
+    assert audit_events[1].payload["action_run"]["idempotent_replay"] is True
 
 
 def test_approval_decision_endpoint_reports_missing_approval_reference_record(

@@ -53,6 +53,14 @@ the decision also updates persisted workflow state, marks the linked pending
 signal with the decision result and appends
 `workflow.approval_decision.recorded` to the workflow timeline.
 
+The same decision path now records linked action evidence in Postgres. If an
+approval-gated proposal already exists in `action_runs`, the decision
+transitions that run to the approval outcome. If the reviewer acts directly
+from the inbox before an action proposal is stored, the API creates a
+tenant-scoped, idempotent approval gate action record linked to the approval and
+workflow. The approval response and audit payload both include the action-run
+id, status, idempotency key and replay flag.
+
 ## Console Behavior
 
 The `/approvals` page loads the endpoint from `NEXT_PUBLIC_AXIS_API_BASE_URL`.
@@ -80,7 +88,10 @@ factory; tests validate the bootstrap payload directly from the migration. The
 demo endpoint enforces the approval's required permission from supplied demo
 actor scopes or from OIDC-derived token scopes, rejects actor impersonation
 before persistence, signals the workflow runtime adapter and reconciles the
-persisted workflow run view when the referenced workflow already exists.
+persisted workflow run view when the referenced workflow already exists. It
+also persists the approval-to-action transition through `action_runs`, so the
+decision is visible to audit, workflow and action consoles without local UI
+state.
 
 Future Platform work should connect this contract to:
 
@@ -102,6 +113,8 @@ The slice is covered by:
 - API unit tests for workflow signal success and degraded runtime paths;
 - API unit tests for approval-driven persisted workflow state and timeline
   updates;
+- API unit tests for approval-driven action-run transitions and idempotent
+  approval gate records;
 - OpenAPI schema export/check;
 - web unit tests for the persisted decision payload contract;
 - Playwright smoke tests for API-required approval behavior.

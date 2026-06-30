@@ -7,6 +7,8 @@ from axis_api.audit import AuditEventCreate
 from axis_api.demo import ApprovalDecision, ApprovalInboxItem
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
+    ActionRunCreate,
+    ActionRunResultRecord,
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
     AxisPersistenceRepository,
@@ -57,6 +59,20 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     workflow_state_updated: bool
     workflow_state: str | None = None
     workflow_status: str | None = None
+    action_run_recorded: bool = False
+    action_run_id: UUID | None = None
+    action_run_status: str | None = None
+    action_run_idempotency_key: str | None = None
+    action_run_idempotent_replay: bool = False
+
+
+class ApprovalActionTransition(BaseModel):
+    recorded: bool
+    action_run_id: UUID | None = None
+    status: str | None = None
+    idempotency_key: str | None = None
+    execution_mode: str | None = None
+    idempotent_replay: bool = False
 
 
 _APPROVAL_ACTION_IDS = {
@@ -68,6 +84,140 @@ _APPROVAL_ACTION_IDS = {
 
 def _approval_action_id(approval_id: str) -> str:
     return _APPROVAL_ACTION_IDS.get(approval_id, approval_id)
+
+
+def _approval_action_status(decision: ApprovalDecision) -> str:
+    return {
+        ApprovalDecision.APPROVE: "approved_for_execution",
+        ApprovalDecision.REJECT: "blocked_by_rejection",
+        ApprovalDecision.REQUEST_CHANGES: "changes_requested",
+    }[decision]
+
+
+def _approval_gate_idempotency_key(
+    tenant_id: str,
+    action_id: str,
+    approval_id: str,
+) -> str:
+    return f"{tenant_id}:{action_id}:{approval_id}:approval-gate"
+
+
+def _approval_gate_payload(approval: ApprovalInboxItem, action_id: str) -> dict:
+    return {
+        "source": "approval_decision_gate",
+        "approval_id": approval.approval_id,
+        "workflow_id": approval.workflow_id,
+        "action_id": action_id,
+        "action": approval.action,
+        "summary": approval.summary,
+        "risk_level": approval.risk_level,
+        "requested_by": approval.requested_by,
+        "owner_role": approval.owner_role,
+        "required_permission": approval.required_permission,
+        "model_policy": approval.model_policy,
+        "evidence": approval.evidence,
+        "data_accessed": approval.data_accessed,
+    }
+
+
+def _approval_action_result_payload(
+    *,
+    approval: ApprovalInboxItem,
+    action_id: str,
+    request: ApprovalDecisionRequest,
+    workflow_signal: WorkflowSignalResult,
+    workflow_state_updated: bool,
+    workflow_state: str | None,
+    workflow_status: str | None,
+) -> dict:
+    return {
+        "source": "approval_decision",
+        "approval_id": approval.approval_id,
+        "workflow_id": approval.workflow_id,
+        "action_id": action_id,
+        "decision": request.decision.value,
+        "decision_actor_id": request.actor_id,
+        "decision_note_recorded": str(request.note is not None).lower(),
+        "workflow_signal_status": workflow_signal.status,
+        "workflow_state_updated": workflow_state_updated,
+        "workflow_state": workflow_state,
+        "workflow_status": workflow_status,
+    }
+
+
+def _record_approval_action_transition(
+    repository: AxisPersistenceRepository,
+    *,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    action_id: str,
+    request: ApprovalDecisionRequest,
+    workflow_signal: WorkflowSignalResult,
+    workflow_state_updated: bool,
+    workflow_state: str | None,
+    workflow_status: str | None,
+) -> ApprovalActionTransition:
+    status = _approval_action_status(request.decision)
+    result_payload = _approval_action_result_payload(
+        approval=approval,
+        action_id=action_id,
+        request=request,
+        workflow_signal=workflow_signal,
+        workflow_state_updated=workflow_state_updated,
+        workflow_state=workflow_state,
+        workflow_status=workflow_status,
+    )
+    existing_runs = repository.list_action_runs_for_approval(
+        tenant_id,
+        action_id,
+        approval.approval_id,
+    )
+    action_run = existing_runs[0] if existing_runs else None
+
+    if action_run is None:
+        action_run = repository.create_action_run(
+            ActionRunCreate(
+                tenant_id=tenant_id,
+                action_id=action_id,
+                idempotency_key=_approval_gate_idempotency_key(
+                    tenant_id,
+                    action_id,
+                    approval.approval_id,
+                ),
+                execution_mode="approval_decision_gate",
+                requested_by=approval.requested_by,
+                approval_id=approval.approval_id,
+                workflow_id=approval.workflow_id,
+                payload=_approval_gate_payload(approval, action_id),
+                status=status,
+            )
+        )
+    elif action_run.status == status and action_run.result_payload == result_payload:
+        return ApprovalActionTransition(
+            recorded=True,
+            action_run_id=action_run.id,
+            status=action_run.status,
+            idempotency_key=action_run.idempotency_key,
+            execution_mode=action_run.execution_mode,
+            idempotent_replay=True,
+        )
+
+    action_run = repository.record_action_run_result(
+        ActionRunResultRecord(
+            tenant_id=tenant_id,
+            action_run_id=action_run.id,
+            status=status,
+            result_payload=result_payload,
+        )
+    )
+    return ApprovalActionTransition(
+        recorded=True,
+        action_run_id=action_run.id,
+        status=action_run.status,
+        idempotency_key=action_run.idempotency_key,
+        execution_mode=action_run.execution_mode,
+        idempotent_replay=False,
+    )
 
 
 def _find_demo_approval(
@@ -187,6 +337,17 @@ async def record_demo_approval_decision(
             actor_id=request.actor_id,
         )
     )
+    action_transition = _record_approval_action_transition(
+        repository,
+        tenant_id=tenant_id,
+        approval=approval,
+        action_id=action_id,
+        request=request,
+        workflow_signal=workflow_signal,
+        workflow_state_updated=workflow_run is not None,
+        workflow_state=workflow_run.state if workflow_run is not None else None,
+        workflow_status=workflow_run.status if workflow_run is not None else None,
+    )
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=tenant_id,
@@ -203,6 +364,18 @@ async def record_demo_approval_decision(
                 "workflow_state_updated": workflow_run is not None,
                 "workflow_state": workflow_run.state if workflow_run is not None else None,
                 "workflow_status": workflow_run.status if workflow_run is not None else None,
+                "action_run": {
+                    "action_run_id": (
+                        str(action_transition.action_run_id)
+                        if action_transition.action_run_id is not None
+                        else None
+                    ),
+                    "idempotency_key": action_transition.idempotency_key,
+                    "status": action_transition.status,
+                    "execution_mode": action_transition.execution_mode,
+                    "recorded": action_transition.recorded,
+                    "idempotent_replay": action_transition.idempotent_replay,
+                },
                 "result": approval.audit_event_preview.result,
                 "decision_note_recorded": str(request.note is not None).lower(),
             },
@@ -226,4 +399,9 @@ async def record_demo_approval_decision(
         workflow_state_updated=workflow_run is not None,
         workflow_state=workflow_run.state if workflow_run is not None else None,
         workflow_status=workflow_run.status if workflow_run is not None else None,
+        action_run_recorded=action_transition.recorded,
+        action_run_id=action_transition.action_run_id,
+        action_run_status=action_transition.status,
+        action_run_idempotency_key=action_transition.idempotency_key,
+        action_run_idempotent_replay=action_transition.idempotent_replay,
     )

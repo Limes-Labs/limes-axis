@@ -85,6 +85,8 @@ Foundation acceptance is tracked in
 - [x] Signal approval decisions through the workflow runtime adapter.
 - [x] Reconcile persisted workflow run state and timeline history when approval
   decisions are recorded.
+- [x] Transition or create linked action-run evidence when approval decisions
+  are recorded, with idempotent approval gate records.
 - [x] Persist typed action run requests with idempotency enforcement.
 - [x] Signal workflow runtime from typed action payloads behind policy.
 - [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
@@ -338,9 +340,10 @@ runtime seed factories; tests validate the Alembic bootstrap payload directly.
 The API test suite also includes a consolidated reference-surface guard that
 fails if a listed reference endpoint loses its Alembic bootstrap record or if
 the API reintroduces a `get_manufacturing_*` runtime reference factory.
-The full manufacturing reference demo remains open until it has
-approval actions, workflow execution and replay backed by real persistence
-paths.
+Approval decisions now transition linked action-run evidence or create an
+idempotent approval gate record in Postgres. The full manufacturing reference
+demo remains open until broader workflow execution and replay paths are backed
+by real persistence.
 The local demo environment now has a repeatable runbook and automated readiness
 check in `docs/demo-readiness.md` and
 `services/api/scripts/check_demo_environment.py`. The check validates the demo
