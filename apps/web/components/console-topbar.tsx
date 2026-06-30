@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Bell,
@@ -192,9 +193,9 @@ function NotificationPanel({
                   </small>
                 </span>
                 <span className="notification-row-actions">
-                  <a className="notification-open-link" href={item.route} title={item.action_label}>
+                  <Link className="notification-open-link" href={item.route} title={item.action_label}>
                     Open
-                  </a>
+                  </Link>
                   <button
                     className="notification-ack-button"
                     disabled={!canAcknowledge || acknowledged || pending}
@@ -225,9 +226,9 @@ function NotificationPanel({
           {acknowledgementError}
         </p>
       ) : null}
-      <a className="topbar-popover-link" href="/audit">
+      <Link className="topbar-popover-link" href="/audit">
         Open audit evidence
-      </a>
+      </Link>
     </section>
   );
 }
@@ -240,13 +241,13 @@ function HelpPanel() {
         <span className="status-pill signal-ready">Docs</span>
       </div>
       <div className="topbar-popover-list">
-        <a className="topbar-popover-row" href="/model-routing">
+        <Link className="topbar-popover-row" href="/model-routing">
           <ShieldCheck size={16} />
           <span>
             <strong>Model routing</strong>
             <small>Inspect provider boundaries and egress decisions.</small>
           </span>
-        </a>
+        </Link>
         <a
           className="topbar-popover-row"
           href="https://github.com/Limes-Labs/limes-axis/blob/main/docs/architecture.md"

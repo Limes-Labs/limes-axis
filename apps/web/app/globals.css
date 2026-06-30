@@ -50,6 +50,8 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 15px;
   letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricprecision;
 }
 
 a {
@@ -62,6 +64,20 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+::selection {
+  background: rgb(62 107 255 / 42%);
+  color: var(--cloud);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgb(62 107 255 / 82%);
+  outline-offset: 2px;
 }
 
 .app-shell {
@@ -2009,6 +2025,30 @@ textarea {
 
 .nav-list {
   gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 3px 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(62 107 255 / 36%) transparent;
+}
+
+.nav-list::-webkit-scrollbar,
+.topbar-popover::-webkit-scrollbar,
+.account-scope-list::-webkit-scrollbar,
+.account-readiness-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nav-list::-webkit-scrollbar-thumb,
+.topbar-popover::-webkit-scrollbar-thumb,
+.account-scope-list::-webkit-scrollbar-thumb,
+.account-readiness-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgb(62 107 255 / 36%);
+  background-clip: padding-box;
 }
 
 .nav-item {
@@ -2071,6 +2111,7 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 8;
+  isolation: isolate;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2129,7 +2170,7 @@ textarea {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
-  position: relative;
+  position: static;
 }
 
 .ops-icon-button {
@@ -2137,6 +2178,7 @@ textarea {
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
+  min-width: 34px;
   width: 34px;
   height: 34px;
   border: 1px solid transparent;
@@ -2167,6 +2209,8 @@ textarea {
 .ops-user-chip {
   display: inline-grid;
   place-items: center;
+  flex: 0 0 auto;
+  min-width: 34px;
   width: 34px;
   height: 34px;
   border: 1px solid var(--line-strong);
@@ -2227,6 +2271,7 @@ textarea {
   width: min(360px, calc(100vw - 32px));
   max-height: calc(100vh - 94px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background:
@@ -2428,11 +2473,13 @@ textarea {
 .account-scope-list {
   max-height: 86px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .account-readiness-list {
   max-height: 188px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .account-token-form {
@@ -3396,5 +3443,16 @@ textarea {
 
   .ops-page-title {
     font-size: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

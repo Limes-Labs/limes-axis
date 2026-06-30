@@ -134,6 +134,127 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("keeps the desktop sidebar complete on short enterprise screens", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 420 });
+    await page.goto("/");
+
+    const sidebarState = await page.evaluate(() => {
+      const sidebar = document.querySelector<HTMLElement>("[data-console-sidebar]");
+      const nav = document.querySelector<HTMLElement>(".nav-list");
+      const links = Array.from(document.querySelectorAll<HTMLAnchorElement>(".nav-list a")).map(
+        (link) => link.textContent?.trim() ?? "",
+      );
+
+      return {
+        links,
+        nav: nav
+          ? {
+              clientHeight: nav.clientHeight,
+              flexGrow: window.getComputedStyle(nav).flexGrow,
+              overflowY: window.getComputedStyle(nav).overflowY,
+              scrollHeight: nav.scrollHeight,
+            }
+          : null,
+        sidebar: sidebar
+          ? {
+              clientHeight: sidebar.clientHeight,
+              overflowY: window.getComputedStyle(sidebar).overflowY,
+              scrollHeight: sidebar.scrollHeight,
+            }
+          : null,
+        viewportHeight: window.innerHeight,
+      };
+    });
+
+    expect(sidebarState.links).toEqual([
+      "Operations",
+      "Ontology",
+      "Workflows",
+      "Agents",
+      "Models",
+      "Approvals",
+      "Audit",
+      "Simulation",
+      "Connectors",
+    ]);
+    expect(sidebarState.sidebar?.clientHeight).toBe(sidebarState.viewportHeight);
+    expect(sidebarState.sidebar?.scrollHeight ?? 0).toBeLessThanOrEqual(
+      (sidebarState.sidebar?.clientHeight ?? 0) + 1,
+    );
+    expect(sidebarState.nav?.flexGrow).toBe("1");
+    expect(sidebarState.nav?.overflowY).toBe("auto");
+
+    await page.locator(".nav-list").evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(page.getByRole("link", { name: "Connectors" })).toBeInViewport();
+  });
+
+  test("keeps topbar utility hitboxes and popovers stable", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 760 });
+    await page.goto("/");
+
+    const topbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    );
+    const utilityRects = await page
+      .locator(".ops-toolbar-icons button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const rect = button.getBoundingClientRect();
+          return {
+            height: Math.round(rect.height),
+            width: Math.round(rect.width),
+          };
+        }),
+      );
+
+    expect(utilityRects.length).toBeGreaterThanOrEqual(5);
+    for (const rect of utilityRects) {
+      expect(rect).toEqual({ height: 34, width: 34 });
+    }
+
+    const accountButton = page.getByRole("button", { name: "Open operator account" });
+    const beforeAccountRect = await accountButton.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        height: Math.round(rect.height),
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+      };
+    });
+
+    await page.getByRole("button", { name: "Open notifications" }).click();
+    await expect(page.locator('[aria-label="Notifications"]')).toBeVisible();
+    await accountButton.click();
+    await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
+    await expect(page.locator('[aria-label="Notifications"]')).toHaveCount(0);
+
+    const afterAccountRect = await accountButton.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        height: Math.round(rect.height),
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+      };
+    });
+    expect(afterAccountRect).toEqual(beforeAccountRect);
+
+    const accountPopover = await page.locator('[aria-label="Operator account"]').evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        bottom: Math.round(rect.bottom),
+        right: Math.round(rect.right),
+        top: Math.round(rect.top),
+      };
+    });
+    expect(accountPopover.top).toBeGreaterThanOrEqual(topbarHeight);
+    expect(accountPopover.right).toBeLessThanOrEqual(1440 - 16);
+    expect(accountPopover.bottom).toBeLessThanOrEqual(760 - 16);
+  });
+
   test("keeps navigation and requires agent/action APIs on mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
