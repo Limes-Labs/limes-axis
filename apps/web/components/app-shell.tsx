@@ -9,6 +9,7 @@ import {
   Gauge,
   Network,
   ReceiptText,
+  Settings,
   ShieldCheck,
   Workflow,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const iconMap: Record<NavigationItem["icon"], ComponentType<{ size?: number }>> 
   shield: ShieldCheck,
   receipt: ReceiptText,
   cable: Cable,
+  settings: Settings,
 };
 
 function isNavActive(pathname: string, href: string): boolean {
