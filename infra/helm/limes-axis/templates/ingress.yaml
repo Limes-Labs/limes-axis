@@ -1,0 +1,50 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "limes-axis.fullname" . }}
+  labels:
+    {{- include "limes-axis.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+{{- range . }}
+    - hosts:
+{{- range .hosts }}
+        - {{ . | quote }}
+{{- end }}
+      secretName: {{ required "ingress.tls[].secretName is required when TLS is configured" .secretName | quote }}
+{{- end }}
+  {{- end }}
+  rules:
+{{- range $host := .Values.ingress.hosts }}
+    - host: {{ required "ingress.hosts[].host is required" $host.host | quote }}
+      http:
+        paths:
+{{- range $path := $host.paths }}
+{{- $service := required (printf "ingress host %s path %s service is required" $host.host $path.path) $path.service }}
+          - path: {{ required (printf "ingress host %s path.path is required" $host.host) $path.path | quote }}
+            pathType: {{ default "Prefix" $path.pathType | quote }}
+            backend:
+              service:
+{{- if eq $service "api" }}
+                name: {{ include "limes-axis.fullname" $ }}-api
+                port:
+                  number: {{ $.Values.api.service.port }}
+{{- else if eq $service "web" }}
+                name: {{ include "limes-axis.fullname" $ }}-web
+                port:
+                  number: {{ $.Values.web.service.port }}
+{{- else }}
+{{- fail (printf "ingress host %s path %s uses unsupported service %q; expected api or web" $host.host $path.path $service) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

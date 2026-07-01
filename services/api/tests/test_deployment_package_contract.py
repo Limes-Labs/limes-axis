@@ -37,6 +37,7 @@ def test_deployment_package_declares_critical_chart_files() -> None:
     assert "infra/helm/limes-axis/templates/api-service.yaml" in required_files
     assert "infra/helm/limes-axis/templates/web-deployment.yaml" in required_files
     assert "infra/helm/limes-axis/templates/web-service.yaml" in required_files
+    assert "infra/helm/limes-axis/templates/ingress.yaml" in required_files
     assert "infra/helm/limes-axis/templates/configmap.yaml" in required_files
     assert "infra/helm/limes-axis/templates/secret-example.yaml" in required_files
     assert "infra/helm/limes-axis/templates/externalsecret.yaml" in required_files
@@ -71,6 +72,28 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "creationPolicy" in required_terms
     assert "deletionPolicy" in required_terms
     assert "remoteRef" in required_terms
+    assert "networking.k8s.io/v1" in required_terms
+    assert "ingressClassName" in required_terms
+    assert "tls:" in required_terms
+    assert "pathType" in required_terms
+
+
+def test_deployment_package_ingress_is_optional_and_routes_api_and_web() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "ingress.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "ingress:" in values
+    assert "enabled: false" in values
+    assert "{{- if .Values.ingress.enabled -}}" in template
+    assert "apiVersion: networking.k8s.io/v1" in template
+    assert "ingressClassName:" in template
+    assert "secretName:" in template
+    assert "name: {{ include \"limes-axis.fullname\" $ }}-api" in template
+    assert "name: {{ include \"limes-axis.fullname\" $ }}-web" in template
 
 
 def test_deployment_package_external_secret_is_optional_and_targets_runtime_secret() -> None:

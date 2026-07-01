@@ -21,6 +21,8 @@ The baseline covers:
 - Optional External Secrets Operator `ExternalSecret` template that syncs the
   same runtime Secret name from an operator-managed `SecretStore` or
   `ClusterSecretStore`.
+- Optional Kubernetes `Ingress` template for routing web and API hosts, with
+  TLS secret references supplied by the operator.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -36,7 +38,7 @@ The baseline does not yet cover:
 
 - High availability validation under load.
 - Horizontal autoscaling and disruption budgets.
-- TLS ingress and certificate automation.
+- TLS certificate automation and secure cookie/session review.
 - Production secret rotation drills, KMS policy review and incident procedures.
 - Production backup, restore and disaster recovery.
 - S3-compatible object storage with object lock, legal hold operations and
@@ -54,11 +56,25 @@ chart expects production-grade dependencies to be provided outside the chart:
 - OIDC provider, normally Keycloak or an enterprise IdP, with issuer, audience
   and JWKS URL configured.
 - S3-compatible object storage for governed export paths.
+- Kubernetes Ingress controller when `ingress.enabled=true`.
 
 The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
 Docker Compose stack remains the local demo path; Kubernetes production
 operators should bring hardened dependencies that match their infrastructure
 policy.
+
+## Ingress And TLS
+
+The chart can render a Kubernetes `networking.k8s.io/v1` `Ingress` when
+`ingress.enabled=true`. Ingress is disabled by default. When enabled, each host
+entry routes paths to either the web console service or the API service by name.
+TLS is configured through `ingress.tls[]` entries and references an existing
+Kubernetes TLS Secret through `secretName`.
+
+The chart does not install an Ingress controller, cert-manager, DNS records or
+certificate issuers. Operators must provision those resources according to
+their cluster policy and verify secure cookie/session behavior against the
+final public hostnames before production use.
 
 The chart also does not install External Secrets Operator or create a
 `SecretStore`/`ClusterSecretStore`. When `secrets.externalSecret.enabled=true`,
@@ -302,6 +318,19 @@ helm upgrade --install limes-axis infra/helm/limes-axis \
   --set api.env.AXIS_OIDC_JWKS_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/certs
 ```
 
+Enable Ingress routing only when the cluster has an Ingress controller and TLS
+Secret ready:
+
+```bash
+helm upgrade --install limes-axis infra/helm/limes-axis \
+  --namespace limes-axis \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.tls[0].secretName=axis-tls \
+  --set ingress.tls[0].hosts[0]=axis.example.com \
+  --set ingress.tls[0].hosts[1]=api.axis.example.com
+```
+
 The repository includes local Dockerfiles, but production image coordinates
 should point to images built, scanned, signed and published by the operator or
 a future Axis release pipeline.
@@ -341,7 +370,8 @@ Before customer production use, the deployment package must add and verify:
 - enforced release promotion approvals and recurring rollback drills.
 - operational review cadence for high-severity findings and expiring
   vulnerability exceptions.
-- TLS ingress and secure cookie/session behavior.
+- TLS certificate automation, DNS ownership checks and secure cookie/session
+  behavior.
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.
 - production secret-manager rotation drills, access reviews and incident
