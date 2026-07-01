@@ -23,6 +23,8 @@ The baseline covers:
   `ClusterSecretStore`.
 - Optional Kubernetes `Ingress` template for routing web and API hosts, with
   TLS secret references supplied by the operator.
+- Optional cert-manager ingress-shim annotations for operator-managed TLS
+  certificate issuance.
 - Optional `HorizontalPodAutoscaler` and `PodDisruptionBudget` templates for
   API and web console workloads.
 - Deployment rollout controls for API and web console workloads, including
@@ -49,7 +51,8 @@ The baseline does not yet cover:
 
 - High availability validation under load.
 - Load testing, capacity planning and rollout-drain validation.
-- TLS certificate automation and secure cookie/session review.
+- TLS certificate issuance operations, DNS ownership checks and secure
+  cookie/session review.
 - Production secret rotation drills, KMS policy review and incident procedures.
 - Production backup, restore and disaster recovery.
 - S3-compatible object storage with object lock, legal hold operations and
@@ -68,6 +71,8 @@ chart expects production-grade dependencies to be provided outside the chart:
   and JWKS URL configured.
 - S3-compatible object storage for governed export paths.
 - Kubernetes Ingress controller when `ingress.enabled=true`.
+- Optional cert-manager installation and issuer when
+  `ingress.certManager.enabled=true`.
 
 The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
 Docker Compose stack remains the local demo path; Kubernetes production
@@ -82,10 +87,18 @@ entry routes paths to either the web console service or the API service by name.
 TLS is configured through `ingress.tls[]` entries and references an existing
 Kubernetes TLS Secret through `secretName`.
 
+When a cluster already runs cert-manager, operators can set
+`ingress.certManager.enabled=true` and provide `issuerName`, `issuerKind` and
+`issuerGroup`. The chart then emits ingress-shim annotations so cert-manager can
+create a `Certificate` for each configured `ingress.tls[].secretName`. Built-in
+`ClusterIssuer` and `Issuer` values use the standard cert-manager annotations;
+external issuers also emit issuer kind and issuer group annotations.
+
 The chart does not install an Ingress controller, cert-manager, DNS records or
 certificate issuers. Operators must provision those resources according to
-their cluster policy and verify secure cookie/session behavior against the
-final public hostnames before production use.
+their cluster policy and verify DNS ownership, certificate renewal and secure
+cookie/session behavior against the final public hostnames before production
+use.
 
 ## Availability Controls
 
@@ -432,9 +445,26 @@ helm upgrade --install limes-axis infra/helm/limes-axis \
   --namespace limes-axis \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
-  --set ingress.tls[0].secretName=axis-tls \
-  --set ingress.tls[0].hosts[0]=axis.example.com \
-  --set ingress.tls[0].hosts[1]=api.axis.example.com
+  --set 'ingress.tls[0].secretName=axis-tls' \
+  --set 'ingress.tls[0].hosts[0]=axis.example.com' \
+  --set 'ingress.tls[0].hosts[1]=api.axis.example.com'
+```
+
+When cert-manager is already installed, the chart can request certificate
+issuance through ingress-shim annotations while still referencing the same TLS
+Secret:
+
+```bash
+helm upgrade --install limes-axis infra/helm/limes-axis \
+  --namespace limes-axis \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.certManager.enabled=true \
+  --set ingress.certManager.issuerName=letsencrypt-prod \
+  --set ingress.certManager.issuerKind=ClusterIssuer \
+  --set 'ingress.tls[0].secretName=axis-tls' \
+  --set 'ingress.tls[0].hosts[0]=axis.example.com' \
+  --set 'ingress.tls[0].hosts[1]=api.axis.example.com'
 ```
 
 The repository includes local Dockerfiles, but production image coordinates
@@ -478,8 +508,8 @@ Before customer production use, the deployment package must add and verify:
 - enforced release promotion approvals and recurring rollback drills.
 - operational review cadence for high-severity findings and expiring
   vulnerability exceptions.
-- TLS certificate automation, DNS ownership checks and secure cookie/session
-  behavior.
+- cert-manager issuer policy, DNS ownership checks, certificate renewal
+  evidence and secure cookie/session behavior.
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
 - backup, restore and disaster recovery runbooks.

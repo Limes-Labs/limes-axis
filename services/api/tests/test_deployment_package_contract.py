@@ -90,6 +90,10 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "ingressClassName" in required_terms
     assert "tls:" in required_terms
     assert "pathType" in required_terms
+    assert "certManager:" in required_terms
+    assert "cert-manager.io/cluster-issuer" in required_terms
+    assert "cert-manager.io/issuer-kind" in required_terms
+    assert "cert-manager.io/issuer-group" in required_terms
     assert "autoscaling/v2" in required_terms
     assert "HorizontalPodAutoscaler" in required_terms
     assert "scaleTargetRef" in required_terms
@@ -278,6 +282,30 @@ def test_deployment_package_ingress_is_optional_and_routes_api_and_web() -> None
     assert "name: {{ include \"limes-axis.fullname\" $ }}-web" in template
 
 
+def test_deployment_package_cert_manager_ingress_shim_is_optional() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "ingress.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "certManager:" in values
+    assert "enabled: false" in values
+    assert "issuerName:" in values
+    assert "issuerKind: ClusterIssuer" in values
+    assert "issuerGroup: cert-manager.io" in values
+    assert "{{- if .Values.ingress.certManager.enabled }}" in template
+    assert (
+        "required \"ingress.certManager.issuerName is required when certManager is enabled\""
+        in template
+    )
+    assert "cert-manager.io/cluster-issuer:" in template
+    assert "cert-manager.io/issuer:" in template
+    assert "cert-manager.io/issuer-kind:" in template
+    assert "cert-manager.io/issuer-group:" in template
+
+
 def test_deployment_package_external_secret_is_optional_and_targets_runtime_secret() -> None:
     values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
         encoding="utf-8"
@@ -304,6 +332,7 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "OIDC" in required_terms
     assert "S3-compatible object storage" in required_terms
     assert "External Secrets Operator" in required_terms
+    assert "cert-manager" in required_terms
     assert "HorizontalPodAutoscaler" in required_terms
     assert "PodDisruptionBudget" in required_terms
     assert "topologySpreadConstraints" in required_terms
