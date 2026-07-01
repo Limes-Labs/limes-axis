@@ -32,6 +32,7 @@ class RehearsalConfig(NamedTuple):
     rollback: bool = False
     rollback_revision: int | None = None
     create_namespace: bool = True
+    run_helm_tests: bool = True
 
 
 def format_command(command: tuple[str, ...]) -> str:
@@ -89,6 +90,20 @@ def _helm_rollback_command(config: RehearsalConfig) -> tuple[str, ...]:
     if config.rollback_revision is not None:
         command.append(str(config.rollback_revision))
     command.extend(["--namespace", config.namespace, "--wait", "--timeout", config.timeout])
+    command.extend(_helm_context_args(config))
+    return tuple(command)
+
+
+def _helm_test_command(config: RehearsalConfig) -> tuple[str, ...]:
+    command = [
+        "helm",
+        "test",
+        config.release,
+        "--namespace",
+        config.namespace,
+        "--timeout",
+        config.timeout,
+    ]
     command.extend(_helm_context_args(config))
     return tuple(command)
 
@@ -152,6 +167,8 @@ def build_rehearsal_steps(config: RehearsalConfig) -> list[RehearsalStep]:
         RehearsalStep(name="capture pod inventory", command=_pod_inventory_command(config)),
         RehearsalStep(name="capture Helm release status", command=_helm_status_command(config)),
     ]
+    if config.run_helm_tests:
+        steps.append(RehearsalStep(name="run Helm smoke tests", command=_helm_test_command(config)))
 
     ready_after_upgrade = _ready_step(config, "check API /ready after rollout")
     if ready_after_upgrade is not None:
@@ -179,6 +196,13 @@ def build_rehearsal_steps(config: RehearsalConfig) -> list[RehearsalStep]:
                 ),
             ]
         )
+        if config.run_helm_tests:
+            steps.append(
+                RehearsalStep(
+                    name="run Helm smoke tests after rollback",
+                    command=_helm_test_command(config),
+                )
+            )
         ready_after_rollback = _ready_step(config, "check API /ready after rollback")
         if ready_after_rollback is not None:
             steps.append(ready_after_rollback)
@@ -284,6 +308,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Do not pass --create-namespace to helm upgrade.",
     )
+    parser.add_argument(
+        "--skip-helm-test",
+        action="store_true",
+        help="Skip helm test after rollout and rollback.",
+    )
     return parser.parse_args(argv)
 
 
@@ -304,6 +333,7 @@ def config_from_args(args: argparse.Namespace) -> RehearsalConfig:
         rollback=args.rollback,
         rollback_revision=args.rollback_revision,
         create_namespace=not args.no_create_namespace,
+        run_helm_tests=not args.skip_helm_test,
     )
 
 

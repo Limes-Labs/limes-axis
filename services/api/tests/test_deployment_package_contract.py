@@ -44,6 +44,7 @@ def test_deployment_package_declares_critical_chart_files() -> None:
     assert "infra/helm/limes-axis/templates/secret-example.yaml" in required_files
     assert "infra/helm/limes-axis/templates/externalsecret.yaml" in required_files
     assert "infra/helm/limes-axis/templates/networkpolicy.yaml" in required_files
+    assert "infra/helm/limes-axis/templates/tests/smoke-test.yaml" in required_files
     assert "infra/helm/limes-axis/templates/NOTES.txt" in required_files
 
 
@@ -107,6 +108,12 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "revisionHistoryLimit" in required_terms
     assert "terminationGracePeriodSeconds" in required_terms
     assert "lifecycle:" in required_terms
+    assert "helm.sh/hook" in required_terms
+    assert "hook-delete-policy" in required_terms
+    assert "tests:" in required_terms
+    assert "smoke:" in required_terms
+    assert "busybox" in required_terms
+    assert "wget" in required_terms
 
 
 def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() -> None:
@@ -210,6 +217,49 @@ def test_deployment_package_rollout_controls_are_configurable_per_workload() -> 
     assert "{{- with .Values.web.lifecycle }}" in web_template
 
 
+def test_deployment_package_helm_smoke_test_checks_api_and_web_services() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    template = (
+        REPO_ROOT
+        / "infra"
+        / "helm"
+        / "limes-axis"
+        / "templates"
+        / "tests"
+        / "smoke-test.yaml"
+    ).read_text(encoding="utf-8")
+    network_policy = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "networkpolicy.yaml"
+    ).read_text(encoding="utf-8")
+
+    for field in (
+        "tests:",
+        "smoke:",
+        "enabled: true",
+        "activeDeadlineSeconds:",
+        "retryAttempts:",
+        "requestTimeoutSeconds:",
+        "podSecurityContext:",
+        "securityContext:",
+    ):
+        assert field in values
+
+    assert "{{- if .Values.tests.smoke.enabled -}}" in template
+    assert "helm.sh/hook: test" in template
+    assert "helm.sh/hook-delete-policy:" in template
+    assert "image: {{ include \"limes-axis.smokeTestImage\" . | quote }}" in template
+    assert "wget -q -O /dev/null" in template
+    assert "{{ include \"limes-axis.fullname\" . }}-api" in template
+    assert "{{ include \"limes-axis.fullname\" . }}-web" in template
+    assert "/ready" in template
+    assert "restartPolicy: Never" in template
+    assert "{{- if .Values.tests.smoke.enabled }}" in network_policy
+    assert "port: {{ .Values.api.service.port }}" in network_policy
+    assert "port: {{ .Values.web.service.port }}" in network_policy
+
+
 def test_deployment_package_ingress_is_optional_and_routes_api_and_web() -> None:
     values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
         encoding="utf-8"
@@ -262,5 +312,6 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "deployment-rollout-rehearsal" in required_terms
     assert "kubectl rollout status" in required_terms
     assert "helm rollback" in required_terms
+    assert "helm test" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms

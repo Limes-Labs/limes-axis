@@ -1,0 +1,41 @@
+{{- if .Values.tests.smoke.enabled -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "limes-axis.fullname" . }}-smoke-test
+  labels:
+    {{- include "limes-axis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: smoke-test
+    {{- with .Values.tests.smoke.podLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    {{- with .Values.tests.smoke.podAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: {{ .Values.tests.smoke.activeDeadlineSeconds }}
+  securityContext:
+    {{- toYaml .Values.tests.smoke.podSecurityContext | nindent 4 }}
+  {{- with .Values.global.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: smoke
+      image: {{ include "limes-axis.smokeTestImage" . | quote }}
+      imagePullPolicy: {{ .Values.tests.smoke.image.pullPolicy }}
+      command:
+        - /bin/sh
+        - -ec
+        - |
+          wget -q -O /dev/null --tries={{ .Values.tests.smoke.retryAttempts }} --timeout={{ .Values.tests.smoke.requestTimeoutSeconds }} http://{{ include "limes-axis.fullname" . }}-api:{{ .Values.api.service.port }}/ready
+          wget -q -O /dev/null --tries={{ .Values.tests.smoke.retryAttempts }} --timeout={{ .Values.tests.smoke.requestTimeoutSeconds }} http://{{ include "limes-axis.fullname" . }}-web:{{ .Values.web.service.port }}/
+      resources:
+        {{- toYaml .Values.tests.smoke.resources | nindent 8 }}
+      securityContext:
+        {{- toYaml .Values.tests.smoke.securityContext | nindent 8 }}
+{{- end }}

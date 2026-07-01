@@ -30,6 +30,7 @@ def required_chart_files() -> tuple[str, ...]:
         "infra/helm/limes-axis/templates/web-deployment.yaml",
         "infra/helm/limes-axis/templates/web-service.yaml",
         "infra/helm/limes-axis/templates/networkpolicy.yaml",
+        "infra/helm/limes-axis/templates/tests/smoke-test.yaml",
         "infra/helm/limes-axis/templates/NOTES.txt",
     )
 
@@ -103,6 +104,12 @@ def required_chart_terms() -> tuple[str, ...]:
         "revisionHistoryLimit",
         "terminationGracePeriodSeconds",
         "lifecycle:",
+        "helm.sh/hook",
+        "hook-delete-policy",
+        "tests:",
+        "smoke:",
+        "busybox",
+        "wget",
     )
 
 
@@ -121,6 +128,7 @@ def required_docs_terms() -> tuple[str, ...]:
         "deployment-rollout-rehearsal",
         "kubectl rollout status",
         "helm rollback",
+        "helm test",
         "/ready",
         "not a production certification",
     )

@@ -55,3 +55,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.web.image.repository .Values.web.image.tag -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "limes-axis.smokeTestImage" -}}
+{{- if .Values.global.imageRegistry -}}
+{{- printf "%s/%s:%s" .Values.global.imageRegistry .Values.tests.smoke.image.repository .Values.tests.smoke.image.tag -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.tests.smoke.image.repository .Values.tests.smoke.image.tag -}}
+{{- end -}}
+{{- end -}}

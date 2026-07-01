@@ -80,6 +80,17 @@ def test_rollout_rehearsal_builds_real_cluster_command_sequence() -> None:
     ) in commands
     assert (
         "helm",
+        "test",
+        "axis-canary",
+        "--namespace",
+        "axis-prod",
+        "--timeout",
+        "7m",
+        "--kube-context",
+        "prod-eu",
+    ) in commands
+    assert (
+        "helm",
         "rollback",
         "axis-canary",
         "3",
@@ -130,5 +141,6 @@ def test_rollout_rehearsal_plan_prints_commands_without_executing(
     assert executed == []
     assert "helm upgrade --install axis-canary" in output
     assert "kubectl -n axis-prod rollout status deployment/axis-canary-api" in output
+    assert "helm test axis-canary" in output
     assert "helm rollback axis-canary 3" in output
     assert "https://api.axis.example.com/ready" in output

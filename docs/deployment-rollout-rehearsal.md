@@ -7,8 +7,9 @@ an operator-selected cluster context. It is not a production certification.
 The rehearsal exists to make upgrade and rollback behavior observable before a
 customer production promotion. It checks that the chart renders, that the API
 and web Deployments complete rollout, that the API `/ready` endpoint can be
-checked through an operator-provided URL, and that `helm rollback` can return
-the release to a previous revision when requested.
+checked through an operator-provided URL, that `helm test` can run in-cluster
+smoke checks, and that `helm rollback` can return the release to a previous
+revision when requested.
 
 ## Preconditions
 
@@ -50,7 +51,7 @@ uv run python scripts/rehearse_deployment_rollout.py \
 
 The plan includes `helm upgrade --install`, `kubectl rollout status` for the
 API and web Deployments, Helm status capture, optional API `/ready` polling and
-optional `helm rollback`.
+`helm test`, plus optional `helm rollback`.
 
 ## Execute Mode
 
@@ -90,6 +91,7 @@ helm upgrade --install limes-axis infra/helm/limes-axis --namespace limes-axis -
 kubectl -n limes-axis rollout status deployment/limes-axis-api --timeout=10m
 kubectl -n limes-axis rollout status deployment/limes-axis-web --timeout=10m
 helm status limes-axis --namespace limes-axis
+helm test limes-axis --namespace limes-axis --timeout 10m
 helm rollback limes-axis 3 --namespace limes-axis --wait --timeout 10m
 ```
 
@@ -104,6 +106,7 @@ For each rehearsal, save:
 - current Kubernetes context;
 - Helm release status before and after rollback;
 - API and web `kubectl rollout status` output;
+- `helm test` output for in-cluster API `/ready` and web checks;
 - pod inventory after upgrade and after rollback;
 - API `/ready` result when an external URL is available;
 - operator decision on whether the observed behavior passes the promotion gate.
