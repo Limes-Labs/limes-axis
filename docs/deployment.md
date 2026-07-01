@@ -25,6 +25,10 @@ The baseline covers:
   TLS secret references supplied by the operator.
 - Optional `HorizontalPodAutoscaler` and `PodDisruptionBudget` templates for
   API and web console workloads.
+- Deployment rollout controls for API and web console workloads, including
+  `RollingUpdate` strategy values, `revisionHistoryLimit`,
+  `terminationGracePeriodSeconds` and optional container `lifecycle`
+  pass-through hooks.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -94,6 +98,22 @@ select the same component labels as the API and web Deployments.
 These controls are a chart-level availability baseline. They do not replace
 load testing, capacity planning, cluster resource quotas, node failure tests,
 upgrade rollback drills or production SLO review.
+
+## Rollout Controls
+
+The API and web Deployments expose per-workload rollout controls. By default,
+both workloads use a Kubernetes `RollingUpdate` strategy with
+`maxUnavailable: 0`, `maxSurge: 1`, `revisionHistoryLimit: 5` and
+`terminationGracePeriodSeconds: 30`. The chart also exposes a container-level
+`lifecycle` pass-through for each workload so operators can add pre-stop or
+other lifecycle hooks that match their image, ingress and workload-draining
+policy.
+
+The default lifecycle value is empty. Axis does not assume a shell, sidecar or
+cluster-specific drain endpoint inside the container image. Operators should
+configure lifecycle hooks only after validating the deployed image and ingress
+behavior, then test rollouts, readiness gates, connection draining, rollback
+criteria and interrupted in-flight requests in their target cluster.
 
 ## Scheduling Controls
 
@@ -406,7 +426,7 @@ Before customer production use, the deployment package must add and verify:
 - TLS certificate automation, DNS ownership checks and secure cookie/session
   behavior.
 - high availability, scheduling/topology, autoscaling and upgrade rollback
-  tests.
+  tests, including rollout-drain validation.
 - backup, restore and disaster recovery runbooks.
 - production secret-manager rotation drills, access reviews and incident
   procedures.

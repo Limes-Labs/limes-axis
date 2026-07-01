@@ -84,6 +84,13 @@ def required_chart_terms() -> tuple[str, ...]:
         "affinity",
         "tolerations",
         "topologySpreadConstraints",
+        "strategy:",
+        "rollingUpdate",
+        "maxUnavailable",
+        "maxSurge",
+        "revisionHistoryLimit",
+        "terminationGracePeriodSeconds",
+        "lifecycle:",
     )
 
 
@@ -97,6 +104,8 @@ def required_docs_terms() -> tuple[str, ...]:
         "HorizontalPodAutoscaler",
         "PodDisruptionBudget",
         "topologySpreadConstraints",
+        "RollingUpdate",
+        "terminationGracePeriodSeconds",
         "not a production certification",
     )
 

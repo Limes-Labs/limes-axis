@@ -9,6 +9,16 @@ spec:
   {{- if not .Values.web.autoscaling.enabled }}
   replicas: {{ .Values.web.replicaCount }}
   {{- end }}
+  revisionHistoryLimit: {{ .Values.web.revisionHistoryLimit }}
+  {{- with .Values.web.strategy }}
+  strategy:
+    type: {{ .type }}
+    {{- with .rollingUpdate }}
+    rollingUpdate:
+      maxUnavailable: {{ .maxUnavailable }}
+      maxSurge: {{ .maxSurge }}
+    {{- end }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "limes-axis.selectorLabels" . | nindent 6 }}
@@ -44,6 +54,7 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.web.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.web.podSecurityContext | nindent 8 }}
       containers:
@@ -72,6 +83,10 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
+          {{- with .Values.web.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
           securityContext:
