@@ -39,6 +39,7 @@ def test_deployment_package_declares_critical_chart_files() -> None:
     assert "infra/helm/limes-axis/templates/web-service.yaml" in required_files
     assert "infra/helm/limes-axis/templates/configmap.yaml" in required_files
     assert "infra/helm/limes-axis/templates/secret-example.yaml" in required_files
+    assert "infra/helm/limes-axis/templates/externalsecret.yaml" in required_files
     assert "infra/helm/limes-axis/templates/networkpolicy.yaml" in required_files
     assert "infra/helm/limes-axis/templates/NOTES.txt" in required_files
 
@@ -62,6 +63,30 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_OIDC_ISSUER" in required_terms
     assert "existingSecret" in required_terms
     assert "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE" in required_terms
+    assert "ExternalSecret" in required_terms
+    assert "external-secrets.io/v1" in required_terms
+    assert "secretStoreRef" in required_terms
+    assert "refreshPolicy" in required_terms
+    assert "refreshInterval" in required_terms
+    assert "creationPolicy" in required_terms
+    assert "deletionPolicy" in required_terms
+    assert "remoteRef" in required_terms
+
+
+def test_deployment_package_external_secret_is_optional_and_targets_runtime_secret() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "externalsecret.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "externalSecret:" in values
+    assert "enabled: false" in values
+    assert "{{- if .Values.secrets.externalSecret.enabled -}}" in template
+    assert "name: {{ .Values.secrets.existingSecret | quote }}" in template
+    assert "secretStoreRef:" in template
+    assert "remoteRef:" in template
 
 
 def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> None:
@@ -73,4 +98,5 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "external Postgres" in required_terms
     assert "OIDC" in required_terms
     assert "S3-compatible object storage" in required_terms
+    assert "External Secrets Operator" in required_terms
     assert "not a production certification" in required_terms

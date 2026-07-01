@@ -274,10 +274,10 @@ Confirm before the session:
 - Full manufacturing operations reference demo remains open until broader
   TypeDB query coverage, workflow execution and replay are fully backed by real
   persistence paths.
-- The first Helm chart and Kubernetes deployment guide are present, but
-  production HA validation, image build provenance/signing, registry release
-  automation, TLS ingress, external-secret integration, cluster backup/restore,
-  autoscaling and rollout operations are not complete.
+- The first Helm chart and Kubernetes deployment guide are present, including
+  optional External Secrets Operator synchronization for runtime secrets, but
+  production HA validation, TLS ingress, cluster backup/restore, autoscaling,
+  rollout operations and production secret-rotation drills are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.

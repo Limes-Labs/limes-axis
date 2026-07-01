@@ -21,6 +21,7 @@ def required_chart_files() -> tuple[str, ...]:
         "infra/helm/limes-axis/templates/serviceaccount.yaml",
         "infra/helm/limes-axis/templates/configmap.yaml",
         "infra/helm/limes-axis/templates/secret-example.yaml",
+        "infra/helm/limes-axis/templates/externalsecret.yaml",
         "infra/helm/limes-axis/templates/api-deployment.yaml",
         "infra/helm/limes-axis/templates/api-service.yaml",
         "infra/helm/limes-axis/templates/web-deployment.yaml",
@@ -57,6 +58,14 @@ def required_chart_terms() -> tuple[str, ...]:
         "NEXT_PUBLIC_AXIS_API_BASE_URL",
         "existingSecret",
         "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE",
+        "ExternalSecret",
+        "external-secrets.io/v1",
+        "secretStoreRef",
+        "refreshPolicy",
+        "refreshInterval",
+        "creationPolicy",
+        "deletionPolicy",
+        "remoteRef",
     )
 
 
@@ -66,6 +75,7 @@ def required_docs_terms() -> tuple[str, ...]:
         "external Postgres",
         "OIDC",
         "S3-compatible object storage",
+        "External Secrets Operator",
         "not a production certification",
     )
 
