@@ -39,6 +39,9 @@ The baseline covers:
 - A production backup rehearsal plan for in-cluster Postgres `pg_dump` capture
   and `pg_restore --list` restore-catalog validation without printing database
   connection secrets.
+- A production restore rehearsal plan for restoring a captured Postgres dump
+  into a separately configured isolated restore target without printing target
+  connection secrets.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -57,7 +60,7 @@ The baseline does not yet cover:
 - TLS certificate issuance operations, DNS ownership checks and secure
   cookie/session review.
 - Production secret rotation drills, KMS policy review and incident procedures.
-- Production backup, restore and disaster recovery.
+- Full production backup, restore and disaster recovery operations.
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
 - Cluster observability, alerting and on-call runbooks.
@@ -220,6 +223,45 @@ Postgres operational store. It is not a full production disaster recovery
 procedure: restore into an isolated target, TypeDB backups, Temporal state
 policy, object-store retention, RPO/RTO evidence, offsite retention and
 customer-specific approval gates remain hardening work.
+
+## Production Restore Rehearsal
+
+The repository also includes a production restore rehearsal helper for
+Kubernetes clusters:
+
+```bash
+make deployment-restore-rehearsal-plan
+```
+
+The plan creates a temporary non-root Pod, copies a local `postgres.dump` and
+`postgres.dump.sha256` into an in-cluster `emptyDir`, verifies the checksum,
+validates the restore catalog with `pg_restore --list`, restores the dump with
+`pg_restore --clean --if-exists --no-owner` and writes local evidence files for
+the restore catalog, target probe and calculated checksum.
+
+The restore target must be a separate Kubernetes Secret from the Axis runtime
+Secret. It must contain `AXIS_POSTGRES_RESTORE_DSN` and carry the annotation
+`limes-axis.io/restore-target=isolated`. The script checks the annotation and
+the presence of the restore DSN key without printing the DSN value. The script
+also refuses common runtime Secret names such as `limes-axis-runtime` for the
+restore target.
+
+To execute against a selected cluster context:
+
+```bash
+AXIS_KUBE_CONTEXT=prod-eu make deployment-restore-rehearsal
+```
+
+Operators can pass additional script arguments with
+`AXIS_PRODUCTION_RESTORE_ARGS`, for example `--namespace`,
+`--restore-target-secret`, `--restore-id`, `--dump-path`, `--checksum-path`,
+`--local-evidence-dir`, `--image`, `--timeout`, `--run-as-user`,
+`--run-as-group` or `--keep-pod`.
+
+This is an isolated Postgres restore rehearsal for a captured Axis dump. It is
+not a full production disaster recovery procedure: it does not restore TypeDB,
+Temporal state or object storage, does not validate customer-specific retention
+or legal-hold policy and does not establish RPO/RTO commitments.
 
 ## Scheduling Controls
 
@@ -519,6 +561,7 @@ Run the static repository deployment check:
 make deployment-check
 make deployment-rollout-rehearsal-plan
 make deployment-backup-rehearsal-plan
+make deployment-restore-rehearsal-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check

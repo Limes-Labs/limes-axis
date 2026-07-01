@@ -39,6 +39,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
     return (
         "services/api/scripts/rehearse_deployment_rollout.py",
         "services/api/scripts/rehearse_production_backup.py",
+        "services/api/scripts/rehearse_production_restore.py",
     )
 
 
@@ -49,6 +50,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-rollout-rehearsal",
         "deployment-backup-rehearsal-plan",
         "deployment-backup-rehearsal",
+        "deployment-restore-rehearsal-plan",
+        "deployment-restore-rehearsal",
     )
 
 
@@ -140,8 +143,10 @@ def required_docs_terms() -> tuple[str, ...]:
         "helm rollback",
         "helm test",
         "production backup rehearsal",
+        "production restore rehearsal",
         "pg_dump",
         "pg_restore --list",
+        "AXIS_POSTGRES_RESTORE_DSN",
         "/ready",
         "not a production certification",
     )
