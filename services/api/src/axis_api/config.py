@@ -91,5 +91,49 @@ class Settings(BaseSettings):
         default=".axis/object-store",
         alias="AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT",
     )
+    connector_export_object_store_adapter: str = Field(
+        default="local_filesystem",
+        alias="AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER",
+    )
+    connector_export_s3_endpoint: str | None = Field(
+        default=None,
+        alias="AXIS_CONNECTOR_EXPORT_S3_ENDPOINT",
+    )
+    connector_export_s3_region: str | None = Field(
+        default=None,
+        alias="AXIS_CONNECTOR_EXPORT_S3_REGION",
+    )
+    connector_export_s3_bucket: str | None = Field(
+        default=None,
+        alias="AXIS_CONNECTOR_EXPORT_S3_BUCKET",
+    )
+    connector_export_s3_access_key: str | None = Field(
+        default=None,
+        alias="AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY",
+    )
+    connector_export_s3_secret_key: str | None = Field(
+        default=None,
+        alias="AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY",
+    )
+    connector_export_s3_secure_transport: bool = Field(
+        default=True,
+        alias="AXIS_CONNECTOR_EXPORT_S3_SECURE_TRANSPORT",
+    )
+    connector_export_s3_object_lock_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CONNECTOR_EXPORT_S3_OBJECT_LOCK_ENABLED",
+    )
+    connector_export_s3_retention_mode: str = Field(
+        default="GOVERNANCE",
+        alias="AXIS_CONNECTOR_EXPORT_S3_RETENTION_MODE",
+    )
+    connector_export_s3_retention_days: int = Field(
+        default=0,
+        alias="AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS",
+    )
+    connector_export_s3_legal_hold_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)

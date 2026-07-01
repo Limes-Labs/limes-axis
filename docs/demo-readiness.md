@@ -14,8 +14,8 @@ Axis is ready for an enterprise evaluation demo as an architecture and product
 workflow walkthrough when the same checklist passes and the limitations section
 is shared before the session. It is not yet a production enterprise deployment:
 the first Helm baseline exists, but production disaster recovery, SSO
-hardening, WORM retention, high availability and production operations runbooks
-remain tracked Enterprise work.
+hardening, customer bucket operations, high availability and production
+operations runbooks remain tracked Enterprise work.
 
 ## No Browser-Local Mock Data
 
@@ -120,7 +120,7 @@ The live check also includes `/deployment/readiness`, which aggregates identity,
 external model egress, live connector execution, audit signing and object-store
 posture into explicit production blockers. The current local profile can be
 demo-safe while `production_ready=false`; that is intentional until enterprise
-deployment, S3/MinIO WORM retention and support runbooks are complete.
+deployment, S3/MinIO object-store posture and support runbooks are complete.
 
 The live check also includes `/support/diagnostics`, a public-safe support
 bundle for design-partner triage. It reports demo-support readiness,
@@ -284,7 +284,9 @@ Confirm before the session:
 - Enterprise SSO hardening now has an explicit API readiness profile, but full
   authorization-code login, refresh, secure-cookie sessions, IdP onboarding
   runbooks and production SSO operations are not complete.
-- WORM/object-store retention for enterprise audit exports is not complete.
+- S3/MinIO WORM adapter readiness exists for governed connector evidence
+  exports, but customer bucket provisioning review, KMS policy, legal
+  operations and restore drills are not complete.
 - Production support and operations runbooks are not complete.
 - External model-provider execution is disabled by default.
 

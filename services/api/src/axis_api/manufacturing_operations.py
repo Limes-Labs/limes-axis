@@ -1212,7 +1212,11 @@ def build_manufacturing_demo_readiness_report(
             "disaster recovery are not yet acceptance-gated."
         ),
         "SSO/Keycloak hardening is not complete for customer production rollout.",
-        "S3/MinIO WORM retention and production KMS policy remain Enterprise work.",
+        (
+            "S3/MinIO retention adapter readiness exists for governed connector "
+            "evidence exports; production KMS policy, bucket-policy review, "
+            "restore drills and legal operations remain Enterprise work."
+        ),
         (
             "Live customer connector execution requires explicit credential, egress "
             "and support runbooks."

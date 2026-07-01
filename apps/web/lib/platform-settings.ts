@@ -42,7 +42,7 @@ export type DeploymentReadinessReport = {
   profile: string;
   production_ready: boolean;
   demo_safe: boolean;
-  capabilities: Record<string, boolean | string>;
+  capabilities: Record<string, boolean | number | string>;
   production_blockers: string[];
   checks: Array<SettingsCheck & { production_required: boolean }>;
   notes: string[];
@@ -74,6 +74,9 @@ export type SupportDiagnosticsReport = {
     live_connector_execution_enabled: boolean;
     audit_ledger_signing_configured: boolean;
     object_store_adapter: string;
+    object_store_worm_retention_enabled: boolean;
+    object_store_retention_mode: string;
+    object_store_retention_days: number;
   };
   checks: SettingsCheck[];
   support_artifacts: Array<{ label: string; path: string }>;

@@ -251,8 +251,8 @@ status; it does not store raw connector payloads, DSNs, private endpoint refs,
 secret refs or credential values.
 
 `POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests`
-records a governed export request before enterprise object-store/WORM retention
-exists. The request requires `connectors:evidence:snapshot:export:request`,
+records a governed export request before any storage artifact is written. The
+request requires `connectors:evidence:snapshot:export:request`,
 approval id, workflow id, idempotency key, owner role and risk level. Axis
 persists an approval-required metadata record, creates an approval record,
 writes `connector.evidence_snapshot_export.requested` audit evidence and returns
@@ -261,8 +261,8 @@ policy, storage status `not_written` and workflow signal status
 `pending_approval_decision`. Idempotent replays return the original request
 without duplicating audit evidence; conflicting payloads for the same
 idempotency key return 409. The endpoint does not write files, object storage
-keys, WORM retention state, raw connector payloads, DSNs, private endpoint refs,
-secret refs or credential values.
+keys, raw connector payloads, DSNs, private endpoint refs, secret refs or
+credential values.
 
 `POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision`
 records the human approval decision for a governed export request. The endpoint
@@ -280,20 +280,20 @@ not include connector payloads, DSNs, private endpoint refs, secret refs or
 credential values.
 
 `POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/materializations`
-materializes an approved export request through the configured local
-object-store adapter. The endpoint requires
+materializes an approved export request through the configured object-store
+adapter. Local demos use the filesystem adapter; S3-compatible deployments can
+write retained objects when endpoint, bucket, credentials, object lock and
+retention days are configured. The endpoint requires
 `connectors:evidence:snapshot:export:materialize`, rejects unapproved requests,
 rejects duplicate conflicting materialization ids, rebuilds the public-safe
 snapshot bundle from the stored request filter, verifies the checksum still
-matches the approved request, writes canonical JSON below
-`AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT` and returns only storage metadata:
-adapter, safe key, opaque local URI, content type, byte size and SHA-256
-checksum. It appends
+matches the approved request, writes canonical JSON and returns only storage
+metadata: adapter, safe key, opaque storage URI, content type, byte size and
+SHA-256 checksum. It appends
 `connector.evidence_snapshot_export.materialized` audit evidence with artifact
-metadata only. The local adapter is the self-hostable storage boundary before
-future S3/MinIO/WORM retention profiles; it does not expose filesystem paths,
-raw connector payloads, DSNs, private endpoint refs, secret refs or credential
-values.
+metadata only. The storage boundary does not expose filesystem paths, raw
+connector payloads, DSNs, private endpoint refs, secret refs, S3 access keys or
+credential values.
 
 The manifest management endpoints store and query tenant-scoped connector
 manifest records. A manifest record includes:
@@ -971,12 +971,12 @@ contract keeps these boundaries visible:
   private endpoint references into read payloads;
 - aggregate connector evidence invariant snapshots as append-only audit
   artifacts before scheduled invariant jobs exist;
-- signed connector evidence snapshot exports before enterprise WORM/object-store
-  retention workflows exist;
+- signed connector evidence snapshot exports before provider-specific KMS
+  signing exists;
 - approval/workflow/idempotency-gated connector evidence snapshot export
-  requests before enterprise WORM/object-store retention workflows exist;
-- approved connector evidence snapshot export materialization to a local
-  object-store adapter before enterprise S3/MinIO/WORM retention workflows;
+  requests before any storage artifact is written;
+- approved connector evidence snapshot export materialization to the configured
+  filesystem or S3-compatible object-store adapter;
 - persisted ontology proposal records before controlled graph mutation;
 - approval/workflow/idempotency-gated manual import requests before controlled
   promotion;

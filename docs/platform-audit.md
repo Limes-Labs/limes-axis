@@ -7,8 +7,12 @@ It is public-safe and intentionally limited. The explorer shows event metadata,
 filters, evidence references and redacted payload previews. The export path now
 enforces the requested retention window and includes a deterministic hash-chain
 integrity proof plus a self-hosted ledger signature proof when signing is
-configured. It does not claim WORM object storage or deterministic workflow
-replay are complete.
+configured. It does not claim provider-specific KMS signing, customer bucket
+policy review or deterministic workflow replay are complete.
+Governed connector evidence exports can use the S3-compatible object-store
+adapter with object-lock retention; audit export bundles still need
+provider-specific KMS signing and production legal operations before any
+compliance claim.
 
 ## Demo Endpoint
 
@@ -103,8 +107,10 @@ explorer payload. The API runtime no longer defines an audit explorer seed
 factory; tests validate the bootstrap payload directly from the migration. It
 implements a first physical retention deletion execution path with dry-run and
 persisted legal-hold safeguards and self-hosted ledger signing for export
-proofs. It does not yet implement WORM object-store retention enforcement,
-provider-specific KMS adapters or deterministic Temporal replay.
+proofs. Governed connector evidence materializations can use the
+S3-compatible object-store adapter with object-lock retention, but audit export
+bundles still need provider-specific KMS adapters and deterministic Temporal
+replay.
 
 The Postgres persistence foundation includes the append-only `audit_events`
 table and repository methods for inserting and tenant-scoped listing. Approval
@@ -114,15 +120,15 @@ Export bundles enforce the requested retention window before records enter the
 bundle unless legal hold is active, and every bundle includes a deterministic
 SHA-256 hash-chain integrity proof. Retention deletion can physically remove
 eligible audit rows with audit evidence, while active legal hold records block
-execution. Production query permissions, WORM object-store hardening,
-provider-specific KMS adapters and richer enterprise legal review workflows
+execution. Production query permissions, provider-specific KMS adapters,
+customer bucket-policy review and richer enterprise legal review workflows
 remain future work.
 
 Future Platform work should connect this contract to:
 
 - tenant-scoped query permissions;
 - richer legal review workflows and UI for legal hold administration;
-- provider-specific KMS signers and WORM object-store retention policies;
+- provider-specific KMS signers and customer bucket retention policy review;
 - evidence bundles for security and operations reviews.
 
 The replay/simulation foundation now consumes redacted audit metadata for

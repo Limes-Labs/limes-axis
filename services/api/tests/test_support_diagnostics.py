@@ -85,3 +85,47 @@ def test_support_diagnostics_never_returns_sensitive_signing_material() -> None:
     ]
     assert "do-not-return-this-signing-material" not in str(body)
     assert "password" not in str(body).lower()
+
+
+def test_support_diagnostics_reports_s3_object_store_without_secret_material() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                environment="production",
+                postgres_dsn="sqlite+pysqlite://",
+                oidc_auth_required=True,
+                oidc_issuer="https://idp.example/realms/axis",
+                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
+                oidc_algorithms=["RS256"],
+                audit_ledger_signing_secret="do-not-return-this-signing-material",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="COMPLIANCE",
+                connector_export_s3_retention_days=365,
+                connector_export_s3_legal_hold_enabled=True,
+            )
+        )
+    )
+
+    response = client.get("/support/diagnostics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["diagnostics"]["object_store_adapter"] == "s3_compatible"
+    assert body["diagnostics"]["object_store_worm_retention_enabled"] is True
+    assert body["diagnostics"]["object_store_retention_mode"] == "COMPLIANCE"
+    assert body["diagnostics"]["object_store_retention_days"] == 365
+    assert body["support_blockers"] == ["production_support_model"]
+    assert "axis-secret-key" not in str(body)
+    assert "axis-service-account" not in str(body)
+    assert "do-not-return-this-signing-material" not in str(body)

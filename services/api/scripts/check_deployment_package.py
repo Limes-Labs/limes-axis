@@ -47,6 +47,13 @@ def required_chart_terms() -> tuple[str, ...]:
         "AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",
         "AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED",
         "AXIS_AUDIT_LEDGER_SIGNING_SECRET",
+        "AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER",
+        "AXIS_CONNECTOR_EXPORT_S3_ENDPOINT",
+        "AXIS_CONNECTOR_EXPORT_S3_BUCKET",
+        "AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY",
+        "AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY",
+        "AXIS_CONNECTOR_EXPORT_S3_OBJECT_LOCK_ENABLED",
+        "AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS",
         "NEXT_PUBLIC_AXIS_API_BASE_URL",
         "existingSecret",
         "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE",
@@ -58,7 +65,7 @@ def required_docs_terms() -> tuple[str, ...]:
         "helm upgrade --install",
         "external Postgres",
         "OIDC",
-        "S3/MinIO WORM",
+        "S3-compatible object storage",
         "not a production certification",
     )
 

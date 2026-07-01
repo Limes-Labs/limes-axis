@@ -426,7 +426,11 @@ def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
                 and isinstance(checks, list)
                 and len(checks) >= 5
                 and isinstance(capabilities, dict)
-                and capabilities.get("object_store_adapter") == "local_filesystem"
+                and capabilities.get("object_store_adapter")
+                in {"local_filesystem", "s3_compatible"}
+                and isinstance(capabilities.get("object_store_worm_retention_enabled"), bool)
+                and isinstance(capabilities.get("object_store_retention_days"), int)
+                and isinstance(capabilities.get("object_store_retention_mode"), str)
                 and "secret" not in body_text
                 and "password" not in body_text
             )
