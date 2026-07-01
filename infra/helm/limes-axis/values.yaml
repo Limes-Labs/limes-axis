@@ -52,6 +52,14 @@ secrets:
 
 api:
   replicaCount: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  terminationGracePeriodSeconds: 30
+  lifecycle: {}
   autoscaling:
     enabled: false
     minReplicas: 2
@@ -136,6 +144,14 @@ api:
 
 web:
   replicaCount: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  terminationGracePeriodSeconds: 30
+  lifecycle: {}
   autoscaling:
     enabled: false
     minReplicas: 2

@@ -89,6 +89,13 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "affinity" in required_terms
     assert "tolerations" in required_terms
     assert "topologySpreadConstraints" in required_terms
+    assert "strategy:" in required_terms
+    assert "rollingUpdate" in required_terms
+    assert "maxUnavailable" in required_terms
+    assert "maxSurge" in required_terms
+    assert "revisionHistoryLimit" in required_terms
+    assert "terminationGracePeriodSeconds" in required_terms
+    assert "lifecycle:" in required_terms
 
 
 def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() -> None:
@@ -152,6 +159,46 @@ def test_deployment_package_scheduling_controls_are_configurable_per_workload() 
     assert "{{- with .Values.web.topologySpreadConstraints }}" in web_template
 
 
+def test_deployment_package_rollout_controls_are_configurable_per_workload() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    api_template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "api-deployment.yaml"
+    ).read_text(encoding="utf-8")
+    web_template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "web-deployment.yaml"
+    ).read_text(encoding="utf-8")
+
+    for field in (
+        "strategy:",
+        "rollingUpdate:",
+        "maxUnavailable:",
+        "maxSurge:",
+        "revisionHistoryLimit:",
+        "terminationGracePeriodSeconds:",
+        "lifecycle:",
+    ):
+        assert field in values
+        assert field in api_template
+        assert field in web_template
+
+    assert "{{- with .Values.api.strategy }}" in api_template
+    assert "revisionHistoryLimit: {{ .Values.api.revisionHistoryLimit }}" in api_template
+    assert (
+        "terminationGracePeriodSeconds: {{ .Values.api.terminationGracePeriodSeconds }}"
+        in api_template
+    )
+    assert "{{- with .Values.api.lifecycle }}" in api_template
+    assert "{{- with .Values.web.strategy }}" in web_template
+    assert "revisionHistoryLimit: {{ .Values.web.revisionHistoryLimit }}" in web_template
+    assert (
+        "terminationGracePeriodSeconds: {{ .Values.web.terminationGracePeriodSeconds }}"
+        in web_template
+    )
+    assert "{{- with .Values.web.lifecycle }}" in web_template
+
+
 def test_deployment_package_ingress_is_optional_and_routes_api_and_web() -> None:
     values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
         encoding="utf-8"
@@ -199,4 +246,6 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "HorizontalPodAutoscaler" in required_terms
     assert "PodDisruptionBudget" in required_terms
     assert "topologySpreadConstraints" in required_terms
+    assert "RollingUpdate" in required_terms
+    assert "terminationGracePeriodSeconds" in required_terms
     assert "not a production certification" in required_terms

@@ -309,6 +309,8 @@ Foundation acceptance is tracked in
   chart controls for API and web workloads.
 - [x] Add optional Kubernetes scheduling and topology-spread controls for API
   and web workloads.
+- [x] Add configurable Kubernetes rollout strategy, revision history,
+  termination grace and lifecycle hook controls for API and web workloads.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 
@@ -372,11 +374,11 @@ brand shell. It is a demo readiness gate, not a production enterprise readiness
 claim.
 The Kubernetes deployment baseline now lives in `infra/helm/limes-axis`, with
 `docs/deployment.md` and `services/api/scripts/check_deployment_package.py`
-guarding chart files, externalized runtime configuration, public-safe docs and
-the `deployment-check` Make target. It is an initial production deployment
-guide baseline, not a claim that high availability, image release automation,
-TLS ingress, external secret management, production backup/restore, KMS-backed
-signing or customer bucket operations are complete.
+guarding chart files, externalized runtime configuration, rollout controls,
+public-safe docs and the `deployment-check` Make target. It is an initial
+production deployment guide baseline, not a claim that high availability, image
+release automation, TLS ingress, external secret management, production
+backup/restore, KMS-backed signing or customer bucket operations are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
 `make container-build-api` and `make container-build-web`. These images are

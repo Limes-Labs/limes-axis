@@ -277,10 +277,11 @@ Confirm before the session:
 - The first Helm chart and Kubernetes deployment guide are present, including
   optional External Secrets Operator synchronization and optional TLS Ingress
   routing for runtime services plus optional HorizontalPodAutoscaler and
-  PodDisruptionBudget controls and scheduling/topology pass-through values,
-  but production HA validation, certificate automation, cluster backup/restore,
-  rollout operations, load testing and production secret-rotation drills are
-  not complete.
+  PodDisruptionBudget controls, scheduling/topology pass-through values and
+  configurable rollout controls for RollingUpdate strategy, revision history,
+  termination grace and lifecycle hooks, but production HA validation,
+  certificate automation, cluster backup/restore, rollout-drain exercises,
+  load testing and production secret-rotation drills are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
