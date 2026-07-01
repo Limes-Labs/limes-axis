@@ -307,6 +307,8 @@ Foundation acceptance is tracked in
   console.
 - [x] Add optional Kubernetes HorizontalPodAutoscaler and PodDisruptionBudget
   chart controls for API and web workloads.
+- [x] Add optional Kubernetes scheduling and topology-spread controls for API
+  and web workloads.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 

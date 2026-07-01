@@ -95,6 +95,20 @@ These controls are a chart-level availability baseline. They do not replace
 load testing, capacity planning, cluster resource quotas, node failure tests,
 upgrade rollback drills or production SLO review.
 
+## Scheduling Controls
+
+The API and web Deployments expose Kubernetes scheduling pass-through values:
+`nodeSelector`, `affinity`, `tolerations` and `topologySpreadConstraints`.
+They are empty by default and can be configured independently for each
+workload. This lets operators target dedicated node pools, tolerate tainted
+nodes, express pod affinity or anti-affinity, and spread replicas across
+failure domains such as zones or hosts.
+
+The chart does not infer cluster topology. Operators must set selectors and
+`topologySpreadConstraints` that match their cluster labels, capacity model and
+availability targets, then verify scheduling behavior during load tests,
+rollout drains and node-failure exercises.
+
 The chart also does not install External Secrets Operator or create a
 `SecretStore`/`ClusterSecretStore`. When `secrets.externalSecret.enabled=true`,
 the chart renders an `ExternalSecret` that targets `secrets.existingSecret`;
@@ -391,7 +405,8 @@ Before customer production use, the deployment package must add and verify:
   vulnerability exceptions.
 - TLS certificate automation, DNS ownership checks and secure cookie/session
   behavior.
-- high availability, autoscaling and upgrade rollback tests.
+- high availability, scheduling/topology, autoscaling and upgrade rollback
+  tests.
 - backup, restore and disaster recovery runbooks.
 - production secret-manager rotation drills, access reviews and incident
   procedures.

@@ -85,6 +85,10 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "policy/v1" in required_terms
     assert "PodDisruptionBudget" in required_terms
     assert "minAvailable" in required_terms
+    assert "nodeSelector" in required_terms
+    assert "affinity" in required_terms
+    assert "tolerations" in required_terms
+    assert "topologySpreadConstraints" in required_terms
 
 
 def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() -> None:
@@ -115,6 +119,37 @@ def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() ->
     assert "kind: PodDisruptionBudget" in pdb_template
     assert "app.kubernetes.io/component: api" in pdb_template
     assert "app.kubernetes.io/component: web" in pdb_template
+
+
+def test_deployment_package_scheduling_controls_are_configurable_per_workload() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    api_template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "api-deployment.yaml"
+    ).read_text(encoding="utf-8")
+    web_template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "web-deployment.yaml"
+    ).read_text(encoding="utf-8")
+
+    for field in (
+        "nodeSelector:",
+        "affinity:",
+        "tolerations:",
+        "topologySpreadConstraints:",
+    ):
+        assert field in values
+        assert field in api_template
+        assert field in web_template
+
+    assert "{{- with .Values.api.nodeSelector }}" in api_template
+    assert "{{- with .Values.api.affinity }}" in api_template
+    assert "{{- with .Values.api.tolerations }}" in api_template
+    assert "{{- with .Values.api.topologySpreadConstraints }}" in api_template
+    assert "{{- with .Values.web.nodeSelector }}" in web_template
+    assert "{{- with .Values.web.affinity }}" in web_template
+    assert "{{- with .Values.web.tolerations }}" in web_template
+    assert "{{- with .Values.web.topologySpreadConstraints }}" in web_template
 
 
 def test_deployment_package_ingress_is_optional_and_routes_api_and_web() -> None:
@@ -163,4 +198,5 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "External Secrets Operator" in required_terms
     assert "HorizontalPodAutoscaler" in required_terms
     assert "PodDisruptionBudget" in required_terms
+    assert "topologySpreadConstraints" in required_terms
     assert "not a production certification" in required_terms

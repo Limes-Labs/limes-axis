@@ -80,6 +80,10 @@ def required_chart_terms() -> tuple[str, ...]:
         "policy/v1",
         "PodDisruptionBudget",
         "minAvailable",
+        "nodeSelector",
+        "affinity",
+        "tolerations",
+        "topologySpreadConstraints",
     )
 
 
@@ -92,6 +96,7 @@ def required_docs_terms() -> tuple[str, ...]:
         "External Secrets Operator",
         "HorizontalPodAutoscaler",
         "PodDisruptionBudget",
+        "topologySpreadConstraints",
         "not a production certification",
     )
 

@@ -109,6 +109,10 @@ api:
     AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS: "0"
     AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED: "false"
   podAnnotations: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  topologySpreadConstraints: []
   resources:
     requests:
       cpu: 250m
@@ -151,6 +155,10 @@ web:
   env:
     NEXT_PUBLIC_AXIS_API_BASE_URL: https://api.axis.example.com
   podAnnotations: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  topologySpreadConstraints: []
   resources:
     requests:
       cpu: 150m
