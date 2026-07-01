@@ -9,6 +9,11 @@ It is not a production disaster recovery design. Production HA, offsite
 retention, WORM audit storage, restore drills, RPO/RTO targets and Kubernetes
 operator procedures remain Enterprise work.
 
+For Kubernetes environments, the deployment guide now includes a production
+backup rehearsal path that captures a Postgres dump and validates its restore
+catalog without exposing database connection secrets. That path is a rehearsal
+gate, not a complete disaster recovery program.
+
 ## What Is Captured
 
 The local backup command captures:
@@ -106,6 +111,13 @@ Static demo verification checks the runbook and Make targets:
 
 ```bash
 make demo-check
+```
+
+Static deployment verification checks the production backup rehearsal target:
+
+```bash
+make deployment-check
+make deployment-backup-rehearsal-plan
 ```
 
 Live demo verification should be run after restore:
