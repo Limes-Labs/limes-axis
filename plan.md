@@ -299,8 +299,10 @@ Foundation acceptance is tracked in
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA, TLS ingress, external-secret, backup/restore and
-  cluster operations hardening.
+- [ ] Add production HA, TLS ingress, backup/restore and cluster operations
+  hardening.
+- [x] Add optional External Secrets Operator chart integration for runtime
+  secret synchronization.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 

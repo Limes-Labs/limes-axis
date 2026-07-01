@@ -20,6 +20,35 @@ secrets:
     AXIS_AUDIT_LEDGER_SIGNING_SECRET: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+  externalSecret:
+    enabled: false
+    refreshPolicy: Periodic
+    refreshInterval: 1h
+    secretStoreRef:
+      name: limes-axis-secrets
+      kind: ClusterSecretStore
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+    data:
+      AXIS_POSTGRES_DSN:
+        remoteKey: limes-axis/production/postgres
+        property: dsn
+      AXIS_TYPEDB_USERNAME:
+        remoteKey: limes-axis/production/typedb
+        property: username
+      AXIS_TYPEDB_PASSWORD:
+        remoteKey: limes-axis/production/typedb
+        property: password
+      AXIS_AUDIT_LEDGER_SIGNING_SECRET:
+        remoteKey: limes-axis/production/audit-ledger
+        property: signing-secret
+      AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY:
+        remoteKey: limes-axis/production/object-store
+        property: access-key
+      AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY:
+        remoteKey: limes-axis/production/object-store
+        property: secret-key
 
 api:
   replicaCount: 2

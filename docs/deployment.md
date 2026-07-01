@@ -18,6 +18,9 @@ The baseline covers:
 - ConfigMap for public-safe runtime configuration.
 - Kubernetes Secret reference for sensitive runtime values.
 - Example Secret template disabled by default.
+- Optional External Secrets Operator `ExternalSecret` template that syncs the
+  same runtime Secret name from an operator-managed `SecretStore` or
+  `ClusterSecretStore`.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -34,7 +37,7 @@ The baseline does not yet cover:
 - High availability validation under load.
 - Horizontal autoscaling and disruption budgets.
 - TLS ingress and certificate automation.
-- Sealed Secrets, External Secrets Operator or cloud KMS binding.
+- Production secret rotation drills, KMS policy review and incident procedures.
 - Production backup, restore and disaster recovery.
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
@@ -55,6 +58,13 @@ chart expects production-grade dependencies to be provided outside the chart:
 The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
 Docker Compose stack remains the local demo path; Kubernetes production
 operators should bring hardened dependencies that match their infrastructure
+policy.
+
+The chart also does not install External Secrets Operator or create a
+`SecretStore`/`ClusterSecretStore`. When `secrets.externalSecret.enabled=true`,
+the chart renders an `ExternalSecret` that targets `secrets.existingSecret`;
+cluster operators remain responsible for installing the operator, binding it to
+their secret manager and reviewing the underlying KMS, access and rotation
 policy.
 
 ## Object Storage
@@ -240,6 +250,13 @@ use. The disabled example Secret uses
 `REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE` placeholders so accidental demo
 secrets are not shipped as chart defaults.
 
+For clusters that already run External Secrets Operator, enable
+`secrets.externalSecret.enabled=true`. The rendered `ExternalSecret` uses
+`external-secrets.io/v1`, references `secretStoreRef`, writes to
+`secrets.existingSecret`, and maps each Axis runtime key through
+`data[].remoteRef`. The placeholder `remoteKey` values in `values.yaml` must be
+replaced with the customer's real secret-manager paths before installation.
+
 ## Install
 
 Create or sync the runtime Secret before installing the chart:
@@ -253,6 +270,19 @@ kubectl -n limes-axis create secret generic limes-axis-runtime \
   --from-literal=AXIS_AUDIT_LEDGER_SIGNING_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE'
+```
+
+If the cluster uses External Secrets Operator instead, preinstall the operator,
+create the appropriate `SecretStore` or `ClusterSecretStore`, then let the
+chart render the synchronization object:
+
+```bash
+helm upgrade --install limes-axis infra/helm/limes-axis \
+  --namespace limes-axis \
+  --create-namespace \
+  --set secrets.externalSecret.enabled=true \
+  --set secrets.externalSecret.secretStoreRef.name=production-secrets \
+  --set secrets.externalSecret.secretStoreRef.kind=ClusterSecretStore
 ```
 
 Install or upgrade the release:
@@ -314,7 +344,8 @@ Before customer production use, the deployment package must add and verify:
 - TLS ingress and secure cookie/session behavior.
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.
-- External Secrets or equivalent integration.
+- production secret-manager rotation drills, access reviews and incident
+  procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.
 - production observability and incident response runbooks.
 - cluster-specific threat review and penetration test scope.
