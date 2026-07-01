@@ -14,6 +14,13 @@ backup rehearsal path that captures a Postgres dump and validates its restore
 catalog without exposing database connection secrets. That path is a rehearsal
 gate, not a complete disaster recovery program.
 
+The deployment guide also includes an isolated production restore rehearsal
+path. It restores a captured Postgres dump into a separately configured target
+Secret containing `AXIS_POSTGRES_RESTORE_DSN`, and that Secret must be marked
+with `limes-axis.io/restore-target=isolated`. This proves the captured dump can
+be restored into an isolated Postgres target, but it still does not establish
+full production disaster recovery coverage.
+
 ## What Is Captured
 
 The local backup command captures:
@@ -113,11 +120,13 @@ Static demo verification checks the runbook and Make targets:
 make demo-check
 ```
 
-Static deployment verification checks the production backup rehearsal target:
+Static deployment verification checks the production backup and restore
+rehearsal targets:
 
 ```bash
 make deployment-check
 make deployment-backup-rehearsal-plan
+make deployment-restore-rehearsal-plan
 ```
 
 Live demo verification should be run after restore:
