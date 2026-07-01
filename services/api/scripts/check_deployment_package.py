@@ -22,6 +22,7 @@ def required_chart_files() -> tuple[str, ...]:
         "infra/helm/limes-axis/templates/configmap.yaml",
         "infra/helm/limes-axis/templates/secret-example.yaml",
         "infra/helm/limes-axis/templates/externalsecret.yaml",
+        "infra/helm/limes-axis/templates/ingress.yaml",
         "infra/helm/limes-axis/templates/api-deployment.yaml",
         "infra/helm/limes-axis/templates/api-service.yaml",
         "infra/helm/limes-axis/templates/web-deployment.yaml",
@@ -66,6 +67,10 @@ def required_chart_terms() -> tuple[str, ...]:
         "creationPolicy",
         "deletionPolicy",
         "remoteRef",
+        "networking.k8s.io/v1",
+        "ingressClassName",
+        "tls:",
+        "pathType",
     )
 
 

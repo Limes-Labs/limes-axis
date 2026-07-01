@@ -19,5 +19,5 @@ Post-install checks:
   curl http://127.0.0.1:8000/ready
 
 This baseline is not a production certification. Complete HA, backup/restore,
-TLS ingress, external secret management, S3/MinIO WORM retention and operations
-runbooks before production customer use.
+TLS certificate automation, external secret rotation, S3/MinIO WORM operations
+and production runbooks before production customer use.
