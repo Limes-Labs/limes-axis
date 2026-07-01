@@ -305,6 +305,8 @@ Foundation acceptance is tracked in
   secret synchronization.
 - [x] Add optional Kubernetes Ingress/TLS chart routing for the API and web
   console.
+- [x] Add optional cert-manager ingress-shim annotation support for Kubernetes
+  TLS certificate requests.
 - [x] Add optional Kubernetes HorizontalPodAutoscaler and PodDisruptionBudget
   chart controls for API and web workloads.
 - [x] Add optional Kubernetes scheduling and topology-spread controls for API
@@ -378,10 +380,11 @@ claim.
 The Kubernetes deployment baseline now lives in `infra/helm/limes-axis`, with
 `docs/deployment.md` and `services/api/scripts/check_deployment_package.py`
 guarding chart files, externalized runtime configuration, rollout controls,
-public-safe docs, the `deployment-check` Make target, Helm smoke tests and a
-rollout rehearsal script for upgrade, readiness and rollback mechanics. It is
-an initial production deployment guide baseline, not a claim that high
-availability, image release automation, TLS ingress, external secret
+public-safe docs, the `deployment-check` Make target, cert-manager
+ingress-shim annotations, Helm smoke tests and a rollout rehearsal script for
+upgrade, readiness and rollback mechanics. It is an initial production
+deployment guide baseline, not a claim that high availability, image release
+automation, DNS ownership, certificate renewal operations, external secret
 management, production backup/restore, KMS-backed signing or customer bucket
 operations are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,

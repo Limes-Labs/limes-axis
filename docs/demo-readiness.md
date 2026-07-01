@@ -275,13 +275,14 @@ Confirm before the session:
   TypeDB query coverage, workflow execution and replay are fully backed by real
   persistence paths.
 - The first Helm chart and Kubernetes deployment guide are present, including
-  optional External Secrets Operator synchronization and optional TLS Ingress
-  routing for runtime services plus optional HorizontalPodAutoscaler and
-  PodDisruptionBudget controls, scheduling/topology pass-through values and
-  configurable rollout controls for RollingUpdate strategy, revision history,
-  termination grace and lifecycle hooks, but production HA validation,
-  certificate automation, cluster backup/restore, rollout-drain exercises,
-  load testing and production secret-rotation drills are not complete.
+  optional External Secrets Operator synchronization, optional TLS Ingress
+  routing and optional cert-manager ingress-shim annotations for runtime
+  services plus optional HorizontalPodAutoscaler and PodDisruptionBudget
+  controls, scheduling/topology pass-through values and configurable rollout
+  controls for RollingUpdate strategy, revision history, termination grace and
+  lifecycle hooks, but production HA validation, DNS/certificate operations,
+  cluster backup/restore, rollout-drain exercises, load testing and production
+  secret-rotation drills are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.

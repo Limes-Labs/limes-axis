@@ -232,6 +232,11 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
+  certManager:
+    enabled: false
+    issuerName: ""
+    issuerKind: ClusterIssuer
+    issuerGroup: cert-manager.io
   hosts:
     - host: axis.example.com
       paths:
