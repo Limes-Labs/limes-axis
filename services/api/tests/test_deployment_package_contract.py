@@ -52,6 +52,13 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_TYPEDB_ADDRESS" in required_terms
     assert "AXIS_TEMPORAL_ADDRESS" in required_terms
     assert "AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_ENDPOINT" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_BUCKET" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_OBJECT_LOCK_ENABLED" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS" in required_terms
     assert "AXIS_OIDC_ISSUER" in required_terms
     assert "existingSecret" in required_terms
     assert "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE" in required_terms
@@ -65,5 +72,5 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "helm upgrade --install" in required_terms
     assert "external Postgres" in required_terms
     assert "OIDC" in required_terms
-    assert "S3/MinIO WORM" in required_terms
+    assert "S3-compatible object storage" in required_terms
     assert "not a production certification" in required_terms

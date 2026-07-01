@@ -26,16 +26,28 @@ The Settings console shows:
 - API readiness and runtime dependency reachability.
 - OIDC issuer, audience, auth requirement and token binding claims.
 - Deployment profile, demo-safety, production blockers and object-store
-  adapter posture.
+  adapter, WORM retention mode and retention-day posture.
 - Support diagnostics, support blockers, redaction policy and support
   artifacts.
+
+## Object Storage Readiness
+
+Governed connector evidence exports can use either the local filesystem adapter
+for local demos or an S3-compatible adapter for production-style evaluation.
+The deployment readiness report marks the object-store gate ready only when the
+S3-compatible adapter has endpoint, bucket, access credentials, secure
+transport, object lock and a positive retention period configured.
+
+The Settings console and support diagnostics deliberately expose only public
+posture fields such as adapter, retention mode and retention days. They never
+return S3 access keys, secret keys or audit signing material.
 
 ## Boundary
 
 This is a readiness and evaluation surface, not a production certification.
 The current reports deliberately keep Enterprise blockers visible, including
 enterprise SSO hardening, production support model, production backup/restore,
-WORM object storage and external security review.
+KMS-backed signing, legal operations and external security review.
 
 ## Verification
 

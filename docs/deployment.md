@@ -36,7 +36,8 @@ The baseline does not yet cover:
 - TLS ingress and certificate automation.
 - Sealed Secrets, External Secrets Operator or cloud KMS binding.
 - Production backup, restore and disaster recovery.
-- S3/MinIO WORM retention, legal hold operations and provider KMS policy.
+- S3-compatible object storage with object lock, legal hold operations and
+  provider KMS policy.
 - Cluster observability, alerting and on-call runbooks.
 
 ## Dependencies
@@ -55,6 +56,41 @@ The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
 Docker Compose stack remains the local demo path; Kubernetes production
 operators should bring hardened dependencies that match their infrastructure
 policy.
+
+## Object Storage
+
+Governed connector evidence materializations use the object-store adapter
+configured on the API service.
+
+For local demos, keep the default filesystem adapter:
+
+- `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER=local_filesystem`
+- `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT=.axis/object-store`
+
+For S3-compatible evaluation or production-style deployments, configure:
+
+- `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER=s3_compatible`
+- `AXIS_CONNECTOR_EXPORT_S3_ENDPOINT`
+- `AXIS_CONNECTOR_EXPORT_S3_REGION`
+- `AXIS_CONNECTOR_EXPORT_S3_BUCKET`
+- `AXIS_CONNECTOR_EXPORT_S3_SECURE_TRANSPORT=true`
+- `AXIS_CONNECTOR_EXPORT_S3_OBJECT_LOCK_ENABLED=true`
+- `AXIS_CONNECTOR_EXPORT_S3_RETENTION_MODE=GOVERNANCE` or `COMPLIANCE`
+- `AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS=<positive integer>`
+- `AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED=true` when legal hold should be
+  applied to written objects.
+
+`AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY` and
+`AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY` must come from `secrets.existingSecret`
+or an external secret manager integration. They are not rendered into the
+ConfigMap and are not returned by readiness or support diagnostics.
+
+The readiness endpoint reports the object-store gate as ready only when the
+S3-compatible adapter has endpoint, bucket, credentials, secure transport,
+object lock and positive retention days configured. This proves the Axis
+adapter is configured to write retained objects; it does not replace customer
+bucket provisioning review, KMS policy, restore drills, legal operations or
+external compliance review.
 
 ## Container Images
 
@@ -195,6 +231,8 @@ Required keys:
 - `AXIS_TYPEDB_USERNAME`
 - `AXIS_TYPEDB_PASSWORD`
 - `AXIS_AUDIT_LEDGER_SIGNING_SECRET`
+- `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY`
+- `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY`
 
 Do not put customer secrets in `values.yaml`. Use an external secret manager,
 sealed secret workflow or platform-specific KMS integration before production
@@ -212,7 +250,9 @@ kubectl -n limes-axis create secret generic limes-axis-runtime \
   --from-literal=AXIS_POSTGRES_DSN='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_TYPEDB_USERNAME='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_TYPEDB_PASSWORD='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
-  --from-literal=AXIS_AUDIT_LEDGER_SIGNING_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE'
+  --from-literal=AXIS_AUDIT_LEDGER_SIGNING_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE'
 ```
 
 Install or upgrade the release:
@@ -259,8 +299,8 @@ curl http://127.0.0.1:8000/deployment/readiness
 
 The readiness endpoint should be shared honestly during enterprise evaluation.
 It may report `production_ready=false` until OIDC, audit signing, connector
-execution, object storage, S3/MinIO WORM retention and support operations are
-hardened.
+execution, object storage, customer bucket operations and support operations
+are hardened.
 
 ## Promotion Gate
 
@@ -275,7 +315,7 @@ Before customer production use, the deployment package must add and verify:
 - high availability, autoscaling and upgrade rollback tests.
 - backup, restore and disaster recovery runbooks.
 - External Secrets or equivalent integration.
-- S3/MinIO WORM retention and KMS-backed audit signing.
+- S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.
 - production observability and incident response runbooks.
 - cluster-specific threat review and penetration test scope.
 

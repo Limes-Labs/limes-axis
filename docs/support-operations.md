@@ -106,6 +106,8 @@ Escalate immediately when:
   complete.
 - Enterprise SSO operations beyond the readiness/profile report are not
   complete.
-- S3/MinIO WORM retention and production KMS policy remain Enterprise work.
+- S3/MinIO WORM adapter readiness is implemented, but production bucket
+  provisioning review, KMS policy, legal operations and restore drills remain
+  Enterprise work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

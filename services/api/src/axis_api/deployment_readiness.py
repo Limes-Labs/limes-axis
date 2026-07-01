@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
+from axis_api.object_storage import build_object_store_readiness
 
 
 class DeploymentReadinessCheck(BaseModel):
@@ -21,6 +22,14 @@ class DeploymentReadinessCapabilities(BaseModel):
     credential_lease_provider_adapters_enabled: bool
     audit_ledger_signing_configured: bool
     object_store_adapter: str = Field(min_length=1)
+    object_store_bucket_configured: bool
+    object_store_endpoint_configured: bool
+    object_store_credentials_configured: bool
+    object_store_secure_transport: bool
+    object_store_worm_retention_enabled: bool
+    object_store_retention_mode: str = Field(min_length=1)
+    object_store_retention_days: int = Field(ge=0)
+    object_store_legal_hold_enabled: bool
 
 
 class DeploymentReadinessReport(BaseModel):
@@ -60,6 +69,19 @@ def _check(
     )
 
 
+def _public_object_store_missing_requirements(requirements: list[str]) -> str:
+    public_terms: list[str] = []
+    credentials_missing = False
+    for requirement in requirements:
+        if requirement in {"access key", "secret key"}:
+            credentials_missing = True
+            continue
+        public_terms.append(requirement)
+    if credentials_missing:
+        public_terms.append("credentials")
+    return ", ".join(public_terms)
+
+
 def build_deployment_readiness_report(
     settings: Settings,
     *,
@@ -76,6 +98,10 @@ def build_deployment_readiness_report(
         )
     )
     audit_signing_configured = bool(settings.audit_ledger_signing_secret)
+    object_store_readiness = build_object_store_readiness(settings)
+    public_object_store_missing_requirements = _public_object_store_missing_requirements(
+        object_store_readiness.missing_requirements
+    )
 
     capabilities = DeploymentReadinessCapabilities(
         external_model_egress_enabled=settings.external_model_egress_enabled,
@@ -85,7 +111,15 @@ def build_deployment_readiness_report(
         credential_lease_execution_enabled=settings.credential_lease_execution_enabled,
         credential_lease_provider_adapters_enabled=settings.credential_lease_provider_adapters_enabled,
         audit_ledger_signing_configured=audit_signing_configured,
-        object_store_adapter="local_filesystem",
+        object_store_adapter=object_store_readiness.adapter,
+        object_store_bucket_configured=object_store_readiness.bucket_configured,
+        object_store_endpoint_configured=object_store_readiness.endpoint_configured,
+        object_store_credentials_configured=object_store_readiness.credentials_configured,
+        object_store_secure_transport=object_store_readiness.secure_transport,
+        object_store_worm_retention_enabled=object_store_readiness.worm_retention_enabled,
+        object_store_retention_mode=object_store_readiness.retention_mode,
+        object_store_retention_days=object_store_readiness.retention_days,
+        object_store_legal_hold_enabled=object_store_readiness.legal_hold_enabled,
     )
 
     checks = [
@@ -124,11 +158,14 @@ def build_deployment_readiness_report(
         ),
         _check(
             "production_object_store_adapter",
-            False,
-            "Production object storage adapter is configured.",
+            object_store_readiness.production_ready,
             (
-                "Only the local filesystem object-store adapter exists; "
-                "S3/MinIO WORM retention remains Enterprise work."
+                "S3-compatible object storage is configured with endpoint, bucket, "
+                "credentials, secure transport and WORM retention."
+            ),
+            (
+                "S3/MinIO WORM retention is not production-ready; missing "
+                f"{public_object_store_missing_requirements}."
             ),
         ),
     ]

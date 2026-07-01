@@ -359,7 +359,11 @@ from axis_api.model_routing_reference import (
     ModelRoutingReferenceRecordNotFound,
     get_persisted_manufacturing_model_routing,
 )
-from axis_api.object_storage import LocalObjectStore, ObjectStore
+from axis_api.object_storage import (
+    ObjectStore,
+    ObjectStoreConfigurationError,
+    build_connector_export_object_store,
+)
 from axis_api.ontology.mutations import (
     DeferredOntologyMutationRuntime,
     OntologyMutationRuntime,
@@ -433,7 +437,17 @@ WorkflowRuntime = Annotated[
 
 
 def connector_export_object_store(request: Request) -> ObjectStore:
-    return LocalObjectStore(request.app.state.settings.connector_export_object_store_root)
+    try:
+        return build_connector_export_object_store(request.app.state.settings)
+    except ObjectStoreConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": AxisErrorCode.CONNECTOR_UNAVAILABLE.value,
+                "message": "Connector evidence object storage is not configured.",
+                "reason": "object_store_misconfigured",
+            },
+        ) from exc
 
 
 ConnectorExportObjectStore = Annotated[

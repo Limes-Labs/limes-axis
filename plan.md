@@ -299,9 +299,10 @@ Foundation acceptance is tracked in
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA, TLS ingress, GitHub environment reviewer settings,
-  operational vulnerability review cadence, external-secret, backup/restore,
-  S3/MinIO WORM retention and cluster operations hardening.
+- [ ] Add production HA, TLS ingress, external-secret, backup/restore and
+  cluster operations hardening.
+- [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
+  retention gates for governed connector evidence exports.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -366,8 +367,8 @@ The Kubernetes deployment baseline now lives in `infra/helm/limes-axis`, with
 guarding chart files, externalized runtime configuration, public-safe docs and
 the `deployment-check` Make target. It is an initial production deployment
 guide baseline, not a claim that high availability, image release automation,
-TLS ingress, external secret management, production backup/restore or
-S3/MinIO WORM retention are complete.
+TLS ingress, external secret management, production backup/restore, KMS-backed
+signing or customer bucket operations are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
 `make container-build-api` and `make container-build-web`. These images are
@@ -746,8 +747,8 @@ signer when configured. `POST
 /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests`
 records an approval-required export request with workflow id, idempotency key,
 snapshot filter, requested snapshot count, checksum preview and storage status
-`not_written`; it creates approval/audit evidence but does not write object
-storage or WORM retention artifacts yet. `POST
+`not_written`; it creates approval/audit evidence and waits for explicit
+materialization before writing any storage artifact. `POST
 /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision`
 records the approval decision, updates the export request to
 `approval_approved` or `approval_rejected`, signals the workflow runtime through
@@ -756,10 +757,11 @@ request is explicitly materialized. `POST
 /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/materializations`
 requires `connectors:evidence:snapshot:export:materialize`, verifies that the
 request was approved and the snapshot checksum still matches, writes the
-public-safe export bundle to the configured local object-store adapter, records
-checksum/size/storage URI metadata and appends audit evidence. This is the
-self-hostable materializer boundary before enterprise S3/MinIO/WORM retention
-profiles are added. If the backend is unavailable the console shows an
+public-safe export bundle to the configured object-store adapter, records
+checksum/size/storage URI metadata and appends audit evidence. Local demos use
+the filesystem adapter; S3-compatible profiles can write retained objects when
+the WORM readiness gate is configured. If the backend is unavailable the
+console shows an
 API-required empty state instead of rendering local connector fallback records.
 Preview-derived ontology proposals can now be persisted through
 `/demo/manufacturing/connectors/ontology-proposals`; each proposal is
@@ -899,7 +901,8 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
   readiness/profile and session read-model reports.
 - [x] Add deployment readiness profile reporting for identity, egress,
-  connector execution, audit signing and object-store posture.
+  connector execution, audit signing, S3/MinIO object-store posture and WORM
+  retention gates.
 - [x] Add initial security review and threat model documentation.
 - [ ] Add external security review, penetration testing and production threat
   model validation.

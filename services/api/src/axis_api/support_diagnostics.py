@@ -39,6 +39,9 @@ class SupportDiagnosticsPayload(BaseModel):
     live_connector_execution_enabled: bool
     audit_ledger_signing_configured: bool
     object_store_adapter: str = Field(min_length=1)
+    object_store_worm_retention_enabled: bool
+    object_store_retention_mode: str = Field(min_length=1)
+    object_store_retention_days: int = Field(ge=0)
 
 
 class SupportDiagnosticsReport(BaseModel):
@@ -165,6 +168,15 @@ def build_support_diagnostics_report(
             live_connector_execution_enabled=live_connector_execution_enabled,
             audit_ledger_signing_configured=bool(settings.audit_ledger_signing_secret),
             object_store_adapter=deployment_readiness_report.capabilities.object_store_adapter,
+            object_store_worm_retention_enabled=(
+                deployment_readiness_report.capabilities.object_store_worm_retention_enabled
+            ),
+            object_store_retention_mode=(
+                deployment_readiness_report.capabilities.object_store_retention_mode
+            ),
+            object_store_retention_days=(
+                deployment_readiness_report.capabilities.object_store_retention_days
+            ),
         ),
         checks=checks,
         support_artifacts=[

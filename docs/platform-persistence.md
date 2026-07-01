@@ -612,10 +612,10 @@ Still Platform work:
 - production connector mutations from action runtime paths;
 - broader relationship-aware permission enforcement beyond the current demo
   ontology-scope checks;
-- WORM object-store retention hardening and provider-specific KMS adapters
-  beyond insert-only repository shape, export hash-chain proof and self-hosted
-  ledger signing;
-- richer enterprise legal hold administration UI and WORM retention policy
-  integration;
+- production customer bucket-policy review, restore drills and
+  provider-specific KMS adapters beyond the S3-compatible object-store
+  retention adapter, export hash-chain proof and self-hosted ledger signing;
+- richer enterprise legal hold administration UI and retention policy
+  operations;
 - deterministic Temporal replay and retention deletion jobs for simulation
   outputs.

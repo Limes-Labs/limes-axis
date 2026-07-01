@@ -9584,6 +9584,40 @@
             "minLength": 1,
             "title": "Object Store Adapter",
             "type": "string"
+          },
+          "object_store_bucket_configured": {
+            "title": "Object Store Bucket Configured",
+            "type": "boolean"
+          },
+          "object_store_credentials_configured": {
+            "title": "Object Store Credentials Configured",
+            "type": "boolean"
+          },
+          "object_store_endpoint_configured": {
+            "title": "Object Store Endpoint Configured",
+            "type": "boolean"
+          },
+          "object_store_legal_hold_enabled": {
+            "title": "Object Store Legal Hold Enabled",
+            "type": "boolean"
+          },
+          "object_store_retention_days": {
+            "minimum": 0.0,
+            "title": "Object Store Retention Days",
+            "type": "integer"
+          },
+          "object_store_retention_mode": {
+            "minLength": 1,
+            "title": "Object Store Retention Mode",
+            "type": "string"
+          },
+          "object_store_secure_transport": {
+            "title": "Object Store Secure Transport",
+            "type": "boolean"
+          },
+          "object_store_worm_retention_enabled": {
+            "title": "Object Store Worm Retention Enabled",
+            "type": "boolean"
           }
         },
         "required": [
@@ -9594,7 +9628,15 @@
           "credential_lease_execution_enabled",
           "credential_lease_provider_adapters_enabled",
           "audit_ledger_signing_configured",
-          "object_store_adapter"
+          "object_store_adapter",
+          "object_store_bucket_configured",
+          "object_store_endpoint_configured",
+          "object_store_credentials_configured",
+          "object_store_secure_transport",
+          "object_store_worm_retention_enabled",
+          "object_store_retention_mode",
+          "object_store_retention_days",
+          "object_store_legal_hold_enabled"
         ],
         "title": "DeploymentReadinessCapabilities",
         "type": "object"
@@ -14263,6 +14305,20 @@
             "minLength": 1,
             "title": "Object Store Adapter",
             "type": "string"
+          },
+          "object_store_retention_days": {
+            "minimum": 0.0,
+            "title": "Object Store Retention Days",
+            "type": "integer"
+          },
+          "object_store_retention_mode": {
+            "minLength": 1,
+            "title": "Object Store Retention Mode",
+            "type": "string"
+          },
+          "object_store_worm_retention_enabled": {
+            "title": "Object Store Worm Retention Enabled",
+            "type": "boolean"
           }
         },
         "required": [
@@ -14271,7 +14327,10 @@
           "external_model_egress_enabled",
           "live_connector_execution_enabled",
           "audit_ledger_signing_configured",
-          "object_store_adapter"
+          "object_store_adapter",
+          "object_store_worm_retention_enabled",
+          "object_store_retention_mode",
+          "object_store_retention_days"
         ],
         "title": "SupportDiagnosticsPayload",
         "type": "object"

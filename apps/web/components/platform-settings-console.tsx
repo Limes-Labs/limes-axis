@@ -238,6 +238,24 @@ export function PlatformSettingsConsole() {
               <small>Object store</small>
               <strong>{String(deploymentReport.capabilities.object_store_adapter)}</strong>
             </span>
+            <span>
+              <small>WORM retention</small>
+              <strong>
+                {boolLabel(Boolean(deploymentReport.capabilities.object_store_worm_retention_enabled))}
+              </strong>
+            </span>
+            <span>
+              <small>Retention mode</small>
+              <strong>
+                {String(deploymentReport.capabilities.object_store_retention_mode)}
+              </strong>
+            </span>
+            <span>
+              <small>Retention days</small>
+              <strong>
+                {String(deploymentReport.capabilities.object_store_retention_days)}
+              </strong>
+            </span>
           </div>
           <CheckList checks={requiredDeploymentChecks} />
         </section>
@@ -307,6 +325,14 @@ export function PlatformSettingsConsole() {
               <small>Session actor</small>
               <strong>
                 {identityReport.authenticated ? identityReport.actor_id : "public evaluation"}
+              </strong>
+            </span>
+            <span>
+              <small>Object retention</small>
+              <strong>
+                {supportReport.diagnostics.object_store_worm_retention_enabled
+                  ? `${supportReport.diagnostics.object_store_retention_mode} / ${supportReport.diagnostics.object_store_retention_days}d`
+                  : "Action required"}
               </strong>
             </span>
           </div>

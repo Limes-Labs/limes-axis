@@ -118,7 +118,7 @@ flowchart LR
 | Append-only audit events and evidence exports | Support governance review and incident analysis | Integrity, availability |
 | Workflow run state and Temporal signals | Coordinate approvals and agent/action boundaries | Integrity, availability |
 | TypeDB ontology graph and relationship scopes | Control relationship-aware reads and actions | Confidentiality, integrity |
-| MinIO/object-store artifacts | Store evidence bundles before future WORM retention | Integrity, availability |
+| MinIO/object-store artifacts | Store retained evidence bundles through local or S3-compatible adapters | Integrity, availability |
 | OpenAPI contract | Defines public API surface and regression gate | Integrity |
 | Model routing policy and external model egress setting | Prevent unapproved external data disclosure | Confidentiality |
 
@@ -138,7 +138,9 @@ flowchart LR
 - API to Temporal: workflow signal paths use the Axis workflow runtime port and
   can degrade explicitly when the runtime is unavailable.
 - API to MinIO/object store: governed evidence materialization writes
-  public-safe export artifacts before enterprise S3/WORM retention exists.
+  public-safe export artifacts through the configured local or S3-compatible
+  adapter. The S3-compatible profile requires object lock and retention days
+  before the deployment readiness gate clears.
 - API to connector runtime: connector manifests, configurations, credential
   handles, connector credential leases, egress policies, checkpoint claims and
   live-query preflight evidence gate any external movement.
@@ -200,16 +202,17 @@ flowchart LR
 5. TM-005 external model egress leak: attacker routes operational context to an
    external provider without explicit tenant policy.
 6. TM-006 production-readiness confusion: operator presents local demo controls
-   as production DR, WORM retention, enterprise SSO or support readiness.
+   as production DR, customer bucket/KMS approval, enterprise SSO or support
+   readiness.
 
 | Threat ID | Threat Source | Prerequisites | Threat Action | Impact | Impacted Assets | Existing Controls | Gaps | Recommended Mitigations | Detection Ideas | Likelihood | Impact Severity | Priority |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | TM-001 | Authenticated tenant user | Token or request path reaches protected API | Tenant or actor impersonation | Cross-tenant data exposure or unauthorized mutation | Operational records, approvals, audit | OIDC actor binding and tenant mismatch rejection in `main.py`; tests in `test_approval_decisions.py`, `test_action_runs.py` | OIDC auth optional in local demo | Require OIDC in non-dev profiles, add tenant-scoped query checks everywhere, add integration tests for every mutation | Alert on 403 tenant mismatch and actor mismatch spikes | Medium | High | High |
 | TM-002 | Malicious operator | Connector input accepted by API | Submit raw secret/DSN/query material | Credential disclosure in storage, logs or exports | Credential handles, connector records, audit | Secret rejection tests in connector modules; credential lease evidence boundary | Future provider adapters may add new secret shapes | Centralize redaction schema, add fuzz cases for DSN/token patterns, keep exports public-safe | Audit unsafe-input rejection counts | Medium | High | High |
 | TM-003 | Compromised agent or operator | Runtime flags or connector execution enabled | Trigger live query or sync without all gates | External system access or data exfiltration | Source systems, connector leases, audit | Active manifest, lease, egress policy, checkpoint claim and public-safe evidence gates | Full live execution path remains future work | Keep default deferred, require policy bundles and worker claims for every provider adapter | Alert on preflight failures and runtime flag changes | Low | High | Medium |
-| TM-004 | Privileged insider or compromised API path | Access to audit/retention APIs or storage | Delete or rewrite audit evidence | Governance evidence loss | Append-only audit, MinIO artifacts | Audit legal holds, retention checks, checksum/signature proof, append-only rows | WORM/object-store retention not production complete | Add WORM/S3 retention, KMS signing, restore drills and legal hold admin UI | Monitor retention deletion requests and checksum mismatches | Medium | High | High |
+| TM-004 | Privileged insider or compromised API path | Access to audit/retention APIs or storage | Delete or rewrite audit evidence | Governance evidence loss | Append-only audit, MinIO artifacts | Audit legal holds, retention checks, checksum/signature proof, append-only rows, S3-compatible retention adapter | Provider-specific KMS signing, restore drills and legal operations not production complete | Add KMS signing, restore drills, customer bucket-policy review and legal hold admin UI | Monitor retention deletion requests and checksum mismatches | Medium | High | High |
 | TM-005 | Agent or route operator | External egress enabled incorrectly | Send operations context to external model | Data leakage and compliance breach | Operational records, model routing telemetry | External model egress disabled by default, route metadata public-safe | Provider adapters and usage metering not complete | Enforce tenant policy approval, classify prompts, log route decisions to audit | Alert on external egress enablement and route decisions | Low | High | Medium |
-| TM-006 | Operator or sales workflow | Demo limitations not shared | Overclaim readiness | Customer trust and compliance risk | Security posture, contracts, operations | `docs/demo-readiness.md`, `docs/backup-restore.md`, `docs/support-operations.md`, `/identity/oidc/readiness`, `/deployment/readiness`, `/support/diagnostics` | Production runbooks still open | Add production DR, support, SSO and WORM runbooks; require pre-demo checklist | Track demo readiness, deployment readiness, support diagnostics and security-check output per walkthrough | Medium | Medium | Medium |
+| TM-006 | Operator or sales workflow | Demo limitations not shared | Overclaim readiness | Customer trust and compliance risk | Security posture, contracts, operations | `docs/demo-readiness.md`, `docs/backup-restore.md`, `docs/support-operations.md`, `/identity/oidc/readiness`, `/deployment/readiness`, `/support/diagnostics` | Production runbooks still open | Add production DR, support, SSO, KMS and customer bucket operations runbooks; require pre-demo checklist | Track demo readiness, deployment readiness, support diagnostics and security-check output per walkthrough | Medium | Medium | Medium |
 
 ## Existing Controls
 
@@ -234,7 +237,8 @@ flowchart LR
 - Production backup, restore, retention and disaster recovery are not complete.
 - Helm/Kubernetes deployment guides and local image build baselines exist, but
   HA runbooks, image provenance/signing and release automation are not complete.
-- WORM/S3 retention and provider KMS signing are not production complete.
+- S3-compatible retention adapter readiness exists, but provider KMS signing,
+  customer bucket-policy review and restore drills are not production complete.
 - Enterprise SSO still needs authorization-code login, refresh handling,
   secure-cookie sessions, IdP onboarding and operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
