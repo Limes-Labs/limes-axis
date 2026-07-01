@@ -52,6 +52,15 @@ secrets:
 
 api:
   replicaCount: 2
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
   image:
     repository: ghcr.io/limes-labs/limes-axis-api
     tag: "0.1.0"
@@ -123,6 +132,15 @@ api:
 
 web:
   replicaCount: 2
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
   image:
     repository: ghcr.io/limes-labs/limes-axis-web
     tag: "0.1.0"

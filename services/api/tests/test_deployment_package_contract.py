@@ -37,6 +37,8 @@ def test_deployment_package_declares_critical_chart_files() -> None:
     assert "infra/helm/limes-axis/templates/api-service.yaml" in required_files
     assert "infra/helm/limes-axis/templates/web-deployment.yaml" in required_files
     assert "infra/helm/limes-axis/templates/web-service.yaml" in required_files
+    assert "infra/helm/limes-axis/templates/hpa.yaml" in required_files
+    assert "infra/helm/limes-axis/templates/poddisruptionbudget.yaml" in required_files
     assert "infra/helm/limes-axis/templates/ingress.yaml" in required_files
     assert "infra/helm/limes-axis/templates/configmap.yaml" in required_files
     assert "infra/helm/limes-axis/templates/secret-example.yaml" in required_files
@@ -76,6 +78,43 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "ingressClassName" in required_terms
     assert "tls:" in required_terms
     assert "pathType" in required_terms
+    assert "autoscaling/v2" in required_terms
+    assert "HorizontalPodAutoscaler" in required_terms
+    assert "scaleTargetRef" in required_terms
+    assert "averageUtilization" in required_terms
+    assert "policy/v1" in required_terms
+    assert "PodDisruptionBudget" in required_terms
+    assert "minAvailable" in required_terms
+
+
+def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    hpa_template = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "hpa.yaml"
+    ).read_text(encoding="utf-8")
+    pdb_template = (
+        REPO_ROOT
+        / "infra"
+        / "helm"
+        / "limes-axis"
+        / "templates"
+        / "poddisruptionbudget.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "autoscaling:" in values
+    assert "pdb:" in values
+    assert "{{- if .Values.api.autoscaling.enabled -}}" in hpa_template
+    assert "{{- if .Values.web.autoscaling.enabled -}}" in hpa_template
+    assert "kind: HorizontalPodAutoscaler" in hpa_template
+    assert "name: {{ include \"limes-axis.fullname\" . }}-api" in hpa_template
+    assert "name: {{ include \"limes-axis.fullname\" . }}-web" in hpa_template
+    assert "{{- if .Values.api.pdb.enabled -}}" in pdb_template
+    assert "{{- if .Values.web.pdb.enabled -}}" in pdb_template
+    assert "kind: PodDisruptionBudget" in pdb_template
+    assert "app.kubernetes.io/component: api" in pdb_template
+    assert "app.kubernetes.io/component: web" in pdb_template
 
 
 def test_deployment_package_ingress_is_optional_and_routes_api_and_web() -> None:
@@ -122,4 +161,6 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "OIDC" in required_terms
     assert "S3-compatible object storage" in required_terms
     assert "External Secrets Operator" in required_terms
+    assert "HorizontalPodAutoscaler" in required_terms
+    assert "PodDisruptionBudget" in required_terms
     assert "not a production certification" in required_terms

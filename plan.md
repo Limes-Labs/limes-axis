@@ -299,12 +299,14 @@ Foundation acceptance is tracked in
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA, TLS certificate automation, backup/restore and
-  cluster operations hardening.
+- [ ] Add production HA validation, TLS certificate automation, backup/restore
+  and cluster operations hardening.
 - [x] Add optional External Secrets Operator chart integration for runtime
   secret synchronization.
 - [x] Add optional Kubernetes Ingress/TLS chart routing for the API and web
   console.
+- [x] Add optional Kubernetes HorizontalPodAutoscaler and PodDisruptionBudget
+  chart controls for API and web workloads.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 

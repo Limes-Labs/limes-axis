@@ -23,6 +23,8 @@ def required_chart_files() -> tuple[str, ...]:
         "infra/helm/limes-axis/templates/secret-example.yaml",
         "infra/helm/limes-axis/templates/externalsecret.yaml",
         "infra/helm/limes-axis/templates/ingress.yaml",
+        "infra/helm/limes-axis/templates/hpa.yaml",
+        "infra/helm/limes-axis/templates/poddisruptionbudget.yaml",
         "infra/helm/limes-axis/templates/api-deployment.yaml",
         "infra/helm/limes-axis/templates/api-service.yaml",
         "infra/helm/limes-axis/templates/web-deployment.yaml",
@@ -71,6 +73,13 @@ def required_chart_terms() -> tuple[str, ...]:
         "ingressClassName",
         "tls:",
         "pathType",
+        "autoscaling/v2",
+        "HorizontalPodAutoscaler",
+        "scaleTargetRef",
+        "averageUtilization",
+        "policy/v1",
+        "PodDisruptionBudget",
+        "minAvailable",
     )
 
 
@@ -81,6 +90,8 @@ def required_docs_terms() -> tuple[str, ...]:
         "OIDC",
         "S3-compatible object storage",
         "External Secrets Operator",
+        "HorizontalPodAutoscaler",
+        "PodDisruptionBudget",
         "not a production certification",
     )
 
