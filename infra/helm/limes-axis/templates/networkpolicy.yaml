@@ -31,4 +31,15 @@ spec:
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- if .Values.tests.smoke.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "limes-axis.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.service.port }}
+        - protocol: TCP
+          port: {{ .Values.web.service.port }}
+    {{- end }}
 {{- end }}

@@ -196,6 +196,38 @@ web:
     seccompProfile:
       type: RuntimeDefault
 
+tests:
+  smoke:
+    enabled: true
+    image:
+      repository: busybox
+      tag: "1.36.1"
+      pullPolicy: IfNotPresent
+    activeDeadlineSeconds: 120
+    retryAttempts: 12
+    requestTimeoutSeconds: 5
+    podAnnotations: {}
+    podLabels: {}
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 65534
+    podSecurityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+
 ingress:
   enabled: false
   className: ""

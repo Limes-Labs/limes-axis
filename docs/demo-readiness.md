@@ -320,6 +320,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Deployment rollout rehearsal plan for Helm upgrade, Kubernetes rollout
   status, API `/ready` and rollback mechanics through
   `make deployment-rollout-rehearsal-plan`.
+- Helm smoke-test hook for in-cluster API `/ready` and web service checks
+  through `helm test`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support blockers,

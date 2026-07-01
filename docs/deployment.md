@@ -32,6 +32,8 @@ The baseline covers:
 - A rollout rehearsal script and runbook for `helm upgrade --install`,
   `kubectl rollout status`, optional API `/ready` polling and `helm rollback`
   against an operator-selected Kubernetes context.
+- A Helm smoke test hook that runs with `helm test` and checks the API `/ready`
+  endpoint plus the web console service from inside the cluster.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -138,6 +140,33 @@ when the rehearsal includes rollback validation.
 This is an operational rehearsal baseline. It is not a production
 certification and does not replace cluster-specific load, failover,
 backup/restore, SSO, secret-rotation or incident-response drills.
+
+## Helm Smoke Tests
+
+The chart includes an optional `helm test` smoke pod. It uses the pinned
+`busybox` image configured under `tests.smoke.image`, runs with a restricted
+container security context and checks both in-cluster services:
+
+- `http://<release>-api:<api.service.port>/ready`
+- `http://<release>-web:<web.service.port>/`
+
+The hook is enabled by default with `tests.smoke.enabled=true` and is not run
+during `helm upgrade --install`. Run it explicitly after an install or during a
+rollout rehearsal:
+
+```bash
+helm test limes-axis --namespace limes-axis --timeout 10m
+```
+
+The chart NetworkPolicy includes a narrow same-release egress rule for the
+smoke test path so the hook can reach the API and web pods without opening a
+generic egress path. Operators can disable the hook with
+`--set tests.smoke.enabled=false` if their cluster provides a separate
+post-install validation path.
+
+This test verifies service reachability and basic application readiness from
+inside the cluster. It is not a load test, dependency failover test, SSO test,
+connector execution test or production certification.
 
 ## Scheduling Controls
 
@@ -419,6 +448,7 @@ Run the static repository deployment check:
 ```bash
 make deployment-check
 make deployment-rollout-rehearsal-plan
+helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check
 make container-security-check
