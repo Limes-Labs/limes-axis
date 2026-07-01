@@ -317,6 +317,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   object-store posture.
 - Deployment package contract for `infra/helm/limes-axis`, public deployment
   docs and externalized Kubernetes Secret usage through `make deployment-check`.
+- Deployment rollout rehearsal plan for Helm upgrade, Kubernetes rollout
+  status, API `/ready` and rollback mechanics through
+  `make deployment-rollout-rehearsal-plan`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support blockers,

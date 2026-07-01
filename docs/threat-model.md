@@ -257,7 +257,7 @@ flowchart LR
 | `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |
 | `apps/web/e2e/smoke.spec.ts` | Guards API-required UI behavior and prevents fallback data | TM-006 |
 | `infra/docker/docker-compose.yml` | Local runtime topology and exposed service ports | TM-006 |
-| `infra/helm/limes-axis` | Kubernetes deployment baseline, TLS Ingress routing, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
+| `infra/helm/limes-axis` | Kubernetes deployment baseline, TLS Ingress routing, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, rollout rehearsal runbook, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | Local API/web image build baselines and runtime boundaries | TM-006 |
 | `docs/demo-readiness.md` | Demo limitations and enterprise evaluation framing | TM-006 |
 | `docs/backup-restore.md` | Local demo backup boundary and non-production DR warning | TM-006 |
