@@ -18,6 +18,6 @@ Post-install checks:
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "limes-axis.fullname" . }}-api 8000:{{ .Values.api.service.port }}
   curl http://127.0.0.1:8000/ready
 
-This baseline is not a production certification. Complete HA, backup/restore,
-TLS certificate automation, external secret rotation, S3/MinIO WORM operations
-and production runbooks before production customer use.
+This baseline is not a production certification. Complete load-tested HA,
+backup/restore, TLS certificate automation, external secret rotation,
+S3/MinIO WORM operations and production runbooks before production customer use.

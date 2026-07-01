@@ -23,6 +23,8 @@ The baseline covers:
   `ClusterSecretStore`.
 - Optional Kubernetes `Ingress` template for routing web and API hosts, with
   TLS secret references supplied by the operator.
+- Optional `HorizontalPodAutoscaler` and `PodDisruptionBudget` templates for
+  API and web console workloads.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -37,7 +39,7 @@ The baseline covers:
 The baseline does not yet cover:
 
 - High availability validation under load.
-- Horizontal autoscaling and disruption budgets.
+- Load testing, capacity planning and rollout-drain validation.
 - TLS certificate automation and secure cookie/session review.
 - Production secret rotation drills, KMS policy review and incident procedures.
 - Production backup, restore and disaster recovery.
@@ -75,6 +77,23 @@ The chart does not install an Ingress controller, cert-manager, DNS records or
 certificate issuers. Operators must provision those resources according to
 their cluster policy and verify secure cookie/session behavior against the
 final public hostnames before production use.
+
+## Availability Controls
+
+The chart can render Kubernetes `autoscaling/v2` `HorizontalPodAutoscaler`
+objects and `policy/v1` `PodDisruptionBudget` objects for both the API and web
+console. They are disabled by default and can be enabled independently with
+`api.autoscaling.enabled`, `web.autoscaling.enabled`, `api.pdb.enabled` and
+`web.pdb.enabled`.
+
+When an autoscaler is enabled for a workload, the corresponding Deployment does
+not render a fixed `replicas` value; the HPA owns replica count inside the
+configured `minReplicas` and `maxReplicas` bounds. PDBs use `minAvailable` and
+select the same component labels as the API and web Deployments.
+
+These controls are a chart-level availability baseline. They do not replace
+load testing, capacity planning, cluster resource quotas, node failure tests,
+upgrade rollback drills or production SLO review.
 
 The chart also does not install External Secrets Operator or create a
 `SecretStore`/`ClusterSecretStore`. When `secrets.externalSecret.enabled=true`,
