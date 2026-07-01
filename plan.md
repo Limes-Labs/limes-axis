@@ -316,6 +316,8 @@ Foundation acceptance is tracked in
 - [x] Add Kubernetes rollout rehearsal runbook and script for Helm upgrade,
   deployment rollout status, API readiness and rollback mechanics.
 - [x] Add Helm smoke tests for in-cluster API readiness and web service checks.
+- [x] Add a Kubernetes production Postgres backup rehearsal with restore-catalog
+  validation and public-safe evidence capture.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 
@@ -382,11 +384,11 @@ The Kubernetes deployment baseline now lives in `infra/helm/limes-axis`, with
 guarding chart files, externalized runtime configuration, rollout controls,
 public-safe docs, the `deployment-check` Make target, cert-manager
 ingress-shim annotations, Helm smoke tests and a rollout rehearsal script for
-upgrade, readiness and rollback mechanics. It is an initial production
-deployment guide baseline, not a claim that high availability, image release
-automation, DNS ownership, certificate renewal operations, external secret
-management, production backup/restore, KMS-backed signing or customer bucket
-operations are complete.
+upgrade, readiness, backup capture and rollback mechanics. It is an initial
+production deployment guide baseline, not a claim that high availability,
+image release automation, DNS ownership, certificate renewal operations,
+external secret management, isolated restore drills, KMS-backed signing or
+customer bucket operations are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
 `make container-build-api` and `make container-build-web`. These images are

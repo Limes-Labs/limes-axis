@@ -55,8 +55,14 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
         "services/api/scripts/rehearse_deployment_rollout.py"
         in checker.required_deployment_scripts()
     )
+    assert (
+        "services/api/scripts/rehearse_production_backup.py"
+        in checker.required_deployment_scripts()
+    )
     assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal" in checker.required_make_targets()
+    assert "deployment-backup-rehearsal-plan" in checker.required_make_targets()
+    assert "deployment-backup-rehearsal" in checker.required_make_targets()
 
 
 def test_deployment_package_externalizes_state_and_secrets() -> None:
@@ -342,5 +348,8 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "kubectl rollout status" in required_terms
     assert "helm rollback" in required_terms
     assert "helm test" in required_terms
+    assert "production backup rehearsal" in required_terms
+    assert "pg_dump" in required_terms
+    assert "pg_restore --list" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms

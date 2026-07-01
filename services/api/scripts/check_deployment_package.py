@@ -36,7 +36,10 @@ def required_chart_files() -> tuple[str, ...]:
 
 
 def required_deployment_scripts() -> tuple[str, ...]:
-    return ("services/api/scripts/rehearse_deployment_rollout.py",)
+    return (
+        "services/api/scripts/rehearse_deployment_rollout.py",
+        "services/api/scripts/rehearse_production_backup.py",
+    )
 
 
 def required_make_targets() -> tuple[str, ...]:
@@ -44,6 +47,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-check",
         "deployment-rollout-rehearsal-plan",
         "deployment-rollout-rehearsal",
+        "deployment-backup-rehearsal-plan",
+        "deployment-backup-rehearsal",
     )
 
 
@@ -134,6 +139,9 @@ def required_docs_terms() -> tuple[str, ...]:
         "kubectl rollout status",
         "helm rollback",
         "helm test",
+        "production backup rehearsal",
+        "pg_dump",
+        "pg_restore --list",
         "/ready",
         "not a production certification",
     )
