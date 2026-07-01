@@ -34,6 +34,18 @@ def required_chart_files() -> tuple[str, ...]:
     )
 
 
+def required_deployment_scripts() -> tuple[str, ...]:
+    return ("services/api/scripts/rehearse_deployment_rollout.py",)
+
+
+def required_make_targets() -> tuple[str, ...]:
+    return (
+        "deployment-check",
+        "deployment-rollout-rehearsal-plan",
+        "deployment-rollout-rehearsal",
+    )
+
+
 def required_chart_terms() -> tuple[str, ...]:
     return (
         "AXIS_ENV",
@@ -106,6 +118,10 @@ def required_docs_terms() -> tuple[str, ...]:
         "topologySpreadConstraints",
         "RollingUpdate",
         "terminationGracePeriodSeconds",
+        "deployment-rollout-rehearsal",
+        "kubectl rollout status",
+        "helm rollback",
+        "/ready",
         "not a production certification",
     )
 
@@ -141,13 +157,31 @@ def check_make_target(repo_root: Path) -> list[CheckResult]:
         return [CheckResult("deployment.make_target", False, "Makefile is missing.")]
 
     targets = _make_targets(_read_text(makefile))
+    missing = [target for target in required_make_targets() if target not in targets]
     return [
         CheckResult(
             "deployment.make_target",
-            "deployment-check" in targets,
-            "deployment-check target is present"
-            if "deployment-check" in targets
-            else "Makefile is missing deployment-check target",
+            not missing,
+            "deployment Makefile targets are present"
+            if not missing
+            else f"Makefile is missing deployment targets: {', '.join(missing)}",
+        )
+    ]
+
+
+def check_deployment_scripts(repo_root: Path) -> list[CheckResult]:
+    missing = [
+        relative
+        for relative in required_deployment_scripts()
+        if not (repo_root / relative).exists()
+    ]
+    return [
+        CheckResult(
+            "deployment.scripts",
+            not missing,
+            "deployment rehearsal scripts are present"
+            if not missing
+            else f"missing: {', '.join(missing)}",
         )
     ]
 
@@ -229,7 +263,10 @@ def check_deployment_docs(repo_root: Path) -> list[CheckResult]:
     if not docs.exists():
         return [CheckResult("deployment.docs", False, "docs/deployment.md is missing.")]
 
+    rollout_docs = repo_root / "docs" / "deployment-rollout-rehearsal.md"
     text = _read_text(docs)
+    if rollout_docs.exists():
+        text = f"{text}\n{_read_text(rollout_docs)}"
     missing = _missing_terms(text, required_docs_terms())
     return [
         CheckResult(
@@ -261,6 +298,11 @@ def check_public_doc_links(repo_root: Path) -> list[CheckResult]:
             "deployment-check",
         ),
         (
+            "deployment.rollout_rehearsal_link",
+            repo_root / "docs" / "deployment.md",
+            "deployment-rollout-rehearsal.md",
+        ),
+        (
             "deployment.threat_model_link",
             repo_root / "docs" / "threat-model.md",
             "infra/helm/limes-axis",
@@ -288,6 +330,7 @@ def run_static_checks(repo_root: Path) -> list[CheckResult]:
     repo_root = repo_root.resolve()
     checks: list[CheckResult] = []
     checks.extend(check_make_target(repo_root))
+    checks.extend(check_deployment_scripts(repo_root))
     checks.extend(check_chart_files(repo_root))
     checks.extend(check_chart_metadata(repo_root))
     checks.extend(check_chart_terms(repo_root))

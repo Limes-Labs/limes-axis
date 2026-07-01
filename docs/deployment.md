@@ -29,6 +29,9 @@ The baseline covers:
   `RollingUpdate` strategy values, `revisionHistoryLimit`,
   `terminationGracePeriodSeconds` and optional container `lifecycle`
   pass-through hooks.
+- A rollout rehearsal script and runbook for `helm upgrade --install`,
+  `kubectl rollout status`, optional API `/ready` polling and `helm rollback`
+  against an operator-selected Kubernetes context.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -114,6 +117,27 @@ cluster-specific drain endpoint inside the container image. Operators should
 configure lifecycle hooks only after validating the deployed image and ingress
 behavior, then test rollouts, readiness gates, connection draining, rollback
 criteria and interrupted in-flight requests in their target cluster.
+
+## Rollout Rehearsal
+
+The repository includes a real rollout rehearsal tool:
+
+```bash
+make deployment-rollout-rehearsal-plan
+AXIS_KUBE_CONTEXT=production-eu make deployment-rollout-rehearsal
+```
+
+The detailed runbook lives in
+[`docs/deployment-rollout-rehearsal.md`](./deployment-rollout-rehearsal.md).
+The script is intentionally split into plan and execute modes. Plan mode prints
+the exact `helm` and `kubectl` commands. Execute mode runs against the
+operator-provided Kubernetes context, waits for API and web Deployment rollout,
+can poll an externally reachable API `/ready` URL and can run `helm rollback`
+when the rehearsal includes rollback validation.
+
+This is an operational rehearsal baseline. It is not a production
+certification and does not replace cluster-specific load, failover,
+backup/restore, SSO, secret-rotation or incident-response drills.
 
 ## Scheduling Controls
 
@@ -394,6 +418,7 @@ Run the static repository deployment check:
 
 ```bash
 make deployment-check
+make deployment-rollout-rehearsal-plan
 make container-check
 make container-release-check
 make container-security-check

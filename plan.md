@@ -311,6 +311,8 @@ Foundation acceptance is tracked in
   and web workloads.
 - [x] Add configurable Kubernetes rollout strategy, revision history,
   termination grace and lifecycle hook controls for API and web workloads.
+- [x] Add Kubernetes rollout rehearsal runbook and script for Helm upgrade,
+  deployment rollout status, API readiness and rollback mechanics.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 
@@ -375,7 +377,8 @@ claim.
 The Kubernetes deployment baseline now lives in `infra/helm/limes-axis`, with
 `docs/deployment.md` and `services/api/scripts/check_deployment_package.py`
 guarding chart files, externalized runtime configuration, rollout controls,
-public-safe docs and the `deployment-check` Make target. It is an initial
+public-safe docs, the `deployment-check` Make target and a rollout rehearsal
+script for upgrade, readiness and rollback mechanics. It is an initial
 production deployment guide baseline, not a claim that high availability, image
 release automation, TLS ingress, external secret management, production
 backup/restore, KMS-backed signing or customer bucket operations are complete.

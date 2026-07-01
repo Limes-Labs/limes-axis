@@ -47,6 +47,17 @@ def test_deployment_package_declares_critical_chart_files() -> None:
     assert "infra/helm/limes-axis/templates/NOTES.txt" in required_files
 
 
+def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
+    checker = load_check_module()
+
+    assert (
+        "services/api/scripts/rehearse_deployment_rollout.py"
+        in checker.required_deployment_scripts()
+    )
+    assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
+    assert "deployment-rollout-rehearsal" in checker.required_make_targets()
+
+
 def test_deployment_package_externalizes_state_and_secrets() -> None:
     checker = load_check_module()
 
@@ -248,4 +259,8 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "topologySpreadConstraints" in required_terms
     assert "RollingUpdate" in required_terms
     assert "terminationGracePeriodSeconds" in required_terms
+    assert "deployment-rollout-rehearsal" in required_terms
+    assert "kubectl rollout status" in required_terms
+    assert "helm rollback" in required_terms
+    assert "/ready" in required_terms
     assert "not a production certification" in required_terms
