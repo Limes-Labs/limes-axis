@@ -199,6 +199,26 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED",
     )
+    dr_runbook_configured: bool = Field(
+        default=False,
+        alias="AXIS_DR_RUNBOOK_CONFIGURED",
+    )
+    dr_rpo_rto_defined: bool = Field(
+        default=False,
+        alias="AXIS_DR_RPO_RTO_DEFINED",
+    )
+    dr_rehearsal_evidence_configured: bool = Field(
+        default=False,
+        alias="AXIS_DR_REHEARSAL_EVIDENCE_CONFIGURED",
+    )
+    dr_restore_owner_configured: bool = Field(
+        default=False,
+        alias="AXIS_DR_RESTORE_OWNER_CONFIGURED",
+    )
+    dr_customer_approval_configured: bool = Field(
+        default=False,
+        alias="AXIS_DR_CUSTOMER_APPROVAL_CONFIGURED",
+    )
     support_model_enabled: bool = Field(
         default=False,
         alias="AXIS_SUPPORT_MODEL_ENABLED",

@@ -33,6 +33,11 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "api_rate_limit_enabled": True,
         "api_rate_limit_requests": 120,
         "api_rate_limit_window_seconds": 60,
+        "dr_runbook_configured": True,
+        "dr_rpo_rto_defined": True,
+        "dr_rehearsal_evidence_configured": True,
+        "dr_restore_owner_configured": True,
+        "dr_customer_approval_configured": True,
     }
     values.update(overrides)
     return Settings(**values)
@@ -60,6 +65,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
         "api_rate_limiting",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
+        "production_dr_procedures",
         "production_support_model",
         "production_support_commitments",
     ]

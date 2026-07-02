@@ -45,6 +45,11 @@ class DeploymentReadinessCapabilities(BaseModel):
     object_store_retention_mode: str = Field(min_length=1)
     object_store_retention_days: int = Field(ge=0)
     object_store_legal_hold_enabled: bool
+    dr_runbook_configured: bool
+    dr_rpo_rto_defined: bool
+    dr_rehearsal_evidence_configured: bool
+    dr_restore_owner_configured: bool
+    dr_customer_approval_configured: bool
 
 
 class DeploymentReadinessReport(BaseModel):
@@ -130,6 +135,15 @@ def build_deployment_readiness_report(
     public_object_store_missing_requirements = _public_object_store_missing_requirements(
         object_store_readiness.missing_requirements
     )
+    production_dr_procedures_ready = all(
+        (
+            settings.dr_runbook_configured,
+            settings.dr_rpo_rto_defined,
+            settings.dr_rehearsal_evidence_configured,
+            settings.dr_restore_owner_configured,
+            settings.dr_customer_approval_configured,
+        )
+    )
     resolved_redirect_uri = redirect_uri(settings)
     resolved_post_logout_redirect_uri = post_logout_redirect_uri(settings, "/")
     oidc_session_cookie_ttl_seconds = max(0, settings.oidc_session_cookie_ttl_seconds)
@@ -174,6 +188,11 @@ def build_deployment_readiness_report(
         object_store_retention_mode=object_store_readiness.retention_mode,
         object_store_retention_days=object_store_readiness.retention_days,
         object_store_legal_hold_enabled=object_store_readiness.legal_hold_enabled,
+        dr_runbook_configured=settings.dr_runbook_configured,
+        dr_rpo_rto_defined=settings.dr_rpo_rto_defined,
+        dr_rehearsal_evidence_configured=settings.dr_rehearsal_evidence_configured,
+        dr_restore_owner_configured=settings.dr_restore_owner_configured,
+        dr_customer_approval_configured=settings.dr_customer_approval_configured,
     )
 
     checks = [
@@ -236,6 +255,20 @@ def build_deployment_readiness_report(
             (
                 "S3/MinIO WORM retention is not production-ready; missing "
                 f"{public_object_store_missing_requirements}."
+            ),
+        ),
+        _check(
+            "production_dr_procedures",
+            production_dr_procedures_ready,
+            (
+                "Production backup, restore and disaster-recovery procedures are "
+                "configured with RPO/RTO, rehearsal evidence, restore ownership "
+                "and customer approval."
+            ),
+            (
+                "Production disaster recovery procedures are incomplete; require "
+                "approved runbook, RPO/RTO, rehearsal evidence, restore owner and "
+                "customer approval before production."
             ),
         ),
     ]

@@ -126,6 +126,11 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY" in required_terms
     assert "AXIS_CONNECTOR_EXPORT_S3_OBJECT_LOCK_ENABLED" in required_terms
     assert "AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS" in required_terms
+    assert "AXIS_DR_RUNBOOK_CONFIGURED" in required_terms
+    assert "AXIS_DR_RPO_RTO_DEFINED" in required_terms
+    assert "AXIS_DR_REHEARSAL_EVIDENCE_CONFIGURED" in required_terms
+    assert "AXIS_DR_RESTORE_OWNER_CONFIGURED" in required_terms
+    assert "AXIS_DR_CUSTOMER_APPROVAL_CONFIGURED" in required_terms
     assert "AXIS_OIDC_ISSUER" in required_terms
     assert "AXIS_OIDC_CLIENT_ID" in required_terms
     assert "AXIS_OIDC_CLIENT_SECRET" in required_terms

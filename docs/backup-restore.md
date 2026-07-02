@@ -54,6 +54,14 @@ Temporal namespace/history evidence path, but it still does not restore
 Temporal persistence, replay workflow code, validate archival or establish
 RPO/RTO commitments.
 
+The deployment readiness endpoint includes a public-safe
+`production_dr_procedures` gate. It is ready only when the operator has
+configured the presence of an approved DR runbook, RPO/RTO definition, rehearsal
+evidence, restore ownership and customer approval through the `AXIS_DR_*`
+settings in the Helm chart. The endpoint returns only booleans and does not
+print runbook URLs, owner names, approval records, customer contacts or
+customer-specific evidence locations.
+
 ## What Is Captured
 
 The local backup command captures:
