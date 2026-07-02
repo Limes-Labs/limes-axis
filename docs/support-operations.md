@@ -113,5 +113,8 @@ Escalate immediately when:
 - A bounded Temporal namespace/history evidence rehearsal is implemented, but
   Temporal persistence restore, deterministic replay operations, archival
   policy review and RPO/RTO evidence remain Enterprise work.
+- A bounded Secret rotation rehearsal is implemented, but upstream
+  secret-manager rotation, access reviews, workload restart validation,
+  rollback criteria and incident procedures remain Enterprise work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

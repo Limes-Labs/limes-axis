@@ -14,8 +14,8 @@ Axis is ready for an enterprise evaluation demo as an architecture and product
 workflow walkthrough when the same checklist passes and the limitations section
 is shared before the session. It is not yet a production enterprise deployment:
 the first Helm baseline exists, but production disaster recovery, SSO
-hardening, customer bucket operations, high availability and production
-operations runbooks remain tracked Enterprise work.
+hardening, customer bucket operations, secret-manager rotation operations, high
+availability and production operations runbooks remain tracked Enterprise work.
 
 ## No Browser-Local Mock Data
 
@@ -89,6 +89,7 @@ make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
 make deployment-temporal-recovery-rehearsal-plan
+make deployment-secret-rotation-rehearsal-plan
 ```
 
 Run the API/web container image contract:
@@ -190,6 +191,13 @@ make demo-stack-down
       `workflow show --output json`, checksum evidence and namespace/history
       evidence capture without exposing Temporal credentials; live execution
       also requires `AXIS_TEMPORAL_RECOVERY_IMAGE`.
+- [ ] `make deployment-secret-rotation-rehearsal-plan` prints the Kubernetes
+      secret rotation rehearsal steps for an active runtime Secret and a staged
+      Secret marked with `limes-axis.io/secret-rotation-target=staged`,
+      including required key parity checks, `cmp -s`,
+      `secret-rotation.summary.json`, `secret-rotation.sha256` and no raw
+      secret output; live execution also requires
+      `AXIS_SECRET_ROTATION_IMAGE`.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -313,11 +321,12 @@ Confirm before the session:
   controls for RollingUpdate strategy, revision history, termination grace and
   lifecycle hooks, a Postgres production backup rehearsal plan, an isolated
   Postgres restore rehearsal plan, a TypeDB recovery rehearsal plan and an
-  object storage recovery rehearsal plan plus a Temporal recovery evidence
-  rehearsal plan, but production HA validation, DNS/certificate operations,
-  full cluster backup/restore across Temporal persistence, full-bucket object
-  storage restore, rollout-drain exercises, load testing and production
-  secret-rotation drills are not complete.
+  object storage recovery rehearsal plan, a Temporal recovery evidence
+  rehearsal plan and an active/staged Secret rotation rehearsal plan, but
+  production HA validation, DNS/certificate operations, full cluster
+  backup/restore across Temporal persistence, full-bucket object storage
+  restore, rollout-drain exercises, load testing, workload restart validation,
+  secret-manager rotation drills and access reviews are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
@@ -359,6 +368,10 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   `make deployment-rollout-rehearsal-plan`.
 - Helm smoke-test hook for in-cluster API `/ready` and web service checks
   through `helm test`.
+- Secret rotation rehearsal plan for active/staged runtime Secret comparison,
+  required key parity checks, redacted key-status evidence and SHA-256
+  fingerprints without raw secret output through
+  `make deployment-secret-rotation-rehearsal-plan`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support blockers,

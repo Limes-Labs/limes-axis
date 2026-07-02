@@ -328,6 +328,9 @@ Foundation acceptance is tracked in
   Client copy, restore-target isolation and checksum evidence.
 - [x] Add a bounded Kubernetes Temporal recovery rehearsal with Temporal CLI
   namespace/history evidence capture and checksum evidence.
+- [x] Add a Kubernetes Secret rotation rehearsal with active/staged Secret
+  comparison, redacted key-status evidence and SHA-256 fingerprints without raw
+  secret output.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -394,13 +397,14 @@ public-safe docs, the `deployment-check` Make target, cert-manager
 ingress-shim annotations, Helm smoke tests and a rollout rehearsal script for
 upgrade, readiness, backup capture, isolated Postgres restore and rollback
 mechanics plus TypeDB export/import into an isolated target, bounded
-object-storage recovery into an isolated bucket and Temporal namespace/history
-evidence capture from an isolated recovery pod. It is an initial production
+object-storage recovery into an isolated bucket, Temporal namespace/history
+evidence capture from an isolated recovery pod and active/staged Secret
+rotation comparison from an isolated non-root pod. It is an initial production
 deployment guide baseline, not a claim that high availability, image release
-automation, DNS ownership, certificate renewal operations, external secret
-management, full Temporal persistence restore, full-bucket object-store
-disaster recovery, KMS-backed signing or customer bucket operations are
-complete.
+automation, DNS ownership, certificate renewal operations, full external
+secret-manager rotation, access-review operations, workload restart validation,
+full Temporal persistence restore, full-bucket object-store disaster recovery,
+KMS-backed signing or customer bucket operations are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
 `make container-build-api` and `make container-build-web`. These images are

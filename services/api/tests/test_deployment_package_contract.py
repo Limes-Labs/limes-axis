@@ -75,6 +75,10 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
         "services/api/scripts/rehearse_temporal_recovery.py"
         in checker.required_deployment_scripts()
     )
+    assert (
+        "services/api/scripts/rehearse_secret_rotation.py"
+        in checker.required_deployment_scripts()
+    )
     assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal" in checker.required_make_targets()
     assert "deployment-backup-rehearsal-plan" in checker.required_make_targets()
@@ -87,6 +91,8 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
     assert "deployment-object-storage-recovery-rehearsal" in checker.required_make_targets()
     assert "deployment-temporal-recovery-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-temporal-recovery-rehearsal" in checker.required_make_targets()
+    assert "deployment-secret-rotation-rehearsal-plan" in checker.required_make_targets()
+    assert "deployment-secret-rotation-rehearsal" in checker.required_make_targets()
 
 
 def test_deployment_package_externalizes_state_and_secrets() -> None:
@@ -392,5 +398,10 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "AXIS_TEMPORAL_RECOVERY_WORKFLOW_ID" in required_terms
     assert "operator namespace describe" in required_terms
     assert "workflow show --output json" in required_terms
+    assert "secret rotation rehearsal" in required_terms
+    assert "AXIS_SECRET_ROTATION_IMAGE" in required_terms
+    assert "limes-axis.io/secret-rotation-target=staged" in required_terms
+    assert "secret-rotation.summary.json" in required_terms
+    assert "secret-rotation.sha256" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms

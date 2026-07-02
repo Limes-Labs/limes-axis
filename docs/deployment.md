@@ -53,6 +53,9 @@ The baseline covers:
   non-root Pod to capture cluster health, namespace metadata, workflow list
   and a replay-compatible workflow history JSON without printing Temporal
   credential material.
+- A secret rotation rehearsal plan that compares the active runtime Secret
+  with a separately staged Secret, captures redacted fingerprint evidence and
+  checks key parity without printing secret values.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -70,7 +73,8 @@ The baseline does not yet cover:
 - Load testing, capacity planning and rollout-drain validation.
 - TLS certificate issuance operations, DNS ownership checks and secure
   cookie/session review.
-- Production secret rotation drills, KMS policy review and incident procedures.
+- Production secret-manager rotation drills, access reviews, workload restart
+  validation, KMS policy review and incident procedures.
 - Full production backup, restore and disaster recovery operations across
   Postgres, TypeDB, Temporal persistence and object storage.
 - S3-compatible object storage with object lock, legal hold operations and
@@ -638,6 +642,50 @@ For clusters that already run External Secrets Operator, enable
 `data[].remoteRef`. The placeholder `remoteKey` values in `values.yaml` must be
 replaced with the customer's real secret-manager paths before installation.
 
+## Secret Rotation Rehearsal
+
+The repository includes a Kubernetes secret rotation rehearsal helper:
+
+```bash
+make deployment-secret-rotation-rehearsal-plan
+```
+
+The plan creates a temporary non-root Pod that mounts the active runtime Secret
+read-only at `/rotation/active`, mounts a separately staged Secret read-only at
+`/rotation/staged`, compares required Axis secret keys with `cmp -s`, records
+redacted key status in `secret-rotation.keys`, records SHA-256 fingerprints in
+`secret-rotation.sha256` and writes `secret-rotation.summary.json`. The helper
+does not use `envFrom`, so secret values are not placed into process
+environment variables, and the plan does not print raw secret values.
+
+The staged Secret must be separate from the active runtime Secret and must
+carry `limes-axis.io/secret-rotation-target=staged`. Both Secrets must contain
+the required runtime keys listed above. By default, execution fails if no
+required key differs between active and staged Secrets; operators can pass
+`--allow-unchanged` through `AXIS_SECRET_ROTATION_ARGS` only for dry validation
+of key parity.
+
+To execute against a selected cluster context:
+
+```bash
+AXIS_KUBE_CONTEXT=prod-eu \
+AXIS_SECRET_ROTATION_IMAGE=registry.example.com/platform/busybox-coreutils:stable \
+make deployment-secret-rotation-rehearsal
+```
+
+`AXIS_SECRET_ROTATION_IMAGE` must point to an image that includes `sh`, `cmp`
+and `sha256sum`. Operators can pass additional script arguments with
+`AXIS_SECRET_ROTATION_ARGS`, for example `--namespace`, `--active-secret`,
+`--staged-secret`, `--rotation-id`, `--local-evidence-dir`, `--timeout`,
+`--run-as-user`, `--run-as-group`, `--allow-unchanged` or `--keep-pod`.
+
+This is a rotation readiness rehearsal, not an automatic production rotation.
+It does not update the active Secret, does not restart workloads, does not
+validate the upstream secret manager or KMS policy and does not replace access
+review, rollback, incident-response or customer approval procedures. Treat the
+fingerprint evidence as operator-confidential even though it does not contain
+raw secret values.
+
 ## Install
 
 Create or sync the runtime Secret before installing the chart:
@@ -729,6 +777,7 @@ make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
 make deployment-temporal-recovery-rehearsal-plan
+make deployment-secret-rotation-rehearsal-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check
@@ -766,8 +815,8 @@ Before customer production use, the deployment package must add and verify:
 - backup restore drills against isolated Postgres, TypeDB and object-storage
   targets plus Temporal namespace/history evidence, disaster recovery runbooks
   and RPO/RTO evidence.
-- production secret-manager rotation drills, access reviews and incident
-  procedures.
+- production secret-manager rotation drills, access reviews, workload restart
+  validation and incident procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.
 - production observability and incident response runbooks.
 - cluster-specific threat review and penetration test scope.
