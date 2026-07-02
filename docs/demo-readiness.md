@@ -91,6 +91,7 @@ make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
 make deployment-temporal-recovery-rehearsal-plan
 make deployment-secret-rotation-rehearsal-plan
+make deployment-ha-rehearsal-plan
 ```
 
 Run the API/web container image contract:
@@ -205,6 +206,10 @@ make demo-stack-down
       `secret-rotation.summary.json`, `secret-rotation.sha256` and no raw
       secret output; live execution also requires
       `AXIS_SECRET_ROTATION_IMAGE`.
+- [ ] `make deployment-ha-rehearsal-plan` prints the Kubernetes HA restart
+      rehearsal steps for sequential API/web `kubectl rollout restart`,
+      `kubectl rollout status`, `kubectl wait --for=condition=available`,
+      optional HPA/PDB checks, API `/ready` polling and `helm test`.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -386,6 +391,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   required key parity checks, redacted key-status evidence and SHA-256
   fingerprints without raw secret output through
   `make deployment-secret-rotation-rehearsal-plan`.
+- HA restart rehearsal plan for API/web workload restart mechanics,
+  Kubernetes availability waits, optional HPA/PDB checks and Helm smoke tests
+  through `make deployment-ha-rehearsal-plan`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support model readiness,

@@ -303,8 +303,8 @@ Foundation acceptance is tracked in
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
 - [ ] Build the manufacturing operations reference demo.
-- [ ] Add production HA validation, TLS certificate automation, backup/restore
-  and cluster operations hardening.
+- [ ] Add production HA validation under load, TLS certificate automation,
+  backup/restore and cluster operations hardening.
 - [x] Add optional External Secrets Operator chart integration for runtime
   secret synchronization.
 - [x] Add optional Kubernetes Ingress/TLS chart routing for the API and web
@@ -319,6 +319,9 @@ Foundation acceptance is tracked in
   termination grace and lifecycle hook controls for API and web workloads.
 - [x] Add Kubernetes rollout rehearsal runbook and script for Helm upgrade,
   deployment rollout status, API readiness and rollback mechanics.
+- [x] Add Kubernetes HA restart rehearsal runbook and script for sequential
+  API/web workload restarts, availability waits, optional HPA/PDB checks and
+  Helm smoke tests.
 - [x] Add Helm smoke tests for in-cluster API readiness and web service checks.
 - [x] Add a Kubernetes production Postgres backup rehearsal with restore-catalog
   validation and public-safe evidence capture.

@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
+.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-ha-rehearsal-plan deployment-ha-rehearsal deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-web demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
@@ -50,6 +50,13 @@ deployment-rollout-rehearsal-plan:
 deployment-rollout-rehearsal:
 	@test -n "$(AXIS_KUBE_CONTEXT)" || (echo "Set AXIS_KUBE_CONTEXT to the Kubernetes context to rehearse against"; exit 2)
 	cd services/api && uv run python scripts/rehearse_deployment_rollout.py --repo-root ../.. --execute --context "$(AXIS_KUBE_CONTEXT)" $(AXIS_DEPLOYMENT_ROLLOUT_ARGS)
+
+deployment-ha-rehearsal-plan:
+	cd services/api && uv run python scripts/rehearse_ha_restart.py --repo-root ../.. --plan
+
+deployment-ha-rehearsal:
+	@test -n "$(AXIS_KUBE_CONTEXT)" || (echo "Set AXIS_KUBE_CONTEXT to the Kubernetes context to rehearse against"; exit 2)
+	cd services/api && uv run python scripts/rehearse_ha_restart.py --repo-root ../.. --execute --context "$(AXIS_KUBE_CONTEXT)" $(AXIS_DEPLOYMENT_HA_ARGS)
 
 deployment-backup-rehearsal-plan:
 	cd services/api && uv run python scripts/rehearse_production_backup.py --repo-root ../.. --plan

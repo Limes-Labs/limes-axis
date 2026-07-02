@@ -96,7 +96,11 @@ emails or private chat handles.
    and capture the failing route or console surface.
 7. If the issue involves live services, run `make test-integration` with Docker
    services up.
-8. Record the failing check name, route, command and timestamp in the issue or
+8. For Kubernetes evaluation environments, run `make deployment-ha-rehearsal-plan`
+   before restart or availability validation, then execute
+   `make deployment-ha-rehearsal` only against an approved
+   `AXIS_KUBE_CONTEXT`.
+9. Record the failing check name, route, command and timestamp in the issue or
    customer note.
 
 ## Severity Guidance
@@ -153,7 +157,10 @@ Escalate immediately when:
   Temporal persistence restore, deterministic replay operations, archival
   policy review and RPO/RTO evidence remain Enterprise work.
 - A bounded Secret rotation rehearsal is implemented, but upstream
-  secret-manager rotation, access reviews, workload restart validation,
-  rollback criteria and incident procedures remain Enterprise work.
+  secret-manager rotation, access reviews, secret-driven workload restart
+  validation, rollback criteria and incident procedures remain Enterprise work.
+- A bounded HA restart rehearsal is implemented for API/web workloads, but load
+  testing, node failure, zone failure, capacity planning and production SLO
+  proof remain Enterprise work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

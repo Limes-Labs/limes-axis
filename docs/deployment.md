@@ -34,6 +34,10 @@ The baseline covers:
 - A rollout rehearsal script and runbook for `helm upgrade --install`,
   `kubectl rollout status`, optional API `/ready` polling and `helm rollback`
   against an operator-selected Kubernetes context.
+- A HA restart rehearsal script and runbook for sequential API/web
+  `kubectl rollout restart`, `kubectl rollout status`,
+  `kubectl wait --for=condition=available`, optional HPA/PDB checks, optional
+  API `/ready` polling and `helm test`.
 - A Helm smoke test hook that runs with `helm test` and checks the API `/ready`
   endpoint plus the web console service from inside the cluster.
 - A production backup rehearsal plan for in-cluster Postgres `pg_dump` capture
@@ -180,6 +184,29 @@ when the rehearsal includes rollback validation.
 This is an operational rehearsal baseline. It is not a production
 certification and does not replace cluster-specific load, failover,
 backup/restore, SSO, secret-rotation or incident-response drills.
+
+## HA Restart Rehearsal
+
+The repository includes a real HA restart rehearsal tool:
+
+```bash
+make deployment-ha-rehearsal-plan
+AXIS_KUBE_CONTEXT=production-eu make deployment-ha-rehearsal
+```
+
+The detailed runbook lives in
+[`docs/deployment-ha-rehearsal.md`](./deployment-ha-rehearsal.md). The script
+is intentionally split into plan and execute modes. Plan mode prints the exact
+`kubectl` and `helm test` commands. Execute mode runs against the
+operator-provided Kubernetes context, captures workload and pod inventory,
+optionally requires HPA and PDB resources, restarts API and web Deployments one
+at a time, waits for rollout status and Kubernetes availability, can poll an
+externally reachable API `/ready` URL after each restart and can run the Helm
+smoke test hook.
+
+This verifies controlled restart mechanics. It is not a load test, node
+failover test, zone failover test, production SLO proof or disaster recovery
+certification.
 
 ## Helm Smoke Tests
 
