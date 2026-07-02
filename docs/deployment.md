@@ -38,6 +38,9 @@ The baseline covers:
   `kubectl rollout restart`, `kubectl rollout status`,
   `kubectl wait --for=condition=available`, optional HPA/PDB checks, optional
   API `/ready` polling and `helm test`.
+- A bounded load rehearsal script and runbook that creates short-lived Fortio
+  Kubernetes Jobs, waits for completion, captures `kubectl logs` evidence and
+  cleans up Jobs against operator-selected API and web targets.
 - A Helm smoke test hook that runs with `helm test` and checks the API `/ready`
   endpoint plus the web console service from inside the cluster.
 - A production backup rehearsal plan for in-cluster Postgres `pg_dump` capture
@@ -76,8 +79,8 @@ The baseline covers:
 
 The baseline does not yet cover:
 
-- High availability validation under load.
-- Load testing, capacity planning and rollout-drain validation.
+- Sustained customer-profile high availability validation under load.
+- Full load testing, capacity planning and rollout-drain validation.
 - TLS certificate issuance operations, DNS ownership checks and secure
   cookie/session review.
 - Production secret-manager rotation drills, access reviews, workload restart
@@ -207,6 +210,31 @@ smoke test hook.
 This verifies controlled restart mechanics. It is not a load test, node
 failover test, zone failover test, production SLO proof or disaster recovery
 certification.
+
+## Load Rehearsal
+
+The repository includes a bounded load rehearsal tool:
+
+```bash
+make deployment-load-rehearsal-plan
+AXIS_KUBE_CONTEXT=production-eu make deployment-load-rehearsal
+```
+
+The detailed runbook lives in
+[`docs/deployment-load-rehearsal.md`](./deployment-load-rehearsal.md). The
+script is intentionally split into plan and execute modes. Plan mode prints the
+exact `kubectl create job`, `kubectl wait`, `kubectl logs` and cleanup
+commands. Execute mode runs against the operator-provided Kubernetes context
+and creates short-lived `fortio` Jobs for the configured targets.
+
+By default, the script targets the in-cluster API `/ready` endpoint and the web
+home service URL for the Helm release. Operators can provide explicit
+`--target name=url` values to rehearse ingress, service mesh or customer-like
+paths.
+
+This verifies bounded Job-based request execution and service reachability. It
+is not a sustained capacity plan, autoscaler-tuning proof, node failover test,
+zone failover test, denial-of-service test or production SLO certification.
 
 ## Helm Smoke Tests
 
@@ -923,6 +951,8 @@ make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
 make deployment-temporal-recovery-rehearsal-plan
 make deployment-secret-rotation-rehearsal-plan
+make deployment-ha-rehearsal-plan
+make deployment-load-rehearsal-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check

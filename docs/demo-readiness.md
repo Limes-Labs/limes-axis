@@ -92,6 +92,7 @@ make deployment-object-storage-recovery-rehearsal-plan
 make deployment-temporal-recovery-rehearsal-plan
 make deployment-secret-rotation-rehearsal-plan
 make deployment-ha-rehearsal-plan
+make deployment-load-rehearsal-plan
 ```
 
 Run the API/web container image contract:
@@ -210,6 +211,10 @@ make demo-stack-down
       rehearsal steps for sequential API/web `kubectl rollout restart`,
       `kubectl rollout status`, `kubectl wait --for=condition=available`,
       optional HPA/PDB checks, API `/ready` polling and `helm test`.
+- [ ] `make deployment-load-rehearsal-plan` prints the bounded Kubernetes load
+      rehearsal steps for short-lived Fortio Jobs, including
+      `kubectl create job`, `kubectl wait --for=condition=complete`,
+      `kubectl logs`, cleanup and API/web target URLs.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -334,10 +339,11 @@ Confirm before the session:
   lifecycle hooks, a Postgres production backup rehearsal plan, an isolated
   Postgres restore rehearsal plan, a TypeDB recovery rehearsal plan and an
   object storage recovery rehearsal plan, a Temporal recovery evidence
-  rehearsal plan and an active/staged Secret rotation rehearsal plan, but
-  production HA validation, DNS/certificate operations, full cluster
+  rehearsal plan, an active/staged Secret rotation rehearsal plan, a HA restart
+  rehearsal and a bounded load rehearsal, but sustained customer-profile HA
+  validation under load, DNS/certificate operations, full cluster
   backup/restore across Temporal persistence, full-bucket object storage
-  restore, rollout-drain exercises, load testing, workload restart validation,
+  restore, rollout-drain exercises, full load/capacity planning,
   secret-manager rotation drills and access reviews are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
@@ -394,6 +400,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - HA restart rehearsal plan for API/web workload restart mechanics,
   Kubernetes availability waits, optional HPA/PDB checks and Helm smoke tests
   through `make deployment-ha-rehearsal-plan`.
+- Bounded load rehearsal plan for short-lived Fortio Kubernetes Jobs,
+  `kubectl create job`, `kubectl logs` evidence and cleanup through
+  `make deployment-load-rehearsal-plan`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support model readiness,

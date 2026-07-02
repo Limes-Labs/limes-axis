@@ -45,6 +45,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_temporal_recovery.py",
         "services/api/scripts/rehearse_secret_rotation.py",
         "services/api/scripts/rehearse_ha_restart.py",
+        "services/api/scripts/rehearse_load.py",
     )
 
 
@@ -55,6 +56,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-rollout-rehearsal",
         "deployment-ha-rehearsal-plan",
         "deployment-ha-rehearsal",
+        "deployment-load-rehearsal-plan",
+        "deployment-load-rehearsal",
         "deployment-backup-rehearsal-plan",
         "deployment-backup-rehearsal",
         "deployment-restore-rehearsal-plan",
@@ -221,6 +224,11 @@ def required_docs_terms() -> tuple[str, ...]:
         "deployment-ha-rehearsal-plan",
         "kubectl rollout restart",
         "kubectl wait --for=condition=available",
+        "load rehearsal",
+        "deployment-load-rehearsal-plan",
+        "fortio",
+        "kubectl create job",
+        "kubectl logs",
         "support-readiness",
         "AXIS_SUPPORT_MODEL_ENABLED",
         "AXIS_SUPPORT_ESCALATION_CHANNELS",
@@ -366,10 +374,14 @@ def check_deployment_docs(repo_root: Path) -> list[CheckResult]:
     if not docs.exists():
         return [CheckResult("deployment.docs", False, "docs/deployment.md is missing.")]
 
-    rollout_docs = repo_root / "docs" / "deployment-rollout-rehearsal.md"
     text = _read_text(docs)
-    if rollout_docs.exists():
-        text = f"{text}\n{_read_text(rollout_docs)}"
+    for runbook in (
+        repo_root / "docs" / "deployment-rollout-rehearsal.md",
+        repo_root / "docs" / "deployment-ha-rehearsal.md",
+        repo_root / "docs" / "deployment-load-rehearsal.md",
+    ):
+        if runbook.exists():
+            text = f"{text}\n{_read_text(runbook)}"
     missing = _missing_terms(text, required_docs_terms())
     return [
         CheckResult(
@@ -404,6 +416,11 @@ def check_public_doc_links(repo_root: Path) -> list[CheckResult]:
             "deployment.rollout_rehearsal_link",
             repo_root / "docs" / "deployment.md",
             "deployment-rollout-rehearsal.md",
+        ),
+        (
+            "deployment.load_rehearsal_link",
+            repo_root / "docs" / "deployment.md",
+            "deployment-load-rehearsal.md",
         ),
         (
             "deployment.threat_model_link",
