@@ -40,6 +40,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_deployment_rollout.py",
         "services/api/scripts/rehearse_production_backup.py",
         "services/api/scripts/rehearse_production_restore.py",
+        "services/api/scripts/rehearse_typedb_recovery.py",
     )
 
 
@@ -52,6 +53,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-backup-rehearsal",
         "deployment-restore-rehearsal-plan",
         "deployment-restore-rehearsal",
+        "deployment-typedb-recovery-rehearsal-plan",
+        "deployment-typedb-recovery-rehearsal",
     )
 
 
@@ -144,9 +147,13 @@ def required_docs_terms() -> tuple[str, ...]:
         "helm test",
         "production backup rehearsal",
         "production restore rehearsal",
+        "TypeDB recovery rehearsal",
         "pg_dump",
         "pg_restore --list",
         "AXIS_POSTGRES_RESTORE_DSN",
+        "AXIS_TYPEDB_RESTORE_DATABASE",
+        "database export",
+        "database import",
         "/ready",
         "not a production certification",
     )

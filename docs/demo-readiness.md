@@ -86,6 +86,7 @@ Run the Kubernetes/Helm deployment package contract:
 make deployment-check
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
+make deployment-typedb-recovery-rehearsal-plan
 ```
 
 Run the API/web container image contract:
@@ -168,6 +169,12 @@ make demo-stack-down
       restore rehearsal steps for an isolated target Secret containing
       `AXIS_POSTGRES_RESTORE_DSN` without exposing a restore DSN or other
       secret material.
+- [ ] `make deployment-typedb-recovery-rehearsal-plan` prints the Kubernetes
+      TypeDB recovery rehearsal steps for an isolated target Secret containing
+      `AXIS_TYPEDB_RESTORE_DATABASE`, including `database export`,
+      `database import`, TypeDB Console preflight, checksum evidence and
+      restore-target probing without exposing TypeDB credentials; live
+      execution also requires `AXIS_TYPEDB_RECOVERY_IMAGE`.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -289,11 +296,11 @@ Confirm before the session:
   services plus optional HorizontalPodAutoscaler and PodDisruptionBudget
   controls, scheduling/topology pass-through values and configurable rollout
   controls for RollingUpdate strategy, revision history, termination grace and
-  lifecycle hooks, a Postgres production backup rehearsal plan and an isolated
-  Postgres restore rehearsal plan, but production HA validation,
-  DNS/certificate operations, cluster backup/restore across all stateful
-  services, rollout-drain exercises, load testing and production
-  secret-rotation drills are not complete.
+  lifecycle hooks, a Postgres production backup rehearsal plan, an isolated
+  Postgres restore rehearsal plan and a TypeDB recovery rehearsal plan, but
+  production HA validation, DNS/certificate operations, full cluster
+  backup/restore across Temporal and object storage, rollout-drain exercises,
+  load testing and production secret-rotation drills are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.

@@ -42,6 +42,9 @@ The baseline covers:
 - A production restore rehearsal plan for restoring a captured Postgres dump
   into a separately configured isolated restore target without printing target
   connection secrets.
+- A TypeDB recovery rehearsal plan that exports the runtime graph with
+  `database export` and imports it into a separately configured isolated
+  restore target with `database import` without printing TypeDB credentials.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -60,7 +63,8 @@ The baseline does not yet cover:
 - TLS certificate issuance operations, DNS ownership checks and secure
   cookie/session review.
 - Production secret rotation drills, KMS policy review and incident procedures.
-- Full production backup, restore and disaster recovery operations.
+- Full production backup, restore and disaster recovery operations across
+  Postgres, TypeDB, Temporal and object storage.
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
 - Cluster observability, alerting and on-call runbooks.
@@ -220,9 +224,8 @@ Operators can pass additional script arguments with
 
 This is a backup-capture and restore-catalog rehearsal for the current
 Postgres operational store. It is not a full production disaster recovery
-procedure: restore into an isolated target, TypeDB backups, Temporal state
-policy, object-store retention, RPO/RTO evidence, offsite retention and
-customer-specific approval gates remain hardening work.
+procedure: Temporal state policy, object-store retention, RPO/RTO evidence,
+offsite retention and customer-specific approval gates remain hardening work.
 
 ## Production Restore Rehearsal
 
@@ -259,9 +262,60 @@ Operators can pass additional script arguments with
 `--run-as-group` or `--keep-pod`.
 
 This is an isolated Postgres restore rehearsal for a captured Axis dump. It is
-not a full production disaster recovery procedure: it does not restore TypeDB,
+not a full production disaster recovery procedure: it does not restore
 Temporal state or object storage, does not validate customer-specific retention
 or legal-hold policy and does not establish RPO/RTO commitments.
+
+## TypeDB Recovery Rehearsal
+
+The repository includes a TypeDB recovery rehearsal helper for Kubernetes
+clusters:
+
+```bash
+make deployment-typedb-recovery-rehearsal-plan
+```
+
+The plan creates a temporary non-root Pod using an operator-supplied container
+image that includes TypeDB Console. It reads the Axis runtime TypeDB connection
+values from the runtime Secret, first verifies `console --help`, runs TypeDB
+Console `database export` to write `typedb.schema.typeql` and `typedb.data`,
+records `typedb.sha256`, then imports the export into an isolated target using
+`database import`.
+
+The runtime Secret must provide `AXIS_TYPEDB_ADDRESS`,
+`AXIS_TYPEDB_USERNAME`, `AXIS_TYPEDB_PASSWORD` and `AXIS_TYPEDB_DATABASE`. The
+restore target must be a separate Kubernetes Secret from the Axis runtime
+Secret. It must provide `AXIS_TYPEDB_RESTORE_ADDRESS`,
+`AXIS_TYPEDB_RESTORE_USERNAME`, `AXIS_TYPEDB_RESTORE_PASSWORD` and
+`AXIS_TYPEDB_RESTORE_DATABASE`, and it must carry the annotation
+`limes-axis.io/typedb-restore-target=isolated`. The script checks the
+annotation and required keys without printing connection values or password
+material. The restore database should be an isolated, empty target chosen for
+the rehearsal.
+
+To execute against a selected cluster context:
+
+```bash
+AXIS_KUBE_CONTEXT=prod-eu \
+AXIS_TYPEDB_RECOVERY_IMAGE=registry.example.com/platform/typedb-console:3.11.5 \
+make deployment-typedb-recovery-rehearsal
+```
+
+`AXIS_TYPEDB_RECOVERY_IMAGE` must point to an image that contains TypeDB
+Console for the target TypeDB version. The local TypeDB server image is not
+assumed to include Console. Operators can pass additional script arguments with
+`AXIS_TYPEDB_RECOVERY_ARGS`, for example `--namespace`, `--runtime-secret`,
+`--restore-target-secret`, `--recovery-id`, `--local-evidence-dir`,
+`--timeout`, `--run-as-user`, `--run-as-group` or `--keep-pod`. Runtime
+environments that intentionally run TypeDB without TLS can set
+`AXIS_TYPEDB_TLS_DISABLED=true` or `AXIS_TYPEDB_RESTORE_TLS_DISABLED=true`
+inside the relevant Kubernetes Secret.
+
+This is an export/import recovery rehearsal for the Axis TypeDB graph. It is
+not a full production disaster recovery procedure: it does not coordinate
+write quiescence across API, worker and connector processes, does not restore
+Temporal state or object storage, does not establish retention policy, and does
+not prove RPO/RTO commitments.
 
 ## Scheduling Controls
 
@@ -562,6 +616,7 @@ make deployment-check
 make deployment-rollout-rehearsal-plan
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
+make deployment-typedb-recovery-rehearsal-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check
@@ -596,8 +651,8 @@ Before customer production use, the deployment package must add and verify:
   evidence and secure cookie/session behavior.
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
-- backup restore drills against isolated targets, disaster recovery runbooks
-  and RPO/RTO evidence.
+- backup restore drills against isolated Postgres and TypeDB targets,
+  disaster recovery runbooks and RPO/RTO evidence.
 - production secret-manager rotation drills, access reviews and incident
   procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.

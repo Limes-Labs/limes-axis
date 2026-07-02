@@ -63,12 +63,18 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
         "services/api/scripts/rehearse_production_restore.py"
         in checker.required_deployment_scripts()
     )
+    assert (
+        "services/api/scripts/rehearse_typedb_recovery.py"
+        in checker.required_deployment_scripts()
+    )
     assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal" in checker.required_make_targets()
     assert "deployment-backup-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-backup-rehearsal" in checker.required_make_targets()
     assert "deployment-restore-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-restore-rehearsal" in checker.required_make_targets()
+    assert "deployment-typedb-recovery-rehearsal-plan" in checker.required_make_targets()
+    assert "deployment-typedb-recovery-rehearsal" in checker.required_make_targets()
 
 
 def test_deployment_package_externalizes_state_and_secrets() -> None:
@@ -356,8 +362,12 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "helm test" in required_terms
     assert "production backup rehearsal" in required_terms
     assert "production restore rehearsal" in required_terms
+    assert "TypeDB recovery rehearsal" in required_terms
     assert "pg_dump" in required_terms
     assert "pg_restore --list" in required_terms
     assert "AXIS_POSTGRES_RESTORE_DSN" in required_terms
+    assert "AXIS_TYPEDB_RESTORE_DATABASE" in required_terms
+    assert "database export" in required_terms
+    assert "database import" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms
