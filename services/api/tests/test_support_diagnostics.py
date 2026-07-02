@@ -27,6 +27,9 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "oidc_post_logout_redirect_uri": "https://console.axis.example/signed-out",
         "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
         "oidc_session_cookie_secure": True,
+        "api_rate_limit_enabled": True,
+        "api_rate_limit_requests": 120,
+        "api_rate_limit_window_seconds": 60,
     }
     values.update(overrides)
     return Settings(**values)
@@ -50,6 +53,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
     assert body["diagnostics"]["identity"]["readiness_status"] == "action_required"
     assert body["support_blockers"] == [
         "oidc_enterprise_sso",
+        "api_rate_limiting",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
         "production_support_model",

@@ -96,6 +96,70 @@ def test_openapi_metadata_names_axis() -> None:
     assert "/ready" in response.json()["paths"]
 
 
+def test_api_rate_limiter_is_disabled_by_default_for_local_demos() -> None:
+    client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
+
+    responses = [client.get("/health") for _ in range(4)]
+
+    assert [response.status_code for response in responses] == [200, 200, 200, 200]
+
+
+def test_api_rate_limiter_blocks_over_limit_client_endpoint() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                postgres_dsn="sqlite+pysqlite://",
+                api_rate_limit_enabled=True,
+                api_rate_limit_requests=2,
+                api_rate_limit_window_seconds=60,
+                api_rate_limit_paths=["/health"],
+            )
+        )
+    )
+
+    first = client.get("/health")
+    second = client.get("/health")
+    third = client.get("/health")
+
+    assert first.status_code == 200
+    assert first.headers["x-ratelimit-limit"] == "2"
+    assert first.headers["x-ratelimit-remaining"] == "1"
+    assert second.status_code == 200
+    assert second.headers["x-ratelimit-remaining"] == "0"
+    assert third.status_code == 429
+    assert third.headers["retry-after"] == "60"
+    assert third.headers["x-ratelimit-limit"] == "2"
+    assert third.headers["x-ratelimit-remaining"] == "0"
+    assert third.json() == {
+        "detail": {
+            "code": "RATE_LIMITED",
+            "message": "Too many requests for this endpoint.",
+            "limit": 2,
+            "window_seconds": 60,
+            "retry_after_seconds": 60,
+            "scope": "client_endpoint",
+        }
+    }
+
+
+def test_api_rate_limiter_keeps_each_endpoint_bucket_separate() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                postgres_dsn="sqlite+pysqlite://",
+                api_rate_limit_enabled=True,
+                api_rate_limit_requests=1,
+                api_rate_limit_window_seconds=60,
+                api_rate_limit_paths=["/health", "/ready"],
+            )
+        )
+    )
+
+    assert client.get("/health").status_code == 200
+    assert client.get("/health").status_code == 429
+    assert client.get("/ready").status_code == 200
+
+
 def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
     client = TestClient(
         create_app(

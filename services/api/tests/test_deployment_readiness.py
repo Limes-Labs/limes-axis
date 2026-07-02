@@ -27,6 +27,9 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "oidc_post_logout_redirect_uri": "https://console.axis.example/signed-out",
         "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
         "oidc_session_cookie_secure": True,
+        "api_rate_limit_enabled": True,
+        "api_rate_limit_requests": 120,
+        "api_rate_limit_window_seconds": 60,
     }
     values.update(overrides)
     return Settings(**values)
@@ -45,16 +48,19 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
     assert body["production_ready"] is False
     assert body["demo_safe"] is True
     assert body["capabilities"]["external_model_egress_enabled"] is False
+    assert body["capabilities"]["api_rate_limit_enabled"] is False
     assert body["capabilities"]["object_store_adapter"] == "local_filesystem"
 
     checks = _checks_by_id(body)
     assert checks["oidc_enterprise_sso"]["status"] == "action_required"
+    assert checks["api_rate_limiting"]["status"] == "action_required"
     assert checks["external_model_egress_disabled"]["status"] == "ready"
     assert checks["live_connector_execution_disabled"]["status"] == "ready"
     assert checks["audit_ledger_signing_configured"]["status"] == "action_required"
     assert checks["production_object_store_adapter"]["status"] == "action_required"
     assert body["production_blockers"] == [
         "oidc_enterprise_sso",
+        "api_rate_limiting",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
     ]
@@ -81,6 +87,7 @@ def test_deployment_readiness_flags_unsafe_production_egress_and_live_execution(
     assert body["production_ready"] is False
     checks = _checks_by_id(body)
     assert checks["oidc_enterprise_sso"]["status"] == "ready"
+    assert checks["api_rate_limiting"]["status"] == "ready"
     assert checks["audit_ledger_signing_configured"]["status"] == "ready"
     assert checks["external_model_egress_disabled"]["status"] == "action_required"
     assert checks["live_connector_execution_disabled"]["status"] == "action_required"
@@ -112,6 +119,7 @@ def test_deployment_readiness_keeps_object_store_as_production_blocker() -> None
     assert body["production_ready"] is False
     checks = _checks_by_id(body)
     assert checks["oidc_enterprise_sso"]["status"] == "ready"
+    assert checks["api_rate_limiting"]["status"] == "ready"
     assert checks["external_model_egress_disabled"]["status"] == "ready"
     assert checks["live_connector_execution_disabled"]["status"] == "ready"
     assert checks["audit_ledger_signing_configured"]["status"] == "ready"
@@ -151,7 +159,11 @@ def test_deployment_readiness_accepts_s3_compatible_worm_object_store_profile() 
     body = response.json()
     checks = _checks_by_id(body)
     assert checks["production_object_store_adapter"]["status"] == "ready"
+    assert checks["api_rate_limiting"]["status"] == "ready"
     assert "production_object_store_adapter" not in body["production_blockers"]
+    assert body["capabilities"]["api_rate_limit_enabled"] is True
+    assert body["capabilities"]["api_rate_limit_requests"] == 120
+    assert body["capabilities"]["api_rate_limit_window_seconds"] == 60
     assert body["capabilities"]["object_store_adapter"] == "s3_compatible"
     assert body["capabilities"]["object_store_bucket_configured"] is True
     assert body["capabilities"]["object_store_endpoint_configured"] is True

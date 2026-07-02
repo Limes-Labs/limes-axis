@@ -9552,6 +9552,20 @@
       },
       "DeploymentReadinessCapabilities": {
         "properties": {
+          "api_rate_limit_enabled": {
+            "title": "Api Rate Limit Enabled",
+            "type": "boolean"
+          },
+          "api_rate_limit_requests": {
+            "minimum": 1.0,
+            "title": "Api Rate Limit Requests",
+            "type": "integer"
+          },
+          "api_rate_limit_window_seconds": {
+            "minimum": 1.0,
+            "title": "Api Rate Limit Window Seconds",
+            "type": "integer"
+          },
           "audit_ledger_signing_configured": {
             "title": "Audit Ledger Signing Configured",
             "type": "boolean"
@@ -9621,6 +9635,9 @@
           }
         },
         "required": [
+          "api_rate_limit_enabled",
+          "api_rate_limit_requests",
+          "api_rate_limit_window_seconds",
           "external_model_egress_enabled",
           "connector_sync_execution_enabled",
           "external_db_sync_execution_enabled",

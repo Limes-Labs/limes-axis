@@ -118,6 +118,10 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_OIDC_TOKEN_URL" in required_terms
     assert "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET" in required_terms
     assert "AXIS_OIDC_SESSION_COOKIE_SECURE" in required_terms
+    assert "AXIS_API_RATE_LIMIT_ENABLED" in required_terms
+    assert "AXIS_API_RATE_LIMIT_REQUESTS" in required_terms
+    assert "AXIS_API_RATE_LIMIT_WINDOW_SECONDS" in required_terms
+    assert "AXIS_API_RATE_LIMIT_PATHS" in required_terms
     assert "existingSecret" in required_terms
     assert "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE" in required_terms
     assert "ExternalSecret" in required_terms
@@ -374,6 +378,7 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "OIDC" in required_terms
     assert "authorization-code" in required_terms
     assert "HTTP-only" in required_terms
+    assert "rate limiting" in required_terms
     assert "IdP onboarding" in required_terms
     assert "/identity/oidc/onboarding" in required_terms
     assert "/identity/oidc/logout" in required_terms

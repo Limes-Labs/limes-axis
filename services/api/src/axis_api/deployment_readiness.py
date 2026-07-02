@@ -14,6 +14,9 @@ class DeploymentReadinessCheck(BaseModel):
 
 
 class DeploymentReadinessCapabilities(BaseModel):
+    api_rate_limit_enabled: bool
+    api_rate_limit_requests: int = Field(ge=1)
+    api_rate_limit_window_seconds: int = Field(ge=1)
     external_model_egress_enabled: bool
     connector_sync_execution_enabled: bool
     external_db_sync_execution_enabled: bool
@@ -97,6 +100,12 @@ def build_deployment_readiness_report(
             settings.credential_lease_provider_adapters_enabled,
         )
     )
+    api_rate_limiting_ready = (
+        settings.api_rate_limit_enabled
+        and settings.api_rate_limit_requests > 0
+        and settings.api_rate_limit_window_seconds > 0
+        and bool(settings.api_rate_limit_paths)
+    )
     audit_signing_configured = bool(settings.audit_ledger_signing_secret)
     object_store_readiness = build_object_store_readiness(settings)
     public_object_store_missing_requirements = _public_object_store_missing_requirements(
@@ -104,6 +113,9 @@ def build_deployment_readiness_report(
     )
 
     capabilities = DeploymentReadinessCapabilities(
+        api_rate_limit_enabled=settings.api_rate_limit_enabled,
+        api_rate_limit_requests=max(1, settings.api_rate_limit_requests),
+        api_rate_limit_window_seconds=max(1, settings.api_rate_limit_window_seconds),
         external_model_egress_enabled=settings.external_model_egress_enabled,
         connector_sync_execution_enabled=settings.connector_sync_execution_enabled,
         external_db_sync_execution_enabled=settings.external_db_sync_execution_enabled,
@@ -140,6 +152,12 @@ def build_deployment_readiness_report(
                 "External model egress is enabled; require tenant policy, "
                 "audit and data-classification controls."
             ),
+        ),
+        _check(
+            "api_rate_limiting",
+            api_rate_limiting_ready,
+            "API rate limiting is enabled for public and sensitive routes.",
+            "API rate limiting is not enabled; configure request throttling before production.",
         ),
         _check(
             "live_connector_execution_disabled",

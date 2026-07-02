@@ -15,6 +15,7 @@ class AxisErrorCode(StrEnum):
     MODEL_PROVIDER_BLOCKED = "MODEL_PROVIDER_BLOCKED"
     WORKFLOW_NOT_FOUND = "WORKFLOW_NOT_FOUND"
     REPLAY_NOT_AVAILABLE = "REPLAY_NOT_AVAILABLE"
+    RATE_LIMITED = "RATE_LIMITED"
 
 
 def error_response(code: AxisErrorCode, message: str, request_id: str) -> dict[str, Any]:

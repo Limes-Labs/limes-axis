@@ -961,6 +961,8 @@ audit writes from live route decisions remain Platform work.
 - [x] Add deployment readiness profile reporting for identity, egress,
   connector execution, audit signing, S3/MinIO object-store posture and WORM
   retention gates.
+- [x] Add configurable API rate limiting for public and sensitive routes,
+  with deployment readiness gating.
 - [x] Add initial security review and threat model documentation.
 - [ ] Add external security review, penetration testing and production threat
   model validation.
