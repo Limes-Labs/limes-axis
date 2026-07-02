@@ -626,6 +626,8 @@ Required keys:
 - `AXIS_TYPEDB_USERNAME`
 - `AXIS_TYPEDB_PASSWORD`
 - `AXIS_AUDIT_LEDGER_SIGNING_SECRET`
+- `AXIS_OIDC_CLIENT_SECRET`
+- `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`
 - `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY`
 - `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY`
 
@@ -641,6 +643,33 @@ For clusters that already run External Secrets Operator, enable
 `secrets.existingSecret`, and maps each Axis runtime key through
 `data[].remoteRef`. The placeholder `remoteKey` values in `values.yaml` must be
 replaced with the customer's real secret-manager paths before installation.
+
+## OIDC Authorization-Code Session
+
+Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
+
+- `GET /identity/oidc/authorize` creates a PKCE authorization request and
+  redirects to the configured provider.
+- `GET /identity/oidc/callback` verifies the state cookie, exchanges the code
+  at the token endpoint and sets an HTTP-only Axis session cookie.
+- `GET /identity/session` validates the signed Axis session cookie and returns
+  only public-safe actor, tenant, scope and posture metadata.
+
+Configure non-sensitive client and endpoint values in the chart ConfigMap:
+
+- `AXIS_OIDC_CLIENT_ID`
+- `AXIS_OIDC_AUTHORIZATION_URL`
+- `AXIS_OIDC_TOKEN_URL`
+- `AXIS_OIDC_REDIRECT_URI`
+- `AXIS_OIDC_SCOPES`
+- `AXIS_OIDC_SESSION_COOKIE_SECURE=true`
+
+Keep `AXIS_OIDC_CLIENT_SECRET` and
+`AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET` in `secrets.existingSecret` or an
+external secret manager. The callback does not return token material to the web
+console, and the Axis session cookie stores only API-owned actor, tenant, scope
+and expiry claims. Refresh-token rotation, logout propagation, IdP onboarding
+runbooks and production session revocation remain Enterprise hardening work.
 
 ## Secret Rotation Rehearsal
 
@@ -697,6 +726,8 @@ kubectl -n limes-axis create secret generic limes-axis-runtime \
   --from-literal=AXIS_TYPEDB_USERNAME='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_TYPEDB_PASSWORD='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_AUDIT_LEDGER_SIGNING_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_OIDC_CLIENT_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
+  --from-literal=AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE' \
   --from-literal=AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY='REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE'
 ```
@@ -728,7 +759,12 @@ helm upgrade --install limes-axis infra/helm/limes-axis \
   --set api.env.AXIS_API_BASE_URL=https://api.axis.example.com \
   --set web.env.NEXT_PUBLIC_AXIS_API_BASE_URL=https://api.axis.example.com \
   --set api.env.AXIS_OIDC_ISSUER=https://keycloak.example.com/realms/axis \
-  --set api.env.AXIS_OIDC_JWKS_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/certs
+  --set api.env.AXIS_OIDC_JWKS_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/certs \
+  --set api.env.AXIS_OIDC_CLIENT_ID=limes-axis-web \
+  --set api.env.AXIS_OIDC_AUTHORIZATION_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/auth \
+  --set api.env.AXIS_OIDC_TOKEN_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/token \
+  --set api.env.AXIS_OIDC_REDIRECT_URI=https://api.axis.example.com/identity/oidc/callback \
+  --set api.env.AXIS_OIDC_SESSION_COOKIE_SECURE=true
 ```
 
 Enable Ingress routing only when the cluster has an Ingress controller and TLS

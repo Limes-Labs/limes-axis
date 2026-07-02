@@ -8,6 +8,26 @@ def _checks_by_id(body: dict) -> dict[str, dict]:
     return {check["check_id"]: check for check in body["checks"]}
 
 
+def _enterprise_sso_settings(**overrides: object) -> Settings:
+    values = {
+        "environment": "production",
+        "postgres_dsn": "sqlite+pysqlite://",
+        "oidc_auth_required": True,
+        "oidc_issuer": "https://idp.example/realms/axis",
+        "oidc_jwks_url": "https://idp.example/realms/axis/protocol/openid-connect/certs",
+        "oidc_algorithms": ["RS256"],
+        "oidc_client_id": "axis-console",
+        "oidc_authorization_url": (
+            "https://idp.example/realms/axis/protocol/openid-connect/auth"
+        ),
+        "oidc_token_url": "https://idp.example/realms/axis/protocol/openid-connect/token",
+        "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
+        "oidc_session_cookie_secure": True,
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
 def test_deployment_readiness_marks_default_profile_demo_safe_not_production_ready() -> None:
     client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
 
@@ -41,13 +61,7 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
 def test_deployment_readiness_flags_unsafe_production_egress_and_live_execution() -> None:
     client = TestClient(
         create_app(
-            Settings(
-                environment="production",
-                postgres_dsn="sqlite+pysqlite://",
-                oidc_auth_required=True,
-                oidc_issuer="https://idp.example/realms/axis",
-                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
-                oidc_algorithms=["RS256"],
+            _enterprise_sso_settings(
                 audit_ledger_signing_secret="super-secret-signing-key",
                 external_model_egress_enabled=True,
                 connector_sync_execution_enabled=True,
@@ -74,13 +88,7 @@ def test_deployment_readiness_flags_unsafe_production_egress_and_live_execution(
 def test_deployment_readiness_keeps_object_store_as_production_blocker() -> None:
     client = TestClient(
         create_app(
-            Settings(
-                environment="production",
-                postgres_dsn="sqlite+pysqlite://",
-                oidc_auth_required=True,
-                oidc_issuer="https://idp.example/realms/axis",
-                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
-                oidc_algorithms=["RS256"],
+            _enterprise_sso_settings(
                 audit_ledger_signing_secret="production-signing-key",
                 external_model_egress_enabled=False,
                 connector_sync_execution_enabled=False,
@@ -111,13 +119,7 @@ def test_deployment_readiness_keeps_object_store_as_production_blocker() -> None
 def test_deployment_readiness_accepts_s3_compatible_worm_object_store_profile() -> None:
     client = TestClient(
         create_app(
-            Settings(
-                environment="production",
-                postgres_dsn="sqlite+pysqlite://",
-                oidc_auth_required=True,
-                oidc_issuer="https://idp.example/realms/axis",
-                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
-                oidc_algorithms=["RS256"],
+            _enterprise_sso_settings(
                 audit_ledger_signing_secret="production-signing-key",
                 external_model_egress_enabled=False,
                 connector_sync_execution_enabled=False,

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from axis_api.action_reference import (
     ActionReferenceRecordInvalid,
@@ -364,6 +365,20 @@ from axis_api.object_storage import (
     ObjectStoreConfigurationError,
     build_connector_export_object_store,
 )
+from axis_api.oidc_code_flow import (
+    OidcCodeFlowConfigurationError,
+    OidcCookieValidationError,
+    OidcTokenExchangeError,
+    authorization_endpoint,
+    build_authorization_request,
+    build_token_exchange_form,
+    exchange_authorization_code,
+    public_redirect,
+    read_login_state,
+    read_session_cookie,
+    session_cookie_from_principal,
+    token_endpoint,
+)
 from axis_api.ontology.mutations import (
     DeferredOntologyMutationRuntime,
     OntologyMutationRuntime,
@@ -532,6 +547,34 @@ def oidc_principal(
 ) -> OidcPrincipal | None:
     settings: Settings = request.app.state.settings
     if not authorization:
+        session_cookie = request.cookies.get(settings.oidc_session_cookie_name)
+        if session_cookie:
+            try:
+                oidc_session = read_session_cookie(session_cookie, settings)
+                return OidcPrincipal(
+                    actor_id=oidc_session.actor_id,
+                    tenant_id=oidc_session.tenant_id,
+                    scopes=list(oidc_session.scopes),
+                    expires_at=oidc_session.expires_at,
+                    session_source="secure_cookie",
+                )
+            except (
+                OidcCodeFlowConfigurationError,
+                OidcCookieValidationError,
+            ) as exc:
+                reason = getattr(exc, "reason", "invalid_session_cookie")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={
+                        "code": AxisErrorCode.AUTH_REQUIRED.value,
+                        "message": "The OIDC session cookie could not be verified.",
+                        "reason": (
+                            reason
+                            if reason.startswith("invalid_session")
+                            else "invalid_session_cookie"
+                        ),
+                    },
+                ) from exc
         if settings.oidc_auth_required:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -648,6 +691,36 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
             bool(settings.oidc_actor_claim),
             "Actor claim binding is configured.",
             "Actor claim binding is missing.",
+        ),
+        _readiness_check(
+            "authorization_code_client",
+            bool(settings.oidc_client_id),
+            "OIDC authorization-code client id is configured.",
+            "Configure AXIS_OIDC_CLIENT_ID before using enterprise browser SSO.",
+        ),
+        _readiness_check(
+            "authorization_endpoint",
+            authorization_endpoint(settings).startswith("https://"),
+            "OIDC authorization endpoint uses HTTPS.",
+            "OIDC authorization endpoint must use HTTPS for enterprise SSO.",
+        ),
+        _readiness_check(
+            "token_endpoint",
+            token_endpoint(settings).startswith("https://"),
+            "OIDC token endpoint uses HTTPS.",
+            "OIDC token endpoint must use HTTPS for enterprise SSO.",
+        ),
+        _readiness_check(
+            "session_cookie_signing",
+            bool(settings.oidc_session_cookie_signing_secret),
+            "OIDC session cookies are signed with an operator-provided key.",
+            "Configure the OIDC session-cookie signing setting before browser SSO.",
+        ),
+        _readiness_check(
+            "secure_session_cookie",
+            settings.oidc_session_cookie_secure,
+            "OIDC session cookie uses the Secure attribute.",
+            "Enable AXIS_OIDC_SESSION_COOKIE_SECURE for enterprise browser SSO.",
         ),
     ]
     enterprise_ready = all(check["status"] == "ready" for check in checks)
@@ -1098,6 +1171,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         actor_claim=resolved_settings.oidc_actor_claim,
         tenant_claim=resolved_settings.oidc_tenant_claim,
     )
+    app.state.oidc_token_exchanger = exchange_authorization_code
 
     @app.get("/health", tags=["system"])
     def health() -> dict[str, str]:
@@ -1121,6 +1195,112 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/identity/oidc/readiness", tags=["system"])
     def oidc_readiness() -> dict[str, object]:
         return _oidc_readiness_report(resolved_settings)
+
+    @app.get("/identity/oidc/authorize", tags=["system"])
+    def oidc_authorize(return_to: str = "/") -> RedirectResponse:
+        try:
+            authorization_request = build_authorization_request(resolved_settings, return_to)
+        except OidcCodeFlowConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC authorization-code login is not configured.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        response = RedirectResponse(
+            authorization_request.authorization_url,
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        response.set_cookie(
+            resolved_settings.oidc_login_cookie_name,
+            authorization_request.login_cookie_value,
+            max_age=authorization_request.max_age_seconds,
+            httponly=True,
+            secure=resolved_settings.oidc_session_cookie_secure,
+            samesite="lax",
+            path="/identity/oidc",
+        )
+        return response
+
+    @app.get("/identity/oidc/callback", tags=["system"])
+    def oidc_callback(request: Request, code: str, state: str) -> RedirectResponse:
+        try:
+            login_state = read_login_state(
+                request.cookies.get(resolved_settings.oidc_login_cookie_name),
+                resolved_settings,
+            )
+            if login_state.state != state:
+                raise OidcCookieValidationError("oidc_state_mismatch")
+            form = build_token_exchange_form(
+                settings=resolved_settings,
+                code=code,
+                login_state=login_state,
+            )
+            token_response = request.app.state.oidc_token_exchanger(form, resolved_settings)
+            access_token = token_response.get("access_token")
+            if not isinstance(access_token, str) or not access_token:
+                raise OidcTokenExchangeError("missing_access_token")
+            principal = request.app.state.identity_verifier.verify_authorization_header(
+                f"Bearer {access_token}"
+            )
+            session_cookie_value, session_max_age = session_cookie_from_principal(
+                token_response,
+                principal,
+                resolved_settings,
+            )
+        except OidcCookieValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC login state could not be verified.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except OidcCodeFlowConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC authorization-code login is not configured.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except (OidcAuthenticationError, OidcTokenExchangeError) as exc:
+            reason = getattr(exc, "reason", "token_exchange_failed")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC authorization-code exchange could not be completed.",
+                    "reason": reason,
+                },
+            ) from exc
+
+        response = RedirectResponse(
+            public_redirect(resolved_settings, login_state.return_to),
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        response.set_cookie(
+            resolved_settings.oidc_session_cookie_name,
+            session_cookie_value,
+            max_age=session_max_age,
+            httponly=True,
+            secure=resolved_settings.oidc_session_cookie_secure,
+            samesite="lax",
+            path="/",
+        )
+        response.delete_cookie(
+            resolved_settings.oidc_login_cookie_name,
+            path="/identity/oidc",
+            secure=resolved_settings.oidc_session_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
+        return response
 
     @app.get(
         "/identity/session",

@@ -116,11 +116,12 @@ make demo-check-live
 The live check includes the OIDC readiness contract at
 `/identity/oidc/readiness`. The report is public-safe: it shows whether bearer
 tokens are required, whether the issuer is HTTPS, whether JWKS is explicitly
-configured, whether asymmetric algorithms are used and which actor/tenant
-claims are bound. It does not expose tokens, secrets, passwords or raw JWKS
-material. A local default profile can pass the demo contract while still
-showing `enterprise_sso_ready=false`; enterprise evaluation sessions should
-share that status honestly.
+configured, whether asymmetric algorithms are used, which actor/tenant claims
+are bound and whether the authorization-code session-cookie settings are
+hardened. It does not expose tokens, secrets, passwords or raw JWKS material. A
+local default profile can pass the demo contract while still showing
+`enterprise_sso_ready=false`; enterprise evaluation sessions should share that
+status honestly.
 
 The live check also includes `/deployment/readiness`, which aggregates identity,
 external model egress, live connector execution, audit signing and object-store
@@ -285,8 +286,8 @@ walkthrough, not a production readiness claim.
 Show:
 
 - The self-hosted local stack and absence of required managed services.
-- The OIDC/Keycloak direction, token-bound mutation paths and OIDC readiness
-  report.
+- The OIDC/Keycloak direction, token-bound mutation paths, authorization-code
+  session-cookie boundary and OIDC readiness report.
 - The support diagnostics bundle and current support operations runbook.
 - The first Helm deployment baseline in `infra/helm/limes-axis`, the
   deployment guide and the `deployment-check` output.
@@ -330,9 +331,10 @@ Confirm before the session:
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
-- Enterprise SSO hardening now has an explicit API readiness profile, but full
-  authorization-code login, refresh, secure-cookie sessions, IdP onboarding
-  runbooks and production SSO operations are not complete.
+- Enterprise SSO hardening now has an explicit API readiness profile plus a
+  PKCE authorization-code and HTTP-only session-cookie API boundary, but
+  refresh-token rotation, logout propagation, IdP onboarding runbooks,
+  server-side revocation and production SSO operations are not complete.
 - S3/MinIO WORM adapter readiness and a bounded object storage recovery
   rehearsal exist for governed connector evidence exports, but customer bucket
   provisioning review, KMS policy, legal operations and full-bucket restore

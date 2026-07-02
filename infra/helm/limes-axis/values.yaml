@@ -18,6 +18,8 @@ secrets:
     AXIS_TYPEDB_USERNAME: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_TYPEDB_PASSWORD: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_AUDIT_LEDGER_SIGNING_SECRET: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+    AXIS_OIDC_CLIENT_SECRET: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+    AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
   externalSecret:
@@ -43,6 +45,12 @@ secrets:
       AXIS_AUDIT_LEDGER_SIGNING_SECRET:
         remoteKey: limes-axis/production/audit-ledger
         property: signing-secret
+      AXIS_OIDC_CLIENT_SECRET:
+        remoteKey: limes-axis/production/oidc
+        property: client-secret
+      AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET:
+        remoteKey: limes-axis/production/oidc
+        property: session-cookie-signing-secret
       AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY:
         remoteKey: limes-axis/production/object-store
         property: access-key
@@ -97,6 +105,19 @@ api:
     AXIS_OIDC_TENANT_CLAIM: axis_tenant
     AXIS_OIDC_JWKS_CACHE_SECONDS: "300"
     AXIS_OIDC_AUTH_REQUIRED: "true"
+    AXIS_OIDC_CLIENT_ID: limes-axis-web
+    AXIS_OIDC_AUTHORIZATION_URL: https://keycloak.example.com/realms/axis/protocol/openid-connect/auth
+    AXIS_OIDC_TOKEN_URL: https://keycloak.example.com/realms/axis/protocol/openid-connect/token
+    AXIS_OIDC_REDIRECT_URI: https://api.axis.example.com/identity/oidc/callback
+    AXIS_OIDC_SCOPES:
+      - openid
+      - profile
+      - email
+    AXIS_OIDC_LOGIN_COOKIE_NAME: axis_oidc_login
+    AXIS_OIDC_SESSION_COOKIE_NAME: axis_session
+    AXIS_OIDC_LOGIN_STATE_TTL_SECONDS: "600"
+    AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS: "3600"
+    AXIS_OIDC_SESSION_COOKIE_SECURE: "true"
     AXIS_ONTOLOGY_MUTATIONS_ENABLED: "false"
     AXIS_ONTOLOGY_QUERIES_ENABLED: "false"
     AXIS_EXTERNAL_MODEL_EGRESS_ENABLED: "false"
