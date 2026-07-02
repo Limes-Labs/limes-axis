@@ -374,6 +374,8 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "OIDC" in required_terms
     assert "authorization-code" in required_terms
     assert "HTTP-only" in required_terms
+    assert "IdP onboarding" in required_terms
+    assert "/identity/oidc/onboarding" in required_terms
     assert "/identity/oidc/logout" in required_terms
     assert "/identity/session/logout" in required_terms
     assert "oidc_browser_sessions" in required_terms

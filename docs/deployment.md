@@ -655,6 +655,10 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
 - `GET /identity/oidc/logout` revokes the local Axis browser session, clears
   the Axis cookie and redirects the browser to the configured OIDC end-session
   endpoint.
+- `GET /identity/oidc/onboarding` returns a public-safe IdP onboarding report
+  with the configured issuer, discovery URL, OIDC endpoints, exact redirect
+  URIs, post-logout redirect URIs, scopes, claim mappings, recommended IdP
+  controls and remaining readiness action items.
 - `GET /identity/session` validates the signed Axis session cookie and returns
   only public-safe actor, tenant, scope and posture metadata.
 - `POST /identity/session/logout` revokes the persisted Axis browser session,
@@ -681,8 +685,10 @@ keyed session-id hash plus actor, tenant, scopes, expiry and revocation
 metadata, providing server-side session revocation without storing provider
 tokens. The federated logout redirect uses `client_id` and
 `post_logout_redirect_uri`; Axis does not persist or forward `id_token_hint`,
-access tokens or refresh tokens. Refresh-token rotation, IdP onboarding runbooks
-and production SSO operations remain Enterprise hardening work.
+access tokens or refresh tokens. The IdP onboarding report never returns
+confidential client material, cookie-signing material, provider tokens or raw
+JWKS material. Refresh-token rotation and production SSO operations runbooks
+remain Enterprise hardening work.
 
 ## Secret Rotation Rehearsal
 

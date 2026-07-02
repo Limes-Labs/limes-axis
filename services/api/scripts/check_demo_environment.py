@@ -21,6 +21,7 @@ def required_openapi_paths() -> tuple[str, ...]:
         "/health",
         "/ready",
         "/identity/oidc/readiness",
+        "/identity/oidc/onboarding",
         "/identity/oidc/authorize",
         "/identity/oidc/callback",
         "/identity/oidc/logout",
@@ -409,6 +410,56 @@ def _fetch_oidc_readiness_report(api_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _fetch_oidc_onboarding_report(api_url: str) -> tuple[bool, str]:
+    request = Request(
+        f"{api_url.rstrip('/')}/identity/oidc/onboarding",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            provider = payload.get("provider")
+            client = payload.get("client")
+            claims = payload.get("claims")
+            body_text = json.dumps(payload, sort_keys=True).casefold()
+            open_action_items = payload.get("open_action_items")
+            ok = (
+                200 <= response.status < 300
+                and payload.get("status") in {"ready", "action_required"}
+                and isinstance(payload.get("enterprise_sso_ready"), bool)
+                and isinstance(provider, dict)
+                and isinstance(provider.get("issuer"), str)
+                and isinstance(provider.get("discovery_url"), str)
+                and isinstance(provider.get("jwks_url"), str)
+                and isinstance(client, dict)
+                and client.get("auth_flow") == "authorization_code_pkce"
+                and isinstance(client.get("redirect_uri"), str)
+                and isinstance(client.get("post_logout_redirect_uri"), str)
+                and isinstance(client.get("session_cookie_secure"), bool)
+                and isinstance(claims, dict)
+                and isinstance(claims.get("actor_claim"), str)
+                and isinstance(claims.get("tenant_claim"), str)
+                and isinstance(payload.get("required_redirect_uris"), list)
+                and isinstance(payload.get("required_post_logout_redirect_uris"), list)
+                and isinstance(open_action_items, list)
+                and "client_secret" not in body_text
+                and "access_token" not in body_text
+                and "refresh_token" not in body_text
+                and "id_token" not in body_text
+                and "password" not in body_text
+            )
+            if ok:
+                return True, (
+                    f"HTTP {response.status}, "
+                    f"{payload.get('status')} action_items={len(open_action_items)}"
+                )
+            return False, f"HTTP {response.status}, invalid OIDC onboarding contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/deployment/readiness",
@@ -552,6 +603,7 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         snapshot_ok, snapshot_detail = _fetch_operations_snapshot(normalized)
         demo_readiness_ok, demo_readiness_detail = _fetch_demo_readiness_report(normalized)
         oidc_readiness_ok, oidc_readiness_detail = _fetch_oidc_readiness_report(normalized)
+        oidc_onboarding_ok, oidc_onboarding_detail = _fetch_oidc_onboarding_report(normalized)
         deployment_readiness_ok, deployment_readiness_detail = (
             _fetch_deployment_readiness_report(normalized)
         )
@@ -566,6 +618,13 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
         )
         checks.append(
             CheckResult("live.api_oidc_readiness", oidc_readiness_ok, oidc_readiness_detail)
+        )
+        checks.append(
+            CheckResult(
+                "live.api_oidc_onboarding",
+                oidc_onboarding_ok,
+                oidc_onboarding_detail,
+            )
         )
         checks.append(
             CheckResult(

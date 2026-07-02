@@ -33,6 +33,7 @@ def required_threat_model_sections() -> tuple[str, ...]:
 def required_boundary_terms() -> tuple[str, ...]:
     return (
         "/identity/oidc/readiness",
+        "/identity/oidc/onboarding",
         "/identity/oidc/authorize",
         "/identity/oidc/callback",
         "/identity/oidc/logout",

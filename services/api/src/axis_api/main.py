@@ -384,6 +384,7 @@ from axis_api.oidc_code_flow import (
     session_id_hash,
     token_endpoint,
 )
+from axis_api.oidc_onboarding import OidcOnboardingReport, build_oidc_onboarding_report
 from axis_api.ontology.mutations import (
     DeferredOntologyMutationRuntime,
     OntologyMutationRuntime,
@@ -1256,6 +1257,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/identity/oidc/readiness", tags=["system"])
     def oidc_readiness() -> dict[str, object]:
         return _oidc_readiness_report(resolved_settings)
+
+    @app.get("/identity/oidc/onboarding", response_model=OidcOnboardingReport, tags=["system"])
+    def oidc_onboarding() -> OidcOnboardingReport:
+        return build_oidc_onboarding_report(
+            resolved_settings,
+            oidc_readiness_report=_oidc_readiness_report(resolved_settings),
+        )
 
     @app.get("/identity/oidc/authorize", tags=["system"])
     def oidc_authorize(return_to: str = "/") -> RedirectResponse:

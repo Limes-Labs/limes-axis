@@ -128,10 +128,12 @@ flowchart LR
 - Browser to API: HTTP requests from `apps/web` to FastAPI cross an origin and
   bearer-token boundary. CORS allows local demo origins and no-store headers;
   protected mutations bind OIDC principals when present or required.
-- API to identity provider: `/identity/oidc/readiness`, `/identity/oidc/authorize`,
+- API to identity provider: `/identity/oidc/readiness`,
+  `/identity/oidc/onboarding`, `/identity/oidc/authorize`,
   `/identity/oidc/callback` and the verifier boundary use OIDC issuer,
-  audience, algorithms, JWKS and authorization-code settings. The readiness
-  report is public-safe and does not return tokens, passwords or raw JWKS.
+  audience, algorithms, JWKS and authorization-code settings. The readiness and
+  IdP onboarding reports are public-safe and do not return tokens, passwords or
+  raw JWKS.
 - API to Postgres: repository writes persist approvals, action runs, audit
   events, connector records and manufacturing operation records. Idempotency and
   schema validation protect many write paths.
@@ -155,6 +157,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | `/health`, `/ready` | HTTP GET | unauthenticated system status | `/ready` includes OIDC readiness summary | `services/api/src/axis_api/main.py` |
 | `/identity/oidc/readiness` | HTTP GET | public-safe identity posture | No token/JWKS secret disclosure | `services/api/tests/test_health.py` |
+| `/identity/oidc/onboarding` | HTTP GET | public-safe IdP onboarding metadata | Exact redirect URIs and claim mappings without token material | `services/api/tests/test_health.py` |
 | `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
@@ -252,7 +255,7 @@ flowchart LR
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
-- Enterprise SSO still needs refresh-token rotation, IdP onboarding and
+- Enterprise SSO still needs refresh-token rotation and customer-specific
   production operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
 - Rate limiting, abuse throttling and production telemetry alerting are not yet
