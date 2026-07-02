@@ -110,5 +110,8 @@ Escalate immediately when:
   rehearsal are implemented, but production bucket provisioning review, KMS
   policy, legal operations and full-bucket restore drills remain Enterprise
   work.
+- A bounded Temporal namespace/history evidence rehearsal is implemented, but
+  Temporal persistence restore, deterministic replay operations, archival
+  policy review and RPO/RTO evidence remain Enterprise work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

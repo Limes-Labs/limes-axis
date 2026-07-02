@@ -49,6 +49,10 @@ The baseline covers:
   probe object, copies it to a separately configured isolated restore bucket
   with MinIO Client and verifies the restored bytes by checksum without
   printing S3 credentials.
+- A Temporal recovery rehearsal plan that uses Temporal CLI from an isolated
+  non-root Pod to capture cluster health, namespace metadata, workflow list
+  and a replay-compatible workflow history JSON without printing Temporal
+  credential material.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -68,7 +72,7 @@ The baseline does not yet cover:
   cookie/session review.
 - Production secret rotation drills, KMS policy review and incident procedures.
 - Full production backup, restore and disaster recovery operations across
-  Postgres, TypeDB, Temporal and object storage.
+  Postgres, TypeDB, Temporal persistence and object storage.
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
 - Cluster observability, alerting and on-call runbooks.
@@ -320,6 +324,59 @@ not a full production disaster recovery procedure: it does not coordinate
 write quiescence across API, worker and connector processes, does not restore
 Temporal state or object storage, does not establish retention policy, and does
 not prove RPO/RTO commitments.
+
+## Temporal Recovery Rehearsal
+
+The repository includes a Temporal recovery rehearsal helper for Kubernetes
+clusters:
+
+```bash
+make deployment-temporal-recovery-rehearsal-plan
+```
+
+The plan creates a temporary non-root Pod using an operator-supplied image that
+contains Temporal CLI. It reads `AXIS_TEMPORAL_ADDRESS` and
+`AXIS_TEMPORAL_NAMESPACE` from the Axis runtime ConfigMap, reads optional
+Temporal auth settings from the runtime Secret and recovery Secret, first
+verifies `temporal --help`, then captures:
+
+- `temporal.cluster-health.json` with `operator cluster health`;
+- `temporal.namespace.json` with `operator namespace describe`;
+- `temporal.namespace-list.json` with `operator namespace list`;
+- `temporal.workflow-list.json` with `workflow list`;
+- `temporal.workflow-history.json` with `workflow show --output json`;
+- `temporal.sha256` with checksums for the captured evidence.
+
+The recovery Secret must be separate from the Axis runtime Secret. It must
+provide `AXIS_TEMPORAL_RECOVERY_WORKFLOW_ID`, and it must carry the annotation
+`limes-axis.io/temporal-recovery-target=isolated`. It may also provide
+`AXIS_TEMPORAL_RECOVERY_RUN_ID`, `AXIS_TEMPORAL_RECOVERY_WORKFLOW_LIMIT`,
+`AXIS_TEMPORAL_API_KEY` and `AXIS_TEMPORAL_TLS_ENABLED=true` when the target
+Temporal service requires TLS or API-key auth. The script checks required keys
+and the isolation annotation without printing API keys or other credential
+material.
+
+To execute against a selected cluster context:
+
+```bash
+AXIS_KUBE_CONTEXT=prod-eu \
+AXIS_TEMPORAL_RECOVERY_IMAGE=registry.example.com/platform/temporal-cli:stable \
+make deployment-temporal-recovery-rehearsal
+```
+
+`AXIS_TEMPORAL_RECOVERY_IMAGE` must point to an image that contains Temporal
+CLI. Operators can pass additional script arguments with
+`AXIS_TEMPORAL_RECOVERY_ARGS`, for example `--namespace`,
+`--runtime-config-map`, `--runtime-secret`, `--recovery-secret`,
+`--recovery-id`, `--local-evidence-dir`, `--timeout`, `--run-as-user`,
+`--run-as-group` or `--keep-pod`.
+
+This is a bounded read-only recovery evidence probe for Temporal. It proves
+that an isolated operator path can reach the configured Temporal namespace,
+capture replay-compatible workflow history for a selected workflow and produce
+checksummed evidence. It does not restore Temporal persistence, does not replay
+workflow code, does not validate history archival, does not coordinate
+quiescence and does not establish RPO/RTO commitments.
 
 ## Scheduling Controls
 
@@ -671,6 +728,7 @@ make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
+make deployment-temporal-recovery-rehearsal-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check
@@ -706,7 +764,8 @@ Before customer production use, the deployment package must add and verify:
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
 - backup restore drills against isolated Postgres, TypeDB and object-storage
-  targets, disaster recovery runbooks and RPO/RTO evidence.
+  targets plus Temporal namespace/history evidence, disaster recovery runbooks
+  and RPO/RTO evidence.
 - production secret-manager rotation drills, access reviews and incident
   procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.

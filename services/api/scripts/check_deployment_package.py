@@ -42,6 +42,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_production_restore.py",
         "services/api/scripts/rehearse_typedb_recovery.py",
         "services/api/scripts/rehearse_object_storage_recovery.py",
+        "services/api/scripts/rehearse_temporal_recovery.py",
     )
 
 
@@ -58,6 +59,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-typedb-recovery-rehearsal",
         "deployment-object-storage-recovery-rehearsal-plan",
         "deployment-object-storage-recovery-rehearsal",
+        "deployment-temporal-recovery-rehearsal-plan",
+        "deployment-temporal-recovery-rehearsal",
     )
 
 
@@ -163,6 +166,11 @@ def required_docs_terms() -> tuple[str, ...]:
         "mc alias set",
         "mc cp",
         "mc cat",
+        "Temporal recovery rehearsal",
+        "AXIS_TEMPORAL_RECOVERY_IMAGE",
+        "AXIS_TEMPORAL_RECOVERY_WORKFLOW_ID",
+        "operator namespace describe",
+        "workflow show --output json",
         "/ready",
         "not a production certification",
     )

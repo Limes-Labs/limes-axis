@@ -326,6 +326,8 @@ Foundation acceptance is tracked in
   retention gates for governed connector evidence exports.
 - [x] Add a bounded Kubernetes object storage recovery rehearsal with MinIO
   Client copy, restore-target isolation and checksum evidence.
+- [x] Add a bounded Kubernetes Temporal recovery rehearsal with Temporal CLI
+  namespace/history evidence capture and checksum evidence.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -391,11 +393,12 @@ guarding chart files, externalized runtime configuration, rollout controls,
 public-safe docs, the `deployment-check` Make target, cert-manager
 ingress-shim annotations, Helm smoke tests and a rollout rehearsal script for
 upgrade, readiness, backup capture, isolated Postgres restore and rollback
-mechanics plus a TypeDB recovery rehearsal for export/import into an isolated
-target plus a bounded object-storage recovery probe into an isolated bucket.
-It is an initial production deployment guide baseline, not a claim that high
-availability, image release automation, DNS ownership, certificate renewal
-operations, external secret management, Temporal/full-bucket object-store
+mechanics plus TypeDB export/import into an isolated target, bounded
+object-storage recovery into an isolated bucket and Temporal namespace/history
+evidence capture from an isolated recovery pod. It is an initial production
+deployment guide baseline, not a claim that high availability, image release
+automation, DNS ownership, certificate renewal operations, external secret
+management, full Temporal persistence restore, full-bucket object-store
 disaster recovery, KMS-backed signing or customer bucket operations are
 complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,

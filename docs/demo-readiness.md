@@ -88,6 +88,7 @@ make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
+make deployment-temporal-recovery-rehearsal-plan
 ```
 
 Run the API/web container image contract:
@@ -182,6 +183,13 @@ make demo-stack-down
       MinIO Client preflight, `mc alias set`, `mc cp`, `mc cat`, checksum
       evidence and restore-target probing without exposing S3 credentials; live
       execution also requires `AXIS_OBJECT_STORAGE_RECOVERY_IMAGE`.
+- [ ] `make deployment-temporal-recovery-rehearsal-plan` prints the
+      Kubernetes Temporal recovery rehearsal steps for an isolated recovery
+      Secret containing `AXIS_TEMPORAL_RECOVERY_WORKFLOW_ID`, including
+      Temporal CLI preflight, `operator namespace describe`, `workflow list`,
+      `workflow show --output json`, checksum evidence and namespace/history
+      evidence capture without exposing Temporal credentials; live execution
+      also requires `AXIS_TEMPORAL_RECOVERY_IMAGE`.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -305,10 +313,11 @@ Confirm before the session:
   controls for RollingUpdate strategy, revision history, termination grace and
   lifecycle hooks, a Postgres production backup rehearsal plan, an isolated
   Postgres restore rehearsal plan, a TypeDB recovery rehearsal plan and an
-  object storage recovery rehearsal plan, but production HA validation,
-  DNS/certificate operations, full cluster backup/restore across Temporal,
-  full-bucket object storage restore, rollout-drain exercises, load testing and
-  production secret-rotation drills are not complete.
+  object storage recovery rehearsal plan plus a Temporal recovery evidence
+  rehearsal plan, but production HA validation, DNS/certificate operations,
+  full cluster backup/restore across Temporal persistence, full-bucket object
+  storage restore, rollout-drain exercises, load testing and production
+  secret-rotation drills are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
