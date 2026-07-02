@@ -27,6 +27,9 @@ The baseline covers:
   certificate issuance.
 - Optional `HorizontalPodAutoscaler` and `PodDisruptionBudget` templates for
   API and web console workloads.
+- A TLS readiness rehearsal script and runbook for Ingress, TLS Secret,
+  cert-manager Certificate, DNS, TLS handshake and HTTPS reachability checks
+  against operator-selected hosts.
 - Deployment rollout controls for API and web console workloads, including
   `RollingUpdate` strategy values, `revisionHistoryLimit`,
   `terminationGracePeriodSeconds` and optional container `lifecycle`
@@ -81,8 +84,8 @@ The baseline does not yet cover:
 
 - Sustained customer-profile high availability validation under load.
 - Full load testing, capacity planning and rollout-drain validation.
-- TLS certificate issuance operations, DNS ownership checks and secure
-  cookie/session review.
+- Automated TLS certificate issuance operations, DNS ownership attestation,
+  renewal drills and secure cookie/session review.
 - Production secret-manager rotation drills, access reviews, workload restart
   validation, KMS policy review and incident procedures.
 - Full production backup, restore and disaster recovery operations across
@@ -133,6 +136,27 @@ certificate issuers. Operators must provision those resources according to
 their cluster policy and verify DNS ownership, certificate renewal and secure
 cookie/session behavior against the final public hostnames before production
 use.
+
+## TLS Readiness Rehearsal
+
+The repository includes a TLS readiness rehearsal tool:
+
+```bash
+make deployment-tls-readiness-plan
+AXIS_KUBE_CONTEXT=production-eu make deployment-tls-readiness
+```
+
+The detailed runbook lives in
+[`docs/deployment-tls-readiness.md`](./deployment-tls-readiness.md). The script
+is intentionally split into plan and execute modes. Plan mode prints the exact
+`kubectl`, `dig +short`, `openssl s_client` and `curl` commands. Execute mode
+runs against the operator-provided Kubernetes context and externally reachable
+HTTPS hosts.
+
+This verifies observable Ingress, TLS Secret, cert-manager Certificate, DNS,
+TLS handshake and HTTPS reachability behavior. It is not certificate
+automation, DNS ownership proof, renewal validation, HSTS/CDN/WAF validation,
+penetration testing or production certification.
 
 ## Availability Controls
 
@@ -953,6 +977,7 @@ make deployment-temporal-recovery-rehearsal-plan
 make deployment-secret-rotation-rehearsal-plan
 make deployment-ha-rehearsal-plan
 make deployment-load-rehearsal-plan
+make deployment-tls-readiness-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check

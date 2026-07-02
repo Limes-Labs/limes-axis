@@ -93,6 +93,7 @@ make deployment-temporal-recovery-rehearsal-plan
 make deployment-secret-rotation-rehearsal-plan
 make deployment-ha-rehearsal-plan
 make deployment-load-rehearsal-plan
+make deployment-tls-readiness-plan
 ```
 
 Run the API/web container image contract:
@@ -215,6 +216,9 @@ make demo-stack-down
       rehearsal steps for short-lived Fortio Jobs, including
       `kubectl create job`, `kubectl wait --for=condition=complete`,
       `kubectl logs`, cleanup and API/web target URLs.
+- [ ] `make deployment-tls-readiness-plan` prints the Kubernetes TLS readiness
+      rehearsal steps for Ingress, TLS Secret, cert-manager Certificate,
+      `dig +short`, `openssl s_client` and HTTPS reachability checks.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -340,8 +344,9 @@ Confirm before the session:
   Postgres restore rehearsal plan, a TypeDB recovery rehearsal plan and an
   object storage recovery rehearsal plan, a Temporal recovery evidence
   rehearsal plan, an active/staged Secret rotation rehearsal plan, a HA restart
-  rehearsal and a bounded load rehearsal, but sustained customer-profile HA
-  validation under load, DNS/certificate operations, full cluster
+  rehearsal, a bounded load rehearsal and a TLS readiness rehearsal, but
+  sustained customer-profile HA validation under load, automated
+  DNS/certificate operations, renewal drills, full cluster
   backup/restore across Temporal persistence, full-bucket object storage
   restore, rollout-drain exercises, full load/capacity planning,
   secret-manager rotation drills and access reviews are not complete.
@@ -403,6 +408,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Bounded load rehearsal plan for short-lived Fortio Kubernetes Jobs,
   `kubectl create job`, `kubectl logs` evidence and cleanup through
   `make deployment-load-rehearsal-plan`.
+- TLS readiness rehearsal plan for Ingress, cert-manager Certificate, DNS,
+  `openssl s_client` and HTTPS reachability checks through
+  `make deployment-tls-readiness-plan`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support model readiness,
