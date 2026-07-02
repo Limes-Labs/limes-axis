@@ -41,6 +41,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_production_backup.py",
         "services/api/scripts/rehearse_production_restore.py",
         "services/api/scripts/rehearse_typedb_recovery.py",
+        "services/api/scripts/rehearse_object_storage_recovery.py",
     )
 
 
@@ -55,6 +56,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-restore-rehearsal",
         "deployment-typedb-recovery-rehearsal-plan",
         "deployment-typedb-recovery-rehearsal",
+        "deployment-object-storage-recovery-rehearsal-plan",
+        "deployment-object-storage-recovery-rehearsal",
     )
 
 
@@ -154,6 +157,12 @@ def required_docs_terms() -> tuple[str, ...]:
         "AXIS_TYPEDB_RESTORE_DATABASE",
         "database export",
         "database import",
+        "object storage recovery rehearsal",
+        "AXIS_CONNECTOR_EXPORT_S3_RESTORE_BUCKET",
+        "AXIS_OBJECT_STORAGE_RECOVERY_IMAGE",
+        "mc alias set",
+        "mc cp",
+        "mc cat",
         "/ready",
         "not a production certification",
     )

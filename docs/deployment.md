@@ -45,6 +45,10 @@ The baseline covers:
 - A TypeDB recovery rehearsal plan that exports the runtime graph with
   `database export` and imports it into a separately configured isolated
   restore target with `database import` without printing TypeDB credentials.
+- An object storage recovery rehearsal plan that writes a bounded S3-compatible
+  probe object, copies it to a separately configured isolated restore bucket
+  with MinIO Client and verifies the restored bytes by checksum without
+  printing S3 credentials.
 - Service account and pod security context.
 - Initial NetworkPolicy for ingress and egress shaping.
 - Public-safe install notes and local readiness checks.
@@ -373,6 +377,55 @@ adapter is configured to write retained objects; it does not replace customer
 bucket provisioning review, KMS policy, restore drills, legal operations or
 external compliance review.
 
+## Object Storage Recovery Rehearsal
+
+The repository includes an object storage recovery rehearsal helper for
+S3-compatible deployments:
+
+```bash
+make deployment-object-storage-recovery-rehearsal-plan
+```
+
+The plan creates a temporary non-root Pod using an operator-supplied image that
+contains MinIO Client. It reads source endpoint and bucket settings from the
+Axis runtime ConfigMap, reads source credentials from the Axis runtime Secret,
+and reads the isolated restore endpoint, bucket and credentials from a separate
+restore target Secret. The script first runs a MinIO Client preflight, then
+uses `mc alias set`, writes a small recovery probe object to the source bucket,
+uses `mc cp` to copy that object into the isolated restore bucket, uses
+`mc cat` to read the restored object back, and compares the restored checksum
+with the original `object-store.sha256`.
+
+The restore target Secret must be separate from the Axis runtime Secret. It
+must provide `AXIS_CONNECTOR_EXPORT_S3_RESTORE_ENDPOINT`,
+`AXIS_CONNECTOR_EXPORT_S3_RESTORE_BUCKET`,
+`AXIS_CONNECTOR_EXPORT_S3_RESTORE_ACCESS_KEY` and
+`AXIS_CONNECTOR_EXPORT_S3_RESTORE_SECRET_KEY`, and it must carry the annotation
+`limes-axis.io/object-store-restore-target=isolated`. The script checks the
+annotation and required keys without printing access keys or secret keys.
+
+To execute against a selected cluster context:
+
+```bash
+AXIS_KUBE_CONTEXT=prod-eu \
+AXIS_OBJECT_STORAGE_RECOVERY_IMAGE=registry.example.com/platform/minio-mc:stable \
+make deployment-object-storage-recovery-rehearsal
+```
+
+`AXIS_OBJECT_STORAGE_RECOVERY_IMAGE` must point to an image that contains MinIO
+Client (`mc` or `mcli`). Operators can pass additional script arguments with
+`AXIS_OBJECT_STORAGE_RECOVERY_ARGS`, for example `--namespace`,
+`--runtime-config-map`, `--runtime-secret`, `--restore-target-secret`,
+`--recovery-id`, `--probe-prefix`, `--local-evidence-dir`, `--timeout`,
+`--run-as-user`, `--run-as-group` or `--keep-pod`.
+
+This is a bounded object storage recovery probe for governed Axis evidence. It
+does not mirror a full bucket, does not validate provider-specific KMS,
+does not review customer bucket policies, does not prove legal-hold operations
+and does not establish RPO/RTO commitments. The probe intentionally writes a
+small object under the configured probe prefix so the recovery path exercises a
+real source-to-isolated-target copy instead of a dry-run-only plan.
+
 ## Container Images
 
 The repository includes local container image baselines:
@@ -617,6 +670,7 @@ make deployment-rollout-rehearsal-plan
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
+make deployment-object-storage-recovery-rehearsal-plan
 helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check
@@ -651,8 +705,8 @@ Before customer production use, the deployment package must add and verify:
   evidence and secure cookie/session behavior.
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
-- backup restore drills against isolated Postgres and TypeDB targets,
-  disaster recovery runbooks and RPO/RTO evidence.
+- backup restore drills against isolated Postgres, TypeDB and object-storage
+  targets, disaster recovery runbooks and RPO/RTO evidence.
 - production secret-manager rotation drills, access reviews and incident
   procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.
