@@ -534,11 +534,16 @@ persisted session, writes `identity.oidc_session.revoked` audit evidence and
 redirects the browser to the configured OIDC end-session endpoint without
 persisting or forwarding provider token material. `POST /identity/session/logout`
 performs local API session revocation without the federated provider redirect.
+`GET /identity/oidc/onboarding` returns a public-safe IdP onboarding report with
+the exact redirect URIs, post-logout redirect URIs, endpoint URLs, claim
+mappings, scopes, recommended IdP controls and open action items an identity
+administrator needs to configure Axis. It does not return confidential client
+material, cookie-signing material, provider tokens or raw JWKS material.
 Without a token or session cookie, `/identity/session` reports explicit
 public-evaluation state when OIDC auth is optional; when OIDC auth is required,
 it returns `401` until a valid bearer token or non-revoked API session cookie is
-attached. Refresh-token rotation, provider onboarding runbooks and production
-SSO operations remain Platform/Enterprise work.
+attached. Refresh-token rotation and customer-specific production SSO operations
+runbooks remain Platform/Enterprise work.
 
 The ontology explorer and entity detail pages are currently read-only and API
 required; the browser no longer carries a local graph fallback. Graph reads now
@@ -951,8 +956,8 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
-  readiness/profile, PKCE callback, federated logout and server-side session
-  revocation reports.
+  readiness/profile, IdP onboarding report, PKCE callback, federated logout and
+  server-side session revocation reports.
 - [x] Add deployment readiness profile reporting for identity, egress,
   connector execution, audit signing, S3/MinIO object-store posture and WORM
   retention gates.

@@ -171,6 +171,113 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
     assert "password" not in str(body).lower()
 
 
+def test_oidc_onboarding_report_is_public_safe_and_computed_from_settings() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                postgres_dsn="sqlite+pysqlite://",
+                public_base_url="https://console.axis.example",
+                api_base_url="https://api.axis.example",
+                oidc_auth_required=True,
+                oidc_issuer="https://idp.example/realms/axis",
+                oidc_audience="limes-axis-api",
+                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
+                oidc_algorithms=["RS256"],
+                oidc_actor_claim="preferred_username",
+                oidc_tenant_claim="axis_tenant",
+                oidc_client_id="axis-console",
+                oidc_client_secret="super-secret-client-secret",
+                oidc_authorization_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/auth"
+                ),
+                oidc_token_url="https://idp.example/realms/axis/protocol/openid-connect/token",
+                oidc_redirect_uri="https://api.axis.example/identity/oidc/callback",
+                oidc_end_session_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/logout"
+                ),
+                oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
+                oidc_session_cookie_signing_secret="super-secret-cookie-signing-key",
+                oidc_session_cookie_secure=True,
+            )
+        )
+    )
+
+    response = client.get("/identity/oidc/onboarding")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["enterprise_sso_ready"] is True
+    assert body["provider"]["issuer"] == "https://idp.example/realms/axis"
+    assert (
+        body["provider"]["discovery_url"]
+        == "https://idp.example/realms/axis/.well-known/openid-configuration"
+    )
+    assert (
+        body["provider"]["jwks_url"]
+        == "https://idp.example/realms/axis/protocol/openid-connect/certs"
+    )
+    assert (
+        body["provider"]["authorization_url"]
+        == "https://idp.example/realms/axis/protocol/openid-connect/auth"
+    )
+    assert body["client"]["client_id"] == "axis-console"
+    assert body["client"]["redirect_uri"] == "https://api.axis.example/identity/oidc/callback"
+    assert (
+        body["client"]["post_logout_redirect_uri"]
+        == "https://console.axis.example/signed-out"
+    )
+    assert body["client"]["auth_flow"] == "authorization_code_pkce"
+    assert body["client"]["confidential_client_configured"] is True
+    assert body["client"]["session_cookie_secure"] is True
+    assert body["required_redirect_uris"] == ["https://api.axis.example/identity/oidc/callback"]
+    assert body["required_post_logout_redirect_uris"] == [
+        "https://console.axis.example/signed-out"
+    ]
+    assert body["claims"]["actor_claim"] == "preferred_username"
+    assert body["claims"]["tenant_claim"] == "axis_tenant"
+    assert body["open_action_items"] == []
+
+    rendered = str(body).lower()
+    forbidden_terms = (
+        "super-secret",
+        "client_secret",
+        "cookie-signing",
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "password",
+    )
+    assert all(term not in rendered for term in forbidden_terms)
+
+
+def test_oidc_onboarding_report_lists_action_items_for_local_profile() -> None:
+    client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
+
+    response = client.get("/identity/oidc/onboarding")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "action_required"
+    assert body["enterprise_sso_ready"] is False
+    assert body["client"]["client_id"] is None
+    assert body["client"]["session_cookie_secure"] is False
+    assert body["provider"]["jwks_source"] == "derived_from_issuer"
+    assert set(body["open_action_items"]) >= {
+        "auth_required",
+        "https_issuer",
+        "explicit_jwks_url",
+        "authorization_code_client",
+        "end_session_endpoint",
+        "session_cookie_signing",
+        "secure_session_cookie",
+    }
+    rendered = str(body).lower()
+    assert "client_secret" not in rendered
+    assert "refresh_token" not in rendered
+    assert "id_token" not in rendered
+
+
 def test_oidc_readiness_marks_default_local_profile_as_not_enterprise_ready() -> None:
     client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
 

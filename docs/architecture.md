@@ -226,9 +226,13 @@ The API exposes `/identity/oidc/readiness` as a public-safe SSO posture report.
 It reports whether bearer tokens are required, whether the issuer is HTTPS,
 whether JWKS is explicitly configured, whether asymmetric algorithms are used,
 which actor and tenant claims are bound, whether federated logout is configured
-and whether the current profile is enterprise SSO ready. It deliberately avoids
-returning tokens, secrets, passwords or raw JWKS material. `/ready` includes the
-same OIDC status as a short dependency summary.
+and whether the current profile is enterprise SSO ready. The API also exposes
+`/identity/oidc/onboarding` as a public-safe IdP onboarding report for identity
+administrators, including exact redirect URIs, logout redirect URIs, endpoint
+URLs, claim mappings, scopes, recommended IdP controls and remaining action
+items. Both reports deliberately avoid returning tokens, secrets, passwords or
+raw JWKS material. `/ready` includes the same OIDC status as a short dependency
+summary.
 
 The API also exposes `/identity/session` as a public-safe session read model for
 the console. When a bearer token is attached, the endpoint returns the
@@ -261,8 +265,8 @@ and demo workflows. That bridge stores a token in browser session storage and
 attaches `Authorization: Bearer ...` to protected demo API calls. The account
 popover uses `/identity/session` as the displayed source of truth instead of
 trusting browser-decoded claims. Refresh-token rotation, federated logout
-propagation to the IdP and IdP onboarding runbooks remain Enterprise hardening
-work.
+propagation to the IdP and customer-specific SSO operations runbooks remain
+Enterprise hardening work.
 
 ## Permission Boundaries
 

@@ -152,6 +152,8 @@ def required_docs_terms() -> tuple[str, ...]:
         "OIDC",
         "authorization-code",
         "HTTP-only",
+        "IdP onboarding",
+        "/identity/oidc/onboarding",
         "/identity/oidc/logout",
         "/identity/session/logout",
         "oidc_browser_sessions",
