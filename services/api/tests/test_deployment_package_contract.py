@@ -122,6 +122,13 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_API_RATE_LIMIT_REQUESTS" in required_terms
     assert "AXIS_API_RATE_LIMIT_WINDOW_SECONDS" in required_terms
     assert "AXIS_API_RATE_LIMIT_PATHS" in required_terms
+    assert "AXIS_SUPPORT_MODEL_ENABLED" in required_terms
+    assert "AXIS_SUPPORT_COVERAGE" in required_terms
+    assert "AXIS_SUPPORT_S1_RESPONSE_MINUTES" in required_terms
+    assert "AXIS_SUPPORT_ESCALATION_CHANNELS" in required_terms
+    assert "AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL" in required_terms
+    assert "AXIS_SUPPORT_STATUS_PAGE_URL" in required_terms
+    assert "AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED" in required_terms
     assert "existingSecret" in required_terms
     assert "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE" in required_terms
     assert "ExternalSecret" in required_terms
@@ -426,5 +433,8 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "limes-axis.io/secret-rotation-target=staged" in required_terms
     assert "secret-rotation.summary.json" in required_terms
     assert "secret-rotation.sha256" in required_terms
+    assert "support-readiness" in required_terms
+    assert "AXIS_SUPPORT_MODEL_ENABLED" in required_terms
+    assert "AXIS_SUPPORT_ESCALATION_CHANNELS" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms

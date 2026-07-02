@@ -1,8 +1,9 @@
 # Support Operations Runbook
 
 This runbook defines the current public-safe support and operations baseline for
-Limes Axis demo and design-partner evaluation environments. It is not a
-production support contract, SLA, SOC process or compliance attestation.
+Limes Axis demo, design-partner evaluation and production-readiness review
+environments. It is not a signed customer support contract, SLA, SOC process or
+compliance attestation.
 
 ## Scope
 
@@ -13,14 +14,17 @@ In scope:
 - Public-safe diagnostic capture through `/support/diagnostics`.
 - Readiness posture review through `/ready`, `/identity/oidc/readiness`,
   `/deployment/readiness`, `make demo-check-live` and `make security-check`.
+- Production support-readiness review through a configured support model,
+  severity response targets, escalation channel classes and customer runbook
+  presence checks.
 - Triage of API, web console, persistence, workflow and connector-boundary
   issues in the open-source repository.
 
 Out of scope:
 
-- 24/7 production support.
 - Customer incident response ownership.
-- Production SLOs, SLAs, RPO/RTO commitments or warranty terms.
+- Signed SLAs, RPO/RTO commitments, warranty terms or customer-specific legal
+  commitments.
 - Managed Cloud, Enterprise private deployment support and customer-specific
   connector execution.
 - Handling customer credentials, production datasets or private infrastructure
@@ -45,11 +49,41 @@ issues or design-partner notes. It reports:
 - deployment posture summary;
 - identity readiness summary;
 - model egress, connector execution, audit signing and object-store posture;
+- support model readiness, severity response targets and escalation channel
+  classes;
 - support blockers;
 - links to the relevant runbooks and threat model.
 
 It must not return bearer tokens, raw JWKS, credential material, signing
-material or database DSNs.
+material, database DSNs, customer runbook URLs, status page URLs or personal
+contact details.
+
+## Production Support Readiness Contract
+
+`/support/diagnostics` reports `production_support_ready=true` only when the
+deployment is production-ready and the public-safe support model is configured.
+The support model is intentionally operational rather than contractual: it
+proves that the environment has support controls wired, but it does not create
+a signed SLA.
+
+Required configuration:
+
+- `AXIS_SUPPORT_MODEL_ENABLED=true`
+- `AXIS_SUPPORT_COVERAGE=24x7`
+- positive response targets for `AXIS_SUPPORT_S1_RESPONSE_MINUTES`,
+  `AXIS_SUPPORT_S2_RESPONSE_MINUTES`, `AXIS_SUPPORT_S3_RESPONSE_MINUTES` and
+  `AXIS_SUPPORT_S4_RESPONSE_MINUTES`, ordered from shortest to longest;
+- at least two non-personal escalation channel classes in
+  `AXIS_SUPPORT_ESCALATION_CHANNELS`, for example
+  `["customer_success_manager","platform_engineering_on_call"]`;
+- HTTPS `AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL`;
+- HTTPS `AXIS_SUPPORT_STATUS_PAGE_URL`;
+- `AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED=true`.
+
+The diagnostics response returns only booleans for customer runbook and status
+page configuration. It does not echo the configured URLs. Escalation channel
+values must be role or function labels, not personal names, phone numbers,
+emails or private chat handles.
 
 ## Triage Flow
 
@@ -101,7 +135,10 @@ Escalate immediately when:
 
 ## Current Production Gaps
 
-- Production support model, named escalation paths and SLOs are not complete.
+- The production support-readiness contract, escalation channel classes and SLO
+  target checks are implemented, but signed customer SLAs, named on-call
+  staffing, legal terms and customer-specific incident operations remain
+  commercial/enterprise work.
 - Production backup, restore, retention, HA and disaster recovery are not
   complete across every stateful dependency.
 - Enterprise SSO now has readiness/profile reporting and a PKCE

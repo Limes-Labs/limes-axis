@@ -967,8 +967,11 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add external security review, penetration testing and production threat
   model validation.
 - [x] Add support and operations runbook baseline.
-- [ ] Add production support model, escalation paths, SLOs and customer-facing
-  operations commitments.
+- [x] Add production support-readiness contract for support model, escalation
+  channel classes, SLO targets and customer-facing runbook/status-page
+  configuration.
+- [ ] Add signed production support commitments, named staffing model,
+  customer-specific incident operations and legal SLA terms.
 
 ## Expansion Rule
 

@@ -66,6 +66,9 @@ The baseline covers:
 - Container vulnerability scanning policy baseline for API and web images.
 - Vulnerability management baseline with SARIF publication and expiring
   exception policy.
+- Public-safe production support-readiness configuration for SLO response
+  targets, escalation channel classes, customer runbook presence, status page
+  presence and required incident review.
 
 The baseline does not yet cover:
 
@@ -80,6 +83,8 @@ The baseline does not yet cover:
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
 - Cluster observability, alerting, global abuse throttling and on-call runbooks.
+- Signed customer SLAs, named staffing commitments and customer-specific
+  incident operations.
 
 ## Dependencies
 
@@ -719,6 +724,32 @@ This is a self-hostable baseline, not a complete global abuse-control system.
 For multi-replica or internet-facing production deployments, operators should
 pair it with ingress, gateway or edge-level throttling, alerting and incident
 runbooks.
+
+## Support Readiness Configuration
+
+The chart exposes public-safe support model settings used by
+`/support/diagnostics`:
+
+- `AXIS_SUPPORT_MODEL_ENABLED`
+- `AXIS_SUPPORT_COVERAGE`
+- `AXIS_SUPPORT_S1_RESPONSE_MINUTES`
+- `AXIS_SUPPORT_S2_RESPONSE_MINUTES`
+- `AXIS_SUPPORT_S3_RESPONSE_MINUTES`
+- `AXIS_SUPPORT_S4_RESPONSE_MINUTES`
+- `AXIS_SUPPORT_ESCALATION_CHANNELS`
+- `AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL`
+- `AXIS_SUPPORT_STATUS_PAGE_URL`
+- `AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED`
+
+The diagnostics endpoint returns support readiness booleans, response target
+minutes and escalation channel classes. It does not echo customer runbook URLs,
+status page URLs or personal contact details. `production_support_ready=true`
+requires production deployment readiness plus a configured `24x7` support
+model, positive ordered S1-S4 response targets, at least two escalation channel
+classes, HTTPS runbook/status-page configuration and required incident review.
+
+This is a readiness contract for operators and design partners. It is not a
+signed SLA, staffing commitment or compliance attestation.
 
 ## Secret Rotation Rehearsal
 

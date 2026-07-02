@@ -14543,11 +14543,15 @@
           "object_store_worm_retention_enabled": {
             "title": "Object Store Worm Retention Enabled",
             "type": "boolean"
+          },
+          "support_model": {
+            "$ref": "#/components/schemas/SupportModelSummary"
           }
         },
         "required": [
           "deployment",
           "identity",
+          "support_model",
           "external_model_egress_enabled",
           "live_connector_execution_enabled",
           "audit_ledger_signing_configured",
@@ -14676,6 +14680,56 @@
           "jwks_url_configured"
         ],
         "title": "SupportIdentitySummary",
+        "type": "object"
+      },
+      "SupportModelSummary": {
+        "properties": {
+          "coverage": {
+            "minLength": 1,
+            "title": "Coverage",
+            "type": "string"
+          },
+          "customer_runbook_configured": {
+            "title": "Customer Runbook Configured",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "escalation_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Escalation Channels",
+            "type": "array"
+          },
+          "incident_review_required": {
+            "title": "Incident Review Required",
+            "type": "boolean"
+          },
+          "severity_response_minutes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Severity Response Minutes",
+            "type": "object"
+          },
+          "status_page_configured": {
+            "title": "Status Page Configured",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "coverage",
+          "severity_response_minutes",
+          "escalation_channels",
+          "customer_runbook_configured",
+          "status_page_configured",
+          "incident_review_required"
+        ],
+        "title": "SupportModelSummary",
         "type": "object"
       },
       "ValidationError": {

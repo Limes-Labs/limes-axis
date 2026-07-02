@@ -15,7 +15,8 @@ workflow walkthrough when the same checklist passes and the limitations section
 is shared before the session. It is not yet a production enterprise deployment:
 the first Helm baseline exists, but production disaster recovery, SSO
 hardening, customer bucket operations, secret-manager rotation operations, high
-availability and production operations runbooks remain tracked Enterprise work.
+availability and signed production operations commitments remain tracked
+Enterprise work.
 
 ## No Browser-Local Mock Data
 
@@ -130,13 +131,15 @@ The live check also includes `/deployment/readiness`, which aggregates identity,
 external model egress, live connector execution, audit signing and object-store
 posture into explicit production blockers. The current local profile can be
 demo-safe while `production_ready=false`; that is intentional until enterprise
-deployment, S3/MinIO object-store posture and support runbooks are complete.
+deployment, S3/MinIO object-store posture and signed support commitments are
+complete.
 
 The live check also includes `/support/diagnostics`, a public-safe support
 bundle for design-partner triage. It reports demo-support readiness,
-production-support blockers, support artifact links and redaction policy
-without returning bearer tokens, raw JWKS, credential material, signing
-material or database DSNs.
+production-support blockers, support model readiness, SLO target configuration,
+support artifact links and redaction policy without returning bearer tokens,
+raw JWKS, credential material, signing material, database DSNs, customer
+runbook URLs, status page URLs or personal contact details.
 
 Run browser smoke tests against the production Next.js build:
 
@@ -346,7 +349,9 @@ Confirm before the session:
   rehearsal exist for governed connector evidence exports, but customer bucket
   provisioning review, KMS policy, legal operations and full-bucket restore
   drills are not complete.
-- Production support and operations runbooks are not complete.
+- Production support-readiness checks are implemented, but signed customer
+  SLAs, named on-call staffing, legal terms and customer-specific incident
+  operations remain Enterprise work.
 - External model-provider execution is disabled by default.
 
 ## Automated Checks
@@ -383,8 +388,9 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   `make deployment-secret-rotation-rehearsal-plan`.
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
-- Support diagnostics report contract with public-safe support blockers,
-  artifact links and redaction policy.
+- Support diagnostics report contract with public-safe support model readiness,
+  SLO targets, escalation channel classes, support blockers, artifact links and
+  redaction policy.
 - Threat model and security posture contract through `make security-check`.
 - Optional live API and web checks when URLs are provided.
 

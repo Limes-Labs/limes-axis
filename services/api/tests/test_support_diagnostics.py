@@ -58,6 +58,20 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
         "production_object_store_adapter",
         "production_support_model",
     ]
+    assert body["diagnostics"]["support_model"] == {
+        "enabled": False,
+        "coverage": "demo_business_hours",
+        "severity_response_minutes": {
+            "S1": 0,
+            "S2": 0,
+            "S3": 0,
+            "S4": 0,
+        },
+        "escalation_channels": [],
+        "customer_runbook_configured": False,
+        "status_page_configured": False,
+        "incident_review_required": False,
+    }
     assert body["support_artifacts"] == [
         {"label": "Demo readiness runbook", "path": "docs/demo-readiness.md"},
         {"label": "Deployment threat model", "path": "docs/threat-model.md"},
@@ -144,4 +158,77 @@ def test_support_diagnostics_reports_s3_object_store_without_secret_material() -
     assert body["support_blockers"] == ["production_support_model"]
     assert "axis-secret-key" not in str(body)
     assert "axis-service-account" not in str(body)
+    assert "do-not-return-this-signing-material" not in str(body)
+
+
+def test_support_diagnostics_reports_ready_production_support_model() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="do-not-return-this-signing-material",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="COMPLIANCE",
+                connector_export_s3_retention_days=365,
+                connector_export_s3_legal_hold_enabled=True,
+                support_model_enabled=True,
+                support_coverage="24x7",
+                support_s1_response_minutes=30,
+                support_s2_response_minutes=120,
+                support_s3_response_minutes=480,
+                support_s4_response_minutes=1440,
+                support_escalation_channels=[
+                    "customer_success_manager",
+                    "platform_engineering_on_call",
+                    "security_incident_lead",
+                ],
+                support_customer_runbook_url="https://support.axis.example/runbooks/customer",
+                support_status_page_url="https://status.axis.example",
+                support_incident_review_required=True,
+            )
+        )
+    )
+
+    response = client.get("/support/diagnostics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["production_support_ready"] is True
+    assert body["support_blockers"] == []
+    assert body["diagnostics"]["support_model"] == {
+        "enabled": True,
+        "coverage": "24x7",
+        "severity_response_minutes": {
+            "S1": 30,
+            "S2": 120,
+            "S3": 480,
+            "S4": 1440,
+        },
+        "escalation_channels": [
+            "customer_success_manager",
+            "platform_engineering_on_call",
+            "security_incident_lead",
+        ],
+        "customer_runbook_configured": True,
+        "status_page_configured": True,
+        "incident_review_required": True,
+    }
+    checks = _checks_by_id(body)
+    assert checks["production_support_model"]["status"] == "ready"
+    assert checks["support_slo_targets"]["status"] == "ready"
+    assert checks["support_escalation_channels"]["status"] == "ready"
+    assert "https://support.axis.example" not in str(body)
+    assert "https://status.axis.example" not in str(body)
+    assert "axis-secret-key" not in str(body)
     assert "do-not-return-this-signing-material" not in str(body)
