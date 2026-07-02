@@ -44,6 +44,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_object_storage_recovery.py",
         "services/api/scripts/rehearse_temporal_recovery.py",
         "services/api/scripts/rehearse_secret_rotation.py",
+        "services/api/scripts/rehearse_ha_restart.py",
     )
 
 
@@ -52,6 +53,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-check",
         "deployment-rollout-rehearsal-plan",
         "deployment-rollout-rehearsal",
+        "deployment-ha-rehearsal-plan",
+        "deployment-ha-rehearsal",
         "deployment-backup-rehearsal-plan",
         "deployment-backup-rehearsal",
         "deployment-restore-rehearsal-plan",
@@ -214,6 +217,10 @@ def required_docs_terms() -> tuple[str, ...]:
         "limes-axis.io/secret-rotation-target=staged",
         "secret-rotation.summary.json",
         "secret-rotation.sha256",
+        "HA restart rehearsal",
+        "deployment-ha-rehearsal-plan",
+        "kubectl rollout restart",
+        "kubectl wait --for=condition=available",
         "support-readiness",
         "AXIS_SUPPORT_MODEL_ENABLED",
         "AXIS_SUPPORT_ESCALATION_CHANNELS",
