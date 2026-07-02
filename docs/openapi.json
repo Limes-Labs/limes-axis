@@ -9586,6 +9586,26 @@
             "title": "Credential Lease Provider Adapters Enabled",
             "type": "boolean"
           },
+          "dr_customer_approval_configured": {
+            "title": "Dr Customer Approval Configured",
+            "type": "boolean"
+          },
+          "dr_rehearsal_evidence_configured": {
+            "title": "Dr Rehearsal Evidence Configured",
+            "type": "boolean"
+          },
+          "dr_restore_owner_configured": {
+            "title": "Dr Restore Owner Configured",
+            "type": "boolean"
+          },
+          "dr_rpo_rto_defined": {
+            "title": "Dr Rpo Rto Defined",
+            "type": "boolean"
+          },
+          "dr_runbook_configured": {
+            "title": "Dr Runbook Configured",
+            "type": "boolean"
+          },
           "external_db_live_query_preflight_enabled": {
             "title": "External Db Live Query Preflight Enabled",
             "type": "boolean"
@@ -9689,7 +9709,12 @@
           "object_store_worm_retention_enabled",
           "object_store_retention_mode",
           "object_store_retention_days",
-          "object_store_legal_hold_enabled"
+          "object_store_legal_hold_enabled",
+          "dr_runbook_configured",
+          "dr_rpo_rto_defined",
+          "dr_rehearsal_evidence_configured",
+          "dr_restore_owner_configured",
+          "dr_customer_approval_configured"
         ],
         "title": "DeploymentReadinessCapabilities",
         "type": "object"

@@ -161,7 +161,7 @@ flowchart LR
 | `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
-| `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
+| `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session and DR procedure posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers, commitment gates and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
 | `/demo/manufacturing/approvals` mutation paths | HTTP POST | user/agent to API | OIDC actor binding and permission checks | `services/api/tests/test_approval_decisions.py` |
@@ -220,7 +220,7 @@ flowchart LR
 | TM-003 | Compromised agent or operator | Runtime flags or connector execution enabled | Trigger live query or sync without all gates | External system access or data exfiltration | Source systems, connector leases, audit | Active manifest, lease, egress policy, checkpoint claim and public-safe evidence gates | Full live execution path remains future work | Keep default deferred, require policy bundles and worker claims for every provider adapter | Alert on preflight failures and runtime flag changes | Low | High | Medium |
 | TM-004 | Privileged insider or compromised API path | Access to audit/retention APIs or storage | Delete or rewrite audit evidence | Governance evidence loss | Append-only audit, MinIO artifacts | Audit legal holds, retention checks, checksum/signature proof, append-only rows, S3-compatible retention adapter | Provider-specific KMS signing, restore drills and legal operations not production complete | Add KMS signing, restore drills, customer bucket-policy review and legal hold admin UI | Monitor retention deletion requests and checksum mismatches | Medium | High | High |
 | TM-005 | Agent or route operator | External egress enabled incorrectly | Send operations context to external model | Data leakage and compliance breach | Operational records, model routing telemetry | External model egress disabled by default, route metadata public-safe | Provider adapters and usage metering not complete | Enforce tenant policy approval, classify prompts, log route decisions to audit | Alert on external egress enablement and route decisions | Low | High | Medium |
-| TM-006 | Operator or sales workflow | Demo limitations not shared | Overclaim readiness | Customer trust and compliance risk | Security posture, contracts, operations | `docs/demo-readiness.md`, `docs/backup-restore.md`, `docs/support-operations.md`, `/identity/oidc/readiness`, `/deployment/readiness`, `/support/diagnostics` | Production runbooks still open | Add production DR, support, SSO, KMS and customer bucket operations runbooks; require pre-demo checklist | Track demo readiness, deployment readiness, support diagnostics and security-check output per walkthrough | Medium | Medium | Medium |
+| TM-006 | Operator or sales workflow | Demo limitations not shared | Overclaim readiness | Customer trust and compliance risk | Security posture, contracts, operations | `docs/demo-readiness.md`, `docs/backup-restore.md`, `docs/support-operations.md`, `/identity/oidc/readiness`, `/deployment/readiness`, `/support/diagnostics` | Full production runbook execution still depends on customer environment | Add production DR, support, SSO, KMS and customer bucket operations runbooks; require pre-demo checklist | Track demo readiness, deployment readiness, support diagnostics and security-check output per walkthrough | Medium | Medium | Medium |
 
 ## Existing Controls
 
@@ -246,6 +246,10 @@ flowchart LR
 - Deployment operations: bounded HA restart, load and TLS readiness rehearsal
   plans exercise Kubernetes workload restart, Fortio Job, Ingress,
   cert-manager, DNS and HTTPS reachability paths before production promotion.
+- Disaster recovery: `/deployment/readiness` includes a public-safe
+  `production_dr_procedures` gate for approved runbook, RPO/RTO, rehearsal
+  evidence, restore owner and customer approval configuration without exposing
+  customer-specific procedure details.
 - Contracts: OpenAPI generation check, `make demo-check`, `make demo-check-live`
   and `make security-check`.
 
@@ -253,8 +257,10 @@ flowchart LR
 
 - Postgres production backup, isolated Postgres restore, isolated TypeDB
   recovery, bounded object-store recovery and Temporal namespace/history
-  evidence rehearsals exist, but full retention, Temporal persistence restore,
-  full-bucket object-store restore and disaster recovery are not complete.
+  evidence rehearsals exist, and `/deployment/readiness` gates public-safe DR
+  procedure configuration, but full retention, Temporal persistence restore,
+  full-bucket object-store restore and disaster recovery execution are not
+  complete.
 - Helm/Kubernetes deployment guides, in-process API rate limiting,
   active/staged Secret rotation rehearsal, HA restart rehearsal, bounded load
   rehearsal, TLS readiness rehearsal and local image build baselines exist, but

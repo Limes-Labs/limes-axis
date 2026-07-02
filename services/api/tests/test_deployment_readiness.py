@@ -62,12 +62,19 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
     assert checks["live_connector_execution_disabled"]["status"] == "ready"
     assert checks["audit_ledger_signing_configured"]["status"] == "action_required"
     assert checks["production_object_store_adapter"]["status"] == "action_required"
+    assert checks["production_dr_procedures"]["status"] == "action_required"
+    assert body["capabilities"]["dr_runbook_configured"] is False
+    assert body["capabilities"]["dr_rpo_rto_defined"] is False
+    assert body["capabilities"]["dr_rehearsal_evidence_configured"] is False
+    assert body["capabilities"]["dr_restore_owner_configured"] is False
+    assert body["capabilities"]["dr_customer_approval_configured"] is False
     assert body["production_blockers"] == [
         "oidc_enterprise_sso",
         "oidc_secure_cookie_session",
         "api_rate_limiting",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
+        "production_dr_procedures",
     ]
     assert "secret key" not in str(body).lower()
     assert "access key" not in str(body).lower()
@@ -113,6 +120,11 @@ def test_deployment_readiness_keeps_object_store_as_production_blocker() -> None
                 external_db_live_query_preflight_enabled=False,
                 credential_lease_execution_enabled=False,
                 credential_lease_provider_adapters_enabled=False,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=True,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=True,
+                dr_customer_approval_configured=True,
             )
         )
     )
@@ -156,6 +168,11 @@ def test_deployment_readiness_accepts_s3_compatible_worm_object_store_profile() 
                 connector_export_s3_retention_mode="GOVERNANCE",
                 connector_export_s3_retention_days=90,
                 connector_export_s3_legal_hold_enabled=False,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=True,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=True,
+                dr_customer_approval_configured=True,
             )
         )
     )
@@ -188,8 +205,58 @@ def test_deployment_readiness_accepts_s3_compatible_worm_object_store_profile() 
     assert body["capabilities"]["object_store_worm_retention_enabled"] is True
     assert body["capabilities"]["object_store_retention_mode"] == "GOVERNANCE"
     assert body["capabilities"]["object_store_retention_days"] == 90
+    assert body["capabilities"]["dr_runbook_configured"] is True
+    assert body["capabilities"]["dr_rpo_rto_defined"] is True
+    assert body["capabilities"]["dr_rehearsal_evidence_configured"] is True
+    assert body["capabilities"]["dr_restore_owner_configured"] is True
+    assert body["capabilities"]["dr_customer_approval_configured"] is True
     assert "axis-secret-key" not in str(body)
     assert "axis-service-account" not in str(body)
+
+
+def test_deployment_readiness_blocks_dr_without_operational_procedure_commitments() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="production-signing-key",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_secure_transport=True,
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="GOVERNANCE",
+                connector_export_s3_retention_days=90,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=False,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=False,
+                dr_customer_approval_configured=True,
+            )
+        )
+    )
+
+    response = client.get("/deployment/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    checks = _checks_by_id(body)
+    assert checks["production_object_store_adapter"]["status"] == "ready"
+    assert checks["production_dr_procedures"]["status"] == "action_required"
+    assert body["production_blockers"] == ["production_dr_procedures"]
+    assert body["capabilities"]["dr_runbook_configured"] is True
+    assert body["capabilities"]["dr_rpo_rto_defined"] is False
+    assert body["capabilities"]["dr_rehearsal_evidence_configured"] is True
+    assert body["capabilities"]["dr_restore_owner_configured"] is False
+    assert body["capabilities"]["dr_customer_approval_configured"] is True
+    assert "production-signing-key" not in str(body)
 
 
 def test_deployment_readiness_flags_insecure_cookie_session_profile() -> None:

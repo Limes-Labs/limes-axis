@@ -79,6 +79,9 @@ The baseline covers:
 - Public-safe production support-readiness configuration for SLO response
   targets, escalation channel classes, customer runbook presence, status page
   presence and required incident review.
+- Public-safe production disaster-recovery procedure readiness configuration for
+  approved runbook presence, RPO/RTO definition, rehearsal evidence, restore
+  ownership and customer approval.
 
 The baseline does not yet cover:
 
@@ -88,8 +91,9 @@ The baseline does not yet cover:
   renewal drills and HSTS/CDN/WAF policy.
 - Production secret-manager rotation drills, access reviews, workload restart
   validation, KMS policy review and incident procedures.
-- Full production backup, restore and disaster recovery operations across
-  Postgres, TypeDB, Temporal persistence and object storage.
+- Full production backup, restore and disaster recovery operations execution
+  across Postgres, TypeDB, Temporal persistence and object storage beyond the
+  public-safe procedure readiness gate.
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
 - Cluster observability, alerting, global abuse throttling and on-call runbooks.
@@ -816,6 +820,27 @@ For multi-replica or internet-facing production deployments, operators should
 pair it with ingress, gateway or edge-level throttling, alerting and incident
 runbooks.
 
+## Disaster Recovery Procedure Readiness
+
+The chart exposes public-safe disaster-recovery procedure settings used by
+`/deployment/readiness`:
+
+- `AXIS_DR_RUNBOOK_CONFIGURED`
+- `AXIS_DR_RPO_RTO_DEFINED`
+- `AXIS_DR_REHEARSAL_EVIDENCE_CONFIGURED`
+- `AXIS_DR_RESTORE_OWNER_CONFIGURED`
+- `AXIS_DR_CUSTOMER_APPROVAL_CONFIGURED`
+
+The readiness endpoint returns only booleans. It does not expose customer
+runbook URLs, owner names, approval records, incident contacts, RPO/RTO values or
+customer-specific evidence locations. `production_dr_procedures` is ready only
+when all five gates are configured.
+
+This gate complements the Postgres, TypeDB, object storage and Temporal
+recovery rehearsal tools above. It is not a disaster-recovery certification by
+itself; operators still need customer-specific restore execution, offsite
+retention, legal review and recurring rehearsal evidence.
+
 ## Support Readiness Configuration
 
 The chart exposes public-safe support model settings used by
@@ -1016,7 +1041,8 @@ curl http://127.0.0.1:8000/deployment/readiness
 The readiness endpoint should be shared honestly during enterprise evaluation.
 It may report `production_ready=false` until OIDC, rate limiting, audit signing,
 OIDC secure-cookie/session posture, connector execution, object storage,
-customer bucket operations and support operations are hardened.
+disaster-recovery procedures, customer bucket operations and support operations
+are hardened.
 
 ## Promotion Gate
 
@@ -1032,8 +1058,8 @@ Before customer production use, the deployment package must add and verify:
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
 - backup restore drills against isolated Postgres, TypeDB and object-storage
-  targets plus Temporal namespace/history evidence, disaster recovery runbooks
-  and RPO/RTO evidence.
+  targets plus Temporal namespace/history evidence, disaster recovery runbooks,
+  RPO/RTO evidence, restore ownership and customer approval.
 - production secret-manager rotation drills, access reviews, workload restart
   validation and incident procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.
