@@ -161,7 +161,7 @@ flowchart LR
 | `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
-| `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers without secrets | `services/api/tests/test_deployment_readiness.py` |
+| `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
 | `/demo/manufacturing/approvals` mutation paths | HTTP POST | user/agent to API | OIDC actor binding and permission checks | `services/api/tests/test_approval_decisions.py` |
@@ -227,7 +227,9 @@ flowchart LR
 - Identity: OIDC/JWKS verifier, actor/tenant binding, authorization-code PKCE
   callback, HTTP-only session cookie validation, persisted
   `oidc_browser_sessions` revocation state, `POST /identity/session/logout`
-  audit evidence and public-safe `/identity/oidc/readiness` posture reporting.
+  audit evidence, public-safe `/identity/oidc/readiness` posture reporting and
+  deployment readiness gating for Secure cookies, signing secret presence,
+  bounded TTL and HTTPS API/public/redirect URLs.
 - Permissions: RBAC, ABAC and relationship-aware permission primitives with
   endpoint tests for approvals, actions and ontology reads.
 - Connector governance: manifest lifecycle gates, active preview requirements,
@@ -261,8 +263,9 @@ flowchart LR
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
-- Enterprise SSO still needs refresh-token rotation and customer-specific
-  production operations runbooks.
+- Enterprise SSO has an explicit secure browser-session readiness gate, but
+  still needs refresh-token rotation and customer-specific production
+  operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
 - In-process API rate limiting exists for public and sensitive routes, but
   global abuse throttling, production telemetry alerting and incident response

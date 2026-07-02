@@ -9552,6 +9552,10 @@
       },
       "DeploymentReadinessCapabilities": {
         "properties": {
+          "api_base_url_https": {
+            "title": "Api Base Url Https",
+            "type": "boolean"
+          },
           "api_rate_limit_enabled": {
             "title": "Api Rate Limit Enabled",
             "type": "boolean"
@@ -9632,9 +9636,41 @@
           "object_store_worm_retention_enabled": {
             "title": "Object Store Worm Retention Enabled",
             "type": "boolean"
+          },
+          "oidc_post_logout_redirect_uri_https": {
+            "title": "Oidc Post Logout Redirect Uri Https",
+            "type": "boolean"
+          },
+          "oidc_redirect_uri_https": {
+            "title": "Oidc Redirect Uri Https",
+            "type": "boolean"
+          },
+          "oidc_session_cookie_secure": {
+            "title": "Oidc Session Cookie Secure",
+            "type": "boolean"
+          },
+          "oidc_session_cookie_signing_secret_configured": {
+            "title": "Oidc Session Cookie Signing Secret Configured",
+            "type": "boolean"
+          },
+          "oidc_session_cookie_ttl_seconds": {
+            "minimum": 0.0,
+            "title": "Oidc Session Cookie Ttl Seconds",
+            "type": "integer"
+          },
+          "public_base_url_https": {
+            "title": "Public Base Url Https",
+            "type": "boolean"
           }
         },
         "required": [
+          "oidc_session_cookie_secure",
+          "oidc_session_cookie_signing_secret_configured",
+          "oidc_session_cookie_ttl_seconds",
+          "api_base_url_https",
+          "public_base_url_https",
+          "oidc_redirect_uri_https",
+          "oidc_post_logout_redirect_uri_https",
           "api_rate_limit_enabled",
           "api_rate_limit_requests",
           "api_rate_limit_window_seconds",

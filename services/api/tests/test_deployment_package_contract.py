@@ -131,7 +131,9 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_OIDC_CLIENT_SECRET" in required_terms
     assert "AXIS_OIDC_AUTHORIZATION_URL" in required_terms
     assert "AXIS_OIDC_TOKEN_URL" in required_terms
+    assert "AXIS_OIDC_REDIRECT_URI" in required_terms
     assert "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET" in required_terms
+    assert "AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS" in required_terms
     assert "AXIS_OIDC_SESSION_COOKIE_SECURE" in required_terms
     assert "AXIS_API_RATE_LIMIT_ENABLED" in required_terms
     assert "AXIS_API_RATE_LIMIT_REQUESTS" in required_terms
@@ -411,6 +413,11 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "AXIS_OIDC_END_SESSION_URL" in required_terms
     assert "AXIS_OIDC_POST_LOGOUT_REDIRECT_URI" in required_terms
     assert "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET" in required_terms
+    assert "AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS" in required_terms
+    assert "AXIS_OIDC_SESSION_COOKIE_SECURE=true" in required_terms
+    assert "oidc_secure_cookie_session" in required_terms
+    assert "bounded TTL" in required_terms
+    assert "HTTPS API/public/redirect URLs" in required_terms
     assert "S3-compatible object storage" in required_terms
     assert "External Secrets Operator" in required_terms
     assert "cert-manager" in required_terms

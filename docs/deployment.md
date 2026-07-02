@@ -85,7 +85,7 @@ The baseline does not yet cover:
 - Sustained customer-profile high availability validation under load.
 - Full load testing, capacity planning and rollout-drain validation.
 - Automated TLS certificate issuance operations, DNS ownership attestation,
-  renewal drills and secure cookie/session review.
+  renewal drills and HSTS/CDN/WAF policy.
 - Production secret-manager rotation drills, access reviews, workload restart
   validation, KMS policy review and incident procedures.
 - Full production backup, restore and disaster recovery operations across
@@ -134,8 +134,8 @@ external issuers also emit issuer kind and issuer group annotations.
 The chart does not install an Ingress controller, cert-manager, DNS records or
 certificate issuers. Operators must provision those resources according to
 their cluster policy and verify DNS ownership, certificate renewal and secure
-cookie/session behavior against the final public hostnames before production
-use.
+host routing against the final public hostnames before production use.
+`/deployment/readiness` separately gates secure OIDC browser-session posture.
 
 ## TLS Readiness Rehearsal
 
@@ -758,6 +758,7 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 - `AXIS_OIDC_END_SESSION_URL`
 - `AXIS_OIDC_POST_LOGOUT_REDIRECT_URI`
 - `AXIS_OIDC_SCOPES`
+- `AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS`
 - `AXIS_OIDC_SESSION_COOKIE_SECURE=true`
 
 Keep `AXIS_OIDC_CLIENT_SECRET` and
@@ -773,6 +774,17 @@ access tokens or refresh tokens. The IdP onboarding report never returns
 confidential client material, cookie-signing material, provider tokens or raw
 JWKS material. Refresh-token rotation and production SSO operations runbooks
 remain Enterprise hardening work.
+
+`GET /deployment/readiness` reports `oidc_secure_cookie_session` as a
+production blocker unless browser sessions use the Secure cookie flag, an
+operator-provided signing secret, a bounded TTL and HTTPS API/public/redirect URLs.
+The gate checks `AXIS_API_BASE_URL`, `AXIS_PUBLIC_BASE_URL`,
+`AXIS_OIDC_REDIRECT_URI`, the effective post-logout redirect URI,
+`AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS`,
+`AXIS_OIDC_SESSION_COOKIE_SECURE=true` and the presence of
+`AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`. The readiness response exposes only
+booleans and bounded TTL metadata; it does not print cookie-signing material or
+client secrets.
 
 ## API Rate Limiting
 
@@ -996,8 +1008,8 @@ curl http://127.0.0.1:8000/deployment/readiness
 
 The readiness endpoint should be shared honestly during enterprise evaluation.
 It may report `production_ready=false` until OIDC, rate limiting, audit signing,
-connector execution, object storage, customer bucket operations and support
-operations are hardened.
+OIDC secure-cookie/session posture, connector execution, object storage,
+customer bucket operations and support operations are hardened.
 
 ## Promotion Gate
 
@@ -1009,7 +1021,7 @@ Before customer production use, the deployment package must add and verify:
 - operational review cadence for high-severity findings and expiring
   vulnerability exceptions.
 - cert-manager issuer policy, DNS ownership checks, certificate renewal
-  evidence and secure cookie/session behavior.
+  evidence and HSTS/CDN/WAF policy.
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
 - backup restore drills against isolated Postgres, TypeDB and object-storage
