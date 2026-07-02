@@ -982,8 +982,9 @@ audit writes from live route decisions remain Platform work.
 - [x] Add production support-readiness contract for support model, escalation
   channel classes, SLO targets and customer-facing runbook/status-page
   configuration.
-- [ ] Add signed production support commitments, named staffing model,
-  customer-specific incident operations and legal SLA terms.
+- [x] Add public-safe production support commitment readiness gates for signed
+  support commitments, named staffing model, customer-specific incident
+  operations and legal SLA terms.
 
 ## Expansion Rule
 

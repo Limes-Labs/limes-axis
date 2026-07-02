@@ -146,6 +146,10 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL" in required_terms
     assert "AXIS_SUPPORT_STATUS_PAGE_URL" in required_terms
     assert "AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED" in required_terms
+    assert "AXIS_SUPPORT_SIGNED_COMMITMENT_CONFIGURED" in required_terms
+    assert "AXIS_SUPPORT_NAMED_STAFFING_MODEL_CONFIGURED" in required_terms
+    assert "AXIS_SUPPORT_CUSTOMER_INCIDENT_OPERATIONS_CONFIGURED" in required_terms
+    assert "AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED" in required_terms
     assert "existingSecret" in required_terms
     assert "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE" in required_terms
     assert "ExternalSecret" in required_terms
@@ -472,5 +476,10 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "support-readiness" in required_terms
     assert "AXIS_SUPPORT_MODEL_ENABLED" in required_terms
     assert "AXIS_SUPPORT_ESCALATION_CHANNELS" in required_terms
+    assert "AXIS_SUPPORT_SIGNED_COMMITMENT_CONFIGURED" in required_terms
+    assert "AXIS_SUPPORT_NAMED_STAFFING_MODEL_CONFIGURED" in required_terms
+    assert "AXIS_SUPPORT_CUSTOMER_INCIDENT_OPERATIONS_CONFIGURED" in required_terms
+    assert "AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED" in required_terms
+    assert "production_support_commitments" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms

@@ -42,10 +42,18 @@ class SupportModelSummary(BaseModel):
     incident_review_required: bool
 
 
+class SupportCommitmentSummary(BaseModel):
+    signed_commitment_configured: bool
+    named_staffing_model_configured: bool
+    customer_incident_operations_configured: bool
+    legal_sla_terms_configured: bool
+
+
 class SupportDiagnosticsPayload(BaseModel):
     deployment: SupportDeploymentSummary
     identity: SupportIdentitySummary
     support_model: SupportModelSummary
+    support_commitments: SupportCommitmentSummary
     external_model_egress_enabled: bool
     live_connector_execution_enabled: bool
     audit_ledger_signing_configured: bool
@@ -131,6 +139,17 @@ def _support_model_summary(settings: Settings) -> SupportModelSummary:
     )
 
 
+def _support_commitment_summary(settings: Settings) -> SupportCommitmentSummary:
+    return SupportCommitmentSummary(
+        signed_commitment_configured=settings.support_signed_commitment_configured,
+        named_staffing_model_configured=settings.support_named_staffing_model_configured,
+        customer_incident_operations_configured=(
+            settings.support_customer_incident_operations_configured
+        ),
+        legal_sla_terms_configured=settings.support_legal_sla_terms_configured,
+    )
+
+
 def build_support_diagnostics_report(
     settings: Settings,
     *,
@@ -167,13 +186,29 @@ def build_support_diagnostics_report(
             support_model.incident_review_required,
         )
     )
+    support_commitments = _support_commitment_summary(settings)
+    production_support_commitments_ready = all(
+        (
+            support_commitments.signed_commitment_configured,
+            support_commitments.named_staffing_model_configured,
+            support_commitments.customer_incident_operations_configured,
+            support_commitments.legal_sla_terms_configured,
+        )
+    )
     production_support_ready = (
-        deployment_readiness_report.production_ready and production_support_model_ready
+        deployment_readiness_report.production_ready
+        and production_support_model_ready
+        and production_support_commitments_ready
     )
     support_blockers = _dedupe(
         [
             *deployment_readiness_report.production_blockers,
             *([] if production_support_model_ready else ["production_support_model"]),
+            *(
+                []
+                if production_support_commitments_ready
+                else ["production_support_commitments"]
+            ),
         ]
     )
     checks = [
@@ -206,6 +241,18 @@ def build_support_diagnostics_report(
             production_support_model_ready,
             "Production support model is ready.",
             "Production support model, escalation paths and SLOs remain Enterprise work.",
+        ),
+        _support_check(
+            "production_support_commitments",
+            production_support_commitments_ready,
+            (
+                "Signed support commitments, staffing model, customer incident "
+                "operations and SLA terms are configured."
+            ),
+            (
+                "Signed support commitments, named staffing, customer incident "
+                "operations and legal SLA terms remain Enterprise work."
+            ),
         ),
         _support_check(
             "support_slo_targets",
@@ -243,6 +290,7 @@ def build_support_diagnostics_report(
                 jwks_url_configured=bool(oidc_readiness_report.get("jwks_url_configured")),
             ),
             support_model=support_model,
+            support_commitments=support_commitments,
             external_model_egress_enabled=settings.external_model_egress_enabled,
             live_connector_execution_enabled=live_connector_execution_enabled,
             audit_ledger_signing_configured=bool(settings.audit_ledger_signing_secret),

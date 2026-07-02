@@ -61,6 +61,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
         "production_support_model",
+        "production_support_commitments",
     ]
     assert body["diagnostics"]["support_model"] == {
         "enabled": False,
@@ -75,6 +76,12 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
         "customer_runbook_configured": False,
         "status_page_configured": False,
         "incident_review_required": False,
+    }
+    assert body["diagnostics"]["support_commitments"] == {
+        "signed_commitment_configured": False,
+        "named_staffing_model_configured": False,
+        "customer_incident_operations_configured": False,
+        "legal_sla_terms_configured": False,
     }
     assert body["support_artifacts"] == [
         {"label": "Demo readiness runbook", "path": "docs/demo-readiness.md"},
@@ -122,6 +129,7 @@ def test_support_diagnostics_never_returns_sensitive_signing_material() -> None:
     assert body["support_blockers"] == [
         "production_object_store_adapter",
         "production_support_model",
+        "production_support_commitments",
     ]
     assert "do-not-return-this-signing-material" not in str(body)
     assert "password" not in str(body).lower()
@@ -159,13 +167,16 @@ def test_support_diagnostics_reports_s3_object_store_without_secret_material() -
     assert body["diagnostics"]["object_store_worm_retention_enabled"] is True
     assert body["diagnostics"]["object_store_retention_mode"] == "COMPLIANCE"
     assert body["diagnostics"]["object_store_retention_days"] == 365
-    assert body["support_blockers"] == ["production_support_model"]
+    assert body["support_blockers"] == [
+        "production_support_model",
+        "production_support_commitments",
+    ]
     assert "axis-secret-key" not in str(body)
     assert "axis-service-account" not in str(body)
     assert "do-not-return-this-signing-material" not in str(body)
 
 
-def test_support_diagnostics_reports_ready_production_support_model() -> None:
+def test_support_diagnostics_blocks_support_model_without_signed_commitments() -> None:
     client = TestClient(
         create_app(
             _enterprise_sso_settings(
@@ -207,6 +218,70 @@ def test_support_diagnostics_reports_ready_production_support_model() -> None:
 
     assert response.status_code == 200
     body = response.json()
+    assert body["status"] == "action_required"
+    assert body["production_support_ready"] is False
+    assert body["support_blockers"] == ["production_support_commitments"]
+    checks = _checks_by_id(body)
+    assert checks["production_support_model"]["status"] == "ready"
+    assert checks["production_support_commitments"]["status"] == "action_required"
+    assert body["diagnostics"]["support_commitments"] == {
+        "signed_commitment_configured": False,
+        "named_staffing_model_configured": False,
+        "customer_incident_operations_configured": False,
+        "legal_sla_terms_configured": False,
+    }
+    assert "https://support.axis.example" not in str(body)
+    assert "https://status.axis.example" not in str(body)
+    assert "axis-secret-key" not in str(body)
+    assert "do-not-return-this-signing-material" not in str(body)
+
+
+def test_support_diagnostics_reports_ready_production_support_commitments() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="do-not-return-this-signing-material",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="COMPLIANCE",
+                connector_export_s3_retention_days=365,
+                connector_export_s3_legal_hold_enabled=True,
+                support_model_enabled=True,
+                support_coverage="24x7",
+                support_s1_response_minutes=30,
+                support_s2_response_minutes=120,
+                support_s3_response_minutes=480,
+                support_s4_response_minutes=1440,
+                support_escalation_channels=[
+                    "customer_success_manager",
+                    "platform_engineering_on_call",
+                    "security_incident_lead",
+                ],
+                support_customer_runbook_url="https://support.axis.example/runbooks/customer",
+                support_status_page_url="https://status.axis.example",
+                support_incident_review_required=True,
+                support_signed_commitment_configured=True,
+                support_named_staffing_model_configured=True,
+                support_customer_incident_operations_configured=True,
+                support_legal_sla_terms_configured=True,
+            )
+        )
+    )
+
+    response = client.get("/support/diagnostics")
+
+    assert response.status_code == 200
+    body = response.json()
     assert body["status"] == "ready"
     assert body["production_support_ready"] is True
     assert body["support_blockers"] == []
@@ -228,8 +303,15 @@ def test_support_diagnostics_reports_ready_production_support_model() -> None:
         "status_page_configured": True,
         "incident_review_required": True,
     }
+    assert body["diagnostics"]["support_commitments"] == {
+        "signed_commitment_configured": True,
+        "named_staffing_model_configured": True,
+        "customer_incident_operations_configured": True,
+        "legal_sla_terms_configured": True,
+    }
     checks = _checks_by_id(body)
     assert checks["production_support_model"]["status"] == "ready"
+    assert checks["production_support_commitments"]["status"] == "ready"
     assert checks["support_slo_targets"]["status"] == "ready"
     assert checks["support_escalation_channels"]["status"] == "ready"
     assert "https://support.axis.example" not in str(body)
