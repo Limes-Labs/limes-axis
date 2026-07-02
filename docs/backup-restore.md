@@ -6,8 +6,8 @@ enterprise evaluation walkthroughs where the same local Axis state must be
 preserved or restored.
 
 It is not a production disaster recovery design. Production HA, offsite
-retention, WORM audit storage, restore drills, RPO/RTO targets and Kubernetes
-operator procedures remain Enterprise work.
+retention, WORM audit storage, Temporal recovery, object-store recovery,
+RPO/RTO targets and Kubernetes operator procedures remain Enterprise work.
 
 For Kubernetes environments, the deployment guide now includes a production
 backup rehearsal path that captures a Postgres dump and validates its restore
@@ -20,6 +20,17 @@ Secret containing `AXIS_POSTGRES_RESTORE_DSN`, and that Secret must be marked
 with `limes-axis.io/restore-target=isolated`. This proves the captured dump can
 be restored into an isolated Postgres target, but it still does not establish
 full production disaster recovery coverage.
+
+The deployment guide also includes a TypeDB recovery rehearsal path. It uses
+TypeDB Console `database export` to capture `typedb.schema.typeql` and
+`typedb.data`, then uses `database import` against a separate restore target
+Secret containing `AXIS_TYPEDB_RESTORE_DATABASE`. That Secret must be marked
+with `limes-axis.io/typedb-restore-target=isolated`. This proves the graph
+export/import path against an isolated target. Execution requires
+`AXIS_TYPEDB_RECOVERY_IMAGE` to point to an operator-supplied image that
+contains TypeDB Console. It still does not coordinate application write
+quiescence, Temporal recovery, object storage recovery, offsite retention or
+RPO/RTO commitments.
 
 ## What Is Captured
 
@@ -127,6 +138,7 @@ rehearsal targets:
 make deployment-check
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
+make deployment-typedb-recovery-rehearsal-plan
 ```
 
 Live demo verification should be run after restore:

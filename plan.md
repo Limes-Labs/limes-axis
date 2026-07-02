@@ -320,6 +320,8 @@ Foundation acceptance is tracked in
   validation and public-safe evidence capture.
 - [x] Add a Kubernetes isolated Postgres restore rehearsal with checksum,
   restore-catalog validation and public-safe evidence capture.
+- [x] Add a Kubernetes TypeDB recovery rehearsal with `database export`,
+  `database import`, checksum evidence and an isolated restore-target gate.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
 
@@ -387,9 +389,10 @@ guarding chart files, externalized runtime configuration, rollout controls,
 public-safe docs, the `deployment-check` Make target, cert-manager
 ingress-shim annotations, Helm smoke tests and a rollout rehearsal script for
 upgrade, readiness, backup capture, isolated Postgres restore and rollback
-mechanics. It is an initial production deployment guide baseline, not a claim
+mechanics plus a TypeDB recovery rehearsal for export/import into an isolated
+target. It is an initial production deployment guide baseline, not a claim
 that high availability, image release automation, DNS ownership, certificate
-renewal operations, external secret management, cross-service disaster
+renewal operations, external secret management, Temporal/object-store disaster
 recovery, KMS-backed signing or customer bucket operations are complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
