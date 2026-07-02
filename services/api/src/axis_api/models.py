@@ -35,6 +35,30 @@ class Actor(Base):
     )
 
 
+class OidcBrowserSession(Base):
+    __tablename__ = "oidc_browser_sessions"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    session_id_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    scopes: Mapped[list] = mapped_column(JSON, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    revocation_reason: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    revoke_audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

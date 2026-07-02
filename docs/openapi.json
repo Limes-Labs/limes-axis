@@ -20261,6 +20261,20 @@
         ]
       }
     },
+    "/identity/session/logout": {
+      "post": {
+        "operationId": "identity_session_logout_identity_session_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Identity Session Logout",
+        "tags": [
+          "system"
+        ]
+      }
+    },
     "/ready": {
       "get": {
         "operationId": "ready_ready_get",

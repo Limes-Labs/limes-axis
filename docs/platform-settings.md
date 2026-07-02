@@ -15,7 +15,8 @@ The console reads:
 - `GET /ready` for API dependency and model-egress posture.
 - `GET /identity/oidc/readiness` for enterprise SSO readiness checks.
 - `GET /identity/session` for the API-validated actor/session boundary, whether
-  the actor arrived through a bearer token or an HTTP-only OIDC session cookie.
+  the actor arrived through a bearer token or a non-revoked HTTP-only OIDC
+  session cookie.
 - `GET /deployment/readiness` for production blockers and deployment profile.
 - `GET /support/diagnostics` for public-safe support diagnostics and redaction
   policy.
@@ -26,7 +27,8 @@ The Settings console shows:
 
 - API readiness and runtime dependency reachability.
 - OIDC issuer, audience, auth requirement, token binding claims,
-  authorization-code readiness and session-cookie hardening.
+  authorization-code readiness, session-cookie hardening and revocation
+  posture.
 - Deployment profile, demo-safety, production blockers and object-store
   adapter, WORM retention mode and retention-day posture.
 - Support diagnostics, support blockers, redaction policy and support

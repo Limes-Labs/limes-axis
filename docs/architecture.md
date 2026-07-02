@@ -243,16 +243,19 @@ SSO. The authorize endpoint creates a PKCE request and a signed login-state
 cookie; the callback verifies state, exchanges the code at the configured token
 endpoint, validates the returned access token with the Axis OIDC verifier and
 sets an HTTP-only Axis session cookie containing only API-owned actor, tenant,
-scope and expiry claims. `/identity/session` can validate either an attached
-bearer token or the signed Axis session cookie, and it still returns only
-public-safe session metadata.
+scope, expiry and session-id claims. The API stores a keyed hash of that
+session id in `oidc_browser_sessions` with actor, tenant, scopes, expiry and
+revocation metadata. `/identity/session` can validate either an attached bearer
+token or a signed, non-revoked Axis session cookie, and it still returns only
+public-safe session metadata. `POST /identity/session/logout` revokes the
+persisted browser session, writes audit evidence and clears the cookie.
 
 The governance console still includes a local bearer-token bridge for developer
 and demo workflows. That bridge stores a token in browser session storage and
 attaches `Authorization: Bearer ...` to protected demo API calls. The account
 popover uses `/identity/session` as the displayed source of truth instead of
-trusting browser-decoded claims. Refresh-token rotation, logout propagation,
-server-side revocation and IdP onboarding runbooks remain Enterprise hardening
+trusting browser-decoded claims. Refresh-token rotation, federated logout
+propagation to the IdP and IdP onboarding runbooks remain Enterprise hardening
 work.
 
 ## Permission Boundaries

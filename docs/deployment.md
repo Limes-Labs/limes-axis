@@ -654,6 +654,8 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
   at the token endpoint and sets an HTTP-only Axis session cookie.
 - `GET /identity/session` validates the signed Axis session cookie and returns
   only public-safe actor, tenant, scope and posture metadata.
+- `POST /identity/session/logout` revokes the persisted Axis browser session,
+  writes audit evidence and clears the browser cookie.
 
 Configure non-sensitive client and endpoint values in the chart ConfigMap:
 
@@ -667,9 +669,12 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 Keep `AXIS_OIDC_CLIENT_SECRET` and
 `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET` in `secrets.existingSecret` or an
 external secret manager. The callback does not return token material to the web
-console, and the Axis session cookie stores only API-owned actor, tenant, scope
-and expiry claims. Refresh-token rotation, logout propagation, IdP onboarding
-runbooks and production session revocation remain Enterprise hardening work.
+console. The Axis session cookie stores only API-owned actor, tenant, scope,
+expiry and session-id claims; the `oidc_browser_sessions` table stores only a
+keyed session-id hash plus actor, tenant, scopes, expiry and revocation
+metadata, providing server-side session revocation without storing provider
+tokens. Refresh-token rotation, federated logout propagation to the IdP and IdP
+onboarding runbooks remain Enterprise hardening work.
 
 ## Secret Rotation Rehearsal
 

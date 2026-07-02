@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -45,6 +45,7 @@ from axis_api.approval_reference import (
     ApprovalReferenceRecordNotFound,
     get_persisted_manufacturing_approval_inbox,
 )
+from axis_api.audit import AuditEventCreate
 from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportBundle,
@@ -377,6 +378,7 @@ from axis_api.oidc_code_flow import (
     read_login_state,
     read_session_cookie,
     session_cookie_from_principal,
+    session_id_hash,
     token_endpoint,
 )
 from axis_api.ontology.mutations import (
@@ -400,7 +402,11 @@ from axis_api.ontology_reference import (
     get_persisted_manufacturing_ontology_entity_detail,
 )
 from axis_api.permissions import PermissionRequest, evaluate_permission
-from axis_api.persistence import AxisPersistenceRepository
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    OidcBrowserSessionCreate,
+    OidcBrowserSessionRevocation,
+)
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
     ReplaySimulationOutputConflict,
@@ -551,28 +557,49 @@ def oidc_principal(
         if session_cookie:
             try:
                 oidc_session = read_session_cookie(session_cookie, settings)
-                return OidcPrincipal(
-                    actor_id=oidc_session.actor_id,
-                    tenant_id=oidc_session.tenant_id,
-                    scopes=list(oidc_session.scopes),
-                    expires_at=oidc_session.expires_at,
-                    session_source="secure_cookie",
-                )
+                session_hash = session_id_hash(oidc_session.session_id, settings)
+                with session_scope(request.app.state.session_factory) as session:
+                    repository = AxisPersistenceRepository(session)
+                    stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
+                    if stored_session is None:
+                        raise OidcCookieValidationError("invalid_session_cookie")
+                    if stored_session.status == "revoked":
+                        raise OidcCookieValidationError("revoked_session_cookie")
+                    if _datetime_is_expired(stored_session.expires_at):
+                        raise OidcCookieValidationError("expired_session_cookie")
+                    if (
+                        stored_session.actor_id != oidc_session.actor_id
+                        or stored_session.tenant_id != oidc_session.tenant_id
+                    ):
+                        raise OidcCookieValidationError("invalid_session_cookie")
+                    return OidcPrincipal(
+                        actor_id=stored_session.actor_id,
+                        tenant_id=stored_session.tenant_id,
+                        scopes=list(stored_session.scopes),
+                        expires_at=int(_ensure_aware_datetime(stored_session.expires_at).timestamp()),
+                        session_source="secure_cookie",
+                    )
             except (
                 OidcCodeFlowConfigurationError,
                 OidcCookieValidationError,
             ) as exc:
                 reason = getattr(exc, "reason", "invalid_session_cookie")
+                public_reason = (
+                    reason
+                    if reason
+                    in {
+                        "invalid_session_cookie",
+                        "revoked_session_cookie",
+                        "expired_session_cookie",
+                    }
+                    else "invalid_session_cookie"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail={
                         "code": AxisErrorCode.AUTH_REQUIRED.value,
                         "message": "The OIDC session cookie could not be verified.",
-                        "reason": (
-                            reason
-                            if reason.startswith("invalid_session")
-                            else "invalid_session_cookie"
-                        ),
+                        "reason": public_reason,
                     },
                 ) from exc
         if settings.oidc_auth_required:
@@ -597,6 +624,16 @@ def oidc_principal(
                 "reason": exc.reason,
             },
         ) from exc
+
+
+def _ensure_aware_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def _datetime_is_expired(value: datetime) -> bool:
+    return _ensure_aware_datetime(value) <= datetime.now(UTC)
 
 
 OidcPrincipalDependency = Annotated[
@@ -1246,11 +1283,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             principal = request.app.state.identity_verifier.verify_authorization_header(
                 f"Bearer {access_token}"
             )
-            session_cookie_value, session_max_age = session_cookie_from_principal(
+            session_cookie_value, session_max_age, session_id = session_cookie_from_principal(
                 token_response,
                 principal,
                 resolved_settings,
             )
+            session_claims = read_session_cookie(session_cookie_value, resolved_settings)
+            session_hash = session_id_hash(session_id, resolved_settings)
+            expires_at = datetime.fromtimestamp(session_claims.expires_at, UTC)
+            with session_scope(request.app.state.session_factory) as session:
+                repository = AxisPersistenceRepository(session)
+                audit_event = repository.append_audit_event(
+                    AuditEventCreate(
+                        tenant_id=principal.tenant_id,
+                        actor_id=principal.actor_id,
+                        event_type="identity.oidc_session.created",
+                        payload={
+                            "session_id_hash": session_hash,
+                            "session_boundary": "http_only_cookie_verified_by_axis_api",
+                            "expires_at": expires_at.isoformat(),
+                            "scopes": principal.scopes,
+                        },
+                    )
+                )
+                repository.create_oidc_browser_session(
+                    OidcBrowserSessionCreate(
+                        session_id_hash=session_hash,
+                        tenant_id=principal.tenant_id,
+                        actor_id=principal.actor_id,
+                        scopes=principal.scopes,
+                        expires_at=expires_at,
+                        created_audit_event_id=audit_event.id,
+                    )
+                )
         except OidcCookieValidationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1300,6 +1365,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             httponly=True,
             samesite="lax",
         )
+        return response
+
+    @app.post(
+        "/identity/session/logout",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["system"],
+    )
+    def identity_session_logout(request: Request) -> Response:
+        response = Response(status_code=status.HTTP_204_NO_CONTENT)
+        response.delete_cookie(
+            resolved_settings.oidc_session_cookie_name,
+            path="/",
+            secure=resolved_settings.oidc_session_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
+        session_cookie = request.cookies.get(resolved_settings.oidc_session_cookie_name)
+        if not session_cookie:
+            return response
+
+        try:
+            oidc_session = read_session_cookie(session_cookie, resolved_settings)
+            session_hash = session_id_hash(oidc_session.session_id, resolved_settings)
+        except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
+            return response
+
+        with session_scope(request.app.state.session_factory) as session:
+            repository = AxisPersistenceRepository(session)
+            stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
+            if stored_session is None or stored_session.status == "revoked":
+                return response
+            audit_event = repository.append_audit_event(
+                AuditEventCreate(
+                    tenant_id=stored_session.tenant_id,
+                    actor_id=stored_session.actor_id,
+                    event_type="identity.oidc_session.revoked",
+                    payload={
+                        "session_id_hash": session_hash,
+                        "revocation_reason": "user_logout",
+                        "session_boundary": "http_only_cookie_verified_by_axis_api",
+                    },
+                )
+            )
+            repository.revoke_oidc_browser_session(
+                OidcBrowserSessionRevocation(
+                    session_id_hash=session_hash,
+                    revoked_by=stored_session.actor_id,
+                    revocation_reason="user_logout",
+                    revoke_audit_event_id=audit_event.id,
+                )
+            )
         return response
 
     @app.get(

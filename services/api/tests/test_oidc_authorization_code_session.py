@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import json
 from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 from jose import jwt
 from jose.utils import base64url_encode
+from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.identity import StaticJwksOidcVerifier
 from axis_api.main import create_app
+from axis_api.models import AuditEvent, Base
 from axis_api.oidc_code_flow import read_session_cookie
 
 
@@ -64,6 +69,55 @@ def _settings(**overrides: object) -> Settings:
     return Settings(**values)
 
 
+def _session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+def _app_with_static_oidc(
+    settings: Settings,
+    *,
+    token_secret: str,
+) -> tuple[TestClient, sessionmaker[Session], list[dict[str, str]]]:
+    app = create_app(settings)
+    factory = _session_factory()
+    app.state.session_factory = factory
+    app.state.identity_verifier = StaticJwksOidcVerifier(
+        issuer=settings.oidc_issuer,
+        audience=settings.oidc_audience,
+        algorithms=settings.oidc_algorithms,
+        jwks=_oct_jwks(token_secret),
+        tenant_claim=settings.oidc_tenant_claim,
+    )
+    token_requests: list[dict[str, str]] = []
+
+    def exchange_token(form: dict[str, str], _settings: Settings) -> dict[str, object]:
+        token_requests.append(form)
+        return {
+            "access_token": _token(token_secret, settings),
+            "expires_in": 900,
+            "token_type": "Bearer",
+        }
+
+    app.state.oidc_token_exchanger = exchange_token
+    return TestClient(app, follow_redirects=False), factory, token_requests
+
+
+def _one_oidc_browser_session(session: Session) -> dict:
+    assert inspect(session.bind).has_table("oidc_browser_sessions")
+    row = dict(
+        session.execute(text("SELECT * FROM oidc_browser_sessions")).mappings().one()
+    )
+    if isinstance(row.get("scopes"), str):
+        row["scopes"] = json.loads(row["scopes"])
+    return row
+
+
 def test_oidc_authorize_redirects_with_pkce_and_http_only_login_cookie() -> None:
     settings = _settings()
     client = TestClient(create_app(settings), follow_redirects=False)
@@ -99,22 +153,7 @@ def test_oidc_authorize_redirects_with_pkce_and_http_only_login_cookie() -> None
 def test_oidc_callback_exchanges_code_and_sets_api_validated_session_cookie() -> None:
     secret = "axis-test-secret"
     settings = _settings(oidc_session_cookie_secure=False)
-    app = create_app(settings)
-    app.state.identity_verifier = StaticJwksOidcVerifier(
-        issuer=settings.oidc_issuer,
-        audience=settings.oidc_audience,
-        algorithms=settings.oidc_algorithms,
-        jwks=_oct_jwks(secret),
-        tenant_claim=settings.oidc_tenant_claim,
-    )
-    token_requests: list[dict[str, str]] = []
-
-    def exchange_token(form: dict[str, str], _settings: Settings) -> dict[str, object]:
-        token_requests.append(form)
-        return {"access_token": _token(secret, settings), "expires_in": 900, "token_type": "Bearer"}
-
-    app.state.oidc_token_exchanger = exchange_token
-    client = TestClient(app, follow_redirects=False)
+    client, factory, token_requests = _app_with_static_oidc(settings, token_secret=secret)
     authorize = client.get("/identity/oidc/authorize?return_to=/settings")
     state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
 
@@ -142,9 +181,24 @@ def test_oidc_callback_exchanges_code_and_sets_api_validated_session_cookie() ->
     assert "access_token" not in set_cookie
     session_cookie = SimpleCookie(set_cookie)["axis_session"].value
     session_claims = read_session_cookie(session_cookie, settings)
+    assert len(session_claims.session_id) >= 43
     assert session_claims.actor_id == "plant-operations-owner-role"
     assert session_claims.tenant_id == "tenant_demo_manufacturing"
     assert session_claims.scopes == ("approvals:supply:decide", "audit:read")
+
+    with factory() as session:
+        persisted_session = _one_oidc_browser_session(session)
+        assert persisted_session["status"] == "active"
+        assert persisted_session["session_id_hash"] != session_claims.session_id
+        assert persisted_session["actor_id"] == "plant-operations-owner-role"
+        assert persisted_session["tenant_id"] == "tenant_demo_manufacturing"
+        assert persisted_session["scopes"] == ["approvals:supply:decide", "audit:read"]
+        assert "access_token" not in str(persisted_session).lower()
+        assert "refresh_token" not in str(persisted_session).lower()
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == [
+            "identity.oidc_session.created"
+        ]
 
     session_response = client.get("/identity/session")
 
@@ -184,3 +238,59 @@ def test_identity_session_rejects_tampered_session_cookie_when_auth_required() -
 
     assert response.status_code == 401
     assert response.json()["detail"]["reason"] == "invalid_session_cookie"
+
+
+def test_oidc_session_logout_revokes_persisted_session_and_deletes_cookie() -> None:
+    settings = _settings(oidc_session_cookie_secure=False)
+    client, factory, _token_requests = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+    )
+    authorize = client.get("/identity/oidc/authorize?return_to=/")
+    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+    assert callback.status_code == 307
+
+    logout = client.post("/identity/session/logout")
+
+    assert logout.status_code == 204
+    assert "axis_session=" in logout.headers["set-cookie"]
+    assert "Max-Age=0" in logout.headers["set-cookie"]
+    with factory() as session:
+        persisted_session = _one_oidc_browser_session(session)
+        assert persisted_session["status"] == "revoked"
+        assert persisted_session["revoked_by"] == "plant-operations-owner-role"
+        assert persisted_session["revocation_reason"] == "user_logout"
+        assert persisted_session["revoked_at"] is not None
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == [
+            "identity.oidc_session.created",
+            "identity.oidc_session.revoked",
+        ]
+
+    response = client.get("/identity/session")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "missing_authorization"
+
+
+def test_revoked_oidc_session_cookie_cannot_authenticate_again() -> None:
+    settings = _settings(oidc_session_cookie_secure=False)
+    client, factory, _token_requests = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+    )
+    authorize = client.get("/identity/oidc/authorize?return_to=/")
+    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+    cookie_value = SimpleCookie(callback.headers["set-cookie"])["axis_session"].value
+    assert client.post("/identity/session/logout").status_code == 204
+    client.cookies.set("axis_session", cookie_value)
+
+    response = client.get("/identity/session")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "revoked_session_cookie"
+    with factory() as session:
+        persisted_session = _one_oidc_browser_session(session)
+        assert persisted_session["status"] == "revoked"
