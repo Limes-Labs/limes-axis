@@ -43,6 +43,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_typedb_recovery.py",
         "services/api/scripts/rehearse_object_storage_recovery.py",
         "services/api/scripts/rehearse_temporal_recovery.py",
+        "services/api/scripts/rehearse_secret_rotation.py",
     )
 
 
@@ -61,6 +62,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-object-storage-recovery-rehearsal",
         "deployment-temporal-recovery-rehearsal-plan",
         "deployment-temporal-recovery-rehearsal",
+        "deployment-secret-rotation-rehearsal-plan",
+        "deployment-secret-rotation-rehearsal",
     )
 
 
@@ -171,6 +174,11 @@ def required_docs_terms() -> tuple[str, ...]:
         "AXIS_TEMPORAL_RECOVERY_WORKFLOW_ID",
         "operator namespace describe",
         "workflow show --output json",
+        "secret rotation rehearsal",
+        "AXIS_SECRET_ROTATION_IMAGE",
+        "limes-axis.io/secret-rotation-target=staged",
+        "secret-rotation.summary.json",
+        "secret-rotation.sha256",
         "/ready",
         "not a production certification",
     )
