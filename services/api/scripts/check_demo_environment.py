@@ -23,6 +23,7 @@ def required_openapi_paths() -> tuple[str, ...]:
         "/identity/oidc/readiness",
         "/identity/oidc/authorize",
         "/identity/oidc/callback",
+        "/identity/session/logout",
         "/deployment/readiness",
         "/support/diagnostics",
         "/demo/manufacturing/overview",

@@ -30,6 +30,7 @@ from axis_api.models import (
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
     ManufacturingRiskScenario,
+    OidcBrowserSession,
     PlatformNotificationAcknowledgement,
     ReplaySimulationOutput,
     WorkflowRunRecord,
@@ -763,6 +764,22 @@ class PlatformNotificationAcknowledgementCreate(BaseModel):
     acknowledged_at: datetime
 
 
+class OidcBrowserSessionCreate(BaseModel):
+    session_id_hash: str = Field(min_length=32, max_length=128)
+    tenant_id: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    scopes: list[str] = Field(default_factory=list)
+    expires_at: datetime
+    created_audit_event_id: UUID | None = None
+
+
+class OidcBrowserSessionRevocation(BaseModel):
+    session_id_hash: str = Field(min_length=32, max_length=128)
+    revoked_by: str = Field(min_length=1)
+    revocation_reason: str = Field(min_length=1)
+    revoke_audit_event_id: UUID | None = None
+
+
 class AxisPersistenceRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -784,6 +801,51 @@ class AxisPersistenceRepository:
             AuditEvent.id == audit_event_id,
         )
         return self.session.scalar(statement)
+
+    def create_oidc_browser_session(
+        self,
+        record: OidcBrowserSessionCreate,
+    ) -> OidcBrowserSession:
+        browser_session = OidcBrowserSession(
+            session_id_hash=record.session_id_hash,
+            tenant_id=record.tenant_id,
+            actor_id=record.actor_id,
+            status="active",
+            scopes=record.scopes,
+            expires_at=record.expires_at,
+            created_audit_event_id=record.created_audit_event_id,
+        )
+        self.session.add(browser_session)
+        self.session.flush()
+        return browser_session
+
+    def get_oidc_browser_session_by_hash(
+        self,
+        session_id_hash: str,
+    ) -> OidcBrowserSession | None:
+        statement: Select[tuple[OidcBrowserSession]] = select(OidcBrowserSession).where(
+            OidcBrowserSession.session_id_hash == session_id_hash
+        )
+        return self.session.scalar(statement)
+
+    def revoke_oidc_browser_session(
+        self,
+        record: OidcBrowserSessionRevocation,
+    ) -> OidcBrowserSession | None:
+        browser_session = self.get_oidc_browser_session_by_hash(record.session_id_hash)
+        if browser_session is None:
+            return None
+        if browser_session.status == "revoked":
+            return browser_session
+        now = utc_now()
+        browser_session.status = "revoked"
+        browser_session.revoked_at = now
+        browser_session.revoked_by = record.revoked_by
+        browser_session.revocation_reason = record.revocation_reason
+        browser_session.revoke_audit_event_id = record.revoke_audit_event_id
+        browser_session.updated_at = now
+        self.session.flush()
+        return browser_session
 
     def list_audit_events(
         self,

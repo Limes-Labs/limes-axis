@@ -50,6 +50,7 @@ class OidcLoginState:
 
 @dataclass(frozen=True)
 class OidcSessionCookie:
+    session_id: str
     actor_id: str
     tenant_id: str
     scopes: tuple[str, ...]
@@ -164,7 +165,10 @@ def session_cookie_from_principal(
     token_response: dict[str, Any],
     principal: Any,
     settings: Settings,
-) -> tuple[str, int]:
+    *,
+    session_id: str | None = None,
+) -> tuple[str, int, str]:
+    resolved_session_id = session_id or secrets.token_urlsafe(48)
     expires_in = token_response.get("expires_in")
     max_age = settings.oidc_session_cookie_ttl_seconds
     if isinstance(expires_in, int) and expires_in > 0:
@@ -180,12 +184,13 @@ def session_cookie_from_principal(
     expires_at = now + max_age
     payload = {
         "kind": "oidc_session",
+        "session_id": resolved_session_id,
         "actor_id": principal.actor_id,
         "tenant_id": principal.tenant_id,
         "scopes": list(principal.scopes),
         "expires_at": expires_at,
     }
-    return sign_cookie(payload, settings), max_age
+    return sign_cookie(payload, settings), max_age, resolved_session_id
 
 
 def read_session_cookie(cookie_value: str | None, settings: Settings) -> OidcSessionCookie:
@@ -193,12 +198,24 @@ def read_session_cookie(cookie_value: str | None, settings: Settings) -> OidcSes
     scopes = payload.get("scopes", [])
     if not isinstance(scopes, list):
         raise OidcCookieValidationError("invalid_session_scopes")
+    session_id = payload.get("session_id")
+    if not isinstance(session_id, str) or len(session_id) < 32:
+        raise OidcCookieValidationError("invalid_session_id")
     return OidcSessionCookie(
+        session_id=session_id,
         actor_id=str(payload["actor_id"]),
         tenant_id=str(payload["tenant_id"]),
         scopes=tuple(str(scope) for scope in scopes if scope),
         expires_at=int(payload["expires_at"]),
     )
+
+
+def session_id_hash(session_id: str, settings: Settings) -> str:
+    return hmac.new(
+        _cookie_secret(settings),
+        f"oidc-session:{session_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def sign_cookie(payload: dict[str, Any], settings: Settings) -> str:

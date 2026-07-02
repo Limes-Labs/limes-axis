@@ -108,6 +108,8 @@ Foundation acceptance is tracked in
   enterprise SSO posture checks.
 - [x] Add an OIDC authorization-code PKCE callback and HTTP-only API session
   cookie boundary for browser SSO.
+- [x] Add a persistent OIDC browser-session store, logout endpoint and
+  server-side session revocation audit evidence.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Add self-hosted KMS-style ledger signature proof for audit export bundles.
@@ -523,12 +525,17 @@ validates the attached token through the API, returns the API-owned actor,
 tenant, scopes, expiry and SSO posture for the account panel, and never returns
 bearer token material. The API also exposes `GET /identity/oidc/authorize` and
 `GET /identity/oidc/callback` for a PKCE authorization-code flow that exchanges
-the code server-side and sets an HTTP-only signed Axis session cookie. Without a
-token or session cookie, `/identity/session` reports explicit public-evaluation
-state when OIDC auth is optional; when OIDC auth is required, it returns `401`
-until a valid bearer token or API session cookie is attached. Refresh-token
-rotation, logout propagation, server-side session revocation and provider
-onboarding runbooks remain Platform/Enterprise work.
+the code server-side and sets an HTTP-only signed Axis session cookie. The
+cookie carries a high-entropy Axis `session_id`; the API stores only a keyed hash
+of that session id plus actor, tenant, scopes and expiry in
+`oidc_browser_sessions`, so provider token material is not persisted in the
+session store. `POST /identity/session/logout` revokes the persisted session,
+writes `identity.oidc_session.revoked` audit evidence and clears the cookie.
+Without a token or session cookie, `/identity/session` reports explicit
+public-evaluation state when OIDC auth is optional; when OIDC auth is required,
+it returns `401` until a valid bearer token or non-revoked API session cookie is
+attached. Refresh-token rotation, federated logout propagation to the IdP and
+provider onboarding runbooks remain Platform/Enterprise work.
 
 The ontology explorer and entity detail pages are currently read-only and API
 required; the browser no longer carries a local graph fallback. Graph reads now
@@ -941,7 +948,8 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
-  readiness/profile, PKCE callback and session read-model reports.
+  readiness/profile, PKCE callback, logout and server-side session revocation
+  reports.
 - [x] Add deployment readiness profile reporting for identity, egress,
   connector execution, audit signing, S3/MinIO object-store posture and WORM
   retention gates.

@@ -220,8 +220,9 @@ flowchart LR
 ## Existing Controls
 
 - Identity: OIDC/JWKS verifier, actor/tenant binding, authorization-code PKCE
-  callback, HTTP-only session cookie validation and public-safe
-  `/identity/oidc/readiness` posture reporting.
+  callback, HTTP-only session cookie validation, persisted
+  `oidc_browser_sessions` revocation state, `POST /identity/session/logout`
+  audit evidence and public-safe `/identity/oidc/readiness` posture reporting.
 - Permissions: RBAC, ABAC and relationship-aware permission primitives with
   endpoint tests for approvals, actions and ontology reads.
 - Connector governance: manifest lifecycle gates, active preview requirements,
@@ -249,8 +250,8 @@ flowchart LR
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
-- Enterprise SSO still needs refresh-token rotation, logout propagation,
-  server-side revocation, IdP onboarding and operations runbooks.
+- Enterprise SSO still needs refresh-token rotation, federated logout
+  propagation to the IdP, IdP onboarding and operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
 - Rate limiting, abuse throttling and production telemetry alerting are not yet
   described as complete controls.
@@ -260,9 +261,9 @@ flowchart LR
 
 | Path | Why It Matters | Related Threat IDs |
 | --- | --- | --- |
-| `services/api/src/axis_api/main.py` | Route mounting, OIDC principal/session binding and runtime selection | TM-001, TM-003, TM-005 |
+| `services/api/src/axis_api/main.py` | Route mounting, OIDC principal/session binding, logout and runtime selection | TM-001, TM-003, TM-005 |
 | `services/api/src/axis_api/identity.py` | Token parsing, JWKS validation and actor/tenant extraction | TM-001 |
-| `services/api/src/axis_api/oidc_code_flow.py` | Authorization-code PKCE, state cookie, token exchange and signed session cookie boundary | TM-001, TM-006 |
+| `services/api/src/axis_api/oidc_code_flow.py` | Authorization-code PKCE, state cookie, token exchange, session-id hashing and signed session cookie boundary | TM-001, TM-006 |
 | `services/api/src/axis_api/connector_*` | Connector manifest, credential, lease, policy and execution gates | TM-002, TM-003 |
 | `services/api/src/axis_api/audit_queries.py` | Audit export, legal hold and retention deletion controls | TM-004 |
 | `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |
