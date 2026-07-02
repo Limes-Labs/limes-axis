@@ -67,6 +67,10 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
         "services/api/scripts/rehearse_typedb_recovery.py"
         in checker.required_deployment_scripts()
     )
+    assert (
+        "services/api/scripts/rehearse_object_storage_recovery.py"
+        in checker.required_deployment_scripts()
+    )
     assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal" in checker.required_make_targets()
     assert "deployment-backup-rehearsal-plan" in checker.required_make_targets()
@@ -75,6 +79,8 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
     assert "deployment-restore-rehearsal" in checker.required_make_targets()
     assert "deployment-typedb-recovery-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-typedb-recovery-rehearsal" in checker.required_make_targets()
+    assert "deployment-object-storage-recovery-rehearsal-plan" in checker.required_make_targets()
+    assert "deployment-object-storage-recovery-rehearsal" in checker.required_make_targets()
 
 
 def test_deployment_package_externalizes_state_and_secrets() -> None:
@@ -369,5 +375,11 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "AXIS_TYPEDB_RESTORE_DATABASE" in required_terms
     assert "database export" in required_terms
     assert "database import" in required_terms
+    assert "object storage recovery rehearsal" in required_terms
+    assert "AXIS_CONNECTOR_EXPORT_S3_RESTORE_BUCKET" in required_terms
+    assert "AXIS_OBJECT_STORAGE_RECOVERY_IMAGE" in required_terms
+    assert "mc alias set" in required_terms
+    assert "mc cp" in required_terms
+    assert "mc cat" in required_terms
     assert "/ready" in required_terms
     assert "not a production certification" in required_terms

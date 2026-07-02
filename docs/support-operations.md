@@ -103,11 +103,12 @@ Escalate immediately when:
 
 - Production support model, named escalation paths and SLOs are not complete.
 - Production backup, restore, retention, HA and disaster recovery are not
-  complete.
+  complete across every stateful dependency.
 - Enterprise SSO operations beyond the readiness/profile report are not
   complete.
-- S3/MinIO WORM adapter readiness is implemented, but production bucket
-  provisioning review, KMS policy, legal operations and restore drills remain
-  Enterprise work.
+- S3/MinIO WORM adapter readiness and a bounded object-store recovery
+  rehearsal are implemented, but production bucket provisioning review, KMS
+  policy, legal operations and full-bucket restore drills remain Enterprise
+  work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

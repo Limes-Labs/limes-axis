@@ -87,6 +87,7 @@ make deployment-check
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
+make deployment-object-storage-recovery-rehearsal-plan
 ```
 
 Run the API/web container image contract:
@@ -175,6 +176,12 @@ make demo-stack-down
       `database import`, TypeDB Console preflight, checksum evidence and
       restore-target probing without exposing TypeDB credentials; live
       execution also requires `AXIS_TYPEDB_RECOVERY_IMAGE`.
+- [ ] `make deployment-object-storage-recovery-rehearsal-plan` prints the
+      Kubernetes object storage recovery rehearsal steps for an isolated target
+      Secret containing `AXIS_CONNECTOR_EXPORT_S3_RESTORE_BUCKET`, including
+      MinIO Client preflight, `mc alias set`, `mc cp`, `mc cat`, checksum
+      evidence and restore-target probing without exposing S3 credentials; live
+      execution also requires `AXIS_OBJECT_STORAGE_RECOVERY_IMAGE`.
 - [ ] `make container-check` passes the API/web Dockerfile, `.dockerignore`,
       Makefile and public deployment documentation contract.
 - [ ] `make demo-backup-plan` prints the local backup commands and artifacts
@@ -297,19 +304,21 @@ Confirm before the session:
   controls, scheduling/topology pass-through values and configurable rollout
   controls for RollingUpdate strategy, revision history, termination grace and
   lifecycle hooks, a Postgres production backup rehearsal plan, an isolated
-  Postgres restore rehearsal plan and a TypeDB recovery rehearsal plan, but
-  production HA validation, DNS/certificate operations, full cluster
-  backup/restore across Temporal and object storage, rollout-drain exercises,
-  load testing and production secret-rotation drills are not complete.
+  Postgres restore rehearsal plan, a TypeDB recovery rehearsal plan and an
+  object storage recovery rehearsal plan, but production HA validation,
+  DNS/certificate operations, full cluster backup/restore across Temporal,
+  full-bucket object storage restore, rollout-drain exercises, load testing and
+  production secret-rotation drills are not complete.
 - Local Docker Compose backup and restore procedures are available for
   repeatable demos; production backup, restore, retention, HA and disaster
   recovery procedures are not complete.
 - Enterprise SSO hardening now has an explicit API readiness profile, but full
   authorization-code login, refresh, secure-cookie sessions, IdP onboarding
   runbooks and production SSO operations are not complete.
-- S3/MinIO WORM adapter readiness exists for governed connector evidence
-  exports, but customer bucket provisioning review, KMS policy, legal
-  operations and restore drills are not complete.
+- S3/MinIO WORM adapter readiness and a bounded object storage recovery
+  rehearsal exist for governed connector evidence exports, but customer bucket
+  provisioning review, KMS policy, legal operations and full-bucket restore
+  drills are not complete.
 - Production support and operations runbooks are not complete.
 - External model-provider execution is disabled by default.
 

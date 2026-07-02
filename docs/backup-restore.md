@@ -32,6 +32,16 @@ contains TypeDB Console. It still does not coordinate application write
 quiescence, Temporal recovery, object storage recovery, offsite retention or
 RPO/RTO commitments.
 
+The deployment guide also includes an object storage recovery rehearsal path.
+It uses MinIO Client `mc alias set`, `mc cp` and `mc cat` to write a bounded
+probe object into the configured S3-compatible evidence bucket, copy it into an
+isolated restore bucket and verify the restored bytes by checksum. Execution
+requires `AXIS_OBJECT_STORAGE_RECOVERY_IMAGE` and an isolated restore target
+Secret containing `AXIS_CONNECTOR_EXPORT_S3_RESTORE_BUCKET` plus endpoint and
+credential keys. This proves the source-to-isolated-target object copy path,
+but it still does not establish provider KMS review, customer bucket-policy
+approval, full-bucket restore, legal operations or RPO/RTO commitments.
+
 ## What Is Captured
 
 The local backup command captures:
@@ -139,6 +149,7 @@ make deployment-check
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
+make deployment-object-storage-recovery-rehearsal-plan
 ```
 
 Live demo verification should be run after restore:

@@ -324,6 +324,8 @@ Foundation acceptance is tracked in
   `database import`, checksum evidence and an isolated restore-target gate.
 - [x] Add S3/MinIO-compatible object-store adapter readiness with explicit WORM
   retention gates for governed connector evidence exports.
+- [x] Add a bounded Kubernetes object storage recovery rehearsal with MinIO
+  Client copy, restore-target isolation and checksum evidence.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
@@ -390,10 +392,12 @@ public-safe docs, the `deployment-check` Make target, cert-manager
 ingress-shim annotations, Helm smoke tests and a rollout rehearsal script for
 upgrade, readiness, backup capture, isolated Postgres restore and rollback
 mechanics plus a TypeDB recovery rehearsal for export/import into an isolated
-target. It is an initial production deployment guide baseline, not a claim
-that high availability, image release automation, DNS ownership, certificate
-renewal operations, external secret management, Temporal/object-store disaster
-recovery, KMS-backed signing or customer bucket operations are complete.
+target plus a bounded object-storage recovery probe into an isolated bucket.
+It is an initial production deployment guide baseline, not a claim that high
+availability, image release automation, DNS ownership, certificate renewal
+operations, external secret management, Temporal/full-bucket object-store
+disaster recovery, KMS-backed signing or customer bucket operations are
+complete.
 The API and web container image baseline now includes `services/api/Dockerfile`,
 `apps/web/Dockerfile`, `.dockerignore`, `make container-check`,
 `make container-build-api` and `make container-build-web`. These images are
