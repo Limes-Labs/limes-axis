@@ -6,8 +6,9 @@ enterprise evaluation walkthroughs where the same local Axis state must be
 preserved or restored.
 
 It is not a production disaster recovery design. Production HA, offsite
-retention, WORM audit storage, Temporal recovery, object-store recovery,
-RPO/RTO targets and Kubernetes operator procedures remain Enterprise work.
+retention, WORM audit storage, full Temporal persistence restore,
+full-bucket object-store recovery, RPO/RTO targets and Kubernetes operator
+procedures remain Enterprise work.
 
 For Kubernetes environments, the deployment guide now includes a production
 backup rehearsal path that captures a Postgres dump and validates its restore
@@ -41,6 +42,17 @@ Secret containing `AXIS_CONNECTOR_EXPORT_S3_RESTORE_BUCKET` plus endpoint and
 credential keys. This proves the source-to-isolated-target object copy path,
 but it still does not establish provider KMS review, customer bucket-policy
 approval, full-bucket restore, legal operations or RPO/RTO commitments.
+
+The deployment guide also includes a Temporal recovery rehearsal path. It uses
+Temporal CLI `operator namespace describe`, `workflow list` and
+`workflow show --output json` from an isolated non-root Pod to capture
+checksummed cluster, namespace and selected workflow-history evidence.
+Execution requires `AXIS_TEMPORAL_RECOVERY_IMAGE` and an isolated recovery
+Secret containing `AXIS_TEMPORAL_RECOVERY_WORKFLOW_ID`, marked with
+`limes-axis.io/temporal-recovery-target=isolated`. This proves a read-only
+Temporal namespace/history evidence path, but it still does not restore
+Temporal persistence, replay workflow code, validate archival or establish
+RPO/RTO commitments.
 
 ## What Is Captured
 
@@ -150,6 +162,7 @@ make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
 make deployment-object-storage-recovery-rehearsal-plan
+make deployment-temporal-recovery-rehearsal-plan
 ```
 
 Live demo verification should be run after restore:

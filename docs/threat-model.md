@@ -235,9 +235,9 @@ flowchart LR
 ## Open Risks And Next Hardening Work
 
 - Postgres production backup, isolated Postgres restore, isolated TypeDB
-  recovery and bounded object-store recovery rehearsals exist, but full
-  retention, Temporal restore, full-bucket object-store restore and disaster
-  recovery are not complete.
+  recovery, bounded object-store recovery and Temporal namespace/history
+  evidence rehearsals exist, but full retention, Temporal persistence restore,
+  full-bucket object-store restore and disaster recovery are not complete.
 - Helm/Kubernetes deployment guides and local image build baselines exist, but
   HA runbooks, image provenance/signing and release automation are not complete.
 - S3-compatible retention adapter readiness and a bounded object-store recovery
@@ -261,11 +261,11 @@ flowchart LR
 | `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |
 | `apps/web/e2e/smoke.spec.ts` | Guards API-required UI behavior and prevents fallback data | TM-006 |
 | `infra/docker/docker-compose.yml` | Local runtime topology and exposed service ports | TM-006 |
-| `infra/helm/limes-axis` | Kubernetes deployment baseline, TLS Ingress routing, cert-manager ingress-shim annotation support, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, Helm smoke tests, rollout rehearsal runbook, production backup, Postgres restore, TypeDB recovery and object-store recovery rehearsals, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
+| `infra/helm/limes-axis` | Kubernetes deployment baseline, TLS Ingress routing, cert-manager ingress-shim annotation support, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, Helm smoke tests, rollout rehearsal runbook, production backup, Postgres restore, TypeDB recovery, object-store recovery and Temporal namespace/history evidence rehearsals, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | Local API/web image build baselines and runtime boundaries | TM-006 |
 | `docs/demo-readiness.md` | Demo limitations and enterprise evaluation framing | TM-006 |
 | `docs/backup-restore.md` | Local demo backup boundary and non-production DR warning | TM-006 |
-| `docs/deployment.md` | Helm baseline, external Postgres/TypeDB/OIDC/object-store dependencies, TypeDB and object-store recovery rehearsals and production hardening gates | TM-006 |
+| `docs/deployment.md` | Helm baseline, external Postgres/TypeDB/Temporal/OIDC/object-store dependencies, TypeDB, object-store and Temporal recovery rehearsals and production hardening gates | TM-006 |
 
 ## Review Cadence
 
