@@ -35,6 +35,7 @@ def required_boundary_terms() -> tuple[str, ...]:
         "/identity/oidc/readiness",
         "/identity/oidc/authorize",
         "/identity/oidc/callback",
+        "/identity/oidc/logout",
         "/identity/session/logout",
         "/demo/manufacturing/operations/snapshot",
         "/demo/manufacturing/connectors",

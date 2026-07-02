@@ -372,8 +372,11 @@ from axis_api.oidc_code_flow import (
     OidcTokenExchangeError,
     authorization_endpoint,
     build_authorization_request,
+    build_end_session_redirect_url,
     build_token_exchange_form,
+    end_session_endpoint,
     exchange_authorization_code,
+    post_logout_redirect_uri,
     public_redirect,
     read_login_state,
     read_session_cookie,
@@ -748,6 +751,19 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
             "OIDC token endpoint must use HTTPS for enterprise SSO.",
         ),
         _readiness_check(
+            "end_session_endpoint",
+            bool(settings.oidc_end_session_url)
+            and end_session_endpoint(settings).startswith("https://"),
+            "OIDC end-session endpoint is explicitly configured and uses HTTPS.",
+            "Configure AXIS_OIDC_END_SESSION_URL with a TLS end-session endpoint.",
+        ),
+        _readiness_check(
+            "post_logout_redirect",
+            post_logout_redirect_uri(settings, "/").startswith("https://"),
+            "Post-logout redirect URI uses HTTPS.",
+            "Configure AXIS_OIDC_POST_LOGOUT_REDIRECT_URI or AXIS_PUBLIC_BASE_URL with HTTPS.",
+        ),
+        _readiness_check(
             "session_cookie_signing",
             bool(settings.oidc_session_cookie_signing_secret),
             "OIDC session cookies are signed with an operator-provided key.",
@@ -770,6 +786,14 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
         "jwks_source": "configured" if settings.oidc_jwks_url else "derived_from_issuer",
         "jwks_url_configured": bool(settings.oidc_jwks_url),
         "jwks_cache_seconds": settings.oidc_jwks_cache_seconds,
+        "federated_logout": {
+            "end_session_source": (
+                "configured" if settings.oidc_end_session_url else "derived_from_issuer"
+            ),
+            "end_session_url_configured": bool(settings.oidc_end_session_url),
+            "post_logout_redirect_uri": post_logout_redirect_uri(settings, "/"),
+            "stores_provider_logout_tokens": False,
+        },
         "algorithms": algorithms,
         "token_binding": {
             "actor_claim": settings.oidc_actor_claim,
@@ -1262,6 +1286,58 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return response
 
+    def delete_oidc_session_cookie(response: Response) -> None:
+        response.delete_cookie(
+            resolved_settings.oidc_session_cookie_name,
+            path="/",
+            secure=resolved_settings.oidc_session_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
+
+    def revoke_oidc_session_from_cookie(
+        request: Request,
+        *,
+        revocation_reason: str,
+        federated_logout: bool,
+    ) -> None:
+        session_cookie = request.cookies.get(resolved_settings.oidc_session_cookie_name)
+        if not session_cookie:
+            return
+
+        try:
+            oidc_session = read_session_cookie(session_cookie, resolved_settings)
+            session_hash = session_id_hash(oidc_session.session_id, resolved_settings)
+        except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
+            return
+
+        with session_scope(request.app.state.session_factory) as session:
+            repository = AxisPersistenceRepository(session)
+            stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
+            if stored_session is None or stored_session.status == "revoked":
+                return
+            audit_event = repository.append_audit_event(
+                AuditEventCreate(
+                    tenant_id=stored_session.tenant_id,
+                    actor_id=stored_session.actor_id,
+                    event_type="identity.oidc_session.revoked",
+                    payload={
+                        "session_id_hash": session_hash,
+                        "revocation_reason": revocation_reason,
+                        "session_boundary": "http_only_cookie_verified_by_axis_api",
+                        "federated_logout": federated_logout,
+                    },
+                )
+            )
+            repository.revoke_oidc_browser_session(
+                OidcBrowserSessionRevocation(
+                    session_id_hash=session_hash,
+                    revoked_by=stored_session.actor_id,
+                    revocation_reason=revocation_reason,
+                    revoke_audit_event_id=audit_event.id,
+                )
+            )
+
     @app.get("/identity/oidc/callback", tags=["system"])
     def oidc_callback(request: Request, code: str, state: str) -> RedirectResponse:
         try:
@@ -1367,6 +1443,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return response
 
+    @app.get("/identity/oidc/logout", tags=["system"])
+    def oidc_federated_logout(request: Request, return_to: str = "/") -> RedirectResponse:
+        try:
+            redirect_url = build_end_session_redirect_url(resolved_settings, return_to)
+        except OidcCodeFlowConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC federated logout is not configured.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        response = RedirectResponse(
+            redirect_url,
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        delete_oidc_session_cookie(response)
+        revoke_oidc_session_from_cookie(
+            request,
+            revocation_reason="federated_logout",
+            federated_logout=True,
+        )
+        return response
+
     @app.post(
         "/identity/session/logout",
         status_code=status.HTTP_204_NO_CONTENT,
@@ -1374,48 +1476,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def identity_session_logout(request: Request) -> Response:
         response = Response(status_code=status.HTTP_204_NO_CONTENT)
-        response.delete_cookie(
-            resolved_settings.oidc_session_cookie_name,
-            path="/",
-            secure=resolved_settings.oidc_session_cookie_secure,
-            httponly=True,
-            samesite="lax",
+        delete_oidc_session_cookie(response)
+        revoke_oidc_session_from_cookie(
+            request,
+            revocation_reason="user_logout",
+            federated_logout=False,
         )
-        session_cookie = request.cookies.get(resolved_settings.oidc_session_cookie_name)
-        if not session_cookie:
-            return response
-
-        try:
-            oidc_session = read_session_cookie(session_cookie, resolved_settings)
-            session_hash = session_id_hash(oidc_session.session_id, resolved_settings)
-        except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
-            return response
-
-        with session_scope(request.app.state.session_factory) as session:
-            repository = AxisPersistenceRepository(session)
-            stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
-            if stored_session is None or stored_session.status == "revoked":
-                return response
-            audit_event = repository.append_audit_event(
-                AuditEventCreate(
-                    tenant_id=stored_session.tenant_id,
-                    actor_id=stored_session.actor_id,
-                    event_type="identity.oidc_session.revoked",
-                    payload={
-                        "session_id_hash": session_hash,
-                        "revocation_reason": "user_logout",
-                        "session_boundary": "http_only_cookie_verified_by_axis_api",
-                    },
-                )
-            )
-            repository.revoke_oidc_browser_session(
-                OidcBrowserSessionRevocation(
-                    session_id_hash=session_hash,
-                    revoked_by=stored_session.actor_id,
-                    revocation_reason="user_logout",
-                    revoke_audit_event_id=audit_event.id,
-                )
-            )
         return response
 
     @app.get(

@@ -20189,6 +20189,47 @@
         ]
       }
     },
+    "/identity/oidc/logout": {
+      "get": {
+        "operationId": "oidc_federated_logout_identity_oidc_logout_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "return_to",
+            "required": false,
+            "schema": {
+              "default": "/",
+              "title": "Return To",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Federated Logout",
+        "tags": [
+          "system"
+        ]
+      }
+    },
     "/identity/oidc/readiness": {
       "get": {
         "operationId": "oidc_readiness_identity_oidc_readiness_get",

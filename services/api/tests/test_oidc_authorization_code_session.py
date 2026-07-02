@@ -274,6 +274,71 @@ def test_oidc_session_logout_revokes_persisted_session_and_deletes_cookie() -> N
     assert response.json()["detail"]["reason"] == "missing_authorization"
 
 
+def test_oidc_federated_logout_revokes_session_and_redirects_to_idp_without_tokens() -> None:
+    settings = _settings(
+        oidc_session_cookie_secure=False,
+        oidc_end_session_url="https://idp.example/realms/axis/protocol/openid-connect/logout",
+        oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
+    )
+    client, factory, _token_requests = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+    )
+    authorize = client.get("/identity/oidc/authorize?return_to=/")
+    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+    assert callback.status_code == 307
+
+    logout = client.get("/identity/oidc/logout?return_to=/settings")
+
+    assert logout.status_code == 307
+    parsed = urlparse(logout.headers["location"])
+    params = parse_qs(parsed.query)
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "idp.example"
+    assert parsed.path.endswith("/protocol/openid-connect/logout")
+    assert params["client_id"] == ["axis-console"]
+    assert params["post_logout_redirect_uri"] == [
+        "https://console.axis.example/signed-out"
+    ]
+    rendered_location = logout.headers["location"].lower()
+    assert "access_token" not in rendered_location
+    assert "refresh_token" not in rendered_location
+    assert "id_token" not in rendered_location
+    assert "axis-client-secret" not in rendered_location
+    assert "axis_session=" in logout.headers["set-cookie"]
+    assert "Max-Age=0" in logout.headers["set-cookie"]
+    with factory() as session:
+        persisted_session = _one_oidc_browser_session(session)
+        assert persisted_session["status"] == "revoked"
+        assert persisted_session["revoked_by"] == "plant-operations-owner-role"
+        assert persisted_session["revocation_reason"] == "federated_logout"
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == [
+            "identity.oidc_session.created",
+            "identity.oidc_session.revoked",
+        ]
+        assert audit_events[-1].payload["revocation_reason"] == "federated_logout"
+        assert audit_events[-1].payload["federated_logout"] is True
+
+
+def test_oidc_federated_logout_uses_safe_local_return_when_post_logout_uri_is_not_set() -> None:
+    settings = _settings(oidc_session_cookie_secure=False)
+    client = TestClient(create_app(settings), follow_redirects=False)
+
+    logout = client.get("/identity/oidc/logout?return_to=https://evil.example/steal")
+
+    assert logout.status_code == 307
+    parsed = urlparse(logout.headers["location"])
+    params = parse_qs(parsed.query)
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "idp.example"
+    assert params["client_id"] == ["axis-console"]
+    assert params["post_logout_redirect_uri"] == ["https://console.axis.example/"]
+    assert "axis_session=" in logout.headers["set-cookie"]
+    assert "Max-Age=0" in logout.headers["set-cookie"]
+
+
 def test_revoked_oidc_session_cookie_cannot_authenticate_again() -> None:
     settings = _settings(oidc_session_cookie_secure=False)
     client, factory, _token_requests = _app_with_static_oidc(

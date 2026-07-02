@@ -21,6 +21,10 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
             "https://idp.example/realms/axis/protocol/openid-connect/auth"
         ),
         "oidc_token_url": "https://idp.example/realms/axis/protocol/openid-connect/token",
+        "oidc_end_session_url": (
+            "https://idp.example/realms/axis/protocol/openid-connect/logout"
+        ),
+        "oidc_post_logout_redirect_uri": "https://console.axis.example/signed-out",
         "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
         "oidc_session_cookie_secure": True,
     }

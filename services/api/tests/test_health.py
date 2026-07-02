@@ -114,6 +114,10 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
                     "https://idp.example/realms/axis/protocol/openid-connect/auth"
                 ),
                 oidc_token_url="https://idp.example/realms/axis/protocol/openid-connect/token",
+                oidc_end_session_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/logout"
+                ),
+                oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
             )
@@ -132,6 +136,12 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
     assert body["jwks_source"] == "configured"
     assert body["jwks_url_configured"] is True
     assert body["jwks_cache_seconds"] == 900
+    assert body["federated_logout"] == {
+        "end_session_source": "configured",
+        "end_session_url_configured": True,
+        "post_logout_redirect_uri": "https://console.axis.example/signed-out",
+        "stores_provider_logout_tokens": False,
+    }
     assert body["token_binding"] == {
         "actor_claim": "preferred_username",
         "tenant_claim": "axis_tenant",
@@ -152,6 +162,8 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
         "authorization_code_client": "ready",
         "authorization_endpoint": "ready",
         "token_endpoint": "ready",
+        "end_session_endpoint": "ready",
+        "post_logout_redirect": "ready",
         "session_cookie_signing": "ready",
         "secure_session_cookie": "ready",
     }
@@ -175,6 +187,8 @@ def test_oidc_readiness_marks_default_local_profile_as_not_enterprise_ready() ->
     assert checks["https_issuer"]["status"] == "action_required"
     assert checks["explicit_jwks_url"]["status"] == "action_required"
     assert checks["authorization_code_client"]["status"] == "action_required"
+    assert checks["end_session_endpoint"]["status"] == "action_required"
+    assert checks["post_logout_redirect"]["status"] == "action_required"
     assert checks["session_cookie_signing"]["status"] == "action_required"
     assert checks["secure_session_cookie"]["status"] == "action_required"
 
@@ -281,6 +295,10 @@ def test_ready_includes_oidc_readiness_summary() -> None:
                     "https://idp.example/realms/axis/protocol/openid-connect/auth"
                 ),
                 oidc_token_url="https://idp.example/realms/axis/protocol/openid-connect/token",
+                oidc_end_session_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/logout"
+                ),
+                oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
             )

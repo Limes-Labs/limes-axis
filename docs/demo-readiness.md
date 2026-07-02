@@ -117,8 +117,9 @@ The live check includes the OIDC readiness contract at
 `/identity/oidc/readiness`. The report is public-safe: it shows whether bearer
 tokens are required, whether the issuer is HTTPS, whether JWKS is explicitly
 configured, whether asymmetric algorithms are used, which actor/tenant claims
-are bound and whether the authorization-code session-cookie settings are
-hardened. It does not expose tokens, secrets, passwords or raw JWKS material. A
+are bound, whether the authorization-code session-cookie settings are hardened
+and whether the federated end-session redirect is configured. It does not
+expose tokens, secrets, passwords or raw JWKS material. A
 local default profile can pass the demo contract while still showing
 `enterprise_sso_ready=false`; enterprise evaluation sessions should share that
 status honestly.
@@ -333,9 +334,8 @@ Confirm before the session:
   recovery procedures are not complete.
 - Enterprise SSO hardening now has an explicit API readiness profile plus a
   PKCE authorization-code, HTTP-only session-cookie API boundary and
-  server-side session revocation, but refresh-token rotation, federated logout
-  propagation, IdP onboarding runbooks and production SSO operations are not
-  complete.
+  server-side local and federated logout revocation, but refresh-token rotation,
+  IdP onboarding runbooks and production SSO operations are not complete.
 - S3/MinIO WORM adapter readiness and a bounded object storage recovery
   rehearsal exist for governed connector evidence exports, but customer bucket
   provisioning review, KMS policy, legal operations and full-bucket restore

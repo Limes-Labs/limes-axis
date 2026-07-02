@@ -156,6 +156,8 @@ flowchart LR
 | `/health`, `/ready` | HTTP GET | unauthenticated system status | `/ready` includes OIDC readiness summary | `services/api/src/axis_api/main.py` |
 | `/identity/oidc/readiness` | HTTP GET | public-safe identity posture | No token/JWKS secret disclosure | `services/api/tests/test_health.py` |
 | `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
+| `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
+| `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
@@ -250,8 +252,8 @@ flowchart LR
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
-- Enterprise SSO still needs refresh-token rotation, federated logout
-  propagation to the IdP, IdP onboarding and operations runbooks.
+- Enterprise SSO still needs refresh-token rotation, IdP onboarding and
+  production operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
 - Rate limiting, abuse throttling and production telemetry alerting are not yet
   described as complete controls.

@@ -45,6 +45,7 @@ def test_security_posture_tracks_core_axis_boundaries() -> None:
     boundaries = checker.required_boundary_terms()
 
     assert "/identity/oidc/readiness" in boundaries
+    assert "/identity/oidc/logout" in boundaries
     assert "Postgres" in boundaries
     assert "TypeDB" in boundaries
     assert "Temporal" in boundaries

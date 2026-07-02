@@ -374,10 +374,13 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "OIDC" in required_terms
     assert "authorization-code" in required_terms
     assert "HTTP-only" in required_terms
+    assert "/identity/oidc/logout" in required_terms
     assert "/identity/session/logout" in required_terms
     assert "oidc_browser_sessions" in required_terms
     assert "server-side session revocation" in required_terms
     assert "AXIS_OIDC_CLIENT_ID" in required_terms
+    assert "AXIS_OIDC_END_SESSION_URL" in required_terms
+    assert "AXIS_OIDC_POST_LOGOUT_REDIRECT_URI" in required_terms
     assert "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET" in required_terms
     assert "S3-compatible object storage" in required_terms
     assert "External Secrets Operator" in required_terms

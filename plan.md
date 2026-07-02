@@ -529,13 +529,16 @@ the code server-side and sets an HTTP-only signed Axis session cookie. The
 cookie carries a high-entropy Axis `session_id`; the API stores only a keyed hash
 of that session id plus actor, tenant, scopes and expiry in
 `oidc_browser_sessions`, so provider token material is not persisted in the
-session store. `POST /identity/session/logout` revokes the persisted session,
-writes `identity.oidc_session.revoked` audit evidence and clears the cookie.
+session store. `GET /identity/oidc/logout` clears the Axis cookie, revokes the
+persisted session, writes `identity.oidc_session.revoked` audit evidence and
+redirects the browser to the configured OIDC end-session endpoint without
+persisting or forwarding provider token material. `POST /identity/session/logout`
+performs local API session revocation without the federated provider redirect.
 Without a token or session cookie, `/identity/session` reports explicit
 public-evaluation state when OIDC auth is optional; when OIDC auth is required,
 it returns `401` until a valid bearer token or non-revoked API session cookie is
-attached. Refresh-token rotation, federated logout propagation to the IdP and
-provider onboarding runbooks remain Platform/Enterprise work.
+attached. Refresh-token rotation, provider onboarding runbooks and production
+SSO operations remain Platform/Enterprise work.
 
 The ontology explorer and entity detail pages are currently read-only and API
 required; the browser no longer carries a local graph fallback. Graph reads now
@@ -948,8 +951,8 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
-  readiness/profile, PKCE callback, logout and server-side session revocation
-  reports.
+  readiness/profile, PKCE callback, federated logout and server-side session
+  revocation reports.
 - [x] Add deployment readiness profile reporting for identity, egress,
   connector execution, audit signing, S3/MinIO object-store posture and WORM
   retention gates.

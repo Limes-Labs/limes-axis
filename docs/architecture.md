@@ -225,10 +225,10 @@ bearer token is supplied.
 The API exposes `/identity/oidc/readiness` as a public-safe SSO posture report.
 It reports whether bearer tokens are required, whether the issuer is HTTPS,
 whether JWKS is explicitly configured, whether asymmetric algorithms are used,
-which actor and tenant claims are bound and whether the current profile is
-enterprise SSO ready. It deliberately avoids returning tokens, secrets,
-passwords or raw JWKS material. `/ready` includes the same OIDC status as a
-short dependency summary.
+which actor and tenant claims are bound, whether federated logout is configured
+and whether the current profile is enterprise SSO ready. It deliberately avoids
+returning tokens, secrets, passwords or raw JWKS material. `/ready` includes the
+same OIDC status as a short dependency summary.
 
 The API also exposes `/identity/session` as a public-safe session read model for
 the console. When a bearer token is attached, the endpoint returns the
@@ -236,6 +236,12 @@ API-validated actor, tenant, scopes, expiry and identity posture without
 returning token material. When no token is attached and OIDC auth is optional,
 it returns an explicit public-evaluation state. When OIDC auth is required, the
 same endpoint requires a valid bearer token.
+
+For browser SSO logout, `/identity/oidc/logout` revokes the local
+`oidc_browser_sessions` record, clears the HTTP-only Axis session cookie and
+redirects to the configured provider end-session endpoint with `client_id` and
+`post_logout_redirect_uri`. Axis does not persist or forward provider logout
+tokens.
 
 The API now also exposes `/identity/oidc/authorize` and
 `/identity/oidc/callback` as an authorization-code session boundary for browser

@@ -109,6 +109,8 @@ api:
     AXIS_OIDC_AUTHORIZATION_URL: https://keycloak.example.com/realms/axis/protocol/openid-connect/auth
     AXIS_OIDC_TOKEN_URL: https://keycloak.example.com/realms/axis/protocol/openid-connect/token
     AXIS_OIDC_REDIRECT_URI: https://api.axis.example.com/identity/oidc/callback
+    AXIS_OIDC_END_SESSION_URL: https://keycloak.example.com/realms/axis/protocol/openid-connect/logout
+    AXIS_OIDC_POST_LOGOUT_REDIRECT_URI: https://axis.example.com/signed-out
     AXIS_OIDC_SCOPES:
       - openid
       - profile

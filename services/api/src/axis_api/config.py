@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     oidc_authorization_url: str | None = Field(default=None, alias="AXIS_OIDC_AUTHORIZATION_URL")
     oidc_token_url: str | None = Field(default=None, alias="AXIS_OIDC_TOKEN_URL")
     oidc_redirect_uri: str | None = Field(default=None, alias="AXIS_OIDC_REDIRECT_URI")
+    oidc_end_session_url: str | None = Field(
+        default=None,
+        alias="AXIS_OIDC_END_SESSION_URL",
+    )
+    oidc_post_logout_redirect_uri: str | None = Field(
+        default=None,
+        alias="AXIS_OIDC_POST_LOGOUT_REDIRECT_URI",
+    )
     oidc_scopes: list[str] = Field(
         default_factory=lambda: ["openid", "profile", "email"],
         alias="AXIS_OIDC_SCOPES",
