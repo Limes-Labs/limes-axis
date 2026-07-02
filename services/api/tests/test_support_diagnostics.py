@@ -12,11 +12,14 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
     values = {
         "environment": "production",
         "postgres_dsn": "sqlite+pysqlite://",
+        "api_base_url": "https://api.axis.example",
+        "public_base_url": "https://console.axis.example",
         "oidc_auth_required": True,
         "oidc_issuer": "https://idp.example/realms/axis",
         "oidc_jwks_url": "https://idp.example/realms/axis/protocol/openid-connect/certs",
         "oidc_algorithms": ["RS256"],
         "oidc_client_id": "axis-console",
+        "oidc_redirect_uri": "https://api.axis.example/identity/oidc/callback",
         "oidc_authorization_url": (
             "https://idp.example/realms/axis/protocol/openid-connect/auth"
         ),
@@ -53,6 +56,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
     assert body["diagnostics"]["identity"]["readiness_status"] == "action_required"
     assert body["support_blockers"] == [
         "oidc_enterprise_sso",
+        "oidc_secure_cookie_session",
         "api_rate_limiting",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",

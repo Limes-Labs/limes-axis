@@ -148,10 +148,10 @@ Escalate immediately when:
   commercial/enterprise work.
 - Production backup, restore, retention, HA and disaster recovery are not
   complete across every stateful dependency.
-- Enterprise SSO now has readiness/profile reporting and a PKCE
-  authorization-code session-cookie API boundary with server-side local and
-  federated logout revocation, but refresh-token rotation, IdP onboarding and
-  production SSO operations are not complete.
+- Enterprise SSO now has readiness/profile reporting, IdP onboarding, a PKCE
+  authorization-code session-cookie API boundary, secure browser-session
+  deployment gating and server-side local/federated logout revocation, but
+  refresh-token rotation and production SSO operations are not complete.
 - S3/MinIO WORM adapter readiness and a bounded object-store recovery
   rehearsal are implemented, but production bucket provisioning review, KMS
   policy, legal operations and full-bucket restore drills remain Enterprise
@@ -167,7 +167,6 @@ Escalate immediately when:
   capacity planning and production SLO proof remain Enterprise work.
 - A TLS readiness rehearsal is implemented for Ingress, cert-manager, DNS and
   HTTPS reachability checks, but automated certificate issuance operations,
-  renewal drills, HSTS/CDN/WAF policy and production secure-cookie review
-  remain Enterprise work.
+  renewal drills and HSTS/CDN/WAF policy remain Enterprise work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

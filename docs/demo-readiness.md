@@ -131,11 +131,11 @@ local default profile can pass the demo contract while still showing
 status honestly.
 
 The live check also includes `/deployment/readiness`, which aggregates identity,
-external model egress, live connector execution, audit signing and object-store
-posture into explicit production blockers. The current local profile can be
-demo-safe while `production_ready=false`; that is intentional until enterprise
-deployment, S3/MinIO object-store posture and signed support commitments are
-complete.
+OIDC secure-cookie/session posture, external model egress, live connector
+execution, audit signing and object-store posture into explicit production
+blockers. The current local profile can be demo-safe while
+`production_ready=false`; that is intentional until enterprise deployment,
+S3/MinIO object-store posture and signed support commitments are complete.
 
 The live check also includes `/support/diagnostics`, a public-safe support
 bundle for design-partner triage. It reports demo-support readiness,
@@ -307,7 +307,8 @@ Show:
 
 - The self-hosted local stack and absence of required managed services.
 - The OIDC/Keycloak direction, token-bound mutation paths, authorization-code
-  session-cookie boundary and OIDC readiness report.
+  session-cookie boundary, secure browser-session readiness gate and OIDC
+  readiness report.
 - The support diagnostics bundle and current support operations runbook.
 - The first Helm deployment baseline in `infra/helm/limes-axis`, the
   deployment guide and the `deployment-check` output.
@@ -355,9 +356,9 @@ Confirm before the session:
   recovery procedures are not complete.
 - Enterprise SSO hardening now has an explicit API readiness profile, IdP
   onboarding API report, PKCE authorization-code, HTTP-only session-cookie API
-  boundary and server-side local and federated logout revocation, but
-  refresh-token rotation and production SSO operations runbooks are not
-  complete.
+  boundary, secure browser-session deployment gate and server-side local and
+  federated logout revocation, but refresh-token rotation and production SSO
+  operations runbooks are not complete.
 - API rate limiting is available and tracked by deployment readiness, but
   global abuse throttling, alerting and incident response runbooks are not
   complete.
@@ -389,8 +390,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - OIDC readiness report contract with public-safe identity configuration
   status and no secret disclosure.
 - Deployment readiness report contract with public-safe production blockers for
-  identity, external model egress, connector execution, audit signing and
-  object-store posture.
+  identity, OIDC secure-cookie/session posture, external model egress,
+  connector execution, audit signing and object-store posture.
 - Deployment package contract for `infra/helm/limes-axis`, public deployment
   docs and externalized Kubernetes Secret usage through `make deployment-check`.
 - Deployment rollout rehearsal plan for Helm upgrade, Kubernetes rollout

@@ -964,8 +964,12 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
-  readiness/profile, IdP onboarding report, PKCE callback, federated logout and
-  server-side session revocation reports.
+  readiness/profile, IdP onboarding report, PKCE callback, secure
+  browser-session readiness gate, federated logout and server-side session
+  revocation reports.
+- [x] Add deployment readiness secure-cookie session posture gate for Secure
+  cookies, signing secret presence, bounded TTL and HTTPS API/public/redirect
+  URLs.
 - [x] Add deployment readiness profile reporting for identity, egress,
   connector execution, audit signing, S3/MinIO object-store posture and WORM
   retention gates.

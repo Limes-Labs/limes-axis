@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
 from axis_api.object_storage import build_object_store_readiness
+from axis_api.oidc_code_flow import post_logout_redirect_uri, redirect_uri
+
+OIDC_SESSION_COOKIE_MAX_TTL_SECONDS = 12 * 60 * 60
 
 
 class DeploymentReadinessCheck(BaseModel):
@@ -14,6 +19,13 @@ class DeploymentReadinessCheck(BaseModel):
 
 
 class DeploymentReadinessCapabilities(BaseModel):
+    oidc_session_cookie_secure: bool
+    oidc_session_cookie_signing_secret_configured: bool
+    oidc_session_cookie_ttl_seconds: int = Field(ge=0)
+    api_base_url_https: bool
+    public_base_url_https: bool
+    oidc_redirect_uri_https: bool
+    oidc_post_logout_redirect_uri_https: bool
     api_rate_limit_enabled: bool
     api_rate_limit_requests: int = Field(ge=1)
     api_rate_limit_window_seconds: int = Field(ge=1)
@@ -85,6 +97,13 @@ def _public_object_store_missing_requirements(requirements: list[str]) -> str:
     return ", ".join(public_terms)
 
 
+def _uses_https(value: str | None) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme.casefold() == "https" and bool(parsed.netloc)
+
+
 def build_deployment_readiness_report(
     settings: Settings,
     *,
@@ -111,8 +130,31 @@ def build_deployment_readiness_report(
     public_object_store_missing_requirements = _public_object_store_missing_requirements(
         object_store_readiness.missing_requirements
     )
+    resolved_redirect_uri = redirect_uri(settings)
+    resolved_post_logout_redirect_uri = post_logout_redirect_uri(settings, "/")
+    oidc_session_cookie_ttl_seconds = max(0, settings.oidc_session_cookie_ttl_seconds)
+    oidc_secure_cookie_session_ready = (
+        settings.oidc_session_cookie_secure
+        and bool(settings.oidc_session_cookie_signing_secret)
+        and 0 < settings.oidc_session_cookie_ttl_seconds <= OIDC_SESSION_COOKIE_MAX_TTL_SECONDS
+        and _uses_https(settings.api_base_url)
+        and _uses_https(settings.public_base_url)
+        and _uses_https(resolved_redirect_uri)
+        and _uses_https(resolved_post_logout_redirect_uri)
+    )
 
     capabilities = DeploymentReadinessCapabilities(
+        oidc_session_cookie_secure=settings.oidc_session_cookie_secure,
+        oidc_session_cookie_signing_secret_configured=bool(
+            settings.oidc_session_cookie_signing_secret
+        ),
+        oidc_session_cookie_ttl_seconds=oidc_session_cookie_ttl_seconds,
+        api_base_url_https=_uses_https(settings.api_base_url),
+        public_base_url_https=_uses_https(settings.public_base_url),
+        oidc_redirect_uri_https=_uses_https(resolved_redirect_uri),
+        oidc_post_logout_redirect_uri_https=_uses_https(
+            resolved_post_logout_redirect_uri
+        ),
         api_rate_limit_enabled=settings.api_rate_limit_enabled,
         api_rate_limit_requests=max(1, settings.api_rate_limit_requests),
         api_rate_limit_window_seconds=max(1, settings.api_rate_limit_window_seconds),
@@ -142,6 +184,16 @@ def build_deployment_readiness_report(
             (
                 "OIDC is not enterprise-ready; require auth, HTTPS issuer, "
                 "explicit JWKS and asymmetric algorithms."
+            ),
+        ),
+        _check(
+            "oidc_secure_cookie_session",
+            oidc_secure_cookie_session_ready,
+            "OIDC browser sessions use Secure cookies, signed state, bounded TTL and HTTPS URLs.",
+            (
+                "OIDC browser sessions are not production-ready; require Secure cookies, "
+                "an operator-provided signing secret, a bounded TTL and HTTPS "
+                "API/public/redirect URLs."
             ),
         ),
         _check(
