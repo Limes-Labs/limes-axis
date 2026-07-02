@@ -69,6 +69,12 @@ def token_endpoint(settings: Settings) -> str:
     return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/token"
 
 
+def end_session_endpoint(settings: Settings) -> str:
+    if settings.oidc_end_session_url:
+        return settings.oidc_end_session_url
+    return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/logout"
+
+
 def redirect_uri(settings: Settings) -> str:
     if settings.oidc_redirect_uri:
         return settings.oidc_redirect_uri
@@ -77,6 +83,26 @@ def redirect_uri(settings: Settings) -> str:
 
 def public_redirect(settings: Settings, return_to: str) -> str:
     return f"{settings.public_base_url.rstrip('/')}{_safe_return_to(return_to)}"
+
+
+def post_logout_redirect_uri(settings: Settings, return_to: str) -> str:
+    if settings.oidc_post_logout_redirect_uri:
+        return settings.oidc_post_logout_redirect_uri
+    return public_redirect(settings, return_to)
+
+
+def build_end_session_redirect_url(settings: Settings, return_to: str) -> str:
+    if not settings.oidc_client_id:
+        raise OidcCodeFlowConfigurationError("missing_oidc_client_id")
+    query = urlencode(
+        {
+            "client_id": settings.oidc_client_id,
+            "post_logout_redirect_uri": post_logout_redirect_uri(settings, return_to),
+        }
+    )
+    endpoint = end_session_endpoint(settings)
+    separator = "&" if "?" in endpoint else "?"
+    return f"{endpoint}{separator}{query}"
 
 
 def build_authorization_request(settings: Settings, return_to: str) -> OidcAuthorizationRequest:

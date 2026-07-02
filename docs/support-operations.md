@@ -105,9 +105,9 @@ Escalate immediately when:
 - Production backup, restore, retention, HA and disaster recovery are not
   complete across every stateful dependency.
 - Enterprise SSO now has readiness/profile reporting and a PKCE
-  authorization-code session-cookie API boundary with server-side session
-  revocation, but refresh-token rotation, federated logout propagation, IdP
-  onboarding and production SSO operations are not complete.
+  authorization-code session-cookie API boundary with server-side local and
+  federated logout revocation, but refresh-token rotation, IdP onboarding and
+  production SSO operations are not complete.
 - S3/MinIO WORM adapter readiness and a bounded object-store recovery
   rehearsal are implemented, but production bucket provisioning review, KMS
   policy, legal operations and full-bucket restore drills remain Enterprise

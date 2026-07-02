@@ -27,8 +27,8 @@ The Settings console shows:
 
 - API readiness and runtime dependency reachability.
 - OIDC issuer, audience, auth requirement, token binding claims,
-  authorization-code readiness, session-cookie hardening and revocation
-  posture.
+  authorization-code readiness, federated logout readiness, session-cookie
+  hardening and revocation posture.
 - Deployment profile, demo-safety, production blockers and object-store
   adapter, WORM retention mode and retention-day posture.
 - Support diagnostics, support blockers, redaction policy and support
@@ -50,9 +50,9 @@ return S3 access keys, secret keys or audit signing material.
 
 This is a readiness and evaluation surface, not a production certification.
 The current reports deliberately keep Enterprise blockers visible, including
-refresh-token rotation, IdP onboarding, production support model, production
-backup/restore, KMS-backed signing, legal operations and external security
-review.
+refresh-token rotation, IdP onboarding, production SSO operations, production
+support model, production backup/restore, KMS-backed signing, legal operations
+and external security review.
 
 ## Verification
 

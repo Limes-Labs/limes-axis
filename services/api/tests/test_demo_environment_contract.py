@@ -33,6 +33,7 @@ def test_demo_environment_declares_critical_demo_routes() -> None:
     assert "/health" in required_paths
     assert "/ready" in required_paths
     assert "/identity/oidc/readiness" in required_paths
+    assert "/identity/oidc/logout" in required_paths
     assert "/demo/manufacturing/operations/snapshot" in required_paths
     assert "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests" in (
         required_paths

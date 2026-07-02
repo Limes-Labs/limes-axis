@@ -27,6 +27,8 @@ data:
   AXIS_OIDC_AUTHORIZATION_URL: {{ .Values.api.env.AXIS_OIDC_AUTHORIZATION_URL | quote }}
   AXIS_OIDC_TOKEN_URL: {{ .Values.api.env.AXIS_OIDC_TOKEN_URL | quote }}
   AXIS_OIDC_REDIRECT_URI: {{ .Values.api.env.AXIS_OIDC_REDIRECT_URI | quote }}
+  AXIS_OIDC_END_SESSION_URL: {{ .Values.api.env.AXIS_OIDC_END_SESSION_URL | quote }}
+  AXIS_OIDC_POST_LOGOUT_REDIRECT_URI: {{ .Values.api.env.AXIS_OIDC_POST_LOGOUT_REDIRECT_URI | quote }}
   AXIS_OIDC_SCOPES: {{ .Values.api.env.AXIS_OIDC_SCOPES | toJson | quote }}
   AXIS_OIDC_LOGIN_COOKIE_NAME: {{ .Values.api.env.AXIS_OIDC_LOGIN_COOKIE_NAME | quote }}
   AXIS_OIDC_SESSION_COOKIE_NAME: {{ .Values.api.env.AXIS_OIDC_SESSION_COOKIE_NAME | quote }}

@@ -134,6 +134,50 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("routes verified cookie sessions through the real federated logout endpoint", async ({
+    page,
+  }) => {
+    await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          authenticated: true,
+          mode: "secure_oidc_cookie",
+          actor_id: "plant-operations-owner-role",
+          tenant_id: "tenant_demo_manufacturing",
+          scopes: ["audit:read"],
+          expires_at: 4102444800,
+          api_auth_required: true,
+          enterprise_sso_ready: true,
+          readiness_status: "ready",
+          issuer: "https://idp.example/realms/axis",
+          audience: "limes-axis-api",
+          jwks_source: "configured",
+          session_boundary: "http_only_cookie_verified_by_axis_api",
+          capabilities: ["Browser session verified by the Axis API."],
+          limitations: [],
+          notes: [],
+        },
+        status: 200,
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open operator account" }).click();
+
+    await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
+    await expect(page.getByText("plant-operations-owner-role")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Sign out with identity provider" }),
+    ).toBeVisible();
+
+    const [logoutRequest] = await Promise.all([
+      page.waitForRequest("http://127.0.0.1:65534/identity/oidc/logout?return_to=%2F"),
+      page.getByRole("button", { name: "Sign out with identity provider" }).click(),
+    ]);
+    expect(logoutRequest.method()).toBe("GET");
+  });
+
   test("keeps the desktop sidebar complete on short enterprise screens", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 420 });
     await page.goto("/");

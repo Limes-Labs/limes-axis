@@ -652,10 +652,14 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
   redirects to the configured provider.
 - `GET /identity/oidc/callback` verifies the state cookie, exchanges the code
   at the token endpoint and sets an HTTP-only Axis session cookie.
+- `GET /identity/oidc/logout` revokes the local Axis browser session, clears
+  the Axis cookie and redirects the browser to the configured OIDC end-session
+  endpoint.
 - `GET /identity/session` validates the signed Axis session cookie and returns
   only public-safe actor, tenant, scope and posture metadata.
 - `POST /identity/session/logout` revokes the persisted Axis browser session,
-  writes audit evidence and clears the browser cookie.
+  writes audit evidence and clears the browser cookie without a federated IdP
+  redirect.
 
 Configure non-sensitive client and endpoint values in the chart ConfigMap:
 
@@ -663,6 +667,8 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 - `AXIS_OIDC_AUTHORIZATION_URL`
 - `AXIS_OIDC_TOKEN_URL`
 - `AXIS_OIDC_REDIRECT_URI`
+- `AXIS_OIDC_END_SESSION_URL`
+- `AXIS_OIDC_POST_LOGOUT_REDIRECT_URI`
 - `AXIS_OIDC_SCOPES`
 - `AXIS_OIDC_SESSION_COOKIE_SECURE=true`
 
@@ -673,8 +679,10 @@ console. The Axis session cookie stores only API-owned actor, tenant, scope,
 expiry and session-id claims; the `oidc_browser_sessions` table stores only a
 keyed session-id hash plus actor, tenant, scopes, expiry and revocation
 metadata, providing server-side session revocation without storing provider
-tokens. Refresh-token rotation, federated logout propagation to the IdP and IdP
-onboarding runbooks remain Enterprise hardening work.
+tokens. The federated logout redirect uses `client_id` and
+`post_logout_redirect_uri`; Axis does not persist or forward `id_token_hint`,
+access tokens or refresh tokens. Refresh-token rotation, IdP onboarding runbooks
+and production SSO operations remain Enterprise hardening work.
 
 ## Secret Rotation Rehearsal
 
@@ -769,6 +777,8 @@ helm upgrade --install limes-axis infra/helm/limes-axis \
   --set api.env.AXIS_OIDC_AUTHORIZATION_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/auth \
   --set api.env.AXIS_OIDC_TOKEN_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/token \
   --set api.env.AXIS_OIDC_REDIRECT_URI=https://api.axis.example.com/identity/oidc/callback \
+  --set api.env.AXIS_OIDC_END_SESSION_URL=https://keycloak.example.com/realms/axis/protocol/openid-connect/logout \
+  --set api.env.AXIS_OIDC_POST_LOGOUT_REDIRECT_URI=https://axis.example.com/signed-out \
   --set api.env.AXIS_OIDC_SESSION_COOKIE_SECURE=true
 ```
 

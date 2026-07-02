@@ -272,6 +272,10 @@ function AccountPanel() {
     useAxisQuery<IdentitySessionReadModel>("/identity/session");
   const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const verifiedCookieSession =
+    identitySession?.authenticated && identitySession.mode === "secure_oidc_cookie";
+  const visibleScopes =
+    identitySession?.scopes.length ? identitySession.scopes : session?.scopes ?? [];
 
   function connectSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -289,6 +293,15 @@ function AccountPanel() {
     } catch {
       setError("Token rejected. Axis expects a JWT with sub and axis_tenant claims.");
     }
+  }
+
+  function signOutWithIdentityProvider() {
+    clearSession();
+    const returnTo =
+      typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`;
+    window.location.assign(
+      `${apiBaseUrl}/identity/oidc/logout?return_to=${encodeURIComponent(returnTo || "/")}`,
+    );
   }
 
   return (
@@ -373,11 +386,11 @@ function AccountPanel() {
         </p>
       )}
 
-      {session ? (
+      {verifiedCookieSession || session ? (
         <>
           <div className="tag-list account-scope-list">
-            {(identitySession?.scopes ?? []).length > 0 ? (
-              (identitySession?.scopes ?? []).slice(0, 6).map((scope) => (
+            {visibleScopes.length > 0 ? (
+              visibleScopes.slice(0, 6).map((scope) => (
                 <span className="tag" key={scope}>
                   {scope}
                 </span>
@@ -388,10 +401,21 @@ function AccountPanel() {
               </span>
             )}
           </div>
-          <button className="command-button account-command" onClick={clearSession} type="button">
-            <LogOut size={16} />
-            Clear session
-          </button>
+          {verifiedCookieSession ? (
+            <button
+              className="command-button account-command"
+              onClick={signOutWithIdentityProvider}
+              type="button"
+            >
+              <LogOut size={16} />
+              Sign out with identity provider
+            </button>
+          ) : (
+            <button className="command-button account-command" onClick={clearSession} type="button">
+              <LogOut size={16} />
+              Clear bearer bridge
+            </button>
+          )}
         </>
       ) : (
         <form className="account-token-form" onSubmit={connectSession}>
