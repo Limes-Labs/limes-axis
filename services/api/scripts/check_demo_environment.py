@@ -516,6 +516,11 @@ def _fetch_support_diagnostics_report(api_url: str) -> tuple[bool, str]:
                 if isinstance(diagnostics, dict)
                 else None
             )
+            support_commitments = (
+                diagnostics.get("support_commitments")
+                if isinstance(diagnostics, dict)
+                else None
+            )
             checks = payload.get("checks")
             support_artifacts = payload.get("support_artifacts")
             support_blockers = payload.get("support_blockers")
@@ -534,8 +539,24 @@ def _fetch_support_diagnostics_report(api_url: str) -> tuple[bool, str]:
                 and isinstance(support_model.get("escalation_channels"), list)
                 and isinstance(support_model.get("customer_runbook_configured"), bool)
                 and isinstance(support_model.get("status_page_configured"), bool)
+                and isinstance(support_commitments, dict)
+                and isinstance(
+                    support_commitments.get("signed_commitment_configured"), bool
+                )
+                and isinstance(
+                    support_commitments.get("named_staffing_model_configured"), bool
+                )
+                and isinstance(
+                    support_commitments.get(
+                        "customer_incident_operations_configured"
+                    ),
+                    bool,
+                )
+                and isinstance(
+                    support_commitments.get("legal_sla_terms_configured"), bool
+                )
                 and isinstance(checks, list)
-                and len(checks) >= 7
+                and len(checks) >= 8
                 and isinstance(support_artifacts, list)
                 and len(support_artifacts) >= 3
                 and "secret" not in body_text

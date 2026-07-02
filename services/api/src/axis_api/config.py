@@ -239,5 +239,21 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED",
     )
+    support_signed_commitment_configured: bool = Field(
+        default=False,
+        alias="AXIS_SUPPORT_SIGNED_COMMITMENT_CONFIGURED",
+    )
+    support_named_staffing_model_configured: bool = Field(
+        default=False,
+        alias="AXIS_SUPPORT_NAMED_STAFFING_MODEL_CONFIGURED",
+    )
+    support_customer_incident_operations_configured: bool = Field(
+        default=False,
+        alias="AXIS_SUPPORT_CUSTOMER_INCIDENT_OPERATIONS_CONFIGURED",
+    )
+    support_legal_sla_terms_configured: bool = Field(
+        default=False,
+        alias="AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)

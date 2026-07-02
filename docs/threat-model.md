@@ -162,7 +162,7 @@ flowchart LR
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
-| `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
+| `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers, commitment gates and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
 | `/demo/manufacturing/approvals` mutation paths | HTTP POST | user/agent to API | OIDC actor binding and permission checks | `services/api/tests/test_approval_decisions.py` |
 | `/demo/manufacturing/actions` mutation paths | HTTP POST | agent proposal to API | Typed schemas, idempotency, permission checks | `services/api/tests/test_action_runs.py` |
@@ -241,7 +241,8 @@ flowchart LR
 - Web: API-required console smoke tests prevent browser-local fallback data.
 - Support: public-safe support diagnostics and the support operations runbook
   expose demo support posture, production support-readiness, SLO target checks
-  and escalation channel classes without sensitive runtime material.
+  escalation channel classes and support commitment gates without sensitive
+  runtime, contract, staffing or contact material.
 - Deployment operations: bounded HA restart, load and TLS readiness rehearsal
   plans exercise Kubernetes workload restart, Fortio Job, Ingress,
   cert-manager, DNS and HTTPS reachability paths before production promotion.
@@ -270,9 +271,10 @@ flowchart LR
 - In-process API rate limiting exists for public and sensitive routes, but
   global abuse throttling, production telemetry alerting and incident response
   are not complete controls.
-- Production support-readiness checks exist, but signed SLAs, named on-call
-  staffing and customer-specific incident operations remain outside the open
-  repository baseline.
+- Production support-readiness checks now include signed-commitment, named
+  staffing, customer incident operations and legal SLA term gates, but actual
+  agreements, personal staffing assignments and legal documents remain outside
+  the open repository baseline.
 - This threat model is not a production certification.
 
 ## Focus Paths For Security Review

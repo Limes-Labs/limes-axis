@@ -14483,6 +14483,34 @@
         "title": "SupportArtifact",
         "type": "object"
       },
+      "SupportCommitmentSummary": {
+        "properties": {
+          "customer_incident_operations_configured": {
+            "title": "Customer Incident Operations Configured",
+            "type": "boolean"
+          },
+          "legal_sla_terms_configured": {
+            "title": "Legal Sla Terms Configured",
+            "type": "boolean"
+          },
+          "named_staffing_model_configured": {
+            "title": "Named Staffing Model Configured",
+            "type": "boolean"
+          },
+          "signed_commitment_configured": {
+            "title": "Signed Commitment Configured",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "signed_commitment_configured",
+          "named_staffing_model_configured",
+          "customer_incident_operations_configured",
+          "legal_sla_terms_configured"
+        ],
+        "title": "SupportCommitmentSummary",
+        "type": "object"
+      },
       "SupportDeploymentSummary": {
         "properties": {
           "demo_safe": {
@@ -14580,6 +14608,9 @@
             "title": "Object Store Worm Retention Enabled",
             "type": "boolean"
           },
+          "support_commitments": {
+            "$ref": "#/components/schemas/SupportCommitmentSummary"
+          },
           "support_model": {
             "$ref": "#/components/schemas/SupportModelSummary"
           }
@@ -14588,6 +14619,7 @@
           "deployment",
           "identity",
           "support_model",
+          "support_commitments",
           "external_model_egress_enabled",
           "live_connector_execution_enabled",
           "audit_ledger_signing_configured",

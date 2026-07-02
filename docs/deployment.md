@@ -831,16 +831,23 @@ The chart exposes public-safe support model settings used by
 - `AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL`
 - `AXIS_SUPPORT_STATUS_PAGE_URL`
 - `AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED`
+- `AXIS_SUPPORT_SIGNED_COMMITMENT_CONFIGURED`
+- `AXIS_SUPPORT_NAMED_STAFFING_MODEL_CONFIGURED`
+- `AXIS_SUPPORT_CUSTOMER_INCIDENT_OPERATIONS_CONFIGURED`
+- `AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED`
 
 The diagnostics endpoint returns support readiness booleans, response target
-minutes and escalation channel classes. It does not echo customer runbook URLs,
-status page URLs or personal contact details. `production_support_ready=true`
-requires production deployment readiness plus a configured `24x7` support
-model, positive ordered S1-S4 response targets, at least two escalation channel
-classes, HTTPS runbook/status-page configuration and required incident review.
+minutes, escalation channel classes and support commitment booleans. It does
+not echo customer runbook URLs, status page URLs, contract text, staffing
+details or personal contact details. `production_support_ready=true` requires
+production deployment readiness plus a configured `24x7` support model,
+positive ordered S1-S4 response targets, at least two escalation channel
+classes, HTTPS runbook/status-page configuration, required incident review and
+`production_support_commitments` readiness for signed commitment, named
+staffing, customer incident operations and legal SLA term configuration.
 
 This is a readiness contract for operators and design partners. It is not a
-signed SLA, staffing commitment or compliance attestation.
+signed SLA, staffing commitment or compliance attestation by itself.
 
 ## Secret Rotation Rehearsal
 

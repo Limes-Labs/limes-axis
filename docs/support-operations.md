@@ -61,10 +61,11 @@ contact details.
 ## Production Support Readiness Contract
 
 `/support/diagnostics` reports `production_support_ready=true` only when the
-deployment is production-ready and the public-safe support model is configured.
-The support model is intentionally operational rather than contractual: it
-proves that the environment has support controls wired, but it does not create
-a signed SLA.
+deployment is production-ready, the public-safe support model is configured
+and the customer-facing support commitment gates are explicitly set. The
+support model is intentionally operational rather than contractual: it proves
+that the environment has support controls wired, but it does not create a
+signed SLA.
 
 Required configuration:
 
@@ -79,11 +80,21 @@ Required configuration:
 - HTTPS `AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL`;
 - HTTPS `AXIS_SUPPORT_STATUS_PAGE_URL`;
 - `AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED=true`.
+- `AXIS_SUPPORT_SIGNED_COMMITMENT_CONFIGURED=true`;
+- `AXIS_SUPPORT_NAMED_STAFFING_MODEL_CONFIGURED=true`;
+- `AXIS_SUPPORT_CUSTOMER_INCIDENT_OPERATIONS_CONFIGURED=true`;
+- `AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED=true`.
 
 The diagnostics response returns only booleans for customer runbook and status
 page configuration. It does not echo the configured URLs. Escalation channel
 values must be role or function labels, not personal names, phone numbers,
 emails or private chat handles.
+
+The commitment gates are also public-safe booleans. They confirm that the
+operator has configured the environment as having signed support commitments,
+a named staffing model, customer-specific incident operations and legal SLA
+terms. They do not expose contract text, personal staffing details, legal
+documents or customer contact data.
 
 ## Triage Flow
 
@@ -142,10 +153,12 @@ Escalate immediately when:
 
 ## Current Production Gaps
 
-- The production support-readiness contract, escalation channel classes and SLO
-  target checks are implemented, but signed customer SLAs, named on-call
-  staffing, legal terms and customer-specific incident operations remain
-  commercial/enterprise work.
+- The production support-readiness contract now checks escalation channel
+  classes, SLO targets, signed support commitments, named staffing model,
+  customer-specific incident operations and legal SLA term configuration.
+  Actual signed agreements, personal staffing assignments and legal documents
+  remain external commercial artifacts and must not be stored in the public
+  diagnostics payload.
 - Production backup, restore, retention, HA and disaster recovery are not
   complete across every stateful dependency.
 - Enterprise SSO now has readiness/profile reporting, IdP onboarding, a PKCE

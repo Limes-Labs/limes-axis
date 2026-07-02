@@ -140,9 +140,10 @@ S3/MinIO object-store posture and signed support commitments are complete.
 The live check also includes `/support/diagnostics`, a public-safe support
 bundle for design-partner triage. It reports demo-support readiness,
 production-support blockers, support model readiness, SLO target configuration,
-support artifact links and redaction policy without returning bearer tokens,
-raw JWKS, credential material, signing material, database DSNs, customer
-runbook URLs, status page URLs or personal contact details.
+support commitment readiness, support artifact links and redaction policy
+without returning bearer tokens, raw JWKS, credential material, signing
+material, database DSNs, customer runbook URLs, status page URLs, contract text,
+staffing details or personal contact details.
 
 Run browser smoke tests against the production Next.js build:
 
@@ -366,9 +367,10 @@ Confirm before the session:
   rehearsal exist for governed connector evidence exports, but customer bucket
   provisioning review, KMS policy, legal operations and full-bucket restore
   drills are not complete.
-- Production support-readiness checks are implemented, but signed customer
-  SLAs, named on-call staffing, legal terms and customer-specific incident
-  operations remain Enterprise work.
+- Production support-readiness checks now include support model, escalation,
+  SLO and support commitment gates, but actual signed customer agreements,
+  personal staffing assignments and legal documents remain external
+  commercial artifacts.
 - External model-provider execution is disabled by default.
 
 ## Automated Checks
@@ -415,8 +417,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
 - Container image package contract for API/web Dockerfiles, local build
   commands and `.dockerignore` through `make container-check`.
 - Support diagnostics report contract with public-safe support model readiness,
-  SLO targets, escalation channel classes, support blockers, artifact links and
-  redaction policy.
+  SLO targets, escalation channel classes, support commitment booleans, support
+  blockers, artifact links and redaction policy.
 - Threat model and security posture contract through `make security-check`.
 - Optional live API and web checks when URLs are provided.
 
