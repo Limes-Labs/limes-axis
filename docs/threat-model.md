@@ -248,18 +248,20 @@ flowchart LR
   recovery, bounded object-store recovery and Temporal namespace/history
   evidence rehearsals exist, but full retention, Temporal persistence restore,
   full-bucket object-store restore and disaster recovery are not complete.
-- Helm/Kubernetes deployment guides, active/staged Secret rotation rehearsal
-  and local image build baselines exist, but HA runbooks, workload restart
-  validation, upstream secret-manager rotation, access reviews, image
-  provenance/signing and release automation are not complete.
+- Helm/Kubernetes deployment guides, in-process API rate limiting,
+  active/staged Secret rotation rehearsal and local image build baselines exist,
+  but HA runbooks, workload restart validation, upstream secret-manager
+  rotation, access reviews, image provenance/signing and release automation are
+  not complete.
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
 - Enterprise SSO still needs refresh-token rotation and customer-specific
   production operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
-- Rate limiting, abuse throttling and production telemetry alerting are not yet
-  described as complete controls.
+- In-process API rate limiting exists for public and sensitive routes, but
+  global abuse throttling, production telemetry alerting and incident response
+  are not complete controls.
 - This threat model is not a production certification.
 
 ## Focus Paths For Security Review

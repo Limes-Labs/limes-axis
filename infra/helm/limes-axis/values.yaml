@@ -90,6 +90,16 @@ api:
     AXIS_API_BASE_URL: https://api.axis.example.com
     AXIS_CORS_ORIGINS:
       - https://axis.example.com
+    AXIS_API_RATE_LIMIT_ENABLED: "true"
+    AXIS_API_RATE_LIMIT_REQUESTS: "120"
+    AXIS_API_RATE_LIMIT_WINDOW_SECONDS: "60"
+    AXIS_API_RATE_LIMIT_PATHS:
+      - /identity/oidc/authorize
+      - /identity/oidc/callback
+      - /identity/oidc/logout
+      - /identity/session/logout
+      - /deployment/readiness
+      - /support/diagnostics
     AXIS_TYPEDB_ADDRESS: typedb.axis.svc.cluster.local:1729
     AXIS_TYPEDB_DATABASE: axis
     AXIS_TEMPORAL_ADDRESS: temporal-frontend.axis.svc.cluster.local:7233

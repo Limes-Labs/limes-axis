@@ -9,6 +9,10 @@ data:
   AXIS_PUBLIC_BASE_URL: {{ .Values.api.env.AXIS_PUBLIC_BASE_URL | quote }}
   AXIS_API_BASE_URL: {{ .Values.api.env.AXIS_API_BASE_URL | quote }}
   AXIS_CORS_ORIGINS: {{ .Values.api.env.AXIS_CORS_ORIGINS | toJson | quote }}
+  AXIS_API_RATE_LIMIT_ENABLED: {{ .Values.api.env.AXIS_API_RATE_LIMIT_ENABLED | quote }}
+  AXIS_API_RATE_LIMIT_REQUESTS: {{ .Values.api.env.AXIS_API_RATE_LIMIT_REQUESTS | quote }}
+  AXIS_API_RATE_LIMIT_WINDOW_SECONDS: {{ .Values.api.env.AXIS_API_RATE_LIMIT_WINDOW_SECONDS | quote }}
+  AXIS_API_RATE_LIMIT_PATHS: {{ .Values.api.env.AXIS_API_RATE_LIMIT_PATHS | toJson | quote }}
   AXIS_TYPEDB_ADDRESS: {{ .Values.api.env.AXIS_TYPEDB_ADDRESS | quote }}
   AXIS_TYPEDB_DATABASE: {{ .Values.api.env.AXIS_TYPEDB_DATABASE | quote }}
   AXIS_TEMPORAL_ADDRESS: {{ .Values.api.env.AXIS_TEMPORAL_ADDRESS | quote }}

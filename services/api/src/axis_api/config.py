@@ -15,6 +15,29 @@ class Settings(BaseSettings):
         ],
         alias="AXIS_CORS_ORIGINS",
     )
+    api_rate_limit_enabled: bool = Field(
+        default=False,
+        alias="AXIS_API_RATE_LIMIT_ENABLED",
+    )
+    api_rate_limit_requests: int = Field(
+        default=120,
+        alias="AXIS_API_RATE_LIMIT_REQUESTS",
+    )
+    api_rate_limit_window_seconds: int = Field(
+        default=60,
+        alias="AXIS_API_RATE_LIMIT_WINDOW_SECONDS",
+    )
+    api_rate_limit_paths: list[str] = Field(
+        default_factory=lambda: [
+            "/identity/oidc/authorize",
+            "/identity/oidc/callback",
+            "/identity/oidc/logout",
+            "/identity/session/logout",
+            "/deployment/readiness",
+            "/support/diagnostics",
+        ],
+        alias="AXIS_API_RATE_LIMIT_PATHS",
+    )
     postgres_dsn: str = Field(
         default="postgresql+psycopg://axis:axis@localhost:5432/axis",
         alias="AXIS_POSTGRES_DSN",

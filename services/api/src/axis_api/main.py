@@ -411,6 +411,7 @@ from axis_api.persistence import (
     OidcBrowserSessionCreate,
     OidcBrowserSessionRevocation,
 )
+from axis_api.rate_limit import ApiRateLimitMiddleware
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
     ReplaySimulationOutputConflict,
@@ -1155,6 +1156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         },
     )
+    app.add_middleware(ApiRateLimitMiddleware, settings=resolved_settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved_settings.cors_origins,

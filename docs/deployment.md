@@ -79,7 +79,7 @@ The baseline does not yet cover:
   Postgres, TypeDB, Temporal persistence and object storage.
 - S3-compatible object storage with object lock, legal hold operations and
   provider KMS policy.
-- Cluster observability, alerting and on-call runbooks.
+- Cluster observability, alerting, global abuse throttling and on-call runbooks.
 
 ## Dependencies
 
@@ -690,6 +690,36 @@ confidential client material, cookie-signing material, provider tokens or raw
 JWKS material. Refresh-token rotation and production SSO operations runbooks
 remain Enterprise hardening work.
 
+## API Rate Limiting
+
+Axis includes configurable in-process API rate limiting for public and sensitive
+routes. It is disabled by default for local demos and enabled in the Helm
+production values for:
+
+- `GET /identity/oidc/authorize`
+- `GET /identity/oidc/callback`
+- `GET /identity/oidc/logout`
+- `POST /identity/session/logout`
+- `GET /deployment/readiness`
+- `GET /support/diagnostics`
+
+Configure the limiter with:
+
+- `AXIS_API_RATE_LIMIT_ENABLED`
+- `AXIS_API_RATE_LIMIT_REQUESTS`
+- `AXIS_API_RATE_LIMIT_WINDOW_SECONDS`
+- `AXIS_API_RATE_LIMIT_PATHS`
+
+When a client exceeds the configured budget, the API returns `429` with
+`Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
+`X-RateLimit-Reset`. The deployment readiness endpoint reports
+`api_rate_limiting` as a production blocker when the limiter is not enabled.
+
+This is a self-hostable baseline, not a complete global abuse-control system.
+For multi-replica or internet-facing production deployments, operators should
+pair it with ingress, gateway or edge-level throttling, alerting and incident
+runbooks.
+
 ## Secret Rotation Rehearsal
 
 The repository includes a Kubernetes secret rotation rehearsal helper:
@@ -852,9 +882,9 @@ curl http://127.0.0.1:8000/deployment/readiness
 ```
 
 The readiness endpoint should be shared honestly during enterprise evaluation.
-It may report `production_ready=false` until OIDC, audit signing, connector
-execution, object storage, customer bucket operations and support operations
-are hardened.
+It may report `production_ready=false` until OIDC, rate limiting, audit signing,
+connector execution, object storage, customer bucket operations and support
+operations are hardened.
 
 ## Promotion Gate
 
@@ -875,7 +905,8 @@ Before customer production use, the deployment package must add and verify:
 - production secret-manager rotation drills, access reviews, workload restart
   validation and incident procedures.
 - S3/MinIO bucket-policy review, restore drills and KMS-backed audit signing.
-- production observability and incident response runbooks.
+- global abuse throttling, production observability and incident response
+  runbooks.
 - cluster-specific threat review and penetration test scope.
 
 Until those items are complete, this chart is an evaluation and hardening

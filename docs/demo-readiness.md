@@ -339,6 +339,9 @@ Confirm before the session:
   boundary and server-side local and federated logout revocation, but
   refresh-token rotation and production SSO operations runbooks are not
   complete.
+- API rate limiting is available and tracked by deployment readiness, but
+  global abuse throttling, alerting and incident response runbooks are not
+  complete.
 - S3/MinIO WORM adapter readiness and a bounded object storage recovery
   rehearsal exist for governed connector evidence exports, but customer bucket
   provisioning review, KMS policy, legal operations and full-bucket restore
