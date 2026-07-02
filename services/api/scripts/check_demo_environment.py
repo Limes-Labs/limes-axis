@@ -21,6 +21,8 @@ def required_openapi_paths() -> tuple[str, ...]:
         "/health",
         "/ready",
         "/identity/oidc/readiness",
+        "/identity/oidc/authorize",
+        "/identity/oidc/callback",
         "/deployment/readiness",
         "/support/diagnostics",
         "/demo/manufacturing/overview",

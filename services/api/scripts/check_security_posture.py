@@ -33,6 +33,8 @@ def required_threat_model_sections() -> tuple[str, ...]:
 def required_boundary_terms() -> tuple[str, ...]:
     return (
         "/identity/oidc/readiness",
+        "/identity/oidc/authorize",
+        "/identity/oidc/callback",
         "/demo/manufacturing/operations/snapshot",
         "/demo/manufacturing/connectors",
         "Postgres",

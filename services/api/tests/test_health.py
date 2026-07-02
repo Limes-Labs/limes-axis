@@ -109,6 +109,13 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
                 oidc_actor_claim="preferred_username",
                 oidc_tenant_claim="axis_tenant",
                 oidc_jwks_cache_seconds=900,
+                oidc_client_id="axis-console",
+                oidc_authorization_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/auth"
+                ),
+                oidc_token_url="https://idp.example/realms/axis/protocol/openid-connect/token",
+                oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
+                oidc_session_cookie_secure=True,
             )
         )
     )
@@ -142,6 +149,11 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
         "asymmetric_algorithms": "ready",
         "tenant_claim": "ready",
         "actor_claim": "ready",
+        "authorization_code_client": "ready",
+        "authorization_endpoint": "ready",
+        "token_endpoint": "ready",
+        "session_cookie_signing": "ready",
+        "secure_session_cookie": "ready",
     }
     assert "secret" not in str(body).lower()
     assert "password" not in str(body).lower()
@@ -162,6 +174,9 @@ def test_oidc_readiness_marks_default_local_profile_as_not_enterprise_ready() ->
     assert checks["auth_required"]["status"] == "action_required"
     assert checks["https_issuer"]["status"] == "action_required"
     assert checks["explicit_jwks_url"]["status"] == "action_required"
+    assert checks["authorization_code_client"]["status"] == "action_required"
+    assert checks["session_cookie_signing"]["status"] == "action_required"
+    assert checks["secure_session_cookie"]["status"] == "action_required"
 
 
 def test_identity_session_reports_public_evaluation_without_local_claims() -> None:
@@ -261,6 +276,13 @@ def test_ready_includes_oidc_readiness_summary() -> None:
                 oidc_auth_required=True,
                 oidc_issuer="https://idp.example/realms/axis",
                 oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
+                oidc_client_id="axis-console",
+                oidc_authorization_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/auth"
+                ),
+                oidc_token_url="https://idp.example/realms/axis/protocol/openid-connect/token",
+                oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
+                oidc_session_cookie_secure=True,
             )
         )
     )

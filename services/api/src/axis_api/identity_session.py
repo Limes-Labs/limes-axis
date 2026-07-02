@@ -39,7 +39,7 @@ def build_identity_session_read_model(
 
     return IdentitySessionReadModel(
         authenticated=authenticated,
-        mode="validated_oidc_bearer" if authenticated else "public_evaluation",
+        mode=_session_mode(principal) if authenticated else "public_evaluation",
         actor_id=principal.actor_id if principal else None,
         tenant_id=principal.tenant_id if principal else None,
         scopes=principal.scopes if principal else [],
@@ -51,7 +51,7 @@ def build_identity_session_read_model(
         audience=str(oidc_readiness_report.get("audience") or settings.oidc_audience),
         jwks_source=str(oidc_readiness_report.get("jwks_source", "unknown")),
         session_boundary=(
-            "bearer_token_verified_by_axis_api"
+            _session_boundary(principal)
             if authenticated
             else "no_authenticated_api_actor"
         ),
@@ -64,6 +64,18 @@ def build_identity_session_read_model(
     )
 
 
+def _session_mode(principal: OidcPrincipal | None) -> str:
+    if principal is not None and principal.session_source == "secure_cookie":
+        return "secure_oidc_cookie"
+    return "validated_oidc_bearer"
+
+
+def _session_boundary(principal: OidcPrincipal | None) -> str:
+    if principal is not None and principal.session_source == "secure_cookie":
+        return "http_only_cookie_verified_by_axis_api"
+    return "bearer_token_verified_by_axis_api"
+
+
 def _session_capabilities(principal: OidcPrincipal | None) -> list[str]:
     if principal is None:
         return [
@@ -72,7 +84,11 @@ def _session_capabilities(principal: OidcPrincipal | None) -> list[str]:
         ]
 
     capabilities = [
-        "Bearer token validated by the Axis OIDC verifier.",
+        (
+            "HTTP-only Axis session cookie validated by the API session verifier."
+            if principal.session_source == "secure_cookie"
+            else "Bearer token validated by the Axis OIDC verifier."
+        ),
         "Tenant and actor binding is available for protected API paths.",
     ]
     if principal.scopes:

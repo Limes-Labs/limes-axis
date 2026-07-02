@@ -14,7 +14,8 @@ The console reads:
 
 - `GET /ready` for API dependency and model-egress posture.
 - `GET /identity/oidc/readiness` for enterprise SSO readiness checks.
-- `GET /identity/session` for the API-validated actor/session boundary.
+- `GET /identity/session` for the API-validated actor/session boundary, whether
+  the actor arrived through a bearer token or an HTTP-only OIDC session cookie.
 - `GET /deployment/readiness` for production blockers and deployment profile.
 - `GET /support/diagnostics` for public-safe support diagnostics and redaction
   policy.
@@ -24,7 +25,8 @@ The console reads:
 The Settings console shows:
 
 - API readiness and runtime dependency reachability.
-- OIDC issuer, audience, auth requirement and token binding claims.
+- OIDC issuer, audience, auth requirement, token binding claims,
+  authorization-code readiness and session-cookie hardening.
 - Deployment profile, demo-safety, production blockers and object-store
   adapter, WORM retention mode and retention-day posture.
 - Support diagnostics, support blockers, redaction policy and support
@@ -46,8 +48,9 @@ return S3 access keys, secret keys or audit signing material.
 
 This is a readiness and evaluation surface, not a production certification.
 The current reports deliberately keep Enterprise blockers visible, including
-enterprise SSO hardening, production support model, production backup/restore,
-KMS-backed signing, legal operations and external security review.
+refresh-token rotation, IdP onboarding, production support model, production
+backup/restore, KMS-backed signing, legal operations and external security
+review.
 
 ## Verification
 

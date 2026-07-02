@@ -10,12 +10,13 @@ for engineering review, enterprise evaluation and future hardening work.
 The highest-risk themes are cross-tenant access, connector-secret handling,
 unsafe external execution, audit evidence integrity and operator confusion
 between a local demo profile and production readiness. The current repository
-already includes important controls: OIDC/JWKS token verification, permission
-checks, manifest lifecycle gates, credential lease records, egress policy
-preflight evidence, append-only audit events, OpenAPI contract checks and
-API-required web consoles. The remaining enterprise risk is concentrated around
-production deployment, full SSO operations, WORM retention, live connector
-execution and support runbooks.
+  already includes important controls: OIDC/JWKS token verification,
+  authorization-code PKCE session cookies, permission checks, manifest
+  lifecycle gates, credential lease records, egress policy preflight evidence,
+  append-only audit events, OpenAPI contract checks and API-required web
+  consoles. The remaining enterprise risk is concentrated around production
+  deployment, full SSO operations, WORM retention, live connector execution and
+  support runbooks.
 
 ## Scope And Assumptions
 
@@ -113,7 +114,7 @@ flowchart LR
 | Asset | Why It Matters | Security Objective |
 | --- | --- | --- |
 | Tenant-scoped operational records | Drive demo and future customer workflows | Confidentiality, integrity |
-| OIDC bearer tokens and actor scopes | Bind API actions to actors and tenants | Confidentiality, integrity |
+| OIDC bearer tokens, HTTP-only session cookies and actor scopes | Bind API actions to actors and tenants | Confidentiality, integrity |
 | Connector credential handles and connector credential leases | Reference external secrets without returning raw material | Confidentiality, integrity |
 | Append-only audit events and evidence exports | Support governance review and incident analysis | Integrity, availability |
 | Workflow run state and Temporal signals | Coordinate approvals and agent/action boundaries | Integrity, availability |
@@ -127,8 +128,9 @@ flowchart LR
 - Browser to API: HTTP requests from `apps/web` to FastAPI cross an origin and
   bearer-token boundary. CORS allows local demo origins and no-store headers;
   protected mutations bind OIDC principals when present or required.
-- API to identity provider: `/identity/oidc/readiness` and the verifier boundary
-  use OIDC issuer, audience, algorithms and JWKS configuration. The readiness
+- API to identity provider: `/identity/oidc/readiness`, `/identity/oidc/authorize`,
+  `/identity/oidc/callback` and the verifier boundary use OIDC issuer,
+  audience, algorithms, JWKS and authorization-code settings. The readiness
   report is public-safe and does not return tokens, passwords or raw JWKS.
 - API to Postgres: repository writes persist approvals, action runs, audit
   events, connector records and manufacturing operation records. Idempotency and
@@ -153,6 +155,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | `/health`, `/ready` | HTTP GET | unauthenticated system status | `/ready` includes OIDC readiness summary | `services/api/src/axis_api/main.py` |
 | `/identity/oidc/readiness` | HTTP GET | public-safe identity posture | No token/JWKS secret disclosure | `services/api/tests/test_health.py` |
+| `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
@@ -216,7 +219,8 @@ flowchart LR
 
 ## Existing Controls
 
-- Identity: OIDC/JWKS verifier, actor/tenant binding and public-safe
+- Identity: OIDC/JWKS verifier, actor/tenant binding, authorization-code PKCE
+  callback, HTTP-only session cookie validation and public-safe
   `/identity/oidc/readiness` posture reporting.
 - Permissions: RBAC, ABAC and relationship-aware permission primitives with
   endpoint tests for approvals, actions and ontology reads.
@@ -245,8 +249,8 @@ flowchart LR
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
-- Enterprise SSO still needs authorization-code login, refresh handling,
-  secure-cookie sessions, IdP onboarding and operations runbooks.
+- Enterprise SSO still needs refresh-token rotation, logout propagation,
+  server-side revocation, IdP onboarding and operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
 - Rate limiting, abuse throttling and production telemetry alerting are not yet
   described as complete controls.
@@ -256,8 +260,9 @@ flowchart LR
 
 | Path | Why It Matters | Related Threat IDs |
 | --- | --- | --- |
-| `services/api/src/axis_api/main.py` | Route mounting, OIDC principal binding and runtime selection | TM-001, TM-003, TM-005 |
+| `services/api/src/axis_api/main.py` | Route mounting, OIDC principal/session binding and runtime selection | TM-001, TM-003, TM-005 |
 | `services/api/src/axis_api/identity.py` | Token parsing, JWKS validation and actor/tenant extraction | TM-001 |
+| `services/api/src/axis_api/oidc_code_flow.py` | Authorization-code PKCE, state cookie, token exchange and signed session cookie boundary | TM-001, TM-006 |
 | `services/api/src/axis_api/connector_*` | Connector manifest, credential, lease, policy and execution gates | TM-002, TM-003 |
 | `services/api/src/axis_api/audit_queries.py` | Audit export, legal hold and retention deletion controls | TM-004 |
 | `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |

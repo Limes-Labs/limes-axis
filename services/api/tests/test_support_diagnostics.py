@@ -8,6 +8,26 @@ def _checks_by_id(body: dict) -> dict[str, dict]:
     return {check["check_id"]: check for check in body["checks"]}
 
 
+def _enterprise_sso_settings(**overrides: object) -> Settings:
+    values = {
+        "environment": "production",
+        "postgres_dsn": "sqlite+pysqlite://",
+        "oidc_auth_required": True,
+        "oidc_issuer": "https://idp.example/realms/axis",
+        "oidc_jwks_url": "https://idp.example/realms/axis/protocol/openid-connect/certs",
+        "oidc_algorithms": ["RS256"],
+        "oidc_client_id": "axis-console",
+        "oidc_authorization_url": (
+            "https://idp.example/realms/axis/protocol/openid-connect/auth"
+        ),
+        "oidc_token_url": "https://idp.example/realms/axis/protocol/openid-connect/token",
+        "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
+        "oidc_session_cookie_secure": True,
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
 def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
     client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
 
@@ -53,13 +73,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
 def test_support_diagnostics_never_returns_sensitive_signing_material() -> None:
     client = TestClient(
         create_app(
-            Settings(
-                environment="production",
-                postgres_dsn="sqlite+pysqlite://",
-                oidc_auth_required=True,
-                oidc_issuer="https://idp.example/realms/axis",
-                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
-                oidc_algorithms=["RS256"],
+            _enterprise_sso_settings(
                 audit_ledger_signing_secret="do-not-return-this-signing-material",
                 external_model_egress_enabled=False,
                 connector_sync_execution_enabled=False,
@@ -90,13 +104,7 @@ def test_support_diagnostics_never_returns_sensitive_signing_material() -> None:
 def test_support_diagnostics_reports_s3_object_store_without_secret_material() -> None:
     client = TestClient(
         create_app(
-            Settings(
-                environment="production",
-                postgres_dsn="sqlite+pysqlite://",
-                oidc_auth_required=True,
-                oidc_issuer="https://idp.example/realms/axis",
-                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
-                oidc_algorithms=["RS256"],
+            _enterprise_sso_settings(
                 audit_ledger_signing_secret="do-not-return-this-signing-material",
                 external_model_egress_enabled=False,
                 connector_sync_execution_enabled=False,

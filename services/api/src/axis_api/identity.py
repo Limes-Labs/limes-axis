@@ -25,6 +25,7 @@ class OidcPrincipal(BaseModel):
     tenant_id: str = Field(min_length=1)
     scopes: list[str] = Field(default_factory=list)
     expires_at: int | None = Field(default=None, ge=0)
+    session_source: str = Field(default="bearer_token", min_length=1)
 
 
 def _authorization_token(authorization: str | None) -> str:

@@ -104,8 +104,10 @@ Escalate immediately when:
 - Production support model, named escalation paths and SLOs are not complete.
 - Production backup, restore, retention, HA and disaster recovery are not
   complete across every stateful dependency.
-- Enterprise SSO operations beyond the readiness/profile report are not
-  complete.
+- Enterprise SSO now has readiness/profile reporting and a PKCE
+  authorization-code session-cookie API boundary, but refresh-token rotation,
+  logout propagation, server-side revocation, IdP onboarding and production SSO
+  operations are not complete.
 - S3/MinIO WORM adapter readiness and a bounded object-store recovery
   rehearsal are implemented, but production bucket provisioning review, KMS
   policy, legal operations and full-bucket restore drills remain Enterprise
