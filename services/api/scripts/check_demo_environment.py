@@ -511,6 +511,11 @@ def _fetch_support_diagnostics_report(api_url: str) -> tuple[bool, str]:
         with urlopen(request, timeout=5) as response:
             payload = json.loads(response.read().decode("utf-8"))
             diagnostics = payload.get("diagnostics")
+            support_model = (
+                diagnostics.get("support_model")
+                if isinstance(diagnostics, dict)
+                else None
+            )
             checks = payload.get("checks")
             support_artifacts = payload.get("support_artifacts")
             support_blockers = payload.get("support_blockers")
@@ -524,8 +529,13 @@ def _fetch_support_diagnostics_report(api_url: str) -> tuple[bool, str]:
                 and isinstance(payload.get("production_support_ready"), bool)
                 and isinstance(support_blockers, list)
                 and isinstance(diagnostics, dict)
+                and isinstance(support_model, dict)
+                and isinstance(support_model.get("severity_response_minutes"), dict)
+                and isinstance(support_model.get("escalation_channels"), list)
+                and isinstance(support_model.get("customer_runbook_configured"), bool)
+                and isinstance(support_model.get("status_page_configured"), bool)
                 and isinstance(checks, list)
-                and len(checks) >= 5
+                and len(checks) >= 7
                 and isinstance(support_artifacts, list)
                 and len(support_artifacts) >= 3
                 and "secret" not in body_text

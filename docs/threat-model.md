@@ -237,8 +237,9 @@ flowchart LR
   proof, legal hold and retention deletion blocking.
 - Model routing: external model egress disabled by default.
 - Web: API-required console smoke tests prevent browser-local fallback data.
-- Support: public-safe support diagnostics and the support operations baseline
-  runbook expose demo support posture without sensitive runtime material.
+- Support: public-safe support diagnostics and the support operations runbook
+  expose demo support posture, production support-readiness, SLO target checks
+  and escalation channel classes without sensitive runtime material.
 - Contracts: OpenAPI generation check, `make demo-check`, `make demo-check-live`
   and `make security-check`.
 
@@ -262,6 +263,9 @@ flowchart LR
 - In-process API rate limiting exists for public and sensitive routes, but
   global abuse throttling, production telemetry alerting and incident response
   are not complete controls.
+- Production support-readiness checks exist, but signed SLAs, named on-call
+  staffing and customer-specific incident operations remain outside the open
+  repository baseline.
 - This threat model is not a production certification.
 
 ## Focus Paths For Security Review

@@ -32,9 +32,20 @@ class SupportIdentitySummary(BaseModel):
     jwks_url_configured: bool
 
 
+class SupportModelSummary(BaseModel):
+    enabled: bool
+    coverage: str = Field(min_length=1)
+    severity_response_minutes: dict[str, int]
+    escalation_channels: list[str]
+    customer_runbook_configured: bool
+    status_page_configured: bool
+    incident_review_required: bool
+
+
 class SupportDiagnosticsPayload(BaseModel):
     deployment: SupportDeploymentSummary
     identity: SupportIdentitySummary
+    support_model: SupportModelSummary
     external_model_egress_enabled: bool
     live_connector_execution_enabled: bool
     audit_ledger_signing_configured: bool
@@ -83,6 +94,43 @@ def _dedupe(items: list[str]) -> list[str]:
     return deduped
 
 
+def _support_slo_targets(settings: Settings) -> dict[str, int]:
+    return {
+        "S1": max(0, settings.support_s1_response_minutes),
+        "S2": max(0, settings.support_s2_response_minutes),
+        "S3": max(0, settings.support_s3_response_minutes),
+        "S4": max(0, settings.support_s4_response_minutes),
+    }
+
+
+def _https_configured(value: str | None) -> bool:
+    return bool(value) and value.startswith("https://")
+
+
+def _support_slo_targets_ready(targets: dict[str, int]) -> bool:
+    ordered_targets = [targets["S1"], targets["S2"], targets["S3"], targets["S4"]]
+    return all(target > 0 for target in ordered_targets) and ordered_targets == sorted(
+        ordered_targets
+    )
+
+
+def _support_model_summary(settings: Settings) -> SupportModelSummary:
+    escalation_channels = [
+        channel.strip()
+        for channel in settings.support_escalation_channels
+        if channel.strip()
+    ]
+    return SupportModelSummary(
+        enabled=settings.support_model_enabled,
+        coverage=settings.support_coverage,
+        severity_response_minutes=_support_slo_targets(settings),
+        escalation_channels=escalation_channels,
+        customer_runbook_configured=_https_configured(settings.support_customer_runbook_url),
+        status_page_configured=_https_configured(settings.support_status_page_url),
+        incident_review_required=settings.support_incident_review_required,
+    )
+
+
 def build_support_diagnostics_report(
     settings: Settings,
     *,
@@ -103,11 +151,29 @@ def build_support_diagnostics_report(
         and not settings.external_model_egress_enabled
         and not live_connector_execution_enabled
     )
-    production_support_ready = False
+    support_model = _support_model_summary(settings)
+    support_slo_targets_ready = _support_slo_targets_ready(
+        support_model.severity_response_minutes
+    )
+    support_escalation_ready = len(support_model.escalation_channels) >= 2
+    production_support_model_ready = all(
+        (
+            support_model.enabled,
+            support_model.coverage == "24x7",
+            support_slo_targets_ready,
+            support_escalation_ready,
+            support_model.customer_runbook_configured,
+            support_model.status_page_configured,
+            support_model.incident_review_required,
+        )
+    )
+    production_support_ready = (
+        deployment_readiness_report.production_ready and production_support_model_ready
+    )
     support_blockers = _dedupe(
         [
             *deployment_readiness_report.production_blockers,
-            "production_support_model",
+            *([] if production_support_model_ready else ["production_support_model"]),
         ]
     )
     checks = [
@@ -137,9 +203,21 @@ def build_support_diagnostics_report(
         ),
         _support_check(
             "production_support_model",
-            production_support_ready,
+            production_support_model_ready,
             "Production support model is ready.",
             "Production support model, escalation paths and SLOs remain Enterprise work.",
+        ),
+        _support_check(
+            "support_slo_targets",
+            support_slo_targets_ready,
+            "Severity response targets are configured and ordered from S1 to S4.",
+            "Configure positive S1-S4 response targets ordered from shortest to longest.",
+        ),
+        _support_check(
+            "support_escalation_channels",
+            support_escalation_ready,
+            "Escalation channel classes are configured without personal contact data.",
+            "Configure at least two escalation channel classes for production support.",
         ),
     ]
     return SupportDiagnosticsReport(
@@ -164,6 +242,7 @@ def build_support_diagnostics_report(
                 jwks_source=str(oidc_readiness_report.get("jwks_source")),
                 jwks_url_configured=bool(oidc_readiness_report.get("jwks_url_configured")),
             ),
+            support_model=support_model,
             external_model_egress_enabled=settings.external_model_egress_enabled,
             live_connector_execution_enabled=live_connector_execution_enabled,
             audit_ledger_signing_configured=bool(settings.audit_ledger_signing_secret),
@@ -193,6 +272,6 @@ def build_support_diagnostics_report(
         ],
         notes=[
             "This support bundle is intended for public-safe support triage and demos.",
-            "It is not a production support contract, SLA or compliance attestation.",
+            "It is not a signed customer support contract, SLA or compliance attestation.",
         ],
     )

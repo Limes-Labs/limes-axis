@@ -199,5 +199,45 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED",
     )
+    support_model_enabled: bool = Field(
+        default=False,
+        alias="AXIS_SUPPORT_MODEL_ENABLED",
+    )
+    support_coverage: str = Field(
+        default="demo_business_hours",
+        alias="AXIS_SUPPORT_COVERAGE",
+    )
+    support_s1_response_minutes: int = Field(
+        default=0,
+        alias="AXIS_SUPPORT_S1_RESPONSE_MINUTES",
+    )
+    support_s2_response_minutes: int = Field(
+        default=0,
+        alias="AXIS_SUPPORT_S2_RESPONSE_MINUTES",
+    )
+    support_s3_response_minutes: int = Field(
+        default=0,
+        alias="AXIS_SUPPORT_S3_RESPONSE_MINUTES",
+    )
+    support_s4_response_minutes: int = Field(
+        default=0,
+        alias="AXIS_SUPPORT_S4_RESPONSE_MINUTES",
+    )
+    support_escalation_channels: list[str] = Field(
+        default_factory=list,
+        alias="AXIS_SUPPORT_ESCALATION_CHANNELS",
+    )
+    support_customer_runbook_url: str | None = Field(
+        default=None,
+        alias="AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL",
+    )
+    support_status_page_url: str | None = Field(
+        default=None,
+        alias="AXIS_SUPPORT_STATUS_PAGE_URL",
+    )
+    support_incident_review_required: bool = Field(
+        default=False,
+        alias="AXIS_SUPPORT_INCIDENT_REVIEW_REQUIRED",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
