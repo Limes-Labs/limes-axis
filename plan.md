@@ -311,6 +311,9 @@ Foundation acceptance is tracked in
   console.
 - [x] Add optional cert-manager ingress-shim annotation support for Kubernetes
   TLS certificate requests.
+- [x] Add Kubernetes TLS readiness rehearsal runbook and script for Ingress,
+  TLS Secret, cert-manager Certificate, DNS, TLS handshake and HTTPS
+  reachability checks.
 - [x] Add optional Kubernetes HorizontalPodAutoscaler and PodDisruptionBudget
   chart controls for API and web workloads.
 - [x] Add optional Kubernetes scheduling and topology-spread controls for API

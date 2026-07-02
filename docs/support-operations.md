@@ -98,8 +98,10 @@ emails or private chat handles.
    services up.
 8. For Kubernetes evaluation environments, run `make deployment-ha-rehearsal-plan`
    before restart or availability validation and
-   `make deployment-load-rehearsal-plan` before bounded load evidence. Execute
-   `make deployment-ha-rehearsal` or `make deployment-load-rehearsal` only
+   `make deployment-load-rehearsal-plan` before bounded load evidence. Run
+   `make deployment-tls-readiness-plan` before DNS, Ingress or certificate
+   troubleshooting. Execute `make deployment-ha-rehearsal`,
+   `make deployment-load-rehearsal` or `make deployment-tls-readiness` only
    against an approved `AXIS_KUBE_CONTEXT`.
 9. Record the failing check name, route, command and timestamp in the issue or
    customer note.
@@ -163,5 +165,9 @@ Escalate immediately when:
 - Bounded HA restart and load rehearsals are implemented for API/web workloads,
   but sustained customer-profile load testing, node failure, zone failure,
   capacity planning and production SLO proof remain Enterprise work.
+- A TLS readiness rehearsal is implemented for Ingress, cert-manager, DNS and
+  HTTPS reachability checks, but automated certificate issuance operations,
+  renewal drills, HSTS/CDN/WAF policy and production secure-cookie review
+  remain Enterprise work.
 - Live customer connector execution remains gated and should not be enabled
   without provider policy bundles, audit evidence and customer approval.

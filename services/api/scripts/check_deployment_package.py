@@ -46,6 +46,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
         "services/api/scripts/rehearse_secret_rotation.py",
         "services/api/scripts/rehearse_ha_restart.py",
         "services/api/scripts/rehearse_load.py",
+        "services/api/scripts/rehearse_tls_readiness.py",
     )
 
 
@@ -58,6 +59,8 @@ def required_make_targets() -> tuple[str, ...]:
         "deployment-ha-rehearsal",
         "deployment-load-rehearsal-plan",
         "deployment-load-rehearsal",
+        "deployment-tls-readiness-plan",
+        "deployment-tls-readiness",
         "deployment-backup-rehearsal-plan",
         "deployment-backup-rehearsal",
         "deployment-restore-rehearsal-plan",
@@ -229,6 +232,11 @@ def required_docs_terms() -> tuple[str, ...]:
         "fortio",
         "kubectl create job",
         "kubectl logs",
+        "TLS readiness rehearsal",
+        "deployment-tls-readiness-plan",
+        "openssl s_client",
+        "dig +short",
+        "kubectl wait --for=condition=Ready",
         "support-readiness",
         "AXIS_SUPPORT_MODEL_ENABLED",
         "AXIS_SUPPORT_ESCALATION_CHANNELS",
@@ -379,6 +387,7 @@ def check_deployment_docs(repo_root: Path) -> list[CheckResult]:
         repo_root / "docs" / "deployment-rollout-rehearsal.md",
         repo_root / "docs" / "deployment-ha-rehearsal.md",
         repo_root / "docs" / "deployment-load-rehearsal.md",
+        repo_root / "docs" / "deployment-tls-readiness.md",
     ):
         if runbook.exists():
             text = f"{text}\n{_read_text(runbook)}"
@@ -421,6 +430,11 @@ def check_public_doc_links(repo_root: Path) -> list[CheckResult]:
             "deployment.load_rehearsal_link",
             repo_root / "docs" / "deployment.md",
             "deployment-load-rehearsal.md",
+        ),
+        (
+            "deployment.tls_readiness_link",
+            repo_root / "docs" / "deployment.md",
+            "deployment-tls-readiness.md",
         ),
         (
             "deployment.threat_model_link",

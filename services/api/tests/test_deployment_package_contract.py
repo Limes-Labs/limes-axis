@@ -84,6 +84,10 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
         in checker.required_deployment_scripts()
     )
     assert "services/api/scripts/rehearse_load.py" in checker.required_deployment_scripts()
+    assert (
+        "services/api/scripts/rehearse_tls_readiness.py"
+        in checker.required_deployment_scripts()
+    )
     assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal" in checker.required_make_targets()
     assert "deployment-backup-rehearsal-plan" in checker.required_make_targets()
@@ -102,6 +106,8 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
     assert "deployment-ha-rehearsal" in checker.required_make_targets()
     assert "deployment-load-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-load-rehearsal" in checker.required_make_targets()
+    assert "deployment-tls-readiness-plan" in checker.required_make_targets()
+    assert "deployment-tls-readiness" in checker.required_make_targets()
 
 
 def test_deployment_package_externalizes_state_and_secrets() -> None:
@@ -451,6 +457,11 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "fortio" in required_terms
     assert "kubectl create job" in required_terms
     assert "kubectl logs" in required_terms
+    assert "TLS readiness rehearsal" in required_terms
+    assert "deployment-tls-readiness-plan" in required_terms
+    assert "openssl s_client" in required_terms
+    assert "dig +short" in required_terms
+    assert "kubectl wait --for=condition=Ready" in required_terms
     assert "support-readiness" in required_terms
     assert "AXIS_SUPPORT_MODEL_ENABLED" in required_terms
     assert "AXIS_SUPPORT_ESCALATION_CHANNELS" in required_terms
