@@ -172,7 +172,7 @@ demo-check:
 demo-check-live:
 	cd services/api && uv run python scripts/check_demo_environment.py --api-url http://127.0.0.1:8000 --web-url http://127.0.0.1:3000
 
-demo-verify: openapi-check demo-check
+demo-verify: openapi-check demo-check deployment-profile-render-check
 
 demo-backup-plan:
 	cd services/api && uv run python scripts/demo_backup_restore.py --repo-root ../.. plan
