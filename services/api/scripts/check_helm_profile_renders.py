@@ -37,6 +37,10 @@ PROFILE_RENDER_CONTRACTS: dict[str, ProfileRenderContract] = {
     ),
 }
 
+FORBIDDEN_RENDER_SECRET_TERMS = (
+    "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE",
+)
+
 
 def _profile_render_terms(contract: ProfileRenderContract) -> tuple[str, ...]:
     return (
@@ -64,6 +68,14 @@ def _profile_render_terms(contract: ProfileRenderContract) -> tuple[str, ...]:
 
 def _missing_terms(text: str, terms: tuple[str, ...]) -> list[str]:
     return [term for term in terms if term not in text]
+
+
+def _forbidden_secret_terms(text: str) -> list[str]:
+    normalized = f"\n{text.replace('\r\n', '\n')}\n"
+    forbidden = [term for term in FORBIDDEN_RENDER_SECRET_TERMS if term in text]
+    if "\nkind: Secret\n" in normalized:
+        forbidden.append("kind: Secret")
+    return forbidden
 
 
 def _render_profile(
@@ -104,6 +116,15 @@ def _render_profile(
             f"deployment.profile_render.{contract.profile}",
             False,
             detail,
+        )
+
+    forbidden_secret_terms = _forbidden_secret_terms(completed.stdout)
+    if forbidden_secret_terms:
+        return RenderCheckResult(
+            f"deployment.profile_render.{contract.profile}",
+            False,
+            "rendered manifest contains forbidden secret material: "
+            f"{', '.join(forbidden_secret_terms)}",
         )
 
     missing = _missing_terms(completed.stdout, _profile_render_terms(contract))

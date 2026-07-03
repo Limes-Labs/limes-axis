@@ -372,7 +372,9 @@ helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis
 executes `helm template` for every dedicated deployment overlay and checks that
 the rendered manifests still contain the expected tenancy mode, egress mode,
 ExternalSecret, HPA/PDB, NetworkPolicy, profile annotation and public-safe
-customer-evidence defaults.
+customer-evidence defaults. Dedicated profile renders must not include a local
+Kubernetes `Secret` or `REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE` placeholder;
+secret material must come from the configured external secret manager boundary.
 
 The overlays enable enterprise-shaped defaults such as required OIDC,
 Secure-session cookies, ExternalSecret usage, HPA/PDB availability controls,
