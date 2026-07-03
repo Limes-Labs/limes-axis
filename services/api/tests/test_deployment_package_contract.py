@@ -106,6 +106,10 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
     checker = load_check_module()
 
     assert (
+        "services/api/scripts/check_helm_profile_renders.py"
+        in checker.required_deployment_scripts()
+    )
+    assert (
         "services/api/scripts/rehearse_deployment_rollout.py"
         in checker.required_deployment_scripts()
     )
@@ -142,6 +146,7 @@ def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
         "services/api/scripts/rehearse_tls_readiness.py"
         in checker.required_deployment_scripts()
     )
+    assert "deployment-profile-render-check" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal-plan" in checker.required_make_targets()
     assert "deployment-rollout-rehearsal" in checker.required_make_targets()
     assert "deployment-backup-rehearsal-plan" in checker.required_make_targets()
@@ -568,6 +573,9 @@ def test_deployment_docs_are_public_safe_and_do_not_claim_certification() -> Non
     assert "topologySpreadConstraints" in required_terms
     assert "RollingUpdate" in required_terms
     assert "terminationGracePeriodSeconds" in required_terms
+    assert "helm template" in required_terms
+    assert "deployment-profile-render-check" in required_terms
+    assert "profile render gate" in required_terms
     assert "deployment-rollout-rehearsal" in required_terms
     assert "kubectl rollout status" in required_terms
     assert "helm rollback" in required_terms
