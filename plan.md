@@ -125,6 +125,8 @@ Foundation acceptance is tracked in
 - [x] Add metadata-only external database connector preview.
 - [x] Add tenant-scoped persisted connector manifest records.
 - [x] Add governed connector manifest lifecycle transitions for preview states.
+- [x] Add governed connector manifest live enablement with scope, policy and
+      evidence gates.
 - [x] Add tenant-scoped connector configuration persistence.
 - [x] Require active preview connector manifests before tenant configuration writes.
 - [x] Require active preview connector manifests before credential handle creation.
@@ -916,10 +918,14 @@ recording local public-safe previews when the API is offline. The browser
 runtime no longer exports connector registry, preview, credential, run,
 proposal, import, promotion policy or policy-set default records; connector
 unit tests use local fixtures instead of product runtime fallbacks.
-Live connector manifest enablement, live provider secret retrieval,
-provider-specific scheduled live sync beyond the self-hosted execution boundary,
-live external database adapters and connector-backed production actions remain
-Platform work.
+Live connector manifests can now move from `active_preview` to `active_live`
+only when both lifecycle and live-enable scopes, live-capable runtime policy,
+live sync mode and approval/policy/credential evidence are present. The
+transition writes append-only audit evidence and still does not retrieve
+secrets, execute connector code, start external sync or mutate the ontology
+graph. Live provider secret retrieval, provider-specific scheduled live sync
+beyond the self-hosted execution boundary, live external database adapters and
+connector-backed production actions remain Platform work.
 
 The agent registry is currently read-only and API required. The browser no
 longer carries local agent fallback records, and the API module no longer
