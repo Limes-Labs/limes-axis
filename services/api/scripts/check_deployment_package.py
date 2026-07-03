@@ -13,6 +13,42 @@ class CheckResult(NamedTuple):
     detail: str
 
 
+CUSTOMER_EVIDENCE_GATES = (
+    "AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED",
+    "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED",
+    "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED",
+    "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED",
+)
+
+FORBIDDEN_PROFILE_SECRET_TERMS = (
+    "AXIS_POSTGRES_DSN",
+    "AXIS_TYPEDB_PASSWORD",
+    "AXIS_AUDIT_LEDGER_SIGNING_SECRET",
+    "AXIS_OIDC_CLIENT_SECRET",
+    "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET",
+    "AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY",
+    "AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY",
+)
+
+PROFILE_CONTRACTS = {
+    "infra/helm/limes-axis/profiles/single-tenant-managed.yaml": {
+        "mode": "single_tenant_managed",
+        "network_mode": "restricted",
+        "profile": "single-tenant-managed",
+    },
+    "infra/helm/limes-axis/profiles/private-cloud.yaml": {
+        "mode": "private_cloud",
+        "network_mode": "restricted",
+        "profile": "private-cloud",
+    },
+    "infra/helm/limes-axis/profiles/on-prem-offline.yaml": {
+        "mode": "on_prem",
+        "network_mode": "offline",
+        "profile": "on-prem-offline",
+    },
+}
+
+
 def required_chart_files() -> tuple[str, ...]:
     return (
         "infra/helm/limes-axis/Chart.yaml",
@@ -399,6 +435,67 @@ def check_profile_files(repo_root: Path) -> list[CheckResult]:
     ]
 
 
+def _contains_truthy_yaml_value(text: str, key: str) -> bool:
+    pattern = rf"(?m)^\s*{re.escape(key)}:\s*(?:true|\"true\"|'true')\s*$"
+    return re.search(pattern, text) is not None
+
+
+def check_profile_contracts(repo_root: Path) -> list[CheckResult]:
+    failures: list[str] = []
+    for relative in required_profile_files():
+        path = repo_root / relative
+        if not path.exists():
+            failures.append(f"{relative} is missing")
+            continue
+
+        text = _read_text(path)
+        contract = PROFILE_CONTRACTS[relative]
+        required_terms = (
+            f"AXIS_DEPLOYMENT_TENANCY_MODE: {contract['mode']}",
+            f"egressMode: {contract['network_mode']}",
+            f"limes-axis.io/profile: {contract['profile']}",
+            "externalSecret:",
+            "enabled: true",
+            "autoscaling:",
+            "pdb:",
+            'AXIS_OIDC_AUTH_REQUIRED: "true"',
+            'AXIS_OIDC_SESSION_COOKIE_SECURE: "true"',
+            'AXIS_EXTERNAL_MODEL_EGRESS_ENABLED: "false"',
+            'AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED: "false"',
+            'AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED: "false"',
+            'AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED: "false"',
+        )
+        missing = [term for term in required_terms if term not in text]
+        if missing:
+            failures.append(f"{relative} missing required terms: {', '.join(missing)}")
+
+        truthy_evidence = [
+            gate for gate in CUSTOMER_EVIDENCE_GATES if _contains_truthy_yaml_value(text, gate)
+        ]
+        if truthy_evidence:
+            failures.append(
+                f"{relative} customer-specific evidence gates must remain false: "
+                f"{', '.join(truthy_evidence)}"
+            )
+
+        forbidden = [term for term in FORBIDDEN_PROFILE_SECRET_TERMS if term in text]
+        if forbidden:
+            failures.append(
+                f"{relative} contains hardcoded secret material references: "
+                f"{', '.join(forbidden)}"
+            )
+
+    return [
+        CheckResult(
+            "deployment.profile_contracts",
+            not failures,
+            "deployment profile overlays keep safe defaults and contain no secret material"
+            if not failures
+            else "; ".join(failures),
+        )
+    ]
+
+
 def check_chart_metadata(repo_root: Path) -> list[CheckResult]:
     chart = repo_root / "infra" / "helm" / "limes-axis" / "Chart.yaml"
     if not chart.exists():
@@ -546,6 +643,7 @@ def run_static_checks(repo_root: Path) -> list[CheckResult]:
     checks.extend(check_deployment_scripts(repo_root))
     checks.extend(check_chart_files(repo_root))
     checks.extend(check_profile_files(repo_root))
+    checks.extend(check_profile_contracts(repo_root))
     checks.extend(check_chart_metadata(repo_root))
     checks.extend(check_chart_terms(repo_root))
     checks.extend(check_secret_boundaries(repo_root))

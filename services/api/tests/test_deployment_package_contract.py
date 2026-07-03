@@ -58,6 +58,50 @@ def test_deployment_package_declares_deployment_profile_overlays() -> None:
     assert "infra/helm/limes-axis/profiles/on-prem-offline.yaml" in required_profiles
 
 
+def test_deployment_package_validates_profile_overlay_contracts() -> None:
+    checker = load_check_module()
+
+    results = checker.check_profile_contracts(REPO_ROOT)
+
+    failures = [f"{result.name}: {result.detail}" for result in results if not result.ok]
+    assert failures == []
+
+
+def test_deployment_profile_contract_rejects_false_evidence_and_secrets(
+    tmp_path: Path,
+) -> None:
+    checker = load_check_module()
+    for relative in checker.required_profile_files():
+        source = REPO_ROOT / relative
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    unsafe_profile = (
+        tmp_path
+        / "infra"
+        / "helm"
+        / "limes-axis"
+        / "profiles"
+        / "single-tenant-managed.yaml"
+    )
+    unsafe_profile.write_text(
+        unsafe_profile.read_text(encoding="utf-8").replace(
+            'AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED: "false"',
+            'AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED: "true"',
+        )
+        + "\nAXIS_OIDC_CLIENT_SECRET: hardcoded-secret\n",
+        encoding="utf-8",
+    )
+
+    results = checker.check_profile_contracts(tmp_path)
+
+    failures = [result.detail for result in results if not result.ok]
+    assert len(failures) == 1
+    assert "customer-specific evidence gates must remain false" in failures[0]
+    assert "hardcoded secret material" in failures[0]
+
+
 def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
     checker = load_check_module()
 
