@@ -134,6 +134,11 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED" in required_terms
     assert "AXIS_DEPLOYMENT_NETWORK_EGRESS_MODE" in required_terms
     assert "AXIS_DEPLOYMENT_NETWORK_EGRESS_ALLOWLIST_CONFIGURED" in required_terms
+    assert "AXIS_DEPLOYMENT_TENANCY_MODE" in required_terms
+    assert "AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED" in required_terms
+    assert "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED" in required_terms
+    assert "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED" in required_terms
+    assert "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED" in required_terms
     assert "AXIS_OIDC_ISSUER" in required_terms
     assert "AXIS_OIDC_CLIENT_ID" in required_terms
     assert "AXIS_OIDC_CLIENT_SECRET" in required_terms
@@ -251,6 +256,29 @@ def test_network_policy_declares_restricted_and_offline_egress_modes() -> None:
     assert "offline" in network_policy
     assert "ipBlock:" in network_policy
     assert ".Values.networkPolicy.allowedEgressCidrs" in network_policy
+
+
+def test_deployment_chart_declares_tenancy_profile_boundaries() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    configmap = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates" / "configmap.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "AXIS_DEPLOYMENT_TENANCY_MODE: saas_multi_tenant" in values
+    assert "single_tenant_managed" in values
+    assert "private_cloud" in values
+    assert "on_prem" in values
+    assert "AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED" in values
+    assert "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED" in values
+    assert "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED" in values
+    assert "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED" in values
+    assert "AXIS_DEPLOYMENT_TENANCY_MODE" in configmap
+    assert "AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED" in configmap
+    assert "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED" in configmap
+    assert "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED" in configmap
+    assert "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED" in configmap
 
 
 def test_deployment_package_scheduling_controls_are_configurable_per_workload() -> None:

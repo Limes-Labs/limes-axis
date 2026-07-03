@@ -249,6 +249,11 @@ flowchart LR
 - Network egress: Helm supports `port_allowlist`, `restricted` and `offline`
   NetworkPolicy modes, while `/deployment/readiness` blocks production readiness
   until restricted/offline posture is configured.
+- Deployment tenancy: `/deployment/readiness` reports
+  `deployment_tenancy_profile` for `saas_multi_tenant`,
+  `single_tenant_managed`, `private_cloud` and `on_prem` paths, and blocks
+  production readiness until isolation, data-residency, operator-access and
+  break-glass evidence are configured.
 - Disaster recovery: `/deployment/readiness` includes a public-safe
   `production_dr_procedures` gate for approved runbook, RPO/RTO, rehearsal
   evidence, restore owner and customer approval configuration without exposing
@@ -299,11 +304,11 @@ flowchart LR
 | `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |
 | `apps/web/e2e/smoke.spec.ts` | Guards API-required UI behavior and prevents fallback data | TM-006 |
 | `infra/docker/docker-compose.yml` | Local runtime topology and exposed service ports | TM-006 |
-| `infra/helm/limes-axis` | Kubernetes deployment baseline, TLS Ingress routing, cert-manager ingress-shim annotation support, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, Helm smoke tests, rollout rehearsal runbook, HA restart rehearsal, load rehearsal, TLS readiness rehearsal, production backup, Postgres restore, TypeDB recovery, object-store recovery, Temporal namespace/history evidence and active/staged Secret rotation rehearsals, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
+| `infra/helm/limes-axis` | Kubernetes deployment baseline, tenancy profile readiness env, TLS Ingress routing, cert-manager ingress-shim annotation support, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, Helm smoke tests, rollout rehearsal runbook, HA restart rehearsal, load rehearsal, TLS readiness rehearsal, production backup, Postgres restore, TypeDB recovery, object-store recovery, Temporal namespace/history evidence and active/staged Secret rotation rehearsals, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | Local API/web image build baselines and runtime boundaries | TM-006 |
 | `docs/demo-readiness.md` | Demo limitations and enterprise evaluation framing | TM-006 |
 | `docs/backup-restore.md` | Local demo backup boundary and non-production DR warning | TM-006 |
-| `docs/deployment.md` | Helm baseline, external Postgres/TypeDB/Temporal/OIDC/object-store dependencies, TypeDB, object-store, Temporal, Secret rotation, HA restart, load and TLS readiness rehearsals and production hardening gates | TM-006 |
+| `docs/deployment.md` | Helm baseline, external Postgres/TypeDB/Temporal/OIDC/object-store dependencies, deployment tenancy profiles, TypeDB, object-store, Temporal, Secret rotation, HA restart, load and TLS readiness rehearsals and production hardening gates | TM-006 |
 
 ## Review Cadence
 

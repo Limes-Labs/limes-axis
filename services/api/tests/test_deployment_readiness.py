@@ -33,6 +33,11 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "api_rate_limit_enabled": True,
         "api_rate_limit_requests": 120,
         "api_rate_limit_window_seconds": 60,
+        "deployment_tenancy_mode": "saas_multi_tenant",
+        "deployment_customer_isolation_configured": True,
+        "deployment_data_residency_configured": True,
+        "deployment_operator_access_runbook_configured": True,
+        "deployment_break_glass_approval_configured": True,
     }
     values.update(overrides)
     return Settings(**values)
@@ -56,6 +61,13 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
     assert body["capabilities"]["network_policy_enabled"] is False
     assert body["capabilities"]["network_egress_mode"] == "not_configured"
     assert body["capabilities"]["network_egress_allowlist_configured"] is False
+    assert body["capabilities"]["deployment_tenancy_mode"] == "saas_multi_tenant"
+    assert body["capabilities"]["deployment_customer_isolation_configured"] is False
+    assert body["capabilities"]["deployment_data_residency_configured"] is False
+    assert (
+        body["capabilities"]["deployment_operator_access_runbook_configured"] is False
+    )
+    assert body["capabilities"]["deployment_break_glass_approval_configured"] is False
 
     checks = _checks_by_id(body)
     assert checks["oidc_enterprise_sso"]["status"] == "action_required"
@@ -67,6 +79,7 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
     assert checks["production_object_store_adapter"]["status"] == "action_required"
     assert checks["production_dr_procedures"]["status"] == "action_required"
     assert checks["network_egress_restricted"]["status"] == "action_required"
+    assert checks["deployment_tenancy_profile"]["status"] == "action_required"
     assert body["capabilities"]["dr_runbook_configured"] is False
     assert body["capabilities"]["dr_rpo_rto_defined"] is False
     assert body["capabilities"]["dr_rehearsal_evidence_configured"] is False
@@ -77,6 +90,7 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
         "oidc_secure_cookie_session",
         "api_rate_limiting",
         "network_egress_restricted",
+        "deployment_tenancy_profile",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
         "production_dr_procedures",
@@ -317,6 +331,111 @@ def test_deployment_readiness_blocks_dr_without_operational_procedure_commitment
     assert body["capabilities"]["dr_rehearsal_evidence_configured"] is True
     assert body["capabilities"]["dr_restore_owner_configured"] is False
     assert body["capabilities"]["dr_customer_approval_configured"] is True
+    assert "production-signing-key" not in str(body)
+
+
+def test_deployment_readiness_blocks_dedicated_profile_without_isolation_evidence() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="production-signing-key",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_secure_transport=True,
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="GOVERNANCE",
+                connector_export_s3_retention_days=90,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=True,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=True,
+                dr_customer_approval_configured=True,
+                deployment_network_policy_enabled=True,
+                deployment_network_egress_mode="restricted",
+                deployment_network_egress_allowlist_configured=True,
+                deployment_tenancy_mode="single_tenant_managed",
+                deployment_customer_isolation_configured=True,
+                deployment_data_residency_configured=True,
+                deployment_operator_access_runbook_configured=False,
+                deployment_break_glass_approval_configured=False,
+            )
+        )
+    )
+
+    response = client.get("/deployment/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    checks = _checks_by_id(body)
+    assert body["production_ready"] is False
+    assert body["capabilities"]["deployment_tenancy_mode"] == "single_tenant_managed"
+    assert body["capabilities"]["deployment_customer_isolation_configured"] is True
+    assert body["capabilities"]["deployment_data_residency_configured"] is True
+    assert (
+        body["capabilities"]["deployment_operator_access_runbook_configured"] is False
+    )
+    assert body["capabilities"]["deployment_break_glass_approval_configured"] is False
+    assert checks["deployment_tenancy_profile"]["status"] == "action_required"
+    assert body["production_blockers"] == ["deployment_tenancy_profile"]
+    assert "production-signing-key" not in str(body)
+
+
+def test_deployment_readiness_accepts_on_prem_profile_with_required_boundaries() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="production-signing-key",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_secure_transport=True,
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="GOVERNANCE",
+                connector_export_s3_retention_days=90,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=True,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=True,
+                dr_customer_approval_configured=True,
+                deployment_network_policy_enabled=True,
+                deployment_network_egress_mode="offline",
+                deployment_network_egress_allowlist_configured=True,
+                deployment_tenancy_mode="on_prem",
+                deployment_customer_isolation_configured=True,
+                deployment_data_residency_configured=True,
+                deployment_operator_access_runbook_configured=True,
+                deployment_break_glass_approval_configured=True,
+            )
+        )
+    )
+
+    response = client.get("/deployment/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    checks = _checks_by_id(body)
+    assert body["production_ready"] is True
+    assert body["capabilities"]["deployment_tenancy_mode"] == "on_prem"
+    assert checks["deployment_tenancy_profile"]["status"] == "ready"
+    assert "deployment_tenancy_profile" not in body["production_blockers"]
+    assert "axis-secret-key" not in str(body)
     assert "production-signing-key" not in str(body)
 
 

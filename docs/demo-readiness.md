@@ -132,12 +132,13 @@ status honestly.
 
 The live check also includes `/deployment/readiness`, which aggregates identity,
 OIDC secure-cookie/session posture, external model egress, live connector
-execution, audit signing, object-store posture, network egress restrictions and
-public-safe disaster-recovery procedure readiness into explicit production
-blockers. The current local profile can be demo-safe while
-`production_ready=false`; that is intentional until enterprise deployment,
-S3/MinIO object-store posture, restricted/offline egress, DR procedures and
-signed support commitments are complete.
+execution, audit signing, object-store posture, network egress restrictions,
+`deployment_tenancy_profile` posture and public-safe disaster-recovery
+procedure readiness into explicit production blockers. The current local
+profile can be demo-safe while `production_ready=false`; that is intentional
+until enterprise deployment, S3/MinIO object-store posture, restricted/offline
+egress, tenancy profile evidence, DR procedures and signed support commitments
+are complete.
 
 The live check also includes `/support/diagnostics`, a public-safe support
 bundle for design-partner triage. It reports demo-support readiness,
@@ -373,6 +374,10 @@ Confirm before the session:
   SLO and support commitment gates, but actual signed customer agreements,
   personal staffing assignments and legal documents remain external
   commercial artifacts.
+- Deployment tenancy profile gates now distinguish `saas_multi_tenant`,
+  `single_tenant_managed`, `private_cloud` and `on_prem`, but complete
+  customer-specific dedicated deployment reference architectures remain future
+  hardening work.
 - External model-provider execution is disabled by default.
 
 ## Automated Checks
