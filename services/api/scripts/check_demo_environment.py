@@ -460,6 +460,34 @@ def _fetch_oidc_onboarding_report(api_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _json_string_values(payload: object) -> list[str]:
+    if isinstance(payload, str):
+        return [payload]
+    if isinstance(payload, list):
+        values: list[str] = []
+        for item in payload:
+            values.extend(_json_string_values(item))
+        return values
+    if isinstance(payload, dict):
+        values = []
+        for value in payload.values():
+            values.extend(_json_string_values(value))
+        return values
+    return []
+
+
+def _has_sensitive_deployment_value(payload: object) -> bool:
+    sensitive_terms = (
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "client_secret",
+        "password",
+    )
+    text_values = " ".join(_json_string_values(payload)).casefold()
+    return any(term in text_values for term in sensitive_terms)
+
+
 def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
     request = Request(
         f"{api_url.rstrip('/')}/deployment/readiness",
@@ -471,7 +499,6 @@ def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
             checks = payload.get("checks")
             capabilities = payload.get("capabilities")
             blockers = payload.get("production_blockers")
-            body_text = json.dumps(payload, sort_keys=True).casefold()
             ok = (
                 200 <= response.status < 300
                 and payload.get("status") in {"ready", "action_required"}
@@ -486,8 +513,7 @@ def _fetch_deployment_readiness_report(api_url: str) -> tuple[bool, str]:
                 and isinstance(capabilities.get("object_store_worm_retention_enabled"), bool)
                 and isinstance(capabilities.get("object_store_retention_days"), int)
                 and isinstance(capabilities.get("object_store_retention_mode"), str)
-                and "secret" not in body_text
-                and "password" not in body_text
+                and not _has_sensitive_deployment_value(payload)
             )
             if ok:
                 return True, (

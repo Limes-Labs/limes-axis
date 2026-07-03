@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -202,6 +203,127 @@ def test_demo_live_checks_include_deployment_readiness_contract(monkeypatch) -> 
     results = checker.run_live_checks("http://127.0.0.1:8000", None)
 
     assert any(result.name == "live.api_deployment_readiness" for result in results)
+
+
+def test_deployment_readiness_live_check_allows_public_safe_secret_capability_names(
+    monkeypatch,
+) -> None:
+    checker = load_check_module()
+
+    payload = {
+        "status": "action_required",
+        "production_ready": False,
+        "demo_safe": True,
+        "profile": "local_demo",
+        "production_blockers": ["oidc_secure_cookie_session"],
+        "capabilities": {
+            "object_store_adapter": "local_filesystem",
+            "object_store_worm_retention_enabled": False,
+            "object_store_retention_days": 0,
+            "object_store_retention_mode": "GOVERNANCE",
+            "oidc_session_cookie_signing_secret_configured": False,
+            "object_store_credentials_configured": False,
+        },
+        "checks": [
+            {
+                "check_id": "oidc_secure_cookie_session",
+                "status": "action_required",
+                "production_required": True,
+                "detail": "OIDC browser sessions need an operator-provided signing secret.",
+            },
+            {
+                "check_id": "production_object_store_adapter",
+                "status": "action_required",
+                "production_required": True,
+                "detail": "S3/MinIO WORM retention is not production-ready; missing credentials.",
+            },
+            {
+                "check_id": "api_rate_limiting",
+                "status": "action_required",
+                "production_required": True,
+                "detail": "API rate limiting is not enabled.",
+            },
+            {
+                "check_id": "network_egress_restricted",
+                "status": "action_required",
+                "production_required": True,
+                "detail": "Network egress is not production-restricted.",
+            },
+            {
+                "check_id": "deployment_tenancy_profile",
+                "status": "action_required",
+                "production_required": True,
+                "detail": "Deployment tenancy profile is incomplete.",
+            },
+        ],
+    }
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(payload).encode("utf-8")
+
+    monkeypatch.setattr(checker, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    ok, detail = checker._fetch_deployment_readiness_report("http://127.0.0.1:8000")
+
+    assert ok is True
+    assert detail == "HTTP 200, local_demo production_ready=False"
+
+
+def test_deployment_readiness_live_check_rejects_token_material_values(
+    monkeypatch,
+) -> None:
+    checker = load_check_module()
+
+    payload = {
+        "status": "action_required",
+        "production_ready": False,
+        "demo_safe": True,
+        "profile": "local_demo",
+        "production_blockers": ["oidc_secure_cookie_session"],
+        "capabilities": {
+            "object_store_adapter": "local_filesystem",
+            "object_store_worm_retention_enabled": False,
+            "object_store_retention_days": 0,
+            "object_store_retention_mode": "GOVERNANCE",
+        },
+        "checks": [
+            {
+                "check_id": str(index),
+                "status": "action_required",
+                "production_required": True,
+                "detail": "Leaked access_token value should fail the public-safe check.",
+            }
+            for index in range(5)
+        ],
+    }
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(payload).encode("utf-8")
+
+    monkeypatch.setattr(checker, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    ok, detail = checker._fetch_deployment_readiness_report("http://127.0.0.1:8000")
+
+    assert ok is False
+    assert detail == "HTTP 200, invalid deployment readiness contract"
 
 
 def test_demo_environment_declares_support_diagnostics_route() -> None:
