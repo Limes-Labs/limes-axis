@@ -305,12 +305,14 @@ ingress:
 networkPolicy:
   enabled: true
   dnsPort: 53
+  egressMode: port_allowlist
   allowedEgressPorts:
     - 443
     - 5432
     - 1729
     - 7233
     - 9000
+  allowedEgressCidrs: []
 
 externalServices:
   postgres:

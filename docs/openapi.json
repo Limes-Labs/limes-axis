@@ -9618,6 +9618,19 @@
             "title": "External Model Egress Enabled",
             "type": "boolean"
           },
+          "network_egress_allowlist_configured": {
+            "title": "Network Egress Allowlist Configured",
+            "type": "boolean"
+          },
+          "network_egress_mode": {
+            "minLength": 1,
+            "title": "Network Egress Mode",
+            "type": "string"
+          },
+          "network_policy_enabled": {
+            "title": "Network Policy Enabled",
+            "type": "boolean"
+          },
           "object_store_adapter": {
             "minLength": 1,
             "title": "Object Store Adapter",
@@ -9694,6 +9707,9 @@
           "api_rate_limit_enabled",
           "api_rate_limit_requests",
           "api_rate_limit_window_seconds",
+          "network_policy_enabled",
+          "network_egress_mode",
+          "network_egress_allowlist_configured",
           "external_model_egress_enabled",
           "connector_sync_execution_enabled",
           "external_db_sync_execution_enabled",

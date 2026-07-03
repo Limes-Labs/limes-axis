@@ -131,6 +131,9 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_DR_REHEARSAL_EVIDENCE_CONFIGURED" in required_terms
     assert "AXIS_DR_RESTORE_OWNER_CONFIGURED" in required_terms
     assert "AXIS_DR_CUSTOMER_APPROVAL_CONFIGURED" in required_terms
+    assert "AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED" in required_terms
+    assert "AXIS_DEPLOYMENT_NETWORK_EGRESS_MODE" in required_terms
+    assert "AXIS_DEPLOYMENT_NETWORK_EGRESS_ALLOWLIST_CONFIGURED" in required_terms
     assert "AXIS_OIDC_ISSUER" in required_terms
     assert "AXIS_OIDC_CLIENT_ID" in required_terms
     assert "AXIS_OIDC_CLIENT_SECRET" in required_terms
@@ -227,6 +230,27 @@ def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() ->
     assert "kind: PodDisruptionBudget" in pdb_template
     assert "app.kubernetes.io/component: api" in pdb_template
     assert "app.kubernetes.io/component: web" in pdb_template
+
+
+def test_network_policy_declares_restricted_and_offline_egress_modes() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    network_policy = (
+        REPO_ROOT
+        / "infra"
+        / "helm"
+        / "limes-axis"
+        / "templates"
+        / "networkpolicy.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "egressMode: port_allowlist" in values
+    assert "allowedEgressCidrs:" in values
+    assert "restricted" in network_policy
+    assert "offline" in network_policy
+    assert "ipBlock:" in network_policy
+    assert ".Values.networkPolicy.allowedEgressCidrs" in network_policy
 
 
 def test_deployment_package_scheduling_controls_are_configurable_per_workload() -> None:

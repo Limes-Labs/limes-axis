@@ -67,7 +67,8 @@ The baseline covers:
   with a separately staged Secret, captures redacted fingerprint evidence and
   checks key parity without printing secret values.
 - Service account and pod security context.
-- Initial NetworkPolicy for ingress and egress shaping.
+- Initial NetworkPolicy for ingress, egress shaping, restricted CIDR allowlists
+  and offline mode.
 - Public-safe install notes and local readiness checks.
 - Local API and web Dockerfile baselines.
 - GHCR container release workflow with SBOM, keyless signing, provenance
@@ -82,11 +83,15 @@ The baseline covers:
 - Public-safe production disaster-recovery procedure readiness configuration for
   approved runbook presence, RPO/RTO definition, rehearsal evidence, restore
   ownership and customer approval.
+- Public-safe network egress readiness configuration for restricted mode,
+  offline mode and explicit destination allowlist evidence.
 
 The baseline does not yet cover:
 
 - Sustained customer-profile high availability validation under load.
 - Full load testing, capacity planning and rollout-drain validation.
+- Customer-specific NetworkPolicy destination ownership review and service-mesh
+  or firewall enforcement outside the chart.
 - Automated TLS certificate issuance operations, DNS ownership attestation,
   renewal drills and HSTS/CDN/WAF policy.
 - Production secret-manager rotation drills, access reviews, workload restart
@@ -290,6 +295,29 @@ post-install validation path.
 This test verifies service reachability and basic application readiness from
 inside the cluster. It is not a load test, dependency failover test, SSO test,
 connector execution test or production certification.
+
+## Network Egress Modes
+
+The chart exposes `networkPolicy.egressMode` with three modes:
+
+- `port_allowlist`: preserves the initial chart behavior by allowing configured
+  ports through `networkPolicy.allowedEgressPorts` without destination binding.
+  This is useful during evaluation, but `/deployment/readiness` reports
+  `network_egress_restricted` as action-required for production.
+- `restricted`: renders `ipBlock` rules for each CIDR in
+  `networkPolicy.allowedEgressCidrs`, limited to the configured
+  `networkPolicy.allowedEgressPorts`.
+- `offline`: renders no generic external egress rule. DNS and the optional
+  same-release Helm smoke-test rule remain the only chart-managed egress paths.
+
+The API receives the public-safe posture through
+`AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED`,
+`AXIS_DEPLOYMENT_NETWORK_EGRESS_MODE` and
+`AXIS_DEPLOYMENT_NETWORK_EGRESS_ALLOWLIST_CONFIGURED`. The readiness endpoint
+does not expose destination CIDRs, customer network names, firewall policy IDs
+or private endpoint names. Restricted mode is production-ready only when at
+least one CIDR allowlist is configured; offline mode is production-ready without
+external destination allowlists.
 
 ## Production Backup Rehearsal
 
@@ -1041,8 +1069,8 @@ curl http://127.0.0.1:8000/deployment/readiness
 The readiness endpoint should be shared honestly during enterprise evaluation.
 It may report `production_ready=false` until OIDC, rate limiting, audit signing,
 OIDC secure-cookie/session posture, connector execution, object storage,
-disaster-recovery procedures, customer bucket operations and support operations
-are hardened.
+network egress restrictions, disaster-recovery procedures, customer bucket
+operations and support operations are hardened.
 
 ## Promotion Gate
 
@@ -1057,6 +1085,8 @@ Before customer production use, the deployment package must add and verify:
   evidence and HSTS/CDN/WAF policy.
 - high availability, scheduling/topology, autoscaling and upgrade rollback
   tests, including rollout-drain validation.
+- customer-specific NetworkPolicy, firewall or service-mesh egress review beyond
+  the chart's restricted/offline baseline.
 - backup restore drills against isolated Postgres, TypeDB and object-storage
   targets plus Temporal namespace/history evidence, disaster recovery runbooks,
   RPO/RTO evidence, restore ownership and customer approval.
