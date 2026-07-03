@@ -89,6 +89,38 @@ def external_db_manifest_request() -> ConnectorManifestCreateRequest:
     )
 
 
+def live_capable_external_db_manifest_request() -> ConnectorManifestCreateRequest:
+    request_payload = external_db_manifest_request().model_dump()
+    request_payload["manifest"]["sync_modes"] = [
+        "schema_preview",
+        "manual_import",
+        "live_query",
+    ]
+    request_payload["manifest"]["mapping_notes"] = [
+        "Registered with live query capability behind a separate lifecycle gate."
+    ]
+    request_payload["runtime_policy"]["allowed_operations"] = [
+        "schema_validate",
+        "metadata_preview",
+        "live_query",
+        "external_egress",
+    ]
+    request_payload["runtime_policy"]["blocked_operations"] = [
+        "live_write",
+        "credential_capture",
+    ]
+    request_payload["runtime_policy"]["egress_policy"] = (
+        "allowlisted-private-egress-with-policy-evidence"
+    )
+    request_payload["runtime_policy"]["payload_policy"] = (
+        "metadata-and-row-digest-redacted-live-query"
+    )
+    request_payload["notes"] = [
+        "Manifest is registered live-capable but not live-enabled until lifecycle approval."
+    ]
+    return ConnectorManifestCreateRequest.model_validate(request_payload)
+
+
 def test_build_connector_manifest_registry_maps_persisted_records(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -243,6 +275,256 @@ def test_transition_connector_manifest_lifecycle_marks_active_preview(
     assert transitioned.notes[-1] == "Lifecycle transition: active_preview"
     assert transitioned.manifest["connector_id"] == "external_db_shift_orders"
     assert "password" not in transitioned.model_dump_json().lower()
+
+
+def test_transition_connector_manifest_lifecycle_enables_active_live_with_gate(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(
+            repository,
+            live_capable_external_db_manifest_request(),
+        )
+        transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_preview",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Ready for governed preview configuration.",
+                evidence_refs=["approval:connector-manifest-preview-activation"],
+            ),
+        )
+
+        transitioned = transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_live",
+                actor_scopes=[
+                    "connectors:manifest:lifecycle",
+                    "connectors:manifest:enable_live",
+                ],
+                transition_reason="Governance approval for allowlisted live query preflight.",
+                evidence_refs=[
+                    "approval:connector-live-enable",
+                    "policy:egress-allowlist-reviewed",
+                    "credential:external-db-readonly-lease-policy",
+                ],
+            ),
+        )
+        audit_event = repository.get_audit_event(
+            "tenant_demo_manufacturing",
+            transitioned.audit_event_id,
+        )
+
+    assert transitioned.status == "active_live"
+    assert transitioned.audit_event_type == "connector.manifest.live_enabled"
+    assert transitioned.notes[-1] == "Lifecycle transition: active_live"
+    assert transitioned.manifest["sync_modes"] == [
+        "schema_preview",
+        "manual_import",
+        "live_query",
+    ]
+    assert transitioned.runtime_policy["allowed_operations"] == [
+        "schema_validate",
+        "metadata_preview",
+        "live_query",
+        "external_egress",
+    ]
+    assert audit_event is not None
+    assert audit_event.event_type == "connector.manifest.live_enabled"
+    assert audit_event.payload["required_scope"] == "connectors:manifest:enable_live"
+    assert audit_event.payload["live_sync_enabled"] == "true"
+    assert audit_event.payload["external_sync_started"] == "false"
+    assert audit_event.payload["evidence_refs"] == [
+        "approval:connector-live-enable",
+        "policy:egress-allowlist-reviewed",
+        "credential:external-db-readonly-lease-policy",
+    ]
+    assert "password" not in transitioned.model_dump_json().lower()
+
+
+def test_transition_connector_manifest_lifecycle_requires_live_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(
+            repository,
+            live_capable_external_db_manifest_request(),
+        )
+        transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_preview",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Ready for governed preview configuration.",
+                evidence_refs=["approval:connector-manifest-preview-activation"],
+            ),
+        )
+
+        with pytest.raises(ConnectorManifestLifecycleValidationError) as exc_info:
+            transition_demo_connector_manifest_lifecycle(
+                repository,
+                "external_db_shift_orders",
+                ConnectorManifestLifecycleRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    transitioned_by="platform-connector-owner-role",
+                    target_status="active_live",
+                    actor_scopes=["connectors:manifest:lifecycle"],
+                    transition_reason="Governance approval for live query.",
+                    evidence_refs=[
+                        "approval:connector-live-enable",
+                        "policy:egress-allowlist-reviewed",
+                        "credential:external-db-readonly-lease-policy",
+                    ],
+                ),
+            )
+
+    assert exc_info.value.reason == "missing_manifest_live_scope"
+
+
+def test_transition_connector_manifest_lifecycle_requires_lifecycle_scope_for_live(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(
+            repository,
+            live_capable_external_db_manifest_request(),
+        )
+        transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_preview",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Ready for governed preview configuration.",
+                evidence_refs=["approval:connector-manifest-preview-activation"],
+            ),
+        )
+
+        with pytest.raises(ConnectorManifestLifecycleValidationError) as exc_info:
+            transition_demo_connector_manifest_lifecycle(
+                repository,
+                "external_db_shift_orders",
+                ConnectorManifestLifecycleRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    transitioned_by="platform-connector-owner-role",
+                    target_status="active_live",
+                    actor_scopes=["connectors:manifest:enable_live"],
+                    transition_reason="Governance approval for live query.",
+                    evidence_refs=[
+                        "approval:connector-live-enable",
+                        "policy:egress-allowlist-reviewed",
+                        "credential:external-db-readonly-lease-policy",
+                    ],
+                ),
+            )
+
+    assert exc_info.value.reason == "missing_manifest_lifecycle_scope"
+
+
+def test_transition_connector_manifest_lifecycle_requires_live_runtime_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    request_payload = live_capable_external_db_manifest_request().model_dump()
+    request_payload["runtime_policy"]["blocked_operations"].append("live_query")
+    request = ConnectorManifestCreateRequest.model_validate(request_payload)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(repository, request)
+        transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_preview",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Ready for governed preview configuration.",
+                evidence_refs=["approval:connector-manifest-preview-activation"],
+            ),
+        )
+
+        with pytest.raises(ConnectorManifestLifecycleValidationError) as exc_info:
+            transition_demo_connector_manifest_lifecycle(
+                repository,
+                "external_db_shift_orders",
+                ConnectorManifestLifecycleRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    transitioned_by="platform-connector-owner-role",
+                    target_status="active_live",
+                    actor_scopes=[
+                        "connectors:manifest:lifecycle",
+                        "connectors:manifest:enable_live",
+                    ],
+                    transition_reason="Governance approval for live query.",
+                    evidence_refs=[
+                        "approval:connector-live-enable",
+                        "policy:egress-allowlist-reviewed",
+                        "credential:external-db-readonly-lease-policy",
+                    ],
+                ),
+            )
+
+    assert exc_info.value.reason == "manifest_runtime_policy_blocks_live_query"
+
+
+def test_transition_connector_manifest_endpoint_requires_live_evidence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(
+            repository,
+            live_capable_external_db_manifest_request(),
+        )
+        transition_demo_connector_manifest_lifecycle(
+            repository,
+            "external_db_shift_orders",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_preview",
+                actor_scopes=["connectors:manifest:lifecycle"],
+                transition_reason="Ready for governed preview configuration.",
+                evidence_refs=["approval:connector-manifest-preview-activation"],
+            ),
+        )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manifests/external_db_shift_orders/lifecycle",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "transitioned_by": "platform-connector-owner-role",
+            "target_status": "active_live",
+            "actor_scopes": [
+                "connectors:manifest:lifecycle",
+                "connectors:manifest:enable_live",
+            ],
+            "transition_reason": "Governance approval for live query.",
+            "evidence_refs": ["approval:connector-live-enable"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "manifest_live_evidence_incomplete"
 
 
 def test_transition_connector_manifest_lifecycle_rejects_live_enabled_target(

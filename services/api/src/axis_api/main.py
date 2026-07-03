@@ -2308,7 +2308,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ConnectorManifestLifecycleValidationError as exc:
             status_code = (
                 403
-                if exc.reason == "missing_manifest_lifecycle_scope"
+                if exc.reason
+                in {
+                    "missing_manifest_lifecycle_scope",
+                    "missing_manifest_live_scope",
+                }
                 else 422
             )
             raise HTTPException(

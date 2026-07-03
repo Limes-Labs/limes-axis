@@ -317,12 +317,19 @@ credential material before persisting the record.
 
 `POST /demo/manufacturing/connectors/manifests/{connector_id}/lifecycle`
 transitions a persisted manifest from `registered_preview_only` to
-`active_preview`, or from preview states to `deprecated`, when the actor has
-`connectors:manifest:lifecycle`. The endpoint writes
-`connector.manifest.lifecycle_transitioned` audit evidence and records the
-lifecycle note on the manifest. Live targets such as `live_enabled` are rejected
-explicitly; the lifecycle path does not start sync, retrieve credentials,
-execute connector code or mutate the ontology graph.
+`active_preview`, from `active_preview` to `active_live`, or from active states
+to `deprecated`. Preview transitions require `connectors:manifest:lifecycle`.
+The `active_live` transition requires the separate
+`connectors:manifest:enable_live` scope in addition to
+`connectors:manifest:lifecycle`, a live-capable manifest sync mode, a runtime
+policy that explicitly allows `live_query` and `external_egress`, no runtime
+policy block on those operations, and approval, policy and credential evidence
+references. Preview transitions write
+`connector.manifest.lifecycle_transitioned` audit evidence; live enablement
+writes `connector.manifest.live_enabled` audit evidence with
+`external_sync_started=false`. Alias targets such as `live_enabled` remain
+rejected explicitly. The lifecycle path does not start sync, retrieve
+credentials, execute connector code or mutate the ontology graph.
 
 The CSV preview endpoint accepts a demo CSV payload and returns:
 
@@ -986,7 +993,6 @@ contract keeps these boundaries visible:
 
 Future Platform work should add:
 
-- live connector manifest enablement beyond preview lifecycle states;
 - live provider secret retrieval beyond provider-specific lease validation;
 - provider-specific scheduled live sync beyond the checkpointed self-hosted
   execution boundary;

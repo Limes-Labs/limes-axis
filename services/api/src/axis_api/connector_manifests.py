@@ -124,16 +124,32 @@ RAW_QUERY_FIELD_NAMES = {
 
 RAW_CONNECTION_MARKERS = ("postgres://", "postgresql://", "jdbc:")
 RAW_QUERY_MARKERS = ("select ", "insert ", "update ", "delete ", "drop ")
+MANIFEST_LIFECYCLE_SCOPE = "connectors:manifest:lifecycle"
+LIVE_MANIFEST_ENABLE_SCOPE = "connectors:manifest:enable_live"
+ACTIVE_LIVE_STATUS = "active_live"
 MANIFEST_LIFECYCLE_TRANSITIONS = {
     "registered_preview_only": {"active_preview", "deprecated"},
-    "active_preview": {"deprecated"},
+    "active_preview": {ACTIVE_LIVE_STATUS, "deprecated"},
+    ACTIVE_LIVE_STATUS: {"deprecated"},
     "deprecated": set(),
 }
-LIVE_MANIFEST_TARGETS = {
-    "active_live",
+SUPPORTED_MANIFEST_LIFECYCLE_TARGETS = {
+    "active_preview",
+    ACTIVE_LIVE_STATUS,
+    "deprecated",
+}
+UNSUPPORTED_LIVE_MANIFEST_TARGETS = {
     "enabled_live",
     "live_enabled",
     "production_enabled",
+}
+LIVE_MANIFEST_SYNC_MODES = {"live_query", "live_sync", "scheduled_sync"}
+LIVE_MANIFEST_REQUIRED_ALLOWED_OPERATIONS = {"live_query", "external_egress"}
+LIVE_MANIFEST_FORBIDDEN_BLOCKED_OPERATIONS = {"live_query", "external_egress"}
+LIVE_MANIFEST_EVIDENCE_PREFIXES = {
+    "approval": ("approval:",),
+    "policy": ("policy:",),
+    "credential": ("credential:", "secret:", "vault:"),
 }
 
 
@@ -258,17 +274,27 @@ def transition_demo_connector_manifest_lifecycle(
     connector_id: str,
     request: ConnectorManifestLifecycleRequest,
 ) -> ConnectorManifestRecordView:
-    if request.required_scope not in request.actor_scopes:
+    required_scopes = _required_scopes_for_target(
+        request.target_status,
+        request.required_scope,
+    )
+    missing_scopes = [
+        required_scope
+        for required_scope in required_scopes
+        if required_scope not in request.actor_scopes
+    ]
+    if missing_scopes:
+        reason = _missing_scope_reason(missing_scopes)
         raise ConnectorManifestLifecycleValidationError(
             "Connector manifest lifecycle transition requires lifecycle scope.",
-            "missing_manifest_lifecycle_scope",
+            reason,
         )
-    if request.target_status in LIVE_MANIFEST_TARGETS:
+    if request.target_status in UNSUPPORTED_LIVE_MANIFEST_TARGETS:
         raise ConnectorManifestLifecycleValidationError(
             "Connector manifest lifecycle cannot enable live connector operation.",
             "unsupported_manifest_lifecycle_target",
         )
-    if request.target_status not in {"active_preview", "deprecated"}:
+    if request.target_status not in SUPPORTED_MANIFEST_LIFECYCLE_TARGETS:
         raise ConnectorManifestLifecycleValidationError(
             "Connector manifest lifecycle target is not supported.",
             "unsupported_manifest_lifecycle_target",
@@ -286,20 +312,30 @@ def transition_demo_connector_manifest_lifecycle(
             "Connector manifest lifecycle transition is not allowed.",
             "manifest_lifecycle_transition_not_allowed",
         )
+    if request.target_status == ACTIVE_LIVE_STATUS:
+        _validate_live_manifest_enablement(manifest, request)
 
+    audit_event_type = (
+        "connector.manifest.live_enabled"
+        if request.target_status == ACTIVE_LIVE_STATUS
+        else "connector.manifest.lifecycle_transitioned"
+    )
+    live_sync_enabled = "true" if request.target_status == ACTIVE_LIVE_STATUS else "false"
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
             actor_id=request.transitioned_by,
-            event_type="connector.manifest.lifecycle_transitioned",
+            event_type=audit_event_type,
             payload={
                 "connector_id": connector_id,
                 "from_status": manifest.status,
                 "target_status": request.target_status,
-                "required_scope": request.required_scope,
+                "required_scope": required_scopes[-1],
+                "required_scopes": required_scopes,
                 "transition_reason": request.transition_reason,
                 "evidence_refs": request.evidence_refs,
-                "live_sync_enabled": "false",
+                "live_sync_enabled": live_sync_enabled,
+                "external_sync_started": "false",
             },
         )
     )
@@ -310,7 +346,7 @@ def transition_demo_connector_manifest_lifecycle(
                 connector_id=connector_id,
                 status=request.target_status,
                 audit_event_id=audit_event.id,
-                audit_event_type="connector.manifest.lifecycle_transitioned",
+                audit_event_type=audit_event_type,
                 note=f"Lifecycle transition: {request.target_status}",
             )
         )
@@ -320,6 +356,76 @@ def transition_demo_connector_manifest_lifecycle(
             "manifest_not_found",
         ) from exc
     return _record_from_persistence(updated)
+
+
+def _required_scopes_for_target(target_status: str, default_scope: str) -> list[str]:
+    if target_status == ACTIVE_LIVE_STATUS:
+        return [MANIFEST_LIFECYCLE_SCOPE, LIVE_MANIFEST_ENABLE_SCOPE]
+    return [default_scope]
+
+
+def _missing_scope_reason(missing_scopes: list[str]) -> str:
+    if LIVE_MANIFEST_ENABLE_SCOPE in missing_scopes:
+        return "missing_manifest_live_scope"
+    return "missing_manifest_lifecycle_scope"
+
+
+def _validate_live_manifest_enablement(
+    manifest,
+    request: ConnectorManifestLifecycleRequest,
+) -> None:
+    manifest_payload = manifest.manifest_payload or {}
+    runtime_policy = manifest.runtime_policy or {}
+    sync_modes = set(manifest_payload.get("sync_modes") or [])
+    allowed_operations = set(runtime_policy.get("allowed_operations") or [])
+    blocked_operations = set(runtime_policy.get("blocked_operations") or [])
+
+    if not sync_modes.intersection(LIVE_MANIFEST_SYNC_MODES):
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector manifest must declare a live sync mode before active_live.",
+            "manifest_live_sync_mode_missing",
+        )
+    missing_allowed_operations = sorted(
+        LIVE_MANIFEST_REQUIRED_ALLOWED_OPERATIONS - allowed_operations
+    )
+    if missing_allowed_operations:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector runtime policy must explicitly allow live connector operations.",
+            "manifest_runtime_policy_missing_live_operations",
+        )
+    blocked_live_operations = sorted(
+        LIVE_MANIFEST_FORBIDDEN_BLOCKED_OPERATIONS.intersection(blocked_operations)
+    )
+    if blocked_live_operations:
+        blocked_operation = blocked_live_operations[0]
+        reason = (
+            "manifest_runtime_policy_blocks_live_query"
+            if blocked_operation == "live_query"
+            else "manifest_runtime_policy_blocks_external_egress"
+        )
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector runtime policy still blocks a required live operation.",
+            reason,
+        )
+    egress_policy = str(runtime_policy.get("egress_policy", "")).strip().lower()
+    if egress_policy in {"", "none", "no-external-egress"}:
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector runtime policy must name the reviewed live egress boundary.",
+            "manifest_runtime_policy_missing_live_egress_boundary",
+        )
+    if not _has_required_live_evidence(request.evidence_refs):
+        raise ConnectorManifestLifecycleValidationError(
+            "Connector live enablement requires approval, policy and credential evidence.",
+            "manifest_live_evidence_incomplete",
+        )
+
+
+def _has_required_live_evidence(evidence_refs: list[str]) -> bool:
+    normalized_refs = [evidence_ref.strip().lower() for evidence_ref in evidence_refs]
+    return all(
+        any(evidence_ref.startswith(prefixes) for evidence_ref in normalized_refs)
+        for prefixes in LIVE_MANIFEST_EVIDENCE_PREFIXES.values()
+    )
 
 
 def _record_from_persistence(record) -> ConnectorManifestRecordView:
