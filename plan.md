@@ -1,6 +1,6 @@
 # Limes Axis Public Plan
 
-Last updated: 2026-06-29
+Last updated: 2026-07-04
 
 ## Summary
 
@@ -964,9 +964,15 @@ audit writes from live route decisions remain Platform work.
 
 ### Enterprise
 
-- [ ] Add single-tenant managed deployment path.
-- [ ] Add on-prem/private cloud reference architecture.
-- [ ] Add Helm charts and production deployment guides.
+- [x] Add baseline single-tenant managed deployment profile, render checks and
+  readiness gates.
+- [x] Add baseline private-cloud and on-prem/offline deployment profiles,
+  render checks and readiness gates.
+- [x] Add Helm charts and production deployment guide baseline.
+- [ ] Add complete customer-specific single-tenant managed reference
+  architecture.
+- [ ] Add complete customer-specific private-cloud and on-prem reference
+  architectures.
 - [x] Add local Docker Compose backup and restore procedures for repeatable demos.
 - [ ] Add complete production backup, restore, retention and disaster recovery
   procedures across all stateful services.

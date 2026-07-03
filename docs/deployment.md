@@ -1102,7 +1102,7 @@ a future Axis release pipeline.
 
 ## Verification
 
-Run the static repository deployment check:
+Run the static repository deployment checks:
 
 ```bash
 make deployment-check
@@ -1118,16 +1118,17 @@ make deployment-secret-rotation-rehearsal-plan
 make deployment-ha-rehearsal-plan
 make deployment-load-rehearsal-plan
 make deployment-tls-readiness-plan
-helm test limes-axis --namespace limes-axis --timeout 10m
 make container-check
 make container-release-check
 make container-security-check
 make vulnerability-management-check
 ```
 
-After a cluster install, verify Kubernetes state and API readiness:
+After a cluster install, verify Kubernetes state, Helm smoke tests and API
+readiness:
 
 ```bash
+helm test limes-axis --namespace limes-axis --timeout 10m
 kubectl -n limes-axis get pods,svc
 kubectl -n limes-axis port-forward svc/limes-axis-api 8000:8000
 curl http://127.0.0.1:8000/ready

@@ -76,6 +76,10 @@ def test_deployment_values_schema_declares_operational_enums() -> None:
         "private_cloud",
         "on_prem",
     ]
+    assert api_env["AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER"]["enum"] == [
+        "local_filesystem",
+        "s3_compatible",
+    ]
     assert network_policy["egressMode"]["enum"] == [
         "port_allowlist",
         "restricted",
@@ -127,6 +131,14 @@ ingress:
 """,
             "/ingress/certManager/issuerKind",
         ),
+        "object-store-adapter": (
+            """
+api:
+  env:
+    AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER: filesystem
+""",
+            "/api/env/AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER",
+        ),
     }
 
     for case_name, (values_yaml, expected_path) in invalid_cases.items():
@@ -149,6 +161,37 @@ ingress:
         assert completed.returncode != 0, case_name
         output = f"{completed.stdout}\n{completed.stderr}"
         assert expected_path in output
+
+
+def test_deployment_values_schema_accepts_documented_object_store_adapter(
+    tmp_path: Path,
+) -> None:
+    documented_values = tmp_path / "documented-object-store-adapter.yaml"
+    documented_values.write_text(
+        """
+api:
+  env:
+    AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER: local_filesystem
+""",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [
+            "helm",
+            "lint",
+            str(REPO_ROOT / "infra" / "helm" / "limes-axis"),
+            "-f",
+            str(documented_values),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert completed.returncode == 0, (
+        f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    )
 
 
 def test_deployment_profile_overlays_pass_helm_lint() -> None:
