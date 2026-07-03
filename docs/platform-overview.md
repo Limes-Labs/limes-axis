@@ -62,6 +62,11 @@ The overview also uses the public Axis console shell: dark Axis Black and
 Graphite surfaces, Signal Blue state emphasis, Teal Pulse success emphasis and
 compact operational cards. The visual layer is tested separately from the data
 contract so that brand changes do not reintroduce browser-local records.
+Laptop-width dashboard checks keep the operations KPI cards above the readable
+minimum and move the side rail below the primary workflow surface before the
+main console becomes compressed. This keeps SME and enterprise feedback
+sessions usable on ordinary meeting-room displays without changing the
+API-required data contract.
 
 The overview also composes:
 

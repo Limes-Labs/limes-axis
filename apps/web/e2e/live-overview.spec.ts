@@ -142,4 +142,55 @@ test.describe("Axis live overview demo", () => {
     expect(navigation?.height).toBe(navigation?.viewportHeight);
     expect(navigation?.navVisible).toBe(true);
   });
+
+  test("keeps the live operations dashboard readable on laptop-width screens", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    await expect(page.locator(".ops-dashboard-grid")).toBeVisible();
+    await expect(page.locator(".ops-kpi-card")).toHaveCount(5);
+
+    const dashboardLayout = await page.evaluate(() => {
+      const dashboard = document.querySelector<HTMLElement>(".ops-dashboard-grid");
+      const main = document.querySelector<HTMLElement>(".ops-dashboard-main");
+      const rightRail = document.querySelector<HTMLElement>(".ops-right-rail");
+      const kpiCards = Array.from(document.querySelectorAll<HTMLElement>(".ops-kpi-card"));
+
+      const rect = (element: HTMLElement | null) => {
+        if (!element) {
+          return null;
+        }
+
+        const bounds = element.getBoundingClientRect();
+        return {
+          bottom: Math.round(bounds.bottom),
+          height: Math.round(bounds.height),
+          top: Math.round(bounds.top),
+          width: Math.round(bounds.width),
+        };
+      };
+
+      return {
+        hasDashboard: Boolean(dashboard),
+        hasMain: Boolean(main),
+        hasRightRail: Boolean(rightRail),
+        gridColumns: dashboard ? window.getComputedStyle(dashboard).gridTemplateColumns : "",
+        kpiWidths: kpiCards.map((card) => Math.round(card.getBoundingClientRect().width)),
+        main: rect(main),
+        rightRail: rect(rightRail),
+      };
+    });
+
+    expect(dashboardLayout.hasDashboard).toBe(true);
+    expect(dashboardLayout.hasMain).toBe(true);
+    expect(dashboardLayout.hasRightRail).toBe(true);
+    expect(dashboardLayout.gridColumns.trim().split(/\s+/)).toHaveLength(1);
+    expect(Math.min(...dashboardLayout.kpiWidths)).toBeGreaterThanOrEqual(170);
+    expect(dashboardLayout.rightRail?.top ?? 0).toBeGreaterThan(
+      dashboardLayout.main?.top ?? 0,
+    );
+    await expectNoHorizontalOverflow(page);
+  });
 });

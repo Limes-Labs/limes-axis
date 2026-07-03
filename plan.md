@@ -270,6 +270,9 @@ Foundation acceptance is tracked in
   production-build Playwright demo checks.
 - [x] Apply the public Axis brand palette to the console shell and verify it in
   unit, Playwright and in-app Browser checks.
+- [x] Harden the operations console responsive layout so laptop-width
+  enterprise demos keep KPI cards readable and move the side rail below the
+  primary workflow surface before content is compressed.
 - [x] Split production-build browser checks into deterministic offline and live
   E2E scripts.
 - [x] Add an API-backed platform notification center derived from persisted

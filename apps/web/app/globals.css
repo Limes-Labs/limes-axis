@@ -2625,7 +2625,7 @@ textarea:focus-visible {
 
 .ops-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
   gap: 10px;
 }
 
@@ -3333,7 +3333,7 @@ textarea:focus-visible {
   padding-top: 28px;
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1380px) {
   .ops-dashboard-grid {
     grid-template-columns: 1fr;
   }
