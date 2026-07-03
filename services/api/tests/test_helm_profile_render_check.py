@@ -147,6 +147,42 @@ def test_profile_render_checker_rejects_missing_contract_terms(monkeypatch) -> N
     assert all("rendered manifest missing required terms" in result.detail for result in results)
 
 
+def test_profile_render_checker_rejects_rendered_local_secret_material(monkeypatch) -> None:
+    checker = load_render_module()
+
+    def fake_run(command: list[str], **kwargs):
+        profile_path = Path(command[-1])
+        contract = checker.PROFILE_RENDER_CONTRACTS[str(profile_path.relative_to(REPO_ROOT))]
+        manifest = (
+            rendered_manifest(
+                profile=contract.profile,
+                tenancy_mode=contract.tenancy_mode,
+                egress_mode=contract.network_mode,
+            )
+            + """
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: limes-axis-runtime
+stringData:
+  AXIS_POSTGRES_DSN: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+"""
+        )
+        return subprocess.CompletedProcess(command, 0, manifest, "")
+
+    monkeypatch.setattr(checker.subprocess, "run", fake_run)
+
+    results = checker.run_render_checks(REPO_ROOT, helm_binary="helm")
+
+    assert len(results) == 3
+    assert all(not result.ok for result in results)
+    assert all(
+        "rendered manifest contains forbidden secret material" in result.detail
+        for result in results
+    )
+
+
 def test_profile_render_checker_reports_missing_helm_binary(monkeypatch) -> None:
     checker = load_render_module()
 
