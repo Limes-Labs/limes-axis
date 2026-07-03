@@ -161,7 +161,7 @@ flowchart LR
 | `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
-| `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session and DR procedure posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
+| `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session, network egress and DR procedure posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers, commitment gates and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
 | `/demo/manufacturing/approvals` mutation paths | HTTP POST | user/agent to API | OIDC actor binding and permission checks | `services/api/tests/test_approval_decisions.py` |
@@ -246,6 +246,9 @@ flowchart LR
 - Deployment operations: bounded HA restart, load and TLS readiness rehearsal
   plans exercise Kubernetes workload restart, Fortio Job, Ingress,
   cert-manager, DNS and HTTPS reachability paths before production promotion.
+- Network egress: Helm supports `port_allowlist`, `restricted` and `offline`
+  NetworkPolicy modes, while `/deployment/readiness` blocks production readiness
+  until restricted/offline posture is configured.
 - Disaster recovery: `/deployment/readiness` includes a public-safe
   `production_dr_procedures` gate for approved runbook, RPO/RTO, rehearsal
   evidence, restore owner and customer approval configuration without exposing
@@ -264,9 +267,10 @@ flowchart LR
 - Helm/Kubernetes deployment guides, in-process API rate limiting,
   active/staged Secret rotation rehearsal, HA restart rehearsal, bounded load
   rehearsal, TLS readiness rehearsal and local image build baselines exist, but
-  sustained customer-profile HA validation under load, automated certificate
-  renewal drills, upstream secret-manager rotation, access reviews, image
-  provenance/signing and release automation are not complete.
+  sustained customer-profile HA validation under load, customer-specific network
+  egress review, automated certificate renewal drills, upstream secret-manager
+  rotation, access reviews, image provenance/signing and release automation are
+  not complete.
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.

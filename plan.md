@@ -976,6 +976,8 @@ audit writes from live route decisions remain Platform work.
 - [x] Add public-safe production backup/restore and disaster-recovery procedure
   readiness gates for approved runbook, RPO/RTO, rehearsal evidence, restore
   ownership and customer approval.
+- [x] Add restricted/offline Kubernetes network egress modes and deployment
+  readiness gating beyond the initial port allowlist.
 - [x] Add configurable API rate limiting for public and sensitive routes,
   with deployment readiness gating.
 - [x] Add initial security review and threat model documentation.

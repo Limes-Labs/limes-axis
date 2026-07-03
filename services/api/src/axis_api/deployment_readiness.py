@@ -29,6 +29,9 @@ class DeploymentReadinessCapabilities(BaseModel):
     api_rate_limit_enabled: bool
     api_rate_limit_requests: int = Field(ge=1)
     api_rate_limit_window_seconds: int = Field(ge=1)
+    network_policy_enabled: bool
+    network_egress_mode: str = Field(min_length=1)
+    network_egress_allowlist_configured: bool
     external_model_egress_enabled: bool
     connector_sync_execution_enabled: bool
     external_db_sync_execution_enabled: bool
@@ -109,6 +112,10 @@ def _uses_https(value: str | None) -> bool:
     return parsed.scheme.casefold() == "https" and bool(parsed.netloc)
 
 
+def _network_egress_mode(settings: Settings) -> str:
+    return settings.deployment_network_egress_mode.strip().casefold() or "not_configured"
+
+
 def build_deployment_readiness_report(
     settings: Settings,
     *,
@@ -129,6 +136,14 @@ def build_deployment_readiness_report(
         and settings.api_rate_limit_requests > 0
         and settings.api_rate_limit_window_seconds > 0
         and bool(settings.api_rate_limit_paths)
+    )
+    network_egress_mode = _network_egress_mode(settings)
+    network_egress_restricted_ready = settings.deployment_network_policy_enabled and (
+        network_egress_mode == "offline"
+        or (
+            network_egress_mode == "restricted"
+            and settings.deployment_network_egress_allowlist_configured
+        )
     )
     audit_signing_configured = bool(settings.audit_ledger_signing_secret)
     object_store_readiness = build_object_store_readiness(settings)
@@ -172,6 +187,11 @@ def build_deployment_readiness_report(
         api_rate_limit_enabled=settings.api_rate_limit_enabled,
         api_rate_limit_requests=max(1, settings.api_rate_limit_requests),
         api_rate_limit_window_seconds=max(1, settings.api_rate_limit_window_seconds),
+        network_policy_enabled=settings.deployment_network_policy_enabled,
+        network_egress_mode=network_egress_mode,
+        network_egress_allowlist_configured=(
+            settings.deployment_network_egress_allowlist_configured
+        ),
         external_model_egress_enabled=settings.external_model_egress_enabled,
         connector_sync_execution_enabled=settings.connector_sync_execution_enabled,
         external_db_sync_execution_enabled=settings.external_db_sync_execution_enabled,
@@ -229,6 +249,15 @@ def build_deployment_readiness_report(
             api_rate_limiting_ready,
             "API rate limiting is enabled for public and sensitive routes.",
             "API rate limiting is not enabled; configure request throttling before production.",
+        ),
+        _check(
+            "network_egress_restricted",
+            network_egress_restricted_ready,
+            "Network egress is restricted by NetworkPolicy in restricted or offline mode.",
+            (
+                "Network egress is not production-restricted; enable NetworkPolicy "
+                "and use offline mode or restricted mode with an explicit destination allowlist."
+            ),
         ),
         _check(
             "live_connector_execution_disabled",

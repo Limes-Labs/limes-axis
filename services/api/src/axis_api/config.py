@@ -123,6 +123,18 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",
     )
+    deployment_network_policy_enabled: bool = Field(
+        default=False,
+        alias="AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED",
+    )
+    deployment_network_egress_mode: str = Field(
+        default="not_configured",
+        alias="AXIS_DEPLOYMENT_NETWORK_EGRESS_MODE",
+    )
+    deployment_network_egress_allowlist_configured: bool = Field(
+        default=False,
+        alias="AXIS_DEPLOYMENT_NETWORK_EGRESS_ALLOWLIST_CONFIGURED",
+    )
     credential_lease_execution_enabled: bool = Field(
         default=False,
         alias="AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED",

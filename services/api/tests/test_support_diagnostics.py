@@ -38,6 +38,9 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "dr_rehearsal_evidence_configured": True,
         "dr_restore_owner_configured": True,
         "dr_customer_approval_configured": True,
+        "deployment_network_policy_enabled": True,
+        "deployment_network_egress_mode": "restricted",
+        "deployment_network_egress_allowlist_configured": True,
     }
     values.update(overrides)
     return Settings(**values)
@@ -63,6 +66,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
         "oidc_enterprise_sso",
         "oidc_secure_cookie_session",
         "api_rate_limiting",
+        "network_egress_restricted",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
         "production_dr_procedures",

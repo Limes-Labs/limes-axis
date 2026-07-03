@@ -1,4 +1,5 @@
 {{- if .Values.networkPolicy.enabled -}}
+{{- $egressMode := .Values.networkPolicy.egressMode | default "port_allowlist" -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -26,11 +27,26 @@ spec:
           port: {{ .Values.networkPolicy.dnsPort }}
         - protocol: TCP
           port: {{ .Values.networkPolicy.dnsPort }}
+    {{- if eq $egressMode "port_allowlist" }}
     - ports:
         {{- range .Values.networkPolicy.allowedEgressPorts }}
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- else if eq $egressMode "restricted" }}
+    {{- range .Values.networkPolicy.allowedEgressCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        {{- range $.Values.networkPolicy.allowedEgressPorts }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- else if eq $egressMode "offline" }}
+    # Offline mode intentionally renders no generic external egress rule.
+    {{- end }}
     {{- if .Values.tests.smoke.enabled }}
     - to:
         - podSelector:
