@@ -360,10 +360,19 @@ deployment paths:
 Render or install them with the normal chart plus `-f`:
 
 ```bash
+helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/single-tenant-managed.yaml
+helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/private-cloud.yaml
+helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/on-prem-offline.yaml
 helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/single-tenant-managed.yaml
 helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/private-cloud.yaml
 helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/on-prem-offline.yaml
 ```
+
+`make deployment-profile-render-check` is the local profile render gate. It
+executes `helm template` for every dedicated deployment overlay and checks that
+the rendered manifests still contain the expected tenancy mode, egress mode,
+ExternalSecret, HPA/PDB, NetworkPolicy, profile annotation and public-safe
+customer-evidence defaults.
 
 The overlays enable enterprise-shaped defaults such as required OIDC,
 Secure-session cookies, ExternalSecret usage, HPA/PDB availability controls,
@@ -1093,6 +1102,7 @@ Run the static repository deployment check:
 
 ```bash
 make deployment-check
+make deployment-profile-render-check
 make deployment-rollout-rehearsal-plan
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan

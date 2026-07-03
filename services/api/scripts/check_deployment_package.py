@@ -81,6 +81,7 @@ def required_profile_files() -> tuple[str, ...]:
 
 def required_deployment_scripts() -> tuple[str, ...]:
     return (
+        "services/api/scripts/check_helm_profile_renders.py",
         "services/api/scripts/rehearse_deployment_rollout.py",
         "services/api/scripts/rehearse_production_backup.py",
         "services/api/scripts/rehearse_production_restore.py",
@@ -97,6 +98,7 @@ def required_deployment_scripts() -> tuple[str, ...]:
 def required_make_targets() -> tuple[str, ...]:
     return (
         "deployment-check",
+        "deployment-profile-render-check",
         "deployment-rollout-rehearsal-plan",
         "deployment-rollout-rehearsal",
         "deployment-ha-rehearsal-plan",
@@ -265,6 +267,9 @@ def required_docs_terms() -> tuple[str, ...]:
         "topologySpreadConstraints",
         "RollingUpdate",
         "terminationGracePeriodSeconds",
+        "helm template",
+        "deployment-profile-render-check",
+        "profile render gate",
         "deployment-rollout-rehearsal",
         "kubectl rollout status",
         "helm rollback",

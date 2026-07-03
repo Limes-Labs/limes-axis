@@ -84,6 +84,9 @@ jobs:
       - name: Check deployment package
         run: make deployment-check
 
+      - name: Check Helm deployment profile renders
+        run: make deployment-profile-render-check
+
       - name: Check container image package
         run: make container-check
 

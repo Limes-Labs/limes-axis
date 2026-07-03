@@ -984,6 +984,7 @@ audit writes from live route decisions remain Platform work.
 - [x] Add public-safe Helm deployment profile overlays for single-tenant
   managed, private-cloud and on-prem/offline paths without customer-specific
   evidence defaults.
+- [x] Add Helm deployment profile render gate for dedicated deployment overlays.
 - [x] Add configurable API rate limiting for public and sensitive routes,
   with deployment readiness gating.
 - [x] Add initial security review and threat model documentation.
