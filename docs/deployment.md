@@ -25,6 +25,8 @@ The baseline covers:
   TLS secret references supplied by the operator.
 - Optional cert-manager ingress-shim annotations for operator-managed TLS
   certificate issuance.
+- Helm `values.schema.json` schema validation for tenancy modes, egress modes,
+  ExternalSecret policies, cert-manager issuer kind and availability knobs.
 - Optional `HorizontalPodAutoscaler` and `PodDisruptionBudget` templates for
   API and web console workloads.
 - A TLS readiness rehearsal script and runbook for Ingress, TLS Secret,
@@ -1105,6 +1107,7 @@ Run the static repository deployment check:
 ```bash
 make deployment-check
 make deployment-profile-render-check
+helm lint infra/helm/limes-axis
 make deployment-rollout-rehearsal-plan
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
