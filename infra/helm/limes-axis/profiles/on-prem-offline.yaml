@@ -1,0 +1,61 @@
+# Limes Axis on-prem offline profile.
+#
+# Use with:
+# helm upgrade --install limes-axis infra/helm/limes-axis \
+#   --namespace limes-axis --create-namespace \
+#   -f infra/helm/limes-axis/profiles/on-prem-offline.yaml
+#
+# This profile renders the chart in offline egress mode. It still requires
+# customer-specific evidence before /deployment/readiness can mark production
+# readiness as clear.
+
+secrets:
+  externalSecret:
+    enabled: true
+
+api:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  podAnnotations:
+    limes-axis.io/profile: on-prem-offline
+  env:
+    AXIS_ENV: production
+    AXIS_DEPLOYMENT_TENANCY_MODE: on_prem
+    AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED: "false"
+    AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED: "false"
+    AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED: "false"
+    AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED: "false"
+    AXIS_OIDC_AUTH_REQUIRED: "true"
+    AXIS_OIDC_SESSION_COOKIE_SECURE: "true"
+    AXIS_API_RATE_LIMIT_ENABLED: "true"
+    AXIS_EXTERNAL_MODEL_EGRESS_ENABLED: "false"
+    AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED: "false"
+    AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED: "false"
+    AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED: "false"
+
+web:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  podAnnotations:
+    limes-axis.io/profile: on-prem-offline
+
+networkPolicy:
+  enabled: true
+  egressMode: offline
+  allowedEgressCidrs: []

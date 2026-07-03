@@ -35,6 +35,14 @@ def required_chart_files() -> tuple[str, ...]:
     )
 
 
+def required_profile_files() -> tuple[str, ...]:
+    return (
+        "infra/helm/limes-axis/profiles/single-tenant-managed.yaml",
+        "infra/helm/limes-axis/profiles/private-cloud.yaml",
+        "infra/helm/limes-axis/profiles/on-prem-offline.yaml",
+    )
+
+
 def required_deployment_scripts() -> tuple[str, ...]:
     return (
         "services/api/scripts/rehearse_deployment_rollout.py",
@@ -292,6 +300,10 @@ def required_docs_terms() -> tuple[str, ...]:
         "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED",
         "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED",
         "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED",
+        "profiles/single-tenant-managed.yaml",
+        "profiles/private-cloud.yaml",
+        "profiles/on-prem-offline.yaml",
+        "helm upgrade --install limes-axis infra/helm/limes-axis -f",
         "/ready",
         "not a production certification",
     )
@@ -366,6 +378,21 @@ def check_chart_files(repo_root: Path) -> list[CheckResult]:
             "deployment.chart_files",
             not missing,
             "required Helm chart files are present"
+            if not missing
+            else f"missing: {', '.join(missing)}",
+        )
+    ]
+
+
+def check_profile_files(repo_root: Path) -> list[CheckResult]:
+    missing = [
+        relative for relative in required_profile_files() if not (repo_root / relative).exists()
+    ]
+    return [
+        CheckResult(
+            "deployment.profile_files",
+            not missing,
+            "deployment profile overlays are present"
             if not missing
             else f"missing: {', '.join(missing)}",
         )
@@ -518,6 +545,7 @@ def run_static_checks(repo_root: Path) -> list[CheckResult]:
     checks.extend(check_make_target(repo_root))
     checks.extend(check_deployment_scripts(repo_root))
     checks.extend(check_chart_files(repo_root))
+    checks.extend(check_profile_files(repo_root))
     checks.extend(check_chart_metadata(repo_root))
     checks.extend(check_chart_terms(repo_root))
     checks.extend(check_secret_boundaries(repo_root))
