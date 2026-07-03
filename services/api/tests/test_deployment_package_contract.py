@@ -48,6 +48,16 @@ def test_deployment_package_declares_critical_chart_files() -> None:
     assert "infra/helm/limes-axis/templates/NOTES.txt" in required_files
 
 
+def test_deployment_package_declares_deployment_profile_overlays() -> None:
+    checker = load_check_module()
+
+    required_profiles = checker.required_profile_files()
+
+    assert "infra/helm/limes-axis/profiles/single-tenant-managed.yaml" in required_profiles
+    assert "infra/helm/limes-axis/profiles/private-cloud.yaml" in required_profiles
+    assert "infra/helm/limes-axis/profiles/on-prem-offline.yaml" in required_profiles
+
+
 def test_deployment_package_declares_rollout_rehearsal_tooling() -> None:
     checker = load_check_module()
 
@@ -279,6 +289,33 @@ def test_deployment_chart_declares_tenancy_profile_boundaries() -> None:
     assert "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED" in configmap
     assert "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED" in configmap
     assert "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED" in configmap
+
+
+def test_deployment_profiles_are_safe_customer_specific_overlays() -> None:
+    profile_dir = REPO_ROOT / "infra" / "helm" / "limes-axis" / "profiles"
+    expected_modes = {
+        "single-tenant-managed.yaml": "single_tenant_managed",
+        "private-cloud.yaml": "private_cloud",
+        "on-prem-offline.yaml": "on_prem",
+    }
+
+    for file_name, tenancy_mode in expected_modes.items():
+        profile = (profile_dir / file_name).read_text(encoding="utf-8")
+        assert f"AXIS_DEPLOYMENT_TENANCY_MODE: {tenancy_mode}" in profile
+        assert "AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED: \"false\"" in profile
+        assert "AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED: \"false\"" in profile
+        assert "AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED: \"false\"" in profile
+        assert "AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED: \"false\"" in profile
+        assert "AXIS_OIDC_AUTH_REQUIRED: \"true\"" in profile
+        assert "AXIS_OIDC_SESSION_COOKIE_SECURE: \"true\"" in profile
+        assert "externalSecret:" in profile
+        assert "enabled: true" in profile
+        assert "pdb:" in profile
+        assert "autoscaling:" in profile
+        assert "limes-axis.io/profile" in profile
+
+    on_prem = (profile_dir / "on-prem-offline.yaml").read_text(encoding="utf-8")
+    assert "egressMode: offline" in on_prem
 
 
 def test_deployment_package_scheduling_controls_are_configurable_per_workload() -> None:

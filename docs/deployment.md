@@ -350,6 +350,28 @@ names, tenant identifiers, network details, staff names, access procedures or
 legal terms. They are readiness gates for the deployment conversation, not a
 complete single-tenant managed, private cloud or on-prem implementation.
 
+The chart also includes public-safe values overlays for the first dedicated
+deployment paths:
+
+- `profiles/single-tenant-managed.yaml`
+- `profiles/private-cloud.yaml`
+- `profiles/on-prem-offline.yaml`
+
+Render or install them with the normal chart plus `-f`:
+
+```bash
+helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/single-tenant-managed.yaml
+helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/private-cloud.yaml
+helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/on-prem-offline.yaml
+```
+
+The overlays enable enterprise-shaped defaults such as required OIDC,
+Secure-session cookies, ExternalSecret usage, HPA/PDB availability controls,
+profile annotations and restricted or offline NetworkPolicy posture. They do
+not set customer-specific evidence gates to `true`; operators must explicitly
+set isolation, data-residency, operator-access and break-glass evidence only
+after the real customer environment has been reviewed.
+
 ## Production Backup Rehearsal
 
 The repository includes a production backup rehearsal helper for Kubernetes

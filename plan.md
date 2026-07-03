@@ -981,6 +981,9 @@ audit writes from live route decisions remain Platform work.
 - [x] Add deployment tenancy profile readiness gates for SaaS multi-tenant,
   single-tenant managed, private-cloud and on-prem paths with public-safe
   isolation, data-residency, operator-access and break-glass evidence.
+- [x] Add public-safe Helm deployment profile overlays for single-tenant
+  managed, private-cloud and on-prem/offline paths without customer-specific
+  evidence defaults.
 - [x] Add configurable API rate limiting for public and sensitive routes,
   with deployment readiness gating.
 - [x] Add initial security review and threat model documentation.
