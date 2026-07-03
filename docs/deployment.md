@@ -85,6 +85,10 @@ The baseline covers:
   ownership and customer approval.
 - Public-safe network egress readiness configuration for restricted mode,
   offline mode and explicit destination allowlist evidence.
+- Public-safe deployment tenancy profile readiness configuration for
+  `saas_multi_tenant`, `single_tenant_managed`, `private_cloud` and `on_prem`
+  paths, with explicit isolation, data-residency, operator-access and
+  break-glass evidence gates.
 
 The baseline does not yet cover:
 
@@ -104,6 +108,9 @@ The baseline does not yet cover:
 - Cluster observability, alerting, global abuse throttling and on-call runbooks.
 - Signed customer SLAs, named staffing commitments and customer-specific
   incident operations.
+- A complete customer-specific single-tenant managed, private-cloud or on-prem
+  reference architecture. The current chart exposes readiness gates for those
+  paths, but does not yet package every customer infrastructure pattern.
 
 ## Dependencies
 
@@ -318,6 +325,30 @@ does not expose destination CIDRs, customer network names, firewall policy IDs
 or private endpoint names. Restricted mode is production-ready only when at
 least one CIDR allowlist is configured; offline mode is production-ready without
 external destination allowlists.
+
+## Deployment Tenancy Profiles
+
+The chart exposes `AXIS_DEPLOYMENT_TENANCY_MODE` so operators can identify the
+deployment path being evaluated:
+
+- `saas_multi_tenant`: shared SaaS control plane with tenant isolation controls.
+- `single_tenant_managed`: dedicated customer runtime managed by the operator.
+- `private_cloud`: customer-dedicated runtime in a private cloud environment.
+- `on_prem`: customer-operated or jointly operated runtime inside customer
+  infrastructure.
+
+The deployment readiness endpoint reports this as
+`deployment_tenancy_profile`. It is action-required until the selected profile
+has public-safe evidence configured through
+`AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED`,
+`AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED`,
+`AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED` and
+`AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED`.
+
+These fields are intentionally boolean/public-safe. They do not expose customer
+names, tenant identifiers, network details, staff names, access procedures or
+legal terms. They are readiness gates for the deployment conversation, not a
+complete single-tenant managed, private cloud or on-prem implementation.
 
 ## Production Backup Rehearsal
 

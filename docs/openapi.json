@@ -9586,6 +9586,27 @@
             "title": "Credential Lease Provider Adapters Enabled",
             "type": "boolean"
           },
+          "deployment_break_glass_approval_configured": {
+            "title": "Deployment Break Glass Approval Configured",
+            "type": "boolean"
+          },
+          "deployment_customer_isolation_configured": {
+            "title": "Deployment Customer Isolation Configured",
+            "type": "boolean"
+          },
+          "deployment_data_residency_configured": {
+            "title": "Deployment Data Residency Configured",
+            "type": "boolean"
+          },
+          "deployment_operator_access_runbook_configured": {
+            "title": "Deployment Operator Access Runbook Configured",
+            "type": "boolean"
+          },
+          "deployment_tenancy_mode": {
+            "minLength": 1,
+            "title": "Deployment Tenancy Mode",
+            "type": "string"
+          },
           "dr_customer_approval_configured": {
             "title": "Dr Customer Approval Configured",
             "type": "boolean"
@@ -9710,6 +9731,11 @@
           "network_policy_enabled",
           "network_egress_mode",
           "network_egress_allowlist_configured",
+          "deployment_tenancy_mode",
+          "deployment_customer_isolation_configured",
+          "deployment_data_residency_configured",
+          "deployment_operator_access_runbook_configured",
+          "deployment_break_glass_approval_configured",
           "external_model_egress_enabled",
           "connector_sync_execution_enabled",
           "external_db_sync_execution_enabled",

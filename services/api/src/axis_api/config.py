@@ -135,6 +135,26 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_DEPLOYMENT_NETWORK_EGRESS_ALLOWLIST_CONFIGURED",
     )
+    deployment_tenancy_mode: str = Field(
+        default="saas_multi_tenant",
+        alias="AXIS_DEPLOYMENT_TENANCY_MODE",
+    )
+    deployment_customer_isolation_configured: bool = Field(
+        default=False,
+        alias="AXIS_DEPLOYMENT_CUSTOMER_ISOLATION_CONFIGURED",
+    )
+    deployment_data_residency_configured: bool = Field(
+        default=False,
+        alias="AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED",
+    )
+    deployment_operator_access_runbook_configured: bool = Field(
+        default=False,
+        alias="AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED",
+    )
+    deployment_break_glass_approval_configured: bool = Field(
+        default=False,
+        alias="AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED",
+    )
     credential_lease_execution_enabled: bool = Field(
         default=False,
         alias="AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED",

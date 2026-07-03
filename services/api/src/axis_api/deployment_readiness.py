@@ -9,6 +9,12 @@ from axis_api.object_storage import build_object_store_readiness
 from axis_api.oidc_code_flow import post_logout_redirect_uri, redirect_uri
 
 OIDC_SESSION_COOKIE_MAX_TTL_SECONDS = 12 * 60 * 60
+SUPPORTED_DEPLOYMENT_TENANCY_MODES = {
+    "saas_multi_tenant",
+    "single_tenant_managed",
+    "private_cloud",
+    "on_prem",
+}
 
 
 class DeploymentReadinessCheck(BaseModel):
@@ -32,6 +38,11 @@ class DeploymentReadinessCapabilities(BaseModel):
     network_policy_enabled: bool
     network_egress_mode: str = Field(min_length=1)
     network_egress_allowlist_configured: bool
+    deployment_tenancy_mode: str = Field(min_length=1)
+    deployment_customer_isolation_configured: bool
+    deployment_data_residency_configured: bool
+    deployment_operator_access_runbook_configured: bool
+    deployment_break_glass_approval_configured: bool
     external_model_egress_enabled: bool
     connector_sync_execution_enabled: bool
     external_db_sync_execution_enabled: bool
@@ -116,6 +127,13 @@ def _network_egress_mode(settings: Settings) -> str:
     return settings.deployment_network_egress_mode.strip().casefold() or "not_configured"
 
 
+def _deployment_tenancy_mode(settings: Settings) -> str:
+    normalized = (
+        settings.deployment_tenancy_mode.strip().casefold().replace("-", "_").replace(" ", "_")
+    )
+    return normalized or "not_configured"
+
+
 def build_deployment_readiness_report(
     settings: Settings,
     *,
@@ -146,6 +164,14 @@ def build_deployment_readiness_report(
         )
     )
     audit_signing_configured = bool(settings.audit_ledger_signing_secret)
+    deployment_tenancy_mode = _deployment_tenancy_mode(settings)
+    deployment_tenancy_profile_ready = (
+        deployment_tenancy_mode in SUPPORTED_DEPLOYMENT_TENANCY_MODES
+        and settings.deployment_customer_isolation_configured
+        and settings.deployment_data_residency_configured
+        and settings.deployment_operator_access_runbook_configured
+        and settings.deployment_break_glass_approval_configured
+    )
     object_store_readiness = build_object_store_readiness(settings)
     public_object_store_missing_requirements = _public_object_store_missing_requirements(
         object_store_readiness.missing_requirements
@@ -191,6 +217,17 @@ def build_deployment_readiness_report(
         network_egress_mode=network_egress_mode,
         network_egress_allowlist_configured=(
             settings.deployment_network_egress_allowlist_configured
+        ),
+        deployment_tenancy_mode=deployment_tenancy_mode,
+        deployment_customer_isolation_configured=(
+            settings.deployment_customer_isolation_configured
+        ),
+        deployment_data_residency_configured=settings.deployment_data_residency_configured,
+        deployment_operator_access_runbook_configured=(
+            settings.deployment_operator_access_runbook_configured
+        ),
+        deployment_break_glass_approval_configured=(
+            settings.deployment_break_glass_approval_configured
         ),
         external_model_egress_enabled=settings.external_model_egress_enabled,
         connector_sync_execution_enabled=settings.connector_sync_execution_enabled,
@@ -257,6 +294,20 @@ def build_deployment_readiness_report(
             (
                 "Network egress is not production-restricted; enable NetworkPolicy "
                 "and use offline mode or restricted mode with an explicit destination allowlist."
+            ),
+        ),
+        _check(
+            "deployment_tenancy_profile",
+            deployment_tenancy_profile_ready,
+            (
+                "Deployment tenancy profile declares supported mode, customer isolation, "
+                "data residency, operator access and break-glass approval evidence."
+            ),
+            (
+                "Deployment tenancy profile is incomplete; require a supported mode "
+                "(saas_multi_tenant, single_tenant_managed, private_cloud or on_prem), "
+                "customer isolation evidence, data-residency evidence, an operator "
+                "access runbook and break-glass approval controls."
             ),
         ),
         _check(

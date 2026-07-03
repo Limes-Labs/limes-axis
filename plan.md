@@ -978,6 +978,9 @@ audit writes from live route decisions remain Platform work.
   ownership and customer approval.
 - [x] Add restricted/offline Kubernetes network egress modes and deployment
   readiness gating beyond the initial port allowlist.
+- [x] Add deployment tenancy profile readiness gates for SaaS multi-tenant,
+  single-tenant managed, private-cloud and on-prem paths with public-safe
+  isolation, data-residency, operator-access and break-glass evidence.
 - [x] Add configurable API rate limiting for public and sensitive routes,
   with deployment readiness gating.
 - [x] Add initial security review and threat model documentation.

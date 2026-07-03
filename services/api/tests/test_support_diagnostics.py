@@ -41,6 +41,11 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "deployment_network_policy_enabled": True,
         "deployment_network_egress_mode": "restricted",
         "deployment_network_egress_allowlist_configured": True,
+        "deployment_tenancy_mode": "saas_multi_tenant",
+        "deployment_customer_isolation_configured": True,
+        "deployment_data_residency_configured": True,
+        "deployment_operator_access_runbook_configured": True,
+        "deployment_break_glass_approval_configured": True,
     }
     values.update(overrides)
     return Settings(**values)
@@ -67,6 +72,7 @@ def test_support_diagnostics_reports_public_safe_demo_support_bundle() -> None:
         "oidc_secure_cookie_session",
         "api_rate_limiting",
         "network_egress_restricted",
+        "deployment_tenancy_profile",
         "audit_ledger_signing_configured",
         "production_object_store_adapter",
         "production_dr_procedures",
