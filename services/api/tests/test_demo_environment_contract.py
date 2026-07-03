@@ -51,6 +51,19 @@ def test_demo_static_checks_include_backup_restore_contract() -> None:
     assert "docs.backup_restore_runbook" in names
 
 
+def test_demo_verify_runs_profile_render_gate() -> None:
+    makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+
+    assert "demo-verify: openapi-check demo-check deployment-profile-render-check" in makefile
+
+
+def test_demo_readiness_checklist_mentions_profile_render_gate() -> None:
+    docs = (REPO_ROOT / "docs" / "demo-readiness.md").read_text(encoding="utf-8")
+
+    assert "`make deployment-profile-render-check`" in docs
+    assert "profile render gate" in docs
+
+
 def test_demo_live_checks_include_browser_no_store_cors_preflight(monkeypatch) -> None:
     checker = load_check_module()
     cors_origins: list[str] = []

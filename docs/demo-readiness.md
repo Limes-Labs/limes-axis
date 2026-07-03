@@ -85,6 +85,7 @@ Run the Kubernetes/Helm deployment package contract:
 
 ```bash
 make deployment-check
+make deployment-profile-render-check
 make deployment-backup-rehearsal-plan
 make deployment-restore-rehearsal-plan
 make deployment-typedb-recovery-rehearsal-plan
@@ -179,6 +180,8 @@ make demo-stack-down
       contract for the current repository state.
 - [ ] `make deployment-check` passes the Helm chart, public deployment guide
       and externalized secret/configuration contract.
+- [ ] `make deployment-profile-render-check` passes the Helm profile render gate
+      for single-tenant managed, private-cloud and on-prem/offline overlays.
 - [ ] `make deployment-backup-rehearsal-plan` prints the Kubernetes Postgres
       backup rehearsal and restore-catalog validation steps without exposing a
       database DSN or other secret material.
@@ -403,6 +406,8 @@ The `services/api/scripts/check_demo_environment.py` script verifies:
   connector execution, audit signing and object-store posture.
 - Deployment package contract for `infra/helm/limes-axis`, public deployment
   docs and externalized Kubernetes Secret usage through `make deployment-check`.
+- Helm profile render gate for single-tenant managed, private-cloud and
+  on-prem/offline overlays through `make deployment-profile-render-check`.
 - Deployment rollout rehearsal plan for Helm upgrade, Kubernetes rollout
   status, API `/ready` and rollback mechanics through
   `make deployment-rollout-rehearsal-plan`.
