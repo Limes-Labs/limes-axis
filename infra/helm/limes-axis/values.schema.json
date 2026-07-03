@@ -29,7 +29,7 @@
             "AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER": {
               "type": "string",
               "enum": [
-                "filesystem",
+                "local_filesystem",
                 "s3_compatible"
               ]
             },
