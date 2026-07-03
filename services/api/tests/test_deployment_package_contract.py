@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -33,6 +35,7 @@ def test_deployment_package_declares_critical_chart_files() -> None:
 
     assert "infra/helm/limes-axis/Chart.yaml" in required_files
     assert "infra/helm/limes-axis/values.yaml" in required_files
+    assert "infra/helm/limes-axis/values.schema.json" in required_files
     assert "infra/helm/limes-axis/templates/api-deployment.yaml" in required_files
     assert "infra/helm/limes-axis/templates/api-service.yaml" in required_files
     assert "infra/helm/limes-axis/templates/web-deployment.yaml" in required_files
@@ -56,6 +59,120 @@ def test_deployment_package_declares_deployment_profile_overlays() -> None:
     assert "infra/helm/limes-axis/profiles/single-tenant-managed.yaml" in required_profiles
     assert "infra/helm/limes-axis/profiles/private-cloud.yaml" in required_profiles
     assert "infra/helm/limes-axis/profiles/on-prem-offline.yaml" in required_profiles
+
+
+def test_deployment_values_schema_declares_operational_enums() -> None:
+    schema_path = REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    properties = schema["properties"]
+    api_env = properties["api"]["properties"]["env"]["properties"]
+    network_policy = properties["networkPolicy"]["properties"]
+    external_secret = properties["secrets"]["properties"]["externalSecret"]["properties"]
+
+    assert api_env["AXIS_DEPLOYMENT_TENANCY_MODE"]["enum"] == [
+        "saas_multi_tenant",
+        "single_tenant_managed",
+        "private_cloud",
+        "on_prem",
+    ]
+    assert network_policy["egressMode"]["enum"] == [
+        "port_allowlist",
+        "restricted",
+        "offline",
+    ]
+    assert external_secret["secretStoreRef"]["properties"]["kind"]["enum"] == [
+        "SecretStore",
+        "ClusterSecretStore",
+    ]
+    assert external_secret["target"]["properties"]["creationPolicy"]["enum"] == [
+        "Owner",
+        "Orphan",
+        "Merge",
+        "None",
+    ]
+
+
+def test_deployment_values_schema_rejects_invalid_operational_modes(tmp_path: Path) -> None:
+    invalid_cases = {
+        "tenancy": (
+            """
+api:
+  env:
+    AXIS_DEPLOYMENT_TENANCY_MODE: unsupported_mode
+""",
+            "/api/env/AXIS_DEPLOYMENT_TENANCY_MODE",
+        ),
+        "egress": (
+            """
+networkPolicy:
+  egressMode: internet
+""",
+            "/networkPolicy/egressMode",
+        ),
+        "secret-store": (
+            """
+secrets:
+  externalSecret:
+    secretStoreRef:
+      kind: RemoteSecretStore
+""",
+            "/secrets/externalSecret/secretStoreRef/kind",
+        ),
+        "issuer": (
+            """
+ingress:
+  certManager:
+    issuerKind: ExternalIssuer
+""",
+            "/ingress/certManager/issuerKind",
+        ),
+    }
+
+    for case_name, (values_yaml, expected_path) in invalid_cases.items():
+        invalid_values = tmp_path / f"{case_name}.yaml"
+        invalid_values.write_text(values_yaml, encoding="utf-8")
+
+        completed = subprocess.run(
+            [
+                "helm",
+                "lint",
+                str(REPO_ROOT / "infra" / "helm" / "limes-axis"),
+                "-f",
+                str(invalid_values),
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+
+        assert completed.returncode != 0, case_name
+        output = f"{completed.stdout}\n{completed.stderr}"
+        assert expected_path in output
+
+
+def test_deployment_profile_overlays_pass_helm_lint() -> None:
+    for relative_profile in (
+        "infra/helm/limes-axis/profiles/single-tenant-managed.yaml",
+        "infra/helm/limes-axis/profiles/private-cloud.yaml",
+        "infra/helm/limes-axis/profiles/on-prem-offline.yaml",
+    ):
+        completed = subprocess.run(
+            [
+                "helm",
+                "lint",
+                str(REPO_ROOT / "infra" / "helm" / "limes-axis"),
+                "-f",
+                str(REPO_ROOT / relative_profile),
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+
+        assert completed.returncode == 0, (
+            f"{relative_profile}\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+        )
 
 
 def test_deployment_package_validates_profile_overlay_contracts() -> None:
@@ -222,6 +339,12 @@ def test_deployment_package_externalizes_state_and_secrets() -> None:
     assert "AXIS_SUPPORT_NAMED_STAFFING_MODEL_CONFIGURED" in required_terms
     assert "AXIS_SUPPORT_CUSTOMER_INCIDENT_OPERATIONS_CONFIGURED" in required_terms
     assert "AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED" in required_terms
+    assert "values.schema.json" in required_terms
+    assert "schema validation" in required_terms
+    assert '"saas_multi_tenant"' in required_terms
+    assert '"single_tenant_managed"' in required_terms
+    assert '"private_cloud"' in required_terms
+    assert '"on_prem"' in required_terms
     assert "existingSecret" in required_terms
     assert "REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE" in required_terms
     assert "ExternalSecret" in required_terms
@@ -285,12 +408,12 @@ def test_deployment_package_ha_controls_are_optional_and_target_api_and_web() ->
     assert "autoscaling:" in values
     assert "pdb:" in values
     assert "{{- if .Values.api.autoscaling.enabled -}}" in hpa_template
-    assert "{{- if .Values.web.autoscaling.enabled -}}" in hpa_template
+    assert "{{- if .Values.web.autoscaling.enabled }}" in hpa_template
     assert "kind: HorizontalPodAutoscaler" in hpa_template
     assert "name: {{ include \"limes-axis.fullname\" . }}-api" in hpa_template
     assert "name: {{ include \"limes-axis.fullname\" . }}-web" in hpa_template
     assert "{{- if .Values.api.pdb.enabled -}}" in pdb_template
-    assert "{{- if .Values.web.pdb.enabled -}}" in pdb_template
+    assert "{{- if .Values.web.pdb.enabled }}" in pdb_template
     assert "kind: PodDisruptionBudget" in pdb_template
     assert "app.kubernetes.io/component: api" in pdb_template
     assert "app.kubernetes.io/component: web" in pdb_template

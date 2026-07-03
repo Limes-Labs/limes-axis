@@ -34,7 +34,7 @@ spec:
 {{- if and .Values.api.autoscaling.enabled .Values.web.autoscaling.enabled }}
 ---
 {{- end }}
-{{- if .Values.web.autoscaling.enabled -}}
+{{- if .Values.web.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
