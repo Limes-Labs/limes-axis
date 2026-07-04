@@ -160,7 +160,9 @@ from axis_api.connector_execution import (
     DeferredConnectorSyncDispatchRuntime,
     DeferredConnectorSyncExecutionRuntime,
     DeferredConnectorSyncSchedulerRuntime,
+    ExternalPostgresLiveQueryProfile,
     SelfHostedConnectorSyncExecutionRuntime,
+    postgres_endpoint_target_sha256,
 )
 from axis_api.connector_manifests import (
     ConnectorManifestConflict,
@@ -663,6 +665,25 @@ def _oidc_jwks_url(settings: Settings) -> str:
     if settings.oidc_jwks_url:
         return settings.oidc_jwks_url
     return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/certs"
+
+
+def _external_postgres_live_query_profile(
+    settings: Settings,
+) -> ExternalPostgresLiveQueryProfile | None:
+    if not settings.external_db_live_query_dsn:
+        return None
+    return ExternalPostgresLiveQueryProfile(
+        profile_id=settings.external_db_live_query_profile_id,
+        dsn=settings.external_db_live_query_dsn,
+        schema_name=settings.external_db_live_query_schema,
+        table_name=settings.external_db_live_query_table,
+        allowed_columns=settings.external_db_live_query_columns,
+        private_endpoint_ref=settings.external_db_live_query_private_endpoint_ref,
+        endpoint_target_sha256=postgres_endpoint_target_sha256(
+            settings.external_db_live_query_dsn,
+        ),
+        row_limit=settings.external_db_live_query_row_limit,
+    )
 
 
 OIDC_ASYMMETRIC_ALGORITHMS = {
@@ -1219,6 +1240,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             external_db_sync_enabled=resolved_settings.external_db_sync_execution_enabled,
             external_db_live_query_preflight_enabled=(
                 resolved_settings.external_db_live_query_preflight_enabled
+            ),
+            external_db_live_query_execution_enabled=(
+                resolved_settings.external_db_live_query_execution_enabled
+            ),
+            external_postgres_live_query_profile=_external_postgres_live_query_profile(
+                resolved_settings
             ),
         )
         if resolved_settings.connector_sync_execution_enabled

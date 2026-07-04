@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from uuid import UUID
 
@@ -98,6 +99,7 @@ RAW_NETWORK_OR_SECRET_MARKERS = (
     "server=",
     "token=",
 )
+ENDPOINT_TARGET_SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 
 def build_connector_egress_policy_registry(
@@ -244,6 +246,16 @@ def _validate_egress_policy_request(request: ConnectorEgressPolicyCreateRequest)
         raise ConnectorEgressPolicyValidationError(
             "Connector egress policy must not contain raw DSNs or credential material.",
             "raw_network_or_secret_material",
+        )
+    endpoint_target_sha256 = str(
+        request.policy_document.get("approved_endpoint_target_sha256", "")
+    )
+    if endpoint_target_sha256 and not ENDPOINT_TARGET_SHA256_PATTERN.fullmatch(
+        endpoint_target_sha256
+    ):
+        raise ConnectorEgressPolicyValidationError(
+            "Connector egress policy endpoint binding must be a SHA-256 hex digest.",
+            "invalid_endpoint_target_sha256",
         )
     if request.egress_boundary != "approved_private_endpoint":
         raise ConnectorEgressPolicyValidationError(

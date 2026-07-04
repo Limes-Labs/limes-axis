@@ -205,6 +205,9 @@ Foundation acceptance is tracked in
   preflight can enter the provider-specific runtime boundary.
 - [x] Allow external DB live-query preflight execution to target an explicit
   worker checkpoint claim.
+- [x] Add opt-in governed external DB live-read execution against an
+      allowlisted Postgres profile, persisting only public-safe counts and
+      checkpoint evidence.
 - [x] Show worker checkpoint claim registry in the connector console.
 - [x] Make the connector console API-required instead of using local fallback data.
 - [x] Make the remaining web consoles API-required instead of using local fallback data.
@@ -734,18 +737,27 @@ External DB sync can opt into the Postgres profile adapter boundary with
 `AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true`, adding public-safe
 provider/profile/table/count evidence while still omitting raw connection
 strings and credential material.
-When an external DB run explicitly requests live query execution, Axis now
-records a separate preflight result instead of starting the query. The default
-decision is `connector.run.sync_execution_preflight_blocked`; setting
+When an external DB run explicitly requests live query handling, Axis first
+records a separate preflight result. The default decision is
+`connector.run.sync_execution_preflight_blocked`; setting
 `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true` can produce
 `connector.run.sync_execution_preflight_passed` only when the run carries an
 approved private endpoint egress boundary, egress policy id, lease-scoped
 secret reference and a targeted active checkpoint claim owned by the executing
-worker. Missing `checkpoint_claim_id` or inactive target claims are rejected
-before the provider-specific runtime is called, before preflight audit is
-written and before a new execution checkpoint is created. Passed and blocked
-preflights with a valid target claim include public-safe checkpoint claim
-evidence in the sync result summary. When `live_query_requested=true`,
+worker. A further opt-in,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED=true`, can execute a bounded
+read-only Postgres query only when the manifest is `active_live`, the request
+sets `live_query_execute=true`, the configured profile id/schema/table matches
+the run, selected columns are omitted or allowlisted, the private endpoint
+reference and endpoint-target SHA-256 bind the secret DSN to the persisted
+egress policy, and all preflight gates pass. The live-read result persists row
+counts, profile id, row limit, query status and checkpoint evidence only; it
+does not persist DSNs, SQL text, row payloads, credential material or graph
+mutations. Missing `checkpoint_claim_id` or inactive target claims are rejected
+before the provider-specific runtime is called, before preflight or live-read
+audit is written and before a new execution checkpoint is created. Passed and
+blocked preflights with a valid target claim include public-safe checkpoint
+claim evidence in the sync result summary. When `live_query_requested=true`,
 `execute-sync` must provide `checkpoint_claim_id`; Axis rejects the request
 unless that exact claim is active, unexpired, owned by `executed_by` and
 backed by `connector.run.sync_checkpoint_claimed` audit evidence whose audit id
@@ -758,9 +770,10 @@ resolve to a persisted tenant-scoped audit ledger event with the same
 connector/run/checkpoint binding, its payload must remain public-safe and the target
 checkpoint result evidence must remain public-safe. The target claim result
 must remain worker-lease-only with `external_sync_started=false`,
-`secret_material_returned=false` and `worker_claim_only=true`. This still keeps
-`external_query_started=false`, returns no credential material and performs no
-graph mutation. The passed preflight now depends on validated egress policy
+`secret_material_returned=false` and `worker_claim_only=true`. That target
+preflight checkpoint still keeps `external_query_started=false`, returns no
+credential material and performs no graph mutation. The passed preflight now
+depends on validated egress policy
 evidence from persisted tenant-scoped policy records and the validated
 credential lease result: the runtime records policy
 runtime/ref/scope/private-endpoint evidence, blocks unknown or unpersisted

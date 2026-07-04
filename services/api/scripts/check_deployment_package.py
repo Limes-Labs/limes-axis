@@ -476,6 +476,17 @@ def check_profile_contracts(repo_root: Path) -> list[CheckResult]:
             'AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED: "false"',
             'AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED: "false"',
             'AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED: "false"',
+            'AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED: "false"',
+            "AXIS_EXTERNAL_DB_LIVE_QUERY_PROFILE_ID: profile_postgres_ops_readonly",
+            "AXIS_EXTERNAL_DB_LIVE_QUERY_SCHEMA: operations",
+            "AXIS_EXTERNAL_DB_LIVE_QUERY_TABLE: production_orders",
+            "AXIS_EXTERNAL_DB_LIVE_QUERY_COLUMNS:",
+            'AXIS_EXTERNAL_DB_LIVE_QUERY_ROW_LIMIT: "100"',
+            (
+                "AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF: "
+                "private-endpoint://tenant_demo_manufacturing/"
+                "persisted-operations-postgres-readonly"
+            ),
         )
         missing = [term for term in required_terms if term not in text]
         if missing:

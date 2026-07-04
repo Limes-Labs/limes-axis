@@ -9627,8 +9627,16 @@
             "title": "Dr Runbook Configured",
             "type": "boolean"
           },
+          "external_db_live_query_execution_enabled": {
+            "title": "External Db Live Query Execution Enabled",
+            "type": "boolean"
+          },
           "external_db_live_query_preflight_enabled": {
             "title": "External Db Live Query Preflight Enabled",
+            "type": "boolean"
+          },
+          "external_db_live_query_profile_configured": {
+            "title": "External Db Live Query Profile Configured",
             "type": "boolean"
           },
           "external_db_sync_execution_enabled": {
@@ -9740,6 +9748,8 @@
           "connector_sync_execution_enabled",
           "external_db_sync_execution_enabled",
           "external_db_live_query_preflight_enabled",
+          "external_db_live_query_execution_enabled",
+          "external_db_live_query_profile_configured",
           "credential_lease_execution_enabled",
           "credential_lease_provider_adapters_enabled",
           "audit_ledger_signing_configured",

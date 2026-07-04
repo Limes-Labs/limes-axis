@@ -84,7 +84,7 @@ test.describe("Axis live overview demo", () => {
     await expect(notificationsPanel.locator(".topbar-popover-header")).toContainText("live");
     expect(await notificationsPanel.locator(".notification-row").count()).toBeGreaterThan(0);
     await expect(
-      notificationsPanel.getByText("Connect an OIDC session to acknowledge notifications."),
+      notificationsPanel.getByText("Sign in with SSO to acknowledge notifications."),
     ).toBeVisible();
     await expect(notificationsPanel.getByRole("button", { name: "Ack" }).first()).toBeDisabled();
     await expect(page.getByRole("link", { name: "Open audit evidence" })).toHaveAttribute(
@@ -101,7 +101,16 @@ test.describe("Axis live overview demo", () => {
     await expect(page.getByText("Public evaluation operator")).toBeVisible();
     await expect(page.getByText("no_authenticated_api_actor")).toBeVisible();
     await expect(page.getByText("No authenticated API actor is attached.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Connect session" })).toBeVisible();
+    const accountPanel = page.locator('[aria-label="Operator account"]');
+    await expect(accountPanel.getByRole("link", { name: "Sign in with SSO" })).toHaveAttribute(
+      "href",
+      /\/identity\/oidc\/authorize/,
+    );
+    await expect(accountPanel.getByRole("link", { name: "Open SSO setup" })).toHaveAttribute(
+      "href",
+      /\/identity\/oidc\/onboarding/,
+    );
+    await expect(accountPanel.getByRole("button", { name: "Connect bearer token" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 

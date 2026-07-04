@@ -47,6 +47,8 @@ class DeploymentReadinessCapabilities(BaseModel):
     connector_sync_execution_enabled: bool
     external_db_sync_execution_enabled: bool
     external_db_live_query_preflight_enabled: bool
+    external_db_live_query_execution_enabled: bool
+    external_db_live_query_profile_configured: bool
     credential_lease_execution_enabled: bool
     credential_lease_provider_adapters_enabled: bool
     audit_ledger_signing_configured: bool
@@ -145,6 +147,7 @@ def build_deployment_readiness_report(
             settings.connector_sync_execution_enabled,
             settings.external_db_sync_execution_enabled,
             settings.external_db_live_query_preflight_enabled,
+            settings.external_db_live_query_execution_enabled,
             settings.credential_lease_execution_enabled,
             settings.credential_lease_provider_adapters_enabled,
         )
@@ -233,6 +236,12 @@ def build_deployment_readiness_report(
         connector_sync_execution_enabled=settings.connector_sync_execution_enabled,
         external_db_sync_execution_enabled=settings.external_db_sync_execution_enabled,
         external_db_live_query_preflight_enabled=settings.external_db_live_query_preflight_enabled,
+        external_db_live_query_execution_enabled=(
+            settings.external_db_live_query_execution_enabled
+        ),
+        external_db_live_query_profile_configured=bool(
+            settings.external_db_live_query_dsn
+        ),
         credential_lease_execution_enabled=settings.credential_lease_execution_enabled,
         credential_lease_provider_adapters_enabled=settings.credential_lease_provider_adapters_enabled,
         audit_ledger_signing_configured=audit_signing_configured,
