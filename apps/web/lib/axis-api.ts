@@ -1,5 +1,5 @@
-import { getApiBaseUrl } from "@/lib/api-status";
-import { buildAxisAuthInit, type OidcConsoleSession } from "@/lib/oidc-session";
+import { getApiBaseUrl } from "./api-status";
+import { buildAxisAuthInit, type OidcConsoleSession } from "./oidc-session";
 
 export class AxisApiError extends Error {
   readonly status: number;
@@ -30,6 +30,7 @@ export async function axisFetch(
       method,
       signal,
       cache: "no-store",
+      credentials: "include",
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     },

@@ -10,6 +10,7 @@ const runtimeLibFiles = [
   "connectors-demo.ts",
   "model-routing-demo.ts",
   "ontology-demo.ts",
+  "operations-artifacts.ts",
   "platform-overview.ts",
   "simulation-demo.ts",
   "workflow-demo.ts",

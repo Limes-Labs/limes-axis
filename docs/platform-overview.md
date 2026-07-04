@@ -112,6 +112,24 @@ optional, or `401` when the environment requires authentication. The response
 does not include bearer token material, secrets, passwords or raw JWKS content.
 It is an identity posture surface, not a full production login flow.
 
+The Operations page also exposes an API-backed artifact runtime:
+
+```text
+POST /demo/manufacturing/operations/daily-brief
+POST /demo/manufacturing/operations/risk-scenarios/quality
+POST /demo/manufacturing/operations/risk-scenarios/maintenance
+POST /demo/manufacturing/operations/risk-scenarios/supplier-delay
+```
+
+The browser builds these requests only from the API-validated identity session.
+It does not manufacture a demo actor or local scopes. If `/identity/session`
+does not return an authenticated actor, or if the actor lacks the required
+scopes for the selected artifact, the action remains disabled. On the API side,
+an attached OIDC principal is bound to `requested_by`, `actor_scopes` and the
+tenant before the existing permission checks run, rejecting actor or tenant
+impersonation. Successful submissions persist the artifact, write audit
+evidence and trigger a fresh read of the operations snapshot.
+
 This is an API reference path, not a production data loading path. Future
 Platform work will replace remaining bootstrap records with tenant-scoped,
 authenticated API surfaces backed by Postgres, TypeDB and workflow state.
@@ -131,3 +149,5 @@ Covered by:
 - API and Playwright coverage for the API-backed notification panel, persisted
   acknowledgement state and no-fallback behavior.
 - API and Playwright coverage for the API-validated account/session popover.
+- Web unit coverage for the Operations artifact request contract, OIDC-scope
+  gating and no browser-local actor/scope construction.
