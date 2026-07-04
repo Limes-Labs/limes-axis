@@ -2625,7 +2625,7 @@ textarea:focus-visible {
 
 .ops-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
   gap: 10px;
 }
 
@@ -2752,6 +2752,115 @@ textarea:focus-visible {
   color: var(--teal-pulse);
   font-family: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 14px;
+}
+
+.operations-artifact-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.operations-artifact-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.artifact-action-button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 76px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(247 248 250 / 2.5%), transparent 45%),
+    rgb(4 10 16 / 62%);
+  color: var(--mist);
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.artifact-action-button:not(:disabled):hover {
+  border-color: rgb(62 107 255 / 58%);
+  background:
+    linear-gradient(180deg, rgb(62 107 255 / 10%), transparent 50%),
+    rgb(5 13 21 / 88%);
+  transform: translateY(-1px);
+}
+
+.artifact-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
+}
+
+.artifact-action-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgb(62 107 255 / 38%);
+  border-radius: 7px;
+  color: var(--signal-blue);
+}
+
+.artifact-action-button strong {
+  display: block;
+  color: var(--cloud);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.artifact-action-button small {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.operations-artifact-result {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgb(48 199 190 / 28%);
+  border-radius: 7px;
+  background: rgb(48 199 190 / 5%);
+  padding: 11px;
+}
+
+.artifact-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.artifact-result-meta span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.operations-artifact-error {
+  border: 1px solid rgb(255 92 92 / 34%);
+  border-radius: 7px;
+  background: rgb(255 92 92 / 6%);
+  color: var(--danger);
+  margin: 0;
+  padding: 10px 11px;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .ontology-map {
@@ -3351,7 +3460,8 @@ textarea:focus-visible {
 @media (max-width: 1080px) {
   .ops-kpi-grid,
   .settings-kpi-grid,
-  .ops-main-grid {
+  .ops-main-grid,
+  .operations-artifact-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3419,6 +3529,7 @@ textarea:focus-visible {
   .settings-dependency-grid,
   .ops-main-grid,
   .ops-right-rail,
+  .operations-artifact-actions,
   .readiness-track-grid,
   .workflow-pipeline {
     grid-template-columns: 1fr;
@@ -3494,9 +3605,19 @@ textarea:focus-visible {
   }
 
   .ops-kpi-card,
+  .artifact-action-button,
   .ops-list-row,
   .readiness-track {
     grid-template-columns: 1fr;
+  }
+
+  .operations-artifact-result {
+    grid-template-columns: 12px minmax(0, 1fr);
+  }
+
+  .operations-artifact-result .side-link {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .ops-kpi-card,

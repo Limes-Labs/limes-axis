@@ -283,6 +283,12 @@ Foundation acceptance is tracked in
   `notifications:acknowledge` and write append-only audit evidence.
 - [x] Add an API-validated identity session read model for the console account
   surface, without returning token material or trusting browser-only claims.
+- [x] Add an API-backed Operations artifact walkthrough that generates daily
+  briefs and risk scenarios from the browser only when an API-verified OIDC
+  actor has the required scopes, then refreshes persisted snapshot evidence.
+- [x] Bind Operations artifact mutation endpoints to OIDC actors/scopes when
+  authenticated, rejecting actor or tenant impersonation before permission
+  evaluation.
 - [x] Add an API-backed Settings/Readiness console for identity, deployment,
   support diagnostics and runtime dependency posture, without browser-local
   fallback settings records.
@@ -491,6 +497,17 @@ returns tracks, evidence checks, production-readiness limitations, next actions
 and the `derived_from_persisted_demo_evidence` boundary. The governance
 overview consumes this endpoint in the browser, with no local readiness
 fallback records.
+The Operations overview can also call the live artifact endpoints from the
+browser: `POST /demo/manufacturing/operations/daily-brief`,
+`POST /demo/manufacturing/operations/risk-scenarios/quality`,
+`POST /demo/manufacturing/operations/risk-scenarios/maintenance` and
+`POST /demo/manufacturing/operations/risk-scenarios/supplier-delay`.
+The console derives `requested_by`, `actor_scopes` and `tenant_id` only from the
+API-validated identity session, blocks submission when required scopes are
+missing and refreshes the persisted operations snapshot after success. The
+next open demo-hardening step is a guided local Keycloak/browser SSO setup so
+design partners can run the mutation walkthrough without pasting bearer
+tokens.
 `GET /demo/manufacturing/notifications` derives topbar platform notifications
 from the same persisted operations snapshot, including operation-domain
 attention, pending approval gates, blocked workflow signals and recent audit

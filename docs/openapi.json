@@ -19899,6 +19899,24 @@
     "/demo/manufacturing/operations/daily-brief": {
       "post": {
         "operationId": "manufacturing_daily_plant_brief_demo_manufacturing_operations_daily_brief_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19939,6 +19957,24 @@
     "/demo/manufacturing/operations/risk-scenarios/maintenance": {
       "post": {
         "operationId": "manufacturing_maintenance_risk_scenario_demo_manufacturing_operations_risk_scenarios_maintenance_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19979,6 +20015,24 @@
     "/demo/manufacturing/operations/risk-scenarios/quality": {
       "post": {
         "operationId": "manufacturing_quality_risk_scenario_demo_manufacturing_operations_risk_scenarios_quality_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20019,6 +20073,24 @@
     "/demo/manufacturing/operations/risk-scenarios/supplier-delay": {
       "post": {
         "operationId": "manufacturing_supplier_delay_scenario_demo_manufacturing_operations_risk_scenarios_supplier_delay_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

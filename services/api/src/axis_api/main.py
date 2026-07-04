@@ -974,7 +974,11 @@ def _bind_demo_requested_by(request_model, principal: OidcPrincipal | None):
     if principal is None:
         return request_model
 
-    if principal.tenant_id != "tenant_demo_manufacturing":
+    request_tenant = getattr(request_model, "tenant_id", "tenant_demo_manufacturing")
+    if (
+        principal.tenant_id != "tenant_demo_manufacturing"
+        or request_tenant != principal.tenant_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
@@ -1903,9 +1907,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         brief_request: DailyPlantBriefRequest,
         repository: PersistenceRepository,
         response: Response,
+        principal: OidcPrincipalDependency,
     ) -> DailyPlantBriefRecord:
+        bound_request = _bind_demo_requested_by(brief_request, principal)
         try:
-            result = generate_daily_plant_brief(repository, brief_request)
+            result = generate_daily_plant_brief(repository, bound_request)
         except DailyPlantBriefPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -1958,9 +1964,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         scenario_request: QualityRiskScenarioRequest,
         repository: PersistenceRepository,
         response: Response,
+        principal: OidcPrincipalDependency,
     ) -> QualityRiskScenarioRecord:
+        bound_request = _bind_demo_requested_by(scenario_request, principal)
         try:
-            result = generate_quality_risk_scenario(repository, scenario_request)
+            result = generate_quality_risk_scenario(repository, bound_request)
         except QualityRiskScenarioPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -2013,9 +2021,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         scenario_request: MaintenanceRiskScenarioRequest,
         repository: PersistenceRepository,
         response: Response,
+        principal: OidcPrincipalDependency,
     ) -> MaintenanceRiskScenarioRecord:
+        bound_request = _bind_demo_requested_by(scenario_request, principal)
         try:
-            result = generate_maintenance_risk_scenario(repository, scenario_request)
+            result = generate_maintenance_risk_scenario(repository, bound_request)
         except MaintenanceRiskScenarioPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -2070,9 +2080,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         scenario_request: SupplierDelayScenarioRequest,
         repository: PersistenceRepository,
         response: Response,
+        principal: OidcPrincipalDependency,
     ) -> SupplierDelayScenarioRecord:
+        bound_request = _bind_demo_requested_by(scenario_request, principal)
         try:
-            result = generate_supplier_delay_scenario(repository, scenario_request)
+            result = generate_supplier_delay_scenario(repository, bound_request)
         except SupplierDelayScenarioPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,

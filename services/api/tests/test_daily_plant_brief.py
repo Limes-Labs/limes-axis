@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.db import session_scope
+from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.manufacturing_operations import (
     DailyPlantBriefIdempotencyConflict,
@@ -21,6 +22,15 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ManufacturingOperationRecordCreate,
 )
+
+
+class StaticIdentityVerifier:
+    def __init__(self, principal: OidcPrincipal) -> None:
+        self.principal = principal
+
+    def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+        assert authorization == "Bearer valid-token"
+        return self.principal
 
 
 @pytest.fixture
@@ -234,3 +244,167 @@ def test_daily_plant_brief_endpoint_returns_created_then_idempotent_replay(
     assert first.json()["brief_id"] == second.json()["brief_id"]
     assert first.json()["summary_payload"]["summary"]["record_count"] == 3
     assert second.json()["idempotent_replay"] is True
+
+
+def test_daily_plant_brief_endpoint_binds_actor_and_scopes_from_oidc_token(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["briefs:generate", "audit:read", "workflows:read"],
+        )
+    )
+    with session_scope(session_factory) as session:
+        seed_daily_brief_operations(AxisPersistenceRepository(session))
+
+    client = TestClient(app)
+    payload = daily_brief_request(
+        requested_by="plant-operations-owner",
+        actor_scopes=[],
+        idempotency_key="daily-brief-oidc-bound",
+    ).model_dump()
+    response = client.post(
+        "/demo/manufacturing/operations/daily-brief",
+        headers={"Authorization": "Bearer valid-token"},
+        json=payload,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["requested_by"] == "plant-operations-owner"
+    assert response.json()["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    with session_factory() as session:
+        audit_event = session.scalars(select(AuditEvent)).one()
+    assert audit_event.actor_id == "plant-operations-owner"
+
+
+def test_daily_plant_brief_endpoint_rejects_oidc_actor_impersonation(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["briefs:generate", "audit:read", "workflows:read"],
+        )
+    )
+    with session_scope(session_factory) as session:
+        seed_daily_brief_operations(AxisPersistenceRepository(session))
+
+    client = TestClient(app)
+    response = client.post(
+        "/demo/manufacturing/operations/daily-brief",
+        headers={"Authorization": "Bearer valid-token"},
+        json=daily_brief_request(
+            requested_by="agent_daily_brief",
+            actor_scopes=["briefs:generate", "audit:read", "workflows:read"],
+        ).model_dump(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The request actor does not match the authenticated OIDC actor.",
+        "reason": "actor_mismatch",
+    }
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        (
+            "/demo/manufacturing/operations/daily-brief",
+            lambda: daily_brief_request(
+                tenant_id="tenant_other",
+                requested_by="plant-operations-owner",
+                actor_scopes=["briefs:generate", "audit:read", "workflows:read"],
+            ).model_dump(),
+        ),
+        (
+            "/demo/manufacturing/operations/risk-scenarios/quality",
+            lambda: {
+                "tenant_id": "tenant_other",
+                "requested_by": "plant-operations-owner",
+                "actor_scopes": ["quality:read", "audit:read", "workflows:read"],
+            },
+        ),
+        (
+            "/demo/manufacturing/operations/risk-scenarios/maintenance",
+            lambda: {
+                "tenant_id": "tenant_other",
+                "requested_by": "plant-operations-owner",
+                "actor_scopes": ["maintenance:read", "audit:read", "workflows:read"],
+            },
+        ),
+        (
+            "/demo/manufacturing/operations/risk-scenarios/supplier-delay",
+            lambda: {
+                "tenant_id": "tenant_other",
+                "requested_by": "plant-operations-owner",
+                "actor_scopes": ["supply:read", "audit:read", "workflows:read"],
+            },
+        ),
+    ],
+)
+def test_operations_artifact_endpoints_reject_oidc_request_tenant_mismatch(
+    path: str,
+    payload,
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=[
+                "audit:read",
+                "briefs:generate",
+                "maintenance:read",
+                "quality:read",
+                "supply:read",
+                "workflows:read",
+            ],
+        )
+    )
+    with session_scope(session_factory) as session:
+        seed_daily_brief_operations(AxisPersistenceRepository(session))
+
+    client = TestClient(app)
+    response = client.post(
+        path,
+        headers={"Authorization": "Bearer valid-token"},
+        json=payload(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+        "reason": "tenant_mismatch",
+    }
+    with session_factory() as session:
+        assert session.scalars(select(AuditEvent)).all() == []
+
+
+def test_daily_plant_brief_endpoint_requires_oidc_when_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        seed_daily_brief_operations(AxisPersistenceRepository(session))
+
+    client = TestClient(app)
+    response = client.post(
+        "/demo/manufacturing/operations/daily-brief",
+        json=daily_brief_request().model_dump(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "AUTH_REQUIRED"

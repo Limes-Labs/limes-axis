@@ -26,6 +26,15 @@ import {
   type ModelRouteTelemetry,
 } from "@/lib/model-routing-demo";
 import {
+  buildOperationsArtifactRequest,
+  getOperationsArtifactActionState,
+  operationsArtifactHeadline,
+  operationsArtifactRecordId,
+  OPERATIONS_ARTIFACT_ACTIONS,
+  type OperationsArtifactKind,
+  type OperationsArtifactResponse,
+} from "@/lib/operations-artifacts";
+import {
   formatOverviewTimestamp,
   getDemoReadinessCounts,
   getDemoReadinessPriorityStatus,
@@ -37,11 +46,14 @@ import {
   type ManufacturingDemoReadinessCheck,
   type ManufacturingDemoReadinessReport,
   type ManufacturingDomainSnapshot,
+  type IdentitySessionReadModel,
   type ManufacturingOverview,
   type ManufacturingOperationsSnapshot,
   type OverviewMetric,
   type PlatformStatus,
 } from "@/lib/platform-overview";
+import { useAxisQuery } from "@/lib/use-axis-query";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
 type OverviewSource = "loading" | "api" | "unavailable";
@@ -233,6 +245,144 @@ function TopKpis({
         );
       })}
     </div>
+  );
+}
+
+function OperationsArtifactPanel({
+  identitySession,
+  identitySessionUnavailable,
+  onArtifactCommitted,
+  operationsSnapshot,
+  session,
+}: {
+  identitySession: IdentitySessionReadModel | null;
+  identitySessionUnavailable: boolean;
+  onArtifactCommitted: () => void;
+  operationsSnapshot: ManufacturingOperationsSnapshot;
+  session: ReturnType<typeof useOidcConsoleSession>["session"];
+}) {
+  const [pendingKind, setPendingKind] = useState<OperationsArtifactKind | null>(null);
+  const [artifact, setArtifact] = useState<{
+    actionLabel: string;
+    response: OperationsArtifactResponse;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const sessionStatus = identitySession?.authenticated ? "ready" : "watch";
+  const sessionLabel = identitySession?.authenticated
+    ? "API-verified actor"
+    : identitySessionUnavailable
+      ? "Identity API required"
+      : "OIDC session required";
+
+  async function submitArtifact(kind: OperationsArtifactKind) {
+    setPendingKind(kind);
+    setError(null);
+
+    try {
+      const request = buildOperationsArtifactRequest({
+        kind,
+        identitySession,
+        snapshot: operationsSnapshot,
+      });
+      const response = await axisFetchJson<OperationsArtifactResponse>(request.endpoint, {
+        method: "POST",
+        session,
+        body: request.body,
+      });
+
+      setArtifact({
+        actionLabel: request.action.label,
+        response,
+      });
+      onArtifactCommitted();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Axis could not persist the operations artifact.",
+      );
+    } finally {
+      setPendingKind(null);
+    }
+  }
+
+  return (
+    <section className="ops-panel operations-artifact-panel">
+      <div className="ops-panel-header">
+        <div>
+          <p className="section-label">Operations artifact runtime</p>
+          <h2 className="ops-panel-title">Generate governed evidence</h2>
+        </div>
+        <span className={`status-pill ${platformStatusClass(sessionStatus)}`}>{sessionLabel}</span>
+      </div>
+      <p className="row-detail">
+        Each action calls the live Axis API, persists a tenant-scoped artifact, writes audit
+        evidence and refreshes the operations snapshot. No browser-local data is generated.
+      </p>
+
+      <div className="operations-artifact-actions">
+        {OPERATIONS_ARTIFACT_ACTIONS.map((action) => {
+          const state = getOperationsArtifactActionState(action.kind, identitySession);
+          const pending = pendingKind === action.kind;
+
+          return (
+            <button
+              aria-describedby={`${action.kind}-artifact-state`}
+              className="artifact-action-button"
+              disabled={!state.canRun || Boolean(pendingKind)}
+              key={action.kind}
+              onClick={() => void submitArtifact(action.kind)}
+              title={state.reason ?? action.description}
+              type="button"
+            >
+              <span className="artifact-action-icon">
+                {action.kind === "daily_brief" ? (
+                  <FileCheck2 size={18} />
+                ) : action.kind === "supplier_delay" ? (
+                  <AlertTriangle size={18} />
+                ) : (
+                  <ShieldCheck size={18} />
+                )}
+              </span>
+              <span>
+                <strong>{pending ? "Persisting..." : action.label}</strong>
+                <small id={`${action.kind}-artifact-state`}>
+                  {state.reason ?? action.description}
+                </small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {artifact ? (
+        <div className="operations-artifact-result" role="status">
+          <StatusDot status="ready" />
+          <div>
+            <p className="row-title">
+              {artifact.actionLabel} / {operationsArtifactRecordId(artifact.response)}
+            </p>
+            <p className="row-detail">{operationsArtifactHeadline(artifact.response)}</p>
+            <div className="artifact-result-meta">
+              <span>{artifact.response.idempotent_replay ? "Idempotent replay" : "Created"}</span>
+              <span>{artifact.response.source_record_ids.length} source records</span>
+              <span>{artifact.response.audit_event_type}</span>
+            </div>
+          </div>
+          {artifact.response.audit_event_id ? (
+            <Link className="side-link" href="/audit">
+              Open audit
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="operations-artifact-error" role="status">
+          {error}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -683,6 +833,9 @@ export function PlatformOverview() {
   const [modelRouting, setModelRouting] = useState<ManufacturingModelRouting | null>(null);
   const [source, setSource] = useState<OverviewSource>("loading");
   const { refreshNonce, triggerRefresh } = useConsole();
+  const { session } = useOidcConsoleSession();
+  const { data: identitySession, isUnavailable: identitySessionUnavailable } =
+    useAxisQuery<IdentitySessionReadModel>("/identity/session");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -698,16 +851,19 @@ export function PlatformOverview() {
           modelRoutingPayload,
         ] = await Promise.all([
           axisFetchJson<ManufacturingOverview>("/demo/manufacturing/overview", {
+            session,
             signal: controller.signal,
           }),
           axisFetchJson<ManufacturingOperationsSnapshot>(
             "/demo/manufacturing/operations/snapshot",
-            { signal: controller.signal },
+            { session, signal: controller.signal },
           ),
           axisFetchJson<ManufacturingDemoReadinessReport>("/demo/manufacturing/demo-readiness", {
+            session,
             signal: controller.signal,
           }),
           axisFetchJson<ManufacturingModelRouting>("/demo/manufacturing/model-routing", {
+            session,
             signal: controller.signal,
           }),
         ]);
@@ -731,7 +887,7 @@ export function PlatformOverview() {
     void fetchOverview();
 
     return () => controller.abort();
-  }, [refreshNonce]);
+  }, [refreshNonce, session]);
 
   const readinessCounts = useMemo(
     () =>
@@ -799,6 +955,14 @@ export function PlatformOverview() {
             demoReadiness={demoReadiness}
             operationsSnapshot={operationsSnapshot}
             overview={overview}
+          />
+
+          <OperationsArtifactPanel
+            identitySession={identitySession}
+            identitySessionUnavailable={identitySessionUnavailable}
+            onArtifactCommitted={triggerRefresh}
+            operationsSnapshot={operationsSnapshot}
+            session={session}
           />
 
           <div className="ops-main-grid">

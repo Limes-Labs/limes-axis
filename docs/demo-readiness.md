@@ -257,9 +257,9 @@ make demo-stack-down
 - [ ] `pnpm --filter @limes-axis/web test:e2e:live` passes the live overview
       smoke test against the running Axis API.
 - [ ] The overview page loads from `/demo/manufacturing/overview`.
-- [ ] The overview page composes `/demo/manufacturing/operations/snapshot` into
+- [x] The overview page composes `/demo/manufacturing/operations/snapshot` into
       the first-screen operational cockpit.
-- [ ] The overview page composes `/demo/manufacturing/demo-readiness` into the
+- [x] The overview page composes `/demo/manufacturing/demo-readiness` into the
       first-screen feedback readiness panel.
 - [ ] The ontology page loads from `/demo/manufacturing/ontology`.
 - [ ] The workflow page loads from `/demo/manufacturing/workflows`.
@@ -270,13 +270,17 @@ make demo-stack-down
 - [ ] The model routing page loads from `/demo/manufacturing/model-routing`.
 - [ ] The simulation page loads from `/demo/manufacturing/simulation/replay`.
 - [ ] The connectors page loads from `/demo/manufacturing/connectors`.
-- [ ] The manufacturing operations snapshot loads from
+- [x] The manufacturing operations snapshot loads from
       `/demo/manufacturing/operations/snapshot`.
-- [ ] The demo readiness report loads from
+- [x] The demo readiness report loads from
       `/demo/manufacturing/demo-readiness`.
-- [ ] A daily plant brief can be generated with persisted audit evidence.
-- [ ] Quality, maintenance and supplier risk scenarios can be generated with
+- [x] A daily plant brief can be generated with persisted audit evidence.
+- [x] Quality, maintenance and supplier risk scenarios can be generated with
       persisted audit evidence.
+- [x] The Operations page exposes the artifact generation walkthrough through
+      API-backed, OIDC-scope-gated browser actions.
+- [ ] A guided local Keycloak/browser SSO setup lets design partners execute
+      gated Operations mutations without manually pasting bearer tokens.
 - [ ] Connector manifest, configuration, credential handle and credential lease
       paths reject raw secret material.
 - [ ] Connector evidence snapshots and exports use persisted audit artifacts.

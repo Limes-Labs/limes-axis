@@ -47,6 +47,11 @@ test.describe("Axis live overview demo", () => {
     await expect(page.getByText("Live API", { exact: true })).toBeVisible();
     await expect(page.getByText("Evidence present", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Domain graph" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Generate governed evidence" })).toBeVisible();
+    await expect(page.getByText("No browser-local data is generated.")).toBeVisible();
+    await expect(page.getByText("OIDC session required")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Generate daily brief/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Build quality scenario/ })).toBeDisabled();
     await expect(page.getByRole("heading", { name: "Human-gated flow" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
     await expect(page.getByText("Risk signals")).toBeVisible();
