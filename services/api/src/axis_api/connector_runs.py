@@ -314,6 +314,9 @@ SYNC_EXECUTION_PREFLIGHT_BLOCKED_AUDIT_EVENT_TYPE = (
 SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_execution_preflight_passed"
 )
+SYNC_EXECUTION_LIVE_QUERY_BLOCKED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_execution_live_query_blocked"
+)
 SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
 SYNC_CHECKPOINT_CLAIM_READ_AUDIT_EVENT_TYPE = (
     "connector.run.sync_checkpoint_claims_read"
@@ -335,6 +338,72 @@ SYNC_CHECKPOINT_CLAIM_READ_SCOPE = "connectors:sync:checkpoint:claim:read"
 SYNC_CHECKPOINT_CLAIM_SCOPE = "connectors:sync:checkpoint:claim"
 SYNC_CHECKPOINT_CLAIM_RENEW_SCOPE = "connectors:sync:checkpoint:claim:renew"
 SYNC_CHECKPOINT_CLAIM_RELEASE_SCOPE = "connectors:sync:checkpoint:claim:release"
+SYNC_CHECKPOINT_FORBIDDEN_PUBLIC_MARKERS = (
+    "credential_value",
+    "dsn",
+    "password",
+    "postgresql://",
+    "secret_value",
+)
+LIVE_READ_PUBLIC_SAFE_RESULT_SUMMARY_KEYS = {
+    "checkpoint_claim_checkpoint_id",
+    "checkpoint_claim_evidence_status",
+    "checkpoint_claim_id",
+    "checkpoint_claim_lease_expires_at",
+    "checkpoint_claim_worker",
+    "connection_profile_id",
+    "connector_id",
+    "credential_access_mode",
+    "credential_lease_evidence_status",
+    "credential_lease_id",
+    "credential_lease_mode",
+    "credential_lease_ref",
+    "credential_lease_result_status",
+    "credential_lease_runtime_boundary",
+    "credential_lease_secret_material_returned",
+    "credential_material_returned",
+    "dispatch_id",
+    "egress_boundary",
+    "egress_policy_decision",
+    "egress_policy_endpoint_target_sha256",
+    "egress_policy_evidence_status",
+    "egress_policy_id",
+    "egress_policy_mode",
+    "egress_policy_private_endpoint_ref",
+    "egress_policy_ref",
+    "egress_policy_result_status",
+    "egress_policy_runtime_boundary",
+    "egress_policy_scope",
+    "execution_id",
+    "external_query_started",
+    "external_sync_started",
+    "graph_mutation_started",
+    "live_query_execute_requested",
+    "live_query_execution_status",
+    "live_query_preflight_status",
+    "live_query_profile_id",
+    "live_query_requested",
+    "live_query_row_limit",
+    "provider",
+    "query_mode",
+    "records_accepted",
+    "records_read",
+    "records_rejected",
+    "runtime_status",
+    "schedule_id",
+    "schema_name",
+    "secret_reference_access_mode",
+    "secret_reference_evidence_status",
+    "secret_reference_lease_ref",
+    "secret_reference_material_returned",
+    "secret_reference_result_status",
+    "secret_reference_runtime_boundary",
+    "secret_reference_scope",
+    "secret_retrieval_decision",
+    "selected_column_count",
+    "source_mode",
+    "table_name",
+}
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
 SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
 ALLOWED_EXECUTION_MODES = {
@@ -1110,11 +1179,12 @@ def execute_demo_connector_sync(
         run,
         request.credential_lease_id,
     )
-    _active_preview_manifest_for_connector(
+    manifest = _active_preview_manifest_for_connector(
         repository,
         run.tenant_id,
         run.connector_id,
     )
+    _validate_active_live_manifest_for_live_query_execution(manifest, run)
     egress_policy_evidence = _egress_policy_evidence_for_run(repository, run)
     checkpoint_claim = _validate_active_worker_checkpoint_claim_for_live_query(
         repository,
@@ -1240,6 +1310,11 @@ def _record_sync_execution_checkpoint(
         "table_name",
         "query_mode",
         "live_query_preflight_status",
+        "live_query_execute_requested",
+        "live_query_execution_status",
+        "live_query_profile_id",
+        "live_query_row_limit",
+        "selected_column_count",
     ):
         if optional_key in result_summary:
             cursor[optional_key] = result_summary[optional_key]
@@ -1420,11 +1495,48 @@ def _validate_active_worker_checkpoint_claim_for_live_query(
 
 
 def _sync_checkpoint_result_is_public_safe(result_summary: dict) -> bool:
-    if str(result_summary.get("external_query_started", "false")).lower() != "false":
+    if _contains_forbidden_checkpoint_public_marker(result_summary):
         return False
+    summaries = _sync_execution_result_summaries(result_summary)
+    if not summaries:
+        summaries = [result_summary]
+    return all(_sync_execution_result_summary_is_public_safe(summary) for summary in summaries)
+
+
+def _sync_execution_result_summaries(payload: dict) -> list[dict]:
+    sync_execution_result = payload.get("sync_execution_result")
+    if not isinstance(sync_execution_result, dict):
+        return []
+    nested_summary = sync_execution_result.get("result_summary")
+    return [nested_summary] if isinstance(nested_summary, dict) else []
+
+
+def _sync_execution_result_summary_is_public_safe(result_summary: dict) -> bool:
     if str(result_summary.get("credential_material_returned", "false")).lower() != "false":
         return False
-    return str(result_summary.get("graph_mutation_started", "false")).lower() == "false"
+    if str(result_summary.get("graph_mutation_started", "false")).lower() != "false":
+        return False
+    external_query_started = str(
+        result_summary.get("external_query_started", "false")
+    ).lower()
+    if external_query_started == "false":
+        return True
+    if external_query_started != "true":
+        return False
+    if result_summary.get("source_mode") != "external_db_live_read":
+        return False
+    if result_summary.get("live_query_execution_status") != "completed":
+        return False
+    return set(result_summary) <= LIVE_READ_PUBLIC_SAFE_RESULT_SUMMARY_KEYS
+
+
+def _contains_forbidden_checkpoint_public_marker(value: object) -> bool:
+    if isinstance(value, dict):
+        return any(_contains_forbidden_checkpoint_public_marker(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_forbidden_checkpoint_public_marker(item) for item in value)
+    serialized = str(value).lower()
+    return any(marker in serialized for marker in SYNC_CHECKPOINT_FORBIDDEN_PUBLIC_MARKERS)
 
 
 def _sync_checkpoint_claim_result_is_worker_lease_only(claim_result: dict) -> bool:
@@ -1750,12 +1862,22 @@ def _active_preview_manifest_for_connector(
             "Connector manifest must be registered before connector run operations.",
             "connector_manifest_not_found",
         )
-    if manifest.status != "active_preview":
+    if manifest.status not in {"active_preview", "active_live"}:
         raise ConnectorRunValidationError(
             "Connector manifest must be active_preview before connector run operations.",
             "connector_manifest_not_active_preview",
         )
     return manifest
+
+
+def _validate_active_live_manifest_for_live_query_execution(manifest, run_record) -> None:
+    if str(run_record.input_summary.get("live_query_execute", "false")).lower() != "true":
+        return
+    if manifest.status != "active_live":
+        raise ConnectorRunValidationError(
+            "Connector manifest must be active_live before external DB live-query execution.",
+            "connector_manifest_not_active_live",
+        )
 
 
 def _validate_execution_mode(execution_mode: str) -> None:
@@ -2016,6 +2138,7 @@ def _egress_policy_evidence_for_run(
         "egress_policy_scope": requested_scope,
         "egress_policy_mode": "unknown",
         "egress_policy_private_endpoint_ref": "",
+        "egress_policy_endpoint_target_sha256": "",
     }
     if not policy_id:
         return missing_evidence
@@ -2032,6 +2155,9 @@ def _egress_policy_evidence_for_run(
         "egress_policy_scope": f"{policy.connector_id}:{policy.connection_profile_id}",
         "egress_policy_mode": policy.policy_mode,
         "egress_policy_private_endpoint_ref": policy.private_endpoint_ref,
+        "egress_policy_endpoint_target_sha256": str(
+            policy.policy_document.get("approved_endpoint_target_sha256", "")
+        ),
     }
     if policy.status != "active":
         return {
@@ -2151,4 +2277,6 @@ def _sync_execution_audit_event_type(result: ConnectorSyncExecutionResult) -> st
         return SYNC_EXECUTION_PREFLIGHT_BLOCKED_AUDIT_EVENT_TYPE
     if result.status == "sync_execution_preflight_passed":
         return SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE
+    if result.status == "sync_execution_live_query_blocked":
+        return SYNC_EXECUTION_LIVE_QUERY_BLOCKED_AUDIT_EVENT_TYPE
     return SYNC_EXECUTION_DEFERRED_AUDIT_EVENT_TYPE

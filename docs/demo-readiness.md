@@ -392,7 +392,11 @@ Confirm before the session:
 
 ## Current Limitations
 
-- Full live connector execution is not yet the default demo path.
+- Full live connector execution is not yet the default demo path. The current
+  live capability is a bounded opt-in Postgres read path that requires
+  `active_live` manifests, preflight gates, a targeted worker checkpoint claim
+  and a configured allowlisted profile; it persists counts and public-safe
+  evidence only.
 - Full manufacturing operations reference demo remains open until broader
   TypeDB query coverage, workflow execution and replay are fully backed by real
   persistence paths.

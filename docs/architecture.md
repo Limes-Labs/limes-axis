@@ -127,13 +127,19 @@ evidence backed by `connector.run.sync_execution_preflight_passed` audit for
 the same connector, run and checkpoint, with the checkpoint audit id present in
 `evidence_refs` and resolving to a tenant-scoped append-only audit event with
 public-safe payload, rather than choosing any valid claim for the run. The
-checkpoint result evidence must also remain public-safe: no external query, no
-returned credential material and no graph mutation. The targeted claim result
-must remain worker-lease-only as well:
+checkpoint result evidence must also remain public-safe: no returned credential
+material, no graph mutation, no DSN or row payload, and external queries are
+allowed only for the completed count-only live-read mode. The targeted claim
+result must remain worker-lease-only as well:
 `external_sync_started=false`, `secret_material_returned=false` and
 `worker_claim_only=true`.
-The slice still records `external_query_started=false` and returns no credential
-material. The preflight records redacted egress policy evidence from the
+Preflight-only execution still records `external_query_started=false` and
+returns no credential material. When the optional live-read gate executes, the
+checkpoint may record `external_query_started=true` only with
+`source_mode=external_db_live_read`, `live_query_execution_status=completed`,
+count-only evidence and an allowlisted endpoint-target hash that binds the DSN
+host/port to the approved private endpoint policy without exposing the host or
+DSN. The preflight records redacted egress policy evidence from the
 repository-backed policy record, the already validated credential lease result,
 secret reference resolver evidence and public-safe checkpoint claim evidence.
 Unknown, unpersisted or unapproved egress policies are

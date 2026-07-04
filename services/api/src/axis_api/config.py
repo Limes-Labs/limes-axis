@@ -175,6 +175,49 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED",
     )
+    external_db_live_query_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED",
+    )
+    external_db_live_query_dsn: str | None = Field(
+        default=None,
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_DSN",
+    )
+    external_db_live_query_profile_id: str = Field(
+        default="profile_postgres_ops_readonly",
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_PROFILE_ID",
+    )
+    external_db_live_query_schema: str = Field(
+        default="operations",
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_SCHEMA",
+    )
+    external_db_live_query_table: str = Field(
+        default="production_orders",
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_TABLE",
+    )
+    external_db_live_query_columns: list[str] = Field(
+        default_factory=lambda: [
+            "order_id",
+            "asset_id",
+            "work_center",
+            "status",
+            "risk_level",
+        ],
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_COLUMNS",
+    )
+    external_db_live_query_row_limit: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_ROW_LIMIT",
+    )
+    external_db_live_query_private_endpoint_ref: str = Field(
+        default=(
+            "private-endpoint://tenant_demo_manufacturing/"
+            "persisted-operations-postgres-readonly"
+        ),
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF",
+    )
     audit_ledger_signing_key_id: str = Field(
         default="axis-self-hosted-audit-ledger",
         alias="AXIS_AUDIT_LEDGER_SIGNING_KEY_ID",

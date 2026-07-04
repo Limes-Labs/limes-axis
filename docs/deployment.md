@@ -813,6 +813,27 @@ Required keys:
 - `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY`
 - `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY`
 
+Optional connector live-read secret keys:
+
+- `AXIS_EXTERNAL_DB_LIVE_QUERY_DSN`
+
+Only set `AXIS_EXTERNAL_DB_LIVE_QUERY_DSN` for governed live-read rehearsals or
+customer-approved deployments where `AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED=true`.
+The runtime returns public-safe profile/read-count evidence only and never
+returns this DSN through readiness, diagnostics, audit or connector responses.
+Non-sensitive live-read profile controls belong in the runtime ConfigMap:
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PROFILE_ID`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_SCHEMA`, `AXIS_EXTERNAL_DB_LIVE_QUERY_TABLE`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_COLUMNS` and
+`AXIS_EXTERNAL_DB_LIVE_QUERY_ROW_LIMIT`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF`. The tenant-scoped egress
+policy for that profile must include an
+`approved_endpoint_target_sha256` policy-document field. It is the SHA-256
+digest of the approved Postgres network target (`host:port`) and lets the
+runtime prove that the secret DSN is bound to the approved private endpoint
+without exposing the host or DSN in ConfigMaps, audit payloads, readiness
+responses or diagnostics.
+
 Do not put customer secrets in `values.yaml`. Use an external secret manager,
 sealed secret workflow or platform-specific KMS integration before production
 use. The disabled example Secret uses

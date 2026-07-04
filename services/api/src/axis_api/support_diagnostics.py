@@ -161,6 +161,7 @@ def build_support_diagnostics_report(
             settings.connector_sync_execution_enabled,
             settings.external_db_sync_execution_enabled,
             settings.external_db_live_query_preflight_enabled,
+            settings.external_db_live_query_execution_enabled,
             settings.credential_lease_execution_enabled,
             settings.credential_lease_provider_adapters_enabled,
         )

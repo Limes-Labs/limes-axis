@@ -503,8 +503,8 @@ credential material retrieval and graph mutation.
 For `external_db_operational_mirror`, setting
 `AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true` selects the Postgres external DB
 profile adapter boundary. That adapter writes provider/profile/table/count
-evidence, keeps `external_query_started=false` in this slice and never returns
-raw connection strings or credential material.
+evidence for non-live profile syncs, keeps `external_query_started=false` and
+never returns raw connection strings or credential material.
 If the run input explicitly sets `live_query_requested=true`, the adapter enters
 a live-query preflight path. By default it writes
 `connector.run.sync_execution_preflight_blocked`; with
@@ -582,12 +582,44 @@ that says secret material was returned writes
 `secret_retrieval_decision=blocked_secret_material_returned`. The preflight
 still does not start a database query, return credential material or mutate the
 graph.
+If the same run also sets `live_query_execute=true` and
+`AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED=true`, Axis can execute a bounded
+read-only Postgres live read after preflight passes. This requires the
+connector manifest to be `active_live`, with live-query and external-egress
+operations explicitly allowed by the manifest lifecycle gate. The runtime also
+requires a configured allowlisted profile through
+`AXIS_EXTERNAL_DB_LIVE_QUERY_DSN`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PROFILE_ID`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_SCHEMA`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_TABLE`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_COLUMNS`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_ROW_LIMIT` and
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF`. The persisted egress policy
+document must also include `approved_endpoint_target_sha256`, a SHA-256 digest
+of the DSN network target (`host:port`) computed outside the public policy
+payload. The runtime computes the same digest from
+`AXIS_EXTERNAL_DB_LIVE_QUERY_DSN` and blocks execution if the private endpoint
+reference or digest does not match the policy evidence. The request profile id,
+schema and table must match that configuration before any query is opened.
+If `selected_columns` is omitted, Axis reads all configured allowlisted columns;
+if it is provided, every selected column must be in the allowlist and use a safe
+Postgres identifier. The adapter builds a bounded count query with typed
+Postgres identifiers, starts a read-only transaction and persists only row
+counts, profile id, row limit, query status and checkpoint evidence. It does
+not persist or return DSNs, SQL text, row payloads, credential material or graph
+mutations. Failed profile validation, endpoint binding or query execution
+records
+`connector.run.sync_execution_live_query_blocked` with a public-safe reason and
+`external_query_started=false`.
 Every sync execution attempt now records a tenant-scoped
 `connector_sync_checkpoints` row after the runtime adapter returns. Checkpoints
 store public-safe cursor metadata, adapter status, result summaries and audit
 evidence refs; they do not store raw DSNs, SQL text, credential values or
-secret material. This gives future provider-specific live sync adapters a real
-retry/checkpoint boundary before live query execution is enabled.
+secret material. External DB live-read checkpoints may record
+`external_query_started=true` only together with
+`source_mode=external_db_live_read`,
+`live_query_execution_status=completed`, `credential_material_returned=false`
+and `graph_mutation_started=false`.
 The checkpoint registry is exposed at
 `/demo/manufacturing/connectors/runs/checkpoints` and supports tenant,
 connector, run, status, `created_after`, `created_before` and limit filters.

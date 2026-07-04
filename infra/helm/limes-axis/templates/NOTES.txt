@@ -13,6 +13,9 @@ Required secret keys:
   AXIS_TYPEDB_PASSWORD
   AXIS_AUDIT_LEDGER_SIGNING_SECRET
 
+Optional connector live-read secret key:
+  AXIS_EXTERNAL_DB_LIVE_QUERY_DSN
+
 Post-install checks:
   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "limes-axis.fullname" . }}-api 8000:{{ .Values.api.service.port }}

@@ -12,7 +12,11 @@ from sqlalchemy.pool import StaticPool
 
 from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
-from axis_api.connector_execution import ConnectorExecutionRequest, ConnectorExecutionResult
+from axis_api.connector_execution import (
+    ConnectorExecutionRequest,
+    ConnectorExecutionResult,
+    postgres_endpoint_target_sha256,
+)
 from axis_api.connector_manifests import (
     ConnectorManifestCreateRequest,
     ConnectorManifestLifecycleRequest,
@@ -44,6 +48,7 @@ from axis_api.persistence import (
 )
 
 ACTIVE_CLAIM_LEASE_EXPIRES_AT = datetime(2030, 1, 1, 0, 0, tzinfo=UTC)
+DEFAULT_EXTERNAL_DB_LIVE_QUERY_DSN = "postgresql://readonly.local/axis_external"
 
 
 class RecordingConnectorExecutionRuntime:
@@ -275,6 +280,81 @@ def seed_active_connector_manifest(
     )
 
 
+def live_capable_connector_registry_payload() -> dict:
+    payload = connector_registry_payload()
+    connector = next(
+        item
+        for item in payload["connectors"]
+        if item["manifest"]["connector_id"] == "external_db_operational_mirror"
+    )
+    connector["manifest"]["sync_modes"] = [
+        "schema_preview",
+        "manual_import",
+        "live_query",
+    ]
+    connector["manifest"]["required_permissions"] = [
+        "connectors:read",
+        "connectors:external_db:preview",
+        "connectors:sync:execute",
+    ]
+    connector["runtime_policy"]["allowed_operations"] = [
+        "schema_validate",
+        "metadata_preview",
+        "dry_run_diff",
+        "live_query",
+        "external_egress",
+    ]
+    connector["runtime_policy"]["blocked_operations"] = [
+        "live_write",
+        "credential_capture",
+    ]
+    connector["runtime_policy"]["egress_policy"] = "approved_private_endpoint"
+    connector["runtime_policy"]["payload_policy"] = "live-read-counts-only"
+    return payload
+
+
+def seed_active_live_external_db_connector_manifest(
+    repository: AxisPersistenceRepository,
+) -> None:
+    payload = live_capable_connector_registry_payload()
+    seed_registered_connector_manifest(
+        repository,
+        "external_db_operational_mirror",
+        payload,
+    )
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        "external_db_operational_mirror",
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_preview",
+            actor_scopes=["connectors:manifest:lifecycle"],
+            transition_reason="Validated for tenant connector run tests.",
+            evidence_refs=["approval:connector-run-active-manifest"],
+        ),
+    )
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        "external_db_operational_mirror",
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_live",
+            actor_scopes=[
+                "connectors:manifest:lifecycle",
+                "connectors:manifest:enable_live",
+            ],
+            transition_reason="Governed live-query execution gate for tests.",
+            evidence_refs=[
+                "approval:connector-live-enable",
+                "policy:egress-allowlist-reviewed",
+                "credential:external-db-readonly-lease-policy",
+            ],
+        ),
+    )
+
+
 def test_connector_run_path_does_not_load_demo_connector_registry_seed() -> None:
     source = Path("src/axis_api/connector_runs.py").read_text()
 
@@ -453,7 +533,13 @@ def seed_external_db_egress_policy(
         "private-endpoint://tenant_demo_manufacturing/"
         "persisted-operations-postgres-readonly"
     ),
+    endpoint_target_sha256: str | None = None,
 ) -> None:
+    approved_endpoint_target_sha256 = (
+        endpoint_target_sha256
+        if endpoint_target_sha256 is not None
+        else postgres_endpoint_target_sha256(DEFAULT_EXTERNAL_DB_LIVE_QUERY_DSN)
+    )
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id="tenant_demo_manufacturing",
@@ -465,6 +551,7 @@ def seed_external_db_egress_policy(
                 "connection_profile_id": "profile_postgres_ops_readonly",
                 "egress_boundary": "approved_private_endpoint",
                 "private_endpoint_ref": private_endpoint_ref,
+                "approved_endpoint_target_sha256": approved_endpoint_target_sha256,
             },
         )
     )
@@ -482,7 +569,7 @@ def seed_external_db_egress_policy(
             private_endpoint_ref=private_endpoint_ref,
             created_by="network-policy-owner-role",
             policy_document={
-                "allowed_destination": "operations-postgres-readonly.internal",
+                "approved_endpoint_target_sha256": approved_endpoint_target_sha256,
                 "transport": "private_endpoint",
                 "live_query_mode": "read_only_snapshot",
             },
@@ -1836,6 +1923,9 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
             "private-endpoint://tenant_demo_manufacturing/"
             "persisted-operations-postgres-readonly"
         ),
+        "egress_policy_endpoint_target_sha256": postgres_endpoint_target_sha256(
+            DEFAULT_EXTERNAL_DB_LIVE_QUERY_DSN
+        ),
         "credential_lease_evidence_status": "validated",
         "credential_lease_id": "lease_external_db_readonly_20260622",
         "credential_lease_mode": "self_hosted_vault_kms_lease",
@@ -1926,6 +2016,77 @@ def test_execute_external_db_live_query_preflight_passes_when_policy_enabled(
     assert "vault://" not in str(checkpoint.cursor).lower()
     assert "credential_value" not in str(checkpoint.cursor).lower()
     assert "dsn" not in str(checkpoint.cursor).lower()
+
+
+def test_execute_external_db_live_query_execution_requires_active_live_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_sync_execution_enabled=True,
+            external_db_sync_execution_enabled=True,
+            external_db_live_query_preflight_enabled=True,
+            external_db_live_query_execution_enabled=True,
+            external_db_live_query_dsn=DEFAULT_EXTERNAL_DB_LIVE_QUERY_DSN,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_external_db_credential_handle(repository)
+        seed_external_db_credential_lease(repository)
+        seed_external_db_egress_policy(repository)
+    client = TestClient(app)
+    create_dispatched_scheduled_sync(
+        client,
+        run_id="run_external_db_orders_live_execute_preview_manifest_20260704",
+        dispatch_id="dispatch_external_db_orders_live_execute_preview_manifest_20260704",
+        dispatch_idempotency_key=(
+            "idem_dispatch_external_db_orders_live_execute_preview_manifest_20260704"
+        ),
+        connector_id="external_db_operational_mirror",
+        credential_handle_id="cred_external_db_readonly",
+        credential_lease_id="lease_external_db_readonly_20260622",
+        input_summary={
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+            "live_query_requested": "true",
+            "live_query_execute": "true",
+            "query_mode": "read_only_snapshot",
+            "egress_policy_id": "egress_policy_private_endpoint_ops",
+            "egress_boundary": "approved_private_endpoint",
+            "credential_access_mode": "lease_scoped_secret_ref",
+        },
+    )
+    with session_scope(session_factory) as session:
+        seed_active_sync_checkpoint_claim(
+            AxisPersistenceRepository(session),
+            run_id="run_external_db_orders_live_execute_preview_manifest_20260704",
+            checkpoint_id="chk_live_execute_preview_manifest_20260704",
+            claim_id="claim_live_execute_preview_manifest_20260704",
+        )
+
+    response = client.post(
+        "/demo/manufacturing/connectors/runs/"
+        "run_external_db_orders_live_execute_preview_manifest_20260704/execute-sync",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "execution_id": "sync_exec_external_db_orders_live_execute_preview_manifest_20260704",
+            "executed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:execute"],
+            "credential_lease_id": "lease_external_db_readonly_20260622",
+            "checkpoint_claim_id": "claim_live_execute_preview_manifest_20260704",
+            "idempotency_key": (
+                "idem_sync_exec_external_db_orders_live_execute_preview_manifest_20260704"
+            ),
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "connector_manifest_not_active_live"
 
 
 def test_execute_external_db_live_query_preflight_uses_requested_checkpoint_claim(

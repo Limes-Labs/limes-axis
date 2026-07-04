@@ -247,14 +247,23 @@ external egress and graph mutation out of the default boundary. External DB sync
 can opt into the Postgres profile adapter boundary with
 `AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED=true`, returning profile/table/count
 evidence without raw connection strings or credential material. Live-query
-requests remain preflight-only: `AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`
-can mark policy gates as passed only when the self-hosted egress policy
-boundary validates a persisted tenant-scoped connector egress policy for the
-connector profile and the run uses a lease-scoped secret reference, but still
-keeps `external_query_started=false` and returns no credential material. The
-passed preflight records redacted egress policy evidence from persisted policy
-records, private-endpoint evidence, credential lease evidence and secret
-reference resolver evidence from the validated lease result. Unknown,
+requests first pass through
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED=true`, which can mark policy
+gates as passed only when the self-hosted egress policy boundary validates a
+persisted tenant-scoped connector egress policy for the connector profile and
+the run uses a lease-scoped secret reference. A separate opt-in,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED=true`, can execute a bounded
+read-only Postgres live read only when the connector manifest is `active_live`,
+the run requests `live_query_execute=true`, the configured profile/schema/table
+match the run, requested columns are omitted or allowlisted, the private
+endpoint reference and endpoint-target hash bind the secret DSN to the persisted
+egress policy, and all preflight gates pass. The live-read path persists counts,
+public-safe profile/checkpoint evidence and query status only: no DSNs, SQL
+text, row payloads, credential material or graph mutations are stored or
+returned. The passed preflight records redacted egress policy evidence from
+persisted policy records, private-endpoint evidence, endpoint-target hash
+evidence, credential lease evidence and secret reference resolver evidence from
+the validated lease result. Unknown,
 unpersisted or unapproved egress policies are blocked before secret retrieval is
 considered; missing lease references and lease evidence that indicates secret
 material was returned are also blocked. The resolver remains reference-only and
@@ -308,9 +317,10 @@ checkpoint, claim and worker, with worker-lease-only payload and eligible
 persisted checkpoint evidence backed by `connector.run.sync_execution_preflight_passed`
 audit and its evidence ref. The referenced audit id must resolve to a tenant-scoped
 append-only audit event for the same connector/run/checkpoint with public-safe audit
-payload before provider runtime entry, and the checkpoint result evidence must keep
-`external_query_started=false`, `credential_material_returned=false` and
-`graph_mutation_started=false`. The target claim result must also stay
+payload before provider runtime entry, and that target preflight checkpoint
+result evidence must keep `external_query_started=false`,
+`credential_material_returned=false` and `graph_mutation_started=false`. The
+target claim result must also stay
 worker-lease-only with `external_sync_started=false`,
 `secret_material_returned=false` and `worker_claim_only=true`; valid preflights
 include public-safe claim evidence in the sync result.

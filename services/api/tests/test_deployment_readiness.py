@@ -56,6 +56,8 @@ def test_deployment_readiness_marks_default_profile_demo_safe_not_production_rea
     assert body["production_ready"] is False
     assert body["demo_safe"] is True
     assert body["capabilities"]["external_model_egress_enabled"] is False
+    assert body["capabilities"]["external_db_live_query_execution_enabled"] is False
+    assert body["capabilities"]["external_db_live_query_profile_configured"] is False
     assert body["capabilities"]["api_rate_limit_enabled"] is False
     assert body["capabilities"]["object_store_adapter"] == "local_filesystem"
     assert body["capabilities"]["network_policy_enabled"] is False
@@ -106,6 +108,8 @@ def test_deployment_readiness_flags_unsafe_production_egress_and_live_execution(
                 audit_ledger_signing_secret="super-secret-signing-key",
                 external_model_egress_enabled=True,
                 connector_sync_execution_enabled=True,
+                external_db_live_query_execution_enabled=True,
+                external_db_live_query_dsn="postgresql://readonly.local/axis_external",
             )
         )
     )
@@ -123,9 +127,12 @@ def test_deployment_readiness_flags_unsafe_production_egress_and_live_execution(
     assert checks["audit_ledger_signing_configured"]["status"] == "ready"
     assert checks["external_model_egress_disabled"]["status"] == "action_required"
     assert checks["live_connector_execution_disabled"]["status"] == "action_required"
+    assert body["capabilities"]["external_db_live_query_execution_enabled"] is True
+    assert body["capabilities"]["external_db_live_query_profile_configured"] is True
     assert "external_model_egress_disabled" in body["production_blockers"]
     assert "live_connector_execution_disabled" in body["production_blockers"]
     assert "super-secret-signing-key" not in str(body)
+    assert "readonly.local" not in str(body)
 
 
 def test_deployment_readiness_keeps_object_store_as_production_blocker() -> None:
