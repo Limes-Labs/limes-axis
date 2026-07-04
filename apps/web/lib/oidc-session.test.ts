@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   AXIS_OIDC_SESSION_STORAGE_KEY,
+  buildOidcAuthorizeUrl,
   buildAxisAuthInit,
   clearStoredOidcSession,
   createOidcSessionFromAccessToken,
+  normalizeOidcReturnTo,
   readStoredOidcSession,
   writeStoredOidcSession,
 } from "./oidc-session";
@@ -43,6 +45,24 @@ class MemoryStorage implements Storage {
 }
 
 describe("OIDC console session bridge", () => {
+  it("builds safe browser SSO authorize URLs for local API-owned sessions", () => {
+    expect(buildOidcAuthorizeUrl("http://127.0.0.1:8000", "/connectors?snapshot_id=abc")).toBe(
+      "http://127.0.0.1:8000/identity/oidc/authorize?return_to=%2Fconnectors%3Fsnapshot_id%3Dabc",
+    );
+    expect(buildOidcAuthorizeUrl("http://127.0.0.1:8000/", "https://evil.example/")).toBe(
+      "http://127.0.0.1:8000/identity/oidc/authorize?return_to=%2F",
+    );
+  });
+
+  it("normalizes OIDC return targets to same-origin paths only", () => {
+    expect(normalizeOidcReturnTo("/")).toBe("/");
+    expect(normalizeOidcReturnTo("/audit?event_id=evt_1")).toBe("/audit?event_id=evt_1");
+    expect(normalizeOidcReturnTo("")).toBe("/");
+    expect(normalizeOidcReturnTo("settings")).toBe("/");
+    expect(normalizeOidcReturnTo("//evil.example/path")).toBe("/");
+    expect(normalizeOidcReturnTo("https://evil.example/path")).toBe("/");
+  });
+
   it("derives actor, tenant and scopes from bearer token claims", () => {
     const token = unsignedToken({
       sub: "plant-operations-owner-role",

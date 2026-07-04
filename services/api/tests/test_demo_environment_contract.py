@@ -52,10 +52,57 @@ def test_demo_static_checks_include_backup_restore_contract() -> None:
     assert "docs.backup_restore_runbook" in names
 
 
+def test_demo_static_checks_include_guided_local_keycloak_sso_contract() -> None:
+    checker = load_check_module()
+
+    results = checker.run_static_checks(REPO_ROOT)
+    names = {result.name for result in results}
+
+    assert "docker.keycloak_realm_import" in names
+    assert "docker.keycloak_local_realm_contract" in names
+    assert "makefile.local_sso_targets" in names
+    assert "docs.local_sso_runbook" in names
+
+
 def test_demo_verify_runs_profile_render_gate() -> None:
     makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
 
     assert "demo-verify: openapi-check demo-check deployment-profile-render-check" in makefile
+
+
+def test_demo_makefile_declares_local_sso_api_target() -> None:
+    makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+
+    assert "demo-api-sso:" in makefile
+    assert "AXIS_OIDC_CLIENT_ID=limes-axis-web" in makefile
+    assert "AXIS_OIDC_REDIRECT_URI=http://127.0.0.1:8000/identity/oidc/callback" in makefile
+    assert "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET=axis-local-demo-session-signing-key" in makefile
+
+
+def test_local_keycloak_realm_maps_axis_demo_claims_and_scopes() -> None:
+    realm_path = REPO_ROOT / "infra" / "docker" / "keycloak" / "axis-realm.json"
+    realm = json.loads(realm_path.read_text(encoding="utf-8"))
+
+    assert realm["realm"] == "axis"
+    client = next(client for client in realm["clients"] if client["clientId"] == "limes-axis-web")
+    assert "http://127.0.0.1:8000/identity/oidc/callback" in client["redirectUris"]
+    assert "http://127.0.0.1:3000/*" in client["webOrigins"]
+    mapper_names = {mapper["name"] for mapper in client["protocolMappers"]}
+    assert {"axis_tenant", "limes-axis-api-audience"} <= mapper_names
+
+    role_names = {role["name"] for role in realm["roles"]["realm"]}
+    assert {
+        "audit:read",
+        "briefs:generate",
+        "maintenance:read",
+        "notifications:acknowledge",
+        "quality:read",
+        "supply:read",
+        "workflows:read",
+    } <= role_names
+    user = next(user for user in realm["users"] if user["username"] == "axis-operator")
+    assert user["attributes"]["axis_tenant"] == ["tenant_demo_manufacturing"]
+    assert "axis-local-demo-operator" in user["realmRoles"]
 
 
 def test_demo_readiness_checklist_mentions_profile_render_gate() -> None:
