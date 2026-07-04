@@ -123,7 +123,15 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByText("The account panel needs `/identity/session` before it can display an API-verified actor."),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Connect session" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in with SSO" })).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:65534/identity/oidc/authorize?return_to=%2F",
+    );
+    await expect(page.getByRole("link", { name: "Open SSO setup" })).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:65534/identity/oidc/onboarding",
+    );
+    await expect(page.getByRole("button", { name: "Connect bearer token" })).toBeVisible();
     const accountTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
     );
@@ -170,6 +178,7 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByRole("button", { name: "Sign out with identity provider" }),
     ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open operator account" })).toHaveText("PO");
 
     const [logoutRequest] = await Promise.all([
       page.waitForRequest("http://127.0.0.1:65534/identity/oidc/logout?return_to=%2F"),

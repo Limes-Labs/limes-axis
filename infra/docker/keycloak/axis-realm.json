@@ -1,0 +1,132 @@
+{
+  "realm": "axis",
+  "displayName": "Limes Axis Local Demo",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "axis-local-demo-operator",
+        "description": "Local-only Axis demo operator role for guided browser SSO."
+      },
+      {
+        "name": "audit:read",
+        "description": "Read Axis audit evidence."
+      },
+      {
+        "name": "briefs:generate",
+        "description": "Generate manufacturing daily briefs."
+      },
+      {
+        "name": "maintenance:read",
+        "description": "Read maintenance operations evidence."
+      },
+      {
+        "name": "notifications:acknowledge",
+        "description": "Acknowledge platform notifications."
+      },
+      {
+        "name": "quality:read",
+        "description": "Read quality operations evidence."
+      },
+      {
+        "name": "supply:read",
+        "description": "Read supply operations evidence."
+      },
+      {
+        "name": "workflows:read",
+        "description": "Read workflow evidence."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "limes-axis-web",
+      "name": "Limes Axis local web console",
+      "description": "Local-only confidential OIDC client for the Docker Compose demo stack.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "axis-local-dev-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://127.0.0.1:8000/identity/oidc/callback",
+        "http://localhost:8000/identity/oidc/callback"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:3000/*",
+        "http://localhost:3000/*"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://127.0.0.1:3000/*##http://localhost:3000/*",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "axis_tenant",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "claim.name": "axis_tenant",
+            "id.token.claim": "true",
+            "jsonType.label": "String",
+            "userinfo.token.claim": "true",
+            "user.attribute": "axis_tenant"
+          }
+        },
+        {
+          "name": "limes-axis-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "included.custom.audience": "limes-axis-api",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "axis-operator",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Axis",
+      "lastName": "Operator",
+      "email": "axis-operator@example.invalid",
+      "attributes": {
+        "axis_tenant": [
+          "tenant_demo_manufacturing"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "axis-demo",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "axis-local-demo-operator",
+        "audit:read",
+        "briefs:generate",
+        "maintenance:read",
+        "notifications:acknowledge",
+        "quality:read",
+        "supply:read",
+        "workflows:read"
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Bot,
@@ -17,6 +18,7 @@ import {
 import { ApiRequiredState } from "@/components/api-required-state";
 import { ConsoleTopbar } from "@/components/console-topbar";
 import { axisFetchJson } from "@/lib/axis-api";
+import { buildOidcAuthorizeUrl } from "@/lib/oidc-session";
 import {
   countBlockedModelRoutes,
   formatEuroCost,
@@ -261,6 +263,9 @@ function OperationsArtifactPanel({
   operationsSnapshot: ManufacturingOperationsSnapshot;
   session: ReturnType<typeof useOidcConsoleSession>["session"];
 }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { apiBaseUrl } = useConsole();
   const [pendingKind, setPendingKind] = useState<OperationsArtifactKind | null>(null);
   const [artifact, setArtifact] = useState<{
     actionLabel: string;
@@ -273,6 +278,8 @@ function OperationsArtifactPanel({
     : identitySessionUnavailable
       ? "Identity API required"
       : "OIDC session required";
+  const returnTo = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+  const signInUrl = buildOidcAuthorizeUrl(apiBaseUrl, returnTo);
 
   async function submitArtifact(kind: OperationsArtifactKind) {
     setPendingKind(kind);
@@ -319,6 +326,22 @@ function OperationsArtifactPanel({
         Each action calls the live Axis API, persists a tenant-scoped artifact, writes audit
         evidence and refreshes the operations snapshot. No browser-local data is generated.
       </p>
+
+      {!identitySession?.authenticated ? (
+        <div className="operations-artifact-sso-callout">
+          <ShieldCheck size={18} />
+          <div>
+            <p className="row-title">Browser SSO required for artifact generation</p>
+            <p className="row-detail">
+              Sign in with the API-owned OIDC session before creating daily briefs or risk
+              scenarios.
+            </p>
+          </div>
+          <a className="command-button" href={signInUrl}>
+            Sign in with SSO
+          </a>
+        </div>
+      ) : null}
 
       <div className="operations-artifact-actions">
         {OPERATIONS_ARTIFACT_ACTIONS.map((action) => {

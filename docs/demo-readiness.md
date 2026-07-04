@@ -57,11 +57,56 @@ Run the API:
 make demo-api
 ```
 
+For the guided local browser SSO walkthrough, run the API with the local
+Keycloak profile instead:
+
+```bash
+make demo-api-sso
+```
+
 Run the governance console in a second terminal:
 
 ```bash
 make demo-web
 ```
+
+## Guided Local Keycloak SSO
+
+The Docker Compose Keycloak service imports the local-only realm file at
+`infra/docker/keycloak/axis-realm.json`. That realm creates:
+
+- realm `axis`;
+- confidential client `limes-axis-web`;
+- redirect URI `http://127.0.0.1:8000/identity/oidc/callback`;
+- post-logout redirect URI `http://127.0.0.1:3000/`;
+- audience mapper for `limes-axis-api`;
+- `axis_tenant=tenant_demo_manufacturing` claim mapping;
+- demo operator `axis-operator` with password `axis-demo`;
+- demo roles/scopes for Operations artifact generation, notification
+  acknowledgement, audit reads and workflow reads.
+
+The realm, password and client secret are local-only demo credentials. They are
+not Helm defaults, customer credentials or production SSO guidance.
+
+After `make demo-stack-up`, verify the imported realm discovery document:
+
+```bash
+make demo-keycloak-check
+```
+
+Then run:
+
+```bash
+make demo-db-upgrade
+make demo-api-sso
+make demo-web
+```
+
+Open `http://127.0.0.1:3000`, use the account menu and choose **Sign in with SSO**.
+After Keycloak redirects back to the Axis API, the console uses the
+HTTP-only Axis session cookie through normal API requests. The account menu
+still exposes the bearer-token bridge as a developer fallback, but the guided
+demo path should use browser SSO.
 
 The local console is configured for both `localhost:3000` and
 `127.0.0.1:3000` development access, and the API also allows the
@@ -174,6 +219,10 @@ make demo-stack-down
 - [ ] `make demo-db-upgrade` applies all Alembic migrations against the local
       Postgres database.
 - [ ] `make demo-api` starts FastAPI on `http://127.0.0.1:8000`.
+- [ ] `make demo-keycloak-check` verifies the local Keycloak realm discovery
+      document after `make demo-stack-up`.
+- [ ] `make demo-api-sso` starts FastAPI with the local-only Keycloak browser
+      SSO profile for guided artifact walkthroughs.
 - [ ] `make demo-web` starts the Next.js console on `http://127.0.0.1:3000`.
 - [ ] `make demo-check` passes static repository checks.
 - [ ] `make security-check` passes the threat model and security posture
@@ -279,7 +328,7 @@ make demo-stack-down
       persisted audit evidence.
 - [x] The Operations page exposes the artifact generation walkthrough through
       API-backed, OIDC-scope-gated browser actions.
-- [ ] A guided local Keycloak/browser SSO setup lets design partners execute
+- [x] A guided local Keycloak/browser SSO setup lets design partners execute
       gated Operations mutations without manually pasting bearer tokens.
 - [ ] Connector manifest, configuration, credential handle and credential lease
       paths reject raw secret material.
@@ -318,8 +367,9 @@ Show:
 
 - The self-hosted local stack and absence of required managed services.
 - The OIDC/Keycloak direction, token-bound mutation paths, authorization-code
-  session-cookie boundary, secure browser-session readiness gate and OIDC
-  readiness report.
+  session-cookie boundary, secure browser-session readiness gate, OIDC
+  readiness report and guided local Keycloak browser SSO setup. Enterprise SSO
+  hardening remains separate from the local-only demo realm.
 - The support diagnostics bundle and current support operations runbook.
 - The first Helm deployment baseline in `infra/helm/limes-axis`, the
   deployment guide and the `deployment-check` output.

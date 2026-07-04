@@ -131,6 +131,35 @@ def check_backup_restore_targets(repo_root: Path) -> list[CheckResult]:
     ]
 
 
+def check_local_sso_targets(repo_root: Path) -> list[CheckResult]:
+    required_targets = {
+        "demo-api-sso",
+        "demo-keycloak-check",
+    }
+    makefile = repo_root / "Makefile"
+    if not makefile.exists():
+        return [CheckResult("makefile.local_sso_targets", False, "Makefile is missing.")]
+
+    targets = _make_targets(_read_text(makefile))
+    makefile_text = _read_text(makefile)
+    missing = sorted(required_targets - targets)
+    required_phrases = (
+        "AXIS_OIDC_ISSUER=http://127.0.0.1:8080/realms/axis",
+        "AXIS_OIDC_CLIENT_ID=limes-axis-web",
+        "AXIS_OIDC_REDIRECT_URI=http://127.0.0.1:8000/identity/oidc/callback",
+        "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET=axis-local-demo-session-signing-key",
+        "--keycloak-url http://127.0.0.1:8080",
+    )
+    missing_phrases = [phrase for phrase in required_phrases if phrase not in makefile_text]
+    ok = not missing and not missing_phrases
+    detail = "local SSO demo targets are present"
+    if missing:
+        detail = f"missing targets: {', '.join(missing)}"
+    elif missing_phrases:
+        detail = f"missing local SSO env wiring: {', '.join(missing_phrases)}"
+    return [CheckResult("makefile.local_sso_targets", ok, detail)]
+
+
 def check_compose_services(repo_root: Path) -> list[CheckResult]:
     compose_file = repo_root / "infra" / "docker" / "docker-compose.yml"
     required_services = ("postgres", "typedb", "temporal", "temporal-ui", "minio", "keycloak")
@@ -152,6 +181,122 @@ def check_compose_services(repo_root: Path) -> list[CheckResult]:
             else f"missing: {', '.join(missing)}",
         )
     ]
+
+
+def _local_keycloak_realm(repo_root: Path) -> dict[str, object] | None:
+    realm_path = repo_root / "infra" / "docker" / "keycloak" / "axis-realm.json"
+    if not realm_path.exists():
+        return None
+    payload = _json(realm_path)
+    return payload
+
+
+def check_keycloak_realm_import(repo_root: Path) -> list[CheckResult]:
+    compose_file = repo_root / "infra" / "docker" / "docker-compose.yml"
+    realm_file = repo_root / "infra" / "docker" / "keycloak" / "axis-realm.json"
+    if not compose_file.exists():
+        return [
+            CheckResult(
+                "docker.keycloak_realm_import",
+                False,
+                "docker-compose.yml is missing.",
+            )
+        ]
+
+    compose_text = _read_text(compose_file)
+    required_phrases = (
+        "start-dev --import-realm",
+        "./keycloak/axis-realm.json:/opt/keycloak/data/import/axis-realm.json:ro",
+    )
+    missing = [phrase for phrase in required_phrases if phrase not in compose_text]
+    ok = realm_file.exists() and not missing
+    if ok:
+        detail = "Keycloak imports the local Axis demo realm"
+    elif not realm_file.exists():
+        detail = "infra/docker/keycloak/axis-realm.json is missing"
+    else:
+        detail = f"missing compose import wiring: {', '.join(missing)}"
+    return [CheckResult("docker.keycloak_realm_import", ok, detail)]
+
+
+def check_keycloak_local_realm_contract(repo_root: Path) -> list[CheckResult]:
+    realm = _local_keycloak_realm(repo_root)
+    if realm is None:
+        return [
+            CheckResult(
+                "docker.keycloak_local_realm_contract",
+                False,
+                "infra/docker/keycloak/axis-realm.json is missing.",
+            )
+        ]
+
+    clients = realm.get("clients")
+    roles = realm.get("roles")
+    users = realm.get("users")
+    client = None
+    if isinstance(clients, list):
+        client = next(
+            (
+                item
+                for item in clients
+                if isinstance(item, dict) and item.get("clientId") == "limes-axis-web"
+            ),
+            None,
+        )
+
+    protocol_mappers = client.get("protocolMappers") if isinstance(client, dict) else None
+    mapper_names: set[object] = set()
+    if isinstance(protocol_mappers, list):
+        mapper_names = {
+            mapper.get("name") for mapper in protocol_mappers if isinstance(mapper, dict)
+        }
+    realm_roles = roles.get("realm") if isinstance(roles, dict) else None
+    role_names: set[object] = set()
+    if isinstance(realm_roles, list):
+        role_names = {role.get("name") for role in realm_roles if isinstance(role, dict)}
+    user = None
+    if isinstance(users, list):
+        user = next(
+            (
+                item
+                for item in users
+                if isinstance(item, dict) and item.get("username") == "axis-operator"
+            ),
+            None,
+        )
+
+    required_roles = {
+        "audit:read",
+        "briefs:generate",
+        "maintenance:read",
+        "notifications:acknowledge",
+        "quality:read",
+        "supply:read",
+        "workflows:read",
+    }
+    missing_roles = sorted(role for role in required_roles if role not in role_names)
+    redirect_uris = client.get("redirectUris") if isinstance(client, dict) else []
+    web_origins = client.get("webOrigins") if isinstance(client, dict) else []
+    user_attributes = user.get("attributes") if isinstance(user, dict) else {}
+    user_roles = set(user.get("realmRoles", [])) if isinstance(user, dict) else set()
+    ok = (
+        realm.get("realm") == "axis"
+        and isinstance(client, dict)
+        and "http://127.0.0.1:8000/identity/oidc/callback" in redirect_uris
+        and "http://127.0.0.1:3000/*" in web_origins
+        and {"axis_tenant", "limes-axis-api-audience"} <= mapper_names
+        and not missing_roles
+        and isinstance(user, dict)
+        and user_attributes.get("axis_tenant") == ["tenant_demo_manufacturing"]
+        and "axis-local-demo-operator" in user_roles
+    )
+    if ok:
+        detail = "local Keycloak realm maps Axis tenant, audience and demo scopes"
+    elif missing_roles:
+        detail = f"missing realm roles: {', '.join(missing_roles)}"
+    else:
+        detail = "local Keycloak realm is missing Axis client, claims, redirects or demo user"
+    return [CheckResult("docker.keycloak_local_realm_contract", ok, detail)]
 
 
 def check_openapi_contract(repo_root: Path) -> list[CheckResult]:
@@ -240,6 +385,36 @@ def check_demo_docs(repo_root: Path) -> list[CheckResult]:
     return results
 
 
+def check_local_sso_runbook(repo_root: Path) -> list[CheckResult]:
+    docs_file = repo_root / "docs" / "demo-readiness.md"
+    if not docs_file.exists():
+        return [CheckResult("docs.local_sso_runbook", False, "docs/demo-readiness.md is missing.")]
+
+    docs_text = _read_text(docs_file)
+    required_phrases = (
+        "Guided Local Keycloak SSO",
+        "make demo-api-sso",
+        "make demo-keycloak-check",
+        "axis-operator",
+        "axis-demo",
+        "Sign in with SSO",
+        "local-only",
+    )
+    normalized_docs_text = docs_text.casefold()
+    missing = [
+        phrase for phrase in required_phrases if phrase.casefold() not in normalized_docs_text
+    ]
+    return [
+        CheckResult(
+            "docs.local_sso_runbook",
+            not missing,
+            "local Keycloak SSO runbook is explicit"
+            if not missing
+            else f"missing phrases: {', '.join(missing)}",
+        )
+    ]
+
+
 def check_backup_restore_runbook(repo_root: Path) -> list[CheckResult]:
     runbook_file = repo_root / "docs" / "backup-restore.md"
     if not runbook_file.exists():
@@ -278,9 +453,13 @@ def run_static_checks(repo_root: Path) -> list[CheckResult]:
     checks: list[CheckResult] = []
     checks.extend(check_make_targets(repo_root))
     checks.extend(check_backup_restore_targets(repo_root))
+    checks.extend(check_local_sso_targets(repo_root))
     checks.extend(check_compose_services(repo_root))
+    checks.extend(check_keycloak_realm_import(repo_root))
+    checks.extend(check_keycloak_local_realm_contract(repo_root))
     checks.extend(check_openapi_contract(repo_root))
     checks.extend(check_demo_docs(repo_root))
+    checks.extend(check_local_sso_runbook(repo_root))
     checks.extend(check_backup_restore_runbook(repo_root))
     return checks
 
@@ -651,6 +830,36 @@ def _cors_check_name(origin: str, primary_web_url: str) -> str:
     return f"live.api_cors_no_store_preflight.{host}_{port}"
 
 
+def _fetch_keycloak_discovery(keycloak_url: str) -> tuple[bool, str]:
+    normalized = keycloak_url.rstrip("/")
+    discovery_url = f"{normalized}/realms/axis/.well-known/openid-configuration"
+    request = Request(discovery_url, headers={"Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            body_text = json.dumps(payload, sort_keys=True).casefold()
+            issuer = payload.get("issuer")
+            ok = (
+                200 <= response.status < 300
+                and issuer == f"{normalized}/realms/axis"
+                and payload.get("authorization_endpoint")
+                == f"{normalized}/realms/axis/protocol/openid-connect/auth"
+                and payload.get("token_endpoint")
+                == f"{normalized}/realms/axis/protocol/openid-connect/token"
+                and payload.get("jwks_uri")
+                == f"{normalized}/realms/axis/protocol/openid-connect/certs"
+                and "axis-local-dev-secret" not in body_text
+                and "axis-demo" not in body_text
+            )
+            if ok:
+                return True, f"HTTP {response.status}, realm axis discovery ready"
+            return False, f"HTTP {response.status}, invalid local Keycloak discovery contract"
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        return False, str(exc)
+
+
 def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResult]:
     checks: list[CheckResult] = []
     if api_url:
@@ -708,6 +917,13 @@ def run_live_checks(api_url: str | None, web_url: str | None) -> list[CheckResul
     return checks
 
 
+def run_keycloak_checks(keycloak_url: str | None) -> list[CheckResult]:
+    if not keycloak_url:
+        return []
+    keycloak_ok, keycloak_detail = _fetch_keycloak_discovery(keycloak_url)
+    return [CheckResult("live.keycloak_axis_discovery", keycloak_ok, keycloak_detail)]
+
+
 def _print_results(results: list[CheckResult], *, json_output: bool) -> None:
     if json_output:
         print(
@@ -737,10 +953,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--api-url", help="Optional running Axis API base URL.")
     parser.add_argument("--web-url", help="Optional running governance console base URL.")
+    parser.add_argument("--keycloak-url", help="Optional running Keycloak base URL.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args(argv)
 
     results = run_static_checks(args.repo_root)
+    results.extend(run_keycloak_checks(args.keycloak_url))
     results.extend(run_live_checks(args.api_url, args.web_url))
     _print_results(results, json_output=args.json)
     return 0 if all(result.ok for result in results) else 1

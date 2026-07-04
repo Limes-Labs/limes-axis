@@ -14,6 +14,7 @@ import {
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
 import { axisFetchJson } from "@/lib/axis-api";
+import { buildOidcAuthorizeUrl } from "@/lib/oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import type {
@@ -99,10 +100,12 @@ function identitySessionTone(identitySession: IdentitySessionReadModel | null): 
 
 function NotificationPanel({
   center,
+  identitySession,
   onAcknowledged,
   session,
 }: {
   center: ManufacturingNotificationCenter | null;
+  identitySession: IdentitySessionReadModel | null;
   onAcknowledged: () => void;
   session: ReturnType<typeof useOidcConsoleSession>["session"];
 }) {
@@ -125,14 +128,22 @@ function NotificationPanel({
 
   const items = center.notifications.slice(0, 5);
   const canAcknowledge = Boolean(
-    session?.actorId && session.scopes.includes("notifications:acknowledge"),
+    identitySession?.authenticated
+      && identitySession.actor_id
+      && identitySession.tenant_id
+      && identitySession.scopes.includes("notifications:acknowledge"),
   );
-  const sessionRequiredLabel = session
+  const sessionRequiredLabel = identitySession?.authenticated
     ? "Your OIDC session needs notifications:acknowledge."
-    : "Connect an OIDC session to acknowledge notifications.";
+    : "Sign in with SSO to acknowledge notifications.";
 
   async function acknowledgeNotification(item: ManufacturingPlatformNotification) {
-    if (!session?.actorId || !canAcknowledge || item.read_state === "acknowledged") {
+    if (
+      !identitySession?.actor_id
+      || !identitySession.tenant_id
+      || !canAcknowledge
+      || item.read_state === "acknowledged"
+    ) {
       return;
     }
 
@@ -145,9 +156,9 @@ function NotificationPanel({
           method: "POST",
           session,
           body: {
-            tenant_id: session.tenantId,
-            actor_id: session.actorId,
-            actor_scopes: session.scopes,
+            tenant_id: identitySession.tenant_id,
+            actor_id: identitySession.actor_id,
+            actor_scopes: identitySession.scopes,
             state: "acknowledged",
             reason: "Acknowledged from the Axis console notification center.",
           },
@@ -265,17 +276,33 @@ function HelpPanel() {
   );
 }
 
-function AccountPanel() {
+function currentReturnPath(): string {
+  if (typeof window === "undefined") {
+    return "/";
+  }
+
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+function AccountPanel({
+  identitySession,
+  identitySessionUnavailable,
+}: {
+  identitySession: IdentitySessionReadModel | null;
+  identitySessionUnavailable: boolean;
+}) {
   const { session, saveAccessToken, clearSession } = useOidcConsoleSession();
   const { apiBaseUrl, apiStatus } = useConsole();
-  const { data: identitySession, isUnavailable: identitySessionUnavailable } =
-    useAxisQuery<IdentitySessionReadModel>("/identity/session");
   const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [developerBridgeOpen, setDeveloperBridgeOpen] = useState(false);
   const verifiedCookieSession =
     identitySession?.authenticated && identitySession.mode === "secure_oidc_cookie";
+  const authenticatedSession = identitySession?.authenticated || Boolean(session);
   const visibleScopes =
     identitySession?.scopes.length ? identitySession.scopes : session?.scopes ?? [];
+  const authorizeUrl = buildOidcAuthorizeUrl(apiBaseUrl, currentReturnPath());
+  const onboardingUrl = `${apiBaseUrl}/identity/oidc/onboarding`;
 
   function connectSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -418,9 +445,35 @@ function AccountPanel() {
           )}
         </>
       ) : (
+        <div className="account-auth-actions">
+          <a className="command-button account-command" href={authorizeUrl}>
+            <ShieldCheck size={16} />
+            Sign in with SSO
+          </a>
+          <a
+            className="command-button account-command account-command-secondary"
+            href={onboardingUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <CircleHelp size={16} />
+            Open SSO setup
+          </a>
+          <button
+            className="command-button account-command account-command-secondary"
+            onClick={() => setDeveloperBridgeOpen((value) => !value)}
+            type="button"
+          >
+            <KeyRound size={16} />
+            Connect bearer token
+          </button>
+        </div>
+      )}
+
+      {!authenticatedSession && developerBridgeOpen ? (
         <form className="account-token-form" onSubmit={connectSession}>
           <label>
-            OIDC bearer token
+            Developer bearer bridge
             <input
               aria-invalid={Boolean(error)}
               onChange={(event) => {
@@ -439,10 +492,10 @@ function AccountPanel() {
           ) : null}
           <button className="command-button account-command" type="submit">
             <KeyRound size={16} />
-            Connect session
+            Attach bearer bridge
           </button>
         </form>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -460,6 +513,8 @@ export function ConsoleTopbar({
   const { data: notificationCenter } =
     useAxisQuery<ManufacturingNotificationCenter>("/demo/manufacturing/notifications");
   const { session } = useOidcConsoleSession();
+  const { data: identitySession, isUnavailable: identitySessionUnavailable } =
+    useAxisQuery<IdentitySessionReadModel>("/identity/session");
 
   const notificationCount = useMemo(() => {
     if (!notificationCenter) {
@@ -575,17 +630,23 @@ export function ConsoleTopbar({
           title="Open operator account"
           onClick={() => setActivePanel((current) => (current === "account" ? null : "account"))}
         >
-          {operatorInitials(session?.actorId)}
+          {operatorInitials(identitySession?.actor_id ?? session?.actorId)}
         </button>
         {activePanel === "notifications" ? (
           <NotificationPanel
             center={notificationCenter}
+            identitySession={identitySession}
             onAcknowledged={triggerRefresh}
             session={session}
           />
         ) : null}
         {activePanel === "help" ? <HelpPanel /> : null}
-        {activePanel === "account" ? <AccountPanel /> : null}
+        {activePanel === "account" ? (
+          <AccountPanel
+            identitySession={identitySession}
+            identitySessionUnavailable={identitySessionUnavailable}
+          />
+        ) : null}
       </div>
       <ConsoleCommandMenu
         apiLabel={apiStatus.label}

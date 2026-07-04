@@ -2482,6 +2482,11 @@ textarea:focus-visible {
   overscroll-behavior: contain;
 }
 
+.account-auth-actions {
+  display: grid;
+  gap: 8px;
+}
+
 .account-token-form {
   display: grid;
   gap: 9px;
@@ -2514,6 +2519,11 @@ textarea:focus-visible {
   min-width: 0;
   min-height: 36px;
   box-shadow: none;
+}
+
+.account-command-secondary {
+  background: rgb(220 226 234 / 3%);
+  color: var(--mist);
 }
 
 .settings-kpi-grid {
@@ -2763,6 +2773,27 @@ textarea:focus-visible {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.operations-artifact-sso-callout {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgb(62 107 255 / 28%);
+  border-radius: 7px;
+  background: rgb(62 107 255 / 7%);
+  padding: 10px;
+}
+
+.operations-artifact-sso-callout > svg {
+  color: var(--signal-blue);
+}
+
+.operations-artifact-sso-callout .command-button {
+  min-height: 34px;
+  box-shadow: none;
+  white-space: nowrap;
 }
 
 .artifact-action-button {
@@ -3482,6 +3513,15 @@ textarea:focus-visible {
 
   .model-flow-arrow {
     display: none;
+  }
+
+  .operations-artifact-sso-callout {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .operations-artifact-sso-callout .command-button {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 

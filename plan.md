@@ -289,6 +289,8 @@ Foundation acceptance is tracked in
 - [x] Bind Operations artifact mutation endpoints to OIDC actors/scopes when
   authenticated, rejecting actor or tenant impersonation before permission
   evaluation.
+- [x] Add a guided local Keycloak/browser SSO setup so design partners can run
+  Operations artifact walkthroughs without manual bearer-token handling.
 - [x] Add an API-backed Settings/Readiness console for identity, deployment,
   support diagnostics and runtime dependency posture, without browser-local
   fallback settings records.
@@ -505,8 +507,9 @@ browser: `POST /demo/manufacturing/operations/daily-brief`,
 The console derives `requested_by`, `actor_scopes` and `tenant_id` only from the
 API-validated identity session, blocks submission when required scopes are
 missing and refreshes the persisted operations snapshot after success. The
-next open demo-hardening step is a guided local Keycloak/browser SSO setup so
-design partners can run the mutation walkthrough without pasting bearer
+guided local Keycloak/browser SSO setup now imports a local-only Keycloak
+realm, provides an API SSO profile and exposes a console **Sign in with SSO**
+path so design partners can run the mutation walkthrough without pasting bearer
 tokens.
 `GET /demo/manufacturing/notifications` derives topbar platform notifications
 from the same persisted operations snapshot, including operation-domain

@@ -18,6 +18,20 @@ type JwtClaims = {
   exp?: unknown;
 };
 
+export function normalizeOidcReturnTo(value: string | null | undefined): string {
+  const candidate = value?.trim();
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) {
+    return "/";
+  }
+  return candidate;
+}
+
+export function buildOidcAuthorizeUrl(apiBaseUrl: string, returnTo: string | null | undefined): string {
+  const authorizeUrl = new URL("/identity/oidc/authorize", apiBaseUrl.endsWith("/") ? apiBaseUrl : `${apiBaseUrl}/`);
+  authorizeUrl.searchParams.set("return_to", normalizeOidcReturnTo(returnTo));
+  return authorizeUrl.toString();
+}
+
 function decodeBase64Url(value: string): string {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");

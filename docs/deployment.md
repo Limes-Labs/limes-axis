@@ -859,6 +859,12 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 - `AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS`
 - `AXIS_OIDC_SESSION_COOKIE_SECURE=true`
 
+The Docker Compose demo imports `infra/docker/keycloak/axis-realm.json` for a
+local Keycloak walkthrough. That realm, its `axis-operator` user, the
+`axis-demo` password and the `axis-local-dev-secret` client secret are
+local-only demo credentials. They must not be reused as production IdP
+configuration, Helm values, customer credentials or enterprise SSO evidence.
+
 Keep `AXIS_OIDC_CLIENT_SECRET` and
 `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET` in `secrets.existingSecret` or an
 external secret manager. The callback does not return token material to the web
