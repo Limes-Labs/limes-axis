@@ -34,6 +34,10 @@ provider, never performs external egress and never mutates state.
   configuration, policy mutations and evaluations derive tenant, actor and
   scopes from the verified principal and reject actor or tenant impersonation
   before persistence.
+- In unauthenticated local demo mode (`AXIS_OIDC_AUTH_REQUIRED` disabled and no
+  bearer token attached), tenant and actor scopes are self-asserted in the
+  request body, matching the existing demo route convention. The policy routes
+  are only truly OIDC-bound when authentication is present or required.
 
 ## Policy Model
 
@@ -70,6 +74,10 @@ with `idempotent_replay=true` and HTTP 200, while reusing the key with a
 different payload returns a `POLICY_VIOLATION` conflict. Superseded revisions
 stay readable in the policy detail response but are never evaluated.
 
+A partial unique index on `(tenant_id, policy_id)` where `status = 'active'`
+enforces the single-active-revision invariant at the database level, and the
+evaluator breaks residual ties deterministically by highest revision number.
+
 ## Evaluation and Precedence
 
 Evaluation loads the active revisions for the tenant and scope, matches each
@@ -90,12 +98,14 @@ gates applied beyond the winning one.
 
 ## Enforcement Model
 
-Action run creation consults the policy engine for the `action_execution`
-scope before persisting a new run:
+The `action_execution` scope is enforced at three lifecycle points. Every
+denial appends a `platform.policy.enforcement.denied` audit event with the
+full decision payload and an `enforcement_point` marker, and returns a
+`POLICY_VIOLATION` error.
 
-- `deny` → the run is rejected with a `POLICY_VIOLATION` error, no action run
-  row is written and a `platform.policy.enforcement.denied` audit event is
-  appended with the full decision payload.
+Action run creation (`enforcement_point=action_run_creation`):
+
+- `deny` → the run is rejected and no action run row is written.
 - `require_approval` → the run is forced into the existing approval-gated
   path: it persists with `approval_required` status and reuses the existing
   approval mechanics, including the outcome-recording block until approval.
@@ -104,15 +114,41 @@ scope before persisting a new run:
 - No matching policy → existing behavior is unchanged (default allow); the
   audit payload records no policy decision.
 
-Idempotent action-run replays return the previously persisted record without
-re-evaluating policy, so replays never mutate state under a newer policy.
+Approval decision transition (`enforcement_point=approval_decision_transition`),
+which can create or advance approval-gated action runs to
+`approved_for_execution`:
+
+- `deny` → an `approve` decision is rejected before any approval, workflow or
+  action-run state is written; only the denial audit evidence persists.
+  `reject` and `request_changes` decisions are not execution-advancing and stay
+  available, so reviewers can still close out denied proposals.
+- `require_approval` → satisfied by the approval being decided; the decision
+  proceeds normally and the matched policy is recorded in the
+  `approval.decision.recorded` audit payload and response.
+- `allow_with_evidence` → the decision proceeds and the matched policy is
+  recorded as evidence in the approval audit payload.
+
+Action run outcome recording (`enforcement_point=action_run_outcome`), which
+advances runs into terminal states:
+
+- `deny` policies are re-evaluated before the execution-advancing outcomes
+  `dry_run_completed` and `execution_completed`, so a policy authored after run
+  creation still blocks completion. `execution_failed` and `execution_blocked`
+  remain recordable as failure evidence.
+- `require_approval` is not re-evaluated at this point: it was satisfied at
+  creation or approval time and must not loop.
+
+Idempotent replays of already-persisted records return the stored record
+without re-evaluating policy, so replays never mutate state under a newer
+policy.
 
 ## Boundaries
 
 The engine is a foundation slice. It does not yet include:
 
 - a policy console UI;
-- enforcement points beyond action run creation;
+- enforcement points beyond action run creation, approval decision transitions
+  and action run outcome recording;
 - policy simulation over historical events for platform policies;
 - approval-workflow-gated policy enablement or rollback bundles like the
   connector promotion policy sets.
@@ -133,6 +169,13 @@ and audit boundaries.
 - Enforcement tests cover the deny, forced-approval and allow-with-evidence
   paths on action run creation, including audit evidence and the unchanged
   default behavior without policies.
+- Lifecycle enforcement tests cover deny blocking on approval decision
+  transitions (with reject decisions still available), require-approval
+  satisfaction on approval paths without looping, deny re-evaluation on
+  execution-advancing outcome recording and non-finite requested-amount
+  hardening for payloads, evaluation contexts and rule conditions.
+- A storage test proves the single-active-revision partial unique index
+  rejects a second active revision of the same policy.
 - OIDC binding tests cover actor and tenant impersonation rejection and
   read-scope enforcement for authenticated requests.
 - The OpenAPI contract is regenerated and checked; migration identifier tests
