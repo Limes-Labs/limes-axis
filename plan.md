@@ -120,6 +120,8 @@ Foundation acceptance is tracked in
   legal-hold blocking and redacted deletion evidence.
 - [x] Add persisted audit legal hold activation/release workflow that blocks
   matching retention deletion candidates.
+- [x] Bind persisted audit read/export/retention/legal-hold endpoints to
+  OIDC-derived tenant, actor and scopes when authenticated or required.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [x] Persist replay simulation outputs as governed audit artifacts.

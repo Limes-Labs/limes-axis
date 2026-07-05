@@ -47,6 +47,8 @@ from axis_api.approval_reference import (
 )
 from axis_api.audit import AuditEventCreate
 from axis_api.audit_queries import (
+    LEGAL_HOLD_REQUIRED_SCOPE,
+    RETENTION_DELETION_REQUIRED_SCOPE,
     AuditEventQuery,
     AuditExportBundle,
     AuditExportQuery,
@@ -650,6 +652,7 @@ OidcPrincipalDependency = Annotated[
 CheckpointActorScopesQuery = Query(default_factory=list)
 CheckpointCreatedAfterQuery = Query(default=None)
 CheckpointCreatedBeforeQuery = Query(default=None)
+AUDIT_READ_SCOPE = "audit:read"
 
 
 def _audit_ledger_signer_from_settings(settings: Settings) -> SelfHostedAuditLedgerSigner | None:
@@ -866,6 +869,89 @@ def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
                 "reason": exc.reason,
             },
         ) from exc
+
+
+def _bind_audit_actor(request_model, principal: OidcPrincipal | None):
+    if principal is None:
+        return request_model
+
+    request_tenant = getattr(request_model, "tenant_id", None)
+    if request_tenant != principal.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    request_actor = getattr(request_model, "actor_id", None)
+    if request_actor and request_actor != principal.actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The request actor does not match the authenticated OIDC actor.",
+                "reason": "actor_mismatch",
+            },
+        )
+
+    return request_model.model_copy(
+        update={
+            "actor_id": principal.actor_id,
+            "actor_scopes": principal.scopes,
+        }
+    )
+
+
+def _authorize_audit_scope(
+    *,
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+    required_scope: str,
+    message: str,
+    resource: str,
+) -> None:
+    if principal is None:
+        return
+
+    if principal.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "required_permission": required_scope,
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=principal.actor_id,
+            actor_scopes=principal.scopes,
+            required_scopes=[required_scope],
+            attributes={
+                "surface": "audit",
+                "resource": resource,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": message,
+                "required_permission": required_scope,
+                "reason": "missing_required_scope"
+                if decision.reason.startswith("missing_scope:")
+                else decision.reason,
+                "permission_reason": decision.reason,
+            },
+        )
 
 
 def _bind_demo_created_by(request_model, principal: OidcPrincipal | None):
@@ -4621,16 +4707,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/audit/events",
         response_model=ManufacturingAuditExplorer,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Audit read permission denied"},
+        },
         tags=["demo"],
     )
     def manufacturing_persisted_audit_events(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         event_type: str | None = Query(default=None, min_length=1),
         actor_id: str | None = Query(default=None, min_length=1),
         scope: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingAuditExplorer:
+        _authorize_audit_scope(
+            tenant_id=tenant_id,
+            principal=principal,
+            required_scope=AUDIT_READ_SCOPE,
+            message="The actor cannot read persisted audit events.",
+            resource="audit_events",
+        )
         return query_persisted_audit_events(
             repository,
             AuditEventQuery(
@@ -4645,10 +4743,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/audit/export",
         response_model=AuditExportBundle,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Audit export permission denied"},
+        },
         tags=["demo"],
     )
     def manufacturing_persisted_audit_export(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         event_type: str | None = Query(default=None, min_length=1),
         actor_id: str | None = Query(default=None, min_length=1),
@@ -4659,6 +4762,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         legal_hold: bool = Query(default=False),
         format: str = Query(default="json", pattern="^json$"),
     ) -> AuditExportBundle:
+        _authorize_audit_scope(
+            tenant_id=tenant_id,
+            principal=principal,
+            required_scope=AUDIT_READ_SCOPE,
+            message="The actor cannot export persisted audit events.",
+            resource="audit_export",
+        )
         return export_persisted_audit_events(
             repository,
             AuditExportQuery(
@@ -4678,22 +4788,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/demo/manufacturing/audit/retention/delete",
         response_model=AuditRetentionDeletionResult,
-        responses={403: {"description": "Audit retention deletion permission denied"}},
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Audit retention deletion permission denied"},
+        },
         tags=["demo"],
     )
     def manufacturing_audit_retention_delete(
         deletion_request: AuditRetentionDeletionRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> AuditRetentionDeletionResult:
         try:
-            return execute_audit_retention_deletion(repository, deletion_request)
+            return execute_audit_retention_deletion(
+                repository,
+                _bind_audit_actor(deletion_request, principal),
+            )
         except AuditRetentionDeletionPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
                 detail={
                     "code": AxisErrorCode.PERMISSION_DENIED.value,
                     "message": "The actor cannot execute audit retention deletion.",
-                    "required_permissions": ["audit:retention:delete"],
+                    "required_permissions": [RETENTION_DELETION_REQUIRED_SCOPE],
                     "reason": exc.decision.reason,
                 },
             ) from exc
@@ -4701,18 +4818,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/demo/manufacturing/audit/legal-holds",
         response_model=list[AuditLegalHoldRecord],
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Audit legal hold permission denied"},
+        },
         tags=["demo"],
     )
     def manufacturing_audit_legal_holds(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> list[AuditLegalHoldRecord]:
+        _authorize_audit_scope(
+            tenant_id=tenant_id,
+            principal=principal,
+            required_scope=LEGAL_HOLD_REQUIRED_SCOPE,
+            message="The actor cannot read audit legal holds.",
+            resource="audit_legal_holds",
+        )
         return list_audit_legal_holds(repository, tenant_id)
 
     @app.post(
         "/demo/manufacturing/audit/legal-holds",
         response_model=AuditLegalHoldRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Audit legal hold permission denied"},
             409: {"description": "Audit legal hold already active"},
         },
@@ -4722,16 +4852,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def manufacturing_audit_legal_hold_create(
         legal_hold_request: AuditLegalHoldCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> AuditLegalHoldRecord:
         try:
-            return create_audit_legal_hold(repository, legal_hold_request)
+            return create_audit_legal_hold(
+                repository,
+                _bind_audit_actor(legal_hold_request, principal),
+            )
         except AuditLegalHoldPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
                 detail={
                     "code": AxisErrorCode.PERMISSION_DENIED.value,
                     "message": "The actor cannot manage audit legal holds.",
-                    "required_permissions": ["audit:legal_hold:write"],
+                    "required_permissions": [LEGAL_HOLD_REQUIRED_SCOPE],
                     "reason": exc.decision.reason,
                 },
             ) from exc
@@ -4750,6 +4884,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/audit/legal-holds/{hold_id}/release",
         response_model=AuditLegalHoldRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Audit legal hold permission denied"},
             404: {"description": "Audit legal hold not found"},
             409: {"description": "Audit legal hold is not active"},
@@ -4760,6 +4895,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         hold_id: str,
         release_request: AuditLegalHoldReleaseRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> AuditLegalHoldRecord:
         if release_request.hold_id != hold_id:
             raise HTTPException(
@@ -4770,14 +4906,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
         try:
-            return release_audit_legal_hold(repository, release_request)
+            return release_audit_legal_hold(
+                repository,
+                _bind_audit_actor(release_request, principal),
+            )
         except AuditLegalHoldPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
                 detail={
                     "code": AxisErrorCode.PERMISSION_DENIED.value,
                     "message": "The actor cannot manage audit legal holds.",
-                    "required_permissions": ["audit:legal_hold:write"],
+                    "required_permissions": [LEGAL_HOLD_REQUIRED_SCOPE],
                     "reason": exc.decision.reason,
                 },
             ) from exc

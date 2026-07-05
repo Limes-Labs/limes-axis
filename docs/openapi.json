@@ -15704,6 +15704,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -15716,6 +15732,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Audit read permission denied"
           },
           "422": {
             "content": {
@@ -15856,6 +15878,22 @@
               "title": "Format",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -15868,6 +15906,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Audit export permission denied"
           },
           "422": {
             "content": {
@@ -15900,6 +15944,22 @@
               "title": "Tenant Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -15916,6 +15976,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Audit legal hold permission denied"
           },
           "422": {
             "content": {
@@ -15935,6 +16001,24 @@
       },
       "post": {
         "operationId": "manufacturing_audit_legal_hold_create_demo_manufacturing_audit_legal_holds_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15955,6 +16039,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Audit legal hold permission denied"
@@ -15991,6 +16078,22 @@
               "title": "Hold Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -16013,6 +16116,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Audit legal hold permission denied"
@@ -16043,6 +16149,24 @@
     "/demo/manufacturing/audit/retention/delete": {
       "post": {
         "operationId": "manufacturing_audit_retention_delete_demo_manufacturing_audit_retention_delete_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -16063,6 +16187,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Audit retention deletion permission denied"
