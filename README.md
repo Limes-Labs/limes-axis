@@ -88,16 +88,20 @@ The API also exposes a public-safe OIDC readiness report at
 `/identity/oidc/readiness`, and `/ready` includes a short identity summary, so
 demo and enterprise evaluation sessions can distinguish local OIDC demos from a
 profile configured for enterprise SSO without exposing tokens, passwords or raw
-JWKS material. `/deployment/readiness` adds a wider public-safe deployment
-posture report for identity, external model egress, live connector execution,
-audit signing and object-store readiness. It is a gate for evaluation and
-hardening work, not a production certification. `/support/diagnostics` provides
-a public-safe support bundle for design-partner triage and demo operations,
-including support blockers and links to the relevant runbooks without exposing
-sensitive runtime material. The `/settings` console reads those readiness,
-identity, deployment and support contracts directly from the API and shows an
-API-required state instead of browser-local settings fallback records when they
-are unavailable.
+JWKS material. The browser SSO callback requires an OIDC `openid` authorization
+scope, validates the provider `id_token` signature, issuer, expiry, client
+audience, authorized party when present, login nonce and cross-token subject
+binding before creating the Axis HTTP-only session cookie, while still avoiding
+provider token persistence. `/deployment/readiness` adds a wider public-safe
+deployment posture report for
+identity, external model egress, live connector execution, audit signing and
+object-store readiness. It is a gate for evaluation and hardening work, not a
+production certification. `/support/diagnostics` provides a public-safe support
+bundle for design-partner triage and demo operations, including support
+blockers and links to the relevant runbooks without exposing sensitive runtime
+material. The `/settings` console reads those readiness, identity, deployment
+and support contracts directly from the API and shows an API-required state
+instead of browser-local settings fallback records when they are unavailable.
 The audit query slice reads persisted `audit_events` through a tenant-scoped API
 endpoint and the web console now requires API-backed audit/export records
 instead of constructing browser-local bundles. The audit retention/export slice adds a demo

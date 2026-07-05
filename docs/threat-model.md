@@ -131,9 +131,12 @@ flowchart LR
 - API to identity provider: `/identity/oidc/readiness`,
   `/identity/oidc/onboarding`, `/identity/oidc/authorize`,
   `/identity/oidc/callback` and the verifier boundary use OIDC issuer,
-  audience, algorithms, JWKS and authorization-code settings. The readiness and
-  IdP onboarding reports are public-safe and do not return tokens, passwords or
-  raw JWKS.
+  audience, algorithms, JWKS and authorization-code settings. Browser SSO also
+  requires `openid` scope and validates the signed provider `id_token`, expiry,
+  client audience, authorized party when present, login nonce and cross-token
+  subject binding before minting the Axis session cookie. The readiness and IdP
+  onboarding reports are public-safe and do not return tokens, passwords or raw
+  JWKS.
 - API to Postgres: repository writes persist approvals, action runs, audit
   events, connector records and manufacturing operation records. Idempotency and
   schema validation protect many write paths.
@@ -158,7 +161,7 @@ flowchart LR
 | `/health`, `/ready` | HTTP GET | unauthenticated system status | `/ready` includes OIDC readiness summary | `services/api/src/axis_api/main.py` |
 | `/identity/oidc/readiness` | HTTP GET | public-safe identity posture | No token/JWKS secret disclosure | `services/api/tests/test_health.py` |
 | `/identity/oidc/onboarding` | HTTP GET | public-safe IdP onboarding metadata | Exact redirect URIs and claim mappings without token material | `services/api/tests/test_health.py` |
-| `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
+| `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie, ID-token expiry/audience/nonce/subject binding and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session, network egress and DR procedure posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
@@ -225,7 +228,8 @@ flowchart LR
 ## Existing Controls
 
 - Identity: OIDC/JWKS verifier, actor/tenant binding, authorization-code PKCE
-  callback, HTTP-only session cookie validation, persisted
+  callback, ID-token issuer/audience/authorized-party/expiry/nonce validation,
+  cross-token subject binding, HTTP-only session cookie validation, persisted
   `oidc_browser_sessions` revocation state, `POST /identity/session/logout`
   audit evidence, public-safe `/identity/oidc/readiness` posture reporting and
   deployment readiness gating for Secure cookies, signing secret presence,
@@ -279,9 +283,9 @@ flowchart LR
 - S3-compatible retention adapter readiness and a bounded object-store recovery
   rehearsal exist, but provider KMS signing, customer bucket-policy review and
   full-bucket restore drills are not production complete.
-- Enterprise SSO has an explicit secure browser-session readiness gate, but
-  still needs refresh-token rotation and customer-specific production
-  operations runbooks.
+- Enterprise SSO has an explicit secure browser-session readiness gate,
+  `openid` scope gating and ID-token nonce/subject binding, but still needs
+  refresh-token rotation and customer-specific production operations runbooks.
 - Live connector execution against customer systems remains future guarded work.
 - In-process API rate limiting exists for public and sensitive routes, but
   global abuse throttling, production telemetry alerting and incident response

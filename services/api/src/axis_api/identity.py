@@ -25,6 +25,7 @@ class OidcPrincipal(BaseModel):
     tenant_id: str = Field(min_length=1)
     scopes: list[str] = Field(default_factory=list)
     expires_at: int | None = Field(default=None, ge=0)
+    subject_id: str | None = Field(default=None, min_length=1)
     session_source: str = Field(default="bearer_token", min_length=1)
 
 
@@ -111,7 +112,49 @@ class StaticJwksOidcVerifier:
             tenant_id=tenant_id,
             scopes=_claim_scopes(claims, self.audience),
             expires_at=claims.get("exp") if isinstance(claims.get("exp"), int) else None,
+            subject_id=claims.get("sub") if isinstance(claims.get("sub"), str) else None,
         )
+
+    def verify_id_token(
+        self,
+        token: str,
+        *,
+        client_id: str,
+        nonce: str,
+    ) -> dict:
+        try:
+            claims = jwt.decode(
+                token,
+                self._key_for_token(token),
+                algorithms=self.algorithms,
+                audience=client_id,
+                issuer=self.issuer,
+            )
+        except JWTError as exc:
+            raise OidcAuthenticationError("invalid_id_token") from exc
+
+        subject = claims.get("sub")
+        if not isinstance(subject, str) or not subject:
+            raise OidcAuthenticationError("missing_id_token_subject")
+
+        if claims.get("nonce") != nonce:
+            raise OidcAuthenticationError("id_token_nonce_mismatch")
+
+        expires_at = claims.get("exp")
+        if not isinstance(expires_at, int):
+            raise OidcAuthenticationError("missing_id_token_expiry")
+
+        authorized_party = claims.get("azp")
+        if authorized_party is not None and authorized_party != client_id:
+            raise OidcAuthenticationError("invalid_id_token_authorized_party")
+
+        audiences = claims.get("aud")
+        if isinstance(audiences, list) and len(audiences) > 1:
+            authorized_party = claims.get("azp")
+            if authorized_party != client_id:
+                raise OidcAuthenticationError("invalid_id_token_authorized_party")
+
+        return claims
 
     def _key_for_token(self, token: str) -> dict:
         keys = self.jwks.get("keys", [])
