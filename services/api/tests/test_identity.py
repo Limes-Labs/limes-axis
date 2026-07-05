@@ -53,6 +53,7 @@ def test_static_jwks_oidc_verifier_validates_token_and_extracts_actor_context() 
     principal = verifier.verify_authorization_header(f"Bearer {token}")
 
     assert principal.actor_id == "plant-operations-owner-role"
+    assert principal.subject_id == "plant-operations-owner-role"
     assert principal.tenant_id == "tenant_demo_manufacturing"
     assert principal.expires_at == 4102444800
     assert principal.scopes == [
@@ -91,6 +92,135 @@ def test_static_jwks_oidc_verifier_rejects_wrong_audience() -> None:
         assert exc.reason == "invalid_token"
     else:
         raise AssertionError("expected wrong audience to be rejected")
+
+
+def test_static_jwks_oidc_verifier_validates_id_token_nonce_and_client_audience() -> None:
+    secret = "axis-test-secret"
+    verifier = StaticJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks=_oct_jwks(secret),
+        tenant_claim="axis_tenant",
+    )
+    id_token = _token(
+        secret,
+        {
+            "iss": "https://issuer.example/realms/axis",
+            "aud": "axis-console",
+            "azp": "axis-console",
+            "sub": "plant-operations-owner-role",
+            "nonce": "login-nonce",
+            "exp": 4102444800,
+        },
+    )
+
+    claims = verifier.verify_id_token(
+        id_token,
+        client_id="axis-console",
+        nonce="login-nonce",
+    )
+
+    assert claims["sub"] == "plant-operations-owner-role"
+    assert claims["nonce"] == "login-nonce"
+
+
+def test_static_jwks_oidc_verifier_rejects_id_token_authorized_party_mismatch() -> None:
+    secret = "axis-test-secret"
+    verifier = StaticJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks=_oct_jwks(secret),
+        tenant_claim="axis_tenant",
+    )
+    id_token = _token(
+        secret,
+        {
+            "iss": "https://issuer.example/realms/axis",
+            "aud": ["axis-console", "unexpected-client"],
+            "azp": "unexpected-client",
+            "sub": "plant-operations-owner-role",
+            "nonce": "login-nonce",
+            "exp": 4102444800,
+        },
+    )
+
+    try:
+        verifier.verify_id_token(
+            id_token,
+            client_id="axis-console",
+            nonce="login-nonce",
+        )
+    except OidcAuthenticationError as exc:
+        assert exc.reason == "invalid_id_token_authorized_party"
+    else:
+        raise AssertionError("expected wrong authorized party to be rejected")
+
+
+def test_static_jwks_oidc_verifier_rejects_single_audience_id_token_with_wrong_azp() -> None:
+    secret = "axis-test-secret"
+    verifier = StaticJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks=_oct_jwks(secret),
+        tenant_claim="axis_tenant",
+    )
+    id_token = _token(
+        secret,
+        {
+            "iss": "https://issuer.example/realms/axis",
+            "aud": "axis-console",
+            "azp": "unexpected-client",
+            "sub": "plant-operations-owner-role",
+            "nonce": "login-nonce",
+            "exp": 4102444800,
+        },
+    )
+
+    try:
+        verifier.verify_id_token(
+            id_token,
+            client_id="axis-console",
+            nonce="login-nonce",
+        )
+    except OidcAuthenticationError as exc:
+        assert exc.reason == "invalid_id_token_authorized_party"
+    else:
+        raise AssertionError("expected wrong authorized party to be rejected")
+
+
+def test_static_jwks_oidc_verifier_rejects_id_token_without_expiry() -> None:
+    secret = "axis-test-secret"
+    verifier = StaticJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks=_oct_jwks(secret),
+        tenant_claim="axis_tenant",
+    )
+    id_token = _token(
+        secret,
+        {
+            "iss": "https://issuer.example/realms/axis",
+            "aud": "axis-console",
+            "azp": "axis-console",
+            "sub": "plant-operations-owner-role",
+            "nonce": "login-nonce",
+        },
+    )
+
+    try:
+        verifier.verify_id_token(
+            id_token,
+            client_id="axis-console",
+            nonce="login-nonce",
+        )
+    except OidcAuthenticationError as exc:
+        assert exc.reason == "missing_id_token_expiry"
+    else:
+        raise AssertionError("expected missing expiry to be rejected")
 
 
 def test_remote_jwks_oidc_verifier_fetches_and_caches_jwks(monkeypatch) -> None:

@@ -854,7 +854,9 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
 - `GET /identity/oidc/authorize` creates a PKCE authorization request and
   redirects to the configured provider.
 - `GET /identity/oidc/callback` verifies the state cookie, exchanges the code
-  at the token endpoint and sets an HTTP-only Axis session cookie.
+  at the token endpoint, validates the provider `id_token` signature, issuer,
+  Axis client audience and login nonce, then sets an HTTP-only Axis session
+  cookie.
 - `GET /identity/oidc/logout` revokes the local Axis browser session, clears
   the Axis cookie and redirects the browser to the configured OIDC end-session
   endpoint.
@@ -876,7 +878,8 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 - `AXIS_OIDC_REDIRECT_URI`
 - `AXIS_OIDC_END_SESSION_URL`
 - `AXIS_OIDC_POST_LOGOUT_REDIRECT_URI`
-- `AXIS_OIDC_SCOPES`
+- `AXIS_OIDC_SCOPES`, which must include `openid` so compliant providers
+  issue an ID token for browser SSO.
 - `AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS`
 - `AXIS_OIDC_SESSION_COOKIE_SECURE=true`
 
@@ -889,16 +892,21 @@ configuration, Helm values, customer credentials or enterprise SSO evidence.
 Keep `AXIS_OIDC_CLIENT_SECRET` and
 `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET` in `secrets.existingSecret` or an
 external secret manager. The callback does not return token material to the web
-console. The Axis session cookie stores only API-owned actor, tenant, scope,
-expiry and session-id claims; the `oidc_browser_sessions` table stores only a
-keyed session-id hash plus actor, tenant, scopes, expiry and revocation
-metadata, providing server-side session revocation without storing provider
-tokens. The federated logout redirect uses `client_id` and
-`post_logout_redirect_uri`; Axis does not persist or forward `id_token_hint`,
-access tokens or refresh tokens. The IdP onboarding report never returns
-confidential client material, cookie-signing material, provider tokens or raw
-JWKS material. Refresh-token rotation and production SSO operations runbooks
-remain Enterprise hardening work.
+console. The callback requires the token response to include a signed
+`id_token`; Axis validates it through the configured JWKS, checks the issuer,
+requires an expiry, checks the Axis client audience and authorized party when
+present, compares the ID-token nonce to the signed login-state cookie nonce and
+requires the access-token subject to match the ID-token subject. The Axis
+session cookie stores only API-owned actor, tenant, scope, expiry and
+session-id claims; the `oidc_browser_sessions` table stores only a keyed
+session-id hash plus actor, tenant, scopes, expiry and revocation metadata,
+providing server-side session revocation without storing provider tokens. The
+federated logout redirect uses `client_id` and `post_logout_redirect_uri`;
+Axis does not persist or forward `id_token_hint`, access tokens or refresh
+tokens. The IdP onboarding report never returns confidential client material,
+cookie-signing material, provider tokens or raw JWKS material. Refresh-token
+rotation and production SSO operations runbooks remain Enterprise hardening
+work.
 
 `GET /deployment/readiness` reports `oidc_secure_cookie_session` as a
 production blocker unless browser sessions use the Secure cookie flag, an

@@ -221,6 +221,7 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
         "https_issuer": "ready",
         "explicit_jwks_url": "ready",
         "asymmetric_algorithms": "ready",
+        "openid_scope": "ready",
         "tenant_claim": "ready",
         "actor_claim": "ready",
         "authorization_code_client": "ready",
@@ -340,6 +341,43 @@ def test_oidc_onboarding_report_lists_action_items_for_local_profile() -> None:
     assert "client_secret" not in rendered
     assert "refresh_token" not in rendered
     assert "id_token" not in rendered
+
+
+def test_oidc_readiness_requires_openid_scope_for_id_token_issuance() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                postgres_dsn="sqlite+pysqlite://",
+                oidc_auth_required=True,
+                oidc_issuer="https://idp.example/realms/axis",
+                oidc_audience="limes-axis-api",
+                oidc_jwks_url="https://idp.example/realms/axis/protocol/openid-connect/certs",
+                oidc_algorithms=["RS256"],
+                oidc_client_id="axis-console",
+                oidc_authorization_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/auth"
+                ),
+                oidc_token_url="https://idp.example/realms/axis/protocol/openid-connect/token",
+                oidc_end_session_url=(
+                    "https://idp.example/realms/axis/protocol/openid-connect/logout"
+                ),
+                oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
+                oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
+                oidc_session_cookie_secure=True,
+                oidc_scopes=["profile", "email"],
+            )
+        )
+    )
+
+    response = client.get("/identity/oidc/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    checks = {check["check_id"]: check for check in body["checks"]}
+    assert body["enterprise_sso_ready"] is False
+    assert body["status"] == "action_required"
+    assert checks["openid_scope"]["status"] == "action_required"
+    assert "openid" in checks["openid_scope"]["detail"]
 
 
 def test_oidc_readiness_marks_default_local_profile_as_not_enterprise_ready() -> None:

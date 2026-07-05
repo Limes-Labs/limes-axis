@@ -108,6 +108,9 @@ Foundation acceptance is tracked in
   enterprise SSO posture checks.
 - [x] Add an OIDC authorization-code PKCE callback and HTTP-only API session
   cookie boundary for browser SSO.
+- [x] Validate OIDC authorization-code callback `id_token` signatures, expiry,
+  client audience, authorized party, nonce and cross-token subject binding
+  before creating browser SSO sessions.
 - [x] Add a persistent OIDC browser-session store, logout endpoint and
   server-side session revocation audit evidence.
 - [x] Query persisted audit events from the audit explorer.
@@ -561,15 +564,18 @@ validates the attached token through the API, returns the API-owned actor,
 tenant, scopes, expiry and SSO posture for the account panel, and never returns
 bearer token material. The API also exposes `GET /identity/oidc/authorize` and
 `GET /identity/oidc/callback` for a PKCE authorization-code flow that exchanges
-the code server-side and sets an HTTP-only signed Axis session cookie. The
-cookie carries a high-entropy Axis `session_id`; the API stores only a keyed hash
-of that session id plus actor, tenant, scopes and expiry in
-`oidc_browser_sessions`, so provider token material is not persisted in the
-session store. `GET /identity/oidc/logout` clears the Axis cookie, revokes the
-persisted session, writes `identity.oidc_session.revoked` audit evidence and
-redirects the browser to the configured OIDC end-session endpoint without
-persisting or forwarding provider token material. `POST /identity/session/logout`
-performs local API session revocation without the federated provider redirect.
+the code server-side, requires `openid` scope readiness, validates the returned
+`id_token` signature, issuer, expiry, client audience, authorized party when
+present, login nonce and access-token subject binding, then sets an HTTP-only
+signed Axis session cookie. The cookie carries a high-entropy Axis
+`session_id`; the API stores only a keyed hash of that session id plus actor,
+tenant, scopes and expiry in `oidc_browser_sessions`, so provider token
+material is not persisted in the session store. `GET /identity/oidc/logout`
+clears the Axis cookie, revokes the persisted session, writes
+`identity.oidc_session.revoked` audit evidence and redirects the browser to the
+configured OIDC end-session endpoint without persisting or forwarding provider
+token material. `POST /identity/session/logout` performs local API session
+revocation without the federated provider redirect.
 `GET /identity/oidc/onboarding` returns a public-safe IdP onboarding report with
 the exact redirect URIs, post-logout redirect URIs, endpoint URLs, claim
 mappings, scopes, recommended IdP controls and open action items an identity
@@ -1012,9 +1018,9 @@ audit writes from live route decisions remain Platform work.
 - [ ] Add enterprise-grade audit export workflows beyond the current retention
   and integrity controls.
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
-  readiness/profile, IdP onboarding report, PKCE callback, secure
-  browser-session readiness gate, federated logout and server-side session
-  revocation reports.
+  readiness/profile, IdP onboarding report, PKCE callback, ID-token nonce
+  and subject binding, secure browser-session readiness gate, federated logout
+  and server-side session revocation reports.
 - [x] Add deployment readiness secure-cookie session posture gate for Secure
   cookies, signing secret presence, bounded TTL and HTTPS API/public/redirect
   URLs.

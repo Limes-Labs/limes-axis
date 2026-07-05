@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from http.cookies import SimpleCookie
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -30,16 +31,51 @@ def _oct_jwks(secret: str) -> dict:
     }
 
 
-def _token(secret: str, settings: Settings) -> str:
+def _token(
+    secret: str,
+    settings: Settings,
+    *,
+    claims: dict[str, Any] | None = None,
+) -> str:
+    payload = {
+        "iss": settings.oidc_issuer,
+        "aud": settings.oidc_audience,
+        "sub": "plant-operations-owner-role",
+        "preferred_username": "plant-operations-owner-role",
+        "axis_tenant": "tenant_demo_manufacturing",
+        "scope": "audit:read approvals:supply:decide",
+        "exp": 4102444800,
+    }
+    if claims:
+        payload.update(claims)
     return jwt.encode(
-        {
-            "iss": settings.oidc_issuer,
-            "aud": settings.oidc_audience,
-            "sub": "plant-operations-owner-role",
-            "axis_tenant": "tenant_demo_manufacturing",
-            "scope": "audit:read approvals:supply:decide",
-            "exp": 4102444800,
-        },
+        payload,
+        secret,
+        algorithm="HS256",
+        headers={"kid": "axis-test"},
+    )
+
+
+def _id_token(
+    secret: str,
+    settings: Settings,
+    *,
+    nonce: str,
+    claims: dict[str, Any] | None = None,
+) -> str:
+    payload = {
+        "iss": settings.oidc_issuer,
+        "aud": settings.oidc_client_id,
+        "azp": settings.oidc_client_id,
+        "sub": "plant-operations-owner-role",
+        "nonce": nonce,
+        "exp": 4102444800,
+        "iat": 1893456000,
+    }
+    if claims:
+        payload.update(claims)
+    return jwt.encode(
+        payload,
         secret,
         algorithm="HS256",
         headers={"kid": "axis-test"},
@@ -83,7 +119,10 @@ def _app_with_static_oidc(
     settings: Settings,
     *,
     token_secret: str,
-) -> tuple[TestClient, sessionmaker[Session], list[dict[str, str]]]:
+    include_id_token: bool = True,
+    access_token_claims: dict[str, Any] | None = None,
+    id_token_claims: dict[str, Any] | None = None,
+) -> tuple[TestClient, sessionmaker[Session], list[dict[str, str]], dict[str, str]]:
     app = create_app(settings)
     factory = _session_factory()
     app.state.session_factory = factory
@@ -95,17 +134,47 @@ def _app_with_static_oidc(
         tenant_claim=settings.oidc_tenant_claim,
     )
     token_requests: list[dict[str, str]] = []
+    id_token_context: dict[str, str] = {}
 
     def exchange_token(form: dict[str, str], _settings: Settings) -> dict[str, object]:
         token_requests.append(form)
-        return {
-            "access_token": _token(token_secret, settings),
+        response: dict[str, object] = {
+            "access_token": _token(
+                token_secret,
+                settings,
+                claims=access_token_claims,
+            ),
             "expires_in": 900,
             "token_type": "Bearer",
         }
+        if include_id_token:
+            response["id_token"] = _id_token(
+                token_secret,
+                settings,
+                nonce=id_token_context["nonce"],
+                claims=id_token_claims,
+            )
+        return response
 
     app.state.oidc_token_exchanger = exchange_token
-    return TestClient(app, follow_redirects=False), factory, token_requests
+    return (
+        TestClient(app, follow_redirects=False),
+        factory,
+        token_requests,
+        id_token_context,
+    )
+
+
+def _start_oidc_login(
+    client: TestClient,
+    id_token_context: dict[str, str],
+    *,
+    return_to: str = "/",
+) -> str:
+    authorize = client.get(f"/identity/oidc/authorize?return_to={return_to}")
+    params = parse_qs(urlparse(authorize.headers["location"]).query)
+    id_token_context["nonce"] = params["nonce"][0]
+    return params["state"][0]
 
 
 def _one_oidc_browser_session(session: Session) -> dict:
@@ -153,9 +222,11 @@ def test_oidc_authorize_redirects_with_pkce_and_http_only_login_cookie() -> None
 def test_oidc_callback_exchanges_code_and_sets_api_validated_session_cookie() -> None:
     secret = "axis-test-secret"
     settings = _settings(oidc_session_cookie_secure=False)
-    client, factory, token_requests = _app_with_static_oidc(settings, token_secret=secret)
-    authorize = client.get("/identity/oidc/authorize?return_to=/settings")
-    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    client, factory, token_requests, id_token_context = _app_with_static_oidc(
+        settings,
+        token_secret=secret,
+    )
+    state = _start_oidc_login(client, id_token_context, return_to="/settings")
 
     callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
 
@@ -214,6 +285,101 @@ def test_oidc_callback_exchanges_code_and_sets_api_validated_session_cookie() ->
     assert "axis-test-secret" not in str(body)
 
 
+def test_oidc_callback_rejects_missing_id_token_without_creating_session() -> None:
+    settings = _settings(oidc_session_cookie_secure=False)
+    client, factory, token_requests, id_token_context = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+        include_id_token=False,
+    )
+    state = _start_oidc_login(client, id_token_context)
+
+    response = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "missing_id_token"
+    assert len(token_requests) == 1
+    assert "axis_session=" not in response.headers.get("set-cookie", "")
+    with factory() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
+            == 0
+        )
+        assert list(session.scalars(select(AuditEvent))) == []
+
+
+def test_oidc_callback_rejects_id_token_nonce_mismatch_without_creating_session() -> None:
+    settings = _settings(oidc_session_cookie_secure=False)
+    client, factory, token_requests, id_token_context = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+        id_token_claims={"nonce": "attacker-controlled-nonce"},
+    )
+    state = _start_oidc_login(client, id_token_context)
+
+    response = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "id_token_nonce_mismatch"
+    assert len(token_requests) == 1
+    assert "axis_session=" not in response.headers.get("set-cookie", "")
+    with factory() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
+            == 0
+        )
+        assert list(session.scalars(select(AuditEvent))) == []
+
+
+def test_oidc_callback_rejects_id_token_audience_mismatch() -> None:
+    settings = _settings(oidc_session_cookie_secure=False)
+    client, factory, _token_requests, id_token_context = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+        id_token_claims={"aud": "another-client", "azp": "another-client"},
+    )
+    state = _start_oidc_login(client, id_token_context)
+
+    response = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "invalid_id_token"
+    with factory() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
+            == 0
+        )
+        assert list(session.scalars(select(AuditEvent))) == []
+
+
+def test_oidc_callback_rejects_cross_token_subject_mismatch_with_custom_actor_claim() -> None:
+    settings = _settings(
+        oidc_session_cookie_secure=False,
+        oidc_actor_claim="preferred_username",
+    )
+    client, factory, _token_requests, id_token_context = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+        access_token_claims={
+            "sub": "access-token-subject",
+            "preferred_username": "plant-operations-owner-role",
+        },
+        id_token_claims={"sub": "different-id-token-subject"},
+    )
+    state = _start_oidc_login(client, id_token_context)
+
+    response = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "id_token_subject_mismatch"
+    with factory() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
+            == 0
+        )
+        assert list(session.scalars(select(AuditEvent))) == []
+
+
 def test_oidc_callback_rejects_state_mismatch_without_token_exchange() -> None:
     settings = _settings(oidc_session_cookie_secure=False)
     app = create_app(settings)
@@ -242,12 +408,11 @@ def test_identity_session_rejects_tampered_session_cookie_when_auth_required() -
 
 def test_oidc_session_logout_revokes_persisted_session_and_deletes_cookie() -> None:
     settings = _settings(oidc_session_cookie_secure=False)
-    client, factory, _token_requests = _app_with_static_oidc(
+    client, factory, _token_requests, id_token_context = _app_with_static_oidc(
         settings,
         token_secret="axis-test-secret",
     )
-    authorize = client.get("/identity/oidc/authorize?return_to=/")
-    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    state = _start_oidc_login(client, id_token_context)
     callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
     assert callback.status_code == 307
 
@@ -280,12 +445,11 @@ def test_oidc_federated_logout_revokes_session_and_redirects_to_idp_without_toke
         oidc_end_session_url="https://idp.example/realms/axis/protocol/openid-connect/logout",
         oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
     )
-    client, factory, _token_requests = _app_with_static_oidc(
+    client, factory, _token_requests, id_token_context = _app_with_static_oidc(
         settings,
         token_secret="axis-test-secret",
     )
-    authorize = client.get("/identity/oidc/authorize?return_to=/")
-    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    state = _start_oidc_login(client, id_token_context)
     callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
     assert callback.status_code == 307
 
@@ -341,12 +505,11 @@ def test_oidc_federated_logout_uses_safe_local_return_when_post_logout_uri_is_no
 
 def test_revoked_oidc_session_cookie_cannot_authenticate_again() -> None:
     settings = _settings(oidc_session_cookie_secure=False)
-    client, factory, _token_requests = _app_with_static_oidc(
+    client, factory, _token_requests, id_token_context = _app_with_static_oidc(
         settings,
         token_secret="axis-test-secret",
     )
-    authorize = client.get("/identity/oidc/authorize?return_to=/")
-    state = parse_qs(urlparse(authorize.headers["location"]).query)["state"][0]
+    state = _start_oidc_login(client, id_token_context)
     callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
     cookie_value = SimpleCookie(callback.headers["set-cookie"])["axis_session"].value
     assert client.post("/identity/session/logout").status_code == 204

@@ -718,6 +718,9 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
     has_asymmetric_algorithms = bool(algorithms) and all(
         algorithm in OIDC_ASYMMETRIC_ALGORITHMS for algorithm in algorithms
     )
+    has_openid_scope = any(
+        str(scope).strip().casefold() == "openid" for scope in settings.oidc_scopes
+    )
     checks = [
         _readiness_check(
             "auth_required",
@@ -742,6 +745,12 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
             has_asymmetric_algorithms,
             "OIDC verifier accepts asymmetric signing algorithms only.",
             "OIDC verifier must use asymmetric signing algorithms for enterprise SSO.",
+        ),
+        _readiness_check(
+            "openid_scope",
+            has_openid_scope,
+            "OIDC authorization-code scope includes openid for ID-token issuance.",
+            "Configure AXIS_OIDC_SCOPES to include openid before browser SSO.",
         ),
         _readiness_check(
             "tenant_claim",
@@ -1397,9 +1406,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             access_token = token_response.get("access_token")
             if not isinstance(access_token, str) or not access_token:
                 raise OidcTokenExchangeError("missing_access_token")
+            id_token = token_response.get("id_token")
+            if not isinstance(id_token, str) or not id_token:
+                raise OidcTokenExchangeError("missing_id_token")
             principal = request.app.state.identity_verifier.verify_authorization_header(
                 f"Bearer {access_token}"
             )
+            id_token_claims = request.app.state.identity_verifier.verify_id_token(
+                id_token,
+                client_id=resolved_settings.oidc_client_id or "",
+                nonce=login_state.nonce,
+            )
+            if id_token_claims.get("sub") != principal.subject_id:
+                raise OidcAuthenticationError("id_token_subject_mismatch")
             session_cookie_value, session_max_age, session_id = session_cookie_from_principal(
                 token_response,
                 principal,
