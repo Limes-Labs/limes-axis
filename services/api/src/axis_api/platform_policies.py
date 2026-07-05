@@ -55,6 +55,19 @@ class PlatformPolicyNotFound(LookupError):
     pass
 
 
+class PlatformPolicyEnforcementDenied(ValueError):
+    def __init__(
+        self,
+        decision: "PlatformPolicyDecision",
+        audit_event_id: UUID,
+        audit_event_type: str,
+    ) -> None:
+        super().__init__("A platform policy denies this transition")
+        self.decision = decision
+        self.audit_event_id = audit_event_id
+        self.audit_event_type = audit_event_type
+
+
 REQUIRED_AUTHORING_SCOPE = "platform:policy:author"
 REQUIRED_REVISE_SCOPE = "platform:policy:revise"
 REQUIRED_READ_SCOPE = "platform:policy:read"
@@ -79,7 +92,7 @@ class PlatformPolicyRuleConditions(BaseModel):
     action_domains: list[str] = Field(default_factory=list)
     risk_levels: list[str] = Field(default_factory=list)
     autonomy_levels: list[str] = Field(default_factory=list)
-    requested_amount_at_least: float | None = Field(default=None, ge=0)
+    requested_amount_at_least: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
     @field_validator("action_domains")
     @classmethod
@@ -202,7 +215,7 @@ class PlatformPolicyEvaluationContext(BaseModel):
     action_domain: str | None = Field(default=None, min_length=1, max_length=160)
     risk_level: str | None = Field(default=None, min_length=1, max_length=40)
     autonomy_level: str | None = Field(default=None, pattern=r"^L[0-4]$")
-    requested_amount: float | None = Field(default=None, ge=0)
+    requested_amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
 class PlatformPolicyEvaluationRequest(BaseModel):
@@ -450,7 +463,13 @@ def evaluate_platform_policies(
                 )
             )
 
-    matches.sort(key=lambda match: (_EFFECT_PRECEDENCE[match.effect.value], match.policy_id))
+    matches.sort(
+        key=lambda match: (
+            _EFFECT_PRECEDENCE[match.effect.value],
+            match.policy_id,
+            -match.revision_number,
+        )
+    )
     winning = matches[0] if matches else None
     return PlatformPolicyDecision(
         tenant_id=tenant_id,
@@ -469,6 +488,46 @@ def evaluate_platform_policies(
             "default_effect": DEFAULT_ALLOW_EFFECT,
         },
     )
+
+
+def enforce_platform_policy_deny(
+    repository: AxisPersistenceRepository,
+    *,
+    tenant_id: str,
+    actor_id: str,
+    scope: PlatformPolicyScope,
+    context: PlatformPolicyEvaluationContext,
+    enforcement_point: str,
+    audit_payload: dict,
+) -> PlatformPolicyDecision:
+    decision = evaluate_platform_policies(
+        repository,
+        tenant_id=tenant_id,
+        scope=scope,
+        context=context,
+    )
+    if decision.effect != PlatformPolicyEffect.DENY.value:
+        return decision
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=tenant_id,
+            actor_id=actor_id,
+            event_type=ENFORCEMENT_DENIED_AUDIT_EVENT_TYPE,
+            payload={
+                **audit_payload,
+                "enforcement_point": enforcement_point,
+                "status": "policy_denied",
+                "policy_id": decision.matched_policy_id,
+                "policy_revision_number": decision.matched_revision_number,
+                "policy_version": decision.matched_policy_version,
+                "policy_scope": decision.scope.value,
+                "policy_effect": decision.effect,
+                "platform_policy_decision": decision.model_dump(),
+            },
+        )
+    )
+    raise PlatformPolicyEnforcementDenied(decision, audit_event.id, audit_event.event_type)
 
 
 def _conditions_match(

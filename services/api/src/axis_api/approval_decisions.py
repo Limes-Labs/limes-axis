@@ -14,6 +14,12 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     WorkflowApprovalDecisionUpdate,
 )
+from axis_api.platform_policies import (
+    PlatformPolicyDecision,
+    PlatformPolicyEvaluationContext,
+    PlatformPolicyScope,
+    enforce_platform_policy_deny,
+)
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     WorkflowSignalError,
@@ -64,6 +70,7 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     action_run_status: str | None = None
     action_run_idempotency_key: str | None = None
     action_run_idempotent_replay: bool = False
+    platform_policy_decision: PlatformPolicyDecision | None = None
 
 
 class ApprovalActionTransition(BaseModel):
@@ -220,6 +227,36 @@ def _record_approval_action_transition(
     )
 
 
+def _enforce_approval_platform_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    action_id: str,
+    request: ApprovalDecisionRequest,
+) -> PlatformPolicyDecision | None:
+    if request.decision != ApprovalDecision.APPROVE:
+        return None
+
+    return enforce_platform_policy_deny(
+        repository,
+        tenant_id=tenant_id,
+        actor_id=request.actor_id,
+        scope=PlatformPolicyScope.ACTION_EXECUTION,
+        context=PlatformPolicyEvaluationContext(
+            action_id=action_id,
+            action_domain=approval.domain,
+            risk_level=approval.risk_level,
+        ),
+        enforcement_point="approval_decision_transition",
+        audit_payload={
+            "approval_id": approval.approval_id,
+            "workflow_id": approval.workflow_id,
+            "action_id": action_id,
+            "decision": request.decision.value,
+        },
+    )
+
+
 def _find_demo_approval(
     repository: AxisPersistenceRepository,
     approval_id: str,
@@ -315,6 +352,13 @@ async def record_demo_approval_decision(
     tenant_id, approval = _find_demo_approval(repository, approval_id)
     action_id = _approval_action_id(approval.approval_id)
     permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
+    platform_policy_decision = _enforce_approval_platform_policies(
+        repository,
+        tenant_id,
+        approval,
+        action_id,
+        request,
+    )
     runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
     _ensure_approval_record(repository, tenant_id, approval)
 
@@ -378,6 +422,11 @@ async def record_demo_approval_decision(
                 },
                 "result": approval.audit_event_preview.result,
                 "decision_note_recorded": str(request.note is not None).lower(),
+                "platform_policy_decision": (
+                    platform_policy_decision.model_dump()
+                    if platform_policy_decision is not None and platform_policy_decision.matched
+                    else None
+                ),
             },
         )
     )
@@ -404,4 +453,5 @@ async def record_demo_approval_decision(
         action_run_status=action_transition.status,
         action_run_idempotency_key=action_transition.idempotency_key,
         action_run_idempotent_replay=action_transition.idempotent_replay,
+        platform_policy_decision=platform_policy_decision,
     )

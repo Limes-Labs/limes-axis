@@ -1,8 +1,13 @@
+import math
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from axis_api.action_reference import get_persisted_manufacturing_action_registry
+from axis_api.action_reference import (
+    ActionReferenceRecordInvalid,
+    ActionReferenceRecordNotFound,
+    get_persisted_manufacturing_action_registry,
+)
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry
 from axis_api.ontology_reference import get_persisted_manufacturing_ontology
@@ -15,12 +20,11 @@ from axis_api.persistence import (
     WorkflowActionRunUpdate,
 )
 from axis_api.platform_policies import (
-    ENFORCEMENT_DENIED_AUDIT_EVENT_TYPE,
     PlatformPolicyDecision,
     PlatformPolicyEffect,
     PlatformPolicyEvaluationContext,
     PlatformPolicyScope,
-    evaluate_platform_policies,
+    enforce_platform_policy_deny,
 )
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
@@ -57,19 +61,6 @@ class ActionRunIdempotencyConflict(ValueError):
     def __init__(self, action_run_id: UUID) -> None:
         super().__init__("Idempotency key already exists with a different payload")
         self.action_run_id = action_run_id
-
-
-class ActionRunPolicyDenied(ValueError):
-    def __init__(
-        self,
-        decision: PlatformPolicyDecision,
-        audit_event_id: UUID,
-        audit_event_type: str,
-    ) -> None:
-        super().__init__("A platform policy denies this action run")
-        self.decision = decision
-        self.audit_event_id = audit_event_id
-        self.audit_event_type = audit_event_type
 
 
 class ActionRunOutcomeValidationError(ValueError):
@@ -164,6 +155,10 @@ ACTION_RUN_OUTCOME_STATUSES = {
     "execution_blocked",
 }
 ACTION_RUN_TERMINAL_OUTCOME_STATUSES = ACTION_RUN_OUTCOME_STATUSES
+EXECUTION_ADVANCING_OUTCOME_STATUSES = {
+    "dry_run_completed",
+    "execution_completed",
+}
 
 
 def _find_demo_action(
@@ -301,7 +296,7 @@ def _payload_requested_amount(payload: dict) -> float | None:
     else:
         return None
 
-    if amount < 0:
+    if not math.isfinite(amount) or amount < 0:
         return None
     return amount
 
@@ -326,34 +321,66 @@ def _enforce_platform_policies(
     request: ActionRunRequest,
     idempotency_key: str,
 ) -> PlatformPolicyDecision:
-    decision = evaluate_platform_policies(
+    return enforce_platform_policy_deny(
         repository,
         tenant_id=tenant_id,
+        actor_id=request.actor_id,
         scope=PlatformPolicyScope.ACTION_EXECUTION,
         context=_platform_policy_context(action, request),
+        enforcement_point="action_run_creation",
+        audit_payload={
+            "action_id": action.definition.action_id,
+            "idempotency_key": idempotency_key,
+        },
     )
-    if decision.effect != PlatformPolicyEffect.DENY.value:
-        return decision
 
-    audit_event = repository.append_audit_event(
-        AuditEventCreate(
-            tenant_id=tenant_id,
-            actor_id=request.actor_id,
-            event_type=ENFORCEMENT_DENIED_AUDIT_EVENT_TYPE,
-            payload={
-                "action_id": action.definition.action_id,
-                "idempotency_key": idempotency_key,
-                "status": "policy_denied",
-                "policy_id": decision.matched_policy_id,
-                "policy_revision_number": decision.matched_revision_number,
-                "policy_version": decision.matched_policy_version,
-                "policy_scope": decision.scope.value,
-                "policy_effect": decision.effect,
-                "platform_policy_decision": decision.model_dump(),
-            },
-        )
+
+def _outcome_platform_policy_context(
+    repository: AxisPersistenceRepository,
+    action_run,
+) -> PlatformPolicyEvaluationContext:
+    action = None
+    try:
+        _, action, _ = _find_demo_action(repository, action_run.action_id)
+    except (DemoActionNotFound, ActionReferenceRecordInvalid, ActionReferenceRecordNotFound):
+        action = None
+
+    payload = action_run.payload if isinstance(action_run.payload, dict) else {}
+    input_payload = payload.get("input")
+    if not isinstance(input_payload, dict):
+        input_payload = {}
+    return PlatformPolicyEvaluationContext(
+        action_id=action_run.action_id,
+        action_domain=action.definition.domain if action is not None else None,
+        risk_level=action.definition.risk_level.value if action is not None else None,
+        autonomy_level=action.policy.autonomy_ceiling if action is not None else None,
+        requested_amount=_payload_requested_amount(input_payload),
     )
-    raise ActionRunPolicyDenied(decision, audit_event.id, audit_event.event_type)
+
+
+def _enforce_outcome_platform_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    action_run,
+    request: ActionRunOutcomeRequest,
+) -> None:
+    if request.status not in EXECUTION_ADVANCING_OUTCOME_STATUSES:
+        return
+
+    enforce_platform_policy_deny(
+        repository,
+        tenant_id=tenant_id,
+        actor_id=request.actor_id,
+        scope=PlatformPolicyScope.ACTION_EXECUTION,
+        context=_outcome_platform_policy_context(repository, action_run),
+        enforcement_point="action_run_outcome",
+        audit_payload={
+            "action_id": action_run.action_id,
+            "action_run_id": str(action_run.id),
+            "idempotency_key": request.idempotency_key,
+            "outcome_status": request.status,
+        },
+    )
 
 
 def _idempotency_key(
@@ -559,6 +586,7 @@ async def record_demo_action_run_outcome(
     if existing_key is not None or action_run.status in ACTION_RUN_TERMINAL_OUTCOME_STATUSES:
         raise ActionRunOutcomeConflict(action_run.id, "action_run_outcome_already_recorded")
 
+    _enforce_outcome_platform_policies(repository, tenant_id, action_run, request)
     action_run = repository.record_action_run_result(
         ActionRunResultRecord(
             tenant_id=tenant_id,

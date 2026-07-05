@@ -22,7 +22,6 @@ from axis_api.action_runs import (
     ActionRunOutcomeRequest,
     ActionRunOutcomeValidationError,
     ActionRunPersistenceResult,
-    ActionRunPolicyDenied,
     ActionRunRequest,
     DemoActionNotFound,
     DemoActionRunNotFound,
@@ -424,6 +423,7 @@ from axis_api.platform_policies import (
     PlatformPolicyCreateRequest,
     PlatformPolicyDecision,
     PlatformPolicyDetail,
+    PlatformPolicyEnforcementDenied,
     PlatformPolicyEvaluationRequest,
     PlatformPolicyNotFound,
     PlatformPolicyPermissionDenied,
@@ -1077,6 +1077,19 @@ def _bind_demo_updated_by(request_model, principal: OidcPrincipal | None):
             "actor_scopes": principal.scopes,
         }
     )
+
+
+def _platform_policy_denied_detail(exc: PlatformPolicyEnforcementDenied, message: str) -> dict:
+    return {
+        "code": AxisErrorCode.POLICY_VIOLATION.value,
+        "message": message,
+        "reason": "platform_policy_denied",
+        "policy_id": exc.decision.matched_policy_id,
+        "policy_revision_number": exc.decision.matched_revision_number,
+        "policy_version": exc.decision.matched_policy_version,
+        "audit_event_id": str(exc.audit_event_id),
+        "audit_event_type": exc.audit_event_type,
+    }
 
 
 def _bind_platform_policy_actor(request_model, principal: OidcPrincipal | None, actor_field: str):
@@ -4828,20 +4841,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.decision.reason,
                 },
             ) from exc
-        except ActionRunPolicyDenied as exc:
+        except PlatformPolicyEnforcementDenied as exc:
             repository.session.commit()
             raise HTTPException(
                 status_code=403,
-                detail={
-                    "code": AxisErrorCode.POLICY_VIOLATION.value,
-                    "message": "A platform policy denies this action run.",
-                    "reason": "platform_policy_denied",
-                    "policy_id": exc.decision.matched_policy_id,
-                    "policy_revision_number": exc.decision.matched_revision_number,
-                    "policy_version": exc.decision.matched_policy_version,
-                    "audit_event_id": str(exc.audit_event_id),
-                    "audit_event_type": exc.audit_event_type,
-                },
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies this action run.",
+                ),
             ) from exc
         except ActionRunIdempotencyConflict as exc:
             raise HTTPException(
@@ -4911,6 +4918,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "required_permission": exc.required_permission,
                     "reason": exc.decision.reason,
                 },
+            ) from exc
+        except PlatformPolicyEnforcementDenied as exc:
+            repository.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies this action run outcome.",
+                ),
             ) from exc
         except ActionRunOutcomeConflict as exc:
             raise HTTPException(
@@ -5027,6 +5043,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "required_permission": exc.required_permission,
                     "reason": exc.decision.reason,
                 },
+            ) from exc
+        except PlatformPolicyEnforcementDenied as exc:
+            repository.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies approving this action.",
+                ),
             ) from exc
 
     @app.get(

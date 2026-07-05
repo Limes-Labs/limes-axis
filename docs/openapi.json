@@ -1148,6 +1148,16 @@
             "title": "Persisted",
             "type": "boolean"
           },
+          "platform_policy_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlatformPolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "minLength": 1,
             "title": "Status",
