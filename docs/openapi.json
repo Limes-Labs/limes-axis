@@ -13903,6 +13903,11 @@
             ],
             "title": "Requested Amount"
           },
+          "requested_amount_malformed": {
+            "default": false,
+            "title": "Requested Amount Malformed",
+            "type": "boolean"
+          },
           "risk_level": {
             "anyOf": [
               {

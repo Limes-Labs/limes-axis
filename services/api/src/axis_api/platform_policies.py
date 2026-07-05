@@ -216,6 +216,7 @@ class PlatformPolicyEvaluationContext(BaseModel):
     risk_level: str | None = Field(default=None, min_length=1, max_length=40)
     autonomy_level: str | None = Field(default=None, pattern=r"^L[0-4]$")
     requested_amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    requested_amount_malformed: bool = False
 
 
 class PlatformPolicyEvaluationRequest(BaseModel):
@@ -499,6 +500,7 @@ def enforce_platform_policy_deny(
     context: PlatformPolicyEvaluationContext,
     enforcement_point: str,
     audit_payload: dict,
+    context_degraded: bool = False,
 ) -> PlatformPolicyDecision:
     decision = evaluate_platform_policies(
         repository,
@@ -506,6 +508,16 @@ def enforce_platform_policy_deny(
         scope=scope,
         context=context,
     )
+    if context_degraded and decision.effect != PlatformPolicyEffect.DENY.value:
+        fail_closed_decision = _fail_closed_deny_decision(
+            repository,
+            tenant_id=tenant_id,
+            scope=scope,
+            context=context,
+            evaluated_policy_count=decision.evaluated_policy_count,
+        )
+        if fail_closed_decision is not None:
+            decision = fail_closed_decision
     if decision.effect != PlatformPolicyEffect.DENY.value:
         return decision
 
@@ -530,6 +542,56 @@ def enforce_platform_policy_deny(
     raise PlatformPolicyEnforcementDenied(decision, audit_event.id, audit_event.event_type)
 
 
+def _fail_closed_deny_decision(
+    repository: AxisPersistenceRepository,
+    *,
+    tenant_id: str,
+    scope: PlatformPolicyScope,
+    context: PlatformPolicyEvaluationContext,
+    evaluated_policy_count: int,
+) -> PlatformPolicyDecision | None:
+    deny_policies = [
+        policy
+        for policy in repository.list_active_platform_policies_for_scope(tenant_id, scope.value)
+        if policy.effect == PlatformPolicyEffect.DENY.value
+    ]
+    if not deny_policies:
+        return None
+
+    # Fail closed: the enforcement context could not be derived, so any active
+    # deny policy blocks the transition. The lexicographically smallest
+    # policy_id wins, matching the standard precedence tie-break.
+    winning = deny_policies[0]
+    matched_constraints = {"fail_closed": True, "reason": "context_degraded"}
+    return PlatformPolicyDecision(
+        tenant_id=tenant_id,
+        scope=scope,
+        effect=PlatformPolicyEffect.DENY.value,
+        matched=True,
+        matched_policy_id=winning.policy_id,
+        matched_revision_number=winning.revision_number,
+        matched_policy_version=winning.policy_version,
+        evaluated_policy_count=evaluated_policy_count,
+        matched_policies=[
+            PlatformPolicyMatch(
+                policy_id=winning.policy_id,
+                revision_number=winning.revision_number,
+                policy_version=winning.policy_version,
+                effect=PlatformPolicyEffect.DENY,
+                matched_constraints=matched_constraints,
+            )
+        ],
+        precedence_rule=PRECEDENCE_RULE,
+        evidence={
+            "context": context.model_dump(),
+            "matched_constraints": matched_constraints,
+            "default_effect": DEFAULT_ALLOW_EFFECT,
+            "fail_closed": True,
+            "reason": "context_degraded",
+        },
+    )
+
+
 def _conditions_match(
     conditions: PlatformPolicyRuleConditions,
     context: PlatformPolicyEvaluationContext,
@@ -548,13 +610,23 @@ def _conditions_match(
             return False, {}
         matched_constraints["autonomy_level"] = context.autonomy_level
     if conditions.requested_amount_at_least is not None:
-        if (
+        if context.requested_amount_malformed:
+            # Fail closed: a malformed requested amount must not evade
+            # amount-conditioned policies, so the condition counts as matched.
+            matched_constraints["requested_amount_malformed"] = True
+            matched_constraints["requested_amount_at_least"] = (
+                conditions.requested_amount_at_least
+            )
+        elif (
             context.requested_amount is None
             or context.requested_amount < conditions.requested_amount_at_least
         ):
             return False, {}
-        matched_constraints["requested_amount"] = context.requested_amount
-        matched_constraints["requested_amount_at_least"] = conditions.requested_amount_at_least
+        else:
+            matched_constraints["requested_amount"] = context.requested_amount
+            matched_constraints["requested_amount_at_least"] = (
+                conditions.requested_amount_at_least
+            )
     return True, matched_constraints
 
 

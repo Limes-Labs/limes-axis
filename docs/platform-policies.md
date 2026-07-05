@@ -58,6 +58,11 @@ policies rather than a new DSL:
 - `autonomy_levels`: matching autonomy levels (`L0`–`L4`);
 - `requested_amount_at_least`: a numeric threshold that matches when the
   context carries a requested amount greater than or equal to the threshold.
+  Amount matching fails closed: if the request carries an amount value that is
+  malformed or non-finite (for example `nan`, `1e999` or an unparseable
+  string), amount-conditioned policies count as matched so a malformed amount
+  can never evade an amount gate. A request without any amount field keeps the
+  normal no-match semantics.
 
 Empty condition lists match any value; a rule must declare at least one
 condition. Malformed conditions — unknown fields, unsupported risk or autonomy
@@ -118,6 +123,10 @@ Approval decision transition (`enforcement_point=approval_decision_transition`),
 which can create or advance approval-gated action runs to
 `approved_for_execution`:
 
+- The evaluation context is enriched from the persisted action registry
+  (domain, risk level, autonomy ceiling) and from the linked action-run payload
+  (requested amount) when they exist, so autonomy- and amount-conditioned
+  policies block at the approval transition, not only at the outcome check.
 - `deny` → an `approve` decision is rejected before any approval, workflow or
   action-run state is written; only the denial audit evidence persists.
   `reject` and `request_changes` decisions are not execution-advancing and stay
@@ -135,6 +144,13 @@ advances runs into terminal states:
   `dry_run_completed` and `execution_completed`, so a policy authored after run
   creation still blocks completion. `execution_failed` and `execution_blocked`
   remain recordable as failure evidence.
+- Degraded context fails closed: when the enforcement context cannot be
+  derived because the action is missing from the persisted registry, any
+  active deny policy for the tenant and scope blocks the execution-advancing
+  outcome, and the denial evidence carries `context_degraded=true` with a
+  `fail_closed` decision. When no deny policies exist, the outcome proceeds
+  and the `action.run.outcome.recorded` audit payload is marked with
+  `platform_policy_context_degraded=true` for review.
 - `require_approval` is not re-evaluated at this point: it was satisfied at
   creation or approval time and must not loop.
 
@@ -174,6 +190,10 @@ and audit boundaries.
   satisfaction on approval paths without looping, deny re-evaluation on
   execution-advancing outcome recording and non-finite requested-amount
   hardening for payloads, evaluation contexts and rule conditions.
+- Fail-closed tests cover malformed-amount matching against amount-conditioned
+  deny policies (and unchanged behavior without them), degraded-context denial
+  and audit marking on outcome recording, and autonomy-conditioned denial at
+  the approval transition through registry-enriched context.
 - A storage test proves the single-active-revision partial unique index
   rejects a second active revision of the same policy.
 - OIDC binding tests cover actor and tenant impersonation rejection and

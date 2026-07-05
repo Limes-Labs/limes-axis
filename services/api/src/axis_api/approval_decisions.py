@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.action_runs import payload_requested_amount, registry_action_entry
 from axis_api.approval_reference import get_persisted_manufacturing_approval_inbox
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ApprovalDecision, ApprovalInboxItem
@@ -227,6 +228,39 @@ def _record_approval_action_transition(
     )
 
 
+def _approval_platform_policy_context(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    action_id: str,
+) -> PlatformPolicyEvaluationContext:
+    action = registry_action_entry(repository, action_id)
+    linked_runs = repository.list_action_runs_for_approval(
+        tenant_id,
+        action_id,
+        approval.approval_id,
+    )
+    requested_amount = None
+    requested_amount_malformed = False
+    if linked_runs:
+        payload = linked_runs[0].payload if isinstance(linked_runs[0].payload, dict) else {}
+        input_payload = payload.get("input")
+        if not isinstance(input_payload, dict):
+            input_payload = {}
+        requested_amount, requested_amount_malformed = payload_requested_amount(input_payload)
+
+    return PlatformPolicyEvaluationContext(
+        action_id=action_id,
+        action_domain=action.definition.domain if action is not None else approval.domain,
+        risk_level=(
+            action.definition.risk_level.value if action is not None else approval.risk_level
+        ),
+        autonomy_level=action.policy.autonomy_ceiling if action is not None else None,
+        requested_amount=requested_amount,
+        requested_amount_malformed=requested_amount_malformed,
+    )
+
+
 def _enforce_approval_platform_policies(
     repository: AxisPersistenceRepository,
     tenant_id: str,
@@ -242,11 +276,7 @@ def _enforce_approval_platform_policies(
         tenant_id=tenant_id,
         actor_id=request.actor_id,
         scope=PlatformPolicyScope.ACTION_EXECUTION,
-        context=PlatformPolicyEvaluationContext(
-            action_id=action_id,
-            action_domain=approval.domain,
-            risk_level=approval.risk_level,
-        ),
+        context=_approval_platform_policy_context(repository, tenant_id, approval, action_id),
         enforcement_point="approval_decision_transition",
         audit_payload={
             "approval_id": approval.approval_id,

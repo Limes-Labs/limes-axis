@@ -14,6 +14,7 @@ from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, Base, PlatformPolicy
 from axis_api.persistence import (
+    ActionRunCreate,
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
     PlatformPolicyCreate,
@@ -1071,7 +1072,7 @@ def test_action_run_outcome_endpoint_denied_by_newly_authored_platform_policy() 
     assert denial_event.payload["outcome_status"] == "dry_run_completed"
 
 
-def test_action_run_endpoint_ignores_non_finite_requested_amounts() -> None:
+def test_action_run_endpoint_fails_closed_on_malformed_requested_amounts() -> None:
     client, _ = build_test_client(
         seed_action_registry=True,
         action_registry=amount_action_registry_payload(),
@@ -1099,6 +1100,20 @@ def test_action_run_endpoint_ignores_non_finite_requested_amounts() -> None:
             requested_amount="1e999",
         ),
     )
+    unparseable_response = client.post(
+        "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+        json=daily_brief_run_payload(
+            idempotency_key="daily-brief-amount-unparseable",
+            requested_amount="not-a-number",
+        ),
+    )
+    below_threshold_response = client.post(
+        "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+        json=daily_brief_run_payload(
+            idempotency_key="daily-brief-amount-below",
+            requested_amount="500",
+        ),
+    )
     denied_response = client.post(
         "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
         json=daily_brief_run_payload(
@@ -1108,12 +1123,40 @@ def test_action_run_endpoint_ignores_non_finite_requested_amounts() -> None:
     )
 
     client.close()
-    assert nan_response.status_code == 201
-    assert nan_response.json()["status"] == "preview_generated"
-    assert inf_response.status_code == 201
-    assert inf_response.json()["status"] == "preview_generated"
+    for malformed_response in (nan_response, inf_response, unparseable_response):
+        assert malformed_response.status_code == 403
+        assert malformed_response.json()["detail"]["reason"] == "platform_policy_denied"
+    assert below_threshold_response.status_code == 201
+    assert below_threshold_response.json()["status"] == "preview_generated"
     assert denied_response.status_code == 403
     assert denied_response.json()["detail"]["reason"] == "platform_policy_denied"
+
+
+def test_action_run_endpoint_allows_malformed_amounts_without_amount_policies() -> None:
+    client, _ = build_test_client(
+        seed_action_registry=True,
+        action_registry=amount_action_registry_payload(),
+    )
+    client.post(
+        "/platform/policies",
+        json=policy_payload(
+            policy_id="policy_platform_supply_deny_v1",
+            effect="deny",
+            conditions={"action_domains": ["Supply"]},
+        ),
+    )
+
+    nan_response = client.post(
+        "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+        json=daily_brief_run_payload(
+            idempotency_key="daily-brief-amount-nan-no-policy",
+            requested_amount="nan",
+        ),
+    )
+
+    client.close()
+    assert nan_response.status_code == 201
+    assert nan_response.json()["status"] == "preview_generated"
 
 
 def test_platform_policy_evaluation_endpoint_rejects_non_finite_amounts() -> None:
@@ -1168,3 +1211,114 @@ def test_platform_policy_storage_rejects_second_active_revision() -> None:
         repository = AxisPersistenceRepository(session)
         repository.create_platform_policy(active_policy_record(1))
         repository.create_platform_policy(active_policy_record(2))
+
+
+def seed_unregistered_action_run(factory: sessionmaker[Session]) -> str:
+    with session_scope(factory) as session:
+        action_run = AxisPersistenceRepository(session).create_action_run(
+            ActionRunCreate(
+                tenant_id="tenant_demo_manufacturing",
+                action_id="custom_unregistered_action",
+                idempotency_key="custom-unregistered-action-run",
+                execution_mode="preview_only",
+                requested_by="agent_daily_brief",
+                payload={"input": {"scope": "daily_operations"}},
+                status="preview_generated",
+            )
+        )
+        return str(action_run.id)
+
+
+def test_action_run_outcome_endpoint_fails_closed_on_degraded_context() -> None:
+    client, factory = build_test_client(seed_action_registry=True)
+    action_run_id = seed_unregistered_action_run(factory)
+    client.post(
+        "/platform/policies",
+        json=policy_payload(policy_id="policy_platform_deny_low_risk_v1", effect="deny"),
+    )
+
+    response = client.post(
+        f"/demo/manufacturing/actions/runs/{action_run_id}/outcome",
+        json=outcome_payload(idempotency_key="unregistered-action-outcome"),
+    )
+
+    client.close()
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["code"] == "POLICY_VIOLATION"
+    assert detail["reason"] == "platform_policy_denied"
+    assert detail["policy_id"] == "policy_platform_deny_low_risk_v1"
+    with factory() as session:
+        denial_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "platform.policy.enforcement.denied"
+            )
+        ).one()
+
+    assert denial_event.payload["enforcement_point"] == "action_run_outcome"
+    assert denial_event.payload["context_degraded"] is True
+    assert denial_event.payload["platform_policy_decision"]["evidence"]["fail_closed"] is True
+    assert denial_event.payload["platform_policy_decision"]["evidence"]["reason"] == (
+        "context_degraded"
+    )
+
+
+def test_action_run_outcome_endpoint_marks_degraded_context_without_deny_policies() -> None:
+    client, factory = build_test_client(seed_action_registry=True)
+    action_run_id = seed_unregistered_action_run(factory)
+    client.post(
+        "/platform/policies",
+        json=policy_payload(
+            policy_id="policy_platform_gate_low_risk_v1",
+            effect="require_approval",
+        ),
+    )
+
+    response = client.post(
+        f"/demo/manufacturing/actions/runs/{action_run_id}/outcome",
+        json=outcome_payload(idempotency_key="unregistered-action-outcome-marked"),
+    )
+
+    client.close()
+    assert response.status_code == 201
+    assert response.json()["status"] == "dry_run_completed"
+    with factory() as session:
+        outcome_event = session.scalars(
+            select(AuditEvent).where(AuditEvent.event_type == "action.run.outcome.recorded")
+        ).one()
+
+    assert outcome_event.payload["platform_policy_context_degraded"] is True
+
+
+def test_approval_decision_endpoint_denies_autonomy_conditioned_policy() -> None:
+    client, factory = build_test_client(seed_action_registry=True, seed_approval_inbox=True)
+    client.post(
+        "/platform/policies",
+        json=policy_payload(
+            policy_id="policy_platform_deny_l2_autonomy_v1",
+            effect="deny",
+            conditions={"autonomy_levels": ["L2"]},
+        ),
+    )
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json=approval_decision_payload(),
+    )
+
+    client.close()
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["code"] == "POLICY_VIOLATION"
+    assert detail["reason"] == "platform_policy_denied"
+    assert detail["policy_id"] == "policy_platform_deny_l2_autonomy_v1"
+    with factory() as session:
+        denial_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "platform.policy.enforcement.denied"
+            )
+        ).one()
+
+    assert denial_event.payload["enforcement_point"] == "approval_decision_transition"
+    decision_payload = denial_event.payload["platform_policy_decision"]
+    assert decision_payload["evidence"]["context"]["autonomy_level"] == "L2"

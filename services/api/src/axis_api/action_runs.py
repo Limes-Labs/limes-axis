@@ -282,35 +282,59 @@ def _action_status(action: ActionRegistryEntry, approval_required: bool) -> str:
     return "preview_generated"
 
 
-def _payload_requested_amount(payload: dict) -> float | None:
-    value = payload.get("requested_amount")
+def payload_requested_amount(payload: dict) -> tuple[float | None, bool]:
+    """Parse the amount-like payload field into (amount, malformed).
+
+    A missing or null field is treated as absent. A present value that is not
+    a finite non-negative number is reported as malformed so amount-conditioned
+    policies can fail closed instead of being evaded.
+    """
+    if "requested_amount" not in payload:
+        return None, False
+
+    value = payload["requested_amount"]
+    if value is None:
+        return None, False
     if isinstance(value, bool):
-        return None
+        return None, True
     if isinstance(value, int | float):
         amount = float(value)
     elif isinstance(value, str):
         try:
             amount = float(value)
         except ValueError:
-            return None
+            return None, True
     else:
-        return None
+        return None, True
 
     if not math.isfinite(amount) or amount < 0:
+        return None, True
+    return amount, False
+
+
+def registry_action_entry(
+    repository: AxisPersistenceRepository,
+    action_id: str,
+) -> ActionRegistryEntry | None:
+    try:
+        _, action, _ = _find_demo_action(repository, action_id)
+    except (DemoActionNotFound, ActionReferenceRecordInvalid, ActionReferenceRecordNotFound):
         return None
-    return amount
+    return action
 
 
 def _platform_policy_context(
     action: ActionRegistryEntry,
     request: ActionRunRequest,
 ) -> PlatformPolicyEvaluationContext:
+    requested_amount, requested_amount_malformed = payload_requested_amount(request.payload)
     return PlatformPolicyEvaluationContext(
         action_id=action.definition.action_id,
         action_domain=action.definition.domain,
         risk_level=action.definition.risk_level.value,
         autonomy_level=action.policy.autonomy_ceiling,
-        requested_amount=_payload_requested_amount(request.payload),
+        requested_amount=requested_amount,
+        requested_amount_malformed=requested_amount_malformed,
     )
 
 
@@ -338,24 +362,24 @@ def _enforce_platform_policies(
 def _outcome_platform_policy_context(
     repository: AxisPersistenceRepository,
     action_run,
-) -> PlatformPolicyEvaluationContext:
-    action = None
-    try:
-        _, action, _ = _find_demo_action(repository, action_run.action_id)
-    except (DemoActionNotFound, ActionReferenceRecordInvalid, ActionReferenceRecordNotFound):
-        action = None
+) -> tuple[PlatformPolicyEvaluationContext, bool]:
+    action = registry_action_entry(repository, action_run.action_id)
+    context_degraded = action is None
 
     payload = action_run.payload if isinstance(action_run.payload, dict) else {}
     input_payload = payload.get("input")
     if not isinstance(input_payload, dict):
         input_payload = {}
-    return PlatformPolicyEvaluationContext(
+    requested_amount, requested_amount_malformed = payload_requested_amount(input_payload)
+    context = PlatformPolicyEvaluationContext(
         action_id=action_run.action_id,
         action_domain=action.definition.domain if action is not None else None,
         risk_level=action.definition.risk_level.value if action is not None else None,
         autonomy_level=action.policy.autonomy_ceiling if action is not None else None,
-        requested_amount=_payload_requested_amount(input_payload),
+        requested_amount=requested_amount,
+        requested_amount_malformed=requested_amount_malformed,
     )
+    return context, context_degraded
 
 
 def _enforce_outcome_platform_policies(
@@ -363,24 +387,28 @@ def _enforce_outcome_platform_policies(
     tenant_id: str,
     action_run,
     request: ActionRunOutcomeRequest,
-) -> None:
+) -> bool:
     if request.status not in EXECUTION_ADVANCING_OUTCOME_STATUSES:
-        return
+        return False
 
+    context, context_degraded = _outcome_platform_policy_context(repository, action_run)
     enforce_platform_policy_deny(
         repository,
         tenant_id=tenant_id,
         actor_id=request.actor_id,
         scope=PlatformPolicyScope.ACTION_EXECUTION,
-        context=_outcome_platform_policy_context(repository, action_run),
+        context=context,
         enforcement_point="action_run_outcome",
         audit_payload={
             "action_id": action_run.action_id,
             "action_run_id": str(action_run.id),
             "idempotency_key": request.idempotency_key,
             "outcome_status": request.status,
+            "context_degraded": context_degraded,
         },
+        context_degraded=context_degraded,
     )
+    return context_degraded
 
 
 def _idempotency_key(
@@ -586,7 +614,12 @@ async def record_demo_action_run_outcome(
     if existing_key is not None or action_run.status in ACTION_RUN_TERMINAL_OUTCOME_STATUSES:
         raise ActionRunOutcomeConflict(action_run.id, "action_run_outcome_already_recorded")
 
-    _enforce_outcome_platform_policies(repository, tenant_id, action_run, request)
+    platform_policy_context_degraded = _enforce_outcome_platform_policies(
+        repository,
+        tenant_id,
+        action_run,
+        request,
+    )
     action_run = repository.record_action_run_result(
         ActionRunResultRecord(
             tenant_id=tenant_id,
@@ -613,6 +646,7 @@ async def record_demo_action_run_outcome(
                 "metric_names": sorted(request.metrics.keys()),
                 "external_mutation_started": request.external_mutation_started,
                 "permission_decision": permission_decision.model_dump(),
+                "platform_policy_context_degraded": platform_policy_context_degraded,
             },
         )
     )
