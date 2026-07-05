@@ -403,11 +403,15 @@ from axis_api.ontology.queries import (
     TypeDBOntologyQueryRuntime,
     query_manufacturing_ontology_graph,
 )
+from axis_api.ontology_authorization import (
+    OntologyReadPermissionDenied,
+    authorize_ontology_graph_read,
+    get_authorized_manufacturing_ontology_entity_detail,
+)
 from axis_api.ontology_reference import (
     OntologyReferenceRecordInvalid,
     OntologyReferenceRecordNotFound,
     get_persisted_manufacturing_ontology,
-    get_persisted_manufacturing_ontology_entity_detail,
 )
 from axis_api.permissions import PermissionRequest, evaluate_permission
 from axis_api.persistence import (
@@ -1123,49 +1127,17 @@ def _bind_demo_requested_by(request_model, principal: OidcPrincipal | None):
     )
 
 
-def _authorize_demo_ontology_detail(
-    detail: ManufacturingOntologyEntityDetail,
-    principal: OidcPrincipal | None,
-) -> None:
-    if principal is None:
-        return
-
-    if principal.tenant_id != detail.tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": AxisErrorCode.PERMISSION_DENIED.value,
-                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
-                "required_permissions": detail.required_permissions,
-                "reason": "tenant_mismatch",
-            },
-        )
-
-    decision = evaluate_permission(
-        PermissionRequest(
-            tenant_id=detail.tenant_id,
-            actor_id=principal.actor_id,
-            actor_scopes=principal.scopes,
-            required_scopes=[],
-            relationship_scopes=detail.required_permissions,
-            attributes={
-                "node_id": detail.node.node_id,
-                "node_type": detail.node.node_type.value,
-                "domain": detail.node.domain,
-                "relationship_count": len(detail.connected_relationships),
-            },
-        )
-    )
-    if not decision.allowed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": AxisErrorCode.PERMISSION_DENIED.value,
-                "message": "The actor cannot read this ontology entity relationship context.",
-                "required_permissions": detail.required_permissions,
-                "reason": decision.reason,
-            },
-        )
+def _ontology_read_denied_http_exception(
+    exc: OntologyReadPermissionDenied,
+) -> HTTPException:
+    detail: dict[str, object] = {
+        "code": AxisErrorCode.PERMISSION_DENIED.value,
+        "message": exc.message,
+        "reason": exc.decision.reason,
+    }
+    if exc.required_permissions:
+        detail["required_permissions"] = exc.required_permissions
+    return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 def _authorize_connector_sync_checkpoint_read(
@@ -4983,6 +4955,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/ontology",
         response_model=ManufacturingOntology,
         responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Ontology graph read permission denied"},
             404: {"description": "Manufacturing ontology reference record not found"},
             422: {"description": "Manufacturing ontology reference payload invalid"},
         },
@@ -4995,15 +4969,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         limit: int = Query(default=200, ge=1, le=500),
     ) -> ManufacturingOntology:
-        if principal is not None and principal.tenant_id != tenant_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": AxisErrorCode.PERMISSION_DENIED.value,
-                    "message": "The actor cannot read ontology graph data for this tenant.",
-                    "reason": "tenant_mismatch",
-                },
+        try:
+            authorize_ontology_graph_read(
+                repository,
+                tenant_id=tenant_id,
+                principal=principal,
             )
+        except OntologyReadPermissionDenied as exc:
+            repository.session.commit()
+            raise _ontology_read_denied_http_exception(exc) from exc
 
         try:
             ontology = get_persisted_manufacturing_ontology(repository, tenant_id=tenant_id)
@@ -5044,6 +5018,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/ontology/entities/{node_id}",
         response_model=ManufacturingOntologyEntityDetail,
         responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Ontology entity read permission denied"},
             404: {"description": "Manufacturing ontology entity or reference record not found"},
             422: {"description": "Manufacturing ontology reference payload invalid"},
         },
@@ -5055,22 +5031,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         repository: PersistenceRepository,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingOntologyEntityDetail:
-        if principal is not None and principal.tenant_id != tenant_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": AxisErrorCode.PERMISSION_DENIED.value,
-                    "message": "The actor cannot read ontology entity data for this tenant.",
-                    "reason": "tenant_mismatch",
-                },
-            )
-
         try:
-            detail = get_persisted_manufacturing_ontology_entity_detail(
+            detail = get_authorized_manufacturing_ontology_entity_detail(
                 repository,
                 node_id,
                 tenant_id=tenant_id,
+                principal=principal,
             )
+        except OntologyReadPermissionDenied as exc:
+            repository.session.commit()
+            raise _ontology_read_denied_http_exception(exc) from exc
         except OntologyReferenceRecordNotFound as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -5093,7 +5063,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         if detail is None:
             raise HTTPException(status_code=404, detail="Ontology entity not found")
-        _authorize_demo_ontology_detail(detail, principal)
         return detail
 
     return app

@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Protocol
 from pydantic import BaseModel, Field
 
 from axis_api.ontology.client import OntologyClient, OntologyClientConfig
-from axis_api.permissions import PermissionDecision
+from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 
 if TYPE_CHECKING:
-    from axis_api.demo import ManufacturingOntology
+    from axis_api.demo import ManufacturingOntology, OntologyRelationship
 
 
 class OntologyQueryError(RuntimeError):
@@ -185,6 +185,27 @@ def query_manufacturing_ontology_graph(
     return runtime.query_manufacturing_graph(request, ontology)
 
 
+def _relationship_read_decision(
+    request: OntologyGraphQueryRequest,
+    relationship: "OntologyRelationship",
+) -> PermissionDecision:
+    return evaluate_permission(
+        PermissionRequest(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            actor_scopes=request.actor_scopes,
+            required_scopes=[],
+            relationship_scopes=[relationship.permission_scope],
+            attributes={
+                "surface": "ontology",
+                "resource": "ontology_graph_relationship",
+                "relationship_id": relationship.relationship_id,
+                "relation_type": relationship.relation_type,
+            },
+        )
+    )
+
+
 def _apply_graph_query_metadata(
     ontology: "ManufacturingOntology",
     request: OntologyGraphQueryRequest,
@@ -198,11 +219,10 @@ def _apply_graph_query_metadata(
     permission_decision = PermissionDecision(allowed=True, reason="public_reference")
 
     if request.enforce_relationship_scopes:
-        actor_scopes = set(request.actor_scopes)
         relationships = [
             relationship
             for relationship in ontology.relationships
-            if relationship.permission_scope in actor_scopes
+            if _relationship_read_decision(request, relationship).allowed
         ]
         denied_relationship_count = len(ontology.relationships) - len(relationships)
         query_mode = "permission_filtered"
