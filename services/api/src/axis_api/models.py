@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import JSON, DateTime, Index, Integer, String, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -1166,5 +1166,13 @@ class PlatformPolicy(Base):
             "tenant_id",
             "revision_idempotency_key",
             name="uq_platform_policies_tenant_revision_idempotency",
+        ),
+        Index(
+            "uq_platform_policies_tenant_policy_active",
+            "tenant_id",
+            "policy_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
         ),
     )

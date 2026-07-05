@@ -71,9 +71,21 @@ def upgrade() -> None:
             "platform_policies",
             [column_name],
         )
+    op.create_index(
+        "uq_platform_policies_tenant_policy_active",
+        "platform_policies",
+        ["tenant_id", "policy_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'active'"),
+        sqlite_where=sa.text("status = 'active'"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "uq_platform_policies_tenant_policy_active",
+        table_name="platform_policies",
+    )
     for column_name in (
         "revision_idempotency_key",
         "audit_event_type",

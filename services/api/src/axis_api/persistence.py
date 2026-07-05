@@ -2785,9 +2785,10 @@ class AxisPersistenceRepository:
         current_policy.status = "superseded"
         current_policy.replaced_by_revision_number = record.revision_number
         current_policy.updated_at = utc_now()
-        revised_policy = self.create_platform_policy(record)
+        # Flush the supersede update before inserting the replacement revision so
+        # the single-active-revision partial unique index never sees two active rows.
         self.session.flush()
-        return revised_policy
+        return self.create_platform_policy(record)
 
     def list_platform_policies(
         self,
@@ -2837,7 +2838,10 @@ class AxisPersistenceRepository:
                 PlatformPolicy.scope == scope,
                 PlatformPolicy.status == "active",
             )
-            .order_by(PlatformPolicy.policy_id.asc())
+            .order_by(
+                PlatformPolicy.policy_id.asc(),
+                PlatformPolicy.revision_number.desc(),
+            )
         )
         return list(self.session.scalars(statement))
 
