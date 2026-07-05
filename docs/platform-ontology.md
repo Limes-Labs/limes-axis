@@ -95,6 +95,21 @@ actor's own tenant scope and carry the requested tenant, resource, node id,
 required permissions and permission decision without token contents or other
 sensitive payload material.
 
+Only hard denials (the 403 responses above) write audit events. Graph
+relationship filtering is silent by design: relationships outside the actor's
+scopes are dropped from the response and surface only as
+`denied_relationship_count` in the graph query metadata, without an audit
+event per filtered read.
+
+The two read surfaces intentionally enforce in different shapes. The graph
+endpoint filters per relationship, so a partially scoped actor still receives
+the subset of relationships they are scoped for. The entity detail endpoint is
+all-or-nothing on the union of the node's connected relationship scopes
+(`required_permissions`), so an actor missing any one scope receives 403 for
+the detail page even though the scoped subset of that node's relationships
+remains visible in the filtered graph. The asymmetry is strict in one
+direction: the detail view never reveals more than the graph would.
+
 The schema is included in `docs/openapi.json` and checked by CI.
 
 ## Console Behavior

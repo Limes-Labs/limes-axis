@@ -328,6 +328,39 @@ def test_ontology_entity_endpoint_requires_oidc_authentication(
     assert response.json()["detail"]["code"] == "AUTH_REQUIRED"
 
 
+def test_ontology_graph_endpoint_allows_fully_scoped_actor(
+    authorization_session_factory: sessionmaker[Session],
+) -> None:
+    payload = ontology_bootstrap_payload()
+    all_relationship_scopes = sorted(
+        {relationship["permission_scope"] for relationship in payload["relationships"]}
+    )
+    client = build_client(
+        authorization_session_factory,
+        make_principal(all_relationship_scopes),
+    )
+
+    response = client.get(
+        "/demo/manufacturing/ontology",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {"nodes", "relationships", "source_systems", "graph_query"} <= set(body)
+    assert body["tenant_id"] == DEMO_TENANT_ID
+    assert len(body["relationships"]) == len(payload["relationships"])
+    assert len(body["nodes"]) > 0
+    assert body["graph_query"]["query_mode"] == "permission_filtered"
+    assert body["graph_query"]["denied_relationship_count"] == 0
+    assert body["graph_query"]["actor_id"] == "ontology-reader"
+    assert body["graph_query"]["applied_relationship_scopes"] == all_relationship_scopes
+    assert denied_audit_events(
+        authorization_session_factory,
+        ONTOLOGY_GRAPH_READ_DENIED_EVENT_TYPE,
+    ) == []
+
+
 def test_ontology_graph_endpoint_tenant_mismatch_appends_audit_event(
     authorization_session_factory: sessionmaker[Session],
 ) -> None:

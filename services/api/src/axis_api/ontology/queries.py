@@ -185,25 +185,28 @@ def query_manufacturing_ontology_graph(
     return runtime.query_manufacturing_graph(request, ontology)
 
 
-def _relationship_read_decision(
+def _relationship_scope_decisions(
     request: OntologyGraphQueryRequest,
-    relationship: "OntologyRelationship",
-) -> PermissionDecision:
-    return evaluate_permission(
-        PermissionRequest(
-            tenant_id=request.tenant_id,
-            actor_id=request.actor_id,
-            actor_scopes=request.actor_scopes,
-            required_scopes=[],
-            relationship_scopes=[relationship.permission_scope],
-            attributes={
-                "surface": "ontology",
-                "resource": "ontology_graph_relationship",
-                "relationship_id": relationship.relationship_id,
-                "relation_type": relationship.relation_type,
-            },
+    relationships: Sequence["OntologyRelationship"],
+) -> dict[str, PermissionDecision]:
+    distinct_scopes = {relationship.permission_scope for relationship in relationships}
+    return {
+        permission_scope: evaluate_permission(
+            PermissionRequest(
+                tenant_id=request.tenant_id,
+                actor_id=request.actor_id,
+                actor_scopes=request.actor_scopes,
+                required_scopes=[],
+                relationship_scopes=[permission_scope],
+                attributes={
+                    "surface": "ontology",
+                    "resource": "ontology_graph_relationship",
+                    "permission_scope": permission_scope,
+                },
+            )
         )
-    )
+        for permission_scope in distinct_scopes
+    }
 
 
 def _apply_graph_query_metadata(
@@ -219,10 +222,11 @@ def _apply_graph_query_metadata(
     permission_decision = PermissionDecision(allowed=True, reason="public_reference")
 
     if request.enforce_relationship_scopes:
+        decision_by_scope = _relationship_scope_decisions(request, ontology.relationships)
         relationships = [
             relationship
             for relationship in ontology.relationships
-            if _relationship_read_decision(request, relationship).allowed
+            if decision_by_scope[relationship.permission_scope].allowed
         ]
         denied_relationship_count = len(ontology.relationships) - len(relationships)
         query_mode = "permission_filtered"
