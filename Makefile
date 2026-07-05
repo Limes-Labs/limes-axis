@@ -1,25 +1,30 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check security-check deployment-check deployment-profile-render-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-ha-rehearsal-plan deployment-ha-rehearsal deployment-load-rehearsal-plan deployment-load-rehearsal deployment-tls-readiness-plan deployment-tls-readiness deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-api-sso demo-web demo-keycloak-check demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
+.PHONY: install lint test typecheck build-web openapi openapi-check test-sdk security-check deployment-check deployment-profile-render-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-ha-rehearsal-plan deployment-ha-rehearsal deployment-load-rehearsal-plan deployment-load-rehearsal deployment-tls-readiness-plan deployment-tls-readiness deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-api-sso demo-web demo-keycloak-check demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
 	cd services/api && uv sync
 	cd services/worker && uv sync
+	cd packages/sdk-python && uv sync
 
 lint:
 	pnpm lint
 	cd services/api && uv run ruff check .
 	cd services/worker && uv run ruff check .
+	cd packages/sdk-python && uv run ruff check .
 
 typecheck:
 	pnpm typecheck
 
-test: test-api test-worker test-web
+test: test-api test-worker test-sdk test-web
 
 test-api:
 	cd services/api && uv run pytest
 
 test-worker:
 	cd services/worker && uv run pytest
+
+test-sdk:
+	cd packages/sdk-python && uv run pytest
 
 test-web:
 	pnpm --filter @limes-axis/web test

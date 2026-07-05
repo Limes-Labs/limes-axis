@@ -110,3 +110,15 @@ jobs:
       - name: Test worker
         working-directory: services/worker
         run: uv run pytest
+
+      - name: Install SDK dependencies
+        working-directory: packages/sdk-python
+        run: uv sync --locked
+
+      - name: Lint SDK
+        working-directory: packages/sdk-python
+        run: uv run ruff check .
+
+      - name: Test SDK
+        working-directory: packages/sdk-python
+        run: uv run pytest
