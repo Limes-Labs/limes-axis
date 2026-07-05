@@ -14,6 +14,14 @@ from axis_api.persistence import (
     WorkflowActionRunOutcomeUpdate,
     WorkflowActionRunUpdate,
 )
+from axis_api.platform_policies import (
+    ENFORCEMENT_DENIED_AUDIT_EVENT_TYPE,
+    PlatformPolicyDecision,
+    PlatformPolicyEffect,
+    PlatformPolicyEvaluationContext,
+    PlatformPolicyScope,
+    evaluate_platform_policies,
+)
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     WorkflowActionSignalRequest,
@@ -49,6 +57,19 @@ class ActionRunIdempotencyConflict(ValueError):
     def __init__(self, action_run_id: UUID) -> None:
         super().__init__("Idempotency key already exists with a different payload")
         self.action_run_id = action_run_id
+
+
+class ActionRunPolicyDenied(ValueError):
+    def __init__(
+        self,
+        decision: PlatformPolicyDecision,
+        audit_event_id: UUID,
+        audit_event_type: str,
+    ) -> None:
+        super().__init__("A platform policy denies this action run")
+        self.decision = decision
+        self.audit_event_id = audit_event_id
+        self.audit_event_type = audit_event_type
 
 
 class ActionRunOutcomeValidationError(ValueError):
@@ -99,6 +120,7 @@ class ActionRunPersistenceResult(BaseModel):
     workflow_state_updated: bool = False
     workflow_state: str | None = None
     workflow_status: str | None = None
+    platform_policy_decision: PlatformPolicyDecision | None = None
 
 
 class ActionRunOutcomeRequest(BaseModel):
@@ -259,10 +281,79 @@ def _evaluate_action_permission(
     return decision, relationship_scopes
 
 
-def _action_status(action: ActionRegistryEntry) -> str:
-    if action.definition.requires_approval:
+def _action_status(action: ActionRegistryEntry, approval_required: bool) -> str:
+    if approval_required:
         return "approval_required"
     return "preview_generated"
+
+
+def _payload_requested_amount(payload: dict) -> float | None:
+    value = payload.get("requested_amount")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        amount = float(value)
+    elif isinstance(value, str):
+        try:
+            amount = float(value)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if amount < 0:
+        return None
+    return amount
+
+
+def _platform_policy_context(
+    action: ActionRegistryEntry,
+    request: ActionRunRequest,
+) -> PlatformPolicyEvaluationContext:
+    return PlatformPolicyEvaluationContext(
+        action_id=action.definition.action_id,
+        action_domain=action.definition.domain,
+        risk_level=action.definition.risk_level.value,
+        autonomy_level=action.policy.autonomy_ceiling,
+        requested_amount=_payload_requested_amount(request.payload),
+    )
+
+
+def _enforce_platform_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    action: ActionRegistryEntry,
+    request: ActionRunRequest,
+    idempotency_key: str,
+) -> PlatformPolicyDecision:
+    decision = evaluate_platform_policies(
+        repository,
+        tenant_id=tenant_id,
+        scope=PlatformPolicyScope.ACTION_EXECUTION,
+        context=_platform_policy_context(action, request),
+    )
+    if decision.effect != PlatformPolicyEffect.DENY.value:
+        return decision
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=tenant_id,
+            actor_id=request.actor_id,
+            event_type=ENFORCEMENT_DENIED_AUDIT_EVENT_TYPE,
+            payload={
+                "action_id": action.definition.action_id,
+                "idempotency_key": idempotency_key,
+                "status": "policy_denied",
+                "policy_id": decision.matched_policy_id,
+                "policy_revision_number": decision.matched_revision_number,
+                "policy_version": decision.matched_policy_version,
+                "policy_scope": decision.scope.value,
+                "policy_effect": decision.effect,
+                "platform_policy_decision": decision.model_dump(),
+            },
+        )
+    )
+    raise ActionRunPolicyDenied(decision, audit_event.id, audit_event.event_type)
 
 
 def _idempotency_key(
@@ -388,11 +479,13 @@ def _result_from_action_run(
     audit_event_id: UUID | None,
     audit_event_type: str | None,
     idempotent_replay: bool,
+    approval_required: bool | None = None,
     workflow_signal: WorkflowSignalResult | None = None,
     workflow_signal_status: str | None = None,
     workflow_state_updated: bool = False,
     workflow_state: str | None = None,
     workflow_status: str | None = None,
+    platform_policy_decision: PlatformPolicyDecision | None = None,
 ) -> ActionRunPersistenceResult:
     return ActionRunPersistenceResult(
         tenant_id=tenant_id,
@@ -402,7 +495,11 @@ def _result_from_action_run(
         status=status,
         execution_mode=action.policy.execution_mode,
         requested_by=requested_by,
-        approval_required=action.definition.requires_approval,
+        approval_required=(
+            approval_required
+            if approval_required is not None
+            else action.definition.requires_approval
+        ),
         approval_id=action.approval_refs[0] if action.approval_refs else None,
         workflow_id=action.workflow_bindings[0] if action.workflow_bindings else None,
         persisted=True,
@@ -415,6 +512,7 @@ def _result_from_action_run(
         workflow_state_updated=workflow_state_updated,
         workflow_state=workflow_state,
         workflow_status=workflow_status,
+        platform_policy_decision=platform_policy_decision,
     )
 
 
@@ -569,7 +667,18 @@ async def record_demo_action_run(
             workflow_signal_status="idempotent_replay",
         )
 
-    status = _action_status(action)
+    platform_policy_decision = _enforce_platform_policies(
+        repository,
+        tenant_id,
+        action,
+        request,
+        idempotency_key,
+    )
+    approval_required = (
+        action.definition.requires_approval
+        or platform_policy_decision.effect == PlatformPolicyEffect.REQUIRE_APPROVAL.value
+    )
+    status = _action_status(action, approval_required)
     action_run = repository.create_action_run(
         ActionRunCreate(
             tenant_id=tenant_id,
@@ -603,7 +712,7 @@ async def record_demo_action_run(
                 "idempotency_key": idempotency_key,
                 "status": status,
                 "execution_mode": action.policy.execution_mode,
-                "approval_required": action.definition.requires_approval,
+                "approval_required": approval_required,
                 "approval_id": action.approval_refs[0] if action.approval_refs else None,
                 "workflow_id": action.workflow_bindings[0] if action.workflow_bindings else None,
                 "risk_level": action.definition.risk_level.value,
@@ -614,6 +723,11 @@ async def record_demo_action_run(
                 "payload_recorded": "true",
                 "workflow_signal_status": workflow_signal_status,
                 "workflow_signal": workflow_signal.model_dump() if workflow_signal else None,
+                "platform_policy_decision": (
+                    platform_policy_decision.model_dump()
+                    if platform_policy_decision.matched
+                    else None
+                ),
             },
         )
     )
@@ -628,7 +742,7 @@ async def record_demo_action_run(
                 idempotency_key=idempotency_key,
                 actor_id=request.actor_id,
                 workflow_signal_status=workflow_signal_status,
-                requires_approval=action.definition.requires_approval,
+                requires_approval=approval_required,
                 approval_id=action.approval_refs[0] if action.approval_refs else None,
             )
         )
@@ -644,9 +758,11 @@ async def record_demo_action_run(
         audit_event_id=audit_event.id,
         audit_event_type=audit_event.event_type,
         idempotent_replay=False,
+        approval_required=approval_required,
         workflow_signal=workflow_signal,
         workflow_signal_status=workflow_signal_status,
         workflow_state_updated=workflow_run is not None,
         workflow_state=workflow_run.state if workflow_run is not None else None,
         workflow_status=workflow_run.status if workflow_run is not None else None,
+        platform_policy_decision=platform_policy_decision,
     )
