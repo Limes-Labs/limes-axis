@@ -67,8 +67,9 @@ async with AsyncAxisClient("http://127.0.0.1:8000") as client:
   only when `AXIS_OIDC_AUTH_REQUIRED` is disabled (local demos).
 - `tenant_id` sets the default tenant context for tenant-scoped endpoints;
   every resource method also accepts an explicit `tenant_id` override.
-- Every request carries a generated `X-Request-Id` header and a
-  `limes-axis-sdk-python/<version>` user agent.
+- Every logical operation carries a generated `X-Request-Id` header that
+  is reused across retry attempts, and a `limes-axis-sdk-python/<version>`
+  user agent.
 
 ## Covered Surface
 
@@ -76,7 +77,7 @@ async with AsyncAxisClient("http://127.0.0.1:8000") as client:
 | --- | --- |
 | `client.system` | `health()`, `ready()`, `deployment_readiness()` |
 | `client.approvals` | `list()`, `get(approval_id)`*, `decide(approval_id, decision=..., actor_id=..., actor_scopes=..., note=...)` |
-| `client.actions` | `catalog()`, `create_run(action_id, actor_id=..., payload=..., idempotency_key=...)`, `record_outcome(action_run_id, ...)` |
+| `client.actions` | `catalog()`, `create_run(action_id, actor_id=..., payload=..., idempotency_key=...)`, `record_outcome(action_run_id, ..., idempotency_key=..., evidence_refs=[...])` |
 | `client.workflows` | `console()`, `list_runs(state=..., limit=...)`, `get_run(workflow_id)`* |
 | `client.audit` | `explorer()`, `query_events(event_type=..., actor_id=..., scope=..., limit=...)`, `export(export_reason=..., retention_days=..., legal_hold=...)` |
 | `client.ontology` | `graph(limit=...)`, `entity(node_id)` |
@@ -97,13 +98,16 @@ runs signal the workflow runtime server-side.
 `actions.create_run` accepts the same `idempotency_key` the API enforces.
 Replaying the same key with the same payload returns the persisted run with
 `idempotent_replay=True`; replaying it with a different payload raises
-`PolicyViolationError`. `actions.record_outcome` requires an idempotency key.
+`PolicyViolationError`. `actions.record_outcome` requires an idempotency
+key and at least one evidence reference, matching the API contract.
 
 ## Error Handling
 
 HTTP errors raise a typed hierarchy rooted at `AxisError`:
 
 - `AxisConnectionError` — the API could not be reached.
+- `MalformedResponseError` — a success response could not be decoded as
+  JSON or did not match the expected response model.
 - `AxisAPIError` — base for HTTP errors; carries `status_code`, `code`,
   `message`, `request_id` and the raw `detail` payload.
   - `AuthRequiredError` (`AUTH_REQUIRED`, 401)
@@ -144,6 +148,9 @@ Retries are conservative and idempotent-only:
 
 - Only GET requests and idempotency-keyed POSTs are retried.
 - Retried failures: transport errors and `502`/`503`/`504` responses.
+- A `Retry-After` header on a retryable response (integer seconds or an
+  HTTP-date) is honoured: the SDK waits at least that long, capped by
+  `backoff_max_seconds`.
 - 4xx responses are never retried.
 - Backoff is exponential with full jitter (0.25s initial, 4s cap, 2 retries
   by default).

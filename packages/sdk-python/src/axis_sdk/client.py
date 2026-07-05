@@ -24,6 +24,7 @@ from axis_sdk._transport import (
     new_request_id,
     parse_model,
     resolve_params,
+    response_retry_delay,
     should_retry_error,
     should_retry_response,
 )
@@ -105,9 +106,11 @@ class AxisClient:
     def _request(self, spec: RequestSpec) -> Any:
         retry = self.config.retry
         params = resolve_params(spec, self.config)
+        # One request id per logical operation, reused across retry attempts
+        # so server-side correlation sees retries as the same operation.
+        request_id = new_request_id()
         attempt = 0
         while True:
-            request_id = new_request_id()
             headers = build_headers(self.config, request_id)
             try:
                 response = self._http.request(
@@ -126,7 +129,7 @@ class AxisClient:
                     f"Could not reach the Axis API: {exc}", request_id=request_id
                 ) from exc
             if should_retry_response(spec, response, retry, attempt):
-                time.sleep(backoff_delay(retry, attempt))
+                time.sleep(response_retry_delay(retry, attempt, response))
                 attempt += 1
                 continue
             return handle_response(response, request_id)
@@ -185,9 +188,11 @@ class AsyncAxisClient:
     async def _request(self, spec: RequestSpec) -> Any:
         retry = self.config.retry
         params = resolve_params(spec, self.config)
+        # One request id per logical operation, reused across retry attempts
+        # so server-side correlation sees retries as the same operation.
+        request_id = new_request_id()
         attempt = 0
         while True:
-            request_id = new_request_id()
             headers = build_headers(self.config, request_id)
             try:
                 response = await self._http.request(
@@ -206,7 +211,7 @@ class AsyncAxisClient:
                     f"Could not reach the Axis API: {exc}", request_id=request_id
                 ) from exc
             if should_retry_response(spec, response, retry, attempt):
-                await asyncio.sleep(backoff_delay(retry, attempt))
+                await asyncio.sleep(response_retry_delay(retry, attempt, response))
                 attempt += 1
                 continue
             return handle_response(response, request_id)
@@ -308,8 +313,8 @@ class ActionsResource:
         status: str,
         result_summary: str,
         idempotency_key: str,
+        evidence_refs: list[str],
         actor_scopes: list[str] | None = None,
-        evidence_refs: list[str] | None = None,
         metrics: dict[str, Any] | None = None,
         external_mutation_started: bool = False,
     ) -> models.ActionRunOutcomeResult:
@@ -522,8 +527,8 @@ class AsyncActionsResource:
         status: str,
         result_summary: str,
         idempotency_key: str,
+        evidence_refs: list[str],
         actor_scopes: list[str] | None = None,
-        evidence_refs: list[str] | None = None,
         metrics: dict[str, Any] | None = None,
         external_mutation_started: bool = False,
     ) -> models.ActionRunOutcomeResult:

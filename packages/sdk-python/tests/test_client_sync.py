@@ -187,6 +187,32 @@ def test_action_run_idempotency_conflict_maps_to_policy_violation(app: FastAPI) 
     assert excinfo.value.request_id is not None
 
 
+def test_record_action_run_outcome_round_trip(app: FastAPI) -> None:
+    with make_client(app) as client:
+        decision = client.approvals.decide(
+            "appr_expedite_supplier_batch",
+            decision=ApprovalDecision.APPROVE,
+            actor_id="plant-operations-owner-role",
+            actor_scopes=["approvals:supply:decide"],
+        )
+        assert decision.action_run_recorded is True
+        assert decision.action_run_id is not None
+        outcome = client.actions.record_outcome(
+            decision.action_run_id,
+            actor_id="workflow-runtime",
+            actor_scopes=["actions:result:record"],
+            status="dry_run_completed",
+            result_summary="Supplier expedite dry-run package generated.",
+            idempotency_key="sdk-e2e-outcome-1",
+            evidence_refs=["audit_supplier_expedite_preview"],
+        )
+
+    assert outcome.persisted is True
+    assert outcome.idempotency_key == "sdk-e2e-outcome-1"
+    assert outcome.evidence_refs == ["audit_supplier_expedite_preview"]
+    assert outcome.status == "dry_run_completed"
+
+
 def test_workflow_console_and_persisted_runs(app: FastAPI) -> None:
     with make_client(app) as client:
         console = client.workflows.console()

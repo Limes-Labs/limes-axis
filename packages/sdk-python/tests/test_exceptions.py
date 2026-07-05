@@ -105,6 +105,21 @@ def test_body_request_id_takes_precedence_over_client_request_id() -> None:
     assert error.request_id == "req_server"
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"detail": ""},
+        {"detail": "   "},
+        {"detail": {"code": "CONNECTOR_UNAVAILABLE", "message": ""}},
+        {"detail": {"code": "CONNECTOR_UNAVAILABLE", "message": "   "}},
+    ],
+)
+def test_empty_or_whitespace_message_falls_back_to_status_message(body: dict) -> None:
+    error = error_from_response(status_code=503, body=body, request_id=None)
+    assert error.message == "The Axis API returned HTTP 503."
+    assert str(error) != "[503] "
+
+
 def test_unknown_5xx_maps_to_server_error() -> None:
     error = error_from_response(status_code=500, body={"detail": "boom"}, request_id="req_x")
     assert type(error) is ServerError

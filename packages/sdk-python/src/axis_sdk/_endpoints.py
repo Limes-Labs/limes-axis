@@ -136,8 +136,8 @@ def record_action_run_outcome(
     status: str,
     result_summary: str,
     idempotency_key: str,
+    evidence_refs: list[str],
     actor_scopes: list[str] | None = None,
-    evidence_refs: list[str] | None = None,
     metrics: dict[str, Any] | None = None,
     external_mutation_started: bool = False,
 ) -> Endpoint:
@@ -147,7 +147,8 @@ def record_action_run_outcome(
         "idempotency_key": idempotency_key,
         "status": status,
         "result_summary": result_summary,
-        "evidence_refs": evidence_refs or [],
+        # The API requires at least one evidence reference per outcome.
+        "evidence_refs": evidence_refs,
         "metrics": metrics or {},
         "external_mutation_started": external_mutation_started,
     }

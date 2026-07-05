@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from conftest import TENANT_ID, RecordingTransport, SyncASGITransport
+from conftest import TENANT_ID, FlakyTransport, RecordingTransport, SyncASGITransport
 from fastapi import FastAPI
 
-from axis_sdk import USER_AGENT, AxisClient, NotFoundError
+from axis_sdk import USER_AGENT, AxisClient, NotFoundError, RetryConfig
 from axis_sdk._version import SDK_VERSION
 
 BASE_URL = "http://axis-api.test"
@@ -63,6 +63,17 @@ def test_request_ids_are_sent_and_unique(app: FastAPI) -> None:
     request_ids = [request.headers["X-Request-Id"] for request in recording.requests]
     assert all(request_id.startswith("req_") for request_id in request_ids)
     assert len(set(request_ids)) == len(request_ids)
+
+
+def test_request_id_is_reused_across_retry_attempts(app: FastAPI) -> None:
+    recording = RecordingTransport(FlakyTransport(SyncASGITransport(app), failures=1))
+    retry = RetryConfig(backoff_initial_seconds=0.0, backoff_max_seconds=0.0)
+    with AxisClient(BASE_URL, transport=recording, retry=retry) as client:
+        client.system.health()
+
+    request_ids = [request.headers["X-Request-Id"] for request in recording.requests]
+    assert len(request_ids) == 2
+    assert len(set(request_ids)) == 1
 
 
 def test_error_surfaces_the_request_id_that_was_sent(app: FastAPI) -> None:

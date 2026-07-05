@@ -265,10 +265,12 @@ class FlakyTransport(httpx.BaseTransport):
         *,
         failures: int,
         mode: str = "connect_error",
+        retry_after: str | None = None,
     ) -> None:
         self.inner = inner
         self.remaining_failures = failures
         self.mode = mode
+        self.retry_after = retry_after
         self.attempts = 0
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
@@ -277,7 +279,10 @@ class FlakyTransport(httpx.BaseTransport):
             self.remaining_failures -= 1
             if self.mode == "connect_error":
                 raise httpx.ConnectError("synthetic connection failure", request=request)
-            return httpx.Response(503, json={"detail": "synthetic upstream failure"})
+            headers = {"Retry-After": self.retry_after} if self.retry_after is not None else {}
+            return httpx.Response(
+                503, json={"detail": "synthetic upstream failure"}, headers=headers
+            )
         return self.inner.handle_request(request)
 
 

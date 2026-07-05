@@ -25,6 +25,22 @@ class AxisConnectionError(AxisError):
         self.request_id = request_id
 
 
+class MalformedResponseError(AxisError):
+    """The API returned a success response the SDK could not decode or validate."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.request_id = request_id
+
+
 class AxisAPIError(AxisError):
     """An HTTP error response from the Axis API."""
 
@@ -168,7 +184,7 @@ def error_from_response(
     a ``request_id`` reported by the API error envelope takes precedence.
     """
     code, message, body_request_id = _parse_error_body(body)
-    if message is None:
+    if message is None or not message.strip():
         message = f"The Axis API returned HTTP {status_code}."
 
     error_cls: type[AxisAPIError] | None = None

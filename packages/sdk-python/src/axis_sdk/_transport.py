@@ -7,16 +7,19 @@ I/O execution differs and lives in ``client.py``.
 
 from __future__ import annotations
 
+import math
 import random
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from axis_sdk.config import AxisClientConfig, RetryConfig
-from axis_sdk.exceptions import error_from_response
+from axis_sdk.exceptions import MalformedResponseError, error_from_response
 
 REQUEST_ID_HEADER = "X-Request-Id"
 
@@ -81,21 +84,55 @@ def backoff_delay(retry: RetryConfig, attempt: int) -> float:
 
 
 def retry_after_seconds(response: httpx.Response) -> int | None:
+    """Parse a Retry-After header: integer seconds or an HTTP-date."""
     value = response.headers.get("Retry-After")
-    if value is None:
+    if value is None or not value.strip():
         return None
+    value = value.strip()
     try:
-        return int(value)
+        return max(0, int(value))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
     except ValueError:
         return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+    return max(0, math.ceil((when - datetime.now(UTC)).total_seconds()))
+
+
+def response_retry_delay(retry: RetryConfig, attempt: int, response: httpx.Response) -> float:
+    """Delay before retrying a retryable response.
+
+    Honours a Retry-After header when present: the SDK waits at least that
+    long (never less than the computed backoff), capped by the configured
+    maximum backoff. Without a parseable header it falls back to backoff.
+    """
+    delay = backoff_delay(retry, attempt)
+    retry_after = retry_after_seconds(response)
+    if retry_after is not None:
+        delay = min(max(float(retry_after), delay), retry.backoff_max_seconds)
+    return delay
 
 
 def handle_response(response: httpx.Response, request_id: str) -> Any:
     """Return the decoded JSON body or raise the mapped typed error."""
     if response.is_success:
         if not response.content:
-            return None
-        return response.json()
+            raise MalformedResponseError(
+                "The Axis API returned an empty success response body.",
+                status_code=response.status_code,
+                request_id=request_id,
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise MalformedResponseError(
+                f"The Axis API returned a success response that is not JSON: {exc}",
+                status_code=response.status_code,
+                request_id=request_id,
+            ) from exc
 
     try:
         body = response.json()
@@ -110,4 +147,9 @@ def handle_response(response: httpx.Response, request_id: str) -> Any:
 
 
 def parse_model[ModelT: BaseModel](data: Any, model_type: type[ModelT]) -> ModelT:
-    return model_type.model_validate(data)
+    try:
+        return model_type.model_validate(data)
+    except ValidationError as exc:
+        raise MalformedResponseError(
+            f"The Axis API response does not match the {model_type.__name__} schema: {exc}"
+        ) from exc

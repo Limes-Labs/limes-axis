@@ -103,6 +103,34 @@ def test_idempotency_keyed_action_run_create_is_retried(app: FastAPI) -> None:
     assert flaky.attempts == 2
 
 
+def test_retry_after_header_paces_the_retry(app: FastAPI, monkeypatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("axis_sdk.client.time.sleep", sleeps.append)
+    flaky = FlakyTransport(
+        SyncASGITransport(app), failures=1, mode="status", retry_after="2"
+    )
+    retry = RetryConfig(backoff_initial_seconds=0.0, backoff_max_seconds=5.0)
+    with make_client(app, flaky, retry=retry) as client:
+        health = client.system.health()
+
+    assert health.status == "ok"
+    assert sleeps == [2.0]
+
+
+def test_retry_after_header_is_capped_by_max_backoff(app: FastAPI, monkeypatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("axis_sdk.client.time.sleep", sleeps.append)
+    flaky = FlakyTransport(
+        SyncASGITransport(app), failures=1, mode="status", retry_after="60"
+    )
+    retry = RetryConfig(backoff_initial_seconds=0.0, backoff_max_seconds=3.0)
+    with make_client(app, flaky, retry=retry) as client:
+        health = client.system.health()
+
+    assert health.status == "ok"
+    assert sleeps == [3.0]
+
+
 def test_retries_can_be_disabled(app: FastAPI) -> None:
     flaky = FlakyTransport(SyncASGITransport(app), failures=1)
     retry = RetryConfig(enabled=False)
