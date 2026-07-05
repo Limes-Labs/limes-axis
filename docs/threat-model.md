@@ -170,7 +170,7 @@ flowchart LR
 | `/demo/manufacturing/approvals` mutation paths | HTTP POST | user/agent to API | OIDC actor binding and permission checks | `services/api/tests/test_approval_decisions.py` |
 | `/demo/manufacturing/actions` mutation paths | HTTP POST | agent proposal to API | Typed schemas, idempotency, permission checks | `services/api/tests/test_action_runs.py` |
 | `/demo/manufacturing/connectors` paths | HTTP GET/POST | operator to connector boundary | Manifest, config, lease and egress policy gates | `docs/platform-connectors.md` |
-| `/demo/manufacturing/audit` paths | HTTP GET/POST | operator to audit ledger | Export, retention and legal hold controls | `docs/platform-audit.md` |
+| `/demo/manufacturing/audit` paths | HTTP GET/POST | operator to audit ledger | OIDC-bound audit read/export/admin controls, retention deletion and legal holds | `services/api/tests/test_audit_queries.py` |
 | Web console routes | Browser navigation | browser to API | API-required, no local fallback records | `apps/web/e2e/smoke.spec.ts` |
 | Makefile/scripts | Local operator CLI | developer/operator machine | Demo and posture checks | `Makefile` |
 
@@ -221,7 +221,7 @@ flowchart LR
 | TM-001 | Authenticated tenant user | Token or request path reaches protected API | Tenant or actor impersonation | Cross-tenant data exposure or unauthorized mutation | Operational records, approvals, audit | OIDC actor binding and tenant mismatch rejection in `main.py`; tests in `test_approval_decisions.py`, `test_action_runs.py` | OIDC auth optional in local demo | Require OIDC in non-dev profiles, add tenant-scoped query checks everywhere, add integration tests for every mutation | Alert on 403 tenant mismatch and actor mismatch spikes | Medium | High | High |
 | TM-002 | Malicious operator | Connector input accepted by API | Submit raw secret/DSN/query material | Credential disclosure in storage, logs or exports | Credential handles, connector records, audit | Secret rejection tests in connector modules; credential lease evidence boundary | Future provider adapters may add new secret shapes | Centralize redaction schema, add fuzz cases for DSN/token patterns, keep exports public-safe | Audit unsafe-input rejection counts | Medium | High | High |
 | TM-003 | Compromised agent or operator | Runtime flags or connector execution enabled | Trigger live query or sync without all gates | External system access or data exfiltration | Source systems, connector leases, audit | Active manifest, lease, egress policy, checkpoint claim and public-safe evidence gates | Full live execution path remains future work | Keep default deferred, require policy bundles and worker claims for every provider adapter | Alert on preflight failures and runtime flag changes | Low | High | Medium |
-| TM-004 | Privileged insider or compromised API path | Access to audit/retention APIs or storage | Delete or rewrite audit evidence | Governance evidence loss | Append-only audit, MinIO artifacts | Audit legal holds, retention checks, checksum/signature proof, append-only rows, S3-compatible retention adapter | Provider-specific KMS signing, restore drills and legal operations not production complete | Add KMS signing, restore drills, customer bucket-policy review and legal hold admin UI | Monitor retention deletion requests and checksum mismatches | Medium | High | High |
+| TM-004 | Privileged insider or compromised API path | Access to audit/retention APIs or storage | Delete or rewrite audit evidence | Governance evidence loss | Append-only audit, MinIO artifacts | OIDC-bound audit read/export/admin routes, audit legal holds, retention checks, checksum/signature proof, append-only rows, S3-compatible retention adapter | Provider-specific KMS signing, restore drills and legal operations not production complete | Add KMS signing, restore drills, customer bucket-policy review and legal hold admin UI | Monitor retention deletion requests, tenant mismatch denials and checksum mismatches | Medium | High | High |
 | TM-005 | Agent or route operator | External egress enabled incorrectly | Send operations context to external model | Data leakage and compliance breach | Operational records, model routing telemetry | External model egress disabled by default, route metadata public-safe | Provider adapters and usage metering not complete | Enforce tenant policy approval, classify prompts, log route decisions to audit | Alert on external egress enablement and route decisions | Low | High | Medium |
 | TM-006 | Operator or sales workflow | Demo limitations not shared | Overclaim readiness | Customer trust and compliance risk | Security posture, contracts, operations | `docs/demo-readiness.md`, `docs/backup-restore.md`, `docs/support-operations.md`, `/identity/oidc/readiness`, `/deployment/readiness`, `/support/diagnostics` | Full production runbook execution still depends on customer environment | Add production DR, support, SSO, KMS and customer bucket operations runbooks; require pre-demo checklist | Track demo readiness, deployment readiness, support diagnostics and security-check output per walkthrough | Medium | Medium | Medium |
 
@@ -239,8 +239,9 @@ flowchart LR
 - Connector governance: manifest lifecycle gates, active preview requirements,
   credential handles, connector credential leases, egress policy evidence,
   checkpoint claims and deferred execution boundaries.
-- Audit: persisted append-only audit rows, export bundles, checksum/hash-chain
-  proof, legal hold and retention deletion blocking.
+- Audit: persisted append-only audit rows, OIDC-bound read/export/admin routes,
+  export bundles, checksum/hash-chain proof, legal hold and retention deletion
+  blocking.
 - Model routing: external model egress disabled by default.
 - Web: API-required console smoke tests prevent browser-local fallback data.
 - Support: public-safe support diagnostics and the support operations runbook

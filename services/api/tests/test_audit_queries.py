@@ -25,9 +25,19 @@ from axis_api.audit_signing import (
 )
 from axis_api.config import Settings
 from axis_api.db import session_scope
+from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import AuditEvent, Base
 from axis_api.persistence import AxisPersistenceRepository
+
+
+class StaticIdentityVerifier:
+    def __init__(self, principal: OidcPrincipal) -> None:
+        self.principal = principal
+
+    def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+        assert authorization == "Bearer valid-token"
+        return self.principal
 
 
 @pytest.fixture
@@ -276,6 +286,105 @@ def test_persisted_audit_events_endpoint_returns_empty_result_for_empty_query(
     assert body["events"] == []
     assert body["filter_options"]["tenants"] == ["tenant_demo_manufacturing"]
     assert body["ledger_status"] == "watch"
+
+
+def test_persisted_audit_events_endpoint_requires_oidc_when_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/events",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "AUTH_REQUIRED"
+
+
+def test_persisted_audit_events_endpoint_requires_audit_read_scope_when_oidc_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["workflows:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/events",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The actor cannot read persisted audit events.",
+        "required_permission": "audit:read",
+        "reason": "missing_required_scope",
+        "permission_reason": "missing_scope:audit:read",
+    }
+
+
+def test_persisted_audit_events_endpoint_rejects_oidc_tenant_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_other",
+            scopes=["audit:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/events",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "tenant_mismatch"
+
+
+def test_persisted_audit_events_endpoint_binds_read_scope_from_oidc_token(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:read"],
+        )
+    )
+    with session_scope(session_factory) as session:
+        seed_audit_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/events",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert len(body["events"]) == 2
+    assert "tenant_other" not in str(body)
 
 
 def test_openapi_exposes_persisted_audit_events_endpoint() -> None:
@@ -603,6 +712,129 @@ def test_audit_retention_deletion_endpoint_denies_missing_scope(
     ]
 
 
+def test_audit_retention_deletion_endpoint_requires_oidc_when_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/retention/delete",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "audit-retention-operator",
+            "actor_scopes": ["audit:retention:delete"],
+            "retention_days": 30,
+            "dry_run": True,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "AUTH_REQUIRED"
+
+
+def test_audit_retention_deletion_endpoint_binds_actor_and_scopes_from_oidc_token(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="audit-retention-operator",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:retention:delete"],
+        )
+    )
+    with session_scope(session_factory) as session:
+        seed_retention_window_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/retention/delete",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "audit-retention-operator",
+            "actor_scopes": [],
+            "retention_days": 30,
+            "dry_run": False,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "executed"
+    assert body["permission_decision"] == {"allowed": True, "reason": "allowed"}
+    with session_factory() as session:
+        audit_event = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "audit.retention_deletion.executed"
+            )
+        ).one()
+    assert audit_event.actor_id == "audit-retention-operator"
+
+
+def test_audit_retention_deletion_endpoint_rejects_oidc_actor_impersonation(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="audit-retention-operator",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:retention:delete"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/retention/delete",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "other-actor",
+            "actor_scopes": ["audit:retention:delete"],
+            "retention_days": 30,
+            "dry_run": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "actor_mismatch"
+
+
+def test_audit_retention_deletion_endpoint_rejects_oidc_tenant_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="audit-retention-operator",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:retention:delete"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/retention/delete",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_other",
+            "actor_id": "audit-retention-operator",
+            "actor_scopes": ["audit:retention:delete"],
+            "retention_days": 30,
+            "dry_run": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "tenant_mismatch"
+
+
 def test_audit_retention_deletion_endpoint_executes_dry_run(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -628,6 +860,60 @@ def test_audit_retention_deletion_endpoint_executes_dry_run(
     assert body["status"] == "dry_run"
     assert body["candidate_count"] == 1
     assert body["deleted_count"] == 0
+
+
+def test_audit_export_endpoint_requires_audit_read_scope_when_oidc_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["workflows:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/export",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permission"] == "audit:read"
+
+
+def test_audit_export_endpoint_binds_tenant_to_oidc_principal(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="plant-operations-owner-role",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:read"],
+        )
+    )
+    with session_scope(session_factory) as session:
+        seed_audit_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/export",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert {event["tenant_id"] for event in body["events"]} == {
+        "tenant_demo_manufacturing"
+    }
 
 
 def test_audit_legal_hold_endpoint_creates_lists_and_releases_hold(
@@ -711,6 +997,164 @@ def test_audit_legal_hold_endpoint_denies_missing_write_scope(
     assert response.json()["detail"]["required_permissions"] == [
         "audit:legal_hold:write"
     ]
+
+
+def test_audit_legal_hold_endpoints_require_oidc_when_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    list_response = client.get("/demo/manufacturing/audit/legal-holds")
+    create_response = client.post(
+        "/demo/manufacturing/audit/legal-holds",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-requires-oidc",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "reason": "Regulatory review hold.",
+            "approved_by": "legal-reviewer-role",
+        },
+    )
+
+    assert list_response.status_code == 401
+    assert create_response.status_code == 401
+
+
+def test_audit_legal_hold_list_requires_write_scope_when_oidc_configured(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="legal-ops-controller",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:read"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/legal-holds",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The actor cannot read audit legal holds.",
+        "required_permission": "audit:legal_hold:write",
+        "reason": "missing_required_scope",
+        "permission_reason": "missing_scope:audit:legal_hold:write",
+    }
+
+
+def test_audit_legal_hold_list_rejects_oidc_tenant_mismatch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="legal-ops-controller",
+            tenant_id="tenant_other",
+            scopes=["audit:legal_hold:write"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/audit/legal-holds",
+        headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "tenant_mismatch"
+
+
+def test_audit_legal_hold_endpoint_binds_actor_and_scopes_from_oidc_token(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="legal-ops-controller",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:legal_hold:write"],
+        )
+    )
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/demo/manufacturing/audit/legal-holds",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-oidc-bound",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": [],
+            "reason": "Regulatory review hold.",
+            "approved_by": "legal-reviewer-role",
+        },
+    )
+    release_response = client.post(
+        "/demo/manufacturing/audit/legal-holds/hold-oidc-bound/release",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-oidc-bound",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": [],
+            "release_reason": "Regulatory review completed.",
+        },
+    )
+
+    assert create_response.status_code == 201
+    assert release_response.status_code == 200
+    with session_factory() as session:
+        events = session.scalars(select(AuditEvent).order_by(AuditEvent.event_type)).all()
+    assert {event.actor_id for event in events} == {"legal-ops-controller"}
+    assert {event.event_type for event in events} == {
+        "audit.legal_hold.activated",
+        "audit.legal_hold.released",
+    }
+
+
+def test_audit_legal_hold_endpoint_rejects_oidc_actor_impersonation(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="legal-ops-controller",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=["audit:legal_hold:write"],
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/legal-holds",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "hold_id": "hold-impersonation",
+            "actor_id": "other-actor",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "reason": "Regulatory review hold.",
+            "approved_by": "legal-reviewer-role",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "actor_mismatch"
 
 
 def test_export_persisted_audit_events_includes_hash_chain_integrity_proof(

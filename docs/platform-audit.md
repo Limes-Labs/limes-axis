@@ -38,6 +38,11 @@ persisted endpoint queries Postgres `audit_events` with tenant-scoped filters:
 - `scope`;
 - `limit`.
 
+When OIDC is configured as required, persisted audit event reads require
+`audit:read` from the verified bearer token or server-side browser session.
+The authenticated tenant must match the requested tenant. In optional local
+demo mode, unauthenticated reads remain available for public-safe walkthroughs.
+
 The reference and persisted event endpoints return the same explorer contract:
 
 - ledger status and audit metrics;
@@ -61,6 +66,10 @@ JSON bundle:
 - retention notes that identify enforced behavior and future production
   hardening boundaries.
 
+When OIDC is present or required, export authorization is evaluated from the
+verified principal and requires `audit:read`; request query parameters cannot
+override the authenticated tenant boundary.
+
 Audit ledger signing is configured with `AXIS_AUDIT_LEDGER_SIGNING_SECRET` and
 `AXIS_AUDIT_LEDGER_SIGNING_KEY_ID`. The default path is self-hosted
 HMAC-SHA256 over the export manifest plus hash-chain integrity proof. Secret
@@ -71,6 +80,9 @@ The legal hold endpoints create, list and release tenant-scoped hold records.
 They require `audit:legal_hold:write`, append
 `audit.legal_hold.activated` / `audit.legal_hold.released` evidence, and store
 scope filters for event type and actor without raw payload material.
+When authenticated, the API derives the legal-hold actor and scopes from the
+OIDC principal and rejects actor or tenant impersonation before evaluating the
+legal-hold permission.
 
 The retention delete endpoint accepts a typed request with tenant, actor,
 scopes, retention days, dry-run mode and legal-hold flag. It requires
@@ -80,6 +92,9 @@ deletion. Executed runs physically delete eligible tenant-scoped `audit_events`
 rows older than the retention cutoff and append a fresh
 `audit.retention_deletion.executed` evidence event containing counts, filters
 and SHA-256 hashes of deleted records, not raw payloads.
+When authenticated, the API derives the deletion actor and scopes from the OIDC
+principal and rejects body-level actor or tenant impersonation before any
+candidate query, deletion or evidence write.
 
 ## Console Behavior
 
@@ -120,13 +135,13 @@ Export bundles enforce the requested retention window before records enter the
 bundle unless legal hold is active, and every bundle includes a deterministic
 SHA-256 hash-chain integrity proof. Retention deletion can physically remove
 eligible audit rows with audit evidence, while active legal hold records block
-execution. Production query permissions, provider-specific KMS adapters,
-customer bucket-policy review and richer enterprise legal review workflows
-remain future work.
+execution. Persisted audit read/export/admin routes now bind tenant, actor and
+scope checks to OIDC principals when authentication is present or required.
+Provider-specific KMS adapters, customer bucket-policy review and richer
+enterprise legal review workflows remain future work.
 
 Future Platform work should connect this contract to:
 
-- tenant-scoped query permissions;
 - richer legal review workflows and UI for legal hold administration;
 - provider-specific KMS signers and customer bucket retention policy review;
 - evidence bundles for security and operations reviews.
@@ -154,6 +169,8 @@ The slice is covered by:
 - API unit tests for audit legal hold activation/release, physical retention
   deletion dry-run, persisted legal-hold blocking, tenant isolation and
   redacted deletion evidence;
+- API unit tests for OIDC-required persisted audit read/export/admin routes,
+  token-derived actor/scope binding and tenant/actor impersonation rejection;
 - OpenAPI schema export/check;
 - web unit tests for filtering, export metadata and integrity fields with local
   test fixtures only;

@@ -107,6 +107,9 @@ endpoint and the web console now requires API-backed audit/export records
 instead of constructing browser-local bundles. The audit retention/export slice adds a demo
 JSON export bundle with manifest, checksum, redacted event payload previews,
 retention-window enforcement and a deterministic hash-chain integrity proof.
+When OIDC is present or required, persisted audit reads, exports, retention
+deletion and legal-hold administration derive tenant, actor and scopes from the
+verified principal rather than trusting request-body identity fields.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline
 events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts
