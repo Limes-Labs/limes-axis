@@ -628,6 +628,20 @@ cookie-authenticated state-changing request across the API through a
 double-submit `X-Axis-Csrf-Token` header matched against the HMAC-derived CSRF
 cookie issued at login; bearer-token and safe-method requests are exempt, and
 Secure profiles use `__Host-`-prefixed session and CSRF cookies.
+
+The web console adopts this lifecycle in its shared API request layer rather
+than per page. Cookie-session mutations read the JavaScript-readable CSRF
+cookie (including the `__Host-` variant) and attach the `X-Axis-Csrf-Token`
+header; bearer-bridge requests stay exempt. A cookie-session `401` triggers a
+single deduplicated `POST /identity/session/refresh` followed by exactly one
+retry with the rotated CSRF cookie; refresh failure announces the signed-out
+state and re-runs the live queries so `/identity/session` reports the public
+state, and anonymous `401`s never trigger refresh attempts. The
+`/settings/sessions` view lists the actor's persisted browser sessions with
+lifecycle metadata, revokes non-current sessions by opaque reference, exposes
+the tenant-wide listing toggle only when the identity read model carries
+`identity:sessions:admin`, and treats revoking the current session as a
+federated logout navigation.
 Customer-specific production SSO operations runbooks remain Enterprise
 onboarding work.
 
@@ -1065,6 +1079,9 @@ audit writes from live route decisions remain Platform work.
   readiness/profile, IdP onboarding report, PKCE callback, ID-token nonce
   and subject binding, secure browser-session readiness gate, federated logout
   and server-side session revocation reports.
+- [x] Adopt the cookie-session lifecycle in the web console: centralized CSRF
+  header attach, single-retry deduplicated session refresh on `401`, a
+  `/settings/sessions` management view with revocation and logout semantics.
 - [x] Add deployment readiness secure-cookie session posture gate for Secure
   cookies, signing secret presence, bounded TTL and HTTPS API/public/redirect
   URLs.

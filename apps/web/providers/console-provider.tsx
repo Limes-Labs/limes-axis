@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { getApiBaseUrl, summarizeApiStatus, type ApiStatusSummary } from "@/lib/api-status";
+import { AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT } from "@/lib/axis-api";
 
 type ConsoleContextValue = {
   apiStatus: ApiStatusSummary;
@@ -45,6 +46,16 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
   const triggerRefresh = useCallback(() => {
     setRefreshNonce((value) => value + 1);
   }, []);
+
+  useEffect(() => {
+    // When a browser-session refresh fails the API request layer announces the
+    // signed-out state; re-running the live queries lets /identity/session
+    // report the public state across the console without local session state.
+    window.addEventListener(AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT, triggerRefresh);
+    return () => {
+      window.removeEventListener(AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT, triggerRefresh);
+    };
+  }, [triggerRefresh]);
 
   useEffect(() => {
     const controller = new AbortController();

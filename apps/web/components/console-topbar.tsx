@@ -7,6 +7,7 @@ import {
   CircleHelp,
   KeyRound,
   LogOut,
+  MonitorSmartphone,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -14,7 +15,7 @@ import {
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
 import { axisFetchJson } from "@/lib/axis-api";
-import { buildOidcAuthorizeUrl } from "@/lib/oidc-session";
+import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import type {
@@ -324,11 +325,7 @@ function AccountPanel({
 
   function signOutWithIdentityProvider() {
     clearSession();
-    const returnTo =
-      typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`;
-    window.location.assign(
-      `${apiBaseUrl}/identity/oidc/logout?return_to=${encodeURIComponent(returnTo || "/")}`,
-    );
+    window.location.assign(buildOidcLogoutUrl(apiBaseUrl, currentReturnPath()));
   }
 
   return (
@@ -428,6 +425,10 @@ function AccountPanel({
               </span>
             )}
           </div>
+          <Link className="command-button account-command account-command-secondary" href="/settings/sessions">
+            <MonitorSmartphone size={16} />
+            Manage sessions
+          </Link>
           {verifiedCookieSession ? (
             <button
               className="command-button account-command"
