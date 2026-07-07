@@ -258,11 +258,22 @@ flowchart LR
   their session inventory for anomalies. The client IP is personal data kept
   for security review: it is stored as provided, resolved from
   `X-Forwarded-For` only when
-  `AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED=true` declares a trusted proxy
-  edge (otherwise the socket peer is recorded and the forgeable header is
-  ignored), exposed only through the owner/admin-scoped session listing,
-  never written into audit payloads, and deleted with the session row - it
-  has no independent retention. CSRF is enforced centrally by
+  `AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED=true` declares a single trusted
+  proxy edge - in which case the LAST (rightmost) hop is recorded because a
+  standard proxy appends the peer it observed there, while every leftmost
+  entry is client-attested and forgeable and is never trusted. With the flag
+  off the socket peer is recorded and the header is ignored. The single-proxy
+  assumption is a documented limitation: a multi-proxy chain would need a
+  configurable trusted-hop count (follow-up, not implemented). The IP is
+  exposed only through the owner/admin-scoped session listing, never written
+  into audit payloads, and deleted with the session row - it has no
+  independent retention. On refresh rotation the device metadata (user agent,
+  IP, device label) is re-captured from the refreshing request: this is the
+  intended posture. A stolen cookie replayed from another device updates the
+  new active session row to the attacker's device fingerprint, but the
+  original login's fingerprint is preserved on the superseded `rotated`
+  historical row, so forensic history stays intact while the current-session
+  view reflects the most recent holder. CSRF is enforced centrally by
   `BrowserSessionCsrfMiddleware` for every cookie-authenticated state-changing
   request across the API (not only the identity endpoints) via an HMAC
   double-submit token, with bearer and safe-method requests exempt, alongside

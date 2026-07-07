@@ -133,10 +133,24 @@ def test_forwarded_for_is_ignored_without_the_trusted_proxy_flag() -> None:
     assert resolve_client_ip(request, _settings()) == "203.0.113.7"
 
 
-def test_forwarded_for_first_hop_wins_with_the_trusted_proxy_flag() -> None:
-    request = _request({"X-Forwarded-For": "198.51.100.9, 10.0.0.1, 10.0.0.2"})
+def test_forwarded_for_last_hop_wins_with_the_trusted_proxy_flag() -> None:
+    # The single trusted proxy appends the peer it observed as the final hop.
+    request = _request({"X-Forwarded-For": "203.0.113.7, 10.0.0.1, 198.51.100.9"})
     settings = _settings(identity_session_trusted_proxy_enabled=True)
     assert resolve_client_ip(request, settings) == "198.51.100.9"
+
+
+def test_forged_leftmost_forwarded_for_is_not_recorded() -> None:
+    # A client can prepend anything; only the proxy-appended rightmost hop is
+    # trusted, so the forged leftmost value must never be recorded.
+    request = _request(
+        {"X-Forwarded-For": "1.2.3.4, 198.51.100.9"},
+        client=("10.9.8.7", 40000),
+    )
+    settings = _settings(identity_session_trusted_proxy_enabled=True)
+    resolved = resolve_client_ip(request, settings)
+    assert resolved == "198.51.100.9"
+    assert resolved != "1.2.3.4"
 
 
 @pytest.mark.parametrize(
@@ -161,7 +175,7 @@ def test_forwarded_for_accepts_port_and_bracket_forms(
         "not-an-ip",
         "<script>alert(1)</script>",
         "",
-        ", 198.51.100.9",
+        "198.51.100.9, ",
         "999.999.999.999",
         "a" * (CLIENT_IP_MAX_LENGTH + 1),
     ],

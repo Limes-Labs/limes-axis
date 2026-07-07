@@ -8,12 +8,19 @@ their own sessions apart in the session inventory; it is never emitted into
 audit payloads.
 
 Trust model for the client IP: by default the API records the direct socket
-peer (``request.client.host``). Deployments that sit behind a trusted reverse
-proxy or ingress must set ``AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED=true``
-so the first hop of ``X-Forwarded-For`` - the value the trusted proxy edge
-received the connection from - is recorded instead. The flag must stay off
-when clients can reach the API directly, because ``X-Forwarded-For`` is
-client-controlled input in that topology.
+peer (``request.client.host``). Deployments that sit behind exactly one
+trusted reverse proxy or ingress must set
+``AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED=true`` so the LAST (rightmost)
+hop of ``X-Forwarded-For`` is recorded instead. Standard proxies append the
+peer they observed (nginx ``$proxy_add_x_forwarded_for``), so with a single
+trusted proxy the rightmost entry is the address that proxy actually saw the
+connection from; every entry to its left is client-attested and forgeable.
+The flag must stay off when clients can reach the API directly, because
+``X-Forwarded-For`` is entirely client-controlled input in that topology.
+
+Limitation: this assumes exactly one trusted proxy. Multi-proxy chains would
+need a configurable trusted-hop count to skip the additional proxy-added
+hops; that is a documented follow-up, not implemented here.
 """
 
 from __future__ import annotations
@@ -82,13 +89,13 @@ def extract_session_client_metadata(
 def resolve_client_ip(request: Request, settings: Settings) -> str | None:
     """Resolve the client IP under the configured proxy trust model.
 
-    Behind a trusted proxy the first ``X-Forwarded-For`` hop is the address
-    the edge proxy accepted the connection from; every later hop is
-    proxy-appended. Without the trust flag the header is ignored entirely
-    because any client can forge it.
+    Behind a single trusted proxy the LAST ``X-Forwarded-For`` hop is the
+    address that proxy observed the connection from - it appended it after any
+    client-supplied entries, which are all forgeable. Without the trust flag
+    the header is ignored entirely because any client can forge it.
     """
     if settings.identity_session_trusted_proxy_enabled:
-        forwarded_ip = _first_forwarded_hop(request.headers.get(_FORWARDED_FOR_HEADER))
+        forwarded_ip = _last_forwarded_hop(request.headers.get(_FORWARDED_FOR_HEADER))
         if forwarded_ip is not None:
             return forwarded_ip
     if request.client is None or not request.client.host:
@@ -123,13 +130,15 @@ def _bounded_user_agent(raw_value: str | None) -> str | None:
     return stripped[:USER_AGENT_MAX_LENGTH]
 
 
-def _first_forwarded_hop(header_value: str | None) -> str | None:
+def _last_forwarded_hop(header_value: str | None) -> str | None:
     if not header_value:
         return None
-    first_hop = header_value.split(",", 1)[0].strip()
-    if not first_hop or len(first_hop) > CLIENT_IP_MAX_LENGTH:
+    # A single trusted proxy appends the peer it observed as the final entry,
+    # so the rightmost hop is the only non-forgeable one in this topology.
+    last_hop = header_value.rsplit(",", 1)[-1].strip()
+    if not last_hop or len(last_hop) > CLIENT_IP_MAX_LENGTH:
         return None
-    candidate = first_hop
+    candidate = last_hop
     # RFC 7239-style bracketed IPv6 (with optional port) and bare
     # "ip:port" IPv4 values both appear in the wild; strip to the address.
     if candidate.startswith("[") and "]" in candidate:

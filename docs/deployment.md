@@ -919,11 +919,17 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
   When false the API records the direct socket peer address and ignores
   `X-Forwarded-For` entirely, because any client can forge that header.
   Set it to `true` only when every client connection reaches the API
-  through a trusted reverse proxy or ingress (the standard Helm ingress
-  topology); the API then records the first `X-Forwarded-For` hop - the
-  address the trusted edge accepted the connection from - and falls back
-  to the socket peer when the header is missing or malformed. Never enable
-  it when clients can bypass the proxy and reach the API directly.
+  through EXACTLY ONE trusted reverse proxy or ingress (the standard Helm
+  ingress topology). Standard proxies append the peer they observed to
+  `X-Forwarded-For` (e.g. nginx `$proxy_add_x_forwarded_for`), so the API
+  then records the LAST (rightmost) hop - the address that single trusted
+  proxy actually saw the connection from - and falls back to the socket peer
+  when the header is missing or malformed. Every entry to the left of the
+  rightmost hop is client-attested and forgeable, so it is never recorded.
+  Never enable the flag when clients can bypass the proxy and reach the API
+  directly. This assumes exactly one trusted proxy; a multi-proxy chain would
+  need a configurable trusted-hop count to skip the extra proxy-added hops,
+  which is a documented follow-up and not yet implemented.
 - `AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS` (default 120): a session stuck in
   the `refreshing` state longer than this window (the refreshing process
   crashed between the claim and its completion) is revoked with

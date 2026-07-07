@@ -224,19 +224,23 @@ def test_forwarded_for_is_ignored_without_the_trusted_proxy_flag() -> None:
         assert _sessions(session)[0].client_ip == "testclient"
 
 
-def test_forwarded_for_first_hop_is_honored_with_the_trusted_proxy_flag() -> None:
+def test_forwarded_for_last_hop_is_honored_with_the_trusted_proxy_flag() -> None:
     client, factory, token_endpoint = _build_app(
         _settings(identity_session_trusted_proxy_enabled=True)
     )
 
+    # The single trusted proxy appends the peer it observed as the final hop;
+    # the forged leftmost value must not be recorded.
     _login(
         client,
         token_endpoint,
-        headers={"X-Forwarded-For": "198.51.100.9, 10.0.0.1"},
+        headers={"X-Forwarded-For": "1.2.3.4, 198.51.100.9"},
     )
 
     with factory() as session:
-        assert _sessions(session)[0].client_ip == "198.51.100.9"
+        recorded_ip = _sessions(session)[0].client_ip
+        assert recorded_ip == "198.51.100.9"
+        assert recorded_ip != "1.2.3.4"
 
 
 def test_garbage_forwarded_for_falls_back_to_the_socket_peer() -> None:
@@ -247,7 +251,7 @@ def test_garbage_forwarded_for_falls_back_to_the_socket_peer() -> None:
     _login(
         client,
         token_endpoint,
-        headers={"X-Forwarded-For": "<not-an-ip>, 198.51.100.9"},
+        headers={"X-Forwarded-For": "198.51.100.9, <not-an-ip>"},
     )
 
     with factory() as session:
