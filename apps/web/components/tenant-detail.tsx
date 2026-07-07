@@ -10,6 +10,7 @@ import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
 import {
   buildPlatformTenantDetailPath,
   fetchTenantDetail,
+  tenantRegistryLimit,
   tenantStatusClass,
   tenantStatusLabel,
   type TenantRecord,
@@ -84,6 +85,7 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
 export function TenantDetail({ tenantId }: { tenantId: string }) {
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [source, setSource] = useState<DetailSource>("loading");
+  const [notFoundBeyondCap, setNotFoundBeyondCap] = useState(false);
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
 
@@ -92,7 +94,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
 
     async function loadTenant() {
       try {
-        const record = await fetchTenantDetail(tenantId, {
+        const result = await fetchTenantDetail(tenantId, {
           session,
           signal: controller.signal,
         });
@@ -101,13 +103,14 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           return;
         }
 
-        if (record === null) {
+        if (result.kind === "notFound") {
           setTenant(null);
+          setNotFoundBeyondCap(result.beyondCap);
           setSource("missing");
           return;
         }
 
-        setTenant(record);
+        setTenant(result.record);
         setSource("api");
       } catch {
         if (!controller.signal.aborted) {
@@ -140,6 +143,14 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
             <p className="section-label">Platform Tenant</p>
             <h2 className="panel-title">Tenant not found</h2>
             <p className="row-detail mono">{tenantId}</p>
+            {notFoundBeyondCap ? (
+              <p className="row-detail">
+                The listing is capped at the first {tenantRegistryLimit} tenants (ordered by
+                tenant id) and pagination is not yet available, so this tenant may exist beyond
+                the current cap rather than being absent. Narrow the registry by status filter to
+                locate it.
+              </p>
+            ) : null}
           </div>
           <Link className="command-button" href="/tenants">
             <ArrowLeft size={17} />

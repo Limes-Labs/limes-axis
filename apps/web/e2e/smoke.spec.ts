@@ -937,10 +937,24 @@ test.describe("Axis console smoke", () => {
       },
     );
 
-    await page.goto("/tenants");
+    const [listRequest] = await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "GET"
+          && request.url().startsWith("http://127.0.0.1:65534/platform/tenants"),
+      ),
+      page.goto("/tenants"),
+    ]);
+    // The list is requested at the API maximum so the ceiling is as high as
+    // the API allows.
+    expect(new URL(listRequest.url()).searchParams.get("limit")).toBe("200");
 
     await expect(page.getByRole("heading", { name: "Tenant lifecycle" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Acme Manufacturing" })).toBeVisible();
+    // A short list is not capped, so no cap notice is shown.
+    await expect(page.getByRole("heading", { name: /Showing the first 200 tenants/ })).toHaveCount(
+      0,
+    );
 
     const provisionForm = page.getByRole("form", { name: "Tenant provisioning" });
     await expect(provisionForm).toBeVisible();

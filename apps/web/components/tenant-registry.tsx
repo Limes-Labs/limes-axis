@@ -11,6 +11,8 @@ import {
   buildPlatformTenantsPath,
   platformTenantsPath,
   tenantLifecycleStatuses,
+  tenantListIsCapped,
+  tenantRegistryLimit,
   tenantStatusClass,
   tenantStatusLabel,
   type TenantLifecycleStatus,
@@ -58,6 +60,7 @@ export function TenantRegistry() {
 
   const tenants = registry.tenants ?? [];
   const tenantNotes = registry.tenant_notes ?? [];
+  const listCapped = tenantListIsCapped(registry);
   const suspendedCount = tenants.filter((tenant) => tenant.status === "suspended").length;
   const pendingDeletionCount = tenants.filter(
     (tenant) => tenant.status === "pending_deletion",
@@ -131,6 +134,27 @@ export function TenantRegistry() {
           </button>
         </div>
       </section>
+
+      {listCapped ? (
+        <section className="panel overview-context">
+          <div>
+            <p className="section-label">Listing Cap</p>
+            <h2 className="panel-title">
+              Showing the first {tenantRegistryLimit} tenants
+            </h2>
+            <p className="row-detail">
+              The registry returned {tenantRegistryLimit} tenants, the API maximum, ordered by
+              tenant id. Cursor pagination is not yet available, so tenants beyond this cap are
+              not listed here — narrow by status filter to find others. A single-tenant read
+              route and pagination are a tracked follow-up.
+            </p>
+          </div>
+          <span className="status-pill signal-watch">
+            <Building2 size={15} />
+            List capped
+          </span>
+        </section>
+      ) : null}
 
       {tenants.length > 0 ? (
         <section className="table-panel">

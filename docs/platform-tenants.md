@@ -159,7 +159,14 @@ The tenant list (`/tenants`) renders the `TenantRegistry` as a table
 (`tenant_id`, display name, status pill, created-by, latest lifecycle
 transition, updated timestamp), a status filter over `active` / `suspended` /
 `pending_deletion`, and the API-required and empty states used across the
-console (no local fallback data). A provision form on the list validates the
+console (no local fallback data). The list is requested at the API maximum
+`limit=200` (the `GET /platform/tenants` route caps at `le=200`, orders by
+`tenant_id` and has no cursor pagination yet). When the returned rows reach
+that ceiling the console renders a visible "listing cap" notice rather than
+implying completeness — beyond 200 tenants an operator narrows by the status
+filter to find others. A dedicated single-tenant `GET /platform/tenants/{id}`
+route and server-side cursor pagination are a tracked follow-up. A provision
+form on the list validates the
 `tenant_id` against the server pattern `^[a-z0-9][a-z0-9_-]*$` before any
 request is sent, generates a client-side `idempotency_key`, and surfaces the
 `201` created, idempotent-replay `200`, `409` conflict and `422` field-mapped
@@ -170,7 +177,11 @@ The tenant detail (`/tenants/{tenant_id}`) shows the full `TenantRecord`, a
 lifecycle timeline (provisioned / suspended / reactivated with actor, reason
 and the audit event id for the latest transition), and the lifecycle actions:
 suspend with a required reason when the tenant is active, reactivate when it is
-suspended. A quota panel reads the current `TenantQuotaSet` and edits the three
+suspended. Because there is no single-tenant read route, the detail derives its
+record from the same `limit=200` registry read; if the tenant is not in that
+page and the page is capped, the not-found state notes the tenant may exist
+beyond the listing cap rather than being genuinely absent. A quota panel reads
+the current `TenantQuotaSet` and edits the three
 typed values with numeric inputs; a blank field clears the override (the API's
 `null`-clears semantics), inputs are bound to the server `ge`/`le` limits, and
 a confirmation step precedes the `PUT`, after which the panel refetches.
@@ -191,8 +202,9 @@ The slice is a foundation. It does not yet include:
   the principal boundary, but no deletion pipeline exists);
 - an approval-workflow gate on lifecycle transitions or quota changes;
 - per-tenant quotas beyond the three typed keys;
-- a dedicated single-tenant read route (the console detail view derives its
-  record from the operator-scoped registry list);
+- a dedicated single-tenant read route or server-side cursor pagination (the
+  console lists and derives detail from the operator-scoped registry read at
+  the `limit=200` API maximum, and surfaces a visible cap notice past it);
 - distributed rate-limit or cache coordination across replicas (each process
   enforces from its own cache within the TTL staleness window).
 

@@ -20,7 +20,9 @@ import {
   quotaFormFromQuotaSet,
   reactivateTenant,
   suspendTenant,
+  tenantListIsCapped,
   tenantQuotaFields,
+  tenantRegistryLimit,
   tenantStatusClass,
   tenantStatusLabel,
   updateTenantQuotas,
@@ -73,13 +75,15 @@ function buildQuotaForm(overrides: Partial<TenantQuotaFormState> = {}): TenantQu
 }
 
 describe("tenant path builders", () => {
-  it("omits the status query for the all filter", () => {
-    expect(buildPlatformTenantsPath({ status: allTenantFilter })).toBe(platformTenantsPath);
+  it("always requests the server maximum limit for the all filter", () => {
+    expect(buildPlatformTenantsPath({ status: allTenantFilter })).toBe(
+      `${platformTenantsPath}?limit=200`,
+    );
   });
 
-  it("encodes the status filter", () => {
+  it("encodes the status filter alongside the limit", () => {
     expect(buildPlatformTenantsPath({ status: "suspended" })).toBe(
-      "/platform/tenants?status=suspended",
+      "/platform/tenants?status=suspended&limit=200",
     );
   });
 
@@ -433,12 +437,75 @@ describe("tenant API bindings", () => {
     await expect(fetchTenantDetail("tenant_acme")).rejects.toBeInstanceOf(AxisApiError);
   });
 
-  it("derives the detail record from the registry list", async () => {
+  it("derives the detail record from the registry list at the server limit", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     const record = buildRecord();
-    stubFetch(200, { tenant_count: 1, active_tenant_count: 1, tenants: [record] });
-    await expect(fetchTenantDetail("tenant_acme")).resolves.toEqual(record);
+    const fetchMock = stubFetch(200, {
+      tenant_count: 1,
+      active_tenant_count: 1,
+      tenants: [record],
+    });
+    await expect(fetchTenantDetail("tenant_acme")).resolves.toEqual({
+      kind: "found",
+      record,
+    });
+    // The derivation read requests the server maximum, not an unbounded list.
+    expect((fetchMock.mock.calls[0] as [RequestInfo | URL])[0]).toBe(
+      "http://axis-api.test/platform/tenants?limit=200",
+    );
+  });
+
+  it("reports not-found without a cap flag when the list is short", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     stubFetch(200, { tenant_count: 0, active_tenant_count: 0, tenants: [] });
-    await expect(fetchTenantDetail("missing")).resolves.toBeNull();
+    await expect(fetchTenantDetail("missing")).resolves.toEqual({
+      kind: "notFound",
+      beyondCap: false,
+    });
+  });
+
+  it("flags beyondCap when the tenant is missing from a capped list", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    const tenants = Array.from({ length: tenantRegistryLimit }, (_, index) =>
+      buildRecord({ tenant_id: `tenant_${String(index).padStart(4, "0")}` }),
+    );
+    stubFetch(200, {
+      tenant_count: tenants.length,
+      active_tenant_count: tenants.length,
+      tenants,
+    });
+    await expect(fetchTenantDetail("tenant_beyond_cap")).resolves.toEqual({
+      kind: "notFound",
+      beyondCap: true,
+    });
+  });
+});
+
+describe("tenant list cap detection", () => {
+  it("is not capped below the limit", () => {
+    expect(
+      tenantListIsCapped({ tenant_count: 3, active_tenant_count: 3, tenants: [] }),
+    ).toBe(false);
+  });
+
+  it("is capped exactly at the limit boundary", () => {
+    const tenants = Array.from({ length: tenantRegistryLimit }, (_, index) =>
+      buildRecord({ tenant_id: `tenant_${index}` }),
+    );
+    expect(
+      tenantListIsCapped({
+        tenant_count: tenants.length,
+        active_tenant_count: tenants.length,
+        tenants,
+      }),
+    ).toBe(true);
+    // One below the boundary is not capped.
+    expect(
+      tenantListIsCapped({
+        tenant_count: tenants.length - 1,
+        active_tenant_count: tenants.length - 1,
+        tenants: tenants.slice(0, -1),
+      }),
+    ).toBe(false);
   });
 });
