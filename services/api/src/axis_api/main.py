@@ -1621,6 +1621,46 @@ def _authorize_connector_sync_checkpoint_claim_read(
         )
 
 
+def _bind_connector_run_actor(
+    request_model,
+    principal: OidcPrincipal | None,
+    *,
+    actor_field: str,
+):
+    if principal is None:
+        return request_model
+
+    request_tenant = getattr(request_model, "tenant_id", None)
+    if request_tenant != principal.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": (
+                    "The authenticated OIDC tenant cannot access this connector "
+                    "run scope."
+                ),
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    request_actor = getattr(request_model, actor_field, None)
+    if request_actor and request_actor != principal.actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The request actor does not match the authenticated OIDC actor.",
+                "reason": "actor_mismatch",
+            },
+        )
+
+    update: dict[str, object] = {actor_field: principal.actor_id}
+    if "actor_scopes" in type(request_model).model_fields:
+        update["actor_scopes"] = principal.scopes
+    return request_model.model_copy(update=update)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings()
     app = FastAPI(
@@ -4047,6 +4087,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/connectors/runs",
         response_model=ConnectorRunRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Connector run actor binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             422: {"description": "Connector run or registry validation failed"},
         },
@@ -4056,13 +4098,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def manufacturing_connector_run_create(
         connector_run: ConnectorRunCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         execution_runtime: ConnectorExecutionRuntimeDependency,
         sync_scheduler_runtime: ConnectorSyncSchedulerRuntimeDependency,
     ) -> ConnectorRunRecord:
+        bound_run = _bind_connector_run_actor(
+            connector_run,
+            principal,
+            actor_field="requested_by",
+        )
         try:
             return record_demo_connector_run(
                 repository,
-                connector_run,
+                bound_run,
                 execution_runtime,
                 sync_scheduler_runtime,
             )
@@ -4215,6 +4263,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response_model=ConnectorSyncCheckpointClaimRecord,
         status_code=status.HTTP_201_CREATED,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Connector sync checkpoint claim permission denied"},
             404: {"description": "Connector sync checkpoint not found"},
             409: {"description": "Connector sync checkpoint claim conflict"},
@@ -4226,13 +4275,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         checkpoint_id: str,
         claim_request: ConnectorSyncCheckpointClaimRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         response: Response,
     ) -> ConnectorSyncCheckpointClaimRecord:
+        bound_claim = _bind_connector_run_actor(
+            claim_request,
+            principal,
+            actor_field="claimed_by",
+        )
         try:
             claim, created = claim_connector_sync_checkpoint(
                 repository,
                 checkpoint_id,
-                claim_request,
+                bound_claim,
             )
             if not created:
                 response.status_code = status.HTTP_200_OK
@@ -4283,6 +4338,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew",
         response_model=ConnectorSyncCheckpointClaimRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Connector sync checkpoint claim renew permission denied"},
             404: {"description": "Connector sync checkpoint claim not found"},
             422: {"description": "Connector sync checkpoint claim renew validation failed"},
@@ -4294,13 +4350,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         claim_id: str,
         renew_request: ConnectorSyncCheckpointClaimRenewRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorSyncCheckpointClaimRecord:
+        bound_renew = _bind_connector_run_actor(
+            renew_request,
+            principal,
+            actor_field="renewed_by",
+        )
         try:
             return renew_connector_sync_checkpoint_claim(
                 repository,
                 checkpoint_id,
                 claim_id,
-                renew_request,
+                bound_renew,
             )
         except ConnectorRunPermissionDenied as exc:
             raise HTTPException(
@@ -4335,6 +4397,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release",
         response_model=ConnectorSyncCheckpointClaimRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Connector sync checkpoint claim release permission denied"},
             404: {"description": "Connector sync checkpoint claim not found"},
             422: {"description": "Connector sync checkpoint claim release validation failed"},
@@ -4346,13 +4409,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         claim_id: str,
         release_request: ConnectorSyncCheckpointClaimReleaseRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorSyncCheckpointClaimRecord:
+        bound_release = _bind_connector_run_actor(
+            release_request,
+            principal,
+            actor_field="released_by",
+        )
         try:
             return release_connector_sync_checkpoint_claim(
                 repository,
                 checkpoint_id,
                 claim_id,
-                release_request,
+                bound_release,
             )
         except ConnectorRunPermissionDenied as exc:
             raise HTTPException(
@@ -4387,6 +4456,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/connectors/runs/{run_id}/dispatch",
         response_model=ConnectorRunRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Connector sync dispatch permission denied"},
             404: {"description": "Connector run not found"},
             409: {"description": "Connector sync dispatch idempotency conflict"},
@@ -4398,13 +4468,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         run_id: str,
         dispatch_request: ConnectorRunDispatchRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         sync_dispatch_runtime: ConnectorSyncDispatchRuntimeDependency,
     ) -> ConnectorRunRecord:
+        bound_dispatch = _bind_connector_run_actor(
+            dispatch_request,
+            principal,
+            actor_field="dispatched_by",
+        )
         try:
             return dispatch_demo_connector_sync(
                 repository,
                 run_id,
-                dispatch_request,
+                bound_dispatch,
                 sync_dispatch_runtime,
             )
         except ConnectorRunPermissionDenied as exc:
@@ -4449,6 +4525,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/demo/manufacturing/connectors/runs/{run_id}/execute-sync",
         response_model=ConnectorRunRecord,
         responses={
+            401: {"description": "OIDC authentication required"},
             403: {"description": "Connector sync execution permission denied"},
             404: {"description": "Connector run not found"},
             409: {"description": "Connector sync execution idempotency conflict"},
@@ -4460,14 +4537,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         run_id: str,
         execution_request: ConnectorRunSyncExecutionRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         sync_execution_runtime: ConnectorSyncExecutionRuntimeDependency,
         live_sync_runtime: ConnectorLiveSyncRuntimeDependency,
     ) -> ConnectorRunRecord:
+        bound_execution = _bind_connector_run_actor(
+            execution_request,
+            principal,
+            actor_field="executed_by",
+        )
         try:
             return execute_demo_connector_sync(
                 repository,
                 run_id,
-                execution_request,
+                bound_execution,
                 sync_execution_runtime,
                 live_sync_runtime=live_sync_runtime,
             )

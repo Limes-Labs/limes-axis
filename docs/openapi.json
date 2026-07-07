@@ -19537,6 +19537,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_run_create_demo_manufacturing_connectors_runs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19557,6 +19575,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Connector run actor binding permission denied"
           },
           "404": {
             "description": "Connector registry reference record not found"
@@ -19965,6 +19989,22 @@
               "title": "Checkpoint Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -19987,6 +20027,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Connector sync checkpoint claim permission denied"
@@ -20028,6 +20071,22 @@
               "title": "Claim Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -20050,6 +20109,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Connector sync checkpoint claim release permission denied"
@@ -20088,6 +20150,22 @@
               "title": "Claim Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -20110,6 +20188,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Connector sync checkpoint claim renew permission denied"
@@ -20139,6 +20220,22 @@
               "title": "Run Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -20161,6 +20258,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Connector sync dispatch permission denied"
@@ -20193,6 +20293,22 @@
               "title": "Run Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -20215,6 +20331,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
           },
           "403": {
             "description": "Connector sync execution permission denied"
