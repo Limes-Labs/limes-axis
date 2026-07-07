@@ -130,6 +130,13 @@ audit artifacts with `simulation.replay_output.persisted` evidence, retention
 metadata and idempotency protection. Replay queries now enforce retention-aware
 windows before returning timeline, audit and persisted output records, with a
 legal-hold bypass for governance review.
+The tenant lifecycle slice starts the multi-tenant SaaS reference: a
+platform-operator API provisions, suspends and reactivates tenants with
+idempotent replay and audit evidence, suspended tenants are rejected
+fail-closed at the OIDC principal boundary, and typed per-tenant quotas
+override the global API rate limit, concurrent-session cap and live-sync row
+limits through a short-TTL tenant state cache (see
+[`docs/platform-tenants.md`](./docs/platform-tenants.md)).
 
 The web console runtime libraries no longer export browser-local fallback seed
 records, including the connector console records; those pages are API-required
