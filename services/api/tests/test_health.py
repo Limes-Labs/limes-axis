@@ -184,7 +184,7 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
-                oidc_refresh_token_encryption_key="axis-refresh-credential-key",
+                oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
             )
         )
     )
@@ -278,7 +278,7 @@ def test_oidc_onboarding_report_is_public_safe_and_computed_from_settings() -> N
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="super-secret-cookie-signing-key",
                 oidc_session_cookie_secure=True,
-                oidc_refresh_token_encryption_key="axis-refresh-credential-key",
+                oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
             )
         )
     )
@@ -526,7 +526,7 @@ def test_ready_includes_oidc_readiness_summary() -> None:
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
-                oidc_refresh_token_encryption_key="axis-refresh-credential-key",
+                oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
             )
         )
     )

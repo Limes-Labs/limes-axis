@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from http.cookies import SimpleCookie
+from pathlib import Path
+from runpy import run_path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi.testclient import TestClient
 from jose import jwt
 from jose.utils import base64url_encode
@@ -13,18 +21,26 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
+from axis_api.db import session_scope
 from axis_api.identity import StaticJwksOidcVerifier
 from axis_api.main import create_app
 from axis_api.models import AuditEvent, Base, OidcBrowserSession
 from axis_api.oidc_code_flow import (
+    OidcCodeFlowConfigurationError,
     OidcTokenExchangeError,
     decrypt_refresh_token,
+    encrypt_refresh_token,
     read_session_cookie,
+    refresh_token_encryption_key_is_strong,
+    validate_refresh_token_encryption_key,
 )
+from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+from axis_api.workflow_runtime import WorkflowSignalResult
 
 TOKEN_SECRET = "axis-test-secret"
 DEFAULT_ACTOR = "plant-operations-owner-role"
 DEFAULT_TENANT = "tenant_demo_manufacturing"
+STRONG_REFRESH_KEY = "axis-refresh-credential-encryption-key-01"
 
 
 def _oct_jwks(secret: str) -> dict:
@@ -87,7 +103,7 @@ def _settings(**overrides: object) -> Settings:
         "oidc_token_url": "https://idp.example/realms/axis/protocol/openid-connect/token",
         "oidc_session_cookie_signing_secret": "a-secure-cookie-signing-secret",
         "oidc_session_cookie_secure": False,
-        "oidc_refresh_token_encryption_key": "axis-refresh-credential-key",
+        "oidc_refresh_token_encryption_key": STRONG_REFRESH_KEY,
     }
     values.update(overrides)
     return Settings(**values)
@@ -618,3 +634,229 @@ def test_secure_profile_sets_host_prefixed_cookie_attributes() -> None:
     session_read = client.get("/identity/session")
     assert session_read.status_code == 200
     assert session_read.json()["mode"] == "secure_oidc_cookie"
+
+
+# --- Centralized CSRF coverage on a non-identity mutating route -------------
+
+
+def _seed_approval_inbox(factory: sessionmaker[Session]) -> None:
+    migrations_dir = Path(__file__).parents[1] / "migrations" / "versions"
+    payload = deepcopy(
+        run_path(str(migrations_dir / "0027_approval_inbox_reference.py"))[
+            "APPROVAL_INBOX_PAYLOAD"
+        ]
+    )
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="approvals",
+                reference_id="manufacturing-approval-inbox",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=payload,
+            )
+        )
+
+
+class _StaticApprovalWorkflowRuntime:
+    async def signal_approval_decision(self, request: Any) -> Any:
+        return WorkflowSignalResult(
+            workflow_id=request.workflow_id,
+            status="approval_signaled",
+            adapter="axis-test-workflow-adapter",
+            signal_name=request.signal_name,
+            payload={
+                "approval_id": request.approval_id,
+                "approved": request.approved,
+                "decision": request.decision.value,
+            },
+        )
+
+
+def _approval_decision_body() -> dict[str, Any]:
+    return {
+        "decision": "approve",
+        "actor_id": DEFAULT_ACTOR,
+        "actor_scopes": [],
+        "note": "Approved in CSRF middleware coverage test.",
+    }
+
+
+def test_non_identity_mutating_route_rejects_missing_csrf_for_cookie_session() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _seed_approval_inbox(factory)
+    client.app.state.workflow_runtime = _StaticApprovalWorkflowRuntime()
+    _login(client, token_endpoint)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json=_approval_decision_body(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "csrf_token_required"
+    with factory() as session:
+        assert list(session.scalars(select(AuditEvent).where(
+            AuditEvent.event_type == "approval.decision.recorded"
+        ))) == []
+
+
+def test_non_identity_mutating_route_rejects_mismatched_csrf_for_cookie_session() -> None:
+    settings = _settings()
+    client, _factory, token_endpoint = _build_app(settings)
+    _seed_approval_inbox(_factory)
+    client.app.state.workflow_runtime = _StaticApprovalWorkflowRuntime()
+    _login(client, token_endpoint)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        headers={"X-Axis-Csrf-Token": "0" * 64},
+        json=_approval_decision_body(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "csrf_token_mismatch"
+
+
+def test_non_identity_mutating_route_accepts_valid_csrf_for_cookie_session() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _seed_approval_inbox(factory)
+    client.app.state.workflow_runtime = _StaticApprovalWorkflowRuntime()
+    _login(client, token_endpoint)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        headers=_csrf_headers(client),
+        json=_approval_decision_body(),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["approval_id"] == "appr_expedite_supplier_batch"
+    assert body["actor_id"] == DEFAULT_ACTOR
+
+
+def test_non_identity_mutating_route_with_bearer_auth_is_csrf_exempt() -> None:
+    settings = _settings()
+    client, factory, _token_endpoint = _build_app(settings)
+    _seed_approval_inbox(factory)
+    client.app.state.workflow_runtime = _StaticApprovalWorkflowRuntime()
+
+    # No session cookie is attached; the request authenticates with a bearer
+    # token and must not require a CSRF header.
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        headers={"Authorization": f"Bearer {_access_token(settings)}"},
+        json=_approval_decision_body(),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["actor_id"] == DEFAULT_ACTOR
+
+
+def test_safe_methods_never_require_csrf_for_cookie_session() -> None:
+    settings = _settings()
+    client, _factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+
+    # GET carries the session cookie but no CSRF header and must pass.
+    response = client.get("/identity/session")
+
+    assert response.status_code == 200
+    assert response.json()["authenticated"] is True
+
+
+# --- Concurrent-refresh safety at the persistence/locking seam --------------
+
+
+def test_concurrent_refresh_claim_allows_exactly_one_winner() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    with factory() as session:
+        session_hash = _sessions(session)[0].session_id_hash
+
+    # Two concurrent refreshes with the same cookie both observe status="active"
+    # but only one may win the active->refreshing transition.
+    with factory() as session:
+        first = AxisPersistenceRepository(session).claim_oidc_browser_session_refresh(
+            session_hash
+        )
+        session.commit()
+    with factory() as session:
+        second = AxisPersistenceRepository(session).claim_oidc_browser_session_refresh(
+            session_hash
+        )
+        session.commit()
+
+    assert first is True
+    assert second is False
+    with factory() as session:
+        assert _sessions(session)[0].status == "refreshing"
+
+
+def test_refresh_after_rotation_replay_produces_no_second_child() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    original_cookie = client.cookies.get("axis_session")
+    original_csrf = _csrf_headers(client)
+
+    assert client.post("/identity/session/refresh", headers=original_csrf).status_code == 204
+    with factory() as session:
+        assert len(_sessions(session)) == 2
+
+    # Replaying the pre-rotation cookie must not mint a second child session.
+    client.cookies.set("axis_session", original_cookie)
+    replay = client.post("/identity/session/refresh", headers=original_csrf)
+
+    assert replay.status_code == 401
+    assert replay.json()["detail"]["reason"] == "revoked_session_cookie"
+    with factory() as session:
+        stored = _sessions(session)
+        assert len(stored) == 2
+        assert sum(1 for row in stored if row.status == "active") == 1
+
+
+# --- HKDF key derivation and weak-key rejection -----------------------------
+
+
+def test_weak_refresh_key_is_rejected_at_startup() -> None:
+    with pytest.raises(OidcCodeFlowConfigurationError) as exc:
+        create_app(_settings(oidc_refresh_token_encryption_key="short-key"))
+    assert exc.value.reason == "weak_refresh_token_encryption_key"
+
+
+def test_weak_refresh_key_reports_not_strong() -> None:
+    assert refresh_token_encryption_key_is_strong(
+        _settings(oidc_refresh_token_encryption_key="short-key")
+    ) is False
+    assert refresh_token_encryption_key_is_strong(_settings()) is True
+
+
+def test_validate_refresh_key_is_noop_when_unset() -> None:
+    # A missing key is a deferred-feature state, not a misconfiguration.
+    validate_refresh_token_encryption_key(
+        _settings(oidc_refresh_token_encryption_key=None)
+    )
+
+
+def test_hkdf_key_derivation_differs_from_bare_sha256() -> None:
+    settings = _settings()
+    ciphertext = encrypt_refresh_token("provider-refresh-token", settings)
+    assert decrypt_refresh_token(ciphertext, settings) == "provider-refresh-token"
+
+    # The AES key is HKDF-derived, not a bare SHA-256 of the config string, so a
+    # ciphertext produced under the real key cannot be read with the naive key.
+    naive_key = hashlib.sha256(STRONG_REFRESH_KEY.encode()).digest()
+    raw = base64.urlsafe_b64decode(ciphertext + "=" * (-len(ciphertext) % 4))
+    nonce, blob = raw[:12], raw[12:]
+    try:
+        AESGCM(naive_key).decrypt(nonce, blob, b"axis-oidc-refresh-token")
+        raise AssertionError("HKDF key must not equal bare sha256(config)")
+    except InvalidTag:
+        pass
