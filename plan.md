@@ -125,6 +125,9 @@ Foundation acceptance is tracked in
   matching retention deletion candidates.
 - [x] Bind persisted audit read/export/retention/legal-hold endpoints to
   OIDC-derived tenant, actor and scopes when authenticated or required.
+- [x] Add the tenant-scoped platform policy engine foundation with typed rule
+  conditions, append-only idempotent revisions, deterministic evaluation and
+  policy-gated action run enforcement.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [x] Persist replay simulation outputs as governed audit artifacts.

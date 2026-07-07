@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.action_runs import payload_requested_amount, registry_action_entry
 from axis_api.approval_reference import get_persisted_manufacturing_approval_inbox
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ApprovalDecision, ApprovalInboxItem
@@ -13,6 +14,12 @@ from axis_api.persistence import (
     ApprovalRecordCreate,
     AxisPersistenceRepository,
     WorkflowApprovalDecisionUpdate,
+)
+from axis_api.platform_policies import (
+    PlatformPolicyDecision,
+    PlatformPolicyEvaluationContext,
+    PlatformPolicyScope,
+    enforce_platform_policy_deny,
 )
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
@@ -64,6 +71,7 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     action_run_status: str | None = None
     action_run_idempotency_key: str | None = None
     action_run_idempotent_replay: bool = False
+    platform_policy_decision: PlatformPolicyDecision | None = None
 
 
 class ApprovalActionTransition(BaseModel):
@@ -220,6 +228,65 @@ def _record_approval_action_transition(
     )
 
 
+def _approval_platform_policy_context(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    action_id: str,
+) -> PlatformPolicyEvaluationContext:
+    action = registry_action_entry(repository, action_id)
+    linked_runs = repository.list_action_runs_for_approval(
+        tenant_id,
+        action_id,
+        approval.approval_id,
+    )
+    requested_amount = None
+    requested_amount_malformed = False
+    if linked_runs:
+        payload = linked_runs[0].payload if isinstance(linked_runs[0].payload, dict) else {}
+        input_payload = payload.get("input")
+        if not isinstance(input_payload, dict):
+            input_payload = {}
+        requested_amount, requested_amount_malformed = payload_requested_amount(input_payload)
+
+    return PlatformPolicyEvaluationContext(
+        action_id=action_id,
+        action_domain=action.definition.domain if action is not None else approval.domain,
+        risk_level=(
+            action.definition.risk_level.value if action is not None else approval.risk_level
+        ),
+        autonomy_level=action.policy.autonomy_ceiling if action is not None else None,
+        requested_amount=requested_amount,
+        requested_amount_malformed=requested_amount_malformed,
+    )
+
+
+def _enforce_approval_platform_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    approval: ApprovalInboxItem,
+    action_id: str,
+    request: ApprovalDecisionRequest,
+) -> PlatformPolicyDecision | None:
+    if request.decision != ApprovalDecision.APPROVE:
+        return None
+
+    return enforce_platform_policy_deny(
+        repository,
+        tenant_id=tenant_id,
+        actor_id=request.actor_id,
+        scope=PlatformPolicyScope.ACTION_EXECUTION,
+        context=_approval_platform_policy_context(repository, tenant_id, approval, action_id),
+        enforcement_point="approval_decision_transition",
+        audit_payload={
+            "approval_id": approval.approval_id,
+            "workflow_id": approval.workflow_id,
+            "action_id": action_id,
+            "decision": request.decision.value,
+        },
+    )
+
+
 def _find_demo_approval(
     repository: AxisPersistenceRepository,
     approval_id: str,
@@ -315,6 +382,13 @@ async def record_demo_approval_decision(
     tenant_id, approval = _find_demo_approval(repository, approval_id)
     action_id = _approval_action_id(approval.approval_id)
     permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
+    platform_policy_decision = _enforce_approval_platform_policies(
+        repository,
+        tenant_id,
+        approval,
+        action_id,
+        request,
+    )
     runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
     _ensure_approval_record(repository, tenant_id, approval)
 
@@ -378,6 +452,11 @@ async def record_demo_approval_decision(
                 },
                 "result": approval.audit_event_preview.result,
                 "decision_note_recorded": str(request.note is not None).lower(),
+                "platform_policy_decision": (
+                    platform_policy_decision.model_dump()
+                    if platform_policy_decision is not None and platform_policy_decision.matched
+                    else None
+                ),
             },
         )
     )
@@ -404,4 +483,5 @@ async def record_demo_approval_decision(
         action_run_status=action_transition.status,
         action_run_idempotency_key=action_transition.idempotency_key,
         action_run_idempotent_replay=action_transition.idempotent_replay,
+        platform_policy_decision=platform_policy_decision,
     )

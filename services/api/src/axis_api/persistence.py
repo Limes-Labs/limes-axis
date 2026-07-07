@@ -32,6 +32,7 @@ from axis_api.models import (
     ManufacturingRiskScenario,
     OidcBrowserSession,
     PlatformNotificationAcknowledgement,
+    PlatformPolicy,
     ReplaySimulationOutput,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -586,6 +587,28 @@ class ConnectorPromotionPolicySetCreate(BaseModel):
     rollback_decision: str | None = None
     rollback_workflow_signal_status: str | None = None
     policy_revision_adoptions: list[dict] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class PlatformPolicyCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    policy_id: str = Field(min_length=1)
+    revision_number: int = Field(ge=1)
+    policy_version: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    scope: str = Field(min_length=1)
+    effect: str = Field(min_length=1)
+    conditions: dict = Field(default_factory=dict)
+    status: str = Field(default="active", min_length=1)
+    created_by: str = Field(min_length=1)
+    required_authoring_scope: str = Field(default="platform:policy:author", min_length=1)
+    permission_decision: dict = Field(default_factory=dict)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="platform.policy.authored", min_length=1)
+    revises_revision_number: int | None = None
+    replaced_by_revision_number: int | None = None
+    revision_idempotency_key: str | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -2698,6 +2721,129 @@ class AxisPersistenceRepository:
             status="active",
             limit=20,
         )
+
+    def create_platform_policy(
+        self,
+        record: PlatformPolicyCreate,
+    ) -> PlatformPolicy:
+        policy = PlatformPolicy(
+            tenant_id=record.tenant_id,
+            policy_id=record.policy_id,
+            revision_number=record.revision_number,
+            policy_version=record.policy_version,
+            display_name=record.display_name,
+            description=record.description,
+            scope=record.scope,
+            effect=record.effect,
+            conditions=record.conditions,
+            status=record.status,
+            created_by=record.created_by,
+            required_authoring_scope=record.required_authoring_scope,
+            permission_decision=record.permission_decision,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            revises_revision_number=record.revises_revision_number,
+            replaced_by_revision_number=record.replaced_by_revision_number,
+            revision_idempotency_key=record.revision_idempotency_key,
+            notes=record.notes,
+        )
+        self.session.add(policy)
+        self.session.flush()
+        return policy
+
+    def get_platform_policy(
+        self,
+        tenant_id: str,
+        policy_id: str,
+    ) -> PlatformPolicy | None:
+        statement = (
+            select(PlatformPolicy)
+            .where(
+                PlatformPolicy.tenant_id == tenant_id,
+                PlatformPolicy.policy_id == policy_id,
+            )
+            .order_by(PlatformPolicy.revision_number.desc())
+        )
+        return self.session.scalars(statement).first()
+
+    def get_platform_policy_by_revision_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> PlatformPolicy | None:
+        statement = select(PlatformPolicy).where(
+            PlatformPolicy.tenant_id == tenant_id,
+            PlatformPolicy.revision_idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def append_platform_policy_revision(
+        self,
+        current_policy: PlatformPolicy,
+        record: PlatformPolicyCreate,
+    ) -> PlatformPolicy:
+        current_policy.status = "superseded"
+        current_policy.replaced_by_revision_number = record.revision_number
+        current_policy.updated_at = utc_now()
+        # Flush the supersede update before inserting the replacement revision so
+        # the single-active-revision partial unique index never sees two active rows.
+        self.session.flush()
+        return self.create_platform_policy(record)
+
+    def list_platform_policies(
+        self,
+        tenant_id: str,
+        scope: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[PlatformPolicy]:
+        statement: Select[tuple[PlatformPolicy]] = select(PlatformPolicy).where(
+            PlatformPolicy.tenant_id == tenant_id
+        )
+        if scope is not None:
+            statement = statement.where(PlatformPolicy.scope == scope)
+        if status is not None:
+            statement = statement.where(PlatformPolicy.status == status)
+
+        statement = statement.order_by(
+            PlatformPolicy.policy_id.asc(),
+            PlatformPolicy.revision_number.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_platform_policy_revisions(
+        self,
+        tenant_id: str,
+        policy_id: str,
+    ) -> list[PlatformPolicy]:
+        statement = (
+            select(PlatformPolicy)
+            .where(
+                PlatformPolicy.tenant_id == tenant_id,
+                PlatformPolicy.policy_id == policy_id,
+            )
+            .order_by(PlatformPolicy.revision_number.asc())
+        )
+        return list(self.session.scalars(statement))
+
+    def list_active_platform_policies_for_scope(
+        self,
+        tenant_id: str,
+        scope: str,
+    ) -> list[PlatformPolicy]:
+        statement = (
+            select(PlatformPolicy)
+            .where(
+                PlatformPolicy.tenant_id == tenant_id,
+                PlatformPolicy.scope == scope,
+                PlatformPolicy.status == "active",
+            )
+            .order_by(
+                PlatformPolicy.policy_id.asc(),
+                PlatformPolicy.revision_number.desc(),
+            )
+        )
+        return list(self.session.scalars(statement))
 
     def create_connector_manual_import_request(
         self,

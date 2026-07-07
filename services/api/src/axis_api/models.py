@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import JSON, DateTime, Index, Integer, String, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -1117,5 +1117,62 @@ class PlatformNotificationAcknowledgement(Base):
             "notification_id",
             "actor_id",
             name="uq_platform_notification_ack_tenant_notification_actor",
+        ),
+    )
+
+
+class PlatformPolicy(Base):
+    __tablename__ = "platform_policies"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    policy_id: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(String(600), nullable=False)
+    scope: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    effect: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    conditions: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    created_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    required_authoring_scope: Mapped[str] = mapped_column(String(160), nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    revises_revision_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    replaced_by_revision_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    revision_idempotency_key: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        index=True,
+    )
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "policy_id",
+            "revision_number",
+            name="uq_platform_policies_tenant_policy_revision",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "revision_idempotency_key",
+            name="uq_platform_policies_tenant_revision_idempotency",
+        ),
+        Index(
+            "uq_platform_policies_tenant_policy_active",
+            "tenant_id",
+            "policy_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
         ),
     )

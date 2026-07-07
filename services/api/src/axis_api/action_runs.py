@@ -1,8 +1,13 @@
+import math
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from axis_api.action_reference import get_persisted_manufacturing_action_registry
+from axis_api.action_reference import (
+    ActionReferenceRecordInvalid,
+    ActionReferenceRecordNotFound,
+    get_persisted_manufacturing_action_registry,
+)
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry
 from axis_api.ontology_reference import get_persisted_manufacturing_ontology
@@ -13,6 +18,13 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     WorkflowActionRunOutcomeUpdate,
     WorkflowActionRunUpdate,
+)
+from axis_api.platform_policies import (
+    PlatformPolicyDecision,
+    PlatformPolicyEffect,
+    PlatformPolicyEvaluationContext,
+    PlatformPolicyScope,
+    enforce_platform_policy_deny,
 )
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
@@ -99,6 +111,7 @@ class ActionRunPersistenceResult(BaseModel):
     workflow_state_updated: bool = False
     workflow_state: str | None = None
     workflow_status: str | None = None
+    platform_policy_decision: PlatformPolicyDecision | None = None
 
 
 class ActionRunOutcomeRequest(BaseModel):
@@ -142,6 +155,10 @@ ACTION_RUN_OUTCOME_STATUSES = {
     "execution_blocked",
 }
 ACTION_RUN_TERMINAL_OUTCOME_STATUSES = ACTION_RUN_OUTCOME_STATUSES
+EXECUTION_ADVANCING_OUTCOME_STATUSES = {
+    "dry_run_completed",
+    "execution_completed",
+}
 
 
 def _find_demo_action(
@@ -259,10 +276,139 @@ def _evaluate_action_permission(
     return decision, relationship_scopes
 
 
-def _action_status(action: ActionRegistryEntry) -> str:
-    if action.definition.requires_approval:
+def _action_status(action: ActionRegistryEntry, approval_required: bool) -> str:
+    if approval_required:
         return "approval_required"
     return "preview_generated"
+
+
+def payload_requested_amount(payload: dict) -> tuple[float | None, bool]:
+    """Parse the amount-like payload field into (amount, malformed).
+
+    A missing or null field is treated as absent. A present value that is not
+    a finite non-negative number is reported as malformed so amount-conditioned
+    policies can fail closed instead of being evaded.
+    """
+    if "requested_amount" not in payload:
+        return None, False
+
+    value = payload["requested_amount"]
+    if value is None:
+        return None, False
+    if isinstance(value, bool):
+        return None, True
+    if isinstance(value, int | float):
+        amount = float(value)
+    elif isinstance(value, str):
+        try:
+            amount = float(value)
+        except ValueError:
+            return None, True
+    else:
+        return None, True
+
+    if not math.isfinite(amount) or amount < 0:
+        return None, True
+    return amount, False
+
+
+def registry_action_entry(
+    repository: AxisPersistenceRepository,
+    action_id: str,
+) -> ActionRegistryEntry | None:
+    try:
+        _, action, _ = _find_demo_action(repository, action_id)
+    except (DemoActionNotFound, ActionReferenceRecordInvalid, ActionReferenceRecordNotFound):
+        return None
+    return action
+
+
+def _platform_policy_context(
+    action: ActionRegistryEntry,
+    request: ActionRunRequest,
+) -> PlatformPolicyEvaluationContext:
+    requested_amount, requested_amount_malformed = payload_requested_amount(request.payload)
+    return PlatformPolicyEvaluationContext(
+        action_id=action.definition.action_id,
+        action_domain=action.definition.domain,
+        risk_level=action.definition.risk_level.value,
+        autonomy_level=action.policy.autonomy_ceiling,
+        requested_amount=requested_amount,
+        requested_amount_malformed=requested_amount_malformed,
+    )
+
+
+def _enforce_platform_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    action: ActionRegistryEntry,
+    request: ActionRunRequest,
+    idempotency_key: str,
+) -> PlatformPolicyDecision:
+    return enforce_platform_policy_deny(
+        repository,
+        tenant_id=tenant_id,
+        actor_id=request.actor_id,
+        scope=PlatformPolicyScope.ACTION_EXECUTION,
+        context=_platform_policy_context(action, request),
+        enforcement_point="action_run_creation",
+        audit_payload={
+            "action_id": action.definition.action_id,
+            "idempotency_key": idempotency_key,
+        },
+    )
+
+
+def _outcome_platform_policy_context(
+    repository: AxisPersistenceRepository,
+    action_run,
+) -> tuple[PlatformPolicyEvaluationContext, bool]:
+    action = registry_action_entry(repository, action_run.action_id)
+    context_degraded = action is None
+
+    payload = action_run.payload if isinstance(action_run.payload, dict) else {}
+    input_payload = payload.get("input")
+    if not isinstance(input_payload, dict):
+        input_payload = {}
+    requested_amount, requested_amount_malformed = payload_requested_amount(input_payload)
+    context = PlatformPolicyEvaluationContext(
+        action_id=action_run.action_id,
+        action_domain=action.definition.domain if action is not None else None,
+        risk_level=action.definition.risk_level.value if action is not None else None,
+        autonomy_level=action.policy.autonomy_ceiling if action is not None else None,
+        requested_amount=requested_amount,
+        requested_amount_malformed=requested_amount_malformed,
+    )
+    return context, context_degraded
+
+
+def _enforce_outcome_platform_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    action_run,
+    request: ActionRunOutcomeRequest,
+) -> bool:
+    if request.status not in EXECUTION_ADVANCING_OUTCOME_STATUSES:
+        return False
+
+    context, context_degraded = _outcome_platform_policy_context(repository, action_run)
+    enforce_platform_policy_deny(
+        repository,
+        tenant_id=tenant_id,
+        actor_id=request.actor_id,
+        scope=PlatformPolicyScope.ACTION_EXECUTION,
+        context=context,
+        enforcement_point="action_run_outcome",
+        audit_payload={
+            "action_id": action_run.action_id,
+            "action_run_id": str(action_run.id),
+            "idempotency_key": request.idempotency_key,
+            "outcome_status": request.status,
+            "context_degraded": context_degraded,
+        },
+        context_degraded=context_degraded,
+    )
+    return context_degraded
 
 
 def _idempotency_key(
@@ -388,11 +534,13 @@ def _result_from_action_run(
     audit_event_id: UUID | None,
     audit_event_type: str | None,
     idempotent_replay: bool,
+    approval_required: bool | None = None,
     workflow_signal: WorkflowSignalResult | None = None,
     workflow_signal_status: str | None = None,
     workflow_state_updated: bool = False,
     workflow_state: str | None = None,
     workflow_status: str | None = None,
+    platform_policy_decision: PlatformPolicyDecision | None = None,
 ) -> ActionRunPersistenceResult:
     return ActionRunPersistenceResult(
         tenant_id=tenant_id,
@@ -402,7 +550,11 @@ def _result_from_action_run(
         status=status,
         execution_mode=action.policy.execution_mode,
         requested_by=requested_by,
-        approval_required=action.definition.requires_approval,
+        approval_required=(
+            approval_required
+            if approval_required is not None
+            else action.definition.requires_approval
+        ),
         approval_id=action.approval_refs[0] if action.approval_refs else None,
         workflow_id=action.workflow_bindings[0] if action.workflow_bindings else None,
         persisted=True,
@@ -415,6 +567,7 @@ def _result_from_action_run(
         workflow_state_updated=workflow_state_updated,
         workflow_state=workflow_state,
         workflow_status=workflow_status,
+        platform_policy_decision=platform_policy_decision,
     )
 
 
@@ -461,6 +614,12 @@ async def record_demo_action_run_outcome(
     if existing_key is not None or action_run.status in ACTION_RUN_TERMINAL_OUTCOME_STATUSES:
         raise ActionRunOutcomeConflict(action_run.id, "action_run_outcome_already_recorded")
 
+    platform_policy_context_degraded = _enforce_outcome_platform_policies(
+        repository,
+        tenant_id,
+        action_run,
+        request,
+    )
     action_run = repository.record_action_run_result(
         ActionRunResultRecord(
             tenant_id=tenant_id,
@@ -487,6 +646,7 @@ async def record_demo_action_run_outcome(
                 "metric_names": sorted(request.metrics.keys()),
                 "external_mutation_started": request.external_mutation_started,
                 "permission_decision": permission_decision.model_dump(),
+                "platform_policy_context_degraded": platform_policy_context_degraded,
             },
         )
     )
@@ -569,7 +729,18 @@ async def record_demo_action_run(
             workflow_signal_status="idempotent_replay",
         )
 
-    status = _action_status(action)
+    platform_policy_decision = _enforce_platform_policies(
+        repository,
+        tenant_id,
+        action,
+        request,
+        idempotency_key,
+    )
+    approval_required = (
+        action.definition.requires_approval
+        or platform_policy_decision.effect == PlatformPolicyEffect.REQUIRE_APPROVAL.value
+    )
+    status = _action_status(action, approval_required)
     action_run = repository.create_action_run(
         ActionRunCreate(
             tenant_id=tenant_id,
@@ -603,7 +774,7 @@ async def record_demo_action_run(
                 "idempotency_key": idempotency_key,
                 "status": status,
                 "execution_mode": action.policy.execution_mode,
-                "approval_required": action.definition.requires_approval,
+                "approval_required": approval_required,
                 "approval_id": action.approval_refs[0] if action.approval_refs else None,
                 "workflow_id": action.workflow_bindings[0] if action.workflow_bindings else None,
                 "risk_level": action.definition.risk_level.value,
@@ -614,6 +785,11 @@ async def record_demo_action_run(
                 "payload_recorded": "true",
                 "workflow_signal_status": workflow_signal_status,
                 "workflow_signal": workflow_signal.model_dump() if workflow_signal else None,
+                "platform_policy_decision": (
+                    platform_policy_decision.model_dump()
+                    if platform_policy_decision.matched
+                    else None
+                ),
             },
         )
     )
@@ -628,7 +804,7 @@ async def record_demo_action_run(
                 idempotency_key=idempotency_key,
                 actor_id=request.actor_id,
                 workflow_signal_status=workflow_signal_status,
-                requires_approval=action.definition.requires_approval,
+                requires_approval=approval_required,
                 approval_id=action.approval_refs[0] if action.approval_refs else None,
             )
         )
@@ -644,9 +820,11 @@ async def record_demo_action_run(
         audit_event_id=audit_event.id,
         audit_event_type=audit_event.event_type,
         idempotent_replay=False,
+        approval_required=approval_required,
         workflow_signal=workflow_signal,
         workflow_signal_status=workflow_signal_status,
         workflow_state_updated=workflow_run is not None,
         workflow_state=workflow_run.state if workflow_run is not None else None,
         workflow_status=workflow_run.status if workflow_run is not None else None,
+        platform_policy_decision=platform_policy_decision,
     )

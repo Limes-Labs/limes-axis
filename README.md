@@ -110,6 +110,11 @@ retention-window enforcement and a deterministic hash-chain integrity proof.
 When OIDC is present or required, persisted audit reads, exports, retention
 deletion and legal-hold administration derive tenant, actor and scopes from the
 verified principal rather than trusting request-body identity fields.
+The platform policy engine foundation adds tenant-scoped policies with typed
+rule conditions, append-only idempotent revisions, a deterministic dry-run
+evaluation endpoint and enforcement on action run creation: a matching deny
+policy rejects the run with `POLICY_VIOLATION` evidence and a matching
+require-approval policy forces the run into the existing approval-gated path.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline
 events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts

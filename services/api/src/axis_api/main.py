@@ -419,6 +419,31 @@ from axis_api.persistence import (
     OidcBrowserSessionCreate,
     OidcBrowserSessionRevocation,
 )
+from axis_api.platform_policies import (
+    REQUIRED_READ_SCOPE as PLATFORM_POLICY_READ_SCOPE,
+)
+from axis_api.platform_policies import (
+    PlatformPolicyConflict,
+    PlatformPolicyCreateRequest,
+    PlatformPolicyDecision,
+    PlatformPolicyDetail,
+    PlatformPolicyEnforcementDenied,
+    PlatformPolicyEvaluationRequest,
+    PlatformPolicyNotFound,
+    PlatformPolicyPermissionDenied,
+    PlatformPolicyQuery,
+    PlatformPolicyRecord,
+    PlatformPolicyRegistry,
+    PlatformPolicyReviseRequest,
+    PlatformPolicyRevisionConflict,
+    PlatformPolicyScope,
+    PlatformPolicyValidationError,
+    build_platform_policy_registry,
+    evaluate_platform_policy_request,
+    get_platform_policy_detail,
+    record_platform_policy,
+    revise_platform_policy,
+)
 from axis_api.rate_limit import ApiRateLimitMiddleware
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
@@ -656,6 +681,7 @@ OidcPrincipalDependency = Annotated[
 CheckpointActorScopesQuery = Query(default_factory=list)
 CheckpointCreatedAfterQuery = Query(default=None)
 CheckpointCreatedBeforeQuery = Query(default=None)
+PlatformPolicyScopeQuery = Query(default=None)
 AUDIT_READ_SCOPE = "audit:read"
 
 
@@ -1055,6 +1081,100 @@ def _bind_demo_updated_by(request_model, principal: OidcPrincipal | None):
             "actor_scopes": principal.scopes,
         }
     )
+
+
+def _platform_policy_denied_detail(exc: PlatformPolicyEnforcementDenied, message: str) -> dict:
+    return {
+        "code": AxisErrorCode.POLICY_VIOLATION.value,
+        "message": message,
+        "reason": "platform_policy_denied",
+        "policy_id": exc.decision.matched_policy_id,
+        "policy_revision_number": exc.decision.matched_revision_number,
+        "policy_version": exc.decision.matched_policy_version,
+        "audit_event_id": str(exc.audit_event_id),
+        "audit_event_type": exc.audit_event_type,
+    }
+
+
+def _bind_platform_policy_actor(request_model, principal: OidcPrincipal | None, actor_field: str):
+    if principal is None:
+        return request_model
+
+    request_tenant = getattr(request_model, "tenant_id", None)
+    if request_tenant != principal.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    request_actor = getattr(request_model, actor_field, None)
+    if request_actor and request_actor != principal.actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The request actor does not match the authenticated OIDC actor.",
+                "reason": "actor_mismatch",
+            },
+        )
+
+    return request_model.model_copy(
+        update={
+            actor_field: principal.actor_id,
+            "actor_scopes": principal.scopes,
+        }
+    )
+
+
+def _authorize_platform_policy_read(
+    *,
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+    resource: str,
+) -> None:
+    if principal is None:
+        return
+
+    if principal.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "required_permission": PLATFORM_POLICY_READ_SCOPE,
+                "reason": "tenant_mismatch",
+            },
+        )
+
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=tenant_id,
+            actor_id=principal.actor_id,
+            actor_scopes=principal.scopes,
+            required_scopes=[PLATFORM_POLICY_READ_SCOPE],
+            attributes={
+                "surface": "platform_policies",
+                "resource": resource,
+            },
+        )
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The actor cannot read platform policies.",
+                "required_permission": PLATFORM_POLICY_READ_SCOPE,
+                "reason": "missing_required_scope"
+                if decision.reason.startswith("missing_scope:")
+                else decision.reason,
+                "permission_reason": decision.reason,
+            },
+        )
 
 
 def _bind_demo_activated_by(request_model, principal: OidcPrincipal | None):
@@ -4372,6 +4492,248 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
 
+    @app.get(
+        "/platform/policies",
+        response_model=PlatformPolicyRegistry,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform policy read permission denied"},
+        },
+        tags=["platform"],
+    )
+    def platform_policy_registry(
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        scope: PlatformPolicyScope | None = PlatformPolicyScopeQuery,
+        status_filter: str | None = Query(default=None, alias="status", min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> PlatformPolicyRegistry:
+        _authorize_platform_policy_read(
+            tenant_id=tenant_id,
+            principal=principal,
+            resource="platform_policies",
+        )
+        query = PlatformPolicyQuery(
+            tenant_id=tenant_id,
+            scope=scope,
+            status=status_filter,
+            limit=limit,
+        )
+        return build_platform_policy_registry(
+            repository,
+            tenant_id=query.tenant_id,
+            scope=query.scope,
+            status=query.status,
+            limit=query.limit,
+        )
+
+    @app.post(
+        "/platform/policies",
+        response_model=PlatformPolicyRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform policy authoring permission denied"},
+            409: {"description": "Platform policy already exists"},
+            422: {"description": "Platform policy validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["platform"],
+    )
+    def platform_policy_create(
+        policy_request: PlatformPolicyCreateRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> PlatformPolicyRecord:
+        try:
+            bound_policy = _bind_platform_policy_actor(policy_request, principal, "created_by")
+            return record_platform_policy(repository, bound_policy)
+        except PlatformPolicyPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot author platform policies.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except PlatformPolicyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": "The platform policy already exists.",
+                    "reason": "policy_already_exists",
+                    "policy_id": exc.policy_id,
+                },
+            ) from exc
+        except PlatformPolicyValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.get(
+        "/platform/policies/{policy_id}",
+        response_model=PlatformPolicyDetail,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform policy read permission denied"},
+            404: {"description": "Platform policy not found"},
+        },
+        tags=["platform"],
+    )
+    def platform_policy_detail(
+        policy_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> PlatformPolicyDetail:
+        _authorize_platform_policy_read(
+            tenant_id=tenant_id,
+            principal=principal,
+            resource="platform_policy_detail",
+        )
+        try:
+            return get_platform_policy_detail(repository, tenant_id, policy_id)
+        except PlatformPolicyNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The platform policy was not found for this tenant.",
+                    "policy_id": policy_id,
+                },
+            ) from exc
+
+    @app.post(
+        "/platform/policies/{policy_id}/revisions",
+        response_model=PlatformPolicyRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform policy revision permission denied"},
+            404: {"description": "Platform policy not found"},
+            409: {"description": "Platform policy revision idempotency conflict"},
+            422: {"description": "Platform policy revision validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["platform"],
+    )
+    def platform_policy_revise(
+        policy_id: str,
+        revise_request: PlatformPolicyReviseRequest,
+        response: Response,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> PlatformPolicyRecord:
+        if policy_id != revise_request.policy_id:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The path policy_id must match the request policy_id.",
+                    "reason": "policy_id_mismatch",
+                },
+            )
+        try:
+            bound_request = _bind_platform_policy_actor(revise_request, principal, "updated_by")
+            result = revise_platform_policy(repository, bound_request)
+        except PlatformPolicyNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The platform policy was not found for this tenant.",
+                    "policy_id": policy_id,
+                },
+            ) from exc
+        except PlatformPolicyPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot revise platform policies.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except PlatformPolicyRevisionConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.POLICY_VIOLATION.value,
+                    "message": (
+                        "The revision idempotency key already exists with a different payload."
+                    ),
+                    "reason": "revision_idempotency_conflict",
+                    "policy_id": exc.policy_id,
+                },
+            ) from exc
+        except PlatformPolicyValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @app.post(
+        "/platform/policies/evaluate",
+        response_model=PlatformPolicyDecision,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform policy evaluation permission denied"},
+        },
+        tags=["platform"],
+    )
+    def platform_policy_evaluate(
+        evaluation_request: PlatformPolicyEvaluationRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> PlatformPolicyDecision:
+        try:
+            bound_request = _bind_platform_policy_actor(evaluation_request, principal, "actor_id")
+            return evaluate_platform_policy_request(repository, bound_request)
+        except PlatformPolicyPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot evaluate platform policies.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+
     @app.post(
         "/demo/manufacturing/actions/{action_id}/runs",
         response_model=ActionRunPersistenceResult,
@@ -4451,6 +4813,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.decision.reason,
                 },
             ) from exc
+        except PlatformPolicyEnforcementDenied as exc:
+            repository.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies this action run.",
+                ),
+            ) from exc
         except ActionRunIdempotencyConflict as exc:
             raise HTTPException(
                 status_code=409,
@@ -4519,6 +4890,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "required_permission": exc.required_permission,
                     "reason": exc.decision.reason,
                 },
+            ) from exc
+        except PlatformPolicyEnforcementDenied as exc:
+            repository.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies this action run outcome.",
+                ),
             ) from exc
         except ActionRunOutcomeConflict as exc:
             raise HTTPException(
@@ -4635,6 +5015,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "required_permission": exc.required_permission,
                     "reason": exc.decision.reason,
                 },
+            ) from exc
+        except PlatformPolicyEnforcementDenied as exc:
+            repository.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies approving this action.",
+                ),
             ) from exc
 
     @app.get(
