@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.connector_execution import (
     LIVE_SYNC_BATCH_FAILED_STATUS,
@@ -34,6 +35,7 @@ from axis_api.connector_manifests import (
     transition_demo_connector_manifest_lifecycle,
 )
 from axis_api.connector_runs import (
+    LIVE_SYNC_MAX_BATCHES_PER_EXECUTION,
     ConnectorRunCreateRequest,
     ConnectorRunDispatchRequest,
     ConnectorRunNotFound,
@@ -55,6 +57,8 @@ from axis_api.persistence import (
     AxisPersistenceRepository,
     ConnectorCredentialHandleCreate,
     ConnectorCredentialLeaseCreate,
+    ConnectorEgressPolicyCreate,
+    ConnectorSyncCheckpointCreate,
     DemoReferenceRecordCreate,
 )
 
@@ -283,6 +287,48 @@ def seed_credentials(
             expires_at=now.replace(year=now.year + 1),
             renewal_due_at=now,
             notes=["Active lease for live sync tests."],
+        )
+    )
+
+
+def seed_external_db_egress_policy(repository: AxisPersistenceRepository) -> None:
+    approved_endpoint_target_sha256 = postgres_endpoint_target_sha256(APPROVED_DSN)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=TENANT_ID,
+            actor_id="network-policy-owner-role",
+            event_type="connector.egress_policy.registered",
+            payload={
+                "connector_id": EXTERNAL_DB_CONNECTOR_ID,
+                "policy_id": "egress_policy_private_endpoint_ops",
+                "connection_profile_id": "profile_postgres_ops_readonly",
+                "egress_boundary": "approved_private_endpoint",
+                "private_endpoint_ref": PRIVATE_ENDPOINT_REF,
+                "approved_endpoint_target_sha256": approved_endpoint_target_sha256,
+            },
+        )
+    )
+    repository.create_connector_egress_policy(
+        ConnectorEgressPolicyCreate(
+            tenant_id=TENANT_ID,
+            connector_id=EXTERNAL_DB_CONNECTOR_ID,
+            policy_id="egress_policy_private_endpoint_ops",
+            display_name="Operations Postgres private endpoint policy",
+            status="active",
+            connection_profile_id="profile_postgres_ops_readonly",
+            egress_boundary="approved_private_endpoint",
+            policy_mode="approved_private_endpoint",
+            runtime_boundary="axis-egress-policy-enforcer",
+            private_endpoint_ref=PRIVATE_ENDPOINT_REF,
+            created_by="network-policy-owner-role",
+            policy_document={
+                "approved_endpoint_target_sha256": approved_endpoint_target_sha256,
+                "transport": "private_endpoint",
+                "live_query_mode": "read_only_snapshot",
+            },
+            evidence_refs=[str(audit_event.id)],
+            audit_event_id=audit_event.id,
+            notes=["Persisted egress policy for external DB live sync tests."],
         )
     )
 
@@ -1757,3 +1803,305 @@ def test_execute_sync_endpoint_keeps_legacy_path_when_live_sync_flag_off(
 
     assert batch_checkpoints == []
     assert proposals == []
+
+
+class GeneratedLiveSyncRuntime:
+    """Live sync runtime that generates batches deterministically per offset.
+
+    Used to exercise the per-execution batch bound without materializing a
+    hand-written batch list. ``source_mode``/``external_query_required`` are
+    configurable so the same runtime can stand in for the external DB seam.
+    """
+
+    adapter_name = "axis-generated-live-sync-runtime"
+
+    def __init__(
+        self,
+        *,
+        source_mode: str = "file_csv_live_sync",
+        external_query_required: bool = False,
+        batch_size: int = 1,
+        exhaust_at_offset: int | None = None,
+    ) -> None:
+        self.source_mode = source_mode
+        self.external_query_required = external_query_required
+        self.batch_size = batch_size
+        self.exhaust_at_offset = exhaust_at_offset
+        self.batch_requests: list[ConnectorLiveSyncBatchRequest] = []
+
+    def plan(self, request: ConnectorLiveSyncPlanRequest) -> ConnectorLiveSyncPlan:
+        return ConnectorLiveSyncPlan(
+            adapter=self.adapter_name,
+            status=LIVE_SYNC_PLAN_READY_STATUS,
+            source_mode=self.source_mode,
+            source_ref="generated-source",
+            batch_size=self.batch_size,
+            max_records=10_000,
+            external_query_required=self.external_query_required,
+        )
+
+    def read_batch(
+        self,
+        request: ConnectorLiveSyncBatchRequest,
+    ) -> ConnectorLiveSyncBatchResult:
+        self.batch_requests.append(request)
+        next_offset = request.offset + self.batch_size
+        exhausted = (
+            self.exhaust_at_offset is not None and next_offset >= self.exhaust_at_offset
+        )
+        records = [
+            ConnectorLiveSyncRecord(
+                node_id=f"node_{request.offset + index}",
+                node_type="work_order",
+                ontology_type="production_order",
+                field_summary={"status": "scheduled"},
+            )
+            for index in range(self.batch_size)
+        ]
+        return ConnectorLiveSyncBatchResult(
+            adapter=self.adapter_name,
+            status=LIVE_SYNC_BATCH_READ_STATUS,
+            records=records,
+            next_offset=next_offset,
+            source_exhausted=exhausted,
+        )
+
+
+def test_execute_live_sync_bounds_batches_per_execution(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = live_capable_registry_payload(FILE_CSV_CONNECTOR_ID)
+    seed_connector_registry_reference(session_factory, payload)
+    # Never exhausts, so the per-execution bound is what stops the loop.
+    runtime = GeneratedLiveSyncRuntime(batch_size=1, exhaust_at_offset=None)
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_manifest(repository, FILE_CSV_CONNECTOR_ID, payload)
+        seed_credentials(
+            repository,
+            connector_id=FILE_CSV_CONNECTOR_ID,
+            handle_id="cred_file_csv_readonly",
+            lease_id=FILE_CSV_LEASE_ID,
+        )
+        create_dispatched_live_sync_run(
+            repository,
+            run_id="run_file_csv_live_sync_bound",
+            input_summary=file_csv_live_sync_input_summary(),
+        )
+
+        run = execute_demo_connector_sync(
+            repository,
+            "run_file_csv_live_sync_bound",
+            sync_execution_request(
+                execution_id="sync_exec_live_bound",
+                idempotency_key="idem_sync_exec_live_bound",
+            ),
+            live_sync_runtime=runtime,
+        )
+        batch_checkpoints = repository.list_connector_sync_checkpoints(
+            TENANT_ID,
+            run_id="run_file_csv_live_sync_bound",
+            status="sync_batch_committed",
+        )
+        failed_events = repository.list_audit_events(
+            TENANT_ID,
+            event_type="connector.run.sync_execution_failed",
+        )
+
+    assert run.status == "sync_execution_failed"
+    summary = run.sync_execution_result.result_summary
+    assert summary["sync_error_code"] == "sync_batch_limit_exceeded"
+    assert summary["sync_batches_committed"] == str(LIVE_SYNC_MAX_BATCHES_PER_EXECUTION)
+    assert len(runtime.batch_requests) == LIVE_SYNC_MAX_BATCHES_PER_EXECUTION
+    assert len(batch_checkpoints) == LIVE_SYNC_MAX_BATCHES_PER_EXECUTION
+    assert len(failed_events) == 1
+
+
+def test_execute_external_db_live_sync_resumes_after_batch_bound(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = live_capable_registry_payload(EXTERNAL_DB_CONNECTOR_ID)
+    seed_connector_registry_reference(session_factory, payload)
+    external_input_summary = {
+        "live_sync_requested": "true",
+        "connection_profile_id": "profile_postgres_ops_readonly",
+        "schema_name": "operations",
+        "table_name": "production_orders",
+        "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+        "query_mode": "read_only_snapshot",
+        "egress_policy_id": "egress_policy_private_endpoint_ops",
+        "egress_boundary": "approved_private_endpoint",
+        "credential_access_mode": "lease_scoped_secret_ref",
+    }
+    first_runtime = GeneratedLiveSyncRuntime(
+        source_mode="external_db_live_sync",
+        external_query_required=True,
+        batch_size=1,
+        exhaust_at_offset=None,
+    )
+    resume_runtime = GeneratedLiveSyncRuntime(
+        source_mode="external_db_live_sync",
+        external_query_required=True,
+        batch_size=1,
+        exhaust_at_offset=LIVE_SYNC_MAX_BATCHES_PER_EXECUTION + 1,
+    )
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_manifest(repository, EXTERNAL_DB_CONNECTOR_ID, payload)
+        seed_credentials(
+            repository,
+            connector_id=EXTERNAL_DB_CONNECTOR_ID,
+            handle_id="cred_external_db_readonly",
+            lease_id=EXTERNAL_DB_LEASE_ID,
+        )
+        # Persist the egress policy so external-DB egress evidence validates.
+        seed_external_db_egress_policy(repository)
+        create_dispatched_live_sync_run(
+            repository,
+            run_id="run_external_db_live_sync_resume",
+            connector_id=EXTERNAL_DB_CONNECTOR_ID,
+            handle_id="cred_external_db_readonly",
+            lease_id=EXTERNAL_DB_LEASE_ID,
+            input_summary=external_input_summary,
+        )
+
+        failed_run = execute_demo_connector_sync(
+            repository,
+            "run_external_db_live_sync_resume",
+            sync_execution_request(
+                execution_id="sync_exec_external_db_resume_1",
+                idempotency_key="idem_sync_exec_external_db_resume_1",
+                lease_id=EXTERNAL_DB_LEASE_ID,
+            ),
+            live_sync_runtime=first_runtime,
+        )
+        assert failed_run.status == "sync_execution_failed"
+        assert failed_run.sync_execution_result.result_summary["sync_error_code"] == (
+            "sync_batch_limit_exceeded"
+        )
+
+        last_batch = LIVE_SYNC_MAX_BATCHES_PER_EXECUTION
+        claim, created = claim_connector_sync_checkpoint(
+            repository,
+            f"chk_run_external_db_live_sync_resume_batch_{last_batch}",
+            ConnectorSyncCheckpointClaimRequest(
+                tenant_id=TENANT_ID,
+                claim_id="claim_external_db_resume",
+                claimed_by="axis-sync-worker-role",
+                actor_scopes=["connectors:sync:checkpoint:claim"],
+                idempotency_key="idem_claim_external_db_resume",
+            ),
+        )
+        assert created is True
+
+        resumed_run = execute_demo_connector_sync(
+            repository,
+            "run_external_db_live_sync_resume",
+            sync_execution_request(
+                execution_id="sync_exec_external_db_resume_2",
+                idempotency_key="idem_sync_exec_external_db_resume_2",
+                lease_id=EXTERNAL_DB_LEASE_ID,
+                checkpoint_claim_id=claim.claim_id,
+            ),
+            live_sync_runtime=resume_runtime,
+        )
+        proposals = repository.list_connector_ontology_proposals(
+            tenant_id=TENANT_ID,
+            connector_id=EXTERNAL_DB_CONNECTOR_ID,
+            limit=200,
+        )
+
+    # Resume picks up exactly at the last committed batch offset, not backwards.
+    assert resume_runtime.batch_requests[0].offset == LIVE_SYNC_MAX_BATCHES_PER_EXECUTION
+    assert resumed_run.status == "sync_execution_completed"
+    summary = resumed_run.sync_execution_result.result_summary
+    assert summary["resume_offset"] == str(LIVE_SYNC_MAX_BATCHES_PER_EXECUTION)
+    assert summary["records_read"] == str(LIVE_SYNC_MAX_BATCHES_PER_EXECUTION + 1)
+    assert summary["sync_batches_committed"] == str(LIVE_SYNC_MAX_BATCHES_PER_EXECUTION + 1)
+    assert summary["proposals_recorded"] == str(LIVE_SYNC_MAX_BATCHES_PER_EXECUTION + 1)
+    assert summary["external_query_started"] == "true"
+    assert summary["source_mode"] == "external_db_live_sync"
+    # No proposal_id collision despite the batch bound + resume overlap boundary.
+    assert len(proposals) == LIVE_SYNC_MAX_BATCHES_PER_EXECUTION + 1
+    assert len({proposal.proposal_id for proposal in proposals}) == len(proposals)
+
+
+def test_claim_endpoint_rejects_concurrent_active_claim(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    payload = live_capable_registry_payload(FILE_CSV_CONNECTOR_ID)
+    seed_connector_registry_reference(session_factory, payload)
+    seed_live_file_csv_tenant_state(session_factory, payload)
+    (tmp_path / "dropzone-assets.csv").write_text(DROPZONE_CSV_CONTENT)
+    client = build_live_sync_app(session_factory, tmp_path)
+
+    checkpoint_id = "chk_run_claim_endpoint_batch_1"
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        checkpoint_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id=TENANT_ID,
+                actor_id="axis-sync-worker-role",
+                event_type="connector.run.sync_execution_preflight_passed",
+                payload={
+                    "connector_id": FILE_CSV_CONNECTOR_ID,
+                    "run_id": "run_claim_endpoint",
+                    "checkpoint_id": checkpoint_id,
+                },
+            )
+        )
+        repository.create_connector_sync_checkpoint(
+            ConnectorSyncCheckpointCreate(
+                tenant_id=TENANT_ID,
+                connector_id=FILE_CSV_CONNECTOR_ID,
+                run_id="run_claim_endpoint",
+                checkpoint_id=checkpoint_id,
+                checkpoint_type="sync_batch",
+                status="sync_batch_committed",
+                sequence=1,
+                runtime_boundary="axis-connector-sandbox",
+                adapter="axis-file-csv-live-sync-executor",
+                cursor={"next_offset": "2"},
+                result_summary={"external_query_started": "false"},
+                evidence_refs=[str(checkpoint_event.id)],
+                audit_event_id=checkpoint_event.id,
+                audit_event_type="connector.run.sync_batch_committed",
+                notes=["Batch checkpoint for concurrent-claim endpoint test."],
+            )
+        )
+
+    def claim_body(claim_id: str, idempotency_key: str) -> dict:
+        return {
+            "tenant_id": TENANT_ID,
+            "claim_id": claim_id,
+            "claimed_by": "axis-sync-worker-role",
+            "actor_scopes": ["connectors:sync:checkpoint:claim"],
+            "idempotency_key": idempotency_key,
+        }
+
+    first = client.post(
+        f"/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims",
+        json=claim_body("claim_endpoint_a", "idem_endpoint_a"),
+    )
+    second = client.post(
+        f"/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims",
+        json=claim_body("claim_endpoint_b", "idem_endpoint_b"),
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+    assert second.json()["detail"]["reason"] == "active_checkpoint_claim_exists"
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        active_claims = repository.list_connector_sync_checkpoint_claims(
+            TENANT_ID,
+            checkpoint_id=checkpoint_id,
+            status="claimed",
+        )
+
+    assert len(active_claims) == 1
+    assert active_claims[0].claim_id == "claim_endpoint_a"

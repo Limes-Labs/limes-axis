@@ -647,7 +647,12 @@ manifest schema fields into review-only ontology proposal records
 `connector_live_sync_v1`), so live sync output feeds the existing
 approval-gated promotion path and never mutates the graph directly. Row
 payloads live only in proposal field summaries; run records, checkpoints and
-audit payloads keep counts, offsets and references.
+audit payloads keep counts, offsets and references. Proposals are written with
+an insert-or-ignore on `(tenant_id, proposal_id)`, so a resumed run whose
+proposal ids overlap a committed batch never raises a duplicate-key error.
+Each committed batch checkpoint carries cumulative totals, and resume reads the
+single latest committed batch checkpoint deterministically (highest sequence),
+so progress cannot regress even past large checkpoint counts.
 Failure semantics are deterministic and fail-closed. Source unavailability
 (`connector_unavailable`), schema mismatches (`source_schema_mismatch`), query
 failures (`query_failed`), mid-run credential lease expiry
@@ -699,7 +704,11 @@ returns idempotent replays for the same checkpoint/idempotency key and appends
 `connector.run.sync_checkpoint_claimed` audit evidence. A claim record does
 not start external sync, return secret material or execute provider connector
 code. A second unexpired active claim for the same checkpoint is rejected with
-409 before duplicate audit evidence or competing worker ownership is written.
+409 before duplicate audit evidence or competing worker ownership is written. A
+partial unique index on `(tenant_id, checkpoint_id) WHERE status='claimed'`
+backs the app-level read-active-then-insert check, so a racing worker that also
+passes the in-process check still loses at the database and is reported as the
+same 409 claim conflict.
 Expired claims are marked `expired` with
 `connector.run.sync_checkpoint_claim_expired` before replacement ownership is
 created.
