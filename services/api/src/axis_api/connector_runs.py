@@ -8,9 +8,18 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.audit import AuditEventCreate
 from axis_api.connector_execution import (
+    LIVE_SYNC_BATCH_READ_STATUS,
+    LIVE_SYNC_PLAN_BLOCKED_STATUS,
+    LIVE_SYNC_PLAN_DEFERRED_STATUS,
+    LIVE_SYNC_PLAN_READY_STATUS,
     ConnectorExecutionRequest,
     ConnectorExecutionResult,
     ConnectorExecutionRuntime,
+    ConnectorLiveSyncBatchRequest,
+    ConnectorLiveSyncFieldMapping,
+    ConnectorLiveSyncPlan,
+    ConnectorLiveSyncPlanRequest,
+    ConnectorLiveSyncRuntime,
     ConnectorSyncDispatchRequest,
     ConnectorSyncDispatchResult,
     ConnectorSyncDispatchRuntime,
@@ -30,6 +39,7 @@ from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.models import ConnectorSyncCheckpointClaim, utc_now
 from axis_api.persistence import (
     AxisPersistenceRepository,
+    ConnectorOntologyProposalCreate,
     ConnectorRunCreate,
     ConnectorRunUpdateRecord,
     ConnectorSyncCheckpointClaimCreate,
@@ -317,6 +327,13 @@ SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE = (
 SYNC_EXECUTION_LIVE_QUERY_BLOCKED_AUDIT_EVENT_TYPE = (
     "connector.run.sync_execution_live_query_blocked"
 )
+SYNC_EXECUTION_STARTED_AUDIT_EVENT_TYPE = "connector.run.sync_execution_started"
+SYNC_EXECUTION_FAILED_AUDIT_EVENT_TYPE = "connector.run.sync_execution_failed"
+SYNC_EXECUTION_LIVE_SYNC_BLOCKED_AUDIT_EVENT_TYPE = (
+    "connector.run.sync_execution_live_sync_blocked"
+)
+SYNC_BATCH_COMMITTED_AUDIT_EVENT_TYPE = "connector.run.sync_batch_committed"
+LIVE_SYNC_PROPOSALS_AUDIT_EVENT_TYPE = "connector.ontology_proposals.recorded"
 SYNC_CHECKPOINT_READ_AUDIT_EVENT_TYPE = "connector.run.sync_checkpoints_read"
 SYNC_CHECKPOINT_CLAIM_READ_AUDIT_EVENT_TYPE = (
     "connector.run.sync_checkpoint_claims_read"
@@ -404,6 +421,34 @@ LIVE_READ_PUBLIC_SAFE_RESULT_SUMMARY_KEYS = {
     "source_mode",
     "table_name",
 }
+LIVE_SYNC_PUBLIC_SAFE_RESULT_SUMMARY_KEYS = (
+    LIVE_READ_PUBLIC_SAFE_RESULT_SUMMARY_KEYS
+    | {
+        "batch_index",
+        "batch_offset",
+        "batch_records_read",
+        "batch_records_rejected",
+        "batch_proposals_recorded",
+        "live_sync_requested",
+        "live_sync_execution_status",
+        "next_offset",
+        "proposal_write_mode",
+        "proposals_recorded",
+        "resume_offset",
+        "source_exhausted",
+        "source_ref",
+        "sync_batches_committed",
+        "sync_error_code",
+    }
+)
+LIVE_SYNC_EXECUTION_STATUSES = {"in_progress", "completed", "failed"}
+SYNC_EXECUTION_FAILED_STATUS = "sync_execution_failed"
+SYNC_EXECUTION_LIVE_SYNC_BLOCKED_STATUS = "sync_execution_live_sync_blocked"
+SYNC_BATCH_COMMITTED_STATUS = "sync_batch_committed"
+SYNC_BATCH_CHECKPOINT_TYPE = "sync_batch"
+LIVE_SYNC_MAPPING_PROFILE = "connector_live_sync_v1"
+LIVE_SYNC_MAX_BATCHES_PER_EXECUTION = 100
+LIVE_SYNC_CHECKPOINT_LIST_LIMIT = 200
 GOVERNED_EXECUTION_MODE = "governed_dry_run"
 SCHEDULED_SYNC_PLAN_MODE = "scheduled_sync_plan"
 ALLOWED_EXECUTION_MODES = {
@@ -1146,6 +1191,7 @@ def execute_demo_connector_sync(
     run_id: str,
     request: ConnectorRunSyncExecutionRequest,
     sync_execution_runtime: ConnectorSyncExecutionRuntime | None = None,
+    live_sync_runtime: ConnectorLiveSyncRuntime | None = None,
 ) -> ConnectorRunRecord:
     _validate_sync_execution_scope(request)
     run = repository.get_connector_run(request.tenant_id, run_id)
@@ -1159,7 +1205,8 @@ def execute_demo_connector_sync(
             and run.result_summary.get("sync_execution_id") == request.execution_id
         ):
             return _run_from_record(run)
-        raise ConnectorRunSyncExecutionConflict("sync_execution_idempotency_conflict")
+        if not _live_sync_retry_allowed(run, existing_execution, request):
+            raise ConnectorRunSyncExecutionConflict("sync_execution_idempotency_conflict")
 
     _validate_executable_scheduled_run(run)
     schedule_result = _schedule_result_from_summary(run.result_summary)
@@ -1191,6 +1238,42 @@ def execute_demo_connector_sync(
         run,
         request,
     )
+
+    live_sync_plan = None
+    if _live_sync_requested(run) and live_sync_runtime is not None:
+        live_sync_plan = live_sync_runtime.plan(
+            ConnectorLiveSyncPlanRequest(
+                tenant_id=run.tenant_id,
+                connector_id=run.connector_id,
+                run_id=run.run_id,
+                execution_id=request.execution_id,
+                executed_by=request.executed_by,
+                credential_lease_id=request.credential_lease_id,
+                credential_lease_result=credential_lease.lease_result,
+                egress_policy_evidence=egress_policy_evidence,
+                field_mappings=_live_sync_field_mappings(manifest),
+                input_summary=run.input_summary,
+            )
+        )
+    if live_sync_plan is not None and live_sync_plan.status != LIVE_SYNC_PLAN_DEFERRED_STATUS:
+        _validate_active_live_manifest_for_live_sync(manifest)
+        sync_execution_result = _execute_live_connector_sync(
+            repository,
+            run,
+            request,
+            live_sync_runtime=live_sync_runtime,
+            plan=live_sync_plan,
+            manifest=manifest,
+            schedule_result=schedule_result,
+        )
+        return _persist_sync_execution_outcome(
+            repository,
+            run,
+            request,
+            sync_execution_result,
+            schedule_result=schedule_result,
+            dispatch_result=dispatch_result,
+        )
 
     execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
     sync_execution_result = execution_runtime.execute(
@@ -1231,6 +1314,25 @@ def execute_demo_connector_sync(
             }
         )
 
+    return _persist_sync_execution_outcome(
+        repository,
+        run,
+        request,
+        sync_execution_result,
+        schedule_result=schedule_result,
+        dispatch_result=dispatch_result,
+    )
+
+
+def _persist_sync_execution_outcome(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    sync_execution_result: ConnectorSyncExecutionResult,
+    *,
+    schedule_result: ConnectorSyncScheduleResult,
+    dispatch_result: ConnectorSyncDispatchResult,
+) -> ConnectorRunRecord:
     result_summary = dict(run.result_summary)
     result_summary.update(sync_execution_result.result_summary)
     result_summary["sync_execution_id"] = request.execution_id
@@ -1283,6 +1385,602 @@ def execute_demo_connector_sync(
     return _run_from_record(updated)
 
 
+def _live_sync_requested(run_record) -> bool:
+    return str(run_record.input_summary.get("live_sync_requested", "false")).lower() == "true"
+
+
+def _live_sync_retry_allowed(
+    run_record,
+    existing_execution: ConnectorSyncExecutionResult,
+    request: ConnectorRunSyncExecutionRequest,
+) -> bool:
+    return (
+        _live_sync_requested(run_record)
+        and existing_execution.status == SYNC_EXECUTION_FAILED_STATUS
+        and existing_execution.idempotency_key != request.idempotency_key
+        and run_record.result_summary.get("sync_execution_id") != request.execution_id
+    )
+
+
+def _live_sync_field_mappings(manifest) -> list[ConnectorLiveSyncFieldMapping]:
+    schema_fields = (manifest.manifest_payload or {}).get("schema_fields") or []
+    mappings = [
+        ConnectorLiveSyncFieldMapping(
+            source_column=str(field.get("source_column", "")),
+            target_field=str(field.get("target_field", "")),
+            ontology_target=str(field.get("ontology_target", "")),
+        )
+        for field in schema_fields
+        if field.get("source_column") and field.get("target_field")
+        and field.get("ontology_target")
+    ]
+    if not mappings:
+        raise ConnectorRunValidationError(
+            "Connector manifest must declare schema fields before live sync execution.",
+            "connector_manifest_schema_fields_missing",
+        )
+    return mappings
+
+
+def _validate_active_live_manifest_for_live_sync(manifest) -> None:
+    if manifest.status != "active_live":
+        raise ConnectorRunValidationError(
+            "Connector manifest must be active_live before governed live sync execution.",
+            "connector_manifest_not_active_live",
+        )
+
+
+def _execute_live_connector_sync(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    *,
+    live_sync_runtime: ConnectorLiveSyncRuntime,
+    plan: ConnectorLiveSyncPlan,
+    manifest,
+    schedule_result: ConnectorSyncScheduleResult,
+) -> ConnectorSyncExecutionResult:
+    base_summary = _live_sync_base_summary(run, request, plan, schedule_result)
+    if plan.status == LIVE_SYNC_PLAN_BLOCKED_STATUS:
+        return _blocked_live_sync_result(run, request, plan, base_summary)
+    if plan.status != LIVE_SYNC_PLAN_READY_STATUS:
+        return _failed_live_sync_result(
+            run,
+            request,
+            plan,
+            base_summary,
+            error_code=plan.error_code or "live_sync_plan_failed",
+            batches_committed=0,
+            records_synced=0,
+            records_rejected=0,
+            proposals_recorded=0,
+            resume_offset=0,
+            next_offset=0,
+            external_query_started=False,
+        )
+
+    field_mappings = _live_sync_field_mappings(manifest)
+    committed_batches = _committed_live_sync_batch_checkpoints(repository, run)
+    resume_offset = (
+        _cursor_int(committed_batches[-1].cursor, "next_offset")
+        if committed_batches
+        else 0
+    )
+    records_synced = sum(
+        _cursor_int(checkpoint.cursor, "batch_records_read")
+        for checkpoint in committed_batches
+    )
+    records_rejected = sum(
+        _cursor_int(checkpoint.cursor, "batch_records_rejected")
+        for checkpoint in committed_batches
+    )
+    proposals_recorded = sum(
+        _cursor_int(checkpoint.cursor, "batch_proposals_recorded")
+        for checkpoint in committed_batches
+    )
+    batch_index = len(committed_batches)
+    claim_evidence: dict[str, str] = {}
+    if committed_batches:
+        resume_claim = _validate_live_sync_resume_claim(
+            repository,
+            run,
+            request,
+            committed_batches[-1],
+        )
+        claim_evidence = {
+            "checkpoint_claim_evidence_status": "validated",
+            "checkpoint_claim_id": resume_claim.claim_id,
+            "checkpoint_claim_checkpoint_id": resume_claim.checkpoint_id,
+            "checkpoint_claim_worker": resume_claim.claimed_by,
+            "checkpoint_claim_lease_expires_at": _datetime_as_utc_string(
+                resume_claim.lease_expires_at
+            ),
+        }
+    base_summary.update(claim_evidence)
+    checkpoint_sequence = len(
+        repository.list_connector_sync_checkpoints(
+            run.tenant_id,
+            run_id=run.run_id,
+            limit=LIVE_SYNC_CHECKPOINT_LIST_LIMIT,
+        )
+    )
+    repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=run.tenant_id,
+            actor_id=request.executed_by,
+            event_type=SYNC_EXECUTION_STARTED_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": run.connector_id,
+                "run_id": run.run_id,
+                "execution_id": request.execution_id,
+                "status": "sync_execution_started",
+                "source_mode": plan.source_mode,
+                "source_ref": plan.source_ref,
+                "resume_offset": str(resume_offset),
+                "committed_batches": str(batch_index),
+                "batch_size": str(plan.batch_size),
+                "max_records": str(plan.max_records),
+                "runtime_boundary": run.runtime_boundary,
+                "external_sync_started": False,
+                "credential_material_returned": "false",
+                "graph_mutation_started": "false",
+                **claim_evidence,
+            },
+        )
+    )
+
+    offset = resume_offset
+    batches_this_execution = 0
+    error_code = ""
+    external_query_started = False
+    while True:
+        if batches_this_execution >= LIVE_SYNC_MAX_BATCHES_PER_EXECUTION:
+            error_code = "sync_batch_limit_exceeded"
+            break
+        lease_error = _live_sync_lease_error(repository, run, request.credential_lease_id)
+        if lease_error is not None:
+            error_code = lease_error
+            break
+        batch = live_sync_runtime.read_batch(
+            ConnectorLiveSyncBatchRequest(
+                tenant_id=run.tenant_id,
+                connector_id=run.connector_id,
+                run_id=run.run_id,
+                execution_id=request.execution_id,
+                offset=offset,
+                batch_size=plan.batch_size,
+                field_mappings=field_mappings,
+                input_summary=run.input_summary,
+            )
+        )
+        if batch.status != LIVE_SYNC_BATCH_READ_STATUS:
+            error_code = batch.error_code or "sync_batch_failed"
+            break
+        if plan.external_query_required:
+            external_query_started = True
+        proposal_count = 0
+        if batch.records:
+            proposal_count = _record_live_sync_proposals(
+                repository,
+                run,
+                request,
+                plan,
+                batch.records,
+                record_offset=offset,
+            )
+        batch_index += 1
+        checkpoint_sequence += 1
+        _record_live_sync_batch_checkpoint(
+            repository,
+            run,
+            request,
+            plan,
+            batch,
+            base_summary=base_summary,
+            batch_index=batch_index,
+            batch_offset=offset,
+            sequence=checkpoint_sequence,
+            proposal_count=proposal_count,
+            external_query_started=external_query_started,
+        )
+        records_synced += len(batch.records)
+        records_rejected += batch.records_rejected
+        proposals_recorded += proposal_count
+        offset = batch.next_offset
+        batches_this_execution += 1
+        if batch.source_exhausted:
+            break
+
+    if error_code:
+        return _failed_live_sync_result(
+            run,
+            request,
+            plan,
+            base_summary,
+            error_code=error_code,
+            batches_committed=batch_index,
+            records_synced=records_synced,
+            records_rejected=records_rejected,
+            proposals_recorded=proposals_recorded,
+            resume_offset=resume_offset,
+            next_offset=offset,
+            external_query_started=external_query_started,
+        )
+    return ConnectorSyncExecutionResult(
+        adapter=plan.adapter,
+        status="sync_execution_completed",
+        sync_ref=_live_sync_ref(run, request, plan),
+        external_sync_started=external_query_started,
+        idempotency_key=request.idempotency_key,
+        result_summary={
+            **base_summary,
+            "runtime_status": "sync_execution_completed",
+            "external_sync_started": _bool_summary_text(external_query_started),
+            "live_sync_execution_status": "completed",
+            "records_read": str(records_synced),
+            "records_accepted": str(records_synced),
+            "records_rejected": str(records_rejected),
+            "sync_batches_committed": str(batch_index),
+            "resume_offset": str(resume_offset),
+            "next_offset": str(offset),
+            "proposals_recorded": str(proposals_recorded),
+            "external_query_started": _bool_summary_text(external_query_started),
+        },
+        notes=[
+            "Governed live connector sync completed through committed batch checkpoints.",
+            (
+                "Synced rows were persisted as review-only ontology proposals; "
+                "no credential material or graph mutation was stored."
+            ),
+        ],
+    )
+
+
+def _live_sync_base_summary(
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    plan: ConnectorLiveSyncPlan,
+    schedule_result: ConnectorSyncScheduleResult,
+) -> dict[str, str]:
+    return {
+        "connector_id": run.connector_id,
+        "schedule_id": schedule_result.result_summary.get("schedule_id", "unknown_schedule"),
+        "dispatch_id": run.result_summary.get("dispatch_id", "unknown_dispatch"),
+        "execution_id": request.execution_id,
+        "live_sync_requested": "true",
+        "proposal_write_mode": "proposal_only",
+        "source_mode": plan.source_mode or "live_sync_unplanned",
+        "source_ref": plan.source_ref or "unknown_source",
+        "credential_material_returned": "false",
+        "graph_mutation_started": "false",
+    }
+
+
+def _blocked_live_sync_result(
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    plan: ConnectorLiveSyncPlan,
+    base_summary: dict[str, str],
+) -> ConnectorSyncExecutionResult:
+    return ConnectorSyncExecutionResult(
+        adapter=plan.adapter,
+        status=SYNC_EXECUTION_LIVE_SYNC_BLOCKED_STATUS,
+        sync_ref=_live_sync_ref(run, request, plan, suffix="-blocked"),
+        external_sync_started=False,
+        idempotency_key=request.idempotency_key,
+        result_summary={
+            **base_summary,
+            "runtime_status": SYNC_EXECUTION_LIVE_SYNC_BLOCKED_STATUS,
+            "external_sync_started": "false",
+            "live_sync_execution_status": f"blocked_{plan.block_reason or 'policy'}",
+            "records_read": "0",
+            "records_accepted": "0",
+            "records_rejected": "0",
+            "sync_batches_committed": "0",
+            "proposals_recorded": "0",
+            "external_query_started": "false",
+        },
+        notes=[
+            "Governed live connector sync was blocked by Axis runtime policy.",
+            "No source read, credential material or graph mutation was started.",
+        ],
+    )
+
+
+def _failed_live_sync_result(
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    plan: ConnectorLiveSyncPlan,
+    base_summary: dict[str, str],
+    *,
+    error_code: str,
+    batches_committed: int,
+    records_synced: int,
+    records_rejected: int,
+    proposals_recorded: int,
+    resume_offset: int,
+    next_offset: int,
+    external_query_started: bool,
+) -> ConnectorSyncExecutionResult:
+    return ConnectorSyncExecutionResult(
+        adapter=plan.adapter,
+        status=SYNC_EXECUTION_FAILED_STATUS,
+        sync_ref=_live_sync_ref(run, request, plan, suffix="-failed"),
+        external_sync_started=external_query_started,
+        idempotency_key=request.idempotency_key,
+        result_summary={
+            **base_summary,
+            "runtime_status": SYNC_EXECUTION_FAILED_STATUS,
+            "external_sync_started": _bool_summary_text(external_query_started),
+            "live_sync_execution_status": "failed",
+            "sync_error_code": error_code,
+            "records_read": str(records_synced),
+            "records_accepted": str(records_synced),
+            "records_rejected": str(records_rejected),
+            "sync_batches_committed": str(batches_committed),
+            "resume_offset": str(resume_offset),
+            "next_offset": str(next_offset),
+            "proposals_recorded": str(proposals_recorded),
+            "external_query_started": _bool_summary_text(external_query_started),
+        },
+        notes=[
+            "Governed live connector sync failed closed with persisted checkpoints.",
+            "The run can be retried and resumes from the last committed batch checkpoint.",
+        ],
+    )
+
+
+def _live_sync_ref(
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    plan: ConnectorLiveSyncPlan,
+    *,
+    suffix: str = "",
+) -> str:
+    scheme = (plan.source_mode or "live_sync_unplanned").replace("_", "-")
+    return (
+        f"{scheme}{suffix}://{run.tenant_id}/"
+        f"{run.run_id}/{request.execution_id}"
+    )
+
+
+def _bool_summary_text(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def _cursor_int(cursor: dict, key: str) -> int:
+    try:
+        return int(str(cursor.get(key, "0")))
+    except ValueError:
+        return 0
+
+
+def _committed_live_sync_batch_checkpoints(
+    repository: AxisPersistenceRepository,
+    run,
+):
+    checkpoints = repository.list_connector_sync_checkpoints(
+        run.tenant_id,
+        run_id=run.run_id,
+        status=SYNC_BATCH_COMMITTED_STATUS,
+        limit=LIVE_SYNC_CHECKPOINT_LIST_LIMIT,
+    )
+    return [
+        checkpoint
+        for checkpoint in checkpoints
+        if checkpoint.checkpoint_type == SYNC_BATCH_CHECKPOINT_TYPE
+        and checkpoint.connector_id == run.connector_id
+    ]
+
+
+def _live_sync_lease_error(
+    repository: AxisPersistenceRepository,
+    run,
+    credential_lease_id: str,
+) -> str | None:
+    try:
+        _validate_active_credential_lease_for_run(repository, run, credential_lease_id)
+    except ConnectorRunValidationError as exc:
+        if exc.reason == "credential_lease_expired":
+            return "credential_lease_expired_mid_run"
+        return "credential_lease_invalid_mid_run"
+    return None
+
+
+def _validate_live_sync_resume_claim(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    last_batch_checkpoint,
+):
+    if request.checkpoint_claim_id is None:
+        raise ConnectorRunValidationError(
+            "Live connector sync resume requires checkpoint_claim_id for the last "
+            "committed batch checkpoint.",
+            "checkpoint_claim_id_required_for_live_sync_resume",
+        )
+    claims = repository.list_connector_sync_checkpoint_claims(
+        tenant_id=run.tenant_id,
+        checkpoint_id=last_batch_checkpoint.checkpoint_id,
+        status="claimed",
+        limit=LIVE_SYNC_CHECKPOINT_LIST_LIMIT,
+    )
+    now = utc_now()
+    for claim in claims:
+        if claim.claim_id != request.checkpoint_claim_id:
+            continue
+        if claim.claimed_by != request.executed_by:
+            raise ConnectorRunValidationError(
+                "Live connector sync resume claim belongs to a different worker.",
+                "live_sync_resume_claim_worker_mismatch",
+            )
+        if _ensure_timezone(claim.lease_expires_at) <= now:
+            raise ConnectorRunValidationError(
+                "Live connector sync resume claim lease is expired.",
+                "live_sync_resume_claim_expired",
+            )
+        if not _sync_checkpoint_claim_result_is_worker_lease_only(claim.claim_result):
+            raise ConnectorRunValidationError(
+                "Live connector sync resume claim result evidence is not "
+                "worker-lease-only.",
+                "live_sync_resume_claim_result_unsafe",
+            )
+        return claim
+    raise ConnectorRunValidationError(
+        "Live connector sync resume requires an active checkpoint claim for the "
+        "executing worker.",
+        "live_sync_resume_claim_not_active",
+    )
+
+
+def _record_live_sync_proposals(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    plan: ConnectorLiveSyncPlan,
+    records,
+    *,
+    record_offset: int,
+) -> int:
+    proposal_ids = [
+        f"prop_{run.run_id}_r{record_offset + index}"
+        for index in range(len(records))
+    ]
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=run.tenant_id,
+            actor_id=request.executed_by,
+            event_type=LIVE_SYNC_PROPOSALS_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": run.connector_id,
+                "proposal_ids": proposal_ids,
+                "proposal_count": len(proposal_ids),
+                "source_run_id": run.run_id,
+                "source_file_name": plan.source_ref,
+                "mapping_profile": LIVE_SYNC_MAPPING_PROFILE,
+                "write_mode": "proposal_only",
+                "graph_mutation_status": "not_applied",
+                "runtime_boundary": run.runtime_boundary,
+            },
+        )
+    )
+    for proposal_id, record in zip(proposal_ids, records, strict=True):
+        repository.create_connector_ontology_proposal(
+            ConnectorOntologyProposalCreate(
+                tenant_id=run.tenant_id,
+                connector_id=run.connector_id,
+                proposal_id=proposal_id,
+                source_run_id=run.run_id,
+                source_file_name=plan.source_ref,
+                mapping_profile=LIVE_SYNC_MAPPING_PROFILE,
+                status="proposed_from_preview",
+                write_mode="proposal_only",
+                graph_mutation_status="not_applied",
+                proposed_by=request.executed_by,
+                node_id=record.node_id,
+                node_type=record.node_type,
+                ontology_type=record.ontology_type,
+                field_summary=record.field_summary,
+                evidence_refs=[plan.source_ref, record.node_id],
+                audit_event_id=audit_event.id,
+                audit_event_type=LIVE_SYNC_PROPOSALS_AUDIT_EVENT_TYPE,
+                notes=[
+                    "Proposal derived from governed live connector sync.",
+                    "Graph mutation stays behind the approval-gated promotion path.",
+                ],
+            )
+        )
+    return len(proposal_ids)
+
+
+def _record_live_sync_batch_checkpoint(
+    repository: AxisPersistenceRepository,
+    run,
+    request: ConnectorRunSyncExecutionRequest,
+    plan: ConnectorLiveSyncPlan,
+    batch,
+    *,
+    base_summary: dict[str, str],
+    batch_index: int,
+    batch_offset: int,
+    sequence: int,
+    proposal_count: int,
+    external_query_started: bool,
+) -> None:
+    checkpoint_id = f"chk_{run.run_id}_batch_{batch_index}"
+    batch_summary = {
+        **base_summary,
+        "runtime_status": SYNC_BATCH_COMMITTED_STATUS,
+        "external_sync_started": _bool_summary_text(external_query_started),
+        "live_sync_execution_status": "in_progress",
+        "batch_index": str(batch_index),
+        "batch_offset": str(batch_offset),
+        "next_offset": str(batch.next_offset),
+        "batch_records_read": str(len(batch.records)),
+        "batch_records_rejected": str(batch.records_rejected),
+        "batch_proposals_recorded": str(proposal_count),
+        "source_exhausted": _bool_summary_text(batch.source_exhausted),
+        "external_query_started": _bool_summary_text(external_query_started),
+    }
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=run.tenant_id,
+            actor_id=request.executed_by,
+            event_type=SYNC_BATCH_COMMITTED_AUDIT_EVENT_TYPE,
+            payload={
+                "connector_id": run.connector_id,
+                "run_id": run.run_id,
+                "checkpoint_id": checkpoint_id,
+                "execution_id": request.execution_id,
+                "status": SYNC_BATCH_COMMITTED_STATUS,
+                "idempotency_key": request.idempotency_key,
+                "runtime_boundary": run.runtime_boundary,
+                "external_sync_started": external_query_started,
+                "sync_execution_result": {
+                    "adapter": batch.adapter,
+                    "status": SYNC_BATCH_COMMITTED_STATUS,
+                    "result_summary": batch_summary,
+                },
+            },
+        )
+    )
+    repository.create_connector_sync_checkpoint(
+        ConnectorSyncCheckpointCreate(
+            tenant_id=run.tenant_id,
+            connector_id=run.connector_id,
+            run_id=run.run_id,
+            checkpoint_id=checkpoint_id,
+            checkpoint_type=SYNC_BATCH_CHECKPOINT_TYPE,
+            status=SYNC_BATCH_COMMITTED_STATUS,
+            sequence=sequence,
+            runtime_boundary=run.runtime_boundary,
+            adapter=batch.adapter,
+            cursor={
+                "cursor_type": "live_sync_batch",
+                "execution_id": request.execution_id,
+                "batch_index": str(batch_index),
+                "batch_offset": str(batch_offset),
+                "next_offset": str(batch.next_offset),
+                "batch_records_read": str(len(batch.records)),
+                "batch_records_rejected": str(batch.records_rejected),
+                "batch_proposals_recorded": str(proposal_count),
+                "source_exhausted": _bool_summary_text(batch.source_exhausted),
+                "source_mode": plan.source_mode,
+                "external_query_started": _bool_summary_text(external_query_started),
+                "graph_mutation_started": "false",
+            },
+            result_summary=batch_summary,
+            evidence_refs=[str(audit_event.id)],
+            audit_event_id=audit_event.id,
+            audit_event_type=SYNC_BATCH_COMMITTED_AUDIT_EVENT_TYPE,
+            notes=[
+                "Live sync batch checkpoint committed after governed source read.",
+                "Checkpoint payload is public-safe and excludes row payloads.",
+            ],
+        )
+    )
+
+
 def _record_sync_execution_checkpoint(
     repository: AxisPersistenceRepository,
     run,
@@ -1315,6 +2013,14 @@ def _record_sync_execution_checkpoint(
         "live_query_profile_id",
         "live_query_row_limit",
         "selected_column_count",
+        "live_sync_requested",
+        "live_sync_execution_status",
+        "sync_error_code",
+        "sync_batches_committed",
+        "resume_offset",
+        "next_offset",
+        "proposals_recorded",
+        "source_ref",
     ):
         if optional_key in result_summary:
             cursor[optional_key] = result_summary[optional_key]
@@ -1523,6 +2229,12 @@ def _sync_execution_result_summary_is_public_safe(result_summary: dict) -> bool:
         return True
     if external_query_started != "true":
         return False
+    if result_summary.get("source_mode") == "external_db_live_sync":
+        if result_summary.get("live_sync_execution_status") not in (
+            LIVE_SYNC_EXECUTION_STATUSES
+        ):
+            return False
+        return set(result_summary) <= LIVE_SYNC_PUBLIC_SAFE_RESULT_SUMMARY_KEYS
     if result_summary.get("source_mode") != "external_db_live_read":
         return False
     if result_summary.get("live_query_execution_status") != "completed":
@@ -2066,11 +2778,14 @@ def _validate_executable_scheduled_run(record) -> None:
             "Only scheduled sync plan run records can be executed.",
             "unsupported_sync_execution_mode",
         )
-    if record.status != "sync_dispatch_deferred":
-        raise ConnectorRunValidationError(
-            "Connector sync run is not waiting for execution.",
-            "connector_run_not_executable",
-        )
+    if record.status == "sync_dispatch_deferred":
+        return
+    if record.status == SYNC_EXECUTION_FAILED_STATUS and _live_sync_requested(record):
+        return
+    raise ConnectorRunValidationError(
+        "Connector sync run is not waiting for execution.",
+        "connector_run_not_executable",
+    )
 
 
 def _validate_active_credential_lease_for_run(
@@ -2114,9 +2829,13 @@ def _egress_policy_evidence_for_run(
     repository: AxisPersistenceRepository,
     run_record,
 ) -> dict[str, str]:
+    live_source_requested = (
+        run_record.input_summary.get("live_query_requested", "false").lower() == "true"
+        or _live_sync_requested(run_record)
+    )
     if (
         run_record.connector_id != "external_db_operational_mirror"
-        or run_record.input_summary.get("live_query_requested", "false").lower() != "true"
+        or not live_source_requested
     ):
         return {}
 
@@ -2279,4 +2998,8 @@ def _sync_execution_audit_event_type(result: ConnectorSyncExecutionResult) -> st
         return SYNC_EXECUTION_PREFLIGHT_PASSED_AUDIT_EVENT_TYPE
     if result.status == "sync_execution_live_query_blocked":
         return SYNC_EXECUTION_LIVE_QUERY_BLOCKED_AUDIT_EVENT_TYPE
+    if result.status == SYNC_EXECUTION_LIVE_SYNC_BLOCKED_STATUS:
+        return SYNC_EXECUTION_LIVE_SYNC_BLOCKED_AUDIT_EVENT_TYPE
+    if result.status == SYNC_EXECUTION_FAILED_STATUS:
+        return SYNC_EXECUTION_FAILED_AUDIT_EVENT_TYPE
     return SYNC_EXECUTION_DEFERRED_AUDIT_EVENT_TYPE

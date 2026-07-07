@@ -155,14 +155,18 @@ from axis_api.connector_evidence_invariants import (
 )
 from axis_api.connector_execution import (
     ConnectorExecutionRuntime,
+    ConnectorLiveSyncRuntime,
     ConnectorSyncDispatchRuntime,
     ConnectorSyncExecutionRuntime,
     ConnectorSyncSchedulerRuntime,
     DeferredConnectorExecutionRuntime,
+    DeferredConnectorLiveSyncRuntime,
     DeferredConnectorSyncDispatchRuntime,
     DeferredConnectorSyncExecutionRuntime,
     DeferredConnectorSyncSchedulerRuntime,
     ExternalPostgresLiveQueryProfile,
+    FileCsvLiveSyncProfile,
+    SelfHostedConnectorLiveSyncRuntime,
     SelfHostedConnectorSyncExecutionRuntime,
     postgres_endpoint_target_sha256,
 )
@@ -575,6 +579,16 @@ ConnectorSyncExecutionRuntimeDependency = Annotated[
 ]
 
 
+def connector_live_sync_runtime(request: Request) -> ConnectorLiveSyncRuntime:
+    return request.app.state.connector_live_sync_runtime
+
+
+ConnectorLiveSyncRuntimeDependency = Annotated[
+    ConnectorLiveSyncRuntime,
+    Depends(connector_live_sync_runtime),
+]
+
+
 def credential_lease_runtime(request: Request) -> CredentialLeaseRuntime:
     return request.app.state.credential_lease_runtime
 
@@ -698,6 +712,17 @@ def _oidc_jwks_url(settings: Settings) -> str:
     if settings.oidc_jwks_url:
         return settings.oidc_jwks_url
     return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/certs"
+
+
+def _file_csv_live_sync_profile(settings: Settings) -> FileCsvLiveSyncProfile | None:
+    if not settings.file_csv_live_sync_root:
+        return None
+    return FileCsvLiveSyncProfile(
+        profile_id=settings.file_csv_live_sync_profile_id,
+        source_root=settings.file_csv_live_sync_root,
+        max_rows=settings.file_csv_live_sync_max_rows,
+        batch_size=settings.file_csv_live_sync_batch_size,
+    )
 
 
 def _external_postgres_live_query_profile(
@@ -1437,6 +1462,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if resolved_settings.connector_sync_execution_enabled
         else DeferredConnectorSyncExecutionRuntime()
+    )
+    app.state.connector_live_sync_runtime = (
+        SelfHostedConnectorLiveSyncRuntime(
+            file_csv_profile=_file_csv_live_sync_profile(resolved_settings),
+            external_db_live_sync_enabled=(
+                resolved_settings.external_db_sync_execution_enabled
+                and resolved_settings.external_db_live_query_preflight_enabled
+                and resolved_settings.external_db_live_query_execution_enabled
+            ),
+            external_postgres_profile=_external_postgres_live_query_profile(
+                resolved_settings
+            ),
+            external_db_batch_size=resolved_settings.external_db_live_sync_batch_size,
+        )
+        if resolved_settings.connector_sync_execution_enabled
+        and resolved_settings.connector_live_sync_execution_enabled
+        else DeferredConnectorLiveSyncRuntime()
     )
     if resolved_settings.credential_lease_provider_adapters_enabled:
         app.state.credential_lease_runtime = ProviderSpecificVaultKmsLeaseRuntime()
@@ -3703,6 +3745,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         execution_request: ConnectorRunSyncExecutionRequest,
         repository: PersistenceRepository,
         sync_execution_runtime: ConnectorSyncExecutionRuntimeDependency,
+        live_sync_runtime: ConnectorLiveSyncRuntimeDependency,
     ) -> ConnectorRunRecord:
         try:
             return execute_demo_connector_sync(
@@ -3710,6 +3753,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 run_id,
                 execution_request,
                 sync_execution_runtime,
+                live_sync_runtime=live_sync_runtime,
             )
         except ConnectorRunPermissionDenied as exc:
             raise HTTPException(
