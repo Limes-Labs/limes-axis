@@ -633,6 +633,15 @@ For S3-compatible evaluation or production-style deployments, configure:
 - `AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED=true` when legal hold should be
   applied to written objects.
 
+**The bucket must be created with S3 object-lock enabled.** Object-lock can only
+be turned on at bucket creation (`make_bucket(..., object_lock=True)` /
+`mc mb --with-lock`). COMPLIANCE-mode retention silently no-ops on a bucket that
+was not created with object-lock, so the platform verifies the bucket
+object-lock configuration at bootstrap and fails closed when COMPLIANCE is
+configured against a non-object-lock bucket. GOVERNANCE and the local-filesystem
+adapter are unaffected by this gate; the local adapter cannot provide WORM and
+is not valid for COMPLIANCE.
+
 `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY` and
 `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY` must come from `secrets.existingSecret`
 or an external secret manager integration. They are not rendered into the
@@ -640,10 +649,21 @@ ConfigMap and are not returned by readiness or support diagnostics.
 
 The readiness endpoint reports the object-store gate as ready only when the
 S3-compatible adapter has endpoint, bucket, credentials, secure transport,
-object lock and positive retention days configured. This proves the Axis
-adapter is configured to write retained objects; it does not replace customer
-bucket provisioning review, KMS policy, restore drills, legal operations or
-external compliance review.
+object lock and positive retention days configured. For COMPLIANCE mode it
+additionally requires a verified object-lock bucket
+(`object_store_object_lock_bucket_verified` /
+`object_store_compliance_enforceable`); when unverified the gate reports the
+missing requirement `verified object-lock bucket`. This proves the Axis adapter
+is configured to write retained objects and, in COMPLIANCE mode, that the bucket
+can actually enforce WORM; it does not replace customer bucket provisioning
+review, KMS policy, restore drills, legal operations or external compliance
+review.
+
+Object-store legal holds on materialized export artifacts are applied and
+released through `POST /demo/manufacturing/audit/object-legal-holds` and
+`.../object-legal-holds/release` (permission-gated on `audit:legal_hold:write`,
+audited). This is distinct from the DB-level audit legal hold that blocks
+physical retention deletion of ledger rows.
 
 ## Object Storage Recovery Rehearsal
 

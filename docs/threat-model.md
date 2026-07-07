@@ -153,7 +153,13 @@ flowchart LR
 - API to MinIO/object store: governed evidence materialization writes
   public-safe export artifacts through the configured local or S3-compatible
   adapter. The S3-compatible profile requires object lock and retention days
-  before the deployment readiness gate clears.
+  before the deployment readiness gate clears. For COMPLIANCE retention the
+  platform verifies the bucket object-lock configuration at bootstrap and fails
+  closed on audit export if the bucket was not created with object-lock enabled,
+  preventing a silent no-op that would falsely claim WORM protection (tampering
+  / repudiation mitigation). Object-store legal holds on export artifacts and
+  DB-level legal holds on ledger rows are separately audited layers guarding
+  against premature deletion.
 - API to connector runtime: connector manifests, configurations, credential
   handles, connector credential leases, egress policies, checkpoint claims and
   live-query preflight evidence gate any external movement.

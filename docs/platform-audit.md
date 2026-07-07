@@ -10,9 +10,11 @@ integrity proof plus a self-hosted ledger signature proof when signing is
 configured. It does not claim provider-specific KMS signing, customer bucket
 policy review or deterministic workflow replay are complete.
 Governed connector evidence exports can use the S3-compatible object-store
-adapter with object-lock retention; audit export bundles still need
-provider-specific KMS signing and production legal operations before any
-compliance claim.
+adapter with object-lock retention. When the object store is configured for
+COMPLIANCE retention, audit exports are WORM-enforced: the export path verifies
+that the backing bucket was created with S3 object-lock enabled and fails closed
+otherwise. Provider-specific KMS signing and production legal operations remain
+future work before any external compliance certification.
 
 ## Demo Endpoint
 
@@ -24,6 +26,8 @@ POST /demo/manufacturing/audit/retention/delete
 GET /demo/manufacturing/audit/legal-holds
 POST /demo/manufacturing/audit/legal-holds
 POST /demo/manufacturing/audit/legal-holds/{hold_id}/release
+POST /demo/manufacturing/audit/object-legal-holds
+POST /demo/manufacturing/audit/object-legal-holds/release
 ```
 
 The reference endpoint returns a typed audit explorer for the demo tenant. It
@@ -140,6 +144,50 @@ scope checks to OIDC principals when authentication is present or required.
 Provider-specific KMS adapters, customer bucket-policy review and richer
 enterprise legal review workflows remain future work.
 
+## WORM / Object-Lock Enforcement For Compliance Exports
+
+Audit export bundles can be pinned under S3 object-lock (WORM) when the export
+object store runs in COMPLIANCE retention mode. Enforcement is real and
+fail-closed rather than advisory:
+
+- **Bucket must be created with object-lock enabled.** S3/MinIO only accepts
+  COMPLIANCE-mode retention on buckets created with object-lock. The platform
+  verifies this by probing the bucket object-lock configuration
+  (`get_object_lock_config`) at bootstrap. A bucket without object-lock, or a
+  probe failure, is treated as non-enforceable.
+- **Readiness reports the truth.** `/deployment/readiness` and
+  `/support/diagnostics` expose `object_store_object_lock_bucket_verified` and
+  `object_store_compliance_enforceable`. When COMPLIANCE is configured but the
+  bucket lacks object-lock, the object-store readiness check reports
+  `action_required` with the missing requirement `verified object-lock bucket`.
+- **Export fails closed.** A COMPLIANCE-configured audit export
+  (`GET /demo/manufacturing/audit/export`) refuses to produce a bundle with
+  `503 CONNECTOR_UNAVAILABLE` if the store cannot enforce object-lock. The
+  manifest `worm_retention_enforced` flag reflects the *actual* verified
+  capability, never an optimistic default; `worm_retain_until` carries the
+  explicit RetainUntilDate derived from the configured retention days.
+- **The local filesystem store cannot provide WORM.** COMPLIANCE with the
+  `local_filesystem` adapter is never enforceable; readiness reports this
+  explicitly and the compliance export path fails closed.
+
+### Two Layers Of Legal Hold
+
+There are two complementary, independently-audited legal-hold layers:
+
+- **DB-level audit legal hold** (`/demo/manufacturing/audit/legal-holds`)
+  suspends physical retention *deletion* of persisted audit ledger rows and
+  blocks matching retention-deletion candidates.
+- **Object-store legal hold** (`/demo/manufacturing/audit/object-legal-holds`)
+  places or releases an S3 object-lock legal hold on a materialized export
+  *artifact* (`enable_object_legal_hold` / `disable_object_legal_hold`), so the
+  stored WORM bundle cannot be deleted or overwritten before retention expiry.
+
+Both layers are permission-gated on `audit:legal_hold:write`, OIDC-bound and
+append audit evidence (`audit.object_legal_hold.applied` /
+`audit.object_legal_hold.released` for the object-store layer). They are not a
+parallel or conflicting concept: the DB hold protects the source ledger, the
+object hold protects the exported artifact.
+
 Future Platform work should connect this contract to:
 
 - richer legal review workflows and UI for legal hold administration;
@@ -171,6 +219,13 @@ The slice is covered by:
   redacted deletion evidence;
 - API unit tests for OIDC-required persisted audit read/export/admin routes,
   token-derived actor/scope binding and tenant/actor impersonation rejection;
+- object-store unit tests for bucket object-lock verification, explicit
+  RetainUntilDate computation, COMPLIANCE put fail-closed without object-lock,
+  the local-store WORM limitation and readiness compliance-enforceable fields;
+- API unit tests for COMPLIANCE audit export WORM enforcement (verified bucket
+  succeeds, missing object-lock fails closed 503, manifest
+  `worm_retention_enforced` truthfulness) and audited object-store legal hold
+  apply/release;
 - OpenAPI schema export/check;
 - web unit tests for filtering, export metadata and integrity fields with local
   test fixtures only;
