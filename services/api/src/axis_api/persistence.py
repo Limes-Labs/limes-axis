@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -932,6 +932,44 @@ class AxisPersistenceRepository:
             return None
         browser_session.last_seen_at = seen_at
         browser_session.updated_at = seen_at
+        self.session.flush()
+        return browser_session
+
+    def claim_oidc_browser_session_refresh(
+        self,
+        session_id_hash: str,
+    ) -> bool:
+        """Atomically transition an active session into the refreshing state.
+
+        Only one caller can win the ``active`` -> ``refreshing`` transition, so
+        concurrent refreshes with the same cookie serialize and cannot both mint
+        a child session. Returns ``True`` for the winning caller and ``False``
+        when the session was already claimed, rotated or revoked.
+        """
+        now = utc_now()
+        statement = (
+            update(OidcBrowserSession)
+            .where(
+                OidcBrowserSession.session_id_hash == session_id_hash,
+                OidcBrowserSession.status == "active",
+            )
+            .values(status="refreshing", updated_at=now)
+        )
+        result = self.session.execute(statement)
+        self.session.flush()
+        return bool(result.rowcount)
+
+    def release_oidc_browser_session_refresh(
+        self,
+        session_id_hash: str,
+    ) -> OidcBrowserSession | None:
+        """Return a claimed session to the active state (refresh aborted)."""
+        browser_session = self.get_oidc_browser_session_by_hash(session_id_hash)
+        if browser_session is None or browser_session.status != "refreshing":
+            return browser_session
+        now = utc_now()
+        browser_session.status = "active"
+        browser_session.updated_at = now
         self.session.flush()
         return browser_session
 
