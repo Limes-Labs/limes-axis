@@ -1,4 +1,3 @@
-import hmac
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, NamedTuple
@@ -290,6 +289,7 @@ from axis_api.connectors import (
     preview_external_db_connector,
     preview_file_csv_connector,
 )
+from axis_api.csrf import BrowserSessionCsrfMiddleware
 from axis_api.db import create_session_factory, session_scope
 from axis_api.demo import (
     ManufacturingActionRegistry,
@@ -397,10 +397,12 @@ from axis_api.oidc_code_flow import (
     public_redirect,
     read_login_state,
     read_session_cookie,
+    refresh_token_encryption_key_is_strong,
     session_cookie_from_principal,
     session_cookie_name,
     session_id_hash,
     token_endpoint,
+    validate_refresh_token_encryption_key,
 )
 from axis_api.oidc_onboarding import OidcOnboardingReport, build_oidc_onboarding_report
 from axis_api.ontology.mutations import (
@@ -731,6 +733,109 @@ class _RotatedSessionCookie(NamedTuple):
     max_age: int
 
 
+class _SessionRefreshClaim(NamedTuple):
+    tenant_id: str
+    actor_id: str
+    refresh_token: str
+    refresh_count: int
+    absolute_expires_at: datetime | None
+
+
+def _refresh_precondition_error(
+    *,
+    status_code: int,
+    reason: str,
+    message: str,
+    error_code: AxisErrorCode = AxisErrorCode.AUTH_REQUIRED,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": error_code.value, "message": message, "reason": reason},
+    )
+
+
+def _claim_session_refresh(
+    request: Request,
+    *,
+    session_hash: str,
+    settings: Settings,
+) -> _SessionRefreshClaim | HTTPException:
+    """Validate refresh preconditions and atomically claim the transition.
+
+    Runs in its own short transaction and performs no IdP network I/O. Returns a
+    claim snapshot (with the decrypted refresh token) for the single winning
+    caller, or an ``HTTPException`` describing why the refresh cannot proceed.
+    A replayed pre-rotation cookie or a concurrent refresh that lost the claim
+    both surface as an ``invalid_session_cookie`` 401.
+    """
+    with session_scope(request.app.state.session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
+        if stored_session is None:
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="invalid_session_cookie",
+                message="The OIDC session cookie could not be verified.",
+            )
+        lifecycle_failure = _stored_session_lifecycle_failure(stored_session, settings)
+        if lifecycle_failure is not None:
+            public_reason, revocation_reason = lifecycle_failure
+            if revocation_reason and stored_session.status == "active":
+                _expire_stored_session(
+                    repository,
+                    stored_session,
+                    revocation_reason=revocation_reason,
+                )
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason=public_reason,
+                message="The OIDC browser session can no longer be refreshed.",
+            )
+        if not stored_session.refresh_token_ciphertext:
+            return _refresh_precondition_error(
+                status_code=status.HTTP_409_CONFLICT,
+                reason="refresh_not_available",
+                message=(
+                    "No refresh token is stored for this session; sign in again to "
+                    "extend it."
+                ),
+                error_code=AxisErrorCode.CONFLICT,
+            )
+        # Decrypt before claiming so an unreadable credential does not strand the
+        # session in the refreshing state.
+        try:
+            refresh_token = decrypt_refresh_token(
+                stored_session.refresh_token_ciphertext, settings
+            )
+        except OidcTokenExchangeError:
+            _expire_stored_session(
+                repository,
+                stored_session,
+                revocation_reason="refresh_failed",
+            )
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="refresh_token_unreadable",
+                message="The stored OIDC refresh credential could not be read.",
+            )
+        claim = _SessionRefreshClaim(
+            tenant_id=stored_session.tenant_id,
+            actor_id=stored_session.actor_id,
+            refresh_token=refresh_token,
+            refresh_count=stored_session.refresh_count,
+            absolute_expires_at=stored_session.absolute_expires_at,
+        )
+        if not repository.claim_oidc_browser_session_refresh(session_hash):
+            # Lost the race to a concurrent refresh (parent already
+            # refreshing/rotated), or the cookie is a replayed pre-rotation id.
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="invalid_session_cookie",
+                message="The OIDC session cookie could not be verified.",
+            )
+        return claim
+
+
 def _stored_session_lifecycle_failure(
     stored_session: OidcBrowserSession,
     settings: Settings,
@@ -969,9 +1074,10 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
         ),
         _readiness_check(
             "refresh_credential_encryption",
-            bool(settings.oidc_refresh_token_encryption_key),
-            "OIDC refresh credentials are encrypted at rest with an operator-provided key.",
-            "Configure the Axis refresh-credential encryption key before session refresh.",
+            refresh_token_encryption_key_is_strong(settings),
+            "OIDC refresh credentials are encrypted at rest with an HKDF-derived key.",
+            "Configure a refresh-credential encryption key of at least 32 characters "
+            "before session refresh.",
         ),
         _readiness_check(
             "session_idle_timeout",
@@ -1526,6 +1632,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         },
     )
+    validate_refresh_token_encryption_key(resolved_settings)
+    app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)
     app.add_middleware(ApiRateLimitMiddleware, settings=resolved_settings)
     app.add_middleware(
         CORSMiddleware,
@@ -1731,37 +1839,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             samesite="lax",
             path="/",
         )
-
-    def enforce_browser_csrf(request: Request) -> None:
-        if request.headers.get("authorization"):
-            return
-        session_cookie = request.cookies.get(session_cookie_name(resolved_settings))
-        if not session_cookie:
-            return
-        try:
-            oidc_session = read_session_cookie(session_cookie, resolved_settings)
-        except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
-            return
-        provided_token = request.headers.get("x-axis-csrf-token")
-        if not provided_token:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": AxisErrorCode.PERMISSION_DENIED.value,
-                    "message": "A CSRF token header is required for browser session mutations.",
-                    "reason": "csrf_token_required",
-                },
-            )
-        expected_token = csrf_token_for_session(oidc_session.session_id, resolved_settings)
-        if not hmac.compare_digest(provided_token, expected_token):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": AxisErrorCode.PERMISSION_DENIED.value,
-                    "message": "The CSRF token does not match the browser session.",
-                    "reason": "csrf_token_mismatch",
-                },
-            )
 
     def revoke_oidc_session_from_cookie(
         request: Request,
@@ -2017,7 +2094,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tags=["system"],
     )
     def identity_session_logout(request: Request) -> Response:
-        enforce_browser_csrf(request)
         response = Response(status_code=status.HTTP_204_NO_CONTENT)
         delete_oidc_session_cookie(response)
         revoke_oidc_session_from_cookie(
@@ -2074,122 +2150,116 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 reason="invalid_session_cookie",
                 message="The OIDC session cookie could not be verified.",
             ) from exc
-        enforce_browser_csrf(request)
 
+        # Phase 1: validate preconditions and atomically claim the refresh so
+        # concurrent refreshes with the same cookie cannot both proceed. No IdP
+        # network I/O happens while this transaction is open.
+        claim = _claim_session_refresh(
+            request,
+            session_hash=session_hash,
+            settings=resolved_settings,
+        )
+        if isinstance(claim, HTTPException):
+            raise claim
+
+        # Phase 2: perform the external IdP refresh exchange OUTSIDE any open
+        # database transaction, then re-validate the returned principal.
         refresh_failure: tuple[str, str] | None = None
-        precondition_error: HTTPException | None = None
         rotated: _RotatedSessionCookie | None = None
+        try:
+            token_response = request.app.state.oidc_token_exchanger(
+                build_refresh_token_form(
+                    settings=resolved_settings,
+                    refresh_token=claim.refresh_token,
+                ),
+                resolved_settings,
+            )
+            access_token = token_response.get("access_token")
+            if not isinstance(access_token, str) or not access_token:
+                raise OidcTokenExchangeError("missing_access_token")
+            principal = request.app.state.identity_verifier.verify_authorization_header(
+                f"Bearer {access_token}"
+            )
+            if (
+                principal.actor_id != claim.actor_id
+                or principal.tenant_id != claim.tenant_id
+            ):
+                raise OidcAuthenticationError("refresh_principal_mismatch")
+            max_age_ceiling: int | None = None
+            if claim.absolute_expires_at is not None:
+                max_age_ceiling = int(
+                    (
+                        _ensure_aware_datetime(claim.absolute_expires_at)
+                        - datetime.now(UTC)
+                    ).total_seconds()
+                )
+            (
+                session_cookie_value,
+                session_max_age,
+                new_session_id,
+            ) = session_cookie_from_principal(
+                token_response,
+                principal,
+                resolved_settings,
+                max_age_ceiling=max_age_ceiling,
+            )
+        except OidcCodeFlowConfigurationError as exc:
+            # Configuration faults are not the session's fault; release the
+            # claim so the operator can retry after fixing configuration.
+            with session_scope(request.app.state.session_factory) as session:
+                AxisPersistenceRepository(session).release_oidc_browser_session_refresh(
+                    session_hash
+                )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC session refresh is not configured.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except (OidcAuthenticationError, OidcTokenExchangeError) as exc:
+            refresh_failure = (getattr(exc, "reason", "refresh_failed"), "refresh_failed")
+
+        # Phase 3: persist the terminal outcome in a fresh short transaction.
         with session_scope(request.app.state.session_factory) as session:
             repository = AxisPersistenceRepository(session)
-            stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
-            if stored_session is None:
-                precondition_error = session_refresh_error(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    reason="invalid_session_cookie",
-                    message="The OIDC session cookie could not be verified.",
-                )
-            elif (
-                lifecycle_failure := _stored_session_lifecycle_failure(
-                    stored_session, resolved_settings
-                )
-            ) is not None:
-                public_reason, revocation_reason = lifecycle_failure
-                if revocation_reason and stored_session.status == "active":
-                    _expire_stored_session(
-                        repository,
-                        stored_session,
-                        revocation_reason=revocation_reason,
-                    )
-                precondition_error = session_refresh_error(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    reason=public_reason,
-                    message="The OIDC browser session can no longer be refreshed.",
-                )
-            elif not stored_session.refresh_token_ciphertext:
-                precondition_error = session_refresh_error(
-                    status_code=status.HTTP_409_CONFLICT,
-                    reason="refresh_not_available",
-                    message=(
-                        "No refresh token is stored for this session; sign in again to "
-                        "extend it."
-                    ),
-                    error_code=AxisErrorCode.CONFLICT,
-                )
-            if precondition_error is not None:
-                session.commit()
-                raise precondition_error
-            try:
-                refresh_token = decrypt_refresh_token(
-                    stored_session.refresh_token_ciphertext,
-                    resolved_settings,
-                )
-                form = build_refresh_token_form(
-                    settings=resolved_settings,
-                    refresh_token=refresh_token,
-                )
-                token_response = request.app.state.oidc_token_exchanger(
-                    form, resolved_settings
-                )
-                access_token = token_response.get("access_token")
-                if not isinstance(access_token, str) or not access_token:
-                    raise OidcTokenExchangeError("missing_access_token")
-                principal = request.app.state.identity_verifier.verify_authorization_header(
-                    f"Bearer {access_token}"
-                )
-                if (
-                    principal.actor_id != stored_session.actor_id
-                    or principal.tenant_id != stored_session.tenant_id
-                ):
-                    raise OidcAuthenticationError("refresh_principal_mismatch")
-                absolute_expires_at = stored_session.absolute_expires_at
-                max_age_ceiling: int | None = None
-                if absolute_expires_at is not None:
-                    remaining_seconds = int(
-                        (
-                            _ensure_aware_datetime(absolute_expires_at) - datetime.now(UTC)
-                        ).total_seconds()
-                    )
-                    max_age_ceiling = remaining_seconds
-                (
-                    session_cookie_value,
-                    session_max_age,
-                    new_session_id,
-                ) = session_cookie_from_principal(
-                    token_response,
-                    principal,
-                    resolved_settings,
-                    max_age_ceiling=max_age_ceiling,
-                )
-            except OidcCodeFlowConfigurationError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail={
-                        "code": AxisErrorCode.AUTH_REQUIRED.value,
-                        "message": "OIDC session refresh is not configured.",
-                        "reason": exc.reason,
-                    },
-                ) from exc
-            except (OidcAuthenticationError, OidcTokenExchangeError) as exc:
-                failure_reason = getattr(exc, "reason", "refresh_failed")
+            if refresh_failure is not None:
+                failure_reason, revocation_reason = refresh_failure
                 repository.append_audit_event(
                     AuditEventCreate(
-                        tenant_id=stored_session.tenant_id,
-                        actor_id=stored_session.actor_id,
+                        tenant_id=claim.tenant_id,
+                        actor_id=claim.actor_id,
                         event_type="identity.oidc_session.refresh_failed",
                         payload={
-                            "session_id_hash": stored_session.session_id_hash,
+                            "session_id_hash": session_hash,
                             "reason": failure_reason,
                             "session_boundary": OIDC_SESSION_BOUNDARY,
                         },
                     )
                 )
-                _expire_stored_session(
-                    repository,
-                    stored_session,
-                    revocation_reason="refresh_failed",
+                revoke_event = repository.append_audit_event(
+                    AuditEventCreate(
+                        tenant_id=claim.tenant_id,
+                        actor_id=claim.actor_id,
+                        event_type="identity.oidc_session.revoked",
+                        payload={
+                            "session_id_hash": session_hash,
+                            "revocation_reason": revocation_reason,
+                            "session_boundary": OIDC_SESSION_BOUNDARY,
+                            "federated_logout": False,
+                        },
+                    )
                 )
-                refresh_failure = (failure_reason, "refresh_failed")
-            if refresh_failure is None:
+                repository.revoke_oidc_browser_session(
+                    OidcBrowserSessionRevocation(
+                        session_id_hash=session_hash,
+                        revoked_by=OIDC_SESSION_LIFECYCLE_ACTOR,
+                        revocation_reason=revocation_reason,
+                        revoke_audit_event_id=revoke_event.id,
+                    )
+                )
+            else:
                 new_session_hash = session_id_hash(new_session_id, resolved_settings)
                 session_claims = read_session_cookie(session_cookie_value, resolved_settings)
                 expires_at = datetime.fromtimestamp(session_claims.expires_at, UTC)
@@ -2197,22 +2267,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 next_refresh_token = (
                     rotated_refresh_token
                     if isinstance(rotated_refresh_token, str) and rotated_refresh_token
-                    else refresh_token
+                    else claim.refresh_token
                 )
-                refresh_count = stored_session.refresh_count + 1
+                refresh_count = claim.refresh_count + 1
                 audit_event = repository.append_audit_event(
                     AuditEventCreate(
                         tenant_id=principal.tenant_id,
                         actor_id=principal.actor_id,
                         event_type="identity.oidc_session.refreshed",
                         payload={
-                            "previous_session_id_hash": stored_session.session_id_hash,
+                            "previous_session_id_hash": session_hash,
                             "session_id_hash": new_session_hash,
                             "session_boundary": OIDC_SESSION_BOUNDARY,
                             "expires_at": expires_at.isoformat(),
                             "absolute_expires_at": (
-                                _ensure_aware_datetime(absolute_expires_at).isoformat()
-                                if absolute_expires_at is not None
+                                _ensure_aware_datetime(claim.absolute_expires_at).isoformat()
+                                if claim.absolute_expires_at is not None
                                 else None
                             ),
                             "refresh_count": refresh_count,
@@ -2230,7 +2300,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         actor_id=principal.actor_id,
                         scopes=principal.scopes,
                         expires_at=expires_at,
-                        absolute_expires_at=absolute_expires_at,
+                        absolute_expires_at=claim.absolute_expires_at,
                         refresh_token_ciphertext=encrypt_refresh_token(
                             next_refresh_token, resolved_settings
                         ),
@@ -2239,7 +2309,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
                 )
                 repository.mark_oidc_browser_session_rotated(
-                    session_id_hash=stored_session.session_id_hash,
+                    session_id_hash=session_hash,
                     rotated_to_session_id_hash=new_session_hash,
                 )
                 rotated = _RotatedSessionCookie(
@@ -2379,7 +2449,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: OidcPrincipalDependency,
     ) -> Response:
         resolved_principal = _require_identity_principal(principal)
-        enforce_browser_csrf(request)
         with session_scope(request.app.state.session_factory) as session:
             repository = AxisPersistenceRepository(session)
             stored_session = repository.get_oidc_browser_session(
