@@ -56,6 +56,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "limes-axis.workerImage" -}}
+{{- if .Values.global.imageRegistry -}}
+{{- printf "%s/%s:%s" .Values.global.imageRegistry .Values.worker.image.repository .Values.worker.image.tag -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.worker.image.repository .Values.worker.image.tag -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "limes-axis.smokeTestImage" -}}
 {{- if .Values.global.imageRegistry -}}
 {{- printf "%s/%s:%s" .Values.global.imageRegistry .Values.tests.smoke.image.repository .Values.tests.smoke.image.tag -}}
