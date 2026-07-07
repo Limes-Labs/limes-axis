@@ -167,6 +167,36 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED",
     )
+    connector_live_sync_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CONNECTOR_LIVE_SYNC_EXECUTION_ENABLED",
+    )
+    file_csv_live_sync_root: str | None = Field(
+        default=None,
+        alias="AXIS_FILE_CSV_LIVE_SYNC_ROOT",
+    )
+    file_csv_live_sync_profile_id: str = Field(
+        default="profile_file_csv_local_dropzone",
+        alias="AXIS_FILE_CSV_LIVE_SYNC_PROFILE_ID",
+    )
+    file_csv_live_sync_max_rows: int = Field(
+        default=500,
+        ge=1,
+        le=10_000,
+        alias="AXIS_FILE_CSV_LIVE_SYNC_MAX_ROWS",
+    )
+    file_csv_live_sync_batch_size: int = Field(
+        default=100,
+        ge=1,
+        le=1_000,
+        alias="AXIS_FILE_CSV_LIVE_SYNC_BATCH_SIZE",
+    )
+    external_db_live_sync_batch_size: int = Field(
+        default=100,
+        ge=1,
+        le=1_000,
+        alias="AXIS_EXTERNAL_DB_LIVE_SYNC_BATCH_SIZE",
+    )
     external_db_sync_execution_enabled: bool = Field(
         default=False,
         alias="AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED",

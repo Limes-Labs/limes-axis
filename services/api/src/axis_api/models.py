@@ -625,6 +625,14 @@ class ConnectorSyncCheckpointClaim(Base):
             "idempotency_key",
             name="uq_connector_sync_checkpoint_claims_tenant_checkpoint_idempotency",
         ),
+        Index(
+            "uq_conn_sync_claims_single_active",
+            "tenant_id",
+            "checkpoint_id",
+            unique=True,
+            postgresql_where=text("status = 'claimed'"),
+            sqlite_where=text("status = 'claimed'"),
+        ),
     )
 
 

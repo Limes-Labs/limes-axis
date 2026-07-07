@@ -2,7 +2,9 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from axis_api.audit import AuditEventCreate
@@ -806,6 +808,22 @@ class OidcBrowserSessionRevocation(BaseModel):
 class AxisPersistenceRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def _insert_with_on_conflict(self, model: type):
+        """Return a dialect-aware INSERT that supports on_conflict_do_nothing.
+
+        Both the Postgres production engine and the SQLite test engine expose an
+        on-conflict insert; the generic core insert does not, so callers that
+        need insert-or-ignore semantics must build the statement here.
+        """
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            return postgresql_insert(model)
+        if dialect_name == "sqlite":
+            return sqlite_insert(model)
+        raise NotImplementedError(
+            f"on_conflict insert is not supported for dialect {dialect_name!r}."
+        )
 
     def append_audit_event(self, event: AuditEventCreate) -> AuditEvent:
         audit_event = AuditEvent(
@@ -2331,6 +2349,49 @@ class AxisPersistenceRepository:
         ).limit(limit)
         return list(self.session.scalars(statement))
 
+    def count_connector_sync_checkpoints(
+        self,
+        tenant_id: str,
+        run_id: str | None = None,
+    ) -> int:
+        statement: Select[tuple[int]] = select(
+            func.count(ConnectorSyncCheckpoint.id)
+        ).where(ConnectorSyncCheckpoint.tenant_id == tenant_id)
+        if run_id is not None:
+            statement = statement.where(ConnectorSyncCheckpoint.run_id == run_id)
+        return int(self.session.scalar(statement) or 0)
+
+    def get_latest_connector_sync_checkpoint(
+        self,
+        tenant_id: str,
+        run_id: str,
+        connector_id: str | None = None,
+        checkpoint_type: str | None = None,
+        status: str | None = None,
+    ) -> ConnectorSyncCheckpoint | None:
+        statement: Select[tuple[ConnectorSyncCheckpoint]] = select(
+            ConnectorSyncCheckpoint
+        ).where(
+            ConnectorSyncCheckpoint.tenant_id == tenant_id,
+            ConnectorSyncCheckpoint.run_id == run_id,
+        )
+        if connector_id is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpoint.connector_id == connector_id
+            )
+        if checkpoint_type is not None:
+            statement = statement.where(
+                ConnectorSyncCheckpoint.checkpoint_type == checkpoint_type
+            )
+        if status is not None:
+            statement = statement.where(ConnectorSyncCheckpoint.status == status)
+        statement = statement.order_by(
+            ConnectorSyncCheckpoint.sequence.desc(),
+            ConnectorSyncCheckpoint.created_at.desc(),
+            ConnectorSyncCheckpoint.id.desc(),
+        ).limit(1)
+        return self.session.scalars(statement).first()
+
     def create_connector_ontology_proposal(
         self,
         record: ConnectorOntologyProposalCreate,
@@ -2365,6 +2426,61 @@ class AxisPersistenceRepository:
         self.session.add(proposal)
         self.session.flush()
         return proposal
+
+    def create_connector_ontology_proposal_if_absent(
+        self,
+        record: ConnectorOntologyProposalCreate,
+    ) -> tuple[ConnectorOntologyProposal, bool]:
+        """Insert-or-ignore a proposal on (tenant_id, proposal_id).
+
+        Returns the resulting proposal and whether it was newly created. This
+        keeps the dedup guarantee for resumable/idempotent connector sync at the
+        write path itself instead of relying only on transaction shape, so a
+        duplicate proposal_id never surfaces as an IntegrityError/500.
+        """
+        insert_stmt = (
+            self._insert_with_on_conflict(ConnectorOntologyProposal)
+            .values(
+                tenant_id=record.tenant_id,
+                connector_id=record.connector_id,
+                proposal_id=record.proposal_id,
+                source_run_id=record.source_run_id,
+                source_file_name=record.source_file_name,
+                mapping_profile=record.mapping_profile,
+                status=record.status,
+                write_mode=record.write_mode,
+                graph_mutation_status=record.graph_mutation_status,
+                proposed_by=record.proposed_by,
+                node_id=record.node_id,
+                node_type=record.node_type,
+                ontology_type=record.ontology_type,
+                field_summary=record.field_summary,
+                evidence_refs=record.evidence_refs,
+                promotion_id=record.promotion_id,
+                policy_id=record.policy_id,
+                policy_set_id=record.policy_set_id,
+                policy_ids=record.policy_ids,
+                policy_decision=record.policy_decision,
+                promoted_by=record.promoted_by,
+                ontology_mutation=record.ontology_mutation,
+                audit_event_id=record.audit_event_id,
+                audit_event_type=record.audit_event_type,
+                notes=record.notes,
+            )
+            .on_conflict_do_nothing(
+                index_elements=["tenant_id", "proposal_id"],
+            )
+        )
+        result = self.session.execute(insert_stmt)
+        self.session.flush()
+        created = result.rowcount != 0
+        proposal = self.get_connector_ontology_proposal(
+            record.tenant_id,
+            record.proposal_id,
+        )
+        if proposal is None:  # pragma: no cover - insert or existing row guarantees a match
+            raise PersistenceRecordNotFound("Connector ontology proposal not found")
+        return proposal, created
 
     def get_connector_ontology_proposal(
         self,

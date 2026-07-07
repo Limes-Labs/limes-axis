@@ -348,6 +348,19 @@ The checkpoint registry reports public-safe `evidence_invariants` when a
 persisted checkpoint has missing, unresolved, mismatched or unsafe audit
 evidence. Sync execution audit payloads include the generated checkpoint id so
 new checkpoint records can satisfy the same invariant contract.
+Scheduled runs that request `live_sync_requested=true` can now opt into
+governed live sync execution when
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true` and
+`AXIS_CONNECTOR_LIVE_SYNC_EXECUTION_ENABLED=true` are both set: the file/CSV
+dropzone and allowlisted external Postgres profiles read bounded batches behind
+`active_live` manifests, credential lease evidence and (for external DB)
+persisted egress policy evidence, commit per-batch sync checkpoints with
+`connector.run.sync_execution_started`/`connector.run.sync_batch_committed`
+stage audit evidence, derive review-only ontology proposals from synced rows
+and fail closed with `connector.run.sync_execution_failed` error taxonomy;
+failed runs resume from the last committed batch checkpoint behind a worker
+checkpoint claim, and graph mutation stays behind the approval-gated promotion
+path.
 The connector ontology proposal slice persists preview-derived proposals for review
 with `connector.ontology_proposals.recorded` audit events. The manual import request
 slice records approval, workflow and idempotency gates for proposal import

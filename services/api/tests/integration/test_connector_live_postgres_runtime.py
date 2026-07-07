@@ -5,8 +5,12 @@ from sqlalchemy import create_engine, text
 
 from axis_api.config import Settings
 from axis_api.connector_execution import (
+    ConnectorLiveSyncBatchRequest,
+    ConnectorLiveSyncFieldMapping,
+    ConnectorLiveSyncPlanRequest,
     ConnectorSyncExecutionRequest,
     ExternalPostgresLiveQueryProfile,
+    SelfHostedConnectorLiveSyncRuntime,
     SelfHostedConnectorSyncExecutionRuntime,
     postgres_endpoint_target_sha256,
 )
@@ -148,3 +152,148 @@ def test_external_db_live_query_runtime_reads_allowlisted_postgres_table() -> No
     assert "dsn" not in str(summary).lower()
     assert "postgresql://" not in str(summary).lower()
     assert "po-1001" not in str(summary)
+
+
+def test_external_db_live_sync_runtime_reads_batched_rows_from_postgres() -> None:
+    settings = Settings()
+    private_endpoint_ref = (
+        "private-endpoint://tenant_demo_manufacturing/persisted-operations-postgres-readonly"
+    )
+    endpoint_target_sha256 = postgres_endpoint_target_sha256(settings.postgres_dsn)
+    engine = create_engine(settings.postgres_dsn)
+    field_mappings = [
+        ConnectorLiveSyncFieldMapping(
+            source_column="order_id",
+            target_field="node_id",
+            ontology_target="production_order",
+        ),
+        ConnectorLiveSyncFieldMapping(
+            source_column="status",
+            target_field="status",
+            ontology_target="production_order",
+        ),
+        ConnectorLiveSyncFieldMapping(
+            source_column="risk_level",
+            target_field="risk_level",
+            ontology_target="production_order",
+        ),
+    ]
+    input_summary = {
+        "live_sync_requested": "true",
+        "connection_profile_id": "profile_postgres_ops_readonly",
+        "schema_name": "axis_live_sync_test",
+        "table_name": "production_orders",
+        "selected_columns": "order_id,asset_id,work_center,status,risk_level",
+        "query_mode": "read_only_snapshot",
+        "egress_policy_id": "egress_policy_private_endpoint_ops",
+        "egress_boundary": "approved_private_endpoint",
+        "credential_access_mode": "lease_scoped_secret_ref",
+    }
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS axis_live_sync_test CASCADE"))
+            connection.execute(text("CREATE SCHEMA axis_live_sync_test"))
+            connection.execute(
+                text(
+                    "CREATE TABLE axis_live_sync_test.production_orders ("
+                    "order_id text PRIMARY KEY, "
+                    "asset_id text NOT NULL, "
+                    "work_center text NOT NULL, "
+                    "status text NOT NULL, "
+                    "risk_level text NOT NULL"
+                    ")"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO axis_live_sync_test.production_orders "
+                    "(order_id, asset_id, work_center, status, risk_level) VALUES "
+                    "('po-1001', 'asset-7', 'line-a', 'scheduled', 'low'), "
+                    "('po-1002', 'asset-9', 'line-b', 'blocked', 'high'), "
+                    "('po-1003', 'asset-11', 'line-c', 'running', 'medium')"
+                )
+            )
+
+        runtime = SelfHostedConnectorLiveSyncRuntime(
+            external_db_live_sync_enabled=True,
+            external_postgres_profile=ExternalPostgresLiveQueryProfile(
+                profile_id="profile_postgres_ops_readonly",
+                dsn=settings.postgres_dsn,
+                schema_name="axis_live_sync_test",
+                table_name="production_orders",
+                allowed_columns=[
+                    "order_id",
+                    "asset_id",
+                    "work_center",
+                    "status",
+                    "risk_level",
+                ],
+                private_endpoint_ref=private_endpoint_ref,
+                endpoint_target_sha256=endpoint_target_sha256,
+                row_limit=10,
+            ),
+            external_db_batch_size=2,
+        )
+        plan = runtime.plan(
+            ConnectorLiveSyncPlanRequest(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_external_db_live_sync_integration",
+                execution_id="sync_exec_external_db_live_sync_integration",
+                executed_by="axis-sync-worker-role",
+                credential_lease_id="lease_external_db_readonly_20260622",
+                credential_lease_result={
+                    "status": "lease_executed",
+                    "provider_lease_ref": (
+                        "self-hosted-vault-kms://tenant_demo_manufacturing/"
+                        "lease_external_db_readonly_20260622"
+                    ),
+                    "secret_material_returned": False,
+                },
+                egress_policy_evidence={
+                    "egress_policy_evidence_status": "validated",
+                    "egress_policy_result_status": "egress_policy_approved",
+                    "egress_policy_mode": "approved_private_endpoint",
+                    "egress_policy_private_endpoint_ref": private_endpoint_ref,
+                    "egress_policy_endpoint_target_sha256": endpoint_target_sha256,
+                },
+                field_mappings=field_mappings,
+                input_summary=input_summary,
+            )
+        )
+        assert plan.status == "live_sync_plan_ready"
+        assert plan.batch_size == 2
+
+        batches = []
+        offset = 0
+        while True:
+            batch = runtime.read_batch(
+                ConnectorLiveSyncBatchRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    connector_id="external_db_operational_mirror",
+                    run_id="run_external_db_live_sync_integration",
+                    execution_id="sync_exec_external_db_live_sync_integration",
+                    offset=offset,
+                    batch_size=plan.batch_size,
+                    field_mappings=field_mappings,
+                    input_summary=input_summary,
+                )
+            )
+            assert batch.status == "live_sync_batch_read"
+            batches.append(batch)
+            offset = batch.next_offset
+            if batch.source_exhausted:
+                break
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS axis_live_sync_test CASCADE"))
+        engine.dispose()
+
+    records = [record for batch in batches for record in batch.records]
+    assert [record.node_id for record in records] == ["po-1001", "po-1002", "po-1003"]
+    assert records[0].node_type == "work_order"
+    assert records[0].ontology_type == "production_order"
+    assert records[0].field_summary["status"] == "scheduled"
+    assert len(batches) == 2
+    assert batches[0].next_offset == 2
+    assert batches[1].source_exhausted is True

@@ -41,6 +41,7 @@ from axis_api.persistence import (
     ConnectorOntologyProposalCreate,
     ConnectorPromotionPolicyCreate,
     ConnectorRunCreate,
+    ConnectorSyncCheckpointClaimCreate,
     ConnectorSyncCheckpointCreate,
     DemoReferenceRecordCreate,
     PersistenceRecordNotFound,
@@ -1175,3 +1176,166 @@ def test_repository_records_connector_manual_import_decision_and_signal(
     assert updated.decided_at is not None
     assert updated.workflow_signal_status == "manual_import_signal_requested"
     assert updated.workflow_signal["signal_name"] == "connector_manual_import_decided"
+
+
+def _live_sync_proposal_create(
+    proposal_id: str = "prop_run_live_sync_r0",
+    *,
+    node_id: str = "asset_live_0",
+    audit_event_id=None,
+) -> ConnectorOntologyProposalCreate:
+    return ConnectorOntologyProposalCreate(
+        tenant_id="tenant_demo_manufacturing",
+        connector_id="file_csv_manufacturing_assets",
+        proposal_id=proposal_id,
+        source_run_id="run_live_sync",
+        source_file_name="dropzone-assets.csv",
+        mapping_profile="connector_live_sync_v1",
+        status="proposed_from_preview",
+        write_mode="proposal_only",
+        graph_mutation_status="not_applied",
+        proposed_by="axis-sync-worker-role",
+        node_id=node_id,
+        node_type="asset",
+        ontology_type="manufacturing_asset",
+        field_summary={"asset_name": "Asset 0"},
+        evidence_refs=["dropzone-assets.csv", node_id],
+        audit_event_id=audit_event_id,
+    )
+
+
+def test_create_connector_ontology_proposal_if_absent_is_idempotent(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+
+    first, created_first = repository.create_connector_ontology_proposal_if_absent(
+        _live_sync_proposal_create()
+    )
+    second, created_second = repository.create_connector_ontology_proposal_if_absent(
+        _live_sync_proposal_create(node_id="asset_live_0_dup")
+    )
+
+    assert created_first is True
+    assert created_second is False
+    assert first.id == second.id
+    # The conflicting insert is ignored, so the original row is preserved.
+    assert second.node_id == "asset_live_0"
+
+    records = repository.list_connector_ontology_proposals("tenant_demo_manufacturing")
+    assert len(records) == 1
+    assert records[0].proposal_id == "prop_run_live_sync_r0"
+
+
+def test_create_connector_ontology_proposal_plain_add_raises_on_duplicate(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    repository.create_connector_ontology_proposal(_live_sync_proposal_create())
+
+    with pytest.raises(IntegrityError):
+        repository.create_connector_ontology_proposal(_live_sync_proposal_create())
+
+
+def test_single_active_checkpoint_claim_index_rejects_second_claim(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    checkpoint_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="axis-sync-worker-role",
+            event_type="connector.run.sync_execution_preflight_passed",
+            payload={
+                "connector_id": "external_db_operational_mirror",
+                "run_id": "run_claim_index",
+                "checkpoint_id": "chk_run_claim_index_batch_1",
+            },
+        )
+    )
+    repository.create_connector_sync_checkpoint(
+        ConnectorSyncCheckpointCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            run_id="run_claim_index",
+            checkpoint_id="chk_run_claim_index_batch_1",
+            checkpoint_type="sync_batch",
+            status="sync_batch_committed",
+            sequence=1,
+            runtime_boundary="axis-connector-sandbox",
+            adapter="axis-postgres-external-db-live-sync-executor",
+            cursor={"next_offset": "2"},
+            result_summary={"external_query_started": "true"},
+            evidence_refs=[str(checkpoint_event.id)],
+            audit_event_id=checkpoint_event.id,
+            audit_event_type="connector.run.sync_batch_committed",
+            notes=["Batch checkpoint for claim index test."],
+        )
+    )
+
+    def claim_row(claim_id: str, idempotency_key: str) -> ConnectorSyncCheckpointClaimCreate:
+        return ConnectorSyncCheckpointClaimCreate(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            run_id="run_claim_index",
+            checkpoint_id="chk_run_claim_index_batch_1",
+            claim_id=claim_id,
+            status="claimed",
+            claimed_by="axis-sync-worker-role",
+            idempotency_key=idempotency_key,
+            lease_duration_seconds=900,
+            lease_expires_at=datetime(2030, 1, 1, tzinfo=UTC),
+            claim_result={
+                "external_sync_started": False,
+                "secret_material_returned": False,
+                "worker_claim_only": True,
+            },
+            audit_event_id=checkpoint_event.id,
+            audit_event_type="connector.run.sync_checkpoint_claimed",
+            notes=["Claim for single-active index test."],
+        )
+
+    repository.create_connector_sync_checkpoint_claim(claim_row("claim_a", "idem_a"))
+
+    with pytest.raises(IntegrityError):
+        repository.create_connector_sync_checkpoint_claim(claim_row("claim_b", "idem_b"))
+
+
+def test_get_latest_connector_sync_checkpoint_orders_by_sequence(
+    session: Session,
+) -> None:
+    repository = AxisPersistenceRepository(session)
+    for sequence in (1, 3, 2):
+        repository.create_connector_sync_checkpoint(
+            ConnectorSyncCheckpointCreate(
+                tenant_id="tenant_demo_manufacturing",
+                connector_id="external_db_operational_mirror",
+                run_id="run_latest_checkpoint",
+                checkpoint_id=f"chk_run_latest_checkpoint_batch_{sequence}",
+                checkpoint_type="sync_batch",
+                status="sync_batch_committed",
+                sequence=sequence,
+                runtime_boundary="axis-connector-sandbox",
+                adapter="axis-postgres-external-db-live-sync-executor",
+                cursor={"next_offset": str(sequence * 2)},
+                result_summary={"external_query_started": "true"},
+                evidence_refs=[],
+                audit_event_type="connector.run.sync_batch_committed",
+                notes=["Batch checkpoint for latest lookup test."],
+            )
+        )
+
+    latest = repository.get_latest_connector_sync_checkpoint(
+        "tenant_demo_manufacturing",
+        run_id="run_latest_checkpoint",
+        checkpoint_type="sync_batch",
+        status="sync_batch_committed",
+    )
+
+    assert latest is not None
+    assert latest.sequence == 3
+    assert latest.checkpoint_id == "chk_run_latest_checkpoint_batch_3"
+    assert repository.count_connector_sync_checkpoints(
+        "tenant_demo_manufacturing",
+        run_id="run_latest_checkpoint",
+    ) == 3
