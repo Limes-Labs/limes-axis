@@ -164,8 +164,8 @@ policy.
 
 ## Console
 
-The governance console exposes the policy engine as a read-and-evaluate
-surface under the `Policies` navigation section:
+The governance console exposes the policy engine — reads, dry-run evaluation
+and authoring — under the `Policies` navigation section:
 
 - `/policies` lists the tenant-scoped policy registry through
   `GET /platform/policies` with scope and status filters, effect and status
@@ -186,19 +186,46 @@ surface under the `Policies` navigation section:
   policy count, precedence rule and evidence payload — is rendered inline and
   clearly labeled as a dry run that never mutates state.
 
-All console reads and the evaluate call go through the shared Axis API fetch
-layer, so OIDC bearer sessions and API-owned session cookies attach the same
-way as on every other console surface. The console is deliberately read and
-evaluate only: policy authoring and revision (`POST /platform/policies`,
-`POST /platform/policies/{policy_id}/revisions`) remain API-driven and are
-follow-up console work.
+- `/policies` also carries the authoring form. It creates revision 1 through
+  `POST /platform/policies` with typed condition builders (multi-select risk
+  and autonomy levels, comma-separated action domains, a numeric amount
+  threshold) and mirrors the server rules client-side before anything is sent:
+  the `^[a-z0-9][a-z0-9_-]*$` policy id pattern, required-field lengths, the
+  at-least-one-condition rule and the finite non-negative amount check. Server
+  rejections are surfaced inline — 409 duplicate ids on the policy id field,
+  `VALIDATION_FAILED` condition errors on the condition builders and 403
+  permission denials with the required authoring scope. An advisory preview
+  runs the dry-run evaluate endpoint for the drafted scope against the
+  policies already persisted for the tenant, plus a client-side check of
+  whether the drafted conditions would match the sampled context; the draft
+  itself is never evaluated by the API until it is authored.
+- `/policies/{policy_id}` carries a revise form pre-filled from the current
+  revision. It appends through
+  `POST /platform/policies/{policy_id}/revisions` with a client-generated
+  idempotency key (`crypto.randomUUID`), distinguishes a 201 new revision from
+  a 200 idempotent replay ("revision already applied") and explains 409
+  idempotency-key conflicts, rotating to a fresh key since a conflicted key
+  can never succeed. Successful writes refetch the registry and detail
+  through the standard console refresh path.
+- The revision history offers a lightweight compare: any superseded revision
+  can be diffed against the current one field by field (name, description,
+  version, effect, each typed condition, notes) with changed, added and
+  removed values marked inline — no diff dependency involved.
+
+All console reads and writes go through the shared Axis API fetch layer, so
+OIDC bearer sessions, API-owned session cookies and the CSRF double-submit
+header attach the same way as on every other console surface. The authoring
+affordances render optimistically like the rest of the console's action
+surfaces (for example approval decisions): the forms are always visible and
+the API enforces the `platform:policy:author` / `platform:policy:revise`
+scopes, with 403 denials surfaced inline. No policy capability remains
+API-only for a single policy's lifecycle; only bulk or cross-policy tooling
+(such as policy simulation over historical events) stays outside the console.
 
 ## Boundaries
 
 The engine is a foundation slice. It does not yet include:
 
-- console policy authoring or revision controls (the console is read and
-  evaluate only; authoring stays on the API);
 - enforcement points beyond action run creation, approval decision transitions
   and action run outcome recording;
 - policy simulation over historical events for platform policies;
@@ -236,5 +263,11 @@ and audit boundaries.
   read-scope enforcement for authenticated requests.
 - The OpenAPI contract is regenerated and checked; migration identifier tests
   cover the `platform_policies` schema.
+- Console tests cover the authoring slice: unit tests for the client-side
+  mirror of the server validation rules, the exact create and revise payload
+  shapes, the 201/200-replay/409/422/403 result mapping and the revision
+  compare logic, plus route-mocked browser smoke tests for the validation
+  gate, the create round-trip with the CSRF header and the revise and compare
+  surfaces on the detail page.
 - Public documentation avoids customer data, personal names, contacts,
   pricing, credentials and deployment secrets.

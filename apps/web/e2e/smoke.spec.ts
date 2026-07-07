@@ -420,12 +420,235 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Fallback policy seed")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Deny critical actions/ })).toHaveCount(0);
 
+    await expect(page.getByRole("form", { name: "Platform policy authoring" })).toHaveCount(0);
+
     await page.goto("/policies/deny_critical_actions");
 
     await expect(page.getByRole("heading", { name: "Policy detail" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
     await expect(page.getByText("/platform/policies/deny_critical_actions")).toBeVisible();
     await expect(page.getByRole("form", { name: "Policy dry-run evaluation" })).toHaveCount(0);
+    await expect(page.getByRole("form", { name: "Platform policy revision" })).toHaveCount(0);
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("authors a platform policy through the mocked policy API", async ({ context, page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await context.addCookies([
+      { name: "axis_csrf", value: "csrf-e2e-token", url: "http://127.0.0.1:3100" },
+    ]);
+
+    const policyRecord = {
+      tenant_id: "tenant_demo_manufacturing",
+      policy_id: "deny_critical_actions",
+      revision_number: 1,
+      policy_version: "1.0.0",
+      display_name: "Deny critical actions",
+      description: "Blocks critical-risk action execution.",
+      scope: "action_execution",
+      effect: "deny",
+      conditions: { risk_levels: ["critical"] },
+      status: "active",
+      notes: [],
+      created_by: "platform-governance-owner-role",
+      created_at: "2026-07-01T08:00:00Z",
+      required_authoring_scope: "platform:policy:author",
+      revises_revision_number: null,
+      replaced_by_revision_number: null,
+      revision_idempotency_key: null,
+      idempotent_replay: false,
+      audit_event_type: "platform.policy.authored",
+      audit_event_id: null,
+      permission_decision: { allowed: true, reason: "authoring_scope_present" },
+    };
+
+    const policyPosts: string[] = [];
+    await page.route(
+      (url) => url.href.startsWith("http://127.0.0.1:65534/platform/policies"),
+      async (route) => {
+        if (route.request().method() === "POST") {
+          policyPosts.push(route.request().postData() ?? "");
+          await route.fulfill({
+            contentType: "application/json",
+            json: {
+              ...policyRecord,
+              policy_id: "gate_high_spend",
+              display_name: "Gate high spend",
+              description: "Requires approval above the spend threshold.",
+              effect: "require_approval",
+              scope: "approval_requirement",
+              conditions: { risk_levels: ["high"], requested_amount_at_least: 10000 },
+            },
+            status: 201,
+          });
+          return;
+        }
+
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            tenant_id: "tenant_demo_manufacturing",
+            policy_count: 1,
+            active_policy_count: 1,
+            policies: [policyRecord],
+            policy_notes: [],
+          },
+          status: 200,
+        });
+      },
+    );
+
+    await page.goto("/policies");
+
+    const createForm = page.getByRole("form", { name: "Platform policy authoring" });
+    await expect(createForm).toBeVisible();
+
+    // Client-side validation blocks a policy id the API pattern rejects.
+    await page.getByLabel("New policy id").fill("Bad Policy Id");
+    await page.getByLabel("New policy display name").fill("Gate high spend");
+    await page
+      .getByLabel("New policy description")
+      .fill("Requires approval above the spend threshold.");
+    await createForm.getByRole("button", { name: "Author policy" }).click();
+    await expect(
+      page.getByText("Policy id must match ^[a-z0-9][a-z0-9_-]*$", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Declare at least one condition", { exact: false }),
+    ).toBeVisible();
+    expect(policyPosts).toEqual([]);
+
+    // A valid draft round-trips through the mocked create endpoint.
+    await page.getByLabel("New policy id").fill("gate_high_spend");
+    await page.getByLabel("New policy scope").selectOption("approval_requirement");
+    await page.getByLabel("New policy effect").selectOption("require_approval");
+    await page
+      .getByRole("group", { name: "New policy risk levels" })
+      .getByRole("button", { name: "high", exact: true })
+      .click();
+    await page.getByLabel("New policy amount threshold").fill("10000");
+
+    const [createRequest] = await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "POST"
+          && request.url() === "http://127.0.0.1:65534/platform/policies",
+      ),
+      createForm.getByRole("button", { name: "Author policy" }).click(),
+    ]);
+    expect(createRequest.headers()["x-axis-csrf-token"]).toBe("csrf-e2e-token");
+    expect(createRequest.postDataJSON()).toEqual({
+      tenant_id: "tenant_demo_manufacturing",
+      policy_id: "gate_high_spend",
+      policy_version: "1.0.0",
+      display_name: "Gate high spend",
+      description: "Requires approval above the spend threshold.",
+      scope: "approval_requirement",
+      effect: "require_approval",
+      conditions: { risk_levels: ["high"], requested_amount_at_least: 10000 },
+      created_by: "platform-governance-owner-role",
+      actor_scopes: ["platform:policy:author"],
+      notes: [],
+    });
+
+    await expect(page.getByText("Policy created as r1 / 1.0.0.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open gate_high_spend" })).toHaveAttribute(
+      "href",
+      "/policies/gate_high_spend",
+    );
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("shows the revise form and revision compare on the mocked policy detail", async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    const baseRecord = {
+      tenant_id: "tenant_demo_manufacturing",
+      policy_id: "deny_critical_actions",
+      revision_number: 1,
+      policy_version: "1.0.0",
+      display_name: "Deny critical actions",
+      description: "Blocks critical-risk action execution.",
+      scope: "action_execution",
+      effect: "require_approval",
+      conditions: { risk_levels: ["high", "critical"] },
+      status: "superseded",
+      notes: [],
+      created_by: "platform-governance-owner-role",
+      created_at: "2026-07-01T08:00:00Z",
+      required_authoring_scope: "platform:policy:author",
+      revises_revision_number: null,
+      replaced_by_revision_number: 2,
+      revision_idempotency_key: null,
+      idempotent_replay: false,
+      audit_event_type: "platform.policy.authored",
+      audit_event_id: null,
+      permission_decision: { allowed: true, reason: "authoring_scope_present" },
+    };
+    const currentRecord = {
+      ...baseRecord,
+      revision_number: 2,
+      policy_version: "1.1.0",
+      effect: "deny",
+      conditions: { risk_levels: ["critical"] },
+      status: "active",
+      revises_revision_number: 1,
+      replaced_by_revision_number: null,
+      revision_idempotency_key: "idem-key-1",
+      required_authoring_scope: "platform:policy:revise",
+      audit_event_type: "platform.policy.revised",
+    };
+
+    await page.route(
+      "http://127.0.0.1:65534/platform/policies/deny_critical_actions",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            tenant_id: "tenant_demo_manufacturing",
+            policy_id: "deny_critical_actions",
+            current_revision: currentRecord,
+            revisions: [baseRecord, currentRecord],
+          },
+          status: 200,
+        });
+      },
+    );
+
+    await page.goto("/policies/deny_critical_actions");
+
+    await expect(page.getByRole("heading", { name: "Deny critical actions" })).toBeVisible();
+
+    // Revise form is pre-filled from the current revision with a
+    // client-generated idempotency key.
+    const reviseForm = page.getByRole("form", { name: "Platform policy revision" });
+    await expect(reviseForm).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Append a revision to r2" }),
+    ).toBeVisible();
+    await expect(page.getByText(/Idempotency key [0-9a-f-]{36}/)).toBeVisible();
+    await expect(page.getByLabel("Revision policy version")).toHaveValue("1.1.0");
+    await expect(page.getByLabel("Revision display name")).toHaveValue("Deny critical actions");
+    await expect(
+      page
+        .getByRole("group", { name: "Revision risk levels" })
+        .getByRole("button", { name: "critical", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // Revision compare renders a field-level diff against the current revision.
+    await page.getByLabel("Revision to compare").selectOption("1");
+    await expect(page.getByText("Comparing r1 / 1.0.0 against the current r2 / 1.1.0")).toBeVisible();
+    await expect(page.getByText("Require approval → Deny")).toBeVisible();
+    await expect(page.getByText("− high")).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

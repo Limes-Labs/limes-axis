@@ -139,6 +139,9 @@ Foundation acceptance is tracked in
   policy-gated action run enforcement.
 - [x] Add the read-and-evaluate platform policy console surface with registry
   filters, revision history and a dry-run evaluation panel.
+- [x] Add console platform policy authoring: a validated create form with an
+  advisory preview evaluation, an idempotent revise form surfacing 200
+  replays versus 201 creations, and a revision compare view.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [x] Persist replay simulation outputs as governed audit artifacts.

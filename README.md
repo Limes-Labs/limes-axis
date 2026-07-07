@@ -119,7 +119,9 @@ The policy console slice exposes that engine as a read-and-evaluate `/policies`
 surface: an API-required registry with scope and status filters, a policy
 detail view with typed conditions, precedence explanation and append-only
 revision history, and a dry-run evaluation panel that posts a composed context
-to the evaluation endpoint; policy authoring stays on the API.
+to the evaluation endpoint; policies can also be authored and revised from the
+console, with client-side validation mirroring the API rules, idempotent
+revision replays surfaced explicitly and a field-level revision compare.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline
 events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts

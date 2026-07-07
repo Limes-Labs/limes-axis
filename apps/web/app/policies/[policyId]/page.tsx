@@ -13,7 +13,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
   return (
     <ConsolePage
       eyebrow="Policies"
-      subtitle="Full policy definition, typed conditions, append-only revision history and dry-run evaluation."
+      subtitle="Full policy definition, typed conditions, revision authoring with idempotent replay, revision compare and dry-run evaluation."
       title="Policy detail"
     >
       <PolicyDetail key={policyId} policyId={policyId} />
