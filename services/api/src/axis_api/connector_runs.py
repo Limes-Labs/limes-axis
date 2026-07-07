@@ -49,6 +49,7 @@ from axis_api.persistence import (
     ConnectorSyncCheckpointClaimRenewalRecord,
     ConnectorSyncCheckpointCreate,
 )
+from axis_api.platform_tenants import TenantQuotaKey
 
 
 class ConnectorRunValidationError(ValueError):
@@ -1270,6 +1271,12 @@ def execute_demo_connector_sync(
                 input_summary=run.input_summary,
             )
         )
+    if live_sync_plan is not None and live_sync_plan.status == LIVE_SYNC_PLAN_READY_STATUS:
+        live_sync_plan = _apply_tenant_live_sync_row_cap(
+            repository,
+            run.tenant_id,
+            live_sync_plan,
+        )
     if live_sync_plan is not None and live_sync_plan.status != LIVE_SYNC_PLAN_DEFERRED_STATUS:
         _validate_active_live_manifest_for_live_sync(manifest)
         sync_execution_result = _execute_live_connector_sync(
@@ -1439,6 +1446,31 @@ def _validate_active_live_manifest_for_live_sync(manifest) -> None:
         )
 
 
+def _apply_tenant_live_sync_row_cap(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    plan: ConnectorLiveSyncPlan,
+) -> ConnectorLiveSyncPlan:
+    quota = repository.get_tenant_quota(
+        tenant_id,
+        TenantQuotaKey.MAX_CONNECTOR_SYNC_ROWS_PER_RUN.value,
+    )
+    if quota is None or plan.max_records <= quota.quota_value:
+        return plan
+    capped_rows = quota.quota_value
+    return plan.model_copy(
+        update={
+            "max_records": capped_rows,
+            "batch_size": max(1, min(plan.batch_size, capped_rows)),
+            "notes": [
+                *plan.notes,
+                "The tenant quota max_connector_sync_rows_per_run capped this "
+                "run's row limit.",
+            ],
+        }
+    )
+
+
 def _execute_live_connector_sync(
     repository: AxisPersistenceRepository,
     run,
@@ -1541,6 +1573,10 @@ def _execute_live_connector_sync(
     error_code = ""
     external_query_started = False
     while True:
+        if plan.max_records > 0 and offset >= plan.max_records:
+            # The plan row limit (profile row limit, possibly capped by the
+            # tenant quota) is exhausted; stop without reading further rows.
+            break
         if batches_this_execution >= LIVE_SYNC_MAX_BATCHES_PER_EXECUTION:
             error_code = "sync_batch_limit_exceeded"
             break
@@ -1548,6 +1584,9 @@ def _execute_live_connector_sync(
         if lease_error is not None:
             error_code = lease_error
             break
+        batch_size = plan.batch_size
+        if plan.max_records > 0:
+            batch_size = min(batch_size, plan.max_records - offset)
         batch = live_sync_runtime.read_batch(
             ConnectorLiveSyncBatchRequest(
                 tenant_id=run.tenant_id,
@@ -1555,7 +1594,7 @@ def _execute_live_connector_sync(
                 run_id=run.run_id,
                 execution_id=request.execution_id,
                 offset=offset,
-                batch_size=plan.batch_size,
+                batch_size=batch_size,
                 field_mappings=field_mappings,
                 input_summary=run.input_summary,
             )

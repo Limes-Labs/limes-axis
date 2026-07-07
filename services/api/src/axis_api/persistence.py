@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from axis_api.audit import AuditEventCreate
 from axis_api.models import (
     ActionRun,
+    Actor,
     ApprovalRecord,
     AuditEvent,
     AuditLegalHold,
@@ -36,6 +37,8 @@ from axis_api.models import (
     PlatformNotificationAcknowledgement,
     PlatformPolicy,
     ReplaySimulationOutput,
+    Tenant,
+    TenantQuota,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
     utc_now,
@@ -612,6 +615,46 @@ class PlatformPolicyCreate(BaseModel):
     replaced_by_revision_number: int | None = None
     revision_idempotency_key: str | None = None
     notes: list[str] = Field(default_factory=list)
+
+
+class TenantCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    description: str = Field(default="")
+    status: str = Field(default="active", min_length=1)
+    created_by: str = Field(min_length=1)
+    bootstrap_admin_actor_id: str | None = None
+    provision_idempotency_key: str | None = None
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="platform.tenant.provisioned", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class TenantLifecycleTransition(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    reason: str | None = None
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class TenantQuotaUpsert(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    quota_key: str = Field(min_length=1)
+    quota_value: int = Field(ge=0)
+    updated_by: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="platform.tenant.quota.updated", min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ActorCreate(BaseModel):
+    actor_id: str = Field(min_length=1)
+    tenant_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    actor_type: str = Field(default="human", min_length=1)
 
 
 class ConnectorManualImportRequestCreate(BaseModel):
@@ -2961,6 +3004,131 @@ class AxisPersistenceRepository:
             status="active",
             limit=20,
         )
+
+    def create_tenant(self, record: TenantCreate) -> Tenant:
+        tenant = Tenant(
+            id=record.tenant_id,
+            name=record.display_name,
+            description=record.description,
+            status=record.status,
+            created_by=record.created_by,
+            bootstrap_admin_actor_id=record.bootstrap_admin_actor_id,
+            provision_idempotency_key=record.provision_idempotency_key,
+            audit_event_id=record.audit_event_id,
+            audit_event_type=record.audit_event_type,
+            notes=record.notes,
+        )
+        self.session.add(tenant)
+        self.session.flush()
+        return tenant
+
+    def get_tenant(self, tenant_id: str) -> Tenant | None:
+        return self.session.get(Tenant, tenant_id)
+
+    def get_tenant_by_provision_idempotency_key(
+        self,
+        idempotency_key: str,
+    ) -> Tenant | None:
+        statement: Select[tuple[Tenant]] = select(Tenant).where(
+            Tenant.provision_idempotency_key == idempotency_key
+        )
+        return self.session.scalar(statement)
+
+    def list_tenants(
+        self,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[Tenant]:
+        statement: Select[tuple[Tenant]] = select(Tenant)
+        if status is not None:
+            statement = statement.where(Tenant.status == status)
+        statement = statement.order_by(Tenant.id.asc()).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def update_tenant_lifecycle(self, transition: TenantLifecycleTransition) -> Tenant:
+        tenant = self.get_tenant(transition.tenant_id)
+        if tenant is None:
+            raise PersistenceRecordNotFound()
+        occurred_at = utc_now()
+        tenant.status = transition.status
+        if transition.status == "active":
+            tenant.suspended_at = None
+            tenant.suspended_by = None
+            tenant.suspension_reason = None
+            tenant.reactivated_at = occurred_at
+            tenant.reactivated_by = transition.actor_id
+        else:
+            tenant.suspended_at = occurred_at
+            tenant.suspended_by = transition.actor_id
+            tenant.suspension_reason = transition.reason
+            tenant.reactivated_at = None
+            tenant.reactivated_by = None
+        tenant.audit_event_id = transition.audit_event_id
+        tenant.audit_event_type = transition.audit_event_type
+        tenant.notes = [*tenant.notes, *transition.notes]
+        tenant.updated_at = occurred_at
+        self.session.flush()
+        return tenant
+
+    def get_tenant_quota(self, tenant_id: str, quota_key: str) -> TenantQuota | None:
+        statement: Select[tuple[TenantQuota]] = select(TenantQuota).where(
+            TenantQuota.tenant_id == tenant_id,
+            TenantQuota.quota_key == quota_key,
+        )
+        return self.session.scalar(statement)
+
+    def list_tenant_quotas(self, tenant_id: str) -> list[TenantQuota]:
+        statement: Select[tuple[TenantQuota]] = (
+            select(TenantQuota)
+            .where(TenantQuota.tenant_id == tenant_id)
+            .order_by(TenantQuota.quota_key.asc())
+        )
+        return list(self.session.scalars(statement))
+
+    def upsert_tenant_quota(self, record: TenantQuotaUpsert) -> TenantQuota:
+        quota = self.get_tenant_quota(record.tenant_id, record.quota_key)
+        if quota is None:
+            quota = TenantQuota(
+                tenant_id=record.tenant_id,
+                quota_key=record.quota_key,
+                quota_value=record.quota_value,
+                updated_by=record.updated_by,
+                audit_event_id=record.audit_event_id,
+                audit_event_type=record.audit_event_type,
+                notes=record.notes,
+            )
+            self.session.add(quota)
+        else:
+            quota.quota_value = record.quota_value
+            quota.updated_by = record.updated_by
+            quota.audit_event_id = record.audit_event_id
+            quota.audit_event_type = record.audit_event_type
+            quota.notes = record.notes
+            quota.updated_at = utc_now()
+        self.session.flush()
+        return quota
+
+    def delete_tenant_quota(self, tenant_id: str, quota_key: str) -> bool:
+        quota = self.get_tenant_quota(tenant_id, quota_key)
+        if quota is None:
+            return False
+        self.session.delete(quota)
+        self.session.flush()
+        return True
+
+    def get_actor(self, actor_id: str) -> Actor | None:
+        return self.session.get(Actor, actor_id)
+
+    def create_actor(self, record: ActorCreate) -> Actor:
+        actor = Actor(
+            id=record.actor_id,
+            tenant_id=record.tenant_id,
+            display_name=record.display_name,
+            actor_type=record.actor_type,
+        )
+        self.session.add(actor)
+        self.session.flush()
+        return actor
 
     def create_platform_policy(
         self,

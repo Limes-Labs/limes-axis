@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from axis_api.action_reference import (
     ActionReferenceRecordInvalid,
@@ -460,6 +461,36 @@ from axis_api.platform_policies import (
     record_platform_policy,
     revise_platform_policy,
 )
+from axis_api.platform_tenants import (
+    REQUIRED_OPERATOR_SCOPE as PLATFORM_TENANT_OPERATOR_SCOPE,
+)
+from axis_api.platform_tenants import (
+    REQUIRED_READ_SCOPE as PLATFORM_TENANT_READ_SCOPE,
+)
+from axis_api.platform_tenants import (
+    SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+    TenantLifecycleConflict,
+    TenantLifecycleStatus,
+    TenantNotFound,
+    TenantPermissionDenied,
+    TenantProvisionConflict,
+    TenantProvisionRequest,
+    TenantQuotaKey,
+    TenantQuotaSet,
+    TenantQuotaUpdateRequest,
+    TenantReactivateRequest,
+    TenantRecord,
+    TenantRegistry,
+    TenantStateCache,
+    TenantSuspendRequest,
+    blocked_tenant_reason,
+    build_tenant_registry,
+    get_tenant_quota_set,
+    provision_tenant,
+    reactivate_tenant,
+    suspend_tenant,
+    update_tenant_quotas,
+)
 from axis_api.rate_limit import ApiRateLimitMiddleware
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
@@ -666,6 +697,7 @@ def oidc_principal(
                 if cookie_failure_reason is not None:
                     raise OidcCookieValidationError(cookie_failure_reason)
                 if principal is not None:
+                    _reject_suspended_tenant_request(request, principal)
                     return principal
             except (
                 OidcCodeFlowConfigurationError,
@@ -703,7 +735,9 @@ def oidc_principal(
         return None
 
     try:
-        return request.app.state.identity_verifier.verify_authorization_header(authorization)
+        principal = request.app.state.identity_verifier.verify_authorization_header(
+            authorization
+        )
     except OidcAuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -713,6 +747,58 @@ def oidc_principal(
                 "reason": exc.reason,
             },
         ) from exc
+    _reject_suspended_tenant_request(request, principal)
+    return principal
+
+
+def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal) -> None:
+    """Fail closed on any authenticated request for a non-active tenant.
+
+    This runs where tenant scoping is resolved for every OIDC-bound route: the
+    shared principal dependency, covering both bearer tokens and browser session
+    cookies. Unauthenticated demo-mode requests carry no verified tenant context
+    and are not covered, matching the demo-mode caveat used across the API.
+    Status lookups go through the short-TTL tenant state cache, so a suspension
+    takes effect within the documented staleness window.
+    """
+    cache: TenantStateCache | None = getattr(request.app.state, "tenant_state_cache", None)
+    session_factory = getattr(request.app.state, "session_factory", None)
+    if cache is None or session_factory is None:
+        return
+    try:
+        snapshot = cache.snapshot(session_factory, principal.tenant_id)
+    except SQLAlchemyError:
+        # A failed status lookup defers to the route layer, which surfaces the
+        # same persistence failure on its own database access.
+        return
+    reason = blocked_tenant_reason(snapshot.status)
+    if reason is None:
+        return
+    with session_scope(session_factory) as session:
+        AxisPersistenceRepository(session).append_audit_event(
+            AuditEventCreate(
+                tenant_id=principal.tenant_id,
+                actor_id=principal.actor_id,
+                event_type=SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+                payload={
+                    "tenant_id": principal.tenant_id,
+                    "tenant_status": snapshot.status,
+                    "reason": reason,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "session_source": principal.session_source,
+                },
+            )
+        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": AxisErrorCode.PERMISSION_DENIED.value,
+            "message": "The tenant for this request is not active.",
+            "reason": reason,
+            "tenant_status": snapshot.status,
+        },
+    )
 
 
 def _ensure_aware_datetime(value: datetime) -> datetime:
@@ -912,6 +998,7 @@ CheckpointActorScopesQuery = Query(default_factory=list)
 CheckpointCreatedAfterQuery = Query(default=None)
 CheckpointCreatedBeforeQuery = Query(default=None)
 PlatformPolicyScopeQuery = Query(default=None)
+TenantLifecycleStatusQuery = Query(default=None, alias="status")
 AUDIT_READ_SCOPE = "audit:read"
 
 
@@ -1456,6 +1543,124 @@ def _authorize_platform_policy_read(
         )
 
 
+def _bind_platform_tenant_actor(request_model, principal: OidcPrincipal | None):
+    """Bind the operator identity for the cross-tenant platform-tenant surface.
+
+    Tenant lifecycle routes are a platform-operator surface: the operator
+    authenticates under their own tenant and acts on other tenants, so there is
+    deliberately no principal-tenant match check here. Cross-tenant authority is
+    gated by the dedicated ``platform:tenant:*`` operator scopes evaluated in
+    the service layer. Actor impersonation is still rejected.
+    """
+    if principal is None:
+        return request_model
+
+    request_actor = getattr(request_model, "requested_by", None)
+    if request_actor and request_actor != principal.actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The request actor does not match the authenticated OIDC actor.",
+                "reason": "actor_mismatch",
+            },
+        )
+
+    return request_model.model_copy(
+        update={
+            "requested_by": principal.actor_id,
+            "actor_scopes": principal.scopes,
+        }
+    )
+
+
+def _authorize_platform_tenant_read(
+    principal: OidcPrincipal | None,
+    *,
+    resource: str,
+) -> None:
+    if principal is None:
+        return
+
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=principal.tenant_id,
+            actor_id=principal.actor_id,
+            actor_scopes=principal.scopes,
+            required_scopes=[
+                PLATFORM_TENANT_OPERATOR_SCOPE,
+                PLATFORM_TENANT_READ_SCOPE,
+            ],
+            attributes={
+                "surface": "platform_tenants",
+                "resource": resource,
+            },
+        )
+    )
+    if not decision.allowed:
+        required_permission = decision.reason.removeprefix("missing_scope:")
+        if required_permission == decision.reason:
+            required_permission = PLATFORM_TENANT_READ_SCOPE
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The actor cannot read platform tenants.",
+                "required_permission": required_permission,
+                "reason": "missing_required_scope"
+                if decision.reason.startswith("missing_scope:")
+                else decision.reason,
+                "permission_reason": decision.reason,
+            },
+        )
+
+
+def _platform_tenant_denied_http_exception(
+    exc: TenantPermissionDenied,
+    message: str,
+) -> HTTPException:
+    reason = (
+        "missing_required_scope"
+        if exc.decision.reason.startswith("missing_scope:")
+        else exc.decision.reason
+    )
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": AxisErrorCode.PERMISSION_DENIED.value,
+            "message": message,
+            "required_permission": exc.required_permission,
+            "reason": reason,
+            "permission_reason": exc.decision.reason,
+        },
+    )
+
+
+def _platform_tenant_not_found_http_exception(tenant_id: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "code": AxisErrorCode.NOT_FOUND.value,
+            "message": "The tenant was not found.",
+            "tenant_id": tenant_id,
+        },
+    )
+
+
+def _platform_tenant_lifecycle_conflict_http_exception(
+    exc: TenantLifecycleConflict,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": AxisErrorCode.CONFLICT.value,
+            "message": "The tenant lifecycle transition conflicts with the current status.",
+            "reason": exc.reason,
+            "tenant_id": exc.tenant_id,
+        },
+    )
+
+
 def _bind_demo_activated_by(request_model, principal: OidcPrincipal | None):
     if principal is None:
         return request_model
@@ -1706,6 +1911,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = resolved_settings
     app.state.session_factory = create_session_factory(resolved_settings)
+    app.state.tenant_state_cache = TenantStateCache(
+        ttl_seconds=resolved_settings.tenant_state_cache_ttl_seconds,
+    )
     app.state.workflow_runtime = (
         TemporalWorkflowSignalRuntime(
             TemporalWorkflowSignalConfig(
@@ -2050,6 +2258,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
                 )
                 max_concurrent = resolved_settings.oidc_session_max_concurrent
+                concurrent_session_quota = repository.get_tenant_quota(
+                    principal.tenant_id,
+                    TenantQuotaKey.MAX_CONCURRENT_SESSIONS.value,
+                )
+                if concurrent_session_quota is not None:
+                    max_concurrent = concurrent_session_quota.quota_value
                 if max_concurrent > 0:
                     active_sessions = repository.list_active_oidc_browser_sessions(
                         tenant_id=principal.tenant_id,
@@ -5591,6 +5805,184 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "permission_reason": exc.decision.reason,
                 },
             ) from exc
+
+    @app.post(
+        "/platform/tenants",
+        response_model=TenantRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant provisioning permission denied"},
+            409: {"description": "Tenant provisioning conflict"},
+            422: {"description": "Tenant provisioning validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["platform"],
+    )
+    def platform_tenant_provision(
+        provision_request: TenantProvisionRequest,
+        response: Response,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantRecord:
+        try:
+            bound_request = _bind_platform_tenant_actor(provision_request, principal)
+            result = provision_tenant(repository, bound_request)
+        except TenantPermissionDenied as exc:
+            raise _platform_tenant_denied_http_exception(
+                exc,
+                "The actor cannot provision tenants.",
+            ) from exc
+        except TenantProvisionConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": "The tenant provisioning request conflicts with "
+                    "persisted state.",
+                    "reason": exc.reason,
+                    "tenant_id": exc.tenant_id,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @app.get(
+        "/platform/tenants",
+        response_model=TenantRegistry,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant read permission denied"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_registry(
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        status_filter: TenantLifecycleStatus | None = TenantLifecycleStatusQuery,
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> TenantRegistry:
+        _authorize_platform_tenant_read(principal, resource="platform_tenants")
+        return build_tenant_registry(repository, status=status_filter, limit=limit)
+
+    @app.post(
+        "/platform/tenants/{tenant_id}/suspend",
+        response_model=TenantRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant suspend permission denied"},
+            404: {"description": "Tenant not found"},
+            409: {"description": "Tenant lifecycle conflict"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_suspend(
+        tenant_id: str,
+        suspend_request: TenantSuspendRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantRecord:
+        try:
+            bound_request = _bind_platform_tenant_actor(suspend_request, principal)
+            result = suspend_tenant(repository, tenant_id, bound_request)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+        except TenantPermissionDenied as exc:
+            raise _platform_tenant_denied_http_exception(
+                exc,
+                "The actor cannot suspend tenants.",
+            ) from exc
+        except TenantLifecycleConflict as exc:
+            raise _platform_tenant_lifecycle_conflict_http_exception(exc) from exc
+
+        app.state.tenant_state_cache.invalidate(tenant_id)
+        return result
+
+    @app.post(
+        "/platform/tenants/{tenant_id}/reactivate",
+        response_model=TenantRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant reactivate permission denied"},
+            404: {"description": "Tenant not found"},
+            409: {"description": "Tenant lifecycle conflict"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_reactivate(
+        tenant_id: str,
+        reactivate_request: TenantReactivateRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantRecord:
+        try:
+            bound_request = _bind_platform_tenant_actor(reactivate_request, principal)
+            result = reactivate_tenant(repository, tenant_id, bound_request)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+        except TenantPermissionDenied as exc:
+            raise _platform_tenant_denied_http_exception(
+                exc,
+                "The actor cannot reactivate tenants.",
+            ) from exc
+        except TenantLifecycleConflict as exc:
+            raise _platform_tenant_lifecycle_conflict_http_exception(exc) from exc
+
+        app.state.tenant_state_cache.invalidate(tenant_id)
+        return result
+
+    @app.get(
+        "/platform/tenants/{tenant_id}/quotas",
+        response_model=TenantQuotaSet,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant read permission denied"},
+            404: {"description": "Tenant not found"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_quotas(
+        tenant_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantQuotaSet:
+        _authorize_platform_tenant_read(principal, resource="platform_tenant_quotas")
+        try:
+            return get_tenant_quota_set(repository, tenant_id)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+
+    @app.put(
+        "/platform/tenants/{tenant_id}/quotas",
+        response_model=TenantQuotaSet,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant quota permission denied"},
+            404: {"description": "Tenant not found"},
+            422: {"description": "Tenant quota validation failed"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_quotas_update(
+        tenant_id: str,
+        quota_request: TenantQuotaUpdateRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantQuotaSet:
+        try:
+            bound_request = _bind_platform_tenant_actor(quota_request, principal)
+            result = update_tenant_quotas(repository, tenant_id, bound_request)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+        except TenantPermissionDenied as exc:
+            raise _platform_tenant_denied_http_exception(
+                exc,
+                "The actor cannot update tenant quotas.",
+            ) from exc
+
+        app.state.tenant_state_cache.invalidate(tenant_id)
+        return result
 
     @app.post(
         "/demo/manufacturing/actions/{action_id}/runs",
