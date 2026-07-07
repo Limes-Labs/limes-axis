@@ -41,7 +41,13 @@ The Settings console shows:
 API-owned OIDC browser session lifecycle. It reads `GET /identity/session` for
 the verified operator identity and `GET /identity/sessions` for the actor's
 persisted browser sessions, rendered as opaque session references with status,
-creation, last-seen, expiry, refresh-count and revocation metadata. Non-current
+creation, last-seen, expiry, refresh-count and revocation metadata. The API
+additionally returns per-session device metadata (a bounded user agent, the
+client IP resolved under the deployment's trusted-proxy setting and a derived
+device label such as "Safari on macOS") and cursor pagination fields
+(`page_size`/`cursor` parameters, `has_more`/`next_cursor` in the response);
+the console still renders the first page and can adopt the device labels and
+pagination incrementally without a contract change. Non-current
 sessions can be revoked through
 `POST /identity/sessions/{session_ref}/revoke`; revoking the current session is
 treated as logout and navigates to `GET /identity/oidc/logout`. A tenant-wide

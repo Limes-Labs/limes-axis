@@ -171,7 +171,7 @@ flowchart LR
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect; CSRF header required for cookie callers | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/session/refresh` | HTTP POST | browser to API and API to OIDC token endpoint | CSRF-gated rotating refresh: session id and encrypted refresh credential rotate, absolute lifetime capped, provider rejection revokes the session | `services/api/tests/test_oidc_session_lifecycle.py` |
-| `/identity/sessions`, `/identity/sessions/{session_ref}/revoke` | HTTP GET/POST | actor to API session inventory | Tenant-isolated opaque session references; self service plus `identity:sessions:admin` for tenant-wide listing/revocation; CSRF header for cookie callers | `services/api/tests/test_oidc_session_lifecycle.py` |
+| `/identity/sessions`, `/identity/sessions/{session_ref}/revoke` | HTTP GET/POST | actor to API session inventory | Tenant-isolated opaque session references with cursor pagination; device metadata (bounded user agent, client IP, derived label) visible to the owner/admin listing only; self service plus `identity:sessions:admin` for tenant-wide listing/revocation; CSRF header for cookie callers | `services/api/tests/test_oidc_session_lifecycle.py`, `services/api/tests/test_identity_session_metadata.py` |
 | `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session, network egress and DR procedure posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers, commitment gates and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
@@ -252,7 +252,17 @@ flowchart LR
   concurrent-session caps, tenant-isolated session listing and revocation
   (self plus `identity:sessions:admin`), and audit evidence for logins, failed
   code exchanges, refreshes, failed refreshes, revocations and logouts that
-  references sessions only by keyed hash. CSRF is enforced centrally by
+  references sessions only by keyed hash. Session rows additionally carry
+  device metadata captured at login and refresh (user agent bounded to 256
+  characters, client IP and a parsed device label) so operators can review
+  their session inventory for anomalies. The client IP is personal data kept
+  for security review: it is stored as provided, resolved from
+  `X-Forwarded-For` only when
+  `AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED=true` declares a trusted proxy
+  edge (otherwise the socket peer is recorded and the forgeable header is
+  ignored), exposed only through the owner/admin-scoped session listing,
+  never written into audit payloads, and deleted with the session row - it
+  has no independent retention. CSRF is enforced centrally by
   `BrowserSessionCsrfMiddleware` for every cookie-authenticated state-changing
   request across the API (not only the identity endpoints) via an HMAC
   double-submit token, with bearer and safe-method requests exempt, alongside
