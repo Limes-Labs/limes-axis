@@ -133,6 +133,8 @@ Foundation acceptance is tracked in
 - [x] Add the tenant-scoped platform policy engine foundation with typed rule
   conditions, append-only idempotent revisions, deterministic evaluation and
   policy-gated action run enforcement.
+- [x] Add the read-and-evaluate platform policy console surface with registry
+  filters, revision history and a dry-run evaluation panel.
 - [x] Persist workflow run state and tenant-scoped history views.
 - [x] Build replay and simulation foundations.
 - [x] Persist replay simulation outputs as governed audit artifacts.

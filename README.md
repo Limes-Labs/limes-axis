@@ -115,6 +115,11 @@ rule conditions, append-only idempotent revisions, a deterministic dry-run
 evaluation endpoint and enforcement on action run creation: a matching deny
 policy rejects the run with `POLICY_VIOLATION` evidence and a matching
 require-approval policy forces the run into the existing approval-gated path.
+The policy console slice exposes that engine as a read-and-evaluate `/policies`
+surface: an API-required registry with scope and status filters, a policy
+detail view with typed conditions, precedence explanation and append-only
+revision history, and a dry-run evaluation panel that posts a composed context
+to the evaluation endpoint; policy authoring stays on the API.
 The workflow persistence slice adds Postgres-backed workflow runs and timeline
 events, with the workflow console preferring persisted state when records
 exist. The replay/simulation foundation derives public-safe replay artifacts
