@@ -274,6 +274,59 @@ web:
     seccompProfile:
       type: RuntimeDefault
 
+worker:
+  # The Temporal worker hosts the approval workflow plus the scheduled
+  # maintenance workflows and their DB-owning activities.
+  enabled: true
+  replicaCount: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  terminationGracePeriodSeconds: 30
+  image:
+    repository: ghcr.io/limes-labs/limes-axis-worker
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  # Scheduled maintenance jobs are opt-in. The worker always reconciles the
+  # Temporal Schedules on startup; when enabled is false they are registered but
+  # paused, so existing deployments are unaffected until explicitly enabled.
+  scheduledJobs:
+    enabled: false
+    auditRetentionIntervalSeconds: 86400
+    auditRetentionDays: 365
+    auditRetentionDryRun: true
+    auditRetentionBatchLimit: 500
+    sessionSweepIntervalSeconds: 900
+    sessionSweepBatchLimit: 500
+    tenantReconciliationIntervalSeconds: 3600
+  podAnnotations: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+  podSecurityContext:
+    fsGroup: 10001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
 tests:
   smoke:
     enabled: true

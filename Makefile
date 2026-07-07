@@ -1,4 +1,4 @@
-.PHONY: install lint test typecheck build-web openapi openapi-check test-sdk security-check deployment-check deployment-profile-render-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-ha-rehearsal-plan deployment-ha-rehearsal deployment-load-rehearsal-plan deployment-load-rehearsal deployment-tls-readiness-plan deployment-tls-readiness deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build container-scan-local test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-api-sso demo-web demo-keycloak-check demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
+.PHONY: install lint test typecheck build-web openapi openapi-check test-sdk security-check deployment-check deployment-profile-render-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-ha-rehearsal-plan deployment-ha-rehearsal deployment-load-rehearsal-plan deployment-load-rehearsal deployment-tls-readiness-plan deployment-tls-readiness deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build-worker container-build container-scan-local worker test-api test-worker test-web test-integration dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-api-sso demo-web demo-keycloak-check demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
 install:
 	pnpm install
@@ -144,7 +144,10 @@ container-build-api:
 container-build-web:
 	docker build -f apps/web/Dockerfile -t limes-axis-web:local .
 
-container-build: container-build-api container-build-web
+container-build-worker:
+	docker build -f services/worker/Dockerfile -t limes-axis-worker:local .
+
+container-build: container-build-api container-build-web container-build-worker
 
 container-scan-local: container-build
 	mkdir -p .axis/trivy-cache .axis/trivy-reports
@@ -167,6 +170,9 @@ demo-db-upgrade:
 
 demo-api:
 	cd services/api && uv run uvicorn axis_api.main:create_app --factory --host 127.0.0.1 --port 8000
+
+worker:
+	cd services/worker && uv run python -m axis_worker
 
 demo-api-sso:
 	cd services/api && AXIS_PUBLIC_BASE_URL=http://127.0.0.1:3000 AXIS_API_BASE_URL=http://127.0.0.1:8000 AXIS_OIDC_ISSUER=http://127.0.0.1:8080/realms/axis AXIS_OIDC_JWKS_URL=http://127.0.0.1:8080/realms/axis/protocol/openid-connect/certs AXIS_OIDC_CLIENT_ID=limes-axis-web AXIS_OIDC_CLIENT_SECRET=axis-local-dev-secret AXIS_OIDC_AUTHORIZATION_URL=http://127.0.0.1:8080/realms/axis/protocol/openid-connect/auth AXIS_OIDC_TOKEN_URL=http://127.0.0.1:8080/realms/axis/protocol/openid-connect/token AXIS_OIDC_REDIRECT_URI=http://127.0.0.1:8000/identity/oidc/callback AXIS_OIDC_END_SESSION_URL=http://127.0.0.1:8080/realms/axis/protocol/openid-connect/logout AXIS_OIDC_POST_LOGOUT_REDIRECT_URI=http://127.0.0.1:3000/ AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET=axis-local-demo-session-signing-key AXIS_OIDC_SESSION_COOKIE_SECURE=false uv run uvicorn axis_api.main:create_app --factory --host 127.0.0.1 --port 8000
