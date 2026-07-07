@@ -108,23 +108,36 @@ async def _create_or_update_schedule(
     spec: ScheduledJobSpec,
     *,
     task_queue: str,
-    paused: bool,
+    created_paused: bool,
 ) -> str:
-    """Create the schedule, or update it in place if it already exists.
+    """Create the schedule, or update its definition in place if it exists.
 
     Returns ``"created"`` or ``"updated"``. Idempotent: repeated calls converge
-    the persisted schedule to the desired interval/overlap/paused state without
-    ever creating a duplicate.
+    the persisted schedule's action/interval/overlap without ever creating a
+    duplicate.
+
+    On CREATE the paused state is seeded from ``created_paused`` (derived from the
+    enable flag). On UPDATE the operator's current paused state is PRESERVED: a
+    manual unpause (or pause) in the Temporal UI survives worker restarts, so the
+    reconciliation only owns the schedule definition, not the operator's runtime
+    pause intent.
     """
-    schedule = _build_schedule(spec, task_queue=task_queue, paused=paused)
     try:
-        await client.create_schedule(spec.schedule_id, schedule)
+        await client.create_schedule(
+            spec.schedule_id,
+            _build_schedule(spec, task_queue=task_queue, paused=created_paused),
+        )
         return "created"
     except ScheduleAlreadyRunningError:
         handle = client.get_schedule_handle(spec.schedule_id)
 
-        async def _updater(_input: ScheduleUpdateInput) -> ScheduleUpdate:
-            return ScheduleUpdate(schedule=schedule)
+        async def _updater(schedule_input: ScheduleUpdateInput) -> ScheduleUpdate:
+            existing_paused = schedule_input.description.schedule.state.paused
+            return ScheduleUpdate(
+                schedule=_build_schedule(
+                    spec, task_queue=task_queue, paused=existing_paused
+                )
+            )
 
         await handle.update(_updater)
         return "updated"
@@ -138,15 +151,16 @@ async def register_maintenance_schedules(
 ) -> dict[str, str]:
     """Create/update every maintenance schedule idempotently.
 
-    When ``AXIS_SCHEDULED_JOBS_ENABLED`` is false the schedules are still
-    reconciled but registered in the ``paused`` state, so an operator can flip the
-    flag (or unpause in the Temporal UI) without redeploying, and existing
-    deployments/tests are unaffected by default.
+    When ``AXIS_SCHEDULED_JOBS_ENABLED`` is false a newly created schedule is
+    seeded in the ``paused`` state, so existing deployments/tests are unaffected
+    by default. The flag governs only the initial (created) state: once a schedule
+    exists, an operator's pause/unpause in the Temporal UI is preserved across
+    worker restarts (the update path does not clobber it).
     """
-    paused = not settings.scheduled_jobs_enabled
+    created_paused = not settings.scheduled_jobs_enabled
     outcomes: dict[str, str] = {}
     for spec in build_scheduled_job_specs(settings):
         outcomes[spec.schedule_id] = await _create_or_update_schedule(
-            client, spec, task_queue=task_queue, paused=paused
+            client, spec, task_queue=task_queue, created_paused=created_paused
         )
     return outcomes

@@ -107,10 +107,16 @@ overlapping invocations are safe.
 
 `axis_worker.schedules.register_maintenance_schedules` reconciles the schedules
 on worker startup. It is create-or-update idempotent: the first run creates each
-Schedule, subsequent runs update the existing Schedule in place (interval,
-overlap, paused state) without creating duplicates. The Temporal client is used
-behind a narrow `ScheduleClientPort` protocol so tests drive a thin in-memory
-fake and never require a live Temporal.
+Schedule, subsequent runs update the existing Schedule's definition (action,
+interval, overlap) in place without creating duplicates. The Temporal client is
+used behind a narrow `ScheduleClientPort` protocol so tests drive a thin
+in-memory fake and never require a live Temporal.
+
+The reconciliation owns the schedule **definition**, not the operator's runtime
+pause intent. The `AXIS_SCHEDULED_JOBS_ENABLED` flag governs only the paused
+state of a **newly created** schedule. On update the existing paused state is
+**preserved**, so an operator's pause or unpause in the Temporal UI survives
+worker restarts and is never clobbered by reconciliation.
 
 ## Configuration
 
@@ -119,7 +125,7 @@ unaffected (`AXIS_SCHEDULED_JOBS_ENABLED=false`).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `AXIS_SCHEDULED_JOBS_ENABLED` | `false` | Master enable flag. When false, schedules are still reconciled but registered **paused**. |
+| `AXIS_SCHEDULED_JOBS_ENABLED` | `false` | Master enable flag. Governs the paused state of a **newly created** schedule only; existing schedules keep the operator's paused state on update. |
 | `AXIS_SCHEDULED_AUDIT_RETENTION_INTERVAL_SECONDS` | `86400` | Audit retention sweep interval. |
 | `AXIS_SCHEDULED_AUDIT_RETENTION_DAYS` | `365` | Retention window passed to the reused deletion function. |
 | `AXIS_SCHEDULED_AUDIT_RETENTION_DRY_RUN` | `true` | Count only; set false to physically delete. |
@@ -132,9 +138,37 @@ The session windows are shared with the request path:
 `AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS`,
 `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` and `absolute`/sliding session expiry.
 
-When the master flag is false the schedules are registered in the `paused` state,
-so an operator can enable jobs by flipping the flag (or unpausing in the Temporal
-UI) without redeploying.
+When the master flag is false a newly created schedule is registered in the
+`paused` state, so an operator can enable jobs either by flipping the flag and
+restarting the worker, or by unpausing in the Temporal UI — an unpause is
+preserved across subsequent restarts.
+
+## Trust boundary
+
+The jobs run under the actor id `axis-scheduled-jobs`, a trusted in-process
+runner inside the worker with direct DB access. For the audit-retention path it
+self-asserts the `audit:retention:delete` scope, so the permission check is
+effectively a no-op for the scheduled path. This is **not** privilege
+escalation — the code already runs in the trusted worker process and could
+perform the deletion directly — but it is called out explicitly: the scheduled
+path is not gated by an external principal's RBAC, so the guardrails are the
+enable flag, the dry-run default and the tenant-scoped audit evidence, not the
+permission decision.
+
+## Scaling and failure isolation
+
+- **All tenants, no silent truncation.** The retention and reconciliation jobs
+  page through every tenant with a keyset cursor rather than a single limited
+  query. A runaway guard (`MAX_TENANTS_PER_RUN`, 100k) exists only as a safety
+  cap; if it is ever hit the job appends a `jobs_tenant_cap_reached` marker to
+  its errors and the summary payload (`tenant_cap_reached: true`) and reports
+  `partial_failure`, so truncation is never silent.
+- **Per-unit commits, partial-failure safe.** Each tenant (retention,
+  reconciliation) and each session batch (sweep) commits in its own transaction,
+  so a later poisoned unit can never roll back earlier successes. If a unit's DB
+  transaction is poisoned, the job records the error and continues; the job-run
+  **summary evidence is always written in a fresh transaction**, so partial
+  failures are recorded even when a working transaction was aborted.
 
 ## Observability
 
@@ -168,13 +202,18 @@ scheduled maintenance workflows and their activities.
 ## Testing
 
 - `services/api/tests/test_maintenance_jobs.py` exercises each job directly
-  against a DB session: happy path, idempotent re-run, tenant scoping, audit
-  evidence, nothing-to-do no-op, dry-run, and the session sweep selection rules
+  against a DB session factory: happy path, idempotent re-run, tenant scoping,
+  audit evidence, nothing-to-do no-op, dry-run, the session sweep selection rules
   (stale refreshing revoked, fresh preserved, expired/idle purged, active
-  preserved) plus suspended-tenant session remediation.
+  preserved), suspended-tenant session remediation, multi-page tenant pagination,
+  partial-failure isolation (a poisoned unit does not discard prior successes and
+  the summary evidence is still written) and a boundary-equality test proving the
+  sweep predicate matches the request-path `_stored_session_lifecycle_failure`
+  check at the exact staleness threshold.
 - `services/worker/tests/test_schedules.py` covers the schedule-registration
-  bootstrap idempotency (create then update, no duplicates) with a thin fake
-  Temporal client.
+  bootstrap idempotency (create then update, no duplicates), the enable-flag
+  paused/active seeding and that an operator's UI pause/unpause is preserved
+  across restarts, with a thin fake Temporal client.
 - `services/worker/tests/test_maintenance_activities.py` verifies the DB-owning
   activity seam against a real session.
 - `services/worker/tests/integration/test_scheduled_jobs_integration.py` drives a

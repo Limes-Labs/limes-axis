@@ -935,6 +935,14 @@ class AxisPersistenceRepository:
         )
         return self.session.scalar(statement)
 
+    def get_oidc_browser_session_by_row_id(
+        self,
+        session_row_id: UUID,
+    ) -> OidcBrowserSession | None:
+        """Reload a session by primary key (used by the scheduled sweep to
+        re-check a candidate's status inside its own revoke transaction)."""
+        return self.session.get(OidcBrowserSession, session_row_id)
+
     def list_oidc_browser_sessions(
         self,
         tenant_id: str,
@@ -3131,6 +3139,22 @@ class AxisPersistenceRepository:
         statement: Select[tuple[Tenant]] = select(Tenant)
         if status is not None:
             statement = statement.where(Tenant.status == status)
+        statement = statement.order_by(Tenant.id.asc()).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_tenants_after(
+        self,
+        cursor_tenant_id: str | None = None,
+        limit: int = 500,
+    ) -> list[Tenant]:
+        """Keyset page of tenants ordered by id, resuming strictly after cursor.
+
+        Used by the scheduled jobs to page through every tenant without silently
+        truncating at a fixed limit.
+        """
+        statement: Select[tuple[Tenant]] = select(Tenant)
+        if cursor_tenant_id is not None:
+            statement = statement.where(Tenant.id > cursor_tenant_id)
         statement = statement.order_by(Tenant.id.asc()).limit(limit)
         return list(self.session.scalars(statement))
 

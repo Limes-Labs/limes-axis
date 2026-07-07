@@ -30,12 +30,20 @@ class FakeScheduleHandle:
 
     async def update(self, updater) -> None:
         self.update_calls += 1
-        update = await updater(_FakeUpdateInput(self._store[self._schedule_id]))
+        current = self._store[self._schedule_id]
+        update = await updater(_FakeUpdateInput(_FakeDescription(current)))
         self._store[self._schedule_id] = update.schedule
 
 
+class _FakeDescription:
+    """Mirrors the ``ScheduleDescription`` seen by an update callback."""
+
+    def __init__(self, schedule: Schedule) -> None:
+        self.schedule = schedule
+
+
 class _FakeUpdateInput:
-    def __init__(self, description) -> None:
+    def __init__(self, description: _FakeDescription) -> None:
         self.description = description
 
 
@@ -120,6 +128,39 @@ async def test_schedules_paused_when_disabled_and_active_when_enabled() -> None:
     assert all(
         not schedule.state.paused for schedule in enabled_client.schedules.values()
     )
+
+
+async def test_update_preserves_operator_unpaused_state_across_restarts() -> None:
+    # First worker start with jobs disabled: schedules are created paused.
+    client = FakeScheduleClient()
+    disabled = _settings(AXIS_SCHEDULED_JOBS_ENABLED="false")
+    await register_maintenance_schedules(client, disabled, task_queue="axis-foundation")
+    assert all(schedule.state.paused for schedule in client.schedules.values())
+
+    # An operator manually unpauses one schedule in the Temporal UI.
+    unpaused = client.schedules[SESSION_SWEEP_SCHEDULE_ID]
+    unpaused.state.paused = False
+
+    # A worker restart (still flag-disabled) reconciles the schedules; the update
+    # path must PRESERVE the operator's unpause instead of re-pausing it.
+    second = await register_maintenance_schedules(client, disabled, task_queue="axis-foundation")
+    assert all(outcome == "updated" for outcome in second.values())
+    assert client.schedules[SESSION_SWEEP_SCHEDULE_ID].state.paused is False
+    # Schedules the operator did not touch stay paused.
+    assert client.schedules[AUDIT_RETENTION_SCHEDULE_ID].state.paused is True
+
+
+async def test_update_preserves_operator_paused_state_when_flag_enabled() -> None:
+    # Schedules created active (flag enabled).
+    client = FakeScheduleClient()
+    enabled = _settings(AXIS_SCHEDULED_JOBS_ENABLED="true")
+    await register_maintenance_schedules(client, enabled, task_queue="axis-foundation")
+
+    # Operator pauses one schedule; a restart must not force it back to active.
+    client.schedules[AUDIT_RETENTION_SCHEDULE_ID].state.paused = True
+    await register_maintenance_schedules(client, enabled, task_queue="axis-foundation")
+    assert client.schedules[AUDIT_RETENTION_SCHEDULE_ID].state.paused is True
+    assert client.schedules[SESSION_SWEEP_SCHEDULE_ID].state.paused is False
 
 
 async def test_schedule_intervals_read_from_settings() -> None:
