@@ -62,7 +62,11 @@ policies rather than a new DSL:
   malformed or non-finite (for example `nan`, `1e999` or an unparseable
   string), amount-conditioned policies count as matched so a malformed amount
   can never evade an amount gate. A request without any amount field keeps the
-  normal no-match semantics.
+  normal no-match semantics. When the action input schema declares the amount
+  field as a `number`, garbage values are already rejected as schema
+  violations (`VALIDATION_FAILED`, 422) before the policy engine runs; the
+  fail-closed matching stays load-bearing for `string`-declared amount fields,
+  which carry string-encoded numbers that only the policy layer parses.
 
 Empty condition lists match any value; a rule must declare at least one
 condition. Malformed conditions — unknown fields, unsupported risk or autonomy

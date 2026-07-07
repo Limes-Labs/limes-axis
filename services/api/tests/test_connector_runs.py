@@ -5703,6 +5703,74 @@ def test_connector_sync_checkpoint_claims_endpoint_rejects_invalid_created_windo
     assert events == []
 
 
+def test_connector_sync_checkpoint_claims_endpoint_handles_mixed_naive_aware_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    # created_after carries an explicit offset while created_before is naive;
+    # the window check must treat the naive value as UTC instead of crashing
+    # with an offset-naive/offset-aware TypeError.
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    valid_window = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "created_after": "2026-06-25T10:15:00Z",
+            "created_before": "2026-06-25T10:25:00",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+        },
+    )
+    inverted_window = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "created_after": "2026-06-25T10:25:00",
+            "created_before": "2026-06-25T10:15:00Z",
+            "actor_scopes": ["connectors:sync:checkpoint:claim:read"],
+        },
+    )
+
+    assert valid_window.status_code == 200
+    assert inverted_window.status_code == 422
+    assert (
+        inverted_window.json()["detail"]["reason"]
+        == "invalid_checkpoint_claim_time_window"
+    )
+
+
+def test_connector_sync_checkpoints_endpoint_handles_mixed_naive_aware_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    valid_window = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "created_after": "2026-06-25T10:15:00Z",
+            "created_before": "2026-06-25T10:25:00",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+        },
+    )
+    inverted_window = client.get(
+        "/demo/manufacturing/connectors/runs/checkpoints",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "created_after": "2026-06-25T10:25:00",
+            "created_before": "2026-06-25T10:15:00Z",
+            "actor_scopes": ["connectors:sync:checkpoint:read"],
+        },
+    )
+
+    assert valid_window.status_code == 200
+    assert inverted_window.status_code == 422
+    assert inverted_window.json()["detail"]["reason"] == "invalid_checkpoint_time_window"
+
+
 def test_connector_sync_checkpoint_claims_endpoint_paginates_with_cursor(
     session_factory: sessionmaker[Session],
 ) -> None:

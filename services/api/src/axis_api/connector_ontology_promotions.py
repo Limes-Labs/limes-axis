@@ -383,7 +383,10 @@ def _active_preview_manifest_for_connector(
             "Connector manifest must be registered before ontology promotion.",
             "connector_manifest_not_found",
         )
-    if manifest.status != "active_preview":
+    # active_live is the stricter lifecycle state (it requires active_preview
+    # first plus live enablement evidence), and governed live sync only runs on
+    # active_live manifests, so its proposals must stay promotable there.
+    if manifest.status not in {"active_preview", "active_live"}:
         raise ConnectorOntologyPromotionValidationError(
             "Connector manifest must be active_preview before ontology promotion.",
             "connector_manifest_not_active_preview",

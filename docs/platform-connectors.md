@@ -49,13 +49,15 @@ writing run records or audit evidence. Run runtime boundaries no longer come
 from a service-local connector seed, and run evidence cannot be created from a
 manifest that is only registered.
 Manual import request creation also uses the persisted registry reference, then
-requires the tenant-scoped persisted manifest to be `active_preview` before
-writing approval-gated import rows or audit evidence. Import runtime boundary
+requires the tenant-scoped persisted manifest to be `active_preview` or
+`active_live` before writing approval-gated import rows or audit evidence. Import runtime boundary
 evidence no longer comes from a service-local connector seed, and import
 requests cannot be created from a manifest that is only registered.
 Ontology promotion execution also uses the persisted registry reference, then
-requires the tenant-scoped persisted manifest to be `active_preview` before the
-ontology mutation adapter is called or promotion/audit evidence is written.
+requires the tenant-scoped persisted manifest to be `active_preview` or
+`active_live` (the stricter live-enablement state, so proposals produced by
+governed live sync stay promotable) before the ontology mutation adapter is
+called or promotion/audit evidence is written.
 Promotion audit payloads include the manifest runtime boundary that authorized
 the controlled mutation path.
 Promotion policy authoring, enablement and revision paths also use the
@@ -184,17 +186,21 @@ audit event is written. Missing or invalid registry references return explicit
 
 Manual import request creation reads the same registry reference to resolve the
 connector runtime boundary stored in audit evidence. It then requires the
-matching tenant-scoped persisted manifest to be `active_preview`; missing
-manifests or manifests still in `registered_preview_only` are rejected before
-any manual import row or audit event is written. Missing or invalid registry
+matching tenant-scoped persisted manifest to be `active_preview` or
+`active_live`; missing manifests or manifests still in
+`registered_preview_only` are rejected before any manual import row or audit
+event is written. Missing or invalid registry
 references return explicit 404/422 errors before lifecycle state is evaluated.
 
 Ontology promotion execution reads the same registry reference to validate the
 connector id on the persisted proposal, then requires the matching
-tenant-scoped persisted manifest to be `active_preview`; missing manifests or
-manifests still in `registered_preview_only` are rejected before the ontology
-mutation adapter runs, before promotion rows are written and before promotion
-audit evidence is appended. Missing or invalid registry references return
+tenant-scoped persisted manifest to be `active_preview` or `active_live`;
+missing manifests or manifests still in `registered_preview_only` are rejected
+before the ontology mutation adapter runs, before promotion rows are written
+and before promotion audit evidence is appended. Accepting `active_live` keeps
+proposals recorded by governed live sync inside the same approval-gated
+promotion path; every other promotion gate (approved manual import evidence,
+workflow signals, promotion policies and policy sets) applies unchanged. Missing or invalid registry references return
 explicit 404/422 errors before lifecycle state is evaluated.
 
 Promotion policy authoring, enablement and revision read the same registry

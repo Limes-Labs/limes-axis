@@ -64,7 +64,12 @@ class BrowserSessionCsrfMiddleware(BaseHTTPMiddleware):
                 "csrf_token_required",
             )
         expected_token = csrf_token_for_session(oidc_session.session_id, self.settings)
-        if not hmac.compare_digest(provided_token, expected_token):
+        # Compare as bytes: hmac.compare_digest raises TypeError for str
+        # operands containing non-ASCII characters, and the header value is
+        # attacker-controlled. UTF-8 encoding never fails for a str.
+        if not hmac.compare_digest(
+            provided_token.encode("utf-8"), expected_token.encode("utf-8")
+        ):
             return _csrf_error(
                 "The CSRF token does not match the browser session.",
                 "csrf_token_mismatch",

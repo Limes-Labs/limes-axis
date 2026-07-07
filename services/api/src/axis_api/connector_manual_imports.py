@@ -533,7 +533,10 @@ def _active_preview_manifest_for_connector(
             "Connector manifest must be registered before manual import creation.",
             "connector_manifest_not_found",
         )
-    if manifest.status != "active_preview":
+    # active_live is the stricter lifecycle state (it requires active_preview
+    # first plus live enablement evidence). Manual import approval evidence must
+    # stay recordable there so live-sync proposals can reach the promotion gate.
+    if manifest.status not in {"active_preview", "active_live"}:
         raise ConnectorManualImportValidationError(
             "Connector manifest must be active_preview before manual import creation.",
             "connector_manifest_not_active_preview",
