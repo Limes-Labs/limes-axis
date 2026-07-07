@@ -1,0 +1,34 @@
+[project]
+name = "limes-axis-sdk"
+version = "0.1.0"
+description = "Typed Python SDK for the Limes Axis REST API."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "httpx>=0.28",
+  "pydantic>=2.12",
+]
+
+[dependency-groups]
+dev = [
+  "limes-axis-api",
+  "pytest>=9.0",
+  "pytest-asyncio>=1.3",
+  "ruff>=0.14",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+limes-axis-api = { path = "../../services/api", editable = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -126,6 +126,14 @@ records, including the connector console records; those pages are API-required
 and protected by a regression test that blocks reintroducing default runtime
 seed records.
 
+The Python SDK foundation adds `limes-axis-sdk`
+([`packages/sdk-python`](./packages/sdk-python), module `axis_sdk`): a typed
+httpx client for the governed REST surface with sync and async variants,
+bearer/token-provider auth, tenant context, typed error mapping for the
+standard error envelope and conservative idempotent-only retries. It is tested
+end-to-end against the in-process API application and documented in
+[`docs/sdk-python.md`](./docs/sdk-python.md).
+
 ## Demo Environment
 
 Use [`docs/demo-readiness.md`](./docs/demo-readiness.md) for the repeatable SME
@@ -506,10 +514,12 @@ Architecture and acceptance notes:
 - [`docs/platform-settings.md`](./docs/platform-settings.md)
 - [`docs/threat-model.md`](./docs/threat-model.md)
 - [`docs/support-operations.md`](./docs/support-operations.md)
+- [`docs/sdk-python.md`](./docs/sdk-python.md)
 
 Reference examples:
 
 - [`examples/manufacturing-plant`](./examples/manufacturing-plant)
+- [`examples/sdk-python-quickstart`](./examples/sdk-python-quickstart)
 
 ## Contributing
 

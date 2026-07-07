@@ -367,6 +367,10 @@ Foundation acceptance is tracked in
 - [x] Add a Kubernetes Secret rotation rehearsal with active/staged Secret
   comparison, redacted key-status evidence and SHA-256 fingerprints without raw
   secret output.
+- [x] Add the typed Python SDK foundation (`limes-axis-sdk`, module
+  `axis_sdk`) for the governed REST surface, with sync/async clients, typed
+  error envelope mapping, idempotent-only retries and in-process end-to-end
+  tests against the API application.
 
 The browser governance console no longer ships local overview fallback records.
 Visible records must come from Axis API responses or persisted tenant state. The
