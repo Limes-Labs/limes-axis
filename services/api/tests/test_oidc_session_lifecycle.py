@@ -37,6 +37,7 @@ from axis_api.oidc_code_flow import (
 from axis_api.persistence import (
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
+    TenantCreate,
     TenantQuotaUpsert,
 )
 from axis_api.platform_tenants import TenantQuotaKey
@@ -487,6 +488,66 @@ def test_tenant_quota_overrides_concurrent_session_limit() -> None:
         assert newest.status == "active"
 
     assert client.get("/identity/session").status_code == 200
+
+
+def _persist_tenant(
+    factory: sessionmaker[Session],
+    *,
+    status: str,
+    tenant_id: str = DEFAULT_TENANT,
+) -> None:
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).create_tenant(
+            TenantCreate(
+                tenant_id=tenant_id,
+                display_name="Demo Manufacturing",
+                status=status,
+                created_by="axis-platform-operator-role",
+            )
+        )
+
+
+def test_login_callback_rejects_suspended_tenant_fail_closed() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _persist_tenant(factory, status="suspended")
+
+    authorize = client.get("/identity/oidc/authorize?return_to=/")
+    params = parse_qs(urlparse(authorize.headers["location"]).query)
+    token_endpoint.nonce = params["nonce"][0]
+    state = params["state"][0]
+    callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
+
+    assert callback.status_code == 403
+    assert callback.json()["detail"]["reason"] == "tenant_suspended"
+    with factory() as session:
+        # No session row is created, and the denial is audited.
+        assert _sessions(session) == []
+        assert _audit_event_types(session) == [
+            "platform.tenant.suspended_request.denied"
+        ]
+    assert client.cookies.get("axis_session") is None
+
+
+def test_session_refresh_rejects_suspended_tenant_and_revokes_session() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    # Suspend the tenant behind the API's back after a healthy login.
+    _persist_tenant(factory, status="suspended")
+
+    refresh = client.post("/identity/session/refresh", headers=_csrf_headers(client))
+
+    assert refresh.status_code == 403
+    assert refresh.json()["detail"]["reason"] == "tenant_suspended"
+    with factory() as session:
+        stored = _sessions(session)
+        assert len(stored) == 1
+        assert stored[0].status == "revoked"
+        assert stored[0].revocation_reason == "tenant_suspended"
+        assert "identity.oidc_session.revoked" in _audit_event_types(session)
+    # No refresh_token grant was attempted against the IdP.
+    assert all(form.get("grant_type") != "refresh_token" for form in token_endpoint.forms)
 
 
 def test_identity_sessions_lists_own_sessions_with_current_flag() -> None:

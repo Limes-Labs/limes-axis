@@ -97,10 +97,19 @@ Enforcement is wired at real choke points, not decoratively:
   `platform.tenant.suspended_request.denied` audit event in the tenant's
   ledger. Unauthenticated demo-mode requests carry no verified tenant context
   and are not covered, matching the demo-mode caveat used across the API.
-  Session-cookie plumbing endpoints that do not resolve a principal (for
-  example `POST /identity/session/refresh`) can still rotate a session, but
-  every resource access with that session is rejected at the principal
-  boundary.
+- **Suspended tenants cannot establish or rotate sessions.** Session
+  establishment and rotation bypass the resource-access choke point, so they
+  are guarded independently. `GET /identity/oidc/callback` (login) checks the
+  tenant status after the ID token is validated and, for a non-active tenant,
+  rejects the login with a 403 (`tenant_suspended` / `tenant_pending_deletion`)
+  and a `platform.tenant.suspended_request.denied` audit event, writing no
+  session row. `POST /identity/session/refresh` checks the tenant status in its
+  precondition path and, for a non-active tenant, revokes the stored session
+  with distinct audit evidence and returns a 403 — no new session cookie is
+  issued and no refresh grant is attempted against the IdP. Both paths use a
+  **fresh status read** (not the TTL cache): they are low-frequency security
+  boundaries, so reading persisted status directly removes the staleness window
+  entirely — a suspension takes effect on the very next login or refresh.
 - **Per-tenant rate limits.** The API rate-limit middleware resolves the
   tenant from the HMAC-verified session cookie and applies the tenant's
   `api_requests_per_window` quota to a tenant-shared bucket, falling back to
@@ -121,16 +130,22 @@ Enforcement is wired at real choke points, not decoratively:
 
 ## Tenant State Cache
 
-Suspension checks and per-tenant rate limits run on the hot request path, so
-tenant status and quotas are read through a bounded in-process cache
-(`AXIS_TENANT_STATE_CACHE_TTL_SECONDS`, default 5 seconds, at most 1024 tenant
-entries). The staleness window equals the TTL: a suspension or quota change
-made on another replica or process takes effect locally within at most one
-TTL. Lifecycle and quota routes invalidate the local entry immediately, so
-single-process deployments observe changes at once. A TTL of `0` disables
-caching and reads fresh state on every request. If the status lookup itself
-fails (for example the database is unreachable), the check defers to the route
-layer, which surfaces the same persistence failure on its own database access.
+The resource-access suspension check and the per-tenant rate limit run on the
+hot request path, so tenant status and quotas are read through a bounded
+in-process cache (`AXIS_TENANT_STATE_CACHE_TTL_SECONDS`, default 5 seconds, at
+most 1024 tenant entries). The staleness window equals the TTL: a suspension or
+quota change made on another replica or process takes effect locally within at
+most one TTL. Lifecycle and quota routes invalidate the local entry
+immediately, so single-process deployments observe changes at once. A TTL of
+`0` disables caching and reads fresh state on every request. If the status
+lookup itself fails (for example the database is unreachable), the check defers
+to the route layer, which surfaces the same persistence failure on its own
+database access.
+
+The session-establishment and refresh checks deliberately do **not** use this
+cache: they read persisted tenant status directly so a suspension blocks the
+next login or refresh with no staleness window, at negligible cost on those
+low-frequency paths.
 
 ## Boundaries
 
@@ -160,10 +175,14 @@ the audited lifecycle transitions and the quota audit trail.
   keys producing no events, validation bounds, unknown tenants and read/update
   scope enforcement.
 - Enforcement tests cover the per-tenant rate limit tripping before the global
-  limit, global fallback without a quota, tampered-cookie rejection, the
-  concurrent-session override, the live-sync row cap (including bounded batch
-  reads and the audited capped bound) and the cache staleness window with
-  explicit invalidation.
+  limit, global fallback without a quota, bearer tokens never selecting a
+  per-tenant limit, tampered-cookie rejection, the concurrent-session override,
+  the live-sync row cap (including bounded batch reads and the audited capped
+  bound) and the cache staleness window with explicit invalidation.
+- Session-boundary tests cover a suspended tenant's login callback rejected
+  fail-closed with no session row plus audit evidence, and a suspended tenant's
+  refresh rejected with the stored session revoked and no IdP refresh grant
+  attempted.
 - The OpenAPI contract is regenerated and checked; migration identifier tests
   cover the extended `tenants` schema and the new `tenant_quotas` table.
 - Public documentation avoids customer data, personal names, contacts,

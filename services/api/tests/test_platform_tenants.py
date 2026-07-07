@@ -694,6 +694,25 @@ def test_rate_limit_falls_back_to_global_limit_without_tenant_quota() -> None:
     assert limited.json()["detail"]["limit"] == 5
 
 
+def test_rate_limit_bearer_token_does_not_select_tenant_quota() -> None:
+    settings = rate_limited_settings()
+    client, factory = build_test_client(settings)
+    seed_tenant_with_request_quota(factory, quota_value=1)
+    bearer = {"Authorization": "Bearer valid-token"}
+
+    # A bearer request carrying a tenant claim must fall back to the global
+    # limit (5), never the tenant's api_requests_per_window quota (1): the
+    # middleware only resolves the tenant from the HMAC-verified session cookie,
+    # so an unverified token claim can never select a higher per-tenant limit.
+    for _ in range(5):
+        assert client.get("/health", headers=bearer).status_code == 200
+    limited = client.get("/health", headers=bearer)
+
+    assert limited.status_code == 429
+    assert limited.json()["detail"]["scope"] == "client_endpoint"
+    assert limited.json()["detail"]["limit"] == 5
+
+
 def test_rate_limit_ignores_unverifiable_session_cookies() -> None:
     settings = rate_limited_settings()
     client, factory = build_test_client(settings)

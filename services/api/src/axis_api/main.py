@@ -801,6 +801,21 @@ def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal)
     )
 
 
+def _fresh_blocked_tenant_reason(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+) -> str | None:
+    """Read the tenant lifecycle status directly and return a block reason.
+
+    Session establishment and rotation are low-frequency security boundaries, so
+    they read the persisted status directly (bypassing the request-path TTL
+    cache) to eliminate the staleness window: a suspension takes effect on the
+    very next login or refresh, never up to one TTL later.
+    """
+    tenant = repository.get_tenant(tenant_id)
+    return blocked_tenant_reason(tenant.status if tenant is not None else None)
+
+
 def _ensure_aware_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
@@ -865,6 +880,25 @@ def _claim_session_refresh(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 reason="invalid_session_cookie",
                 message="The OIDC session cookie could not be verified.",
+            )
+        # Fail closed on refresh for a non-active tenant with a fresh status read,
+        # revoking the session with distinct audit evidence exactly like any other
+        # dead-session refresh precondition. No new session cookie is issued.
+        refresh_block_reason = _fresh_blocked_tenant_reason(
+            repository, stored_session.tenant_id
+        )
+        if refresh_block_reason is not None:
+            if stored_session.status in {"active", "refreshing"}:
+                _expire_stored_session(
+                    repository,
+                    stored_session,
+                    revocation_reason=refresh_block_reason,
+                )
+            return _refresh_precondition_error(
+                status_code=status.HTTP_403_FORBIDDEN,
+                reason=refresh_block_reason,
+                message="The tenant for this session is not active.",
+                error_code=AxisErrorCode.PERMISSION_DENIED,
             )
         lifecycle_failure = _stored_session_lifecycle_failure(stored_session, settings)
         if lifecycle_failure is not None:
@@ -2225,6 +2259,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ):
                 refresh_token_ciphertext = encrypt_refresh_token(
                     refresh_token, resolved_settings
+                )
+            with session_scope(request.app.state.session_factory) as guard_session:
+                guard_repository = AxisPersistenceRepository(guard_session)
+                login_block_reason = _fresh_blocked_tenant_reason(
+                    guard_repository, principal.tenant_id
+                )
+                if login_block_reason is not None:
+                    # Persist the denial in its own committed transaction before
+                    # aborting, so the evidence survives the rejected login.
+                    guard_repository.append_audit_event(
+                        AuditEventCreate(
+                            tenant_id=principal.tenant_id,
+                            actor_id=principal.actor_id,
+                            event_type=SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+                            payload={
+                                "tenant_id": principal.tenant_id,
+                                "reason": login_block_reason,
+                                "operation": "oidc_login_callback",
+                                "session_source": "secure_cookie",
+                            },
+                        )
+                    )
+            if login_block_reason is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": AxisErrorCode.PERMISSION_DENIED.value,
+                        "message": "The tenant for this login is not active.",
+                        "reason": login_block_reason,
+                    },
                 )
             with session_scope(request.app.state.session_factory) as session:
                 repository = AxisPersistenceRepository(session)
