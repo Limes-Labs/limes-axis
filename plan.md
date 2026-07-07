@@ -609,21 +609,27 @@ attached.
 
 Browser sessions carry a production lifecycle. When the provider issues a
 refresh token and the refresh-credential encryption key is configured, the API
-stores it only as AES-GCM ciphertext on the session row, and
+stores it only as AES-GCM ciphertext on the session row under an HKDF-derived
+key (minimum key length enforced at startup), and
 `POST /identity/session/refresh` rotates the Axis session id, cookie and stored
-refresh credential server-side inside an absolute lifetime cap; provider
-rejection revokes the session and forces a fresh login. Sessions enforce idle
-and absolute timeouts plus a per-actor concurrent-session cap, and every
-lifecycle transition (login, failed code exchange, refresh, failed refresh,
-revocation, logout) appends audit evidence that references sessions only by
-keyed hash. `GET /identity/sessions` lists the calling actor's sessions as
-opaque references and `POST /identity/sessions/{session_ref}/revoke` revokes
-them; tenant-wide listing and revocation require the `identity:sessions:admin`
-scope and lookups stay tenant-isolated. Cookie-authenticated session mutations
-require an `X-Axis-Csrf-Token` header matching the HMAC-derived CSRF cookie
-issued at login, and Secure profiles use `__Host-`-prefixed session and CSRF
-cookies. Customer-specific production SSO operations runbooks remain
-Enterprise onboarding work.
+refresh credential server-side inside an absolute lifetime cap. The rotation is
+guarded by an atomic `active`->`refreshing` claim and the IdP token exchange
+runs outside the open database transaction, so two concurrent refreshes with
+the same cookie cannot both mint a child session; provider rejection revokes
+the session and forces a fresh login. Sessions enforce idle and absolute
+timeouts plus a per-actor concurrent-session cap, and every lifecycle
+transition (login, failed code exchange, refresh, failed refresh, revocation,
+logout) appends audit evidence that references sessions only by keyed hash.
+`GET /identity/sessions` lists the calling actor's sessions as opaque
+references and `POST /identity/sessions/{session_ref}/revoke` revokes them;
+tenant-wide listing and revocation require the `identity:sessions:admin` scope
+and lookups stay tenant-isolated. CSRF is enforced centrally for every
+cookie-authenticated state-changing request across the API through a
+double-submit `X-Axis-Csrf-Token` header matched against the HMAC-derived CSRF
+cookie issued at login; bearer-token and safe-method requests are exempt, and
+Secure profiles use `__Host-`-prefixed session and CSRF cookies.
+Customer-specific production SSO operations runbooks remain Enterprise
+onboarding work.
 
 The ontology explorer and entity detail pages are currently read-only and API
 required; the browser no longer carries a local graph fallback. Graph reads now

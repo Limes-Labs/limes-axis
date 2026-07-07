@@ -810,7 +810,8 @@ Required keys:
 - `AXIS_AUDIT_LEDGER_SIGNING_SECRET`
 - `AXIS_OIDC_CLIENT_SECRET`
 - `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`
-- `AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY`
+- `AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY` (at least 32 characters; the API
+  fails to start when it is set but shorter)
 - `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY`
 - `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY`
 
@@ -927,20 +928,30 @@ session-id hash plus actor, tenant, scopes, expiry, lifecycle and revocation
 metadata, providing server-side session revocation without storing raw provider
 tokens. When the provider issues a refresh token and
 `AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY` is configured, Axis stores the refresh
-token only as AES-GCM ciphertext bound to the session row; without the key the
-refresh token is discarded and `POST /identity/session/refresh` returns
+token only as AES-GCM ciphertext bound to the session row; the AES key is
+HKDF-derived (SHA-256, fixed salt and context) from the operator-supplied key,
+which must be at least 32 characters or the API refuses to start. Without the
+key the refresh token is discarded and `POST /identity/session/refresh` returns
 `refresh_not_available`. Refresh rotates both the Axis session id and the
-stored refresh credential; the superseded session row is marked `rotated` and
-its ciphertext is cleared, so a replayed pre-rotation cookie is rejected. A
-failed provider refresh revokes the session and forces a fresh login.
+stored refresh credential; the transition is guarded by an atomic
+`active` -> `refreshing` claim so two concurrent refreshes with the same cookie
+cannot both mint a child session, the IdP token exchange runs outside the open
+database transaction, and the superseded session row is marked `rotated` with
+its ciphertext cleared so a replayed pre-rotation cookie is rejected. A failed
+provider refresh revokes the session and forces a fresh login.
 
-State-changing browser-session endpoints (`/identity/session/logout`,
-`/identity/session/refresh`, `/identity/sessions/{session_ref}/revoke`) require
-the `X-Axis-Csrf-Token` header when the caller authenticates with the session
-cookie. The callback sets a JavaScript-readable CSRF cookie whose value is an
-HMAC of the session id under the cookie-signing key; the API recomputes and
-compares it per request, so no CSRF state is stored server-side. Bearer-token
-calls are exempt because they carry no ambient cookie authority.
+CSRF protection is enforced centrally by `BrowserSessionCsrfMiddleware` on every
+state-changing request (POST/PUT/PATCH/DELETE), not just the identity
+endpoints, so cookie-authenticated mutations across the API (approvals,
+actions, audit retention and legal holds, connector and policy authoring,
+notification acknowledgements, and session management) all require a matching
+`X-Axis-Csrf-Token` header. The callback sets a JavaScript-readable CSRF cookie
+whose value is an HMAC of the session id under the cookie-signing key; the
+middleware recomputes and compares it per request with a constant-time check,
+so no CSRF state is stored server-side. Safe methods (GET/HEAD/OPTIONS) and
+requests that authenticate with an `Authorization` bearer header are exempt
+because they carry no ambient cookie authority, which keeps bearer-only clients
+and the GET-based OIDC callback and federated-logout navigations working.
 
 The federated logout redirect uses `client_id` and `post_logout_redirect_uri`;
 Axis does not persist or forward `id_token_hint`, access tokens or raw refresh

@@ -127,7 +127,10 @@ flowchart LR
 
 - Browser to API: HTTP requests from `apps/web` to FastAPI cross an origin and
   bearer-token boundary. CORS allows local demo origins and no-store headers;
-  protected mutations bind OIDC principals when present or required.
+  protected mutations bind OIDC principals when present or required. Every
+  cookie-authenticated state-changing request additionally crosses the
+  `BrowserSessionCsrfMiddleware` double-submit boundary; bearer-token and
+  safe-method requests are exempt.
 - API to identity provider: `/identity/oidc/readiness`,
   `/identity/oidc/onboarding`, `/identity/oidc/authorize`,
   `/identity/oidc/callback`, `/identity/session/refresh` and the verifier
@@ -240,13 +243,18 @@ flowchart LR
   audit evidence, public-safe `/identity/oidc/readiness` posture reporting and
   deployment readiness gating for Secure cookies, signing secret presence,
   bounded TTL and HTTPS API/public/redirect URLs. Production session lifecycle
-  adds server-side refresh rotation with AES-GCM-encrypted refresh credentials,
-  idle and absolute timeouts, per-actor concurrent-session caps, tenant-isolated
-  session listing and revocation (self plus `identity:sessions:admin`),
-  HMAC double-submit CSRF headers for cookie-authenticated mutations,
-  `__Host-`-prefixed Secure cookies, and audit evidence for logins, failed code
-  exchanges, refreshes, failed refreshes, revocations and logouts that
-  references sessions only by keyed hash.
+  adds server-side refresh rotation with HKDF-derived AES-GCM-encrypted refresh
+  credentials (minimum key length enforced at startup) and an atomic
+  `active`->`refreshing` claim that serializes concurrent refreshes so one
+  parent cannot mint two child sessions, idle and absolute timeouts, per-actor
+  concurrent-session caps, tenant-isolated session listing and revocation
+  (self plus `identity:sessions:admin`), and audit evidence for logins, failed
+  code exchanges, refreshes, failed refreshes, revocations and logouts that
+  references sessions only by keyed hash. CSRF is enforced centrally by
+  `BrowserSessionCsrfMiddleware` for every cookie-authenticated state-changing
+  request across the API (not only the identity endpoints) via an HMAC
+  double-submit token, with bearer and safe-method requests exempt, alongside
+  `__Host-`-prefixed Secure cookies.
 - Permissions: RBAC, ABAC and relationship-aware permission primitives with
   endpoint tests for approvals, actions and ontology reads. Ontology graph and
   entity detail reads enforce OIDC-derived relationship scopes at the
