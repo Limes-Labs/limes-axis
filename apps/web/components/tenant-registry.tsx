@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Building2, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
 import {
   allTenantFilter,
-  buildPlatformTenantsPath,
+  fetchTenantRegistry,
+  mergeTenantRegistryPage,
   platformTenantsPath,
   tenantLifecycleStatuses,
-  tenantListIsCapped,
-  tenantRegistryLimit,
   tenantStatusClass,
   tenantStatusLabel,
   type TenantLifecycleStatus,
@@ -20,13 +19,16 @@ import {
   type TenantRegistryFilters,
 } from "@/lib/platform-tenants";
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
-import { useAxisQuery } from "@/lib/use-axis-query";
+import { useConsole } from "@/providers/console-provider";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 const defaultFilters: TenantRegistryFilters = {
   status: allTenantFilter,
 };
 
-function sourceLabel(source: "loading" | "api" | "unavailable"): string {
+type RegistrySource = "loading" | "api" | "unavailable";
+
+function sourceLabel(source: RegistrySource): string {
   if (source === "api") {
     return "API tenant registry";
   }
@@ -34,11 +36,73 @@ function sourceLabel(source: "loading" | "api" | "unavailable"): string {
   return source === "loading" ? "Loading tenant API" : "Tenant API unavailable";
 }
 
+/**
+ * Cursor-paginated tenant registry read. The first page loads on mount and on
+ * filter / console-refresh change; loadMore follows next_cursor and appends the
+ * next page, so the console can page past the per-request server maximum.
+ */
+function useTenantRegistryPages(filters: TenantRegistryFilters) {
+  const { refreshNonce } = useConsole();
+  const { session } = useOidcConsoleSession();
+  const [registry, setRegistry] = useState<TenantRegistryData | null>(null);
+  const [source, setSource] = useState<RegistrySource>("loading");
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function load() {
+      setSource("loading");
+      setRegistry(null);
+
+      try {
+        const page = await fetchTenantRegistry(filters, {
+          session,
+          signal: controller.signal,
+        });
+
+        if (!controller.signal.aborted) {
+          setRegistry(page);
+          setSource("api");
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setRegistry(null);
+          setSource("unavailable");
+        }
+      }
+    }
+
+    void load();
+
+    return () => controller.abort();
+    // filters is recreated each render; reload only when its status changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.status, session, refreshNonce]);
+
+  const loadMore = useCallback(async () => {
+    if (!registry?.has_more || !registry.next_cursor || loadingMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+    try {
+      const page = await fetchTenantRegistry(filters, { session }, registry.next_cursor);
+      setRegistry((current) => mergeTenantRegistryPage(current, page));
+    } catch {
+      // Keep the pages already loaded; the load-more control stays available
+      // for a retry rather than dropping the accumulated registry.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [registry, filters, session, loadingMore]);
+
+  return { registry, source, loadMore, loadingMore };
+}
+
 export function TenantRegistry() {
   const [filters, setFilters] = useState<TenantRegistryFilters>(defaultFilters);
-  const { data: registry, source } = useAxisQuery<TenantRegistryData>(
-    buildPlatformTenantsPath(filters),
-  );
+  const { registry, source, loadMore, loadingMore } = useTenantRegistryPages(filters);
 
   function updateStatus(value: string) {
     setFilters({ status: value as TenantRegistryFilters["status"] });
@@ -60,7 +124,7 @@ export function TenantRegistry() {
 
   const tenants = registry.tenants ?? [];
   const tenantNotes = registry.tenant_notes ?? [];
-  const listCapped = tenantListIsCapped(registry);
+  const hasMore = registry.has_more ?? false;
   const suspendedCount = tenants.filter((tenant) => tenant.status === "suspended").length;
   const pendingDeletionCount = tenants.filter(
     (tenant) => tenant.status === "pending_deletion",
@@ -135,27 +199,6 @@ export function TenantRegistry() {
         </div>
       </section>
 
-      {listCapped ? (
-        <section className="panel overview-context">
-          <div>
-            <p className="section-label">Listing Cap</p>
-            <h2 className="panel-title">
-              Showing the first {tenantRegistryLimit} tenants
-            </h2>
-            <p className="row-detail">
-              The registry returned {tenantRegistryLimit} tenants, the API maximum, ordered by
-              tenant id. Cursor pagination is not yet available, so tenants beyond this cap are
-              not listed here — narrow by status filter to find others. A single-tenant read
-              route and pagination are a tracked follow-up.
-            </p>
-          </div>
-          <span className="status-pill signal-watch">
-            <Building2 size={15} />
-            List capped
-          </span>
-        </section>
-      ) : null}
-
       {tenants.length > 0 ? (
         <section className="table-panel">
           <table className="data-table">
@@ -206,6 +249,22 @@ export function TenantRegistry() {
               ))}
             </tbody>
           </table>
+          {hasMore ? (
+            <div className="table-footer">
+              <p className="row-detail">
+                Showing {tenants.length} tenants. More match this filter.
+              </p>
+              <button
+                className="command-button"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+                type="button"
+              >
+                <Building2 size={16} />
+                {loadingMore ? "Loading…" : "Load more tenants"}
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : (
         <section className="panel overview-context">

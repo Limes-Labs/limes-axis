@@ -10,7 +10,6 @@ import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
 import {
   buildPlatformTenantDetailPath,
   fetchTenantDetail,
-  tenantRegistryLimit,
   tenantStatusClass,
   tenantStatusLabel,
   type TenantRecord,
@@ -85,7 +84,6 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
 export function TenantDetail({ tenantId }: { tenantId: string }) {
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [source, setSource] = useState<DetailSource>("loading");
-  const [notFoundBeyondCap, setNotFoundBeyondCap] = useState(false);
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
 
@@ -105,7 +103,6 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
 
         if (result.kind === "notFound") {
           setTenant(null);
-          setNotFoundBeyondCap(result.beyondCap);
           setSource("missing");
           return;
         }
@@ -143,14 +140,9 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
             <p className="section-label">Platform Tenant</p>
             <h2 className="panel-title">Tenant not found</h2>
             <p className="row-detail mono">{tenantId}</p>
-            {notFoundBeyondCap ? (
-              <p className="row-detail">
-                The listing is capped at the first {tenantRegistryLimit} tenants (ordered by
-                tenant id) and pagination is not yet available, so this tenant may exist beyond
-                the current cap rather than being absent. Narrow the registry by status filter to
-                locate it.
-              </p>
-            ) : null}
+            <p className="row-detail">
+              The tenant read route returned 404: no tenant with this id is provisioned.
+            </p>
           </div>
           <Link className="command-button" href="/tenants">
             <ArrowLeft size={17} />

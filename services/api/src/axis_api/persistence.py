@@ -3135,10 +3135,16 @@ class AxisPersistenceRepository:
         self,
         status: str | None = None,
         limit: int = 100,
+        cursor_tenant_id: str | None = None,
     ) -> list[Tenant]:
         statement: Select[tuple[Tenant]] = select(Tenant)
         if status is not None:
             statement = statement.where(Tenant.status == status)
+        if cursor_tenant_id is not None:
+            # Keyset continuation: resume strictly after the cursor row in
+            # (id asc) order. The id is the primary key, so this is a total
+            # order and needs no secondary sort key.
+            statement = statement.where(Tenant.id > cursor_tenant_id)
         statement = statement.order_by(Tenant.id.asc()).limit(limit)
         return list(self.session.scalars(statement))
 

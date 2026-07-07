@@ -13,6 +13,8 @@ import {
   emptyTenantProvisionForm,
   fetchTenantDetail,
   fetchTenantQuotas,
+  fetchTenantRegistry,
+  mergeTenantRegistryPage,
   parseQuotaValue,
   platformTenantOperatorActorId,
   platformTenantsPath,
@@ -20,9 +22,7 @@ import {
   quotaFormFromQuotaSet,
   reactivateTenant,
   suspendTenant,
-  tenantListIsCapped,
   tenantQuotaFields,
-  tenantRegistryLimit,
   tenantStatusClass,
   tenantStatusLabel,
   updateTenantQuotas,
@@ -431,81 +431,111 @@ describe("tenant API bindings", () => {
     await expect(fetchTenantQuotas("missing")).resolves.toBeNull();
   });
 
-  it("throws AxisApiError for a failed registry read", async () => {
+  it("throws AxisApiError for a failed detail read", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     stubFetch(503, {});
     await expect(fetchTenantDetail("tenant_acme")).rejects.toBeInstanceOf(AxisApiError);
   });
 
-  it("derives the detail record from the registry list at the server limit", async () => {
+  it("reads the detail record from the dedicated single-tenant route", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    const record = buildRecord();
+    const fetchMock = stubFetch(200, record);
+    await expect(fetchTenantDetail("tenant_acme")).resolves.toEqual({
+      kind: "found",
+      record,
+    });
+    // Resolved via GET /platform/tenants/{id}, not by scanning the list.
+    expect((fetchMock.mock.calls[0] as [RequestInfo | URL])[0]).toBe(
+      "http://axis-api.test/platform/tenants/tenant_acme",
+    );
+  });
+
+  it("treats a 404 from the detail route as an authoritative not-found", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubFetch(404, { detail: { message: "not found" } });
+    await expect(fetchTenantDetail("missing")).resolves.toEqual({
+      kind: "notFound",
+    });
+  });
+
+  it("requests a full page and forwards the cursor when fetching the registry", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     const record = buildRecord();
     const fetchMock = stubFetch(200, {
       tenant_count: 1,
       active_tenant_count: 1,
       tenants: [record],
+      has_more: true,
+      next_cursor: "cursor-2",
     });
-    await expect(fetchTenantDetail("tenant_acme")).resolves.toEqual({
-      kind: "found",
-      record,
-    });
-    // The derivation read requests the server maximum, not an unbounded list.
+
+    await expect(
+      fetchTenantRegistry({ status: allTenantFilter }, {}, "cursor-1"),
+    ).resolves.toMatchObject({ has_more: true, next_cursor: "cursor-2" });
+
     expect((fetchMock.mock.calls[0] as [RequestInfo | URL])[0]).toBe(
-      "http://axis-api.test/platform/tenants?limit=200",
+      "http://axis-api.test/platform/tenants?limit=200&cursor=cursor-1",
     );
   });
 
-  it("reports not-found without a cap flag when the list is short", async () => {
+  it("throws AxisApiError for a failed registry read", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
-    stubFetch(200, { tenant_count: 0, active_tenant_count: 0, tenants: [] });
-    await expect(fetchTenantDetail("missing")).resolves.toEqual({
-      kind: "notFound",
-      beyondCap: false,
-    });
-  });
-
-  it("flags beyondCap when the tenant is missing from a capped list", async () => {
-    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
-    const tenants = Array.from({ length: tenantRegistryLimit }, (_, index) =>
-      buildRecord({ tenant_id: `tenant_${String(index).padStart(4, "0")}` }),
-    );
-    stubFetch(200, {
-      tenant_count: tenants.length,
-      active_tenant_count: tenants.length,
-      tenants,
-    });
-    await expect(fetchTenantDetail("tenant_beyond_cap")).resolves.toEqual({
-      kind: "notFound",
-      beyondCap: true,
-    });
+    stubFetch(503, {});
+    await expect(
+      fetchTenantRegistry({ status: allTenantFilter }),
+    ).rejects.toBeInstanceOf(AxisApiError);
   });
 });
 
-describe("tenant list cap detection", () => {
-  it("is not capped below the limit", () => {
-    expect(
-      tenantListIsCapped({ tenant_count: 3, active_tenant_count: 3, tenants: [] }),
-    ).toBe(false);
+describe("registry page merging", () => {
+  it("appends a fetched page and recomputes counts over the merged list", () => {
+    const first = {
+      tenant_count: 1,
+      active_tenant_count: 1,
+      tenants: [buildRecord({ tenant_id: "tenant_a", status: "active" as const })],
+      has_more: true,
+      next_cursor: "cursor-1",
+      tenant_notes: ["first page note"],
+    };
+    const second = {
+      tenant_count: 1,
+      active_tenant_count: 0,
+      tenants: [buildRecord({ tenant_id: "tenant_b", status: "suspended" as const })],
+      has_more: false,
+      next_cursor: null,
+    };
+
+    const merged = mergeTenantRegistryPage(first, second);
+
+    expect(merged.tenants?.map((tenant) => tenant.tenant_id)).toEqual([
+      "tenant_a",
+      "tenant_b",
+    ]);
+    expect(merged.tenant_count).toBe(2);
+    // Only tenant_a is active across the merged list.
+    expect(merged.active_tenant_count).toBe(1);
+    // has_more / next_cursor track the most recently fetched page.
+    expect(merged.has_more).toBe(false);
+    expect(merged.next_cursor).toBeNull();
+    // Notes from the first page are retained when a later page omits them.
+    expect(merged.tenant_notes).toEqual(["first page note"]);
   });
 
-  it("is capped exactly at the limit boundary", () => {
-    const tenants = Array.from({ length: tenantRegistryLimit }, (_, index) =>
-      buildRecord({ tenant_id: `tenant_${index}` }),
-    );
-    expect(
-      tenantListIsCapped({
-        tenant_count: tenants.length,
-        active_tenant_count: tenants.length,
-        tenants,
-      }),
-    ).toBe(true);
-    // One below the boundary is not capped.
-    expect(
-      tenantListIsCapped({
-        tenant_count: tenants.length - 1,
-        active_tenant_count: tenants.length - 1,
-        tenants: tenants.slice(0, -1),
-      }),
-    ).toBe(false);
+  it("seeds the accumulator from a null existing registry", () => {
+    const page = {
+      tenant_count: 1,
+      active_tenant_count: 1,
+      tenants: [buildRecord({ tenant_id: "tenant_a" })],
+      has_more: true,
+      next_cursor: "cursor-1",
+    };
+
+    const merged = mergeTenantRegistryPage(null, page);
+
+    expect(merged.tenants?.map((tenant) => tenant.tenant_id)).toEqual(["tenant_a"]);
+    expect(merged.tenant_count).toBe(1);
+    expect(merged.has_more).toBe(true);
+    expect(merged.next_cursor).toBe("cursor-1");
   });
 });

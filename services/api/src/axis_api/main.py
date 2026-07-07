@@ -484,6 +484,7 @@ from axis_api.platform_tenants import (
     SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
     TenantLifecycleConflict,
     TenantLifecycleStatus,
+    TenantListCursorError,
     TenantNotFound,
     TenantPermissionDenied,
     TenantProvisionConflict,
@@ -498,6 +499,8 @@ from axis_api.platform_tenants import (
     TenantSuspendRequest,
     blocked_tenant_reason,
     build_tenant_registry,
+    decode_tenant_cursor,
+    get_tenant_detail,
     get_tenant_quota_set,
     provision_tenant,
     reactivate_tenant,
@@ -6096,6 +6099,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         responses={
             401: {"description": "OIDC authentication required"},
             403: {"description": "Platform tenant read permission denied"},
+            422: {"description": "Tenant listing cursor is invalid"},
         },
         tags=["platform"],
     )
@@ -6104,9 +6108,47 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: OidcPrincipalDependency,
         status_filter: TenantLifecycleStatus | None = TenantLifecycleStatusQuery,
         limit: int = Query(default=100, ge=1, le=200),
+        cursor: str | None = Query(default=None, min_length=1, max_length=600),
     ) -> TenantRegistry:
         _authorize_platform_tenant_read(principal, resource="platform_tenants")
-        return build_tenant_registry(repository, status=status_filter, limit=limit)
+        try:
+            cursor_tenant_id = decode_tenant_cursor(cursor)
+        except TenantListCursorError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The tenant listing cursor is invalid.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        return build_tenant_registry(
+            repository,
+            status=status_filter,
+            limit=limit,
+            cursor_tenant_id=cursor_tenant_id,
+        )
+
+    @app.get(
+        "/platform/tenants/{tenant_id}",
+        response_model=TenantRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant read permission denied"},
+            404: {"description": "Tenant not found"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_detail(
+        tenant_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantRecord:
+        _authorize_platform_tenant_read(principal, resource="platform_tenant")
+        try:
+            return get_tenant_detail(repository, tenant_id)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
 
     @app.post(
         "/platform/tenants/{tenant_id}/suspend",

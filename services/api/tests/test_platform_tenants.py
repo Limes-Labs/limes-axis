@@ -623,6 +623,187 @@ def test_quota_read_requires_operator_read_scopes_when_authenticated() -> None:
     assert denied.json()["detail"]["required_permission"] == "platform:tenant:read"
 
 
+def test_tenant_detail_endpoint_returns_record() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.get(f"/platform/tenants/{TENANT_ID}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == TENANT_ID
+    assert body["display_name"] == "Acme Manufacturing"
+    assert body["status"] == "active"
+    assert body["bootstrap_admin_actor_id"] == "acme-platform-admin-role"
+    assert body["audit_event_type"] == "platform.tenant.provisioned"
+
+
+def test_tenant_detail_endpoint_returns_404_for_unknown_tenant() -> None:
+    client, _factory = build_test_client()
+
+    response = client.get("/platform/tenants/tenant_missing")
+
+    assert response.status_code == 404
+    detail = response.json()["detail"]
+    assert detail["code"] == "NOT_FOUND"
+    assert detail["tenant_id"] == "tenant_missing"
+
+
+def test_tenant_detail_requires_operator_read_scopes_when_authenticated() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id=OPERATOR_ACTOR,
+            tenant_id="tenant_axis_platform_ops",
+            scopes=["platform:tenant:read"],
+        )
+    )
+    missing_operator = client.get(
+        f"/platform/tenants/{TENANT_ID}",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+    assert missing_operator.status_code == 403
+    assert (
+        missing_operator.json()["detail"]["required_permission"]
+        == "platform:tenant:operator"
+    )
+
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id=OPERATOR_ACTOR,
+            tenant_id="tenant_axis_platform_ops",
+            scopes=["platform:tenant:operator"],
+        )
+    )
+    missing_read = client.get(
+        f"/platform/tenants/{TENANT_ID}",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+    assert missing_read.status_code == 403
+    assert (
+        missing_read.json()["detail"]["required_permission"] == "platform:tenant:read"
+    )
+
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id=OPERATOR_ACTOR,
+            tenant_id="tenant_axis_platform_ops",
+            scopes=["platform:tenant:operator", "platform:tenant:read"],
+        )
+    )
+    allowed = client.get(
+        f"/platform/tenants/{TENANT_ID}",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["tenant_id"] == TENANT_ID
+
+
+def test_tenant_detail_is_isolated_per_tenant_for_cross_tenant_operator() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+    assert (
+        client.post(
+            "/platform/tenants",
+            json=provision_payload(
+                tenant_id="tenant_beta_manufacturing",
+                display_name="Beta Manufacturing",
+                idempotency_key="idem_provision_beta_v1",
+                bootstrap_admin={
+                    "actor_id": "beta-platform-admin-role",
+                    "display_name": "Beta platform admin",
+                    "scopes": [],
+                },
+            ),
+        ).status_code
+        == 201
+    )
+
+    # A platform operator authenticated under a third ops tenant reads each
+    # tenant across the tenant boundary and gets exactly the requested record,
+    # never another tenant's data.
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id=OPERATOR_ACTOR,
+            tenant_id="tenant_axis_platform_ops",
+            scopes=["platform:tenant:operator", "platform:tenant:read"],
+        )
+    )
+    headers = {"Authorization": "Bearer valid-token"}
+
+    acme = client.get(f"/platform/tenants/{TENANT_ID}", headers=headers)
+    assert acme.status_code == 200
+    assert acme.json()["tenant_id"] == TENANT_ID
+    assert acme.json()["display_name"] == "Acme Manufacturing"
+
+    beta = client.get(
+        "/platform/tenants/tenant_beta_manufacturing", headers=headers
+    )
+    assert beta.status_code == 200
+    assert beta.json()["tenant_id"] == "tenant_beta_manufacturing"
+    assert beta.json()["display_name"] == "Beta Manufacturing"
+
+
+def test_registry_endpoint_paginates_with_cursor() -> None:
+    client, _factory = build_test_client()
+    tenant_ids = [f"tenant_pager_{index:03d}" for index in range(5)]
+    for index, tenant_id in enumerate(tenant_ids):
+        assert (
+            client.post(
+                "/platform/tenants",
+                json=provision_payload(
+                    tenant_id=tenant_id,
+                    display_name=f"Pager {index}",
+                    idempotency_key=f"idem_pager_{index}",
+                    bootstrap_admin={
+                        "actor_id": f"pager-admin-{index}",
+                        "display_name": f"Pager admin {index}",
+                        "scopes": [],
+                    },
+                ),
+            ).status_code
+            == 201
+        )
+
+    seen: list[str] = []
+    cursor: str | None = None
+    pages = 0
+    while True:
+        params: dict[str, str | int] = {"limit": 2}
+        if cursor is not None:
+            params["cursor"] = cursor
+        page = client.get("/platform/tenants", params=params).json()
+        pages += 1
+        page_ids = [tenant["tenant_id"] for tenant in page["tenants"]]
+        seen.extend(page_ids)
+        assert len(page_ids) <= 2
+        if page["has_more"]:
+            assert page["next_cursor"] is not None
+            assert len(page_ids) == 2
+            cursor = page["next_cursor"]
+        else:
+            assert page["next_cursor"] is None
+            break
+
+    # Keyset walk visited every tenant exactly once, in ascending id order.
+    assert seen == sorted(tenant_ids)
+    assert len(seen) == len(set(seen))
+    assert pages == 3  # 2 + 2 + 1
+
+
+def test_registry_endpoint_rejects_invalid_cursor() -> None:
+    client, _factory = build_test_client()
+
+    response = client.get("/platform/tenants", params={"cursor": "!!!not-base64!!!"})
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "VALIDATION_FAILED"
+    assert detail["reason"] == "invalid_tenant_cursor"
+
+
 def rate_limited_settings() -> Settings:
     return Settings(
         postgres_dsn="sqlite+pysqlite://",

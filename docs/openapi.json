@@ -16419,6 +16419,22 @@
             "title": "Active Tenant Count",
             "type": "integer"
           },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
           "tenant_count": {
             "minimum": 0.0,
             "title": "Tenant Count",
@@ -23399,6 +23415,24 @@
             }
           },
           {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 600,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
             "in": "header",
             "name": "Authorization",
             "required": false,
@@ -23433,14 +23467,7 @@
             "description": "Platform tenant read permission denied"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Tenant listing cursor is invalid"
           }
         },
         "summary": "Platform Tenant Registry",
@@ -23503,6 +23530,73 @@
           }
         },
         "summary": "Platform Tenant Provision",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/tenants/{tenant_id}": {
+      "get": {
+        "operationId": "platform_tenant_detail_platform_tenants__tenant_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Platform tenant read permission denied"
+          },
+          "404": {
+            "description": "Tenant not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Tenant Detail",
         "tags": [
           "platform"
         ]
