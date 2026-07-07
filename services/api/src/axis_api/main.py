@@ -1,11 +1,11 @@
 from collections.abc import Generator
-from datetime import UTC, datetime
-from typing import Annotated
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, NamedTuple
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from axis_api.action_reference import (
     ActionReferenceRecordInvalid,
@@ -289,6 +289,7 @@ from axis_api.connectors import (
     preview_external_db_connector,
     preview_file_csv_connector,
 )
+from axis_api.csrf import BrowserSessionCsrfMiddleware
 from axis_api.db import create_session_factory, session_scope
 from axis_api.demo import (
     ManufacturingActionRegistry,
@@ -319,6 +320,8 @@ from axis_api.identity import (
     bind_request_actor,
 )
 from axis_api.identity_session import (
+    IdentityBrowserSessionList,
+    IdentityBrowserSessionRecord,
     IdentitySessionReadModel,
     build_identity_session_read_model,
 )
@@ -369,6 +372,7 @@ from axis_api.model_routing_reference import (
     ModelRoutingReferenceRecordNotFound,
     get_persisted_manufacturing_model_routing,
 )
+from axis_api.models import OidcBrowserSession
 from axis_api.object_storage import (
     ObjectStore,
     ObjectStoreConfigurationError,
@@ -381,16 +385,24 @@ from axis_api.oidc_code_flow import (
     authorization_endpoint,
     build_authorization_request,
     build_end_session_redirect_url,
+    build_refresh_token_form,
     build_token_exchange_form,
+    csrf_cookie_name,
+    csrf_token_for_session,
+    decrypt_refresh_token,
+    encrypt_refresh_token,
     end_session_endpoint,
     exchange_authorization_code,
     post_logout_redirect_uri,
     public_redirect,
     read_login_state,
     read_session_cookie,
+    refresh_token_encryption_key_is_strong,
     session_cookie_from_principal,
+    session_cookie_name,
     session_id_hash,
     token_endpoint,
+    validate_refresh_token_encryption_key,
 )
 from axis_api.oidc_onboarding import OidcOnboardingReport, build_oidc_onboarding_report
 from axis_api.ontology.mutations import (
@@ -605,32 +617,53 @@ def oidc_principal(
 ) -> OidcPrincipal | None:
     settings: Settings = request.app.state.settings
     if not authorization:
-        session_cookie = request.cookies.get(settings.oidc_session_cookie_name)
+        session_cookie = request.cookies.get(session_cookie_name(settings))
         if session_cookie:
             try:
                 oidc_session = read_session_cookie(session_cookie, settings)
                 session_hash = session_id_hash(oidc_session.session_id, settings)
+                cookie_failure_reason: str | None = None
+                principal: OidcPrincipal | None = None
                 with session_scope(request.app.state.session_factory) as session:
                     repository = AxisPersistenceRepository(session)
                     stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
                     if stored_session is None:
-                        raise OidcCookieValidationError("invalid_session_cookie")
-                    if stored_session.status == "revoked":
-                        raise OidcCookieValidationError("revoked_session_cookie")
-                    if _datetime_is_expired(stored_session.expires_at):
-                        raise OidcCookieValidationError("expired_session_cookie")
-                    if (
-                        stored_session.actor_id != oidc_session.actor_id
-                        or stored_session.tenant_id != oidc_session.tenant_id
-                    ):
-                        raise OidcCookieValidationError("invalid_session_cookie")
-                    return OidcPrincipal(
-                        actor_id=stored_session.actor_id,
-                        tenant_id=stored_session.tenant_id,
-                        scopes=list(stored_session.scopes),
-                        expires_at=int(_ensure_aware_datetime(stored_session.expires_at).timestamp()),
-                        session_source="secure_cookie",
-                    )
+                        cookie_failure_reason = "invalid_session_cookie"
+                    else:
+                        failure = _stored_session_lifecycle_failure(stored_session, settings)
+                        if failure is not None:
+                            public_reason, revocation_reason = failure
+                            if revocation_reason and stored_session.status == "active":
+                                _expire_stored_session(
+                                    repository,
+                                    stored_session,
+                                    revocation_reason=revocation_reason,
+                                )
+                            cookie_failure_reason = public_reason
+                        elif (
+                            stored_session.actor_id != oidc_session.actor_id
+                            or stored_session.tenant_id != oidc_session.tenant_id
+                        ):
+                            cookie_failure_reason = "invalid_session_cookie"
+                        else:
+                            repository.touch_oidc_browser_session(
+                                session_hash, datetime.now(UTC)
+                            )
+                            principal = OidcPrincipal(
+                                actor_id=stored_session.actor_id,
+                                tenant_id=stored_session.tenant_id,
+                                scopes=list(stored_session.scopes),
+                                expires_at=int(
+                                    _ensure_aware_datetime(
+                                        stored_session.expires_at
+                                    ).timestamp()
+                                ),
+                                session_source="secure_cookie",
+                            )
+                if cookie_failure_reason is not None:
+                    raise OidcCookieValidationError(cookie_failure_reason)
+                if principal is not None:
+                    return principal
             except (
                 OidcCodeFlowConfigurationError,
                 OidcCookieValidationError,
@@ -643,6 +676,7 @@ def oidc_principal(
                         "invalid_session_cookie",
                         "revoked_session_cookie",
                         "expired_session_cookie",
+                        "idle_session_timeout",
                     }
                     else "invalid_session_cookie"
                 )
@@ -686,6 +720,173 @@ def _ensure_aware_datetime(value: datetime) -> datetime:
 
 def _datetime_is_expired(value: datetime) -> bool:
     return _ensure_aware_datetime(value) <= datetime.now(UTC)
+
+
+OIDC_SESSION_BOUNDARY = "http_only_cookie_verified_by_axis_api"
+OIDC_SESSION_LIFECYCLE_ACTOR = "axis-session-lifecycle"
+IDENTITY_SESSION_ADMIN_SCOPE = "identity:sessions:admin"
+
+
+class _RotatedSessionCookie(NamedTuple):
+    session_cookie_value: str
+    session_id: str
+    max_age: int
+
+
+class _SessionRefreshClaim(NamedTuple):
+    tenant_id: str
+    actor_id: str
+    refresh_token: str
+    refresh_count: int
+    absolute_expires_at: datetime | None
+
+
+def _refresh_precondition_error(
+    *,
+    status_code: int,
+    reason: str,
+    message: str,
+    error_code: AxisErrorCode = AxisErrorCode.AUTH_REQUIRED,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": error_code.value, "message": message, "reason": reason},
+    )
+
+
+def _claim_session_refresh(
+    request: Request,
+    *,
+    session_hash: str,
+    settings: Settings,
+) -> _SessionRefreshClaim | HTTPException:
+    """Validate refresh preconditions and atomically claim the transition.
+
+    Runs in its own short transaction and performs no IdP network I/O. Returns a
+    claim snapshot (with the decrypted refresh token) for the single winning
+    caller, or an ``HTTPException`` describing why the refresh cannot proceed.
+    A replayed pre-rotation cookie or a concurrent refresh that lost the claim
+    both surface as an ``invalid_session_cookie`` 401.
+    """
+    with session_scope(request.app.state.session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
+        if stored_session is None:
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="invalid_session_cookie",
+                message="The OIDC session cookie could not be verified.",
+            )
+        lifecycle_failure = _stored_session_lifecycle_failure(stored_session, settings)
+        if lifecycle_failure is not None:
+            public_reason, revocation_reason = lifecycle_failure
+            if revocation_reason and stored_session.status == "active":
+                _expire_stored_session(
+                    repository,
+                    stored_session,
+                    revocation_reason=revocation_reason,
+                )
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason=public_reason,
+                message="The OIDC browser session can no longer be refreshed.",
+            )
+        if not stored_session.refresh_token_ciphertext:
+            return _refresh_precondition_error(
+                status_code=status.HTTP_409_CONFLICT,
+                reason="refresh_not_available",
+                message=(
+                    "No refresh token is stored for this session; sign in again to "
+                    "extend it."
+                ),
+                error_code=AxisErrorCode.CONFLICT,
+            )
+        # Decrypt before claiming so an unreadable credential does not strand the
+        # session in the refreshing state.
+        try:
+            refresh_token = decrypt_refresh_token(
+                stored_session.refresh_token_ciphertext, settings
+            )
+        except OidcTokenExchangeError:
+            _expire_stored_session(
+                repository,
+                stored_session,
+                revocation_reason="refresh_failed",
+            )
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="refresh_token_unreadable",
+                message="The stored OIDC refresh credential could not be read.",
+            )
+        claim = _SessionRefreshClaim(
+            tenant_id=stored_session.tenant_id,
+            actor_id=stored_session.actor_id,
+            refresh_token=refresh_token,
+            refresh_count=stored_session.refresh_count,
+            absolute_expires_at=stored_session.absolute_expires_at,
+        )
+        if not repository.claim_oidc_browser_session_refresh(session_hash):
+            # Lost the race to a concurrent refresh (parent already
+            # refreshing/rotated), or the cookie is a replayed pre-rotation id.
+            return _refresh_precondition_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="invalid_session_cookie",
+                message="The OIDC session cookie could not be verified.",
+            )
+        return claim
+
+
+def _stored_session_lifecycle_failure(
+    stored_session: OidcBrowserSession,
+    settings: Settings,
+) -> tuple[str, str] | None:
+    if stored_session.status != "active":
+        return ("revoked_session_cookie", "")
+    if _datetime_is_expired(stored_session.expires_at):
+        return ("expired_session_cookie", "session_expired")
+    if stored_session.absolute_expires_at is not None and _datetime_is_expired(
+        stored_session.absolute_expires_at
+    ):
+        return ("expired_session_cookie", "absolute_timeout")
+    idle_timeout_seconds = settings.oidc_session_idle_timeout_seconds
+    if idle_timeout_seconds > 0:
+        last_activity = stored_session.last_seen_at or stored_session.created_at
+        idle_deadline = _ensure_aware_datetime(last_activity) + timedelta(
+            seconds=idle_timeout_seconds
+        )
+        if idle_deadline <= datetime.now(UTC):
+            return ("idle_session_timeout", "idle_timeout")
+    return None
+
+
+def _expire_stored_session(
+    repository: AxisPersistenceRepository,
+    stored_session: OidcBrowserSession,
+    *,
+    revocation_reason: str,
+    revoked_by: str = OIDC_SESSION_LIFECYCLE_ACTOR,
+) -> None:
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=stored_session.tenant_id,
+            actor_id=stored_session.actor_id,
+            event_type="identity.oidc_session.revoked",
+            payload={
+                "session_id_hash": stored_session.session_id_hash,
+                "revocation_reason": revocation_reason,
+                "session_boundary": OIDC_SESSION_BOUNDARY,
+                "federated_logout": False,
+            },
+        )
+    )
+    repository.revoke_oidc_browser_session(
+        OidcBrowserSessionRevocation(
+            session_id_hash=stored_session.session_id_hash,
+            revoked_by=revoked_by,
+            revocation_reason=revocation_reason,
+            revoke_audit_event_id=audit_event.id,
+        )
+    )
 
 
 OidcPrincipalDependency = Annotated[
@@ -865,6 +1066,31 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
             "OIDC session cookie uses the Secure attribute.",
             "Enable AXIS_OIDC_SESSION_COOKIE_SECURE for enterprise browser SSO.",
         ),
+        _readiness_check(
+            "host_prefixed_session_cookie",
+            settings.oidc_session_cookie_secure and settings.oidc_session_cookie_host_prefix,
+            "OIDC session cookie uses the __Host- prefix binding.",
+            "Enable Secure cookies plus AXIS_OIDC_SESSION_COOKIE_HOST_PREFIX for __Host- binding.",
+        ),
+        _readiness_check(
+            "refresh_credential_encryption",
+            refresh_token_encryption_key_is_strong(settings),
+            "OIDC refresh credentials are encrypted at rest with an HKDF-derived key.",
+            "Configure a refresh-credential encryption key of at least 32 characters "
+            "before session refresh.",
+        ),
+        _readiness_check(
+            "session_idle_timeout",
+            settings.oidc_session_idle_timeout_seconds > 0,
+            "Browser sessions enforce an idle timeout.",
+            "Set AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS above zero for production sessions.",
+        ),
+        _readiness_check(
+            "session_absolute_timeout",
+            settings.oidc_session_absolute_timeout_seconds > 0,
+            "Browser sessions enforce an absolute lifetime cap.",
+            "Set AXIS_OIDC_SESSION_ABSOLUTE_TIMEOUT_SECONDS above zero for production sessions.",
+        ),
     ]
     enterprise_ready = all(check["status"] == "ready" for check in checks)
     return {
@@ -883,6 +1109,19 @@ def _oidc_readiness_report(settings: Settings) -> dict[str, object]:
             "end_session_url_configured": bool(settings.oidc_end_session_url),
             "post_logout_redirect_uri": post_logout_redirect_uri(settings, "/"),
             "stores_provider_logout_tokens": False,
+        },
+        "session_lifecycle": {
+            "idle_timeout_seconds": settings.oidc_session_idle_timeout_seconds,
+            "absolute_timeout_seconds": settings.oidc_session_absolute_timeout_seconds,
+            "max_concurrent_sessions": settings.oidc_session_max_concurrent,
+            "refresh_credential_encryption_configured": bool(
+                settings.oidc_refresh_token_encryption_key
+            ),
+            "refresh_rotation": "server_side_rotating_sessions",
+            "csrf_protection": "hmac_double_submit_header",
+            "host_prefixed_session_cookie": (
+                settings.oidc_session_cookie_secure and settings.oidc_session_cookie_host_prefix
+            ),
         },
         "algorithms": algorithms,
         "token_binding": {
@@ -1393,6 +1632,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         },
     )
+    validate_refresh_token_encryption_key(resolved_settings)
+    app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)
     app.add_middleware(ApiRateLimitMiddleware, settings=resolved_settings)
     app.add_middleware(
         CORSMiddleware,
@@ -1405,6 +1646,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Content-Type",
             "X-Axis-Tenant",
             "X-Axis-Actor",
+            "X-Axis-Csrf-Token",
         ],
     )
     app.state.settings = resolved_settings
@@ -1558,11 +1800,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def delete_oidc_session_cookie(response: Response) -> None:
         response.delete_cookie(
-            resolved_settings.oidc_session_cookie_name,
+            session_cookie_name(resolved_settings),
             path="/",
             secure=resolved_settings.oidc_session_cookie_secure,
             httponly=True,
             samesite="lax",
+        )
+        response.delete_cookie(
+            csrf_cookie_name(resolved_settings),
+            path="/",
+            secure=resolved_settings.oidc_session_cookie_secure,
+            httponly=False,
+            samesite="lax",
+        )
+
+    def set_oidc_session_cookies(
+        response: Response,
+        *,
+        session_cookie_value: str,
+        session_id: str,
+        max_age: int,
+    ) -> None:
+        response.set_cookie(
+            session_cookie_name(resolved_settings),
+            session_cookie_value,
+            max_age=max_age,
+            httponly=True,
+            secure=resolved_settings.oidc_session_cookie_secure,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            csrf_cookie_name(resolved_settings),
+            csrf_token_for_session(session_id, resolved_settings),
+            max_age=max_age,
+            httponly=False,
+            secure=resolved_settings.oidc_session_cookie_secure,
+            samesite="lax",
+            path="/",
         )
 
     def revoke_oidc_session_from_cookie(
@@ -1571,7 +1846,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         revocation_reason: str,
         federated_logout: bool,
     ) -> None:
-        session_cookie = request.cookies.get(resolved_settings.oidc_session_cookie_name)
+        session_cookie = request.cookies.get(session_cookie_name(resolved_settings))
         if not session_cookie:
             return
 
@@ -1608,8 +1883,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             )
 
+    def record_oidc_login_failure(
+        request: Request,
+        *,
+        reason: str,
+        principal: OidcPrincipal | None,
+    ) -> None:
+        with session_scope(request.app.state.session_factory) as session:
+            repository = AxisPersistenceRepository(session)
+            repository.append_audit_event(
+                AuditEventCreate(
+                    tenant_id=principal.tenant_id if principal else "tenant_unattributed",
+                    actor_id=principal.actor_id if principal else "browser_unauthenticated",
+                    event_type="identity.oidc_login.failed",
+                    payload={
+                        "reason": reason,
+                        "flow": "authorization_code_pkce",
+                        "session_boundary": OIDC_SESSION_BOUNDARY,
+                    },
+                )
+            )
+
     @app.get("/identity/oidc/callback", tags=["system"])
     def oidc_callback(request: Request, code: str, state: str) -> RedirectResponse:
+        principal: OidcPrincipal | None = None
         try:
             login_state = read_login_state(
                 request.cookies.get(resolved_settings.oidc_login_cookie_name),
@@ -1639,14 +1936,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             if id_token_claims.get("sub") != principal.subject_id:
                 raise OidcAuthenticationError("id_token_subject_mismatch")
+            absolute_timeout_seconds = resolved_settings.oidc_session_absolute_timeout_seconds
             session_cookie_value, session_max_age, session_id = session_cookie_from_principal(
                 token_response,
                 principal,
                 resolved_settings,
+                max_age_ceiling=(
+                    absolute_timeout_seconds if absolute_timeout_seconds > 0 else None
+                ),
             )
             session_claims = read_session_cookie(session_cookie_value, resolved_settings)
             session_hash = session_id_hash(session_id, resolved_settings)
             expires_at = datetime.fromtimestamp(session_claims.expires_at, UTC)
+            absolute_expires_at = (
+                datetime.now(UTC) + timedelta(seconds=absolute_timeout_seconds)
+                if absolute_timeout_seconds > 0
+                else None
+            )
+            refresh_token = token_response.get("refresh_token")
+            refresh_token_ciphertext = None
+            if (
+                isinstance(refresh_token, str)
+                and refresh_token
+                and resolved_settings.oidc_refresh_token_encryption_key
+            ):
+                refresh_token_ciphertext = encrypt_refresh_token(
+                    refresh_token, resolved_settings
+                )
             with session_scope(request.app.state.session_factory) as session:
                 repository = AxisPersistenceRepository(session)
                 audit_event = repository.append_audit_event(
@@ -1656,8 +1972,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         event_type="identity.oidc_session.created",
                         payload={
                             "session_id_hash": session_hash,
-                            "session_boundary": "http_only_cookie_verified_by_axis_api",
+                            "session_boundary": OIDC_SESSION_BOUNDARY,
                             "expires_at": expires_at.isoformat(),
+                            "absolute_expires_at": (
+                                absolute_expires_at.isoformat() if absolute_expires_at else None
+                            ),
+                            "refresh_token_stored": bool(refresh_token_ciphertext),
                             "scopes": principal.scopes,
                         },
                     )
@@ -1669,9 +1989,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         actor_id=principal.actor_id,
                         scopes=principal.scopes,
                         expires_at=expires_at,
+                        absolute_expires_at=absolute_expires_at,
+                        refresh_token_ciphertext=refresh_token_ciphertext,
                         created_audit_event_id=audit_event.id,
                     )
                 )
+                max_concurrent = resolved_settings.oidc_session_max_concurrent
+                if max_concurrent > 0:
+                    active_sessions = repository.list_active_oidc_browser_sessions(
+                        tenant_id=principal.tenant_id,
+                        actor_id=principal.actor_id,
+                    )
+                    excess_count = len(active_sessions) - max_concurrent
+                    if excess_count > 0:
+                        stale_sessions = [
+                            active_session
+                            for active_session in active_sessions
+                            if active_session.session_id_hash != session_hash
+                        ][:excess_count]
+                        for stale_session in stale_sessions:
+                            _expire_stored_session(
+                                repository,
+                                stale_session,
+                                revocation_reason="concurrent_session_limit",
+                            )
         except OidcCookieValidationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1692,6 +2033,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         except (OidcAuthenticationError, OidcTokenExchangeError) as exc:
             reason = getattr(exc, "reason", "token_exchange_failed")
+            record_oidc_login_failure(request, reason=reason, principal=principal)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -1705,14 +2047,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             public_redirect(resolved_settings, login_state.return_to),
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
-        response.set_cookie(
-            resolved_settings.oidc_session_cookie_name,
-            session_cookie_value,
+        set_oidc_session_cookies(
+            response,
+            session_cookie_value=session_cookie_value,
+            session_id=session_id,
             max_age=session_max_age,
-            httponly=True,
-            secure=resolved_settings.oidc_session_cookie_secure,
-            samesite="lax",
-            path="/",
         )
         response.delete_cookie(
             resolved_settings.oidc_login_cookie_name,
@@ -1763,6 +2102,383 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             federated_logout=False,
         )
         return response
+
+    def session_refresh_error(
+        *,
+        status_code: int,
+        reason: str,
+        message: str,
+        error_code: AxisErrorCode = AxisErrorCode.AUTH_REQUIRED,
+    ) -> HTTPException:
+        return HTTPException(
+            status_code=status_code,
+            detail={
+                "code": error_code.value,
+                "message": message,
+                "reason": reason,
+            },
+        )
+
+    @app.post(
+        "/identity/session/refresh",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["system"],
+    )
+    def identity_session_refresh(request: Request) -> Response:
+        session_cookie = request.cookies.get(session_cookie_name(resolved_settings))
+        if not session_cookie:
+            raise session_refresh_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="missing_session_cookie",
+                message="An Axis browser session cookie is required to refresh.",
+            )
+        try:
+            oidc_session = read_session_cookie(session_cookie, resolved_settings)
+            session_hash = session_id_hash(oidc_session.session_id, resolved_settings)
+        except OidcCodeFlowConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC browser sessions are not configured.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except OidcCookieValidationError as exc:
+            raise session_refresh_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                reason="invalid_session_cookie",
+                message="The OIDC session cookie could not be verified.",
+            ) from exc
+
+        # Phase 1: validate preconditions and atomically claim the refresh so
+        # concurrent refreshes with the same cookie cannot both proceed. No IdP
+        # network I/O happens while this transaction is open.
+        claim = _claim_session_refresh(
+            request,
+            session_hash=session_hash,
+            settings=resolved_settings,
+        )
+        if isinstance(claim, HTTPException):
+            raise claim
+
+        # Phase 2: perform the external IdP refresh exchange OUTSIDE any open
+        # database transaction, then re-validate the returned principal.
+        refresh_failure: tuple[str, str] | None = None
+        rotated: _RotatedSessionCookie | None = None
+        try:
+            token_response = request.app.state.oidc_token_exchanger(
+                build_refresh_token_form(
+                    settings=resolved_settings,
+                    refresh_token=claim.refresh_token,
+                ),
+                resolved_settings,
+            )
+            access_token = token_response.get("access_token")
+            if not isinstance(access_token, str) or not access_token:
+                raise OidcTokenExchangeError("missing_access_token")
+            principal = request.app.state.identity_verifier.verify_authorization_header(
+                f"Bearer {access_token}"
+            )
+            if (
+                principal.actor_id != claim.actor_id
+                or principal.tenant_id != claim.tenant_id
+            ):
+                raise OidcAuthenticationError("refresh_principal_mismatch")
+            max_age_ceiling: int | None = None
+            if claim.absolute_expires_at is not None:
+                max_age_ceiling = int(
+                    (
+                        _ensure_aware_datetime(claim.absolute_expires_at)
+                        - datetime.now(UTC)
+                    ).total_seconds()
+                )
+            (
+                session_cookie_value,
+                session_max_age,
+                new_session_id,
+            ) = session_cookie_from_principal(
+                token_response,
+                principal,
+                resolved_settings,
+                max_age_ceiling=max_age_ceiling,
+            )
+        except OidcCodeFlowConfigurationError as exc:
+            # Configuration faults are not the session's fault; release the
+            # claim so the operator can retry after fixing configuration.
+            with session_scope(request.app.state.session_factory) as session:
+                AxisPersistenceRepository(session).release_oidc_browser_session_refresh(
+                    session_hash
+                )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "OIDC session refresh is not configured.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except (OidcAuthenticationError, OidcTokenExchangeError) as exc:
+            refresh_failure = (getattr(exc, "reason", "refresh_failed"), "refresh_failed")
+
+        # Phase 3: persist the terminal outcome in a fresh short transaction.
+        with session_scope(request.app.state.session_factory) as session:
+            repository = AxisPersistenceRepository(session)
+            if refresh_failure is not None:
+                failure_reason, revocation_reason = refresh_failure
+                repository.append_audit_event(
+                    AuditEventCreate(
+                        tenant_id=claim.tenant_id,
+                        actor_id=claim.actor_id,
+                        event_type="identity.oidc_session.refresh_failed",
+                        payload={
+                            "session_id_hash": session_hash,
+                            "reason": failure_reason,
+                            "session_boundary": OIDC_SESSION_BOUNDARY,
+                        },
+                    )
+                )
+                revoke_event = repository.append_audit_event(
+                    AuditEventCreate(
+                        tenant_id=claim.tenant_id,
+                        actor_id=claim.actor_id,
+                        event_type="identity.oidc_session.revoked",
+                        payload={
+                            "session_id_hash": session_hash,
+                            "revocation_reason": revocation_reason,
+                            "session_boundary": OIDC_SESSION_BOUNDARY,
+                            "federated_logout": False,
+                        },
+                    )
+                )
+                repository.revoke_oidc_browser_session(
+                    OidcBrowserSessionRevocation(
+                        session_id_hash=session_hash,
+                        revoked_by=OIDC_SESSION_LIFECYCLE_ACTOR,
+                        revocation_reason=revocation_reason,
+                        revoke_audit_event_id=revoke_event.id,
+                    )
+                )
+            else:
+                new_session_hash = session_id_hash(new_session_id, resolved_settings)
+                session_claims = read_session_cookie(session_cookie_value, resolved_settings)
+                expires_at = datetime.fromtimestamp(session_claims.expires_at, UTC)
+                rotated_refresh_token = token_response.get("refresh_token")
+                next_refresh_token = (
+                    rotated_refresh_token
+                    if isinstance(rotated_refresh_token, str) and rotated_refresh_token
+                    else claim.refresh_token
+                )
+                refresh_count = claim.refresh_count + 1
+                audit_event = repository.append_audit_event(
+                    AuditEventCreate(
+                        tenant_id=principal.tenant_id,
+                        actor_id=principal.actor_id,
+                        event_type="identity.oidc_session.refreshed",
+                        payload={
+                            "previous_session_id_hash": session_hash,
+                            "session_id_hash": new_session_hash,
+                            "session_boundary": OIDC_SESSION_BOUNDARY,
+                            "expires_at": expires_at.isoformat(),
+                            "absolute_expires_at": (
+                                _ensure_aware_datetime(claim.absolute_expires_at).isoformat()
+                                if claim.absolute_expires_at is not None
+                                else None
+                            ),
+                            "refresh_count": refresh_count,
+                            "refresh_token_rotated": bool(
+                                isinstance(rotated_refresh_token, str)
+                                and rotated_refresh_token
+                            ),
+                        },
+                    )
+                )
+                repository.create_oidc_browser_session(
+                    OidcBrowserSessionCreate(
+                        session_id_hash=new_session_hash,
+                        tenant_id=principal.tenant_id,
+                        actor_id=principal.actor_id,
+                        scopes=principal.scopes,
+                        expires_at=expires_at,
+                        absolute_expires_at=claim.absolute_expires_at,
+                        refresh_token_ciphertext=encrypt_refresh_token(
+                            next_refresh_token, resolved_settings
+                        ),
+                        refresh_count=refresh_count,
+                        created_audit_event_id=audit_event.id,
+                    )
+                )
+                repository.mark_oidc_browser_session_rotated(
+                    session_id_hash=session_hash,
+                    rotated_to_session_id_hash=new_session_hash,
+                )
+                rotated = _RotatedSessionCookie(
+                    session_cookie_value=session_cookie_value,
+                    session_id=new_session_id,
+                    max_age=session_max_age,
+                )
+
+        if refresh_failure is not None or rotated is None:
+            failure_reason = refresh_failure[0] if refresh_failure else "refresh_failed"
+            failure_response = JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={
+                    "detail": {
+                        "code": AxisErrorCode.AUTH_REQUIRED.value,
+                        "message": (
+                            "The OIDC session refresh failed and the session was revoked."
+                        ),
+                        "reason": failure_reason,
+                    }
+                },
+            )
+            delete_oidc_session_cookie(failure_response)
+            return failure_response
+
+        response = Response(status_code=status.HTTP_204_NO_CONTENT)
+        set_oidc_session_cookies(
+            response,
+            session_cookie_value=rotated.session_cookie_value,
+            session_id=rotated.session_id,
+            max_age=rotated.max_age,
+        )
+        return response
+
+    def _require_identity_principal(principal: OidcPrincipal | None) -> OidcPrincipal:
+        if principal is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": AxisErrorCode.AUTH_REQUIRED.value,
+                    "message": "An authenticated OIDC actor is required.",
+                    "reason": "missing_authorization",
+                },
+            )
+        return principal
+
+    def _require_session_admin_scope(principal: OidcPrincipal, *, resource: str) -> None:
+        decision = evaluate_permission(
+            PermissionRequest(
+                tenant_id=principal.tenant_id,
+                actor_id=principal.actor_id,
+                actor_scopes=principal.scopes,
+                required_scopes=[IDENTITY_SESSION_ADMIN_SCOPE],
+                attributes={
+                    "surface": "identity",
+                    "resource": resource,
+                },
+            )
+        )
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "Managing other actors' sessions requires the admin scope.",
+                    "required_permission": IDENTITY_SESSION_ADMIN_SCOPE,
+                    "reason": "missing_required_scope",
+                    "permission_reason": decision.reason,
+                },
+            )
+
+    def _current_session_hash(request: Request) -> str | None:
+        session_cookie = request.cookies.get(session_cookie_name(resolved_settings))
+        if not session_cookie:
+            return None
+        try:
+            oidc_session = read_session_cookie(session_cookie, resolved_settings)
+        except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
+            return None
+        return session_id_hash(oidc_session.session_id, resolved_settings)
+
+    @app.get(
+        "/identity/sessions",
+        response_model=IdentityBrowserSessionList,
+        tags=["system"],
+    )
+    def identity_sessions(
+        request: Request,
+        principal: OidcPrincipalDependency,
+        tenant_wide: bool = False,
+    ) -> IdentityBrowserSessionList:
+        resolved_principal = _require_identity_principal(principal)
+        if tenant_wide:
+            _require_session_admin_scope(resolved_principal, resource="session_listing")
+        current_hash = _current_session_hash(request)
+        with session_scope(request.app.state.session_factory) as session:
+            repository = AxisPersistenceRepository(session)
+            stored_sessions = repository.list_oidc_browser_sessions(
+                tenant_id=resolved_principal.tenant_id,
+                actor_id=None if tenant_wide else resolved_principal.actor_id,
+            )
+            records = [
+                IdentityBrowserSessionRecord(
+                    session_ref=str(stored_session.id),
+                    actor_id=stored_session.actor_id,
+                    status=stored_session.status,
+                    current=stored_session.session_id_hash == current_hash,
+                    created_at=stored_session.created_at,
+                    expires_at=stored_session.expires_at,
+                    absolute_expires_at=stored_session.absolute_expires_at,
+                    last_seen_at=stored_session.last_seen_at,
+                    refresh_count=stored_session.refresh_count,
+                    revoked_at=stored_session.revoked_at,
+                    revocation_reason=stored_session.revocation_reason,
+                )
+                for stored_session in stored_sessions
+            ]
+        return IdentityBrowserSessionList(
+            tenant_id=resolved_principal.tenant_id,
+            actor_id=resolved_principal.actor_id,
+            tenant_wide=tenant_wide,
+            sessions=records,
+            notes=[
+                "Session references are opaque identifiers; no token material is returned.",
+                "Revoke a session with POST /identity/sessions/{session_ref}/revoke.",
+            ],
+        )
+
+    @app.post(
+        "/identity/sessions/{session_ref}/revoke",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["system"],
+    )
+    def identity_session_revoke(
+        session_ref: UUID,
+        request: Request,
+        principal: OidcPrincipalDependency,
+    ) -> Response:
+        resolved_principal = _require_identity_principal(principal)
+        with session_scope(request.app.state.session_factory) as session:
+            repository = AxisPersistenceRepository(session)
+            stored_session = repository.get_oidc_browser_session(
+                resolved_principal.tenant_id,
+                session_ref,
+            )
+            if stored_session is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "code": AxisErrorCode.NOT_FOUND.value,
+                        "message": "The browser session was not found in this tenant.",
+                        "reason": "session_not_found",
+                    },
+                )
+            if stored_session.actor_id != resolved_principal.actor_id:
+                _require_session_admin_scope(
+                    resolved_principal, resource="session_revocation"
+                )
+                revocation_reason = "admin_revocation"
+            else:
+                revocation_reason = "self_revocation"
+            if stored_session.status == "active":
+                _expire_stored_session(
+                    repository,
+                    stored_session,
+                    revocation_reason=revocation_reason,
+                    revoked_by=resolved_principal.actor_id,
+                )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get(
         "/identity/session",

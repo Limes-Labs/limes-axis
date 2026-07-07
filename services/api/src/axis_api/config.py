@@ -33,6 +33,7 @@ class Settings(BaseSettings):
             "/identity/oidc/callback",
             "/identity/oidc/logout",
             "/identity/session/logout",
+            "/identity/session/refresh",
             "/deployment/readiness",
             "/support/diagnostics",
         ],
@@ -118,6 +119,33 @@ class Settings(BaseSettings):
     oidc_session_cookie_secure: bool = Field(
         default=False,
         alias="AXIS_OIDC_SESSION_COOKIE_SECURE",
+    )
+    oidc_session_cookie_host_prefix: bool = Field(
+        default=True,
+        alias="AXIS_OIDC_SESSION_COOKIE_HOST_PREFIX",
+    )
+    oidc_csrf_cookie_name: str = Field(
+        default="axis_csrf",
+        alias="AXIS_OIDC_CSRF_COOKIE_NAME",
+    )
+    oidc_session_idle_timeout_seconds: int = Field(
+        default=1800,
+        ge=0,
+        alias="AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS",
+    )
+    oidc_session_absolute_timeout_seconds: int = Field(
+        default=28800,
+        ge=0,
+        alias="AXIS_OIDC_SESSION_ABSOLUTE_TIMEOUT_SECONDS",
+    )
+    oidc_session_max_concurrent: int = Field(
+        default=5,
+        ge=0,
+        alias="AXIS_OIDC_SESSION_MAX_CONCURRENT",
+    )
+    oidc_refresh_token_encryption_key: str | None = Field(
+        default=None,
+        alias="AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY",
     )
     external_model_egress_enabled: bool = Field(
         default=False,

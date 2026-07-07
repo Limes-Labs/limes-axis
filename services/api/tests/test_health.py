@@ -184,6 +184,7 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
+                oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
             )
         )
     )
@@ -216,6 +217,15 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
             "resource_access[limes-axis-api].roles",
         ],
     }
+    assert body["session_lifecycle"] == {
+        "idle_timeout_seconds": 1800,
+        "absolute_timeout_seconds": 28800,
+        "max_concurrent_sessions": 5,
+        "refresh_credential_encryption_configured": True,
+        "refresh_rotation": "server_side_rotating_sessions",
+        "csrf_protection": "hmac_double_submit_header",
+        "host_prefixed_session_cookie": True,
+    }
     assert {check["check_id"]: check["status"] for check in body["checks"]} == {
         "auth_required": "ready",
         "https_issuer": "ready",
@@ -231,9 +241,14 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
         "post_logout_redirect": "ready",
         "session_cookie_signing": "ready",
         "secure_session_cookie": "ready",
+        "host_prefixed_session_cookie": "ready",
+        "refresh_credential_encryption": "ready",
+        "session_idle_timeout": "ready",
+        "session_absolute_timeout": "ready",
     }
     assert "secret" not in str(body).lower()
     assert "password" not in str(body).lower()
+    assert "refresh_token" not in str(body).lower()
 
 
 def test_oidc_onboarding_report_is_public_safe_and_computed_from_settings() -> None:
@@ -263,6 +278,7 @@ def test_oidc_onboarding_report_is_public_safe_and_computed_from_settings() -> N
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="super-secret-cookie-signing-key",
                 oidc_session_cookie_secure=True,
+                oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
             )
         )
     )
@@ -510,6 +526,7 @@ def test_ready_includes_oidc_readiness_summary() -> None:
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
+                oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
             )
         )
     )

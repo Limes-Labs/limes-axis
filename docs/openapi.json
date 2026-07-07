@@ -9898,6 +9898,141 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IdentityBrowserSessionList": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityBrowserSessionRecord"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tenant_wide": {
+            "title": "Tenant Wide",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "actor_id",
+          "tenant_wide"
+        ],
+        "title": "IdentityBrowserSessionList",
+        "type": "object"
+      },
+      "IdentityBrowserSessionRecord": {
+        "properties": {
+          "absolute_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Expires At"
+          },
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "default": false,
+            "title": "Current",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "refresh_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Refresh Count",
+            "type": "integer"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "session_ref": {
+            "minLength": 1,
+            "title": "Session Ref",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_ref",
+          "actor_id",
+          "status",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "IdentityBrowserSessionRecord",
+        "type": "object"
+      },
       "IdentitySessionReadModel": {
         "properties": {
           "actor_id": {
@@ -21657,6 +21792,131 @@
           }
         },
         "summary": "Identity Session Logout",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/identity/session/refresh": {
+      "post": {
+        "operationId": "identity_session_refresh_identity_session_refresh_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Identity Session Refresh",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/identity/sessions": {
+      "get": {
+        "operationId": "identity_sessions_identity_sessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_wide",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Tenant Wide",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityBrowserSessionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Identity Sessions",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/identity/sessions/{session_ref}/revoke": {
+      "post": {
+        "operationId": "identity_session_revoke_identity_sessions__session_ref__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_ref",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Identity Session Revoke",
         "tags": [
           "system"
         ]

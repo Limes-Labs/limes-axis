@@ -810,6 +810,8 @@ Required keys:
 - `AXIS_AUDIT_LEDGER_SIGNING_SECRET`
 - `AXIS_OIDC_CLIENT_SECRET`
 - `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`
+- `AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY` (at least 32 characters; the API
+  fails to start when it is set but shorter)
 - `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY`
 - `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY`
 
@@ -869,6 +871,17 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
 - `POST /identity/session/logout` revokes the persisted Axis browser session,
   writes audit evidence and clears the browser cookie without a federated IdP
   redirect.
+- `POST /identity/session/refresh` performs a server-side refresh-token grant
+  at the configured token endpoint, rotates the Axis session id and refresh
+  token, extends the sliding session inside the absolute lifetime cap and
+  revokes the session when the provider rejects the refresh.
+- `GET /identity/sessions` lists the calling actor's browser sessions as
+  opaque session references with status, creation, expiry and refresh-count
+  metadata; `tenant_wide=true` requires the `identity:sessions:admin` scope.
+- `POST /identity/sessions/{session_ref}/revoke` revokes a session by opaque
+  reference. Actors revoke their own sessions; revoking another actor's
+  session requires the `identity:sessions:admin` scope, and lookups are
+  tenant-isolated.
 
 Configure non-sensitive client and endpoint values in the chart ConfigMap:
 
@@ -882,6 +895,18 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
   issue an ID token for browser SSO.
 - `AXIS_OIDC_SESSION_COOKIE_TTL_SECONDS`
 - `AXIS_OIDC_SESSION_COOKIE_SECURE=true`
+- `AXIS_OIDC_SESSION_COOKIE_HOST_PREFIX=true`, which renames the session and
+  CSRF cookies to `__Host-`-prefixed names whenever Secure cookies are enabled
+  so the browser binds them to the exact host and the `/` path.
+- `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` (default 1800): sessions with no
+  authenticated request inside this window are revoked with
+  `idle_timeout` audit evidence.
+- `AXIS_OIDC_SESSION_ABSOLUTE_TIMEOUT_SECONDS` (default 28800): the hard cap
+  on a login's total lifetime; refresh rotation extends sessions only inside
+  this cap.
+- `AXIS_OIDC_SESSION_MAX_CONCURRENT` (default 5): the newest login revokes the
+  oldest active sessions above this per-actor cap with
+  `concurrent_session_limit` audit evidence; `0` disables the cap.
 
 The Docker Compose demo imports `infra/docker/keycloak/axis-realm.json` for a
 local Keycloak walkthrough. That realm, its `axis-operator` user, the
@@ -899,14 +924,45 @@ present, compares the ID-token nonce to the signed login-state cookie nonce and
 requires the access-token subject to match the ID-token subject. The Axis
 session cookie stores only API-owned actor, tenant, scope, expiry and
 session-id claims; the `oidc_browser_sessions` table stores only a keyed
-session-id hash plus actor, tenant, scopes, expiry and revocation metadata,
-providing server-side session revocation without storing provider tokens. The
-federated logout redirect uses `client_id` and `post_logout_redirect_uri`;
-Axis does not persist or forward `id_token_hint`, access tokens or refresh
+session-id hash plus actor, tenant, scopes, expiry, lifecycle and revocation
+metadata, providing server-side session revocation without storing raw provider
+tokens. When the provider issues a refresh token and
+`AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY` is configured, Axis stores the refresh
+token only as AES-GCM ciphertext bound to the session row; the AES key is
+HKDF-derived (SHA-256, fixed salt and context) from the operator-supplied key,
+which must be at least 32 characters or the API refuses to start. Without the
+key the refresh token is discarded and `POST /identity/session/refresh` returns
+`refresh_not_available`. Refresh rotates both the Axis session id and the
+stored refresh credential; the transition is guarded by an atomic
+`active` -> `refreshing` claim so two concurrent refreshes with the same cookie
+cannot both mint a child session, the IdP token exchange runs outside the open
+database transaction, and the superseded session row is marked `rotated` with
+its ciphertext cleared so a replayed pre-rotation cookie is rejected. A failed
+provider refresh revokes the session and forces a fresh login.
+
+CSRF protection is enforced centrally by `BrowserSessionCsrfMiddleware` on every
+state-changing request (POST/PUT/PATCH/DELETE), not just the identity
+endpoints, so cookie-authenticated mutations across the API (approvals,
+actions, audit retention and legal holds, connector and policy authoring,
+notification acknowledgements, and session management) all require a matching
+`X-Axis-Csrf-Token` header. The callback sets a JavaScript-readable CSRF cookie
+whose value is an HMAC of the session id under the cookie-signing key; the
+middleware recomputes and compares it per request with a constant-time check,
+so no CSRF state is stored server-side. Safe methods (GET/HEAD/OPTIONS) and
+requests that authenticate with an `Authorization` bearer header are exempt
+because they carry no ambient cookie authority, which keeps bearer-only clients
+and the GET-based OIDC callback and federated-logout navigations working.
+
+The federated logout redirect uses `client_id` and `post_logout_redirect_uri`;
+Axis does not persist or forward `id_token_hint`, access tokens or raw refresh
 tokens. The IdP onboarding report never returns confidential client material,
-cookie-signing material, provider tokens or raw JWKS material. Refresh-token
-rotation and production SSO operations runbooks remain Enterprise hardening
-work.
+cookie-signing material, provider tokens or raw JWKS material. Login, refresh,
+revocation and logout lifecycle transitions - including failed code exchanges
+and failed refreshes - append `identity.oidc_login.failed`,
+`identity.oidc_session.created`, `identity.oidc_session.refreshed`,
+`identity.oidc_session.refresh_failed` and `identity.oidc_session.revoked`
+audit events that reference sessions only by keyed hash. Customer-specific
+production SSO operations runbooks remain Enterprise onboarding work.
 
 `GET /deployment/readiness` reports `oidc_secure_cookie_session` as a
 production blocker unless browser sessions use the Secure cookie flag, an
