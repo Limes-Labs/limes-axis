@@ -147,6 +147,42 @@ cache: they read persisted tenant status directly so a suspension blocks the
 next login or refresh with no staleness window, at negligible cost on those
 low-frequency paths.
 
+## Console
+
+The governance console ships an operator surface for this API at `/tenants`
+(top-level in the console navigation, alongside the other platform-operator
+surfaces such as Policies, rather than nested under the operator's own
+`/settings`). It is a cross-tenant fleet-administration surface, not a
+tenant-scoped view.
+
+The tenant list (`/tenants`) renders the `TenantRegistry` as a table
+(`tenant_id`, display name, status pill, created-by, latest lifecycle
+transition, updated timestamp), a status filter over `active` / `suspended` /
+`pending_deletion`, and the API-required and empty states used across the
+console (no local fallback data). A provision form on the list validates the
+`tenant_id` against the server pattern `^[a-z0-9][a-z0-9_-]*$` before any
+request is sent, generates a client-side `idempotency_key`, and surfaces the
+`201` created, idempotent-replay `200`, `409` conflict and `422` field-mapped
+outcomes distinctly. An optional bootstrap-admin block collects the actor id,
+display name and requested scopes (recorded as audit evidence only).
+
+The tenant detail (`/tenants/{tenant_id}`) shows the full `TenantRecord`, a
+lifecycle timeline (provisioned / suspended / reactivated with actor, reason
+and the audit event id for the latest transition), and the lifecycle actions:
+suspend with a required reason when the tenant is active, reactivate when it is
+suspended. A quota panel reads the current `TenantQuotaSet` and edits the three
+typed values with numeric inputs; a blank field clears the override (the API's
+`null`-clears semantics), inputs are bound to the server `ge`/`le` limits, and
+a confirmation step precedes the `PUT`, after which the panel refetches.
+
+Every write is issued through the shared session bridge, which auto-attaches
+the CSRF double-submit header. The console sends the fixed
+`platform-tenant-operator-role` actor id and the operator scopes for each
+action; the API rebinds `requested_by`/`actor_scopes` from the authenticated
+OIDC principal and gates authority on `platform:tenant:operator` plus the
+per-action scope (`:provision`, `:suspend`, `:read`, `:quota`). Operators
+missing a scope receive the `403` surfaced inline on the relevant form.
+
 ## Boundaries
 
 The slice is a foundation. It does not yet include:
@@ -155,7 +191,8 @@ The slice is a foundation. It does not yet include:
   the principal boundary, but no deletion pipeline exists);
 - an approval-workflow gate on lifecycle transitions or quota changes;
 - per-tenant quotas beyond the three typed keys;
-- a console surface for tenant administration;
+- a dedicated single-tenant read route (the console detail view derives its
+  record from the operator-scoped registry list);
 - distributed rate-limit or cache coordination across replicas (each process
   enforces from its own cache within the TTL staleness window).
 

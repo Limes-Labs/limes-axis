@@ -138,7 +138,12 @@ idempotent replay and audit evidence, suspended tenants are rejected
 fail-closed at the OIDC principal boundary, and typed per-tenant quotas
 override the global API rate limit, concurrent-session cap and live-sync row
 limits through a short-TTL tenant state cache (see
-[`docs/platform-tenants.md`](./docs/platform-tenants.md)).
+[`docs/platform-tenants.md`](./docs/platform-tenants.md)). A top-level
+`/tenants` operator console drives that API: it lists tenants with a status
+filter, provisions new tenants with client-side id validation and a generated
+idempotency key, and exposes the lifecycle timeline, suspend/reactivate actions
+and per-tenant quota editing (with the API's null-clear semantics) on the
+tenant detail view.
 
 The web console runtime libraries no longer export browser-local fallback seed
 records, including the connector console records; those pages are API-required
