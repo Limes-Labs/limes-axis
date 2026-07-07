@@ -12,6 +12,7 @@ const runtimeLibFiles = [
   "ontology-demo.ts",
   "operations-artifacts.ts",
   "platform-overview.ts",
+  "platform-policies.ts",
   "simulation-demo.ts",
   "workflow-demo.ts",
 ];

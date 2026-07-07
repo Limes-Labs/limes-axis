@@ -226,6 +226,7 @@ test.describe("Axis console smoke", () => {
       "Agents",
       "Models",
       "Approvals",
+      "Policies",
       "Audit",
       "Simulation",
       "Connectors",
@@ -395,6 +396,36 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Local fallback workflow records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback workflow seed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toHaveCount(0);
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("requires the platform policy API instead of local policy data", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Policies" }).first()).toHaveAttribute(
+      "href",
+      "/policies",
+    );
+
+    await page.goto("/policies");
+
+    await expect(page.getByRole("heading", { name: "Platform policy rules" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback policy records are disabled.")).toBeVisible();
+    await expect(page.getByText("/platform/policies", { exact: true })).toBeVisible();
+    await expect(page.getByText("Fallback policy seed")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Deny critical actions/ })).toHaveCount(0);
+
+    await page.goto("/policies/deny_critical_actions");
+
+    await expect(page.getByRole("heading", { name: "Policy detail" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
+    await expect(page.getByText("/platform/policies/deny_critical_actions")).toBeVisible();
+    await expect(page.getByRole("form", { name: "Policy dry-run evaluation" })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

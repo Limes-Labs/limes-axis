@@ -158,11 +158,43 @@ Idempotent replays of already-persisted records return the stored record
 without re-evaluating policy, so replays never mutate state under a newer
 policy.
 
+## Console
+
+The governance console exposes the policy engine as a read-and-evaluate
+surface under the `Policies` navigation section:
+
+- `/policies` lists the tenant-scoped policy registry through
+  `GET /platform/policies` with scope and status filters, effect and status
+  signals, summarized typed conditions and revision markers. When the API is
+  unreachable the page shows the standard API-required state; there are no
+  browser-local fallback policy records.
+- `/policies/{policy_id}` reads `GET /platform/policies/{policy_id}` and shows
+  the full active definition, the typed rule conditions (action domains, risk
+  levels, autonomy levels, amount threshold), the deterministic precedence
+  explanation (`deny` beats `require_approval` beats `allow_with_evidence`,
+  ties broken by smallest policy id, default allow without a match) and the
+  append-only revision history with authorship, timestamps and superseded
+  markers.
+- The detail page includes a dry-run evaluation panel that composes a typed
+  evaluation context (scope, action domain, risk level, autonomy level,
+  requested amount) and posts it to `POST /platform/policies/evaluate`. The
+  returned decision — effect, matched policies with revisions, evaluated
+  policy count, precedence rule and evidence payload — is rendered inline and
+  clearly labeled as a dry run that never mutates state.
+
+All console reads and the evaluate call go through the shared Axis API fetch
+layer, so OIDC bearer sessions and API-owned session cookies attach the same
+way as on every other console surface. The console is deliberately read and
+evaluate only: policy authoring and revision (`POST /platform/policies`,
+`POST /platform/policies/{policy_id}/revisions`) remain API-driven and are
+follow-up console work.
+
 ## Boundaries
 
 The engine is a foundation slice. It does not yet include:
 
-- a policy console UI;
+- console policy authoring or revision controls (the console is read and
+  evaluate only; authoring stays on the API);
 - enforcement points beyond action run creation, approval decision transitions
   and action run outcome recording;
 - policy simulation over historical events for platform policies;
