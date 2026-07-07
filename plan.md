@@ -121,6 +121,10 @@ Foundation acceptance is tracked in
   concurrent-session caps, tenant-isolated session listing and revocation
   endpoints, `__Host-` Secure cookie posture and CSRF protection for
   cookie-authenticated session mutations.
+- [x] Capture per-session device metadata (bounded user agent, client IP under
+  an explicit trusted-proxy flag, derived device label) at login and refresh
+  rotation, expose it through the owner/admin session listing only, keep it
+  out of audit payloads, and cursor-paginate `GET /identity/sessions`.
 - [x] Query persisted audit events from the audit explorer.
 - [x] Add demo audit export manifests, retention enforcement and integrity proof.
 - [x] Add self-hosted KMS-style ledger signature proof for audit export bundles.
@@ -623,9 +627,14 @@ timeouts plus a per-actor concurrent-session cap, and every lifecycle
 transition (login, failed code exchange, refresh, failed refresh, revocation,
 logout) appends audit evidence that references sessions only by keyed hash.
 `GET /identity/sessions` lists the calling actor's sessions as opaque
-references and `POST /identity/sessions/{session_ref}/revoke` revokes them;
-tenant-wide listing and revocation require the `identity:sessions:admin` scope
-and lookups stay tenant-isolated. CSRF is enforced centrally for every
+references - cursor-paginated newest-first with `page_size`, `has_more` and
+`next_cursor` - including the device metadata captured at login and refresh
+(bounded user agent, client IP under the explicit trusted-proxy flag and a
+derived device label); `POST /identity/sessions/{session_ref}/revoke` revokes
+them. Tenant-wide listing and revocation require the
+`identity:sessions:admin` scope and lookups stay tenant-isolated; device
+metadata is visible only in this owner/admin listing and never enters audit
+payloads. CSRF is enforced centrally for every
 cookie-authenticated state-changing request across the API through a
 double-submit `X-Axis-Csrf-Token` header matched against the HMAC-derived CSRF
 cookie issued at login; bearer-token and safe-method requests are exempt, and

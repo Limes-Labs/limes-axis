@@ -9905,6 +9905,22 @@
             "title": "Actor Id",
             "type": "string"
           },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -9956,6 +9972,17 @@
             "title": "Actor Id",
             "type": "string"
           },
+          "client_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ip"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -9965,6 +9992,17 @@
             "default": false,
             "title": "Current",
             "type": "boolean"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
           },
           "expires_at": {
             "format": "date-time",
@@ -10021,6 +10059,17 @@
             "minLength": 1,
             "title": "Status",
             "type": "string"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
           }
         },
         "required": [
@@ -22494,6 +22543,36 @@
             }
           },
           {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 600,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
             "in": "header",
             "name": "Authorization",
             "required": false,
@@ -22522,14 +22601,7 @@
             "description": "Successful Response"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Session listing cursor or page size is invalid"
           }
         },
         "summary": "Identity Sessions",

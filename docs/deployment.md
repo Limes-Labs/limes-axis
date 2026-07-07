@@ -877,7 +877,14 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
   revokes the session when the provider rejects the refresh.
 - `GET /identity/sessions` lists the calling actor's browser sessions as
   opaque session references with status, creation, expiry and refresh-count
-  metadata; `tenant_wide=true` requires the `identity:sessions:admin` scope.
+  metadata plus the device metadata captured at login and refresh (bounded
+  user agent, client IP and a derived `device_label` such as
+  "Safari on macOS"); `tenant_wide=true` requires the
+  `identity:sessions:admin` scope. The listing is cursor-paginated:
+  `page_size` (default 20, max 100) bounds the page, and the response
+  reports `has_more` plus an opaque `next_cursor` to fetch the next page in
+  stable newest-first order. Callers that never send a cursor keep getting
+  the first page with the same response shape.
 - `POST /identity/sessions/{session_ref}/revoke` revokes a session by opaque
   reference. Actors revoke their own sessions; revoking another actor's
   session requires the `identity:sessions:admin` scope, and lookups are
@@ -907,6 +914,22 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 - `AXIS_OIDC_SESSION_MAX_CONCURRENT` (default 5): the newest login revokes the
   oldest active sessions above this per-actor cap with
   `concurrent_session_limit` audit evidence; `0` disables the cap.
+- `AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED` (default `false`): controls
+  the trust model for the client IP recorded as session device metadata.
+  When false the API records the direct socket peer address and ignores
+  `X-Forwarded-For` entirely, because any client can forge that header.
+  Set it to `true` only when every client connection reaches the API
+  through EXACTLY ONE trusted reverse proxy or ingress (the standard Helm
+  ingress topology). Standard proxies append the peer they observed to
+  `X-Forwarded-For` (e.g. nginx `$proxy_add_x_forwarded_for`), so the API
+  then records the LAST (rightmost) hop - the address that single trusted
+  proxy actually saw the connection from - and falls back to the socket peer
+  when the header is missing or malformed. Every entry to the left of the
+  rightmost hop is client-attested and forgeable, so it is never recorded.
+  Never enable the flag when clients can bypass the proxy and reach the API
+  directly. This assumes exactly one trusted proxy; a multi-proxy chain would
+  need a configurable trusted-hop count to skip the extra proxy-added hops,
+  which is a documented follow-up and not yet implemented.
 - `AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS` (default 120): a session stuck in
   the `refreshing` state longer than this window (the refreshing process
   crashed between the claim and its completion) is revoked with
@@ -932,7 +955,16 @@ session cookie stores only API-owned actor, tenant, scope, expiry and
 session-id claims; the `oidc_browser_sessions` table stores only a keyed
 session-id hash plus actor, tenant, scopes, expiry, lifecycle and revocation
 metadata, providing server-side session revocation without storing raw provider
-tokens. When the provider issues a refresh token and
+tokens. Each session row also stores the device metadata captured at login and
+re-captured on refresh rotation: the `User-Agent` header truncated to 256
+characters, the client IP resolved under the
+`AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED` trust model, and a compact
+device label derived by a deterministic in-process parser (major browser and
+OS families only; anything unrecognized becomes "Unknown device"). The
+metadata is returned only by the owner/admin-scoped `GET /identity/sessions`
+listing, never enters audit payloads (the client IP in particular stays out of
+the audit ledger), and lives and dies with the session row - there is no
+separate retention store for it. When the provider issues a refresh token and
 `AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY` is configured, Axis stores the refresh
 token only as AES-GCM ciphertext bound to the session row; the AES key is
 HKDF-derived (SHA-256, fixed salt and context) from the operator-supplied key,
