@@ -539,6 +539,8 @@ def test_revoke_own_session_by_reference() -> None:
         assert stored.status == "revoked"
         assert stored.revocation_reason == "self_revocation"
         assert stored.revoked_by == DEFAULT_ACTOR
+        # Revocation drops the at-rest refresh credential.
+        assert stored.refresh_token_ciphertext is None
         assert _audit_event_types(session) == [
             "identity.oidc_session.created",
             "identity.oidc_session.revoked",
@@ -879,6 +881,8 @@ def test_stale_refreshing_session_is_revoked_as_orphaned_on_presentation() -> No
         assert stored.status == "revoked"
         assert stored.revocation_reason == "refresh_claim_orphaned"
         assert stored.revoked_by == "axis-session-lifecycle"
+        # Orphan recovery revokes via the same path, so the credential is dropped.
+        assert stored.refresh_token_ciphertext is None
         revoked_events = [
             event
             for event in session.scalars(select(AuditEvent))

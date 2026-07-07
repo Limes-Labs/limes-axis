@@ -1005,6 +1005,9 @@ class AxisPersistenceRepository:
         browser_session.revoked_by = record.revoked_by
         browser_session.revocation_reason = record.revocation_reason
         browser_session.revoke_audit_event_id = record.revoke_audit_event_id
+        # At-rest data minimization: a revoked session can never refresh, so
+        # drop the encrypted refresh credential, mirroring the rotation path.
+        browser_session.refresh_token_ciphertext = None
         browser_session.updated_at = now
         self.session.flush()
         return browser_session
