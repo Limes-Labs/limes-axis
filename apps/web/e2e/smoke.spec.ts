@@ -230,6 +230,7 @@ test.describe("Axis console smoke", () => {
       "Audit",
       "Simulation",
       "Connectors",
+      "Tenants",
       "Settings",
     ]);
     expect(sidebarState.sidebar?.clientHeight).toBe(sidebarState.viewportHeight);
@@ -845,6 +846,196 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("quality-auditor-role")).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
+  });
+
+  test("requires the platform tenant API instead of local tenant data", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Tenants" }).first()).toHaveAttribute(
+      "href",
+      "/tenants",
+    );
+
+    await page.goto("/tenants");
+
+    await expect(page.getByRole("heading", { name: "Tenant operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback tenant records are disabled.")).toBeVisible();
+    await expect(page.getByText("/platform/tenants", { exact: true })).toBeVisible();
+    await expect(page.getByRole("form", { name: "Tenant provisioning" })).toHaveCount(0);
+
+    await page.goto("/tenants/tenant_acme");
+
+    await expect(page.getByRole("heading", { name: "Tenant detail" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toBeVisible();
+    await expect(page.getByText("/platform/tenants/tenant_acme", { exact: true })).toBeVisible();
+    await expect(page.getByRole("form", { name: "Suspend tenant" })).toHaveCount(0);
+    await expect(page.getByRole("form", { name: "Tenant quota update" })).toHaveCount(0);
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("provisions a tenant and suspends it through the mocked tenant API", async ({
+    context,
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await context.addCookies([
+      { name: "axis_csrf", value: "csrf-e2e-token", url: "http://127.0.0.1:3100" },
+    ]);
+
+    const tenantRecord = {
+      tenant_id: "tenant_acme",
+      display_name: "Acme Manufacturing",
+      description: "Reference tenant.",
+      status: "active",
+      created_by: "platform-tenant-operator-role",
+      bootstrap_admin_actor_id: null,
+      provision_idempotency_key: "idem-key-1",
+      suspended_at: null,
+      suspended_by: null,
+      suspension_reason: null,
+      reactivated_at: null,
+      reactivated_by: null,
+      permission_decision: { allowed: true, reason: "operator_scope_present" },
+      audit_event_id: "11111111-1111-4111-8111-111111111111",
+      audit_event_type: "platform.tenant.provisioned",
+      idempotent_replay: false,
+      notes: [],
+      created_at: "2026-07-01T08:00:00Z",
+      updated_at: "2026-07-01T08:00:00Z",
+    };
+
+    const tenantPosts: string[] = [];
+    // Registry list + provision POST live on the same base path.
+    await page.route(
+      (url) =>
+        url.href === "http://127.0.0.1:65534/platform/tenants"
+        || url.href.startsWith("http://127.0.0.1:65534/platform/tenants?"),
+      async (route) => {
+        if (route.request().method() === "POST") {
+          tenantPosts.push(route.request().postData() ?? "");
+          await route.fulfill({ contentType: "application/json", json: tenantRecord, status: 201 });
+          return;
+        }
+
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            tenant_count: 1,
+            active_tenant_count: 1,
+            tenants: [tenantRecord],
+            tenant_notes: [],
+          },
+          status: 200,
+        });
+      },
+    );
+
+    const [listRequest] = await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "GET"
+          && request.url().startsWith("http://127.0.0.1:65534/platform/tenants"),
+      ),
+      page.goto("/tenants"),
+    ]);
+    // The list is requested at the API maximum so the ceiling is as high as
+    // the API allows.
+    expect(new URL(listRequest.url()).searchParams.get("limit")).toBe("200");
+
+    await expect(page.getByRole("heading", { name: "Tenant lifecycle" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Acme Manufacturing" })).toBeVisible();
+    // A short list is not capped, so no cap notice is shown.
+    await expect(page.getByRole("heading", { name: /Showing the first 200 tenants/ })).toHaveCount(
+      0,
+    );
+
+    const provisionForm = page.getByRole("form", { name: "Tenant provisioning" });
+    await expect(provisionForm).toBeVisible();
+
+    // Client-side validation blocks a bad tenant id with zero requests.
+    await page.getByLabel("New tenant id").fill("Bad Tenant Id");
+    await page.getByLabel("New tenant display name").fill("Bad Tenant");
+    await provisionForm.getByRole("button", { name: "Provision tenant" }).click();
+    await expect(
+      page.getByText("Tenant id must match ^[a-z0-9][a-z0-9_-]*$", { exact: false }),
+    ).toBeVisible();
+    expect(tenantPosts).toEqual([]);
+
+    // A valid draft round-trips through the mocked provision endpoint with CSRF.
+    await page.getByLabel("New tenant id").fill("tenant_acme");
+    await page.getByLabel("New tenant display name").fill("Acme Manufacturing");
+    await page.getByLabel("New tenant description").fill("Reference tenant.");
+
+    const [provisionRequest] = await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "POST"
+          && request.url() === "http://127.0.0.1:65534/platform/tenants",
+      ),
+      provisionForm.getByRole("button", { name: "Provision tenant" }).click(),
+    ]);
+    expect(provisionRequest.headers()["x-axis-csrf-token"]).toBe("csrf-e2e-token");
+    const provisionBody = provisionRequest.postDataJSON();
+    expect(provisionBody.tenant_id).toBe("tenant_acme");
+    expect(provisionBody.display_name).toBe("Acme Manufacturing");
+    expect(provisionBody.actor_scopes).toEqual([
+      "platform:tenant:operator",
+      "platform:tenant:provision",
+    ]);
+    expect(typeof provisionBody.idempotency_key).toBe("string");
+    await expect(page.getByText("Tenant provisioned.")).toBeVisible();
+
+    // Suspend the tenant from the detail view; the action posts the reason.
+    await page.route(
+      "http://127.0.0.1:65534/platform/tenants/tenant_acme/quotas",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          json: { tenant_id: "tenant_acme", quotas: {}, quota_notes: [] },
+          status: 200,
+        });
+      },
+    );
+    await page.route(
+      "http://127.0.0.1:65534/platform/tenants/tenant_acme/suspend",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          json: { ...tenantRecord, status: "suspended", suspended_by: "operator" },
+          status: 200,
+        });
+      },
+    );
+
+    await page.goto("/tenants/tenant_acme");
+    await expect(page.getByRole("heading", { name: "Acme Manufacturing" })).toBeVisible();
+    await expect(page.getByText("Provisioned", { exact: true })).toBeVisible();
+
+    const suspendForm = page.getByRole("form", { name: "Suspend tenant" });
+    await expect(suspendForm).toBeVisible();
+    await page.getByLabel("Suspension reason").fill("Contract paused");
+
+    const [suspendRequest] = await Promise.all([
+      page.waitForRequest("http://127.0.0.1:65534/platform/tenants/tenant_acme/suspend"),
+      suspendForm.getByRole("button", { name: "Suspend tenant" }).click(),
+    ]);
+    expect(suspendRequest.method()).toBe("POST");
+    expect(suspendRequest.headers()["x-axis-csrf-token"]).toBe("csrf-e2e-token");
+    expect(suspendRequest.postDataJSON()).toMatchObject({
+      reason: "Contract paused",
+      actor_scopes: ["platform:tenant:operator", "platform:tenant:suspend"],
+    });
+    await expect(page.getByText(/Tenant suspended\./)).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
   });
 
   test("requires the settings readiness APIs instead of local settings data", async ({ page }) => {

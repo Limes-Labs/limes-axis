@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 import {
   Bot,
+  Building2,
   Cable,
   Gauge,
   Network,
@@ -27,6 +28,7 @@ const iconMap: Record<NavigationItem["icon"], ComponentType<{ size?: number }>> 
   scroll: ScrollText,
   receipt: ReceiptText,
   cable: Cable,
+  building: Building2,
   settings: Settings,
 };
 
