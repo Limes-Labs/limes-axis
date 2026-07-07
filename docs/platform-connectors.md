@@ -611,6 +611,59 @@ mutations. Failed profile validation, endpoint binding or query execution
 records
 `connector.run.sync_execution_live_query_blocked` with a public-safe reason and
 `external_query_started=false`.
+Scheduled runs that set `live_sync_requested=true` in their input summary can
+opt into GOVERNED LIVE SYNC EXECUTION on the same execute-sync endpoint. The
+live sync boundary stays deferred by default: it activates only when both
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED=true` and
+`AXIS_CONNECTOR_LIVE_SYNC_EXECUTION_ENABLED=true` are set, and each source type
+still needs its own configured profile. The file/CSV connector reads an
+allowlisted local dropzone file configured through
+`AXIS_FILE_CSV_LIVE_SYNC_ROOT`, `AXIS_FILE_CSV_LIVE_SYNC_PROFILE_ID`,
+`AXIS_FILE_CSV_LIVE_SYNC_MAX_ROWS` and `AXIS_FILE_CSV_LIVE_SYNC_BATCH_SIZE`;
+file references are validated against traversal, suffix and size limits before
+any read. The external Postgres connector reuses the allowlisted live-query
+profile plus `AXIS_EXTERNAL_DB_LIVE_SYNC_BATCH_SIZE`, and additionally requires
+`AXIS_EXTERNAL_DB_SYNC_EXECUTION_ENABLED`,
+`AXIS_EXTERNAL_DB_LIVE_QUERY_PREFLIGHT_ENABLED` and
+`AXIS_EXTERNAL_DB_LIVE_QUERY_EXECUTION_ENABLED` before batched reads are
+considered. Live sync execution also requires the tenant-scoped connector
+manifest to be `active_live` (`connector_manifest_not_active_live` otherwise),
+an active credential lease with lease-scoped secret-reference evidence and, for
+the external DB source, validated persisted egress policy evidence bound to the
+approved private endpoint target digest. Unapproved egress evidence, profile or
+endpoint mismatches and unsupported credential access modes persist a
+`sync_execution_live_sync_blocked` run with
+`connector.run.sync_execution_live_sync_blocked` audit evidence before any
+source read.
+A permitted live sync executes in bounded batches through the orchestrated
+runtime boundary. Every execution writes
+`connector.run.sync_execution_started` stage evidence with the resume offset,
+then commits one `sync_batch` checkpoint per batch with
+`connector.run.sync_batch_committed` audit evidence and public-safe counts and
+offsets only. Rows read from the source are mapped through the persisted
+manifest schema fields into review-only ontology proposal records
+(`connector.ontology_proposals.recorded`, `proposal_only`,
+`graph_mutation_status=not_applied`, mapping profile
+`connector_live_sync_v1`), so live sync output feeds the existing
+approval-gated promotion path and never mutates the graph directly. Row
+payloads live only in proposal field summaries; run records, checkpoints and
+audit payloads keep counts, offsets and references.
+Failure semantics are deterministic and fail-closed. Source unavailability
+(`connector_unavailable`), schema mismatches (`source_schema_mismatch`), query
+failures (`query_failed`), mid-run credential lease expiry
+(`credential_lease_expired_mid_run`) and batch limits persist a
+`sync_execution_failed` run with `connector.run.sync_execution_failed` audit
+evidence and a `sync_error_code`; committed batch checkpoints and their
+proposals are never rolled back into silent partial success. A failed live
+sync run can be retried with a new execution id and idempotency key: the retry
+resumes from the `next_offset` of the last committed `sync_batch` checkpoint
+and must present an active worker claim on that checkpoint through
+`checkpoint_claim_id` (claimed via the existing checkpoint claim endpoint), so
+two workers cannot resume the same run concurrently. Missing, expired,
+foreign-worker or unsafe resume claims are rejected before any source read.
+Replaying a completed execution with the same execution id and idempotency key
+returns the persisted run without duplicate evidence; any other reuse is
+rejected with 409.
 Every sync execution attempt now records a tenant-scoped
 `connector_sync_checkpoints` row after the runtime adapter returns. Checkpoints
 store public-safe cursor metadata, adapter status, result summaries and audit
@@ -619,7 +672,11 @@ secret material. External DB live-read checkpoints may record
 `external_query_started=true` only together with
 `source_mode=external_db_live_read`,
 `live_query_execution_status=completed`, `credential_material_returned=false`
-and `graph_mutation_started=false`.
+and `graph_mutation_started=false`. External DB live sync evidence may record
+`external_query_started=true` only together with
+`source_mode=external_db_live_sync`, an in-progress/completed/failed
+`live_sync_execution_status`, `credential_material_returned=false`,
+`graph_mutation_started=false` and an allowlisted public-safe key set.
 The checkpoint registry is exposed at
 `/demo/manufacturing/connectors/runs/checkpoints` and supports tenant,
 connector, run, status, `created_after`, `created_before` and limit filters.
@@ -975,6 +1032,15 @@ contract keeps these boundaries visible:
   preflight can pass;
 - tenant-scoped sync execution checkpoints before provider-specific retry and
   resume logic;
+- governed live sync execution behind explicit runtime flags, per-source
+  profiles, `active_live` manifests, credential lease evidence and (for
+  external DB sources) persisted egress policy evidence;
+- committed per-batch sync checkpoints with stage audit evidence and
+  resume-from-last-checkpoint retries behind worker checkpoint claims;
+- fail-closed live sync error taxonomy with persisted failed-run evidence and
+  no partial silent success;
+- live-sync row payload confinement to review-only ontology proposals, keeping
+  graph mutation behind the approval-gated promotion path;
 - connector API checkpoint queries with dedicated read scope for
   worker/operator observability;
 - checkpoint API pagination through `created_before` for stable operator and
@@ -1068,6 +1134,12 @@ The slice is covered by:
   verification, local object-store writes and public-safety constraints;
 - API unit tests for connector run records, `active_preview` manifest gating,
   audit writes and raw payload rejection;
+- API unit tests for governed live sync execution: file/CSV dropzone reads
+  against real temporary files, Postgres live sync policy gates at the adapter
+  seam, batch checkpoints, stage audit evidence, proposal derivation, mid-run
+  lease expiry, checkpoint claim resume/conflict handling, egress blocking,
+  idempotent replay, tenant isolation and flag-off deferred behavior, plus an
+  integration-gated batched live sync read against local Postgres;
 - API unit tests for connector ontology proposal persistence, `active_preview`
   manifest gating, audit writes, graph-write rejection and raw payload
   rejection;

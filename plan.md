@@ -329,6 +329,10 @@ Foundation acceptance is tracked in
 - [x] Add container vulnerability scanning policy baseline.
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
+- [x] Add governed live connector sync execution for the file/CSV dropzone and
+  allowlisted external Postgres sources behind explicit flags, `active_live`
+  manifests, lease/egress evidence, committed batch checkpoints, fail-closed
+  error taxonomy, claim-gated resume and proposal-only output.
 - [ ] Build the manufacturing operations reference demo.
 - [ ] Add sustained production HA validation under customer-profile load, TLS
   certificate automation, backup/restore and cluster operations hardening.
