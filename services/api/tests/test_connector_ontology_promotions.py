@@ -153,13 +153,83 @@ def seed_active_connector_manifest(
     )
 
 
+def live_capable_registry_payload(
+    connector_id: str = "file_csv_manufacturing_assets",
+) -> dict:
+    payload = connector_registry_payload()
+    connector = next(
+        item
+        for item in payload["connectors"]
+        if item["manifest"]["connector_id"] == connector_id
+    )
+    connector["manifest"]["sync_modes"] = [
+        *connector["manifest"]["sync_modes"],
+        "live_sync",
+    ]
+    connector["runtime_policy"]["allowed_operations"] = [
+        *connector["runtime_policy"]["allowed_operations"],
+        "live_query",
+        "external_egress",
+    ]
+    connector["runtime_policy"]["blocked_operations"] = [
+        "live_write",
+        "credential_capture",
+    ]
+    connector["runtime_policy"]["egress_policy"] = "approved-live-sync-boundary"
+    return payload
+
+
+def seed_live_connector_manifest(
+    repository: AxisPersistenceRepository,
+    connector_id: str = "file_csv_manufacturing_assets",
+) -> None:
+    record_demo_connector_manifest(
+        repository,
+        connector_manifest_request(connector_id, live_capable_registry_payload(connector_id)),
+    )
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        connector_id,
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_preview",
+            actor_scopes=["connectors:manifest:lifecycle"],
+            transition_reason="Validated for live-sync promotion tests.",
+            evidence_refs=["test://connector-ontology-promotion-live-manifest"],
+        ),
+    )
+    transition_demo_connector_manifest_lifecycle(
+        repository,
+        connector_id,
+        ConnectorManifestLifecycleRequest(
+            tenant_id="tenant_demo_manufacturing",
+            transitioned_by="platform-connector-owner-role",
+            target_status="active_live",
+            actor_scopes=[
+                "connectors:manifest:lifecycle",
+                "connectors:manifest:enable_live",
+            ],
+            transition_reason="Governed live sync enabled for promotion tests.",
+            evidence_refs=[
+                "approval:connector-live-sync-enable",
+                "policy:live-sync-boundary-reviewed",
+                "credential:live-sync-readonly-lease-policy",
+            ],
+        ),
+    )
+
+
 def seed_promotable_connector_proposal(
     repository: AxisPersistenceRepository,
     *,
     manifest_status: str | None = "active_preview",
+    mapping_profile: str = "manufacturing_asset_v1",
 ) -> None:
     if manifest_status == "active_preview":
         seed_active_connector_manifest(repository)
+    elif manifest_status == "active_live":
+        seed_live_connector_manifest(repository)
     elif manifest_status == "registered_preview_only":
         seed_registered_connector_manifest(repository)
     elif manifest_status is not None:
@@ -184,7 +254,7 @@ def seed_promotable_connector_proposal(
             proposal_id="proposal_asset_line_2_packaging",
             source_run_id="run_file_csv_assets_preview_20260622",
             source_file_name="manufacturing-assets-demo.csv",
-            mapping_profile="manufacturing_asset_v1",
+            mapping_profile=mapping_profile,
             status="proposed_from_preview",
             write_mode="proposal_only",
             graph_mutation_status="not_applied",
@@ -510,6 +580,77 @@ def test_record_connector_ontology_promotion_requires_active_preview_manifest(
             )
 
     assert exc_info.value.reason == "connector_manifest_not_active_preview"
+    assert ontology_runtime.requests == []
+
+
+def test_record_connector_ontology_promotion_promotes_live_sync_proposal_on_active_live(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(
+            repository,
+            manifest_status="active_live",
+            mapping_profile="connector_live_sync_v1",
+        )
+        result = record_demo_connector_ontology_promotion(
+            repository,
+            ConnectorOntologyPromotionRequest(**promotion_payload()),
+            ontology_runtime,
+        )
+
+    assert result.status == "promoted_to_graph"
+    assert result.graph_mutation_status == "type_db_mutation_applied"
+    assert result.proposal.mapping_profile == "connector_live_sync_v1"
+    assert result.proposal.status == "promoted_to_graph"
+    assert len(ontology_runtime.requests) == 1
+
+
+def test_promotion_on_active_live_manifest_still_requires_manual_import_evidence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(
+            repository,
+            manifest_status="active_live",
+            mapping_profile="connector_live_sync_v1",
+        )
+        payload = promotion_payload()
+        payload["manual_import_id"] = "import_missing_evidence"
+        with pytest.raises(ConnectorOntologyPromotionValidationError) as exc_info:
+            record_demo_connector_ontology_promotion(
+                repository,
+                ConnectorOntologyPromotionRequest(**payload),
+                ontology_runtime,
+            )
+
+    assert exc_info.value.reason == "manual_import_not_found"
+    assert ontology_runtime.requests == []
+
+
+def test_promotion_on_active_live_manifest_still_enforces_required_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_runtime = RecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(
+            repository,
+            manifest_status="active_live",
+            mapping_profile="connector_live_sync_v1",
+        )
+        seed_required_promotion_policy(repository, allowed_risk_levels=["low"])
+        with pytest.raises(ConnectorOntologyPromotionValidationError) as exc_info:
+            record_demo_connector_ontology_promotion(
+                repository,
+                ConnectorOntologyPromotionRequest(**promotion_payload()),
+                ontology_runtime,
+            )
+
+    assert exc_info.value.reason == "promotion_policy_rejected"
     assert ontology_runtime.requests == []
 
 

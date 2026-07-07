@@ -374,6 +374,62 @@ def test_record_demo_connector_manual_import_requires_active_preview_manifest(
     assert exc_info.value.reason == "connector_manifest_not_active_preview"
 
 
+def test_record_demo_connector_manual_import_accepts_active_live_manifest(
+    session_factory: sessionmaker[Session],
+) -> None:
+    # active_live is stricter than active_preview; approval evidence for
+    # live-sync proposals must stay recordable so they can be promoted.
+    payload = connector_registry_payload()
+    connector = next(
+        item
+        for item in payload["connectors"]
+        if item["manifest"]["connector_id"] == "file_csv_manufacturing_assets"
+    )
+    connector["manifest"]["sync_modes"] = [
+        *connector["manifest"]["sync_modes"],
+        "live_sync",
+    ]
+    connector["runtime_policy"]["allowed_operations"] = [
+        *connector["runtime_policy"]["allowed_operations"],
+        "live_query",
+        "external_egress",
+    ]
+    connector["runtime_policy"]["blocked_operations"] = [
+        "live_write",
+        "credential_capture",
+    ]
+    connector["runtime_policy"]["egress_policy"] = "approved-live-sync-boundary"
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_connector_manifest(repository, payload=payload)
+        transition_demo_connector_manifest_lifecycle(
+            repository,
+            "file_csv_manufacturing_assets",
+            ConnectorManifestLifecycleRequest(
+                tenant_id="tenant_demo_manufacturing",
+                transitioned_by="platform-connector-owner-role",
+                target_status="active_live",
+                actor_scopes=[
+                    "connectors:manifest:lifecycle",
+                    "connectors:manifest:enable_live",
+                ],
+                transition_reason="Governed live sync enabled for manual import tests.",
+                evidence_refs=[
+                    "approval:connector-live-sync-enable",
+                    "policy:live-sync-boundary-reviewed",
+                    "credential:live-sync-readonly-lease-policy",
+                ],
+            ),
+        )
+        record = record_demo_connector_manual_import(
+            repository, connector_manual_import_request()
+        )
+
+    assert record.import_id == "import_assets_manual_20260622"
+    assert record.status == "approval_required"
+
+
 def test_create_connector_manual_import_records_audit_event(
     session_factory: sessionmaker[Session],
 ) -> None:
