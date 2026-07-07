@@ -1,4 +1,6 @@
-from collections.abc import Generator
+import logging
+from collections.abc import AsyncIterator, Generator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, NamedTuple
 from uuid import UUID
@@ -53,21 +55,26 @@ from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportBundle,
     AuditExportQuery,
+    AuditExportWormEnforcementError,
     AuditLegalHoldConflict,
     AuditLegalHoldCreateRequest,
     AuditLegalHoldNotFound,
     AuditLegalHoldPermissionDenied,
     AuditLegalHoldRecord,
     AuditLegalHoldReleaseRequest,
+    AuditObjectLegalHoldRecord,
+    AuditObjectLegalHoldRequest,
     AuditRetentionDeletionPermissionDenied,
     AuditRetentionDeletionRequest,
     AuditRetentionDeletionResult,
+    apply_object_legal_hold,
     create_audit_legal_hold,
     execute_audit_retention_deletion,
     export_persisted_audit_events,
     list_audit_legal_holds,
     query_persisted_audit_events,
     release_audit_legal_hold,
+    release_object_legal_hold,
 )
 from axis_api.audit_reference import (
     AuditReferenceRecordInvalid,
@@ -378,9 +385,12 @@ from axis_api.model_routing_reference import (
 )
 from axis_api.models import OidcBrowserSession
 from axis_api.object_storage import (
+    COMPLIANCE_RETENTION_MODE,
+    ObjectLockCapability,
     ObjectStore,
     ObjectStoreConfigurationError,
     build_connector_export_object_store,
+    probe_object_lock_capability,
 )
 from axis_api.oidc_code_flow import (
     OidcCodeFlowConfigurationError,
@@ -524,6 +534,8 @@ from axis_api.workflow_runtime import (
     WorkflowSignalRuntime,
 )
 
+_LOGGER = logging.getLogger("axis_api")
+
 
 def persistence_repository(request: Request) -> Generator[AxisPersistenceRepository]:
     with session_scope(request.app.state.session_factory) as session:
@@ -564,6 +576,72 @@ ConnectorExportObjectStore = Annotated[
     ObjectStore,
     Depends(connector_export_object_store),
 ]
+
+
+def _audit_export_object_lock_capability(app: FastAPI) -> ObjectLockCapability:
+    """Probe the audit-export bucket object-lock capability, caching positives.
+
+    Only an enforceable (positive) result is cached: S3 object-lock cannot be
+    disabled once a bucket is created with it, so a verified capability is
+    stable for the process lifetime. A negative or error result (transient
+    bucket outage, probe failure) is NOT cached, so the gate re-probes on the
+    next call and a recovered bucket restores COMPLIANCE without an API restart.
+
+    Tests may pin a fixed capability (positive or negative) via
+    ``app.state.audit_export_object_lock_capability_override``; that override is
+    always authoritative and is never re-probed.
+    """
+
+    override = getattr(app.state, "audit_export_object_lock_capability_override", None)
+    if isinstance(override, ObjectLockCapability):
+        return override
+    cached = getattr(app.state, "audit_export_object_lock_capability", None)
+    if isinstance(cached, ObjectLockCapability) and cached.compliance_enforceable:
+        return cached
+    capability = probe_object_lock_capability(app.state.settings)
+    if capability.compliance_enforceable:
+        app.state.audit_export_object_lock_capability = capability
+    return capability
+
+
+def _audit_export_worm_settings(settings: Settings) -> bool:
+    return settings.connector_export_s3_retention_mode.strip().upper() == (
+        COMPLIANCE_RETENTION_MODE
+    )
+
+
+def _warm_audit_export_object_lock_capability(app: FastAPI) -> None:
+    """Non-fatal startup cache-warm + log of the object-lock capability.
+
+    When COMPLIANCE retention is configured this probes the bucket once at
+    startup so readiness reflects the capability immediately and operators get
+    a boot-time signal. It never fails boot: a non-enforceable result is logged
+    (not cached, per the re-probe policy) and the export gate still fails closed
+    per request until the bucket is verified.
+    """
+
+    if not _audit_export_worm_settings(app.state.settings):
+        return
+    try:
+        capability = _audit_export_object_lock_capability(app)
+    except Exception:  # noqa: BLE001 - startup warm-up must never fail boot
+        _LOGGER.warning(
+            "Audit-export object-lock capability probe failed at startup; "
+            "COMPLIANCE exports will fail closed until the bucket is verified.",
+            exc_info=True,
+        )
+        return
+    if capability.compliance_enforceable:
+        _LOGGER.info(
+            "Audit-export object-lock capability verified at startup: %s",
+            capability.reason,
+        )
+    else:
+        _LOGGER.warning(
+            "Audit-export object-lock capability NOT enforceable at startup "
+            "(COMPLIANCE exports will fail closed until verified): %s",
+            capability.reason,
+        )
 
 
 def ontology_mutation_runtime(request: Request) -> OntologyMutationRuntime:
@@ -1388,6 +1466,38 @@ def _authorize_audit_scope(
         )
 
 
+def _run_object_legal_hold(
+    operation,
+    repository,
+    object_store,
+    request: AuditObjectLegalHoldRequest,
+) -> AuditObjectLegalHoldRecord:
+    try:
+        return operation(repository, object_store, request)
+    except AuditLegalHoldPermissionDenied as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The actor cannot manage object-store legal holds.",
+                "required_permissions": [LEGAL_HOLD_REQUIRED_SCOPE],
+                "reason": exc.decision.reason,
+            },
+        ) from exc
+    except AuditExportWormEnforcementError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": AxisErrorCode.CONNECTOR_UNAVAILABLE.value,
+                "message": (
+                    "The configured object store cannot enforce S3 object-lock "
+                    "legal holds."
+                ),
+                "reason": exc.reason,
+            },
+        ) from exc
+
+
 def _bind_demo_created_by(request_model, principal: OidcPrincipal | None):
     if principal is None:
         return request_model
@@ -1919,6 +2029,12 @@ def _bind_connector_run_actor(
     return request_model.model_copy(update=update)
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    _warm_audit_export_object_lock_capability(app)
+    yield
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings()
     app = FastAPI(
@@ -1929,6 +2045,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "name": "Apache-2.0",
             "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         },
+        lifespan=_lifespan,
     )
     validate_refresh_token_encryption_key(resolved_settings)
     app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)
@@ -2887,6 +3004,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return build_deployment_readiness_report(
             resolved_settings,
             oidc_readiness_report=_oidc_readiness_report(resolved_settings),
+            object_lock_capability=(
+                _audit_export_object_lock_capability(app)
+                if _audit_export_worm_settings(resolved_settings)
+                else None
+            ),
         )
 
     @app.get(
@@ -2899,6 +3021,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         deployment_report = build_deployment_readiness_report(
             resolved_settings,
             oidc_readiness_report=oidc_report,
+            object_lock_capability=(
+                _audit_export_object_lock_capability(app)
+                if _audit_export_worm_settings(resolved_settings)
+                else None
+            ),
         )
         return build_support_diagnostics_report(
             resolved_settings,
@@ -6495,21 +6622,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             message="The actor cannot export persisted audit events.",
             resource="audit_export",
         )
-        return export_persisted_audit_events(
-            repository,
-            AuditExportQuery(
-                tenant_id=tenant_id,
-                event_type=event_type,
-                actor_id=actor_id,
-                scope=scope,
-                limit=limit,
-                export_reason=export_reason,
-                retention_days=retention_days,
-                legal_hold=legal_hold,
-                format=format,
-            ),
-            ledger_signer=_audit_ledger_signer_from_settings(app.state.settings),
+        require_worm_compliance = _audit_export_worm_settings(app.state.settings)
+        object_lock_capability = (
+            _audit_export_object_lock_capability(app)
+            if require_worm_compliance
+            else None
         )
+        try:
+            return export_persisted_audit_events(
+                repository,
+                AuditExportQuery(
+                    tenant_id=tenant_id,
+                    event_type=event_type,
+                    actor_id=actor_id,
+                    scope=scope,
+                    limit=limit,
+                    export_reason=export_reason,
+                    retention_days=retention_days,
+                    legal_hold=legal_hold,
+                    format=format,
+                ),
+                ledger_signer=_audit_ledger_signer_from_settings(app.state.settings),
+                object_lock_capability=object_lock_capability,
+                require_worm_compliance=require_worm_compliance,
+            )
+        except AuditExportWormEnforcementError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.CONNECTOR_UNAVAILABLE.value,
+                    "message": (
+                        "COMPLIANCE audit export refused: the backing object "
+                        "store cannot enforce WORM object-lock."
+                    ),
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/audit/retention/delete",
@@ -6665,6 +6813,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "reason": exc.reason,
                 },
             ) from exc
+
+    @app.post(
+        "/demo/manufacturing/audit/object-legal-holds",
+        response_model=AuditObjectLegalHoldRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Audit legal hold permission denied"},
+            503: {"description": "Object store cannot enforce object-lock"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_audit_object_legal_hold_apply(
+        hold_request: AuditObjectLegalHoldRequest,
+        repository: PersistenceRepository,
+        object_store: ConnectorExportObjectStore,
+        principal: OidcPrincipalDependency,
+    ) -> AuditObjectLegalHoldRecord:
+        return _run_object_legal_hold(
+            apply_object_legal_hold,
+            repository,
+            object_store,
+            _bind_audit_actor(hold_request, principal),
+        )
+
+    @app.post(
+        "/demo/manufacturing/audit/object-legal-holds/release",
+        response_model=AuditObjectLegalHoldRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Audit legal hold permission denied"},
+            503: {"description": "Object store cannot enforce object-lock"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_audit_object_legal_hold_release(
+        hold_request: AuditObjectLegalHoldRequest,
+        repository: PersistenceRepository,
+        object_store: ConnectorExportObjectStore,
+        principal: OidcPrincipalDependency,
+    ) -> AuditObjectLegalHoldRecord:
+        return _run_object_legal_hold(
+            release_object_legal_hold,
+            repository,
+            object_store,
+            _bind_audit_actor(hold_request, principal),
+        )
 
     @app.get(
         "/demo/manufacturing/model-routing",

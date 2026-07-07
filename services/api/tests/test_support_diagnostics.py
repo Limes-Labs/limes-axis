@@ -1,11 +1,32 @@
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from axis_api.config import Settings
 from axis_api.main import create_app
+from axis_api.object_storage import ObjectLockCapability
 
 
 def _checks_by_id(body: dict) -> dict[str, dict]:
     return {check["check_id"]: check for check in body["checks"]}
+
+
+def _seed_verified_object_lock(app: FastAPI) -> FastAPI:
+    """Simulate a live probe of a bucket created with object-lock enabled.
+
+    COMPLIANCE retention is only production-ready when the bucket object-lock
+    configuration is verified. Tests seed the memoized capability so the
+    diagnostics/readiness surfaces do not attempt a real MinIO network probe.
+    """
+
+    app.state.audit_export_object_lock_capability_override = ObjectLockCapability(
+        adapter="s3_compatible",
+        checked=True,
+        bucket_object_lock_enabled=True,
+        default_retention_mode="COMPLIANCE",
+        compliance_enforceable=True,
+        reason="test_seeded_object_lock_enabled",
+    )
+    return app
 
 
 def _enterprise_sso_settings(**overrides: object) -> Settings:
@@ -20,13 +41,9 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "oidc_algorithms": ["RS256"],
         "oidc_client_id": "axis-console",
         "oidc_redirect_uri": "https://api.axis.example/identity/oidc/callback",
-        "oidc_authorization_url": (
-            "https://idp.example/realms/axis/protocol/openid-connect/auth"
-        ),
+        "oidc_authorization_url": ("https://idp.example/realms/axis/protocol/openid-connect/auth"),
         "oidc_token_url": "https://idp.example/realms/axis/protocol/openid-connect/token",
-        "oidc_end_session_url": (
-            "https://idp.example/realms/axis/protocol/openid-connect/logout"
-        ),
+        "oidc_end_session_url": ("https://idp.example/realms/axis/protocol/openid-connect/logout"),
         "oidc_post_logout_redirect_uri": "https://console.axis.example/signed-out",
         "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
         "oidc_session_cookie_secure": True,
@@ -154,24 +171,26 @@ def test_support_diagnostics_never_returns_sensitive_signing_material() -> None:
 
 def test_support_diagnostics_reports_s3_object_store_without_secret_material() -> None:
     client = TestClient(
-        create_app(
-            _enterprise_sso_settings(
-                audit_ledger_signing_secret="do-not-return-this-signing-material",
-                external_model_egress_enabled=False,
-                connector_sync_execution_enabled=False,
-                external_db_sync_execution_enabled=False,
-                external_db_live_query_preflight_enabled=False,
-                credential_lease_execution_enabled=False,
-                credential_lease_provider_adapters_enabled=False,
-                connector_export_object_store_adapter="s3_compatible",
-                connector_export_s3_endpoint="minio.internal:9000",
-                connector_export_s3_bucket="axis-evidence",
-                connector_export_s3_access_key="axis-service-account",
-                connector_export_s3_secret_key="axis-secret-key",
-                connector_export_s3_object_lock_enabled=True,
-                connector_export_s3_retention_mode="COMPLIANCE",
-                connector_export_s3_retention_days=365,
-                connector_export_s3_legal_hold_enabled=True,
+        _seed_verified_object_lock(
+            create_app(
+                _enterprise_sso_settings(
+                    audit_ledger_signing_secret="do-not-return-this-signing-material",
+                    external_model_egress_enabled=False,
+                    connector_sync_execution_enabled=False,
+                    external_db_sync_execution_enabled=False,
+                    external_db_live_query_preflight_enabled=False,
+                    credential_lease_execution_enabled=False,
+                    credential_lease_provider_adapters_enabled=False,
+                    connector_export_object_store_adapter="s3_compatible",
+                    connector_export_s3_endpoint="minio.internal:9000",
+                    connector_export_s3_bucket="axis-evidence",
+                    connector_export_s3_access_key="axis-service-account",
+                    connector_export_s3_secret_key="axis-secret-key",
+                    connector_export_s3_object_lock_enabled=True,
+                    connector_export_s3_retention_mode="COMPLIANCE",
+                    connector_export_s3_retention_days=365,
+                    connector_export_s3_legal_hold_enabled=True,
+                )
             )
         )
     )
@@ -195,38 +214,40 @@ def test_support_diagnostics_reports_s3_object_store_without_secret_material() -
 
 def test_support_diagnostics_blocks_support_model_without_signed_commitments() -> None:
     client = TestClient(
-        create_app(
-            _enterprise_sso_settings(
-                audit_ledger_signing_secret="do-not-return-this-signing-material",
-                external_model_egress_enabled=False,
-                connector_sync_execution_enabled=False,
-                external_db_sync_execution_enabled=False,
-                external_db_live_query_preflight_enabled=False,
-                credential_lease_execution_enabled=False,
-                credential_lease_provider_adapters_enabled=False,
-                connector_export_object_store_adapter="s3_compatible",
-                connector_export_s3_endpoint="minio.internal:9000",
-                connector_export_s3_bucket="axis-evidence",
-                connector_export_s3_access_key="axis-service-account",
-                connector_export_s3_secret_key="axis-secret-key",
-                connector_export_s3_object_lock_enabled=True,
-                connector_export_s3_retention_mode="COMPLIANCE",
-                connector_export_s3_retention_days=365,
-                connector_export_s3_legal_hold_enabled=True,
-                support_model_enabled=True,
-                support_coverage="24x7",
-                support_s1_response_minutes=30,
-                support_s2_response_minutes=120,
-                support_s3_response_minutes=480,
-                support_s4_response_minutes=1440,
-                support_escalation_channels=[
-                    "customer_success_manager",
-                    "platform_engineering_on_call",
-                    "security_incident_lead",
-                ],
-                support_customer_runbook_url="https://support.axis.example/runbooks/customer",
-                support_status_page_url="https://status.axis.example",
-                support_incident_review_required=True,
+        _seed_verified_object_lock(
+            create_app(
+                _enterprise_sso_settings(
+                    audit_ledger_signing_secret="do-not-return-this-signing-material",
+                    external_model_egress_enabled=False,
+                    connector_sync_execution_enabled=False,
+                    external_db_sync_execution_enabled=False,
+                    external_db_live_query_preflight_enabled=False,
+                    credential_lease_execution_enabled=False,
+                    credential_lease_provider_adapters_enabled=False,
+                    connector_export_object_store_adapter="s3_compatible",
+                    connector_export_s3_endpoint="minio.internal:9000",
+                    connector_export_s3_bucket="axis-evidence",
+                    connector_export_s3_access_key="axis-service-account",
+                    connector_export_s3_secret_key="axis-secret-key",
+                    connector_export_s3_object_lock_enabled=True,
+                    connector_export_s3_retention_mode="COMPLIANCE",
+                    connector_export_s3_retention_days=365,
+                    connector_export_s3_legal_hold_enabled=True,
+                    support_model_enabled=True,
+                    support_coverage="24x7",
+                    support_s1_response_minutes=30,
+                    support_s2_response_minutes=120,
+                    support_s3_response_minutes=480,
+                    support_s4_response_minutes=1440,
+                    support_escalation_channels=[
+                        "customer_success_manager",
+                        "platform_engineering_on_call",
+                        "security_incident_lead",
+                    ],
+                    support_customer_runbook_url="https://support.axis.example/runbooks/customer",
+                    support_status_page_url="https://status.axis.example",
+                    support_incident_review_required=True,
+                )
             )
         )
     )
@@ -255,42 +276,44 @@ def test_support_diagnostics_blocks_support_model_without_signed_commitments() -
 
 def test_support_diagnostics_reports_ready_production_support_commitments() -> None:
     client = TestClient(
-        create_app(
-            _enterprise_sso_settings(
-                audit_ledger_signing_secret="do-not-return-this-signing-material",
-                external_model_egress_enabled=False,
-                connector_sync_execution_enabled=False,
-                external_db_sync_execution_enabled=False,
-                external_db_live_query_preflight_enabled=False,
-                credential_lease_execution_enabled=False,
-                credential_lease_provider_adapters_enabled=False,
-                connector_export_object_store_adapter="s3_compatible",
-                connector_export_s3_endpoint="minio.internal:9000",
-                connector_export_s3_bucket="axis-evidence",
-                connector_export_s3_access_key="axis-service-account",
-                connector_export_s3_secret_key="axis-secret-key",
-                connector_export_s3_object_lock_enabled=True,
-                connector_export_s3_retention_mode="COMPLIANCE",
-                connector_export_s3_retention_days=365,
-                connector_export_s3_legal_hold_enabled=True,
-                support_model_enabled=True,
-                support_coverage="24x7",
-                support_s1_response_minutes=30,
-                support_s2_response_minutes=120,
-                support_s3_response_minutes=480,
-                support_s4_response_minutes=1440,
-                support_escalation_channels=[
-                    "customer_success_manager",
-                    "platform_engineering_on_call",
-                    "security_incident_lead",
-                ],
-                support_customer_runbook_url="https://support.axis.example/runbooks/customer",
-                support_status_page_url="https://status.axis.example",
-                support_incident_review_required=True,
-                support_signed_commitment_configured=True,
-                support_named_staffing_model_configured=True,
-                support_customer_incident_operations_configured=True,
-                support_legal_sla_terms_configured=True,
+        _seed_verified_object_lock(
+            create_app(
+                _enterprise_sso_settings(
+                    audit_ledger_signing_secret="do-not-return-this-signing-material",
+                    external_model_egress_enabled=False,
+                    connector_sync_execution_enabled=False,
+                    external_db_sync_execution_enabled=False,
+                    external_db_live_query_preflight_enabled=False,
+                    credential_lease_execution_enabled=False,
+                    credential_lease_provider_adapters_enabled=False,
+                    connector_export_object_store_adapter="s3_compatible",
+                    connector_export_s3_endpoint="minio.internal:9000",
+                    connector_export_s3_bucket="axis-evidence",
+                    connector_export_s3_access_key="axis-service-account",
+                    connector_export_s3_secret_key="axis-secret-key",
+                    connector_export_s3_object_lock_enabled=True,
+                    connector_export_s3_retention_mode="COMPLIANCE",
+                    connector_export_s3_retention_days=365,
+                    connector_export_s3_legal_hold_enabled=True,
+                    support_model_enabled=True,
+                    support_coverage="24x7",
+                    support_s1_response_minutes=30,
+                    support_s2_response_minutes=120,
+                    support_s3_response_minutes=480,
+                    support_s4_response_minutes=1440,
+                    support_escalation_channels=[
+                        "customer_success_manager",
+                        "platform_engineering_on_call",
+                        "security_incident_lead",
+                    ],
+                    support_customer_runbook_url="https://support.axis.example/runbooks/customer",
+                    support_status_page_url="https://status.axis.example",
+                    support_incident_review_required=True,
+                    support_signed_commitment_configured=True,
+                    support_named_staffing_model_configured=True,
+                    support_customer_incident_operations_configured=True,
+                    support_legal_sla_terms_configured=True,
+                )
             )
         )
     )

@@ -1667,6 +1667,34 @@
             "minLength": 1,
             "title": "Tenant Id",
             "type": "string"
+          },
+          "worm_retain_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worm Retain Until"
+          },
+          "worm_retention_enforced": {
+            "default": false,
+            "title": "Worm Retention Enforced",
+            "type": "boolean"
+          },
+          "worm_retention_mode": {
+            "default": "none",
+            "minLength": 1,
+            "title": "Worm Retention Mode",
+            "type": "string"
+          },
+          "worm_status": {
+            "default": "none",
+            "minLength": 1,
+            "title": "Worm Status",
+            "type": "string"
           }
         },
         "required": [
@@ -2272,6 +2300,145 @@
           "release_reason"
         ],
         "title": "AuditLegalHoldReleaseRequest",
+        "type": "object"
+      },
+      "AuditObjectLegalHoldRecord": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "hold_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Id"
+          },
+          "permission_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PermissionDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "storage_adapter": {
+            "minLength": 1,
+            "title": "Storage Adapter",
+            "type": "string"
+          },
+          "storage_key": {
+            "minLength": 1,
+            "title": "Storage Key",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "storage_key",
+          "storage_adapter",
+          "status",
+          "reason",
+          "actor_id",
+          "audit_event_type"
+        ],
+        "title": "AuditObjectLegalHoldRecord",
+        "type": "object"
+      },
+      "AuditObjectLegalHoldRequest": {
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "hold_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Id"
+          },
+          "reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "storage_key": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Storage Key",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_id",
+          "storage_key",
+          "reason"
+        ],
+        "title": "AuditObjectLegalHoldRequest",
         "type": "object"
       },
       "AuditRetentionDeletionRequest": {
@@ -9689,6 +9856,10 @@
             "title": "Object Store Bucket Configured",
             "type": "boolean"
           },
+          "object_store_compliance_enforceable": {
+            "title": "Object Store Compliance Enforceable",
+            "type": "boolean"
+          },
           "object_store_credentials_configured": {
             "title": "Object Store Credentials Configured",
             "type": "boolean"
@@ -9699,6 +9870,10 @@
           },
           "object_store_legal_hold_enabled": {
             "title": "Object Store Legal Hold Enabled",
+            "type": "boolean"
+          },
+          "object_store_object_lock_bucket_verified": {
+            "title": "Object Store Object Lock Bucket Verified",
             "type": "boolean"
           },
           "object_store_retention_days": {
@@ -9782,6 +9957,8 @@
           "object_store_retention_mode",
           "object_store_retention_days",
           "object_store_legal_hold_enabled",
+          "object_store_object_lock_bucket_verified",
+          "object_store_compliance_enforceable",
           "dr_runbook_configured",
           "dr_rpo_rto_defined",
           "dr_rehearsal_evidence_configured",
@@ -15546,6 +15723,11 @@
             "title": "Object Store Adapter",
             "type": "string"
           },
+          "object_store_compliance_enforceable": {
+            "default": false,
+            "title": "Object Store Compliance Enforceable",
+            "type": "boolean"
+          },
           "object_store_retention_days": {
             "minimum": 0.0,
             "title": "Object Store Retention Days",
@@ -17565,6 +17747,142 @@
           }
         },
         "summary": "Manufacturing Audit Legal Hold Release",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/audit/object-legal-holds": {
+      "post": {
+        "operationId": "manufacturing_audit_object_legal_hold_apply_demo_manufacturing_audit_object_legal_holds_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditObjectLegalHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditObjectLegalHoldRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Audit legal hold permission denied"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Object store cannot enforce object-lock"
+          }
+        },
+        "summary": "Manufacturing Audit Object Legal Hold Apply",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/audit/object-legal-holds/release": {
+      "post": {
+        "operationId": "manufacturing_audit_object_legal_hold_release_demo_manufacturing_audit_object_legal_holds_release_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditObjectLegalHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditObjectLegalHoldRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Audit legal hold permission denied"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Object store cannot enforce object-lock"
+          }
+        },
+        "summary": "Manufacturing Audit Object Legal Hold Release",
         "tags": [
           "demo"
         ]

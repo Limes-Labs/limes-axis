@@ -1,7 +1,7 @@
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -21,6 +21,10 @@ from axis_api.demo import (
     OverviewStatus,
 )
 from axis_api.models import AuditEvent, AuditLegalHold
+from axis_api.object_storage import (
+    COMPLIANCE_RETENTION_MODE,
+    ObjectLockCapability,
+)
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
     AuditLegalHoldCreate,
@@ -33,6 +37,22 @@ RETENTION_DELETION_EVENT_TYPE = "audit.retention_deletion.executed"
 LEGAL_HOLD_REQUIRED_SCOPE = "audit:legal_hold:write"
 LEGAL_HOLD_ACTIVATED_EVENT_TYPE = "audit.legal_hold.activated"
 LEGAL_HOLD_RELEASED_EVENT_TYPE = "audit.legal_hold.released"
+OBJECT_LEGAL_HOLD_APPLIED_EVENT_TYPE = "audit.object_legal_hold.applied"
+OBJECT_LEGAL_HOLD_RELEASED_EVENT_TYPE = "audit.object_legal_hold.released"
+
+
+class AuditExportWormEnforcementError(RuntimeError):
+    """Raised when a COMPLIANCE audit export cannot be WORM-enforced.
+
+    Fail-closed: the backing object store cannot enforce object-lock (e.g. the
+    bucket was not created with object-lock enabled, or the store is a local
+    filesystem), so a COMPLIANCE-configured export must refuse rather than
+    emit a bundle that falsely claims WORM protection.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class AuditEventQuery(BaseModel):
@@ -81,6 +101,20 @@ class AuditExportManifest(BaseModel):
     retention_enforced: bool
     retention_window_start: str = Field(min_length=1)
     excluded_record_count: int = Field(ge=0)
+    # WORM fields describe the object-lock posture of the export.
+    # ``worm_status`` disambiguates the guarantee:
+    #   - "none": no object-lock capability (GOVERNANCE / local / unverified).
+    #   - "capability_attested": the backing store's object-lock capability is
+    #     verified, but THIS bundle is returned in the HTTP response and is NOT
+    #     itself written under object-lock. Immutability of this response
+    #     payload rests on the hash-chain integrity proof + ledger signature.
+    #   - "object_locked": the bundle was written to the object store under an
+    #     S3 Retention (RetainUntilDate) — produced by the connector-evidence
+    #     materialization path, not by the export-response endpoint.
+    worm_status: str = Field(default="none", min_length=1)
+    worm_retention_mode: str = Field(default="none", min_length=1)
+    worm_retention_enforced: bool = False
+    worm_retain_until: str | None = None
 
 
 class AuditExportBundle(BaseModel):
@@ -136,6 +170,30 @@ class AuditLegalHoldRecord(BaseModel):
     notes: list[str] = Field(default_factory=list)
     created_at: datetime
     released_at: datetime | None = None
+
+
+class AuditObjectLegalHoldRequest(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    actor_id: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    storage_key: str = Field(min_length=1, max_length=1024)
+    reason: str = Field(min_length=1, max_length=600)
+    hold_id: str | None = Field(
+        default=None, min_length=1, max_length=180, pattern=r"^[a-z0-9][a-z0-9_-]*$"
+    )
+
+
+class AuditObjectLegalHoldRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    storage_key: str = Field(min_length=1)
+    storage_adapter: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    hold_id: str | None = None
+    actor_id: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+    permission_decision: PermissionDecision | None = None
 
 
 class AuditRetentionDeletionRequest(BaseModel):
@@ -505,17 +563,65 @@ def _integrity_proof(events: list[AuditLedgerEvent]) -> AuditIntegrityProof:
     )
 
 
+def _resolve_worm_enforcement(
+    object_lock_capability: ObjectLockCapability | None,
+    *,
+    retention_days: int,
+    generated_at: datetime,
+) -> tuple[str, str, bool, str | None]:
+    """Return the truthful (status, mode, enforced, retain_until) WORM fields.
+
+    ``object_lock_capability`` is the actual verified capability of the
+    audit-export object store. This function serves the export-RESPONSE path:
+    the bundle is returned over HTTP and is NOT itself written under
+    object-lock, so an enforceable capability yields ``worm_status`` of
+    "capability_attested" (the store CAN enforce WORM and the retain-until is
+    the date such a write would use), not "object_locked". The
+    ``worm_retention_enforced`` flag reflects the verified capability
+    non-optimistically; the compliance gate refuses the export separately when
+    the capability is missing.
+    """
+
+    if object_lock_capability is None or not object_lock_capability.compliance_enforceable:
+        return "none", "none", False, None
+    retain_until = (generated_at + timedelta(days=retention_days)).isoformat()
+    return "capability_attested", COMPLIANCE_RETENTION_MODE, True, retain_until
+
+
 def export_persisted_audit_events(
     repository: AxisPersistenceRepository,
     query: AuditExportQuery,
     ledger_signer: AuditLedgerSigner | None = None,
+    *,
+    object_lock_capability: ObjectLockCapability | None = None,
+    require_worm_compliance: bool = False,
 ) -> AuditExportBundle:
+    # Fail closed: a COMPLIANCE-configured export must refuse to emit a bundle
+    # if the backing store cannot actually enforce object-lock.
+    if require_worm_compliance and (
+        object_lock_capability is None
+        or not object_lock_capability.compliance_enforceable
+    ):
+        reason = (
+            object_lock_capability.reason
+            if object_lock_capability is not None
+            else "object_lock_capability_not_probed"
+        )
+        raise AuditExportWormEnforcementError(reason)
+
     explorer = query_persisted_audit_events(repository, query)
     retention_policy = _retention_policy(query)
     generated_at_datetime = datetime.now(UTC)
     generated_at = generated_at_datetime.isoformat()
     retained_events, retention_window_start, excluded_count, retention_enforced = (
         _apply_retention_policy(explorer.events, query, generated_at_datetime)
+    )
+    worm_status, worm_retention_mode, worm_retention_enforced, worm_retain_until = (
+        _resolve_worm_enforcement(
+            object_lock_capability,
+            retention_days=query.retention_days,
+            generated_at=generated_at_datetime,
+        )
     )
     checksum = _events_checksum(retained_events)
     integrity_proof = _integrity_proof(retained_events)
@@ -532,6 +638,10 @@ def export_persisted_audit_events(
         retention_enforced=retention_enforced,
         retention_window_start=retention_window_start.isoformat(),
         excluded_record_count=excluded_count,
+        worm_status=worm_status,
+        worm_retention_mode=worm_retention_mode,
+        worm_retention_enforced=worm_retention_enforced,
+        worm_retain_until=worm_retain_until,
     )
     signature_payload = canonical_ledger_signature_payload(manifest, integrity_proof)
     ledger_signature = (
@@ -544,6 +654,17 @@ def export_persisted_audit_events(
         if query.legal_hold
         else f"Retention enforcement excluded {excluded_count} expired event"
         f"{'' if excluded_count == 1 else 's'} from this export."
+    )
+    worm_summary = (
+        "Object-store WORM capability is attested: the backing bucket enforces "
+        f"S3 object-lock in {worm_retention_mode} mode and a stored copy would "
+        f"be retained until {worm_retain_until}. This response payload is NOT "
+        "itself object-locked; its integrity here rests on the hash-chain proof "
+        "and ledger signature. A stored, object-locked artifact is produced by "
+        "the connector-evidence materialization path."
+        if worm_retention_enforced
+        else "Object-store WORM is not enforced for this export; the bundle "
+        "relies on the deterministic hash-chain integrity proof only."
     )
     return AuditExportBundle(
         tenant_id=query.tenant_id,
@@ -562,6 +683,7 @@ def export_persisted_audit_events(
             "Manifest checksum covers the exported event payload previews and metadata.",
             retention_summary,
             "Integrity proof links exported records with a deterministic SHA-256 hash chain.",
+            worm_summary,
         ],
     )
 
@@ -735,6 +857,132 @@ def list_audit_legal_holds(
         _legal_hold_to_record(legal_hold)
         for legal_hold in repository.list_active_audit_legal_holds(tenant_id)
     ]
+
+
+class ObjectLegalHoldStore(Protocol):
+    """Minimal object-store surface for export-artifact legal holds.
+
+    Reconciliation note: this is a *complementary* layer to the DB-level audit
+    legal hold. The DB legal hold (:func:`create_audit_legal_hold`) suspends
+    physical retention deletion of ledger *rows*; the object legal hold pins the
+    materialized export *artifact* under S3 object-lock so the WORM bundle
+    cannot be deleted or overwritten before retention expiry. Both are audited
+    through the same append-only ledger.
+    """
+
+    adapter_name: str
+
+    def apply_legal_hold(self, key: str) -> None:
+        ...
+
+    def release_legal_hold(self, key: str) -> None:
+        ...
+
+
+def _object_legal_hold_supported(object_store: ObjectLegalHoldStore) -> bool:
+    return hasattr(object_store, "apply_legal_hold") and hasattr(
+        object_store, "release_legal_hold"
+    )
+
+
+def apply_object_legal_hold(
+    repository: AxisPersistenceRepository,
+    object_store: ObjectLegalHoldStore,
+    request: AuditObjectLegalHoldRequest,
+) -> AuditObjectLegalHoldRecord:
+    """Apply an S3 object-lock legal hold on a stored export artifact, audited."""
+
+    decision = _evaluate_legal_hold_permission(
+        request.tenant_id,
+        request.actor_id,
+        request.actor_scopes,
+        "audit.object_legal_hold.apply",
+    )
+    if not _object_legal_hold_supported(object_store):
+        raise AuditExportWormEnforcementError(
+            "object_store_cannot_hold: the configured object store does not "
+            "support S3 object-lock legal holds."
+        )
+    object_store.apply_legal_hold(request.storage_key)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=OBJECT_LEGAL_HOLD_APPLIED_EVENT_TYPE,
+            payload={
+                "category": "audit",
+                "status": "applied",
+                "storage_key": request.storage_key,
+                "storage_adapter": object_store.adapter_name,
+                "hold_id": request.hold_id,
+                "reason": request.reason,
+                "permission_decision": decision.model_dump(),
+                "raw_payload_exported": False,
+            },
+        )
+    )
+    return AuditObjectLegalHoldRecord(
+        tenant_id=request.tenant_id,
+        storage_key=request.storage_key,
+        storage_adapter=object_store.adapter_name,
+        status="applied",
+        reason=request.reason,
+        hold_id=request.hold_id,
+        actor_id=request.actor_id,
+        audit_event_id=audit_event.id,
+        audit_event_type=OBJECT_LEGAL_HOLD_APPLIED_EVENT_TYPE,
+        permission_decision=decision,
+    )
+
+
+def release_object_legal_hold(
+    repository: AxisPersistenceRepository,
+    object_store: ObjectLegalHoldStore,
+    request: AuditObjectLegalHoldRequest,
+) -> AuditObjectLegalHoldRecord:
+    """Release an S3 object-lock legal hold on a stored export artifact, audited."""
+
+    decision = _evaluate_legal_hold_permission(
+        request.tenant_id,
+        request.actor_id,
+        request.actor_scopes,
+        "audit.object_legal_hold.release",
+    )
+    if not _object_legal_hold_supported(object_store):
+        raise AuditExportWormEnforcementError(
+            "object_store_cannot_hold: the configured object store does not "
+            "support S3 object-lock legal holds."
+        )
+    object_store.release_legal_hold(request.storage_key)
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.actor_id,
+            event_type=OBJECT_LEGAL_HOLD_RELEASED_EVENT_TYPE,
+            payload={
+                "category": "audit",
+                "status": "released",
+                "storage_key": request.storage_key,
+                "storage_adapter": object_store.adapter_name,
+                "hold_id": request.hold_id,
+                "reason": request.reason,
+                "permission_decision": decision.model_dump(),
+                "raw_payload_exported": False,
+            },
+        )
+    )
+    return AuditObjectLegalHoldRecord(
+        tenant_id=request.tenant_id,
+        storage_key=request.storage_key,
+        storage_adapter=object_store.adapter_name,
+        status="released",
+        reason=request.reason,
+        hold_id=request.hold_id,
+        actor_id=request.actor_id,
+        audit_event_id=audit_event.id,
+        audit_event_type=OBJECT_LEGAL_HOLD_RELEASED_EVENT_TYPE,
+        permission_decision=decision,
+    )
 
 
 def _legal_hold_matches_event(legal_hold: AuditLegalHold, event: AuditEvent) -> bool:

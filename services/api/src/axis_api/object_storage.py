@@ -14,10 +14,26 @@ from axis_api.config import Settings
 S3_COMPATIBLE_ADAPTER = "s3_compatible"
 LOCAL_FILESYSTEM_ADAPTER = "local_filesystem"
 SUPPORTED_RETENTION_MODES = {"GOVERNANCE", "COMPLIANCE"}
+COMPLIANCE_RETENTION_MODE = "COMPLIANCE"
+GOVERNANCE_RETENTION_MODE = "GOVERNANCE"
+VERIFIED_OBJECT_LOCK_REQUIREMENT = "verified object-lock bucket"
 
 
 class ObjectStoreConfigurationError(ValueError):
     pass
+
+
+class ObjectStoreWormEnforcementError(RuntimeError):
+    """Raised when a COMPLIANCE object store cannot actually enforce WORM.
+
+    This is a fail-closed signal: the backing bucket does not have S3
+    object-lock enabled at creation time (or the probe failed), so any
+    COMPLIANCE retention passed on ``put_object`` would silently no-op.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class StoredObjectMetadata(BaseModel):
@@ -48,6 +64,50 @@ class S3PutObjectClient(Protocol):
     ) -> object:
         ...
 
+    def get_object_lock_config(self, bucket_name: str) -> object:
+        ...
+
+    def enable_object_legal_hold(
+        self,
+        bucket_name: str,
+        object_name: str,
+        version_id: str | None = ...,
+    ) -> object:
+        ...
+
+    def disable_object_legal_hold(
+        self,
+        bucket_name: str,
+        object_name: str,
+        version_id: str | None = ...,
+    ) -> object:
+        ...
+
+    def is_object_legal_hold_enabled(
+        self,
+        bucket_name: str,
+        object_name: str,
+        version_id: str | None = ...,
+    ) -> bool:
+        ...
+
+
+class ObjectLockCapability(BaseModel):
+    """The verified WORM capability of a backing object store.
+
+    ``checked`` records whether a live probe of the bucket object-lock
+    configuration was actually performed. ``bucket_object_lock_enabled`` is the
+    result of that probe. ``compliance_enforceable`` is the fail-closed answer
+    to "can this store genuinely enforce COMPLIANCE-mode WORM retention?".
+    """
+
+    adapter: str = Field(min_length=1)
+    checked: bool
+    bucket_object_lock_enabled: bool
+    default_retention_mode: str | None = None
+    compliance_enforceable: bool
+    reason: str = Field(min_length=1)
+
 
 class ObjectStoreReadiness(BaseModel):
     adapter: str = Field(min_length=1)
@@ -61,6 +121,9 @@ class ObjectStoreReadiness(BaseModel):
     retention_mode: str = Field(min_length=1)
     retention_days: int = Field(ge=0)
     legal_hold_enabled: bool
+    object_lock_bucket_verified: bool = False
+    compliance_enforceable: bool = False
+    object_lock_probe_reason: str = Field(default="not_probed", min_length=1)
     missing_requirements: list[str] = Field(default_factory=list)
 
 
@@ -89,6 +152,20 @@ class LocalObjectStore:
             content_type="application/json",
             checksum_sha256=checksum,
             size_bytes=len(encoded),
+        )
+
+    def object_lock_capability(self) -> ObjectLockCapability:
+        return ObjectLockCapability(
+            adapter=self.adapter_name,
+            checked=True,
+            bucket_object_lock_enabled=False,
+            default_retention_mode=None,
+            compliance_enforceable=False,
+            reason=(
+                "local_filesystem_store_cannot_provide_worm: the local object "
+                "store has no S3 object-lock and cannot enforce COMPLIANCE "
+                "retention or legal holds."
+            ),
         )
 
     @staticmethod
@@ -131,14 +208,73 @@ class S3CompatibleObjectStore:
         self.clock = clock or (lambda: datetime.now(UTC))
         self.retention_factory = retention_factory or _minio_retention
 
+    @property
+    def is_compliance_mode(self) -> bool:
+        return self.retention_mode == COMPLIANCE_RETENTION_MODE
+
+    def retention_until(self, *, now: datetime | None = None) -> datetime:
+        """Explicit RetainUntilDate derived from the configured retention days."""
+
+        reference = now or self.clock()
+        return reference + timedelta(days=self.retention_days)
+
+    def object_lock_capability(self) -> ObjectLockCapability:
+        """Probe the backing bucket's S3 object-lock configuration.
+
+        S3/MinIO only returns an object-lock configuration when the bucket was
+        created with object-lock enabled. A missing configuration (or any
+        access failure) is treated as fail-closed: the store cannot enforce
+        COMPLIANCE-mode WORM.
+        """
+
+        try:
+            config = self.client.get_object_lock_config(self.bucket_name)
+        except Exception as exc:  # noqa: BLE001 - fail-closed on any probe failure
+            return ObjectLockCapability(
+                adapter=self.adapter_name,
+                checked=True,
+                bucket_object_lock_enabled=False,
+                default_retention_mode=None,
+                compliance_enforceable=False,
+                reason=(
+                    "bucket_object_lock_probe_failed: could not read the "
+                    f"object-lock configuration for bucket {self.bucket_name!r} "
+                    f"({type(exc).__name__}); the bucket was likely created "
+                    "without object-lock enabled."
+                ),
+            )
+
+        default_mode = _object_lock_config_mode(config)
+        return ObjectLockCapability(
+            adapter=self.adapter_name,
+            checked=True,
+            bucket_object_lock_enabled=True,
+            default_retention_mode=default_mode,
+            compliance_enforceable=True,
+            reason=(
+                "bucket_object_lock_enabled: object-lock is enabled on bucket "
+                f"{self.bucket_name!r}"
+                + (f" with default retention mode {default_mode}." if default_mode else ".")
+            ),
+        )
+
+    def _ensure_compliance_enforceable(self) -> None:
+        capability = self.object_lock_capability()
+        if not capability.compliance_enforceable:
+            raise ObjectStoreWormEnforcementError(capability.reason)
+
     def put_json(self, key: str, payload: dict) -> StoredObjectMetadata:
         safe_key = LocalObjectStore._safe_key(key)
+        if self.is_compliance_mode:
+            # Fail closed before writing: a COMPLIANCE retention on a bucket
+            # without object-lock silently no-ops, defeating WORM.
+            self._ensure_compliance_enforceable()
         encoded = json.dumps(
             payload,
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
-        retain_until = self.clock() + timedelta(days=self.retention_days)
+        retain_until = self.retention_until()
         retention = self.retention_factory(self.retention_mode, retain_until)
         self.client.put_object(
             self.bucket_name,
@@ -158,6 +294,30 @@ class S3CompatibleObjectStore:
             checksum_sha256=checksum,
             size_bytes=len(encoded),
         )
+
+    def apply_legal_hold(self, key: str) -> None:
+        """Place an S3 object-level legal hold on a stored export object."""
+
+        safe_key = LocalObjectStore._safe_key(key)
+        self.client.enable_object_legal_hold(self.bucket_name, safe_key)
+
+    def release_legal_hold(self, key: str) -> None:
+        """Release an S3 object-level legal hold on a stored export object."""
+
+        safe_key = LocalObjectStore._safe_key(key)
+        self.client.disable_object_legal_hold(self.bucket_name, safe_key)
+
+    def legal_hold_status(self, key: str) -> bool:
+        safe_key = LocalObjectStore._safe_key(key)
+        return bool(self.client.is_object_legal_hold_enabled(self.bucket_name, safe_key))
+
+
+def _object_lock_config_mode(config: object) -> str | None:
+    mode = getattr(config, "mode", None)
+    if mode is None:
+        return None
+    normalized = str(mode).strip().upper()
+    return normalized or None
 
 
 def _minio_retention(mode: str, retain_until: datetime) -> object:
@@ -193,7 +353,21 @@ def _s3_client_factory(**kwargs: Any) -> S3PutObjectClient:
     return Minio(**kwargs)
 
 
-def build_object_store_readiness(settings: Settings) -> ObjectStoreReadiness:
+def build_object_store_readiness(
+    settings: Settings,
+    *,
+    object_lock_capability: ObjectLockCapability | None = None,
+) -> ObjectStoreReadiness:
+    """Build the object-store readiness report.
+
+    By default this is a config-level report (no network calls). When an
+    ``object_lock_capability`` is supplied (typically produced by
+    :func:`probe_object_lock_capability` at bootstrap), the live bucket
+    object-lock verification is folded in. For COMPLIANCE retention mode the
+    bucket object-lock verification is a *required* gate: without it the report
+    is not production-ready and the compliance export path fails closed.
+    """
+
     adapter = settings.connector_export_object_store_adapter.strip().casefold()
     retention_mode = settings.connector_export_s3_retention_mode.strip().upper()
     bucket_configured = bool(settings.connector_export_s3_bucket)
@@ -217,6 +391,22 @@ def build_object_store_readiness(settings: Settings) -> ObjectStoreReadiness:
     worm_retention_enabled = (
         object_lock_enabled and retention_mode_supported and retention_days_configured
     )
+    compliance_configured = retention_mode == COMPLIANCE_RETENTION_MODE
+
+    if adapter == LOCAL_FILESYSTEM_ADAPTER and object_lock_capability is None:
+        object_lock_capability = LocalObjectStore(
+            settings.connector_export_object_store_root
+        ).object_lock_capability()
+
+    object_lock_bucket_verified = bool(
+        object_lock_capability and object_lock_capability.bucket_object_lock_enabled
+    )
+    compliance_enforceable = bool(
+        object_lock_capability and object_lock_capability.compliance_enforceable
+    )
+    object_lock_probe_reason = (
+        object_lock_capability.reason if object_lock_capability else "not_probed"
+    )
 
     missing_requirements: list[str] = []
     if adapter != S3_COMPATIBLE_ADAPTER:
@@ -237,6 +427,8 @@ def build_object_store_readiness(settings: Settings) -> ObjectStoreReadiness:
         missing_requirements.append("retention mode")
     if not retention_days_configured:
         missing_requirements.append("retention days")
+    if compliance_configured and not compliance_enforceable:
+        missing_requirements.append(VERIFIED_OBJECT_LOCK_REQUIREMENT)
 
     return ObjectStoreReadiness(
         adapter=adapter,
@@ -250,8 +442,47 @@ def build_object_store_readiness(settings: Settings) -> ObjectStoreReadiness:
         retention_mode=retention_mode,
         retention_days=max(settings.connector_export_s3_retention_days, 0),
         legal_hold_enabled=settings.connector_export_s3_legal_hold_enabled,
+        object_lock_bucket_verified=object_lock_bucket_verified,
+        compliance_enforceable=compliance_enforceable,
+        object_lock_probe_reason=object_lock_probe_reason,
         missing_requirements=missing_requirements,
     )
+
+
+def probe_object_lock_capability(
+    settings: Settings,
+    *,
+    s3_client_factory: Callable[..., S3PutObjectClient] = _s3_client_factory,
+) -> ObjectLockCapability:
+    """Live-probe the audit-export bucket's object-lock capability.
+
+    Returns a fail-closed capability if the store cannot be constructed, is a
+    local filesystem store, or the bucket lacks object-lock. Never raises for
+    configuration or network problems: readiness callers fold the result in and
+    the export gate treats a non-enforceable capability as a hard stop.
+    """
+
+    adapter = settings.connector_export_object_store_adapter.strip().casefold()
+    if adapter == LOCAL_FILESYSTEM_ADAPTER:
+        return LocalObjectStore(
+            settings.connector_export_object_store_root
+        ).object_lock_capability()
+    try:
+        store = build_connector_export_object_store(
+            settings, s3_client_factory=s3_client_factory
+        )
+    except ObjectStoreConfigurationError as exc:
+        return ObjectLockCapability(
+            adapter=adapter or "unknown",
+            checked=False,
+            bucket_object_lock_enabled=False,
+            default_retention_mode=None,
+            compliance_enforceable=False,
+            reason=f"object_store_misconfigured: {exc}",
+        )
+    if not isinstance(store, S3CompatibleObjectStore):  # pragma: no cover - defensive
+        return store.object_lock_capability()  # type: ignore[attr-defined]
+    return store.object_lock_capability()
 
 
 def build_connector_export_object_store(
@@ -267,9 +498,18 @@ def build_connector_export_object_store(
             f"Unsupported connector export object-store adapter: {adapter}"
         )
 
+    # The verified-object-lock requirement needs a live bucket probe, which
+    # cannot run before the client exists. Store construction only gates on the
+    # config-level requirements; the live compliance gate is enforced by the
+    # readiness report and the export path via probe_object_lock_capability.
     readiness = build_object_store_readiness(settings)
-    if not readiness.production_ready:
-        missing = ", ".join(readiness.missing_requirements)
+    construction_requirements = [
+        requirement
+        for requirement in readiness.missing_requirements
+        if requirement != VERIFIED_OBJECT_LOCK_REQUIREMENT
+    ]
+    if construction_requirements:
+        missing = ", ".join(construction_requirements)
         raise ObjectStoreConfigurationError(
             f"S3-compatible object storage is missing required configuration: {missing}."
         )

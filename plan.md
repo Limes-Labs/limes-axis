@@ -1113,8 +1113,14 @@ audit writes from live route decisions remain Platform work.
 - [x] Add local Docker Compose backup and restore procedures for repeatable demos.
 - [ ] Add complete production backup, restore, retention and disaster recovery
   procedures across all stateful services.
-- [ ] Add enterprise-grade audit export workflows beyond the current retention
-  and integrity controls.
+- [x] Add S3 object-lock/WORM enforcement for audit export bundles: bootstrap
+  bucket object-lock verification, a fail-closed COMPLIANCE export gate with
+  truthful manifest `worm_retention_enforced` and explicit RetainUntilDate, the
+  local-store WORM limitation, and audited object-store legal hold apply/release
+  reconciled with the existing DB-level audit legal hold.
+- [ ] Add enterprise-grade audit export workflows beyond the current retention,
+  integrity and WORM controls (provider-specific KMS signing, richer legal
+  operations, deterministic Temporal replay).
 - [ ] Add enterprise identity and SSO hardening beyond the current OIDC
   readiness/profile, IdP onboarding report, PKCE callback, ID-token nonce
   and subject binding, secure browser-session readiness gate, federated logout

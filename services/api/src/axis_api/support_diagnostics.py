@@ -61,6 +61,7 @@ class SupportDiagnosticsPayload(BaseModel):
     object_store_worm_retention_enabled: bool
     object_store_retention_mode: str = Field(min_length=1)
     object_store_retention_days: int = Field(ge=0)
+    object_store_compliance_enforceable: bool = False
 
 
 class SupportDiagnosticsReport(BaseModel):
@@ -304,6 +305,9 @@ def build_support_diagnostics_report(
             ),
             object_store_retention_days=(
                 deployment_readiness_report.capabilities.object_store_retention_days
+            ),
+            object_store_compliance_enforceable=(
+                deployment_readiness_report.capabilities.object_store_compliance_enforceable
             ),
         ),
         checks=checks,

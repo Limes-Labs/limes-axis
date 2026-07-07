@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
-from axis_api.object_storage import build_object_store_readiness
+from axis_api.object_storage import ObjectLockCapability, build_object_store_readiness
 from axis_api.oidc_code_flow import post_logout_redirect_uri, redirect_uri
 
 OIDC_SESSION_COOKIE_MAX_TTL_SECONDS = 12 * 60 * 60
@@ -61,6 +61,8 @@ class DeploymentReadinessCapabilities(BaseModel):
     object_store_retention_mode: str = Field(min_length=1)
     object_store_retention_days: int = Field(ge=0)
     object_store_legal_hold_enabled: bool
+    object_store_object_lock_bucket_verified: bool
+    object_store_compliance_enforceable: bool
     dr_runbook_configured: bool
     dr_rpo_rto_defined: bool
     dr_rehearsal_evidence_configured: bool
@@ -140,6 +142,7 @@ def build_deployment_readiness_report(
     settings: Settings,
     *,
     oidc_readiness_report: dict[str, object],
+    object_lock_capability: ObjectLockCapability | None = None,
 ) -> DeploymentReadinessReport:
     profile = _deployment_profile(settings.environment)
     live_connector_execution_enabled = any(
@@ -175,7 +178,10 @@ def build_deployment_readiness_report(
         and settings.deployment_operator_access_runbook_configured
         and settings.deployment_break_glass_approval_configured
     )
-    object_store_readiness = build_object_store_readiness(settings)
+    object_store_readiness = build_object_store_readiness(
+        settings,
+        object_lock_capability=object_lock_capability,
+    )
     public_object_store_missing_requirements = _public_object_store_missing_requirements(
         object_store_readiness.missing_requirements
     )
@@ -254,6 +260,10 @@ def build_deployment_readiness_report(
         object_store_retention_mode=object_store_readiness.retention_mode,
         object_store_retention_days=object_store_readiness.retention_days,
         object_store_legal_hold_enabled=object_store_readiness.legal_hold_enabled,
+        object_store_object_lock_bucket_verified=(
+            object_store_readiness.object_lock_bucket_verified
+        ),
+        object_store_compliance_enforceable=object_store_readiness.compliance_enforceable,
         dr_runbook_configured=settings.dr_runbook_configured,
         dr_rpo_rto_defined=settings.dr_rpo_rto_defined,
         dr_rehearsal_evidence_configured=settings.dr_rehearsal_evidence_configured,

@@ -10,14 +10,19 @@ from axis_api.audit import AuditEventCreate
 from axis_api.audit_queries import (
     AuditEventQuery,
     AuditExportQuery,
+    AuditExportWormEnforcementError,
     AuditLegalHoldCreateRequest,
+    AuditLegalHoldPermissionDenied,
     AuditLegalHoldReleaseRequest,
+    AuditObjectLegalHoldRequest,
     AuditRetentionDeletionRequest,
+    apply_object_legal_hold,
     create_audit_legal_hold,
     execute_audit_retention_deletion,
     export_persisted_audit_events,
     query_persisted_audit_events,
     release_audit_legal_hold,
+    release_object_legal_hold,
 )
 from axis_api.audit_signing import (
     SelfHostedAuditLedgerSigner,
@@ -26,8 +31,9 @@ from axis_api.audit_signing import (
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.identity import OidcPrincipal
-from axis_api.main import create_app
+from axis_api.main import connector_export_object_store, create_app
 from axis_api.models import AuditEvent, Base
+from axis_api.object_storage import ObjectLockCapability
 from axis_api.persistence import AxisPersistenceRepository
 
 
@@ -1303,3 +1309,333 @@ def test_openapi_exposes_persisted_audit_export_endpoint() -> None:
 
     assert response.status_code == 200
     assert "/demo/manufacturing/audit/export" in response.json()["paths"]
+
+
+# --- Object-store WORM / object-lock enforcement -------------------------------
+
+
+def _worm_capability(*, enforceable: bool) -> ObjectLockCapability:
+    return ObjectLockCapability(
+        adapter="s3_compatible",
+        checked=True,
+        bucket_object_lock_enabled=enforceable,
+        default_retention_mode="COMPLIANCE" if enforceable else None,
+        compliance_enforceable=enforceable,
+        reason="enabled" if enforceable else "bucket_object_lock_probe_failed",
+    )
+
+
+def test_export_marks_worm_enforced_when_object_lock_verified(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(
+                tenant_id="tenant_demo_manufacturing",
+                retention_days=365,
+            ),
+            object_lock_capability=_worm_capability(enforceable=True),
+            require_worm_compliance=True,
+        )
+
+    assert export.manifest.worm_retention_enforced is True
+    assert export.manifest.worm_retention_mode == "COMPLIANCE"
+    # The export-response path attests capability; it does not itself lock the
+    # returned payload under object-lock.
+    assert export.manifest.worm_status == "capability_attested"
+    # RetainUntilDate is explicit and derived from retention_days.
+    generated = datetime.fromisoformat(export.manifest.generated_at)
+    retain_until = datetime.fromisoformat(export.manifest.worm_retain_until)
+    assert (retain_until - generated).days == 365
+    assert any(
+        "Object-store WORM capability is attested" in note
+        for note in export.retention_notes
+    )
+
+
+def test_export_fails_closed_when_compliance_required_but_not_enforceable(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        with pytest.raises(AuditExportWormEnforcementError, match="probe_failed"):
+            export_persisted_audit_events(
+                repository,
+                AuditExportQuery(tenant_id="tenant_demo_manufacturing"),
+                object_lock_capability=_worm_capability(enforceable=False),
+                require_worm_compliance=True,
+            )
+
+
+def test_export_worm_not_optimistic_without_capability(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_audit_events(repository)
+        export = export_persisted_audit_events(
+            repository,
+            AuditExportQuery(tenant_id="tenant_demo_manufacturing"),
+        )
+
+    # GOVERNANCE / no-capability path never claims WORM enforcement.
+    assert export.manifest.worm_retention_enforced is False
+    assert export.manifest.worm_retention_mode == "none"
+    assert export.manifest.worm_status == "none"
+    assert export.manifest.worm_retain_until is None
+
+
+def test_compliance_export_endpoint_fails_closed_without_object_lock(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_adapter="s3_compatible",
+            connector_export_s3_endpoint="https://minio.internal:9443",
+            connector_export_s3_bucket="axis-evidence",
+            connector_export_s3_access_key="axis-service-account",
+            connector_export_s3_secret_key="axis-secret-key",
+            connector_export_s3_object_lock_enabled=True,
+            connector_export_s3_retention_mode="COMPLIANCE",
+            connector_export_s3_retention_days=365,
+        )
+    )
+    app.state.session_factory = session_factory
+    # Pin a fail-closed capability (bucket lacks object-lock).
+    app.state.audit_export_object_lock_capability_override = _worm_capability(
+        enforceable=False
+    )
+    with session_scope(session_factory) as session:
+        seed_audit_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.get("/demo/manufacturing/audit/export")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["detail"]["code"] == "CONNECTOR_UNAVAILABLE"
+    assert "probe_failed" in body["detail"]["reason"]
+
+
+def test_compliance_export_endpoint_succeeds_with_verified_object_lock(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_adapter="s3_compatible",
+            connector_export_s3_endpoint="https://minio.internal:9443",
+            connector_export_s3_bucket="axis-evidence",
+            connector_export_s3_access_key="axis-service-account",
+            connector_export_s3_secret_key="axis-secret-key",
+            connector_export_s3_object_lock_enabled=True,
+            connector_export_s3_retention_mode="COMPLIANCE",
+            connector_export_s3_retention_days=365,
+        )
+    )
+    app.state.session_factory = session_factory
+    app.state.audit_export_object_lock_capability_override = _worm_capability(
+        enforceable=True
+    )
+    with session_scope(session_factory) as session:
+        seed_audit_events(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.get("/demo/manufacturing/audit/export")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["manifest"]["worm_retention_enforced"] is True
+    assert body["manifest"]["worm_retention_mode"] == "COMPLIANCE"
+    assert body["manifest"]["worm_status"] == "capability_attested"
+
+
+def test_object_lock_capability_negative_result_is_not_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from axis_api import main as main_module
+
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_adapter="s3_compatible",
+            connector_export_s3_endpoint="https://minio.internal:9443",
+            connector_export_s3_bucket="axis-evidence",
+            connector_export_s3_access_key="axis-service-account",
+            connector_export_s3_secret_key="axis-secret-key",
+            connector_export_s3_object_lock_enabled=True,
+            connector_export_s3_retention_mode="COMPLIANCE",
+            connector_export_s3_retention_days=365,
+        )
+    )
+
+    results = iter(
+        [_worm_capability(enforceable=False), _worm_capability(enforceable=True)]
+    )
+    monkeypatch.setattr(
+        main_module, "probe_object_lock_capability", lambda _settings: next(results)
+    )
+
+    # First probe fails (transient bucket outage): not enforceable, not cached.
+    first = main_module._audit_export_object_lock_capability(app)
+    assert first.compliance_enforceable is False
+
+    # Second probe (bucket recovered) re-runs and restores capability without a
+    # restart; the positive result is now cached.
+    second = main_module._audit_export_object_lock_capability(app)
+    assert second.compliance_enforceable is True
+    assert (
+        app.state.audit_export_object_lock_capability.compliance_enforceable is True
+    )
+
+
+class _FakeLegalHoldStore:
+    adapter_name = "s3_compatible"
+
+    def __init__(self) -> None:
+        self.holds: dict[str, bool] = {}
+
+    def apply_legal_hold(self, key: str) -> None:
+        self.holds[key] = True
+
+    def release_legal_hold(self, key: str) -> None:
+        self.holds[key] = False
+
+
+def test_object_legal_hold_apply_and_release_are_audited(
+    session_factory: sessionmaker[Session],
+) -> None:
+    store = _FakeLegalHoldStore()
+    key = "tenant_demo_manufacturing/exports/audit-export-abc.json"
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        applied = apply_object_legal_hold(
+            repository,
+            store,
+            AuditObjectLegalHoldRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="legal-ops-controller",
+                actor_scopes=["audit:legal_hold:write"],
+                storage_key=key,
+                reason="Litigation hold on export bundle.",
+                hold_id="hold-export-abc",
+            ),
+        )
+        assert applied.status == "applied"
+        assert applied.audit_event_type == "audit.object_legal_hold.applied"
+        assert store.holds[key] is True
+
+        released = release_object_legal_hold(
+            repository,
+            store,
+            AuditObjectLegalHoldRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="legal-ops-controller",
+                actor_scopes=["audit:legal_hold:write"],
+                storage_key=key,
+                reason="Litigation concluded.",
+                hold_id="hold-export-abc",
+            ),
+        )
+        assert released.status == "released"
+        assert released.audit_event_type == "audit.object_legal_hold.released"
+        assert store.holds[key] is False
+
+        events = session.execute(
+            select(AuditEvent).where(
+                AuditEvent.event_type.in_(
+                    [
+                        "audit.object_legal_hold.applied",
+                        "audit.object_legal_hold.released",
+                    ]
+                )
+            )
+        ).scalars().all()
+    assert len(events) == 2
+
+
+def test_object_legal_hold_denied_without_write_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    store = _FakeLegalHoldStore()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(AuditLegalHoldPermissionDenied):
+            apply_object_legal_hold(
+                repository,
+                store,
+                AuditObjectLegalHoldRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    actor_id="unauthorized-actor",
+                    actor_scopes=[],
+                    storage_key="tenant_demo_manufacturing/exports/x.json",
+                    reason="No scope.",
+                ),
+            )
+    assert store.holds == {}
+
+
+def test_object_legal_hold_endpoint_applies_and_releases(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    store = _FakeLegalHoldStore()
+    app.dependency_overrides[connector_export_object_store] = lambda: store
+    client = TestClient(app)
+
+    apply_response = client.post(
+        "/demo/manufacturing/audit/object-legal-holds",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "storage_key": "tenant_demo_manufacturing/exports/audit-export-abc.json",
+            "reason": "Litigation hold.",
+        },
+    )
+
+    assert apply_response.status_code == 201
+    assert apply_response.json()["status"] == "applied"
+
+    release_response = client.post(
+        "/demo/manufacturing/audit/object-legal-holds/release",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "storage_key": "tenant_demo_manufacturing/exports/audit-export-abc.json",
+            "reason": "Concluded.",
+        },
+    )
+
+    assert release_response.status_code == 200
+    assert release_response.json()["status"] == "released"
+
+
+def test_object_legal_hold_endpoint_503_when_store_cannot_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    # Default local_filesystem store has no legal-hold surface.
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/object-legal-holds",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "storage_key": "tenant_demo_manufacturing/exports/audit-export-abc.json",
+            "reason": "Litigation hold.",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "CONNECTOR_UNAVAILABLE"
