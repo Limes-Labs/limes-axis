@@ -14,12 +14,17 @@ from urllib.request import Request, urlopen
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from axis_api.config import Settings
 
 _HOST_COOKIE_PREFIX = "__Host-"
 _REFRESH_TOKEN_AAD = b"axis-oidc-refresh-token"
 _REFRESH_TOKEN_NONCE_BYTES = 12
+_REFRESH_TOKEN_KEY_INFO = b"axis-oidc-refresh-token-encryption-key/v1"
+_REFRESH_TOKEN_KEY_SALT = b"axis-oidc-refresh-token-encryption/v1"
+_REFRESH_TOKEN_KEY_MIN_LENGTH = 32
 
 
 class OidcCodeFlowConfigurationError(ValueError):
@@ -217,7 +222,27 @@ def _refresh_token_key(settings: Settings) -> bytes:
     value = settings.oidc_refresh_token_encryption_key
     if not value:
         raise OidcCodeFlowConfigurationError("missing_refresh_token_encryption_key")
-    return hashlib.sha256(value.encode("utf-8")).digest()
+    if len(value) < _REFRESH_TOKEN_KEY_MIN_LENGTH:
+        raise OidcCodeFlowConfigurationError("weak_refresh_token_encryption_key")
+    kdf = HKDF(
+        algorithm=SHA256(),
+        length=32,
+        salt=_REFRESH_TOKEN_KEY_SALT,
+        info=_REFRESH_TOKEN_KEY_INFO,
+    )
+    return kdf.derive(value.encode("utf-8"))
+
+
+def refresh_token_encryption_key_is_strong(settings: Settings) -> bool:
+    value = settings.oidc_refresh_token_encryption_key
+    return bool(value) and len(value) >= _REFRESH_TOKEN_KEY_MIN_LENGTH
+
+
+def validate_refresh_token_encryption_key(settings: Settings) -> None:
+    """Fail fast at startup when a refresh-token key is set but too weak."""
+    value = settings.oidc_refresh_token_encryption_key
+    if value and len(value) < _REFRESH_TOKEN_KEY_MIN_LENGTH:
+        raise OidcCodeFlowConfigurationError("weak_refresh_token_encryption_key")
 
 
 def encrypt_refresh_token(refresh_token: str, settings: Settings) -> str:
