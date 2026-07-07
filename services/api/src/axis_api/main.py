@@ -620,34 +620,48 @@ def oidc_principal(
             try:
                 oidc_session = read_session_cookie(session_cookie, settings)
                 session_hash = session_id_hash(oidc_session.session_id, settings)
+                cookie_failure_reason: str | None = None
+                principal: OidcPrincipal | None = None
                 with session_scope(request.app.state.session_factory) as session:
                     repository = AxisPersistenceRepository(session)
                     stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
                     if stored_session is None:
-                        raise OidcCookieValidationError("invalid_session_cookie")
-                    failure = _stored_session_lifecycle_failure(stored_session, settings)
-                    if failure is not None:
-                        public_reason, revocation_reason = failure
-                        if revocation_reason and stored_session.status == "active":
-                            _expire_stored_session(
-                                repository,
-                                stored_session,
-                                revocation_reason=revocation_reason,
+                        cookie_failure_reason = "invalid_session_cookie"
+                    else:
+                        failure = _stored_session_lifecycle_failure(stored_session, settings)
+                        if failure is not None:
+                            public_reason, revocation_reason = failure
+                            if revocation_reason and stored_session.status == "active":
+                                _expire_stored_session(
+                                    repository,
+                                    stored_session,
+                                    revocation_reason=revocation_reason,
+                                )
+                            cookie_failure_reason = public_reason
+                        elif (
+                            stored_session.actor_id != oidc_session.actor_id
+                            or stored_session.tenant_id != oidc_session.tenant_id
+                        ):
+                            cookie_failure_reason = "invalid_session_cookie"
+                        else:
+                            repository.touch_oidc_browser_session(
+                                session_hash, datetime.now(UTC)
                             )
-                        raise OidcCookieValidationError(public_reason)
-                    if (
-                        stored_session.actor_id != oidc_session.actor_id
-                        or stored_session.tenant_id != oidc_session.tenant_id
-                    ):
-                        raise OidcCookieValidationError("invalid_session_cookie")
-                    repository.touch_oidc_browser_session(session_hash, datetime.now(UTC))
-                    return OidcPrincipal(
-                        actor_id=stored_session.actor_id,
-                        tenant_id=stored_session.tenant_id,
-                        scopes=list(stored_session.scopes),
-                        expires_at=int(_ensure_aware_datetime(stored_session.expires_at).timestamp()),
-                        session_source="secure_cookie",
-                    )
+                            principal = OidcPrincipal(
+                                actor_id=stored_session.actor_id,
+                                tenant_id=stored_session.tenant_id,
+                                scopes=list(stored_session.scopes),
+                                expires_at=int(
+                                    _ensure_aware_datetime(
+                                        stored_session.expires_at
+                                    ).timestamp()
+                                ),
+                                session_source="secure_cookie",
+                            )
+                if cookie_failure_reason is not None:
+                    raise OidcCookieValidationError(cookie_failure_reason)
+                if principal is not None:
+                    return principal
             except (
                 OidcCodeFlowConfigurationError,
                 OidcCookieValidationError,
@@ -2063,20 +2077,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         enforce_browser_csrf(request)
 
         refresh_failure: tuple[str, str] | None = None
+        precondition_error: HTTPException | None = None
         rotated: _RotatedSessionCookie | None = None
         with session_scope(request.app.state.session_factory) as session:
             repository = AxisPersistenceRepository(session)
             stored_session = repository.get_oidc_browser_session_by_hash(session_hash)
             if stored_session is None:
-                raise session_refresh_error(
+                precondition_error = session_refresh_error(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     reason="invalid_session_cookie",
                     message="The OIDC session cookie could not be verified.",
                 )
-            lifecycle_failure = _stored_session_lifecycle_failure(
-                stored_session, resolved_settings
-            )
-            if lifecycle_failure is not None:
+            elif (
+                lifecycle_failure := _stored_session_lifecycle_failure(
+                    stored_session, resolved_settings
+                )
+            ) is not None:
                 public_reason, revocation_reason = lifecycle_failure
                 if revocation_reason and stored_session.status == "active":
                     _expire_stored_session(
@@ -2084,13 +2100,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         stored_session,
                         revocation_reason=revocation_reason,
                     )
-                raise session_refresh_error(
+                precondition_error = session_refresh_error(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     reason=public_reason,
                     message="The OIDC browser session can no longer be refreshed.",
                 )
-            if not stored_session.refresh_token_ciphertext:
-                raise session_refresh_error(
+            elif not stored_session.refresh_token_ciphertext:
+                precondition_error = session_refresh_error(
                     status_code=status.HTTP_409_CONFLICT,
                     reason="refresh_not_available",
                     message=(
@@ -2099,6 +2115,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     ),
                     error_code=AxisErrorCode.CONFLICT,
                 )
+            if precondition_error is not None:
+                session.commit()
+                raise precondition_error
             try:
                 refresh_token = decrypt_refresh_token(
                     stored_session.refresh_token_ciphertext,
