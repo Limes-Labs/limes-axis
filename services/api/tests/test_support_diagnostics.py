@@ -18,7 +18,7 @@ def _seed_verified_object_lock(app: FastAPI) -> FastAPI:
     diagnostics/readiness surfaces do not attempt a real MinIO network probe.
     """
 
-    app.state.audit_export_object_lock_capability = ObjectLockCapability(
+    app.state.audit_export_object_lock_capability_override = ObjectLockCapability(
         adapter="s3_compatible",
         checked=True,
         bucket_object_lock_enabled=True,

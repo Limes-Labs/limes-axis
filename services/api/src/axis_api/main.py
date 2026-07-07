@@ -1,4 +1,6 @@
-from collections.abc import Generator
+import logging
+from collections.abc import AsyncIterator, Generator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, NamedTuple
 from uuid import UUID
@@ -532,6 +534,8 @@ from axis_api.workflow_runtime import (
     WorkflowSignalRuntime,
 )
 
+_LOGGER = logging.getLogger("axis_api")
+
 
 def persistence_repository(request: Request) -> Generator[AxisPersistenceRepository]:
     with session_scope(request.app.state.session_factory) as session:
@@ -575,18 +579,28 @@ ConnectorExportObjectStore = Annotated[
 
 
 def _audit_export_object_lock_capability(app: FastAPI) -> ObjectLockCapability:
-    """Memoized live probe of the audit-export bucket object-lock capability.
+    """Probe the audit-export bucket object-lock capability, caching positives.
 
-    Cached on ``app.state`` so the compliance export gate does not re-probe the
-    bucket on every request. Tests may pre-seed
-    ``app.state.audit_export_object_lock_capability`` to inject a fake.
+    Only an enforceable (positive) result is cached: S3 object-lock cannot be
+    disabled once a bucket is created with it, so a verified capability is
+    stable for the process lifetime. A negative or error result (transient
+    bucket outage, probe failure) is NOT cached, so the gate re-probes on the
+    next call and a recovered bucket restores COMPLIANCE without an API restart.
+
+    Tests may pin a fixed capability (positive or negative) via
+    ``app.state.audit_export_object_lock_capability_override``; that override is
+    always authoritative and is never re-probed.
     """
 
+    override = getattr(app.state, "audit_export_object_lock_capability_override", None)
+    if isinstance(override, ObjectLockCapability):
+        return override
     cached = getattr(app.state, "audit_export_object_lock_capability", None)
-    if isinstance(cached, ObjectLockCapability):
+    if isinstance(cached, ObjectLockCapability) and cached.compliance_enforceable:
         return cached
     capability = probe_object_lock_capability(app.state.settings)
-    app.state.audit_export_object_lock_capability = capability
+    if capability.compliance_enforceable:
+        app.state.audit_export_object_lock_capability = capability
     return capability
 
 
@@ -594,6 +608,40 @@ def _audit_export_worm_settings(settings: Settings) -> bool:
     return settings.connector_export_s3_retention_mode.strip().upper() == (
         COMPLIANCE_RETENTION_MODE
     )
+
+
+def _warm_audit_export_object_lock_capability(app: FastAPI) -> None:
+    """Non-fatal startup cache-warm + log of the object-lock capability.
+
+    When COMPLIANCE retention is configured this probes the bucket once at
+    startup so readiness reflects the capability immediately and operators get
+    a boot-time signal. It never fails boot: a non-enforceable result is logged
+    (not cached, per the re-probe policy) and the export gate still fails closed
+    per request until the bucket is verified.
+    """
+
+    if not _audit_export_worm_settings(app.state.settings):
+        return
+    try:
+        capability = _audit_export_object_lock_capability(app)
+    except Exception:  # noqa: BLE001 - startup warm-up must never fail boot
+        _LOGGER.warning(
+            "Audit-export object-lock capability probe failed at startup; "
+            "COMPLIANCE exports will fail closed until the bucket is verified.",
+            exc_info=True,
+        )
+        return
+    if capability.compliance_enforceable:
+        _LOGGER.info(
+            "Audit-export object-lock capability verified at startup: %s",
+            capability.reason,
+        )
+    else:
+        _LOGGER.warning(
+            "Audit-export object-lock capability NOT enforceable at startup "
+            "(COMPLIANCE exports will fail closed until verified): %s",
+            capability.reason,
+        )
 
 
 def ontology_mutation_runtime(request: Request) -> OntologyMutationRuntime:
@@ -1981,6 +2029,12 @@ def _bind_connector_run_actor(
     return request_model.model_copy(update=update)
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    _warm_audit_export_object_lock_capability(app)
+    yield
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings()
     app = FastAPI(
@@ -1991,6 +2045,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "name": "Apache-2.0",
             "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         },
+        lifespan=_lifespan,
     )
     validate_refresh_token_encryption_key(resolved_settings)
     app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)

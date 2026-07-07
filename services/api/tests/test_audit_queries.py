@@ -1343,11 +1343,17 @@ def test_export_marks_worm_enforced_when_object_lock_verified(
 
     assert export.manifest.worm_retention_enforced is True
     assert export.manifest.worm_retention_mode == "COMPLIANCE"
+    # The export-response path attests capability; it does not itself lock the
+    # returned payload under object-lock.
+    assert export.manifest.worm_status == "capability_attested"
     # RetainUntilDate is explicit and derived from retention_days.
     generated = datetime.fromisoformat(export.manifest.generated_at)
     retain_until = datetime.fromisoformat(export.manifest.worm_retain_until)
     assert (retain_until - generated).days == 365
-    assert any("Object-store WORM is enforced" in note for note in export.retention_notes)
+    assert any(
+        "Object-store WORM capability is attested" in note
+        for note in export.retention_notes
+    )
 
 
 def test_export_fails_closed_when_compliance_required_but_not_enforceable(
@@ -1379,6 +1385,7 @@ def test_export_worm_not_optimistic_without_capability(
     # GOVERNANCE / no-capability path never claims WORM enforcement.
     assert export.manifest.worm_retention_enforced is False
     assert export.manifest.worm_retention_mode == "none"
+    assert export.manifest.worm_status == "none"
     assert export.manifest.worm_retain_until is None
 
 
@@ -1399,8 +1406,10 @@ def test_compliance_export_endpoint_fails_closed_without_object_lock(
         )
     )
     app.state.session_factory = session_factory
-    # Seed a fail-closed capability (bucket lacks object-lock).
-    app.state.audit_export_object_lock_capability = _worm_capability(enforceable=False)
+    # Pin a fail-closed capability (bucket lacks object-lock).
+    app.state.audit_export_object_lock_capability_override = _worm_capability(
+        enforceable=False
+    )
     with session_scope(session_factory) as session:
         seed_audit_events(AxisPersistenceRepository(session))
     client = TestClient(app)
@@ -1430,7 +1439,9 @@ def test_compliance_export_endpoint_succeeds_with_verified_object_lock(
         )
     )
     app.state.session_factory = session_factory
-    app.state.audit_export_object_lock_capability = _worm_capability(enforceable=True)
+    app.state.audit_export_object_lock_capability_override = _worm_capability(
+        enforceable=True
+    )
     with session_scope(session_factory) as session:
         seed_audit_events(AxisPersistenceRepository(session))
     client = TestClient(app)
@@ -1441,6 +1452,46 @@ def test_compliance_export_endpoint_succeeds_with_verified_object_lock(
     body = response.json()
     assert body["manifest"]["worm_retention_enforced"] is True
     assert body["manifest"]["worm_retention_mode"] == "COMPLIANCE"
+    assert body["manifest"]["worm_status"] == "capability_attested"
+
+
+def test_object_lock_capability_negative_result_is_not_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from axis_api import main as main_module
+
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            connector_export_object_store_adapter="s3_compatible",
+            connector_export_s3_endpoint="https://minio.internal:9443",
+            connector_export_s3_bucket="axis-evidence",
+            connector_export_s3_access_key="axis-service-account",
+            connector_export_s3_secret_key="axis-secret-key",
+            connector_export_s3_object_lock_enabled=True,
+            connector_export_s3_retention_mode="COMPLIANCE",
+            connector_export_s3_retention_days=365,
+        )
+    )
+
+    results = iter(
+        [_worm_capability(enforceable=False), _worm_capability(enforceable=True)]
+    )
+    monkeypatch.setattr(
+        main_module, "probe_object_lock_capability", lambda _settings: next(results)
+    )
+
+    # First probe fails (transient bucket outage): not enforceable, not cached.
+    first = main_module._audit_export_object_lock_capability(app)
+    assert first.compliance_enforceable is False
+
+    # Second probe (bucket recovered) re-runs and restores capability without a
+    # restart; the positive result is now cached.
+    second = main_module._audit_export_object_lock_capability(app)
+    assert second.compliance_enforceable is True
+    assert (
+        app.state.audit_export_object_lock_capability.compliance_enforceable is True
+    )
 
 
 class _FakeLegalHoldStore:

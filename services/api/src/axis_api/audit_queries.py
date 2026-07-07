@@ -101,6 +101,17 @@ class AuditExportManifest(BaseModel):
     retention_enforced: bool
     retention_window_start: str = Field(min_length=1)
     excluded_record_count: int = Field(ge=0)
+    # WORM fields describe the object-lock posture of the export.
+    # ``worm_status`` disambiguates the guarantee:
+    #   - "none": no object-lock capability (GOVERNANCE / local / unverified).
+    #   - "capability_attested": the backing store's object-lock capability is
+    #     verified, but THIS bundle is returned in the HTTP response and is NOT
+    #     itself written under object-lock. Immutability of this response
+    #     payload rests on the hash-chain integrity proof + ledger signature.
+    #   - "object_locked": the bundle was written to the object store under an
+    #     S3 Retention (RetainUntilDate) — produced by the connector-evidence
+    #     materialization path, not by the export-response endpoint.
+    worm_status: str = Field(default="none", min_length=1)
     worm_retention_mode: str = Field(default="none", min_length=1)
     worm_retention_enforced: bool = False
     worm_retain_until: str | None = None
@@ -557,20 +568,24 @@ def _resolve_worm_enforcement(
     *,
     retention_days: int,
     generated_at: datetime,
-) -> tuple[str, bool, str | None]:
-    """Return the truthful (mode, enforced, retain_until) WORM manifest fields.
+) -> tuple[str, str, bool, str | None]:
+    """Return the truthful (status, mode, enforced, retain_until) WORM fields.
 
-    ``object_lock_capability`` is the actual capability of the audit-export
-    object store, probed live at bootstrap. When it reports COMPLIANCE is
-    enforceable the export is pinned under object-lock until an explicit
-    RetainUntilDate. Any other case is reported non-optimistically as not
-    WORM-enforced; the compliance gate refuses the export separately.
+    ``object_lock_capability`` is the actual verified capability of the
+    audit-export object store. This function serves the export-RESPONSE path:
+    the bundle is returned over HTTP and is NOT itself written under
+    object-lock, so an enforceable capability yields ``worm_status`` of
+    "capability_attested" (the store CAN enforce WORM and the retain-until is
+    the date such a write would use), not "object_locked". The
+    ``worm_retention_enforced`` flag reflects the verified capability
+    non-optimistically; the compliance gate refuses the export separately when
+    the capability is missing.
     """
 
     if object_lock_capability is None or not object_lock_capability.compliance_enforceable:
-        return "none", False, None
+        return "none", "none", False, None
     retain_until = (generated_at + timedelta(days=retention_days)).isoformat()
-    return COMPLIANCE_RETENTION_MODE, True, retain_until
+    return "capability_attested", COMPLIANCE_RETENTION_MODE, True, retain_until
 
 
 def export_persisted_audit_events(
@@ -601,7 +616,7 @@ def export_persisted_audit_events(
     retained_events, retention_window_start, excluded_count, retention_enforced = (
         _apply_retention_policy(explorer.events, query, generated_at_datetime)
     )
-    worm_retention_mode, worm_retention_enforced, worm_retain_until = (
+    worm_status, worm_retention_mode, worm_retention_enforced, worm_retain_until = (
         _resolve_worm_enforcement(
             object_lock_capability,
             retention_days=query.retention_days,
@@ -623,6 +638,7 @@ def export_persisted_audit_events(
         retention_enforced=retention_enforced,
         retention_window_start=retention_window_start.isoformat(),
         excluded_record_count=excluded_count,
+        worm_status=worm_status,
         worm_retention_mode=worm_retention_mode,
         worm_retention_enforced=worm_retention_enforced,
         worm_retain_until=worm_retain_until,
@@ -640,8 +656,12 @@ def export_persisted_audit_events(
         f"{'' if excluded_count == 1 else 's'} from this export."
     )
     worm_summary = (
-        "Object-store WORM is enforced: the bundle is written under S3 "
-        f"object-lock in {worm_retention_mode} mode until {worm_retain_until}."
+        "Object-store WORM capability is attested: the backing bucket enforces "
+        f"S3 object-lock in {worm_retention_mode} mode and a stored copy would "
+        f"be retained until {worm_retain_until}. This response payload is NOT "
+        "itself object-locked; its integrity here rests on the hash-chain proof "
+        "and ledger signature. A stored, object-locked artifact is produced by "
+        "the connector-evidence materialization path."
         if worm_retention_enforced
         else "Object-store WORM is not enforced for this export; the bundle "
         "relies on the deterministic hash-chain integrity proof only."
