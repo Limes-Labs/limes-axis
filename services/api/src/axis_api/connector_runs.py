@@ -1404,7 +1404,7 @@ def _live_sync_retry_allowed(
 
 def _live_sync_field_mappings(manifest) -> list[ConnectorLiveSyncFieldMapping]:
     schema_fields = (manifest.manifest_payload or {}).get("schema_fields") or []
-    mappings = [
+    return [
         ConnectorLiveSyncFieldMapping(
             source_column=str(field.get("source_column", "")),
             target_field=str(field.get("target_field", "")),
@@ -1414,12 +1414,6 @@ def _live_sync_field_mappings(manifest) -> list[ConnectorLiveSyncFieldMapping]:
         if field.get("source_column") and field.get("target_field")
         and field.get("ontology_target")
     ]
-    if not mappings:
-        raise ConnectorRunValidationError(
-            "Connector manifest must declare schema fields before live sync execution.",
-            "connector_manifest_schema_fields_missing",
-        )
-    return mappings
 
 
 def _validate_active_live_manifest_for_live_sync(manifest) -> None:
