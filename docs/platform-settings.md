@@ -35,6 +35,26 @@ The Settings console shows:
 - Support diagnostics, support blockers, redaction policy and support
   artifacts.
 
+## Session Security View
+
+`/settings/sessions` is the console session management surface for the
+API-owned OIDC browser session lifecycle. It reads `GET /identity/session` for
+the verified operator identity and `GET /identity/sessions` for the actor's
+persisted browser sessions, rendered as opaque session references with status,
+creation, last-seen, expiry, refresh-count and revocation metadata. Non-current
+sessions can be revoked through
+`POST /identity/sessions/{session_ref}/revoke`; revoking the current session is
+treated as logout and navigates to `GET /identity/oidc/logout`. A tenant-wide
+listing toggle appears only when the identity read model exposes the
+`identity:sessions:admin` scope, and the API still enforces that scope
+server-side. The view keeps the console conventions: an API-required state when
+the identity APIs are unreachable, a signed-out state with the SSO entrypoint
+when no operator is authenticated, and no browser-local session records.
+Cookie-session mutations from this view (and every other console mutation)
+attach the `X-Axis-Csrf-Token` double-submit header from the shared request
+layer; see the deployment guide's OIDC section for the full console
+CSRF-and-refresh behavior.
+
 ## Object Storage Readiness
 
 Governed connector evidence exports can use either the local filesystem adapter
@@ -60,7 +80,11 @@ security review.
 Coverage includes:
 
 - unit tests for settings status helpers;
+- unit tests for the CSRF header attach, single-retry session refresh and
+  session list/revoke bindings;
 - Playwright smoke coverage for the `/settings` API-required state;
+- Playwright smoke coverage for the `/settings/sessions` API-required state and
+  the mocked session listing, CSRF-protected revocation and tenant-wide toggle;
 - sidebar navigation coverage so Settings remains reachable on short desktop
   viewports;
 - live demo checks through the existing readiness and diagnostics endpoints.

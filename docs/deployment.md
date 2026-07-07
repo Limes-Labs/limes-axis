@@ -953,6 +953,26 @@ requests that authenticate with an `Authorization` bearer header are exempt
 because they carry no ambient cookie authority, which keeps bearer-only clients
 and the GET-based OIDC callback and federated-logout navigations working.
 
+The web console adopts this session lifecycle in its shared API request layer
+(`apps/web/lib/axis-api.ts`), not per page. Every state-changing console
+request that runs in cookie-session mode reads the readable CSRF cookie
+(`axis_csrf`, or the `__Host-` prefixed variant on secure profiles) and
+attaches it as the `X-Axis-Csrf-Token` header; bearer-bridge requests stay
+CSRF-free because the API exempts them. When a cookie-session request returns
+`401` the console calls `POST /identity/session/refresh` exactly once - a
+single in-flight refresh is shared by concurrent `401`s - and retries the
+original request once with the rotated CSRF cookie. A failed refresh is never
+retried: the console announces the signed-out state, live queries re-run and
+`GET /identity/session` reports the public state, so no browser-local session
+truth is synthesized. Anonymous `401`s (no CSRF cookie) never trigger refresh
+attempts. The console session view at `/settings/sessions` lists the actor's
+sessions from `GET /identity/sessions` with status, creation, last-seen,
+expiry and refresh-count metadata, revokes non-current sessions through
+`POST /identity/sessions/{session_ref}/revoke`, offers the tenant-wide listing
+toggle only when the identity read model exposes `identity:sessions:admin`,
+and treats revoking the current session as logout by navigating to
+`GET /identity/oidc/logout`.
+
 The federated logout redirect uses `client_id` and `post_logout_redirect_uri`;
 Axis does not persist or forward `id_token_hint`, access tokens or raw refresh
 tokens. The IdP onboarding report never returns confidential client material,
