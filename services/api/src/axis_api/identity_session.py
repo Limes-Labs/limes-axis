@@ -1,9 +1,20 @@
-from datetime import datetime
+import base64
+import binascii
+import json
+from datetime import UTC, datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
 from axis_api.identity import OidcPrincipal
+from axis_api.models import OidcBrowserSession
+
+
+class IdentitySessionCursorError(ValueError):
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class IdentityBrowserSessionRecord(BaseModel):
@@ -16,6 +27,9 @@ class IdentityBrowserSessionRecord(BaseModel):
     absolute_expires_at: datetime | None = None
     last_seen_at: datetime | None = None
     refresh_count: int = Field(default=0, ge=0)
+    user_agent: str | None = None
+    client_ip: str | None = None
+    device_label: str | None = None
     revoked_at: datetime | None = None
     revocation_reason: str | None = None
 
@@ -25,7 +39,46 @@ class IdentityBrowserSessionList(BaseModel):
     actor_id: str = Field(min_length=1)
     tenant_wide: bool
     sessions: list[IdentityBrowserSessionRecord] = Field(default_factory=list)
+    has_more: bool = False
+    next_cursor: str | None = None
     notes: list[str] = Field(default_factory=list)
+
+
+def encode_session_cursor(record: OidcBrowserSession) -> str:
+    payload = {
+        "created_at": _ensure_utc(record.created_at).isoformat(),
+        "row_id": str(record.id),
+    }
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def decode_session_cursor(cursor: str | None) -> tuple[datetime | None, UUID | None]:
+    if cursor is None:
+        return None, None
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+        created_at = datetime.fromisoformat(
+            str(payload["created_at"]).replace("Z", "+00:00")
+        )
+        row_id = UUID(str(payload["row_id"]))
+    except (
+        KeyError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ) as exc:
+        raise IdentitySessionCursorError("invalid_session_cursor") from exc
+    return _ensure_utc(created_at), row_id
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class IdentitySessionReadModel(BaseModel):

@@ -323,8 +323,11 @@ from axis_api.identity import (
 from axis_api.identity_session import (
     IdentityBrowserSessionList,
     IdentityBrowserSessionRecord,
+    IdentitySessionCursorError,
     IdentitySessionReadModel,
     build_identity_session_read_model,
+    decode_session_cursor,
+    encode_session_cursor,
 )
 from axis_api.manufacturing_operations import (
     DailyPlantBriefIdempotencyConflict,
@@ -503,6 +506,7 @@ from axis_api.replay_simulation import (
     build_replay_simulation,
     persist_replay_simulation_output,
 )
+from axis_api.session_metadata import extract_session_client_metadata
 from axis_api.support_diagnostics import (
     SupportDiagnosticsReport,
     build_support_diagnostics_report,
@@ -2290,6 +2294,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "reason": login_block_reason,
                     },
                 )
+            # Device metadata is stored on the session row for the owner-facing
+            # session inventory; it never enters audit payloads (the client IP
+            # in particular stays out of the audit ledger).
+            client_metadata = extract_session_client_metadata(request, resolved_settings)
             with session_scope(request.app.state.session_factory) as session:
                 repository = AxisPersistenceRepository(session)
                 audit_event = repository.append_audit_event(
@@ -2318,6 +2326,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         expires_at=expires_at,
                         absolute_expires_at=absolute_expires_at,
                         refresh_token_ciphertext=refresh_token_ciphertext,
+                        user_agent=client_metadata.user_agent,
+                        client_ip=client_metadata.client_ip,
+                        device_label=client_metadata.device_label,
                         created_audit_event_id=audit_event.id,
                     )
                 )
@@ -2603,6 +2614,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     else claim.refresh_token
                 )
                 refresh_count = claim.refresh_count + 1
+                # Re-capture device metadata from the refreshing request so a
+                # rotated session row reflects the device actually holding the
+                # cookie now; the metadata stays out of audit payloads.
+                client_metadata = extract_session_client_metadata(
+                    request, resolved_settings
+                )
                 audit_event = repository.append_audit_event(
                     AuditEventCreate(
                         tenant_id=principal.tenant_id,
@@ -2638,6 +2655,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             next_refresh_token, resolved_settings
                         ),
                         refresh_count=refresh_count,
+                        user_agent=client_metadata.user_agent,
+                        client_ip=client_metadata.client_ip,
+                        device_label=client_metadata.device_label,
                         created_audit_event_id=audit_event.id,
                     )
                 )
@@ -2727,22 +2747,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(
         "/identity/sessions",
         response_model=IdentityBrowserSessionList,
+        responses={
+            422: {"description": "Session listing cursor or page size is invalid"},
+        },
         tags=["system"],
     )
     def identity_sessions(
         request: Request,
         principal: OidcPrincipalDependency,
         tenant_wide: bool = False,
+        page_size: int = Query(default=20, ge=1, le=100),
+        cursor: str | None = Query(default=None, min_length=1, max_length=600),
     ) -> IdentityBrowserSessionList:
         resolved_principal = _require_identity_principal(principal)
         if tenant_wide:
             _require_session_admin_scope(resolved_principal, resource="session_listing")
+        try:
+            cursor_created_at, cursor_row_id = decode_session_cursor(cursor)
+        except IdentitySessionCursorError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The session listing cursor is invalid.",
+                    "reason": exc.reason,
+                },
+            ) from exc
         current_hash = _current_session_hash(request)
         with session_scope(request.app.state.session_factory) as session:
             repository = AxisPersistenceRepository(session)
             stored_sessions = repository.list_oidc_browser_sessions(
                 tenant_id=resolved_principal.tenant_id,
                 actor_id=None if tenant_wide else resolved_principal.actor_id,
+                cursor_created_at=cursor_created_at,
+                cursor_row_id=cursor_row_id,
+                limit=page_size + 1,
+            )
+            has_more = len(stored_sessions) > page_size
+            page_sessions = stored_sessions[:page_size]
+            next_cursor = (
+                encode_session_cursor(page_sessions[-1])
+                if has_more and page_sessions
+                else None
             )
             records = [
                 IdentityBrowserSessionRecord(
@@ -2755,16 +2801,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     absolute_expires_at=stored_session.absolute_expires_at,
                     last_seen_at=stored_session.last_seen_at,
                     refresh_count=stored_session.refresh_count,
+                    user_agent=stored_session.user_agent,
+                    client_ip=stored_session.client_ip,
+                    device_label=stored_session.device_label,
                     revoked_at=stored_session.revoked_at,
                     revocation_reason=stored_session.revocation_reason,
                 )
-                for stored_session in stored_sessions
+                for stored_session in page_sessions
             ]
         return IdentityBrowserSessionList(
             tenant_id=resolved_principal.tenant_id,
             actor_id=resolved_principal.actor_id,
             tenant_wide=tenant_wide,
             sessions=records,
+            has_more=has_more,
+            next_cursor=next_cursor,
             notes=[
                 "Session references are opaque identifiers; no token material is returned.",
                 "Revoke a session with POST /identity/sessions/{session_ref}/revoke.",

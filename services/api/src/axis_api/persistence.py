@@ -841,6 +841,9 @@ class OidcBrowserSessionCreate(BaseModel):
     absolute_expires_at: datetime | None = None
     refresh_token_ciphertext: str | None = None
     refresh_count: int = Field(default=0, ge=0)
+    user_agent: str | None = Field(default=None, max_length=256)
+    client_ip: str | None = Field(default=None, max_length=64)
+    device_label: str | None = Field(default=None, max_length=80)
     created_audit_event_id: UUID | None = None
 
 
@@ -903,6 +906,9 @@ class AxisPersistenceRepository:
             absolute_expires_at=record.absolute_expires_at,
             refresh_token_ciphertext=record.refresh_token_ciphertext,
             refresh_count=record.refresh_count,
+            user_agent=record.user_agent,
+            client_ip=record.client_ip,
+            device_label=record.device_label,
             created_audit_event_id=record.created_audit_event_id,
         )
         self.session.add(browser_session)
@@ -933,6 +939,8 @@ class AxisPersistenceRepository:
         self,
         tenant_id: str,
         actor_id: str | None = None,
+        cursor_created_at: datetime | None = None,
+        cursor_row_id: UUID | None = None,
         limit: int = 100,
     ) -> list[OidcBrowserSession]:
         statement: Select[tuple[OidcBrowserSession]] = select(OidcBrowserSession).where(
@@ -940,6 +948,18 @@ class AxisPersistenceRepository:
         )
         if actor_id is not None:
             statement = statement.where(OidcBrowserSession.actor_id == actor_id)
+        if cursor_created_at is not None and cursor_row_id is not None:
+            # Newest-first keyset continuation: resume strictly after the
+            # cursor row in (created_at desc, id desc) order.
+            statement = statement.where(
+                or_(
+                    OidcBrowserSession.created_at < cursor_created_at,
+                    and_(
+                        OidcBrowserSession.created_at == cursor_created_at,
+                        OidcBrowserSession.id < cursor_row_id,
+                    ),
+                )
+            )
         statement = statement.order_by(
             OidcBrowserSession.created_at.desc(),
             OidcBrowserSession.id.desc(),

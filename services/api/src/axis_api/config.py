@@ -157,6 +157,10 @@ class Settings(BaseSettings):
         ge=1,
         alias="AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS",
     )
+    identity_session_trusted_proxy_enabled: bool = Field(
+        default=False,
+        alias="AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED",
+    )
     external_model_egress_enabled: bool = Field(
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",
