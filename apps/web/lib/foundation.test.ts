@@ -15,6 +15,7 @@ describe("foundation console contracts", () => {
       "/audit",
       "/simulation",
       "/connectors",
+      "/tenants",
       "/settings",
     ]);
   });
