@@ -982,6 +982,98 @@ def test_action_run_endpoint_returns_validation_and_permission_errors(
     assert missing.json()["detail"] == "Action not found"
 
 
+def typed_fields_action_registry_payload() -> dict:
+    payload = action_registry_payload()
+    for action in payload["actions"]:
+        if action["definition"]["action_id"] == "generate_daily_plant_brief":
+            properties = action["definition"]["input_schema"]["properties"]
+            properties["requested_amount"] = {"type": "number"}
+            properties["retry_count"] = {"type": "integer"}
+            properties["dry_run"] = {"type": "boolean"}
+    return payload
+
+
+def _daily_brief_run_body(idempotency_key: str, payload_fields: dict) -> dict:
+    return {
+        "actor_id": "agent_daily_brief",
+        "actor_scopes": ["briefs:generate", "audit:read", "workflows:read"],
+        "idempotency_key": idempotency_key,
+        "payload": {
+            "tenant_id": "tenant_demo_manufacturing",
+            "scope": "daily_operations",
+            "evidence_refs": ["wf_supplier_delay_review"],
+            **payload_fields,
+        },
+    }
+
+
+def test_action_run_endpoint_rejects_wrong_typed_number_integer_boolean_fields(
+    session_factory: sessionmaker[Session],
+) -> None:
+    seed_action_registry_reference(session_factory, typed_fields_action_registry_payload())
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    cases = {
+        "number-string": {"requested_amount": "not-a-number"},
+        "number-numeric-string": {"requested_amount": "1500"},
+        "number-bool": {"requested_amount": True},
+        "integer-float": {"retry_count": 1.5},
+        "integer-bool": {"retry_count": True},
+        "boolean-string": {"dry_run": "yes"},
+    }
+    for label, fields in cases.items():
+        response = client.post(
+            "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+            json=_daily_brief_run_body(f"daily-brief-typed-{label}", fields),
+        )
+        assert response.status_code == 422, label
+        detail = response.json()["detail"]
+        assert detail["code"] == "VALIDATION_FAILED", label
+        field_name = next(iter(fields))
+        assert any(
+            issue.startswith(f"invalid_type:{field_name}:") for issue in detail["issues"]
+        ), label
+
+
+def test_action_run_endpoint_accepts_well_typed_number_integer_boolean_fields(
+    session_factory: sessionmaker[Session],
+) -> None:
+    seed_action_registry_reference(session_factory, typed_fields_action_registry_payload())
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+        json=_daily_brief_run_body(
+            "daily-brief-typed-valid",
+            {"requested_amount": 1500.5, "retry_count": 3, "dry_run": True},
+        ),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "preview_generated"
+
+
+def test_field_type_matches_rejects_non_finite_numbers() -> None:
+    from axis_api.action_runs import _field_type_matches
+
+    assert _field_type_matches(1500, "number") is True
+    assert _field_type_matches(1500.5, "number") is True
+    assert _field_type_matches(float("nan"), "number") is False
+    assert _field_type_matches(float("inf"), "number") is False
+    assert _field_type_matches(True, "number") is False
+    assert _field_type_matches("1500", "number") is False
+    assert _field_type_matches(3, "integer") is True
+    assert _field_type_matches(3.0, "integer") is False
+    assert _field_type_matches(True, "integer") is False
+    assert _field_type_matches(False, "boolean") is True
+    assert _field_type_matches({"nested": "value"}, "object") is True
+    assert _field_type_matches(["nested"], "object") is False
+
+
 def test_action_run_endpoint_returns_idempotency_conflict(
     session_factory: sessionmaker[Session],
 ) -> None:

@@ -178,6 +178,23 @@ def _field_type_matches(value: object, expected_type: str) -> bool:
         return isinstance(value, str) and value != ""
     if expected_type == "array":
         return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    if expected_type == "boolean":
+        return isinstance(value, bool)
+    if expected_type == "integer":
+        # bool is an int subclass in Python but not an integer in a schema.
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected_type == "number":
+        # Numeric strings are NOT accepted for schema-declared numeric fields;
+        # only fields declared as "string" carry string-encoded numbers (the
+        # policy layer then parses them and fails closed on garbage). NaN and
+        # infinities are rejected outright.
+        return (
+            isinstance(value, int | float)
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        )
+    if expected_type == "object":
+        return isinstance(value, dict)
     return True
 
 

@@ -1132,6 +1132,71 @@ def test_action_run_endpoint_fails_closed_on_malformed_requested_amounts() -> No
     assert denied_response.json()["detail"]["reason"] == "platform_policy_denied"
 
 
+def number_amount_action_registry_payload() -> dict:
+    payload = action_registry_payload()
+    for action in payload["actions"]:
+        if action["definition"]["action_id"] == "generate_daily_plant_brief":
+            action["definition"]["input_schema"]["properties"]["requested_amount"] = {
+                "type": "number",
+            }
+    return payload
+
+
+def test_schema_declared_number_amounts_fail_validation_before_policy_layer() -> None:
+    # When the action schema declares requested_amount as a number, garbage
+    # values are rejected as schema violations (422) before the policy engine
+    # runs. The fail-closed policy handling stays load-bearing only for
+    # string-declared amount fields, which is the tolerance the demo registry
+    # actually uses.
+    client, factory = build_test_client(
+        seed_action_registry=True,
+        action_registry=number_amount_action_registry_payload(),
+    )
+    client.post(
+        "/platform/policies",
+        json=policy_payload(
+            policy_id="policy_platform_amount_deny_v1",
+            effect="deny",
+            conditions={"requested_amount_at_least": 1000},
+        ),
+    )
+
+    garbage_response = client.post(
+        "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+        json=daily_brief_run_payload(
+            idempotency_key="daily-brief-number-garbage",
+            requested_amount="not-a-number",
+        ),
+    )
+    denied_response = client.post(
+        "/demo/manufacturing/actions/generate_daily_plant_brief/runs",
+        json={
+            **daily_brief_run_payload(idempotency_key="daily-brief-number-denied"),
+            "payload": {
+                **daily_brief_run_payload(idempotency_key="unused")["payload"],
+                "requested_amount": 2000,
+            },
+        },
+    )
+
+    client.close()
+    assert garbage_response.status_code == 422
+    assert garbage_response.json()["detail"]["code"] == "VALIDATION_FAILED"
+    assert "invalid_type:requested_amount:number" in garbage_response.json()["detail"]["issues"]
+    assert denied_response.status_code == 403
+    assert denied_response.json()["detail"]["reason"] == "platform_policy_denied"
+    with factory() as session:
+        denial_events = list(
+            session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.event_type == "platform.policy.enforcement.denied"
+                )
+            )
+        )
+    # Only the well-typed above-threshold run reached the policy engine.
+    assert len(denial_events) == 1
+
+
 def test_action_run_endpoint_allows_malformed_amounts_without_amount_policies() -> None:
     client, _ = build_test_client(
         seed_action_registry=True,
