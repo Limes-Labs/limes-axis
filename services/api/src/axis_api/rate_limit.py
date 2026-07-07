@@ -4,6 +4,7 @@ import math
 import time
 from dataclasses import dataclass
 
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -11,6 +12,13 @@ from starlette.types import ASGIApp
 
 from axis_api.config import Settings
 from axis_api.errors import AxisErrorCode
+from axis_api.oidc_code_flow import (
+    OidcCodeFlowConfigurationError,
+    OidcCookieValidationError,
+    read_session_cookie,
+    session_cookie_name,
+)
+from axis_api.platform_tenants import TenantQuotaKey, TenantStateCache
 
 
 @dataclass
@@ -34,8 +42,15 @@ class InMemoryRateLimiter:
         self.window_seconds = max(1, window_seconds)
         self._buckets: dict[str, _RateLimitBucket] = {}
 
-    def check(self, key: str, *, now: float | None = None) -> RateLimitDecision:
+    def check(
+        self,
+        key: str,
+        *,
+        now: float | None = None,
+        limit: int | None = None,
+    ) -> RateLimitDecision:
         observed_at = now if now is not None else time.monotonic()
+        effective_limit = max(1, limit) if limit is not None else self.limit
         bucket = self._buckets.get(key)
         if bucket is None or observed_at - bucket.window_started_at >= self.window_seconds:
             bucket = _RateLimitBucket(window_started_at=observed_at, request_count=0)
@@ -43,20 +58,20 @@ class InMemoryRateLimiter:
 
         elapsed_seconds = max(0.0, observed_at - bucket.window_started_at)
         reset_seconds = max(1, math.ceil(self.window_seconds - elapsed_seconds))
-        if bucket.request_count >= self.limit:
+        if bucket.request_count >= effective_limit:
             return RateLimitDecision(
                 allowed=False,
-                limit=self.limit,
+                limit=effective_limit,
                 remaining=0,
                 retry_after_seconds=reset_seconds,
                 reset_seconds=reset_seconds,
             )
 
         bucket.request_count += 1
-        remaining = max(0, self.limit - bucket.request_count)
+        remaining = max(0, effective_limit - bucket.request_count)
         return RateLimitDecision(
             allowed=True,
-            limit=self.limit,
+            limit=effective_limit,
             remaining=remaining,
             retry_after_seconds=0,
             reset_seconds=reset_seconds,
@@ -66,6 +81,7 @@ class InMemoryRateLimiter:
 class ApiRateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, *, settings: Settings) -> None:
         super().__init__(app)
+        self.settings = settings
         self.enabled = settings.api_rate_limit_enabled
         self.protected_paths = set(settings.api_rate_limit_paths)
         self.window_seconds = max(1, settings.api_rate_limit_window_seconds)
@@ -78,7 +94,18 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         if not self._should_limit(request):
             return await call_next(request)
 
-        decision = self.limiter.check(_rate_limit_key(request))
+        tenant_id = self._session_cookie_tenant(request)
+        tenant_limit = self._tenant_request_limit(request, tenant_id)
+        if tenant_id is not None and tenant_limit is not None:
+            # A per-tenant quota shares one bucket across the tenant's clients.
+            decision = self.limiter.check(
+                f"tenant:{tenant_id}:{request.method}:{request.url.path}",
+                limit=tenant_limit,
+            )
+            scope = "tenant_quota"
+        else:
+            decision = self.limiter.check(_rate_limit_key(request))
+            scope = "client_endpoint"
         headers = _rate_limit_headers(decision)
         if not decision.allowed:
             return JSONResponse(
@@ -90,7 +117,7 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
                         "limit": decision.limit,
                         "window_seconds": self.window_seconds,
                         "retry_after_seconds": decision.retry_after_seconds,
-                        "scope": "client_endpoint",
+                        "scope": scope,
                     }
                 },
                 headers=headers,
@@ -107,6 +134,38 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
             and request.method != "OPTIONS"
             and request.url.path in self.protected_paths
         )
+
+    def _session_cookie_tenant(self, request: Request) -> str | None:
+        """Resolve the tenant from the HMAC-verified session cookie only.
+
+        Bearer requests fall back to the global limit: verifying a JWT inside
+        the middleware would duplicate the principal resolver, and an
+        unverified tenant claim must never select a higher per-tenant limit.
+        """
+        session_cookie = request.cookies.get(session_cookie_name(self.settings))
+        if not session_cookie:
+            return None
+        try:
+            return read_session_cookie(session_cookie, self.settings).tenant_id
+        except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
+            return None
+
+    def _tenant_request_limit(self, request: Request, tenant_id: str | None) -> int | None:
+        if tenant_id is None:
+            return None
+        cache: TenantStateCache | None = getattr(
+            request.app.state, "tenant_state_cache", None
+        )
+        session_factory = getattr(request.app.state, "session_factory", None)
+        if cache is None or session_factory is None:
+            return None
+        try:
+            snapshot = cache.snapshot(session_factory, tenant_id)
+        except SQLAlchemyError:
+            # A failed quota lookup falls back to the global limit; the request
+            # itself will surface the database failure at the route layer.
+            return None
+        return snapshot.quotas.get(TenantQuotaKey.API_REQUESTS_PER_WINDOW.value)
 
 
 def _rate_limit_key(request: Request) -> str:

@@ -1063,6 +1063,15 @@ audit writes from live route decisions remain Platform work.
 
 ### Enterprise
 
+- [x] Add the tenant lifecycle and per-tenant quota foundation that starts the
+  multi-tenant SaaS reference: operator-scoped provisioning with idempotent
+  replay and bootstrap admin actors, suspend/reactivate with fail-closed
+  request rejection at the OIDC principal boundary, and typed quotas (API
+  requests per window, concurrent sessions, live-sync rows per run) enforced
+  through a short-TTL tenant state cache with per-change audit evidence.
+- [ ] Add tenant deletion and data-export pipelines, approval-gated lifecycle
+  transitions and a tenant administration console on top of the lifecycle
+  foundation.
 - [x] Add baseline single-tenant managed deployment profile, render checks and
   readiness gates.
 - [x] Add baseline private-cloud and on-prem/offline deployment profiles,

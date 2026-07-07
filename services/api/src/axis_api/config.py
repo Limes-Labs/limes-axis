@@ -39,6 +39,11 @@ class Settings(BaseSettings):
         ],
         alias="AXIS_API_RATE_LIMIT_PATHS",
     )
+    tenant_state_cache_ttl_seconds: float = Field(
+        default=5.0,
+        ge=0,
+        alias="AXIS_TENANT_STATE_CACHE_TTL_SECONDS",
+    )
     postgres_dsn: str = Field(
         default="postgresql+psycopg://axis:axis@localhost:5432/axis",
         alias="AXIS_POSTGRES_DSN",

@@ -28,8 +28,74 @@ class Tenant(Base):
 
     id: Mapped[str] = mapped_column(String(80), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(
+        String(600), nullable=False, default="", server_default=""
+    )
+    status: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="active", server_default="active", index=True
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        default="axis-bootstrap",
+        server_default="axis-bootstrap",
+        index=True,
+    )
+    bootstrap_admin_actor_id: Mapped[str | None] = mapped_column(
+        String(120), nullable=True, index=True
+    )
+    provision_idempotency_key: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, index=True
+    )
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suspended_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    suspension_reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reactivated_by: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        default="platform.tenant.bootstrapped",
+        server_default="platform.tenant.bootstrapped",
+        index=True,
+    )
+    notes: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "provision_idempotency_key",
+            name="uq_tenants_provision_idempotency",
+        ),
+    )
+
+
+class TenantQuota(Base):
+    __tablename__ = "tenant_quotas"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    quota_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    quota_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "quota_key", name="uq_tenant_quotas_tenant_quota_key"),
     )
 
 

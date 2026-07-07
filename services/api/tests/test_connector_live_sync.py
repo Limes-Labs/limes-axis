@@ -60,7 +60,9 @@ from axis_api.persistence import (
     ConnectorEgressPolicyCreate,
     ConnectorSyncCheckpointCreate,
     DemoReferenceRecordCreate,
+    TenantQuotaUpsert,
 )
+from axis_api.platform_tenants import TenantQuotaKey
 
 TENANT_ID = "tenant_demo_manufacturing"
 FILE_CSV_CONNECTOR_ID = "file_csv_manufacturing_assets"
@@ -933,6 +935,136 @@ def test_execute_live_sync_completes_with_batches_proposals_and_stage_audit(
     assert "Asset 0" not in str(summary)
     assert "Asset 0" not in str(batch_checkpoints[0].result_summary)
     assert "Asset 0" not in str(batch_checkpoints[0].cursor)
+
+
+def test_execute_live_sync_caps_rows_at_tenant_quota(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = live_capable_registry_payload(FILE_CSV_CONNECTOR_ID)
+    seed_connector_registry_reference(session_factory, payload)
+    runtime = ScriptedLiveSyncRuntime(
+        scripted_plan(batch_size=2, max_records=10),
+        [
+            scripted_batch(
+                records=[scripted_record(0), scripted_record(1)],
+                next_offset=2,
+                source_exhausted=False,
+            ),
+            scripted_batch(
+                records=[scripted_record(2)],
+                next_offset=3,
+                source_exhausted=False,
+            ),
+        ],
+    )
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.upsert_tenant_quota(
+            TenantQuotaUpsert(
+                tenant_id=TENANT_ID,
+                quota_key=TenantQuotaKey.MAX_CONNECTOR_SYNC_ROWS_PER_RUN.value,
+                quota_value=3,
+                updated_by="axis-platform-operator-role",
+            )
+        )
+        seed_manifest(repository, FILE_CSV_CONNECTOR_ID, payload)
+        seed_credentials(
+            repository,
+            connector_id=FILE_CSV_CONNECTOR_ID,
+            handle_id="cred_file_csv_readonly",
+            lease_id=FILE_CSV_LEASE_ID,
+        )
+        create_dispatched_live_sync_run(
+            repository,
+            run_id="run_file_csv_live_sync_quota_cap",
+            input_summary=file_csv_live_sync_input_summary(),
+        )
+
+        run = execute_demo_connector_sync(
+            repository,
+            "run_file_csv_live_sync_quota_cap",
+            sync_execution_request(
+                execution_id="sync_exec_live_quota_cap",
+                idempotency_key="idem_sync_exec_live_quota_cap",
+            ),
+            live_sync_runtime=runtime,
+        )
+
+        started_events = repository.list_audit_events(
+            TENANT_ID,
+            event_type="connector.run.sync_execution_started",
+        )
+
+    assert run.status == "sync_execution_completed"
+    summary = run.sync_execution_result.result_summary
+    assert summary["records_read"] == "3"
+    assert summary["sync_batches_committed"] == "2"
+    assert summary["next_offset"] == "3"
+    # The quota (3) caps the plan row limit (10) and bounds every batch read.
+    assert started_events[0].payload["max_records"] == "3"
+    assert [request.batch_size for request in runtime.batch_requests] == [2, 1]
+    assert all(request.batch_size <= 3 for request in runtime.batch_requests)
+
+
+def test_execute_live_sync_ignores_tenant_row_quota_at_or_above_plan_limit(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = live_capable_registry_payload(FILE_CSV_CONNECTOR_ID)
+    seed_connector_registry_reference(session_factory, payload)
+    runtime = ScriptedLiveSyncRuntime(
+        scripted_plan(batch_size=2, max_records=10),
+        [
+            scripted_batch(
+                records=[scripted_record(0), scripted_record(1)],
+                next_offset=2,
+                source_exhausted=True,
+            ),
+        ],
+    )
+
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.upsert_tenant_quota(
+            TenantQuotaUpsert(
+                tenant_id=TENANT_ID,
+                quota_key=TenantQuotaKey.MAX_CONNECTOR_SYNC_ROWS_PER_RUN.value,
+                quota_value=500,
+                updated_by="axis-platform-operator-role",
+            )
+        )
+        seed_manifest(repository, FILE_CSV_CONNECTOR_ID, payload)
+        seed_credentials(
+            repository,
+            connector_id=FILE_CSV_CONNECTOR_ID,
+            handle_id="cred_file_csv_readonly",
+            lease_id=FILE_CSV_LEASE_ID,
+        )
+        create_dispatched_live_sync_run(
+            repository,
+            run_id="run_file_csv_live_sync_quota_high",
+            input_summary=file_csv_live_sync_input_summary(),
+        )
+
+        run = execute_demo_connector_sync(
+            repository,
+            "run_file_csv_live_sync_quota_high",
+            sync_execution_request(
+                execution_id="sync_exec_live_quota_high",
+                idempotency_key="idem_sync_exec_live_quota_high",
+            ),
+            live_sync_runtime=runtime,
+        )
+
+        started_events = repository.list_audit_events(
+            TENANT_ID,
+            event_type="connector.run.sync_execution_started",
+        )
+
+    assert run.status == "sync_execution_completed"
+    # A quota at or above the plan row limit leaves the profile bound in place.
+    assert started_events[0].payload["max_records"] == "10"
+    assert [request.batch_size for request in runtime.batch_requests] == [2]
 
 
 def test_execute_live_sync_requires_active_live_manifest(
