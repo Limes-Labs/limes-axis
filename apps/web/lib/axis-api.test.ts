@@ -165,6 +165,39 @@ describe("Axis API fetch layer", () => {
     expect(retryHeaders.get("X-Axis-Csrf-Token")).toBe("rotated-token");
   });
 
+  it("converges to signed-out when the retry after a successful refresh is still 401", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubBrowserDocument("axis_csrf=stale-token");
+    const dispatchEvent = stubBrowserWindow();
+
+    let refreshCalls = 0;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/identity/session/refresh")) {
+        refreshCalls += 1;
+        stubBrowserDocument("axis_csrf=rotated-token");
+        return new Response(null, { status: 204 });
+      }
+      // The session dies between refresh and retry, so the retry is still 401.
+      return new Response("{}", { status: 401 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(axisFetchJson("/identity/sessions")).rejects.toBeInstanceOf(AxisApiError);
+
+    const urls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(urls).toEqual([
+      "http://axis-api.test/identity/sessions",
+      "http://axis-api.test/identity/session/refresh",
+      "http://axis-api.test/identity/sessions",
+    ]);
+    // Exactly one refresh: no second refresh on the still-401 retry.
+    expect(refreshCalls).toBe(1);
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    const [event] = dispatchEvent.mock.calls[0] as [Event];
+    expect(event.type).toBe(AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT);
+  });
+
   it("surfaces the signed-out state when the refresh fails, without retry loops", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     stubBrowserDocument("axis_csrf=stale-token");

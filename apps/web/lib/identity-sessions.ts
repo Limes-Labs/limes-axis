@@ -37,6 +37,8 @@ export async function revokeIdentitySession(
   options: AxisFetchOptions = {},
 ): Promise<void> {
   const path = `/identity/sessions/${encodeURIComponent(sessionRef)}/revoke`;
+  // method is set after the spread so a caller-supplied method can never
+  // override the required POST for revocation.
   const response = await axisFetch(path, { ...options, method: "POST" });
 
   if (!response.ok) {

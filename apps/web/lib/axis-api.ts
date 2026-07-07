@@ -153,7 +153,17 @@ export async function axisFetch(
 
   // Retry exactly once. The init is rebuilt so the retried request picks up
   // the rotated CSRF cookie issued by the refresh response.
-  return fetch(`${getApiBaseUrl()}${path}`, buildRequestInit(options));
+  const retryInit = buildRequestInit(options);
+  const retryResponse = await fetch(`${getApiBaseUrl()}${path}`, retryInit);
+
+  // If the retry is still a cookie-mode 401 (session died between refresh and
+  // retry, or the resource still rejects the actor) do not refresh again;
+  // converge to the signed-out state so the console re-runs its live queries
+  // against /identity/session, matching the refresh-failure path above.
+  if (shouldAttemptSessionRefresh(retryResponse, retryInit, path)) {
+    announceBrowserSessionSignedOut();
+  }
+  return retryResponse;
 }
 
 export async function axisFetchJson<T>(
