@@ -246,7 +246,9 @@ flowchart LR
   adds server-side refresh rotation with HKDF-derived AES-GCM-encrypted refresh
   credentials (minimum key length enforced at startup) and an atomic
   `active`->`refreshing` claim that serializes concurrent refreshes so one
-  parent cannot mint two child sessions, idle and absolute timeouts, per-actor
+  parent cannot mint two child sessions (with lazy recovery that revokes
+  claims orphaned by a crash as `refresh_claim_orphaned` after a bounded
+  staleness window), idle and absolute timeouts, per-actor
   concurrent-session caps, tenant-isolated session listing and revocation
   (self plus `identity:sessions:admin`), and audit evidence for logins, failed
   code exchanges, refreshes, failed refreshes, revocations and logouts that

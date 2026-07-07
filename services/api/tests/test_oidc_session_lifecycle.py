@@ -822,6 +822,78 @@ def test_refresh_after_rotation_replay_produces_no_second_child() -> None:
         assert sum(1 for row in stored if row.status == "active") == 1
 
 
+def _mark_session_refreshing(
+    factory: sessionmaker[Session],
+    *,
+    claimed_seconds_ago: int,
+) -> None:
+    with factory() as session:
+        stored = _sessions(session)[0]
+        stored.status = "refreshing"
+        stored.updated_at = datetime.now(UTC) - timedelta(seconds=claimed_seconds_ago)
+        session.commit()
+
+
+def test_stale_refreshing_session_is_revoked_as_orphaned_on_presentation() -> None:
+    settings = _settings(oidc_refresh_claim_staleness_seconds=60)
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    _mark_session_refreshing(factory, claimed_seconds_ago=61)
+
+    response = client.get("/identity/session")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "revoked_session_cookie"
+    with factory() as session:
+        stored = _sessions(session)[0]
+        assert stored.status == "revoked"
+        assert stored.revocation_reason == "refresh_claim_orphaned"
+        assert stored.revoked_by == "axis-session-lifecycle"
+        revoked_events = [
+            event
+            for event in session.scalars(select(AuditEvent))
+            if event.event_type == "identity.oidc_session.revoked"
+        ]
+        assert len(revoked_events) == 1
+        assert revoked_events[0].payload["revocation_reason"] == "refresh_claim_orphaned"
+        assert stored.revoke_audit_event_id == revoked_events[0].id
+
+
+def test_stale_refreshing_session_refresh_attempt_is_revoked_as_orphaned() -> None:
+    settings = _settings(oidc_refresh_claim_staleness_seconds=60)
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    _mark_session_refreshing(factory, claimed_seconds_ago=61)
+
+    refresh = client.post("/identity/session/refresh", headers=_csrf_headers(client))
+
+    assert refresh.status_code == 401
+    assert refresh.json()["detail"]["reason"] == "revoked_session_cookie"
+    # No IdP refresh grant is attempted for an orphaned claim.
+    assert all(form.get("grant_type") != "refresh_token" for form in token_endpoint.forms)
+    with factory() as session:
+        stored = _sessions(session)[0]
+        assert stored.status == "revoked"
+        assert stored.revocation_reason == "refresh_claim_orphaned"
+
+
+def test_fresh_refreshing_session_is_rejected_but_left_for_the_active_claim() -> None:
+    settings = _settings(oidc_refresh_claim_staleness_seconds=120)
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    _mark_session_refreshing(factory, claimed_seconds_ago=1)
+
+    response = client.get("/identity/session")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "revoked_session_cookie"
+    with factory() as session:
+        stored = _sessions(session)[0]
+        assert stored.status == "refreshing"
+        assert stored.revocation_reason is None
+        assert _audit_event_types(session) == ["identity.oidc_session.created"]
+
+
 # --- HKDF key derivation and weak-key rejection -----------------------------
 
 

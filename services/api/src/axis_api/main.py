@@ -633,7 +633,10 @@ def oidc_principal(
                         failure = _stored_session_lifecycle_failure(stored_session, settings)
                         if failure is not None:
                             public_reason, revocation_reason = failure
-                            if revocation_reason and stored_session.status == "active":
+                            if revocation_reason and stored_session.status in {
+                                "active",
+                                "refreshing",
+                            }:
                                 _expire_stored_session(
                                     repository,
                                     stored_session,
@@ -780,7 +783,7 @@ def _claim_session_refresh(
         lifecycle_failure = _stored_session_lifecycle_failure(stored_session, settings)
         if lifecycle_failure is not None:
             public_reason, revocation_reason = lifecycle_failure
-            if revocation_reason and stored_session.status == "active":
+            if revocation_reason and stored_session.status in {"active", "refreshing"}:
                 _expire_stored_session(
                     repository,
                     stored_session,
@@ -840,6 +843,18 @@ def _stored_session_lifecycle_failure(
     stored_session: OidcBrowserSession,
     settings: Settings,
 ) -> tuple[str, str] | None:
+    if stored_session.status == "refreshing":
+        # A refresh claim is normally resolved (rotated or revoked) within one
+        # IdP exchange. A claim older than the staleness window means the
+        # refreshing process crashed between claim and completion; recover the
+        # orphaned row by revoking it with distinct audit evidence instead of
+        # leaving it ambiguous forever.
+        claim_deadline = _ensure_aware_datetime(stored_session.updated_at) + timedelta(
+            seconds=settings.oidc_refresh_claim_staleness_seconds
+        )
+        if claim_deadline <= datetime.now(UTC):
+            return ("revoked_session_cookie", "refresh_claim_orphaned")
+        return ("revoked_session_cookie", "")
     if stored_session.status != "active":
         return ("revoked_session_cookie", "")
     if _datetime_is_expired(stored_session.expires_at):

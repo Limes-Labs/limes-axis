@@ -147,6 +147,11 @@ class Settings(BaseSettings):
         default=None,
         alias="AXIS_OIDC_REFRESH_TOKEN_ENCRYPTION_KEY",
     )
+    oidc_refresh_claim_staleness_seconds: int = Field(
+        default=120,
+        ge=1,
+        alias="AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS",
+    )
     external_model_egress_enabled: bool = Field(
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",

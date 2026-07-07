@@ -907,6 +907,12 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
 - `AXIS_OIDC_SESSION_MAX_CONCURRENT` (default 5): the newest login revokes the
   oldest active sessions above this per-actor cap with
   `concurrent_session_limit` audit evidence; `0` disables the cap.
+- `AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS` (default 120): a session stuck in
+  the `refreshing` state longer than this window (the refreshing process
+  crashed between the claim and its completion) is revoked with
+  `refresh_claim_orphaned` audit evidence the next time the cookie is
+  presented. Keep it well above the IdP token-exchange timeout so an in-flight
+  refresh is never mistaken for an orphaned claim.
 
 The Docker Compose demo imports `infra/docker/keycloak/axis-realm.json` for a
 local Keycloak walkthrough. That realm, its `axis-operator` user, the
@@ -938,7 +944,14 @@ stored refresh credential; the transition is guarded by an atomic
 cannot both mint a child session, the IdP token exchange runs outside the open
 database transaction, and the superseded session row is marked `rotated` with
 its ciphertext cleared so a replayed pre-rotation cookie is rejected. A failed
-provider refresh revokes the session and forces a fresh login.
+provider refresh revokes the session and forces a fresh login. If the API
+crashes between the refresh claim and its completion, the row stays in
+`refreshing` (fail closed); the lifecycle validator recovers such orphaned
+claims lazily - the same way idle and absolute timeouts are enforced - by
+revoking any `refreshing` session older than
+`AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS` with `refresh_claim_orphaned`
+audit evidence when its cookie is next presented, so the user gets a clean
+401 and the row reaches a terminal state.
 
 CSRF protection is enforced centrally by `BrowserSessionCsrfMiddleware` on every
 state-changing request (POST/PUT/PATCH/DELETE), not just the identity
