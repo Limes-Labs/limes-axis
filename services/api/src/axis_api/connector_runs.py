@@ -784,10 +784,12 @@ def _decode_checkpoint_claim_cursor(
 def _validate_checkpoint_claim_time_window(
     query: ConnectorSyncCheckpointClaimQuery,
 ) -> None:
+    # Callers may mix offset-aware and naive datetimes in the query string;
+    # normalize (naive means UTC) so the comparison cannot raise TypeError.
     if (
         query.created_after is not None
         and query.created_before is not None
-        and query.created_after >= query.created_before
+        and _ensure_timezone(query.created_after) >= _ensure_timezone(query.created_before)
     ):
         raise ConnectorRunValidationError(
             "Connector checkpoint claim created_after must be earlier than created_before.",
@@ -996,10 +998,12 @@ def release_connector_sync_checkpoint_claim(
 
 
 def _validate_checkpoint_time_window(query: ConnectorSyncCheckpointQuery) -> None:
+    # Callers may mix offset-aware and naive datetimes in the query string;
+    # normalize (naive means UTC) so the comparison cannot raise TypeError.
     if (
         query.created_after is not None
         and query.created_before is not None
-        and query.created_after >= query.created_before
+        and _ensure_timezone(query.created_after) >= _ensure_timezone(query.created_before)
     ):
         raise ConnectorRunValidationError(
             "Connector checkpoint created_after must be earlier than created_before.",
