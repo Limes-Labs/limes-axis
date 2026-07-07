@@ -450,6 +450,149 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("requires the identity session APIs on the sessions view", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/settings/sessions");
+
+    await expect(page.getByRole("heading", { name: "Session security" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Session API unavailable" })).toBeVisible();
+    await expect(page.getByText("Local fallback session records are disabled.")).toBeVisible();
+    await expect(page.getByText("/identity/session /identity/sessions")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
+
+    await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("lists browser sessions and revokes with the CSRF double-submit header", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      { name: "axis_csrf", value: "csrf-e2e-token", url: "http://127.0.0.1:3100" },
+    ]);
+
+    await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          authenticated: true,
+          mode: "secure_oidc_cookie",
+          actor_id: "plant-operations-owner-role",
+          tenant_id: "tenant_demo_manufacturing",
+          scopes: ["audit:read", "identity:sessions:admin"],
+          expires_at: 4102444800,
+          api_auth_required: true,
+          enterprise_sso_ready: true,
+          readiness_status: "ready",
+          issuer: "https://idp.example/realms/axis",
+          audience: "limes-axis-api",
+          jwks_source: "configured",
+          session_boundary: "http_only_cookie_verified_by_axis_api",
+          capabilities: ["Browser session verified by the Axis API."],
+          limitations: [],
+          notes: [],
+        },
+        status: 200,
+      });
+    });
+    await page.route("http://127.0.0.1:65534/identity/sessions*", async (route) => {
+      const tenantWide = route.request().url().includes("tenant_wide=true");
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          tenant_id: "tenant_demo_manufacturing",
+          actor_id: "plant-operations-owner-role",
+          tenant_wide: tenantWide,
+          sessions: [
+            {
+              session_ref: "0b6a4e52-93d4-4f5f-8f2a-2f24c9b7a101",
+              actor_id: "plant-operations-owner-role",
+              status: "active",
+              current: true,
+              created_at: "2026-07-07T08:00:00Z",
+              expires_at: "2026-07-07T16:00:00Z",
+              absolute_expires_at: "2026-07-07T16:00:00Z",
+              last_seen_at: "2026-07-07T09:30:00Z",
+              refresh_count: 3,
+              revoked_at: null,
+              revocation_reason: null,
+            },
+            {
+              session_ref: "9c1f2ad4-7a75-4d0e-b1de-6d9d0c4be202",
+              actor_id: tenantWide ? "quality-auditor-role" : "plant-operations-owner-role",
+              status: "active",
+              current: false,
+              created_at: "2026-07-06T18:00:00Z",
+              expires_at: "2026-07-07T02:00:00Z",
+              absolute_expires_at: null,
+              last_seen_at: null,
+              refresh_count: 0,
+              revoked_at: null,
+              revocation_reason: null,
+            },
+            {
+              session_ref: "5d2e6bc8-1f9b-45b6-9f5c-0a8f2f6de303",
+              actor_id: "plant-operations-owner-role",
+              status: "revoked",
+              current: false,
+              created_at: "2026-07-05T18:00:00Z",
+              expires_at: "2026-07-06T02:00:00Z",
+              absolute_expires_at: null,
+              last_seen_at: "2026-07-05T19:00:00Z",
+              refresh_count: 1,
+              revoked_at: "2026-07-05T20:00:00Z",
+              revocation_reason: "idle_timeout",
+            },
+          ],
+          notes: ["Session references are opaque identifiers; no token material is returned."],
+        },
+        status: 200,
+      });
+    });
+    await page.route(
+      "http://127.0.0.1:65534/identity/sessions/9c1f2ad4-7a75-4d0e-b1de-6d9d0c4be202/revoke",
+      async (route) => {
+        await route.fulfill({ status: 204 });
+      },
+    );
+
+    await page.goto("/settings/sessions");
+
+    await expect(page.getByRole("heading", { name: "Session security" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your sessions" })).toBeVisible();
+    await expect(page.getByText("3 recorded")).toBeVisible();
+    await expect(page.getByText("(this browser)")).toBeVisible();
+    await expect(page.getByText("Current", { exact: true })).toBeVisible();
+    await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+    await expect(page.getByText("idle timeout")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Revoke", exact: true })).toHaveCount(1);
+
+    const signOutLinks = page.getByRole("link", { name: "Sign out" });
+    await expect(signOutLinks).toHaveCount(2);
+    await expect(signOutLinks.first()).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:65534/identity/oidc/logout?return_to=%2Fsettings%2Fsessions",
+    );
+
+    const [revokeRequest] = await Promise.all([
+      page.waitForRequest(
+        "http://127.0.0.1:65534/identity/sessions/9c1f2ad4-7a75-4d0e-b1de-6d9d0c4be202/revoke",
+      ),
+      page.getByRole("button", { name: "Revoke", exact: true }).click(),
+    ]);
+    expect(revokeRequest.method()).toBe("POST");
+    expect(revokeRequest.headers()["x-axis-csrf-token"]).toBe("csrf-e2e-token");
+
+    await page.getByRole("button", { name: "Show tenant sessions" }).click();
+    await expect(page.getByRole("heading", { name: "Tenant-wide sessions" })).toBeVisible();
+    await expect(page.getByText("quality-auditor-role")).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("requires the settings readiness APIs instead of local settings data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
