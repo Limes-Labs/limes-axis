@@ -882,7 +882,20 @@ class SelfHostedConnectorLiveSyncRuntime:
                 error_code="connector_unavailable",
             )
         try:
-            headers, rows = _read_file_csv_rows(source_path)
+            if source_path.stat().st_size > profile.max_file_size_bytes:
+                # TOCTOU guard: the file may have grown past the plan-time size
+                # limit between planning and this batch read; fail closed.
+                return ConnectorLiveSyncBatchResult(
+                    adapter=self.file_csv_adapter_name,
+                    status=LIVE_SYNC_BATCH_FAILED_STATUS,
+                    error_code="source_file_too_large",
+                )
+            window = _read_file_csv_window(
+                source_path,
+                offset=request.offset,
+                batch_size=request.batch_size,
+                max_rows=profile.max_rows,
+            )
         except (OSError, UnicodeDecodeError, csv.Error):
             return ConnectorLiveSyncBatchResult(
                 adapter=self.file_csv_adapter_name,
@@ -892,7 +905,7 @@ class SelfHostedConnectorLiveSyncRuntime:
         missing_columns = [
             mapping.source_column
             for mapping in request.field_mappings
-            if mapping.source_column not in headers
+            if mapping.source_column not in window.headers
         ]
         if missing_columns:
             return ConnectorLiveSyncBatchResult(
@@ -900,17 +913,18 @@ class SelfHostedConnectorLiveSyncRuntime:
                 status=LIVE_SYNC_BATCH_FAILED_STATUS,
                 error_code="source_schema_mismatch",
             )
-        bounded_rows = rows[: profile.max_rows]
-        batch_rows = bounded_rows[request.offset : request.offset + request.batch_size]
-        records, records_rejected = _live_sync_records(request.field_mappings, batch_rows)
-        next_offset = request.offset + len(batch_rows)
+        records, records_rejected = _live_sync_records(
+            request.field_mappings,
+            window.batch_rows,
+        )
+        next_offset = request.offset + len(window.batch_rows)
         return ConnectorLiveSyncBatchResult(
             adapter=self.file_csv_adapter_name,
             status=LIVE_SYNC_BATCH_READ_STATUS,
             records=records,
             records_rejected=records_rejected,
             next_offset=next_offset,
-            source_exhausted=next_offset >= len(bounded_rows),
+            source_exhausted=not window.has_more,
             notes=["File CSV batch read from the allowlisted local dropzone."],
         )
 
@@ -1032,15 +1046,50 @@ def _resolved_file_csv_source_path(
     return source_path
 
 
-def _read_file_csv_rows(source_path: Path) -> tuple[list[str], list[dict[str, str]]]:
+class FileCsvWindow(BaseModel):
+    headers: list[str] = Field(default_factory=list)
+    batch_rows: list[dict[str, str]] = Field(default_factory=list)
+    has_more: bool = False
+
+
+def _read_file_csv_window(
+    source_path: Path,
+    *,
+    offset: int,
+    batch_size: int,
+    max_rows: int,
+) -> FileCsvWindow:
+    """Stream a single batch window out of the dropzone file.
+
+    Only the rows in ``[offset, offset + batch_size)`` (clamped to ``max_rows``)
+    are materialized; one extra row is inspected to decide ``has_more`` without
+    loading the whole file into memory per batch.
+    """
+    window_end = min(offset + batch_size, max_rows)
+    batch_rows: list[dict[str, str]] = []
+    has_more = False
     with source_path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         headers = list(reader.fieldnames or [])
-        rows = [
-            {key: (value or "").strip() for key, value in row.items() if key is not None}
-            for row in reader
-        ]
-    return headers, rows
+        for index, row in enumerate(reader):
+            if index >= max_rows:
+                # Rows beyond the profile cap are ignored, so they do not make
+                # the bounded source look inexhaustible.
+                break
+            if index < offset:
+                continue
+            if index < window_end:
+                batch_rows.append(
+                    {
+                        key: (value or "").strip()
+                        for key, value in row.items()
+                        if key is not None
+                    }
+                )
+                continue
+            has_more = True
+            break
+    return FileCsvWindow(headers=headers, batch_rows=batch_rows, has_more=has_more)
 
 
 def _live_sync_node_mapping(

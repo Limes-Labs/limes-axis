@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import IntegrityError
 
 from axis_api.audit import AuditEventCreate
 from axis_api.connector_execution import (
@@ -865,24 +866,34 @@ def claim_connector_sync_checkpoint(
             },
         )
     )
-    claim = repository.create_connector_sync_checkpoint_claim(
-        ConnectorSyncCheckpointClaimCreate(
-            tenant_id=request.tenant_id,
-            connector_id=checkpoint.connector_id,
-            run_id=checkpoint.run_id,
-            checkpoint_id=checkpoint.checkpoint_id,
-            claim_id=request.claim_id,
-            status="claimed",
-            claimed_by=request.claimed_by,
-            idempotency_key=request.idempotency_key,
-            lease_duration_seconds=request.lease_duration_seconds,
-            lease_expires_at=lease_expires_at,
-            claim_result=claim_result,
-            audit_event_id=audit_event.id,
-            audit_event_type=SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE,
-            notes=request.notes,
+    try:
+        claim = repository.create_connector_sync_checkpoint_claim(
+            ConnectorSyncCheckpointClaimCreate(
+                tenant_id=request.tenant_id,
+                connector_id=checkpoint.connector_id,
+                run_id=checkpoint.run_id,
+                checkpoint_id=checkpoint.checkpoint_id,
+                claim_id=request.claim_id,
+                status="claimed",
+                claimed_by=request.claimed_by,
+                idempotency_key=request.idempotency_key,
+                lease_duration_seconds=request.lease_duration_seconds,
+                lease_expires_at=lease_expires_at,
+                claim_result=claim_result,
+                audit_event_id=audit_event.id,
+                audit_event_type=SYNC_CHECKPOINT_CLAIMED_AUDIT_EVENT_TYPE,
+                notes=request.notes,
+            )
         )
-    )
+    except IntegrityError as exc:
+        # The partial unique index on (tenant_id, checkpoint_id) WHERE
+        # status='claimed' is the DB-level backstop for the app-level
+        # read-active-then-insert check: a racing worker that also passed the
+        # app check loses here and is reported as the same 409 claim conflict.
+        raise ConnectorSyncCheckpointClaimConflict(
+            "active_checkpoint_claim_exists",
+            request.claim_id,
+        ) from exc
     return _checkpoint_claim_from_record(claim), True
 
 
@@ -1454,32 +1465,33 @@ def _execute_live_connector_sync(
         )
 
     field_mappings = _live_sync_field_mappings(manifest)
-    committed_batches = _committed_live_sync_batch_checkpoints(repository, run)
-    resume_offset = (
-        _cursor_int(committed_batches[-1].cursor, "next_offset")
-        if committed_batches
-        else 0
+    latest_batch_checkpoint = repository.get_latest_connector_sync_checkpoint(
+        run.tenant_id,
+        run_id=run.run_id,
+        connector_id=run.connector_id,
+        checkpoint_type=SYNC_BATCH_CHECKPOINT_TYPE,
+        status=SYNC_BATCH_COMMITTED_STATUS,
     )
-    records_synced = sum(
-        _cursor_int(checkpoint.cursor, "batch_records_read")
-        for checkpoint in committed_batches
-    )
-    records_rejected = sum(
-        _cursor_int(checkpoint.cursor, "batch_records_rejected")
-        for checkpoint in committed_batches
-    )
-    proposals_recorded = sum(
-        _cursor_int(checkpoint.cursor, "batch_proposals_recorded")
-        for checkpoint in committed_batches
-    )
-    batch_index = len(committed_batches)
+    if latest_batch_checkpoint is not None:
+        cursor = latest_batch_checkpoint.cursor
+        resume_offset = _cursor_int(cursor, "next_offset")
+        records_synced = _cursor_int(cursor, "total_records_read")
+        records_rejected = _cursor_int(cursor, "total_records_rejected")
+        proposals_recorded = _cursor_int(cursor, "total_proposals_recorded")
+        batch_index = _cursor_int(cursor, "batch_index")
+    else:
+        resume_offset = 0
+        records_synced = 0
+        records_rejected = 0
+        proposals_recorded = 0
+        batch_index = 0
     claim_evidence: dict[str, str] = {}
-    if committed_batches:
+    if latest_batch_checkpoint is not None:
         resume_claim = _validate_live_sync_resume_claim(
             repository,
             run,
             request,
-            committed_batches[-1],
+            latest_batch_checkpoint,
         )
         claim_evidence = {
             "checkpoint_claim_evidence_status": "validated",
@@ -1491,12 +1503,9 @@ def _execute_live_connector_sync(
             ),
         }
     base_summary.update(claim_evidence)
-    checkpoint_sequence = len(
-        repository.list_connector_sync_checkpoints(
-            run.tenant_id,
-            run_id=run.run_id,
-            limit=LIVE_SYNC_CHECKPOINT_LIST_LIMIT,
-        )
+    checkpoint_sequence = repository.count_connector_sync_checkpoints(
+        run.tenant_id,
+        run_id=run.run_id,
     )
     repository.append_audit_event(
         AuditEventCreate(
@@ -1564,6 +1573,9 @@ def _execute_live_connector_sync(
             )
         batch_index += 1
         checkpoint_sequence += 1
+        records_synced += len(batch.records)
+        records_rejected += batch.records_rejected
+        proposals_recorded += proposal_count
         _record_live_sync_batch_checkpoint(
             repository,
             run,
@@ -1575,11 +1587,11 @@ def _execute_live_connector_sync(
             batch_offset=offset,
             sequence=checkpoint_sequence,
             proposal_count=proposal_count,
+            total_records_read=records_synced,
+            total_records_rejected=records_rejected,
+            total_proposals_recorded=proposals_recorded,
             external_query_started=external_query_started,
         )
-        records_synced += len(batch.records)
-        records_rejected += batch.records_rejected
-        proposals_recorded += proposal_count
         offset = batch.next_offset
         batches_this_execution += 1
         if batch.source_exhausted:
@@ -1749,24 +1761,6 @@ def _cursor_int(cursor: dict, key: str) -> int:
         return 0
 
 
-def _committed_live_sync_batch_checkpoints(
-    repository: AxisPersistenceRepository,
-    run,
-):
-    checkpoints = repository.list_connector_sync_checkpoints(
-        run.tenant_id,
-        run_id=run.run_id,
-        status=SYNC_BATCH_COMMITTED_STATUS,
-        limit=LIVE_SYNC_CHECKPOINT_LIST_LIMIT,
-    )
-    return [
-        checkpoint
-        for checkpoint in checkpoints
-        if checkpoint.checkpoint_type == SYNC_BATCH_CHECKPOINT_TYPE
-        and checkpoint.connector_id == run.connector_id
-    ]
-
-
 def _live_sync_lease_error(
     repository: AxisPersistenceRepository,
     run,
@@ -1858,8 +1852,9 @@ def _record_live_sync_proposals(
             },
         )
     )
+    created_count = 0
     for proposal_id, record in zip(proposal_ids, records, strict=True):
-        repository.create_connector_ontology_proposal(
+        _, created = repository.create_connector_ontology_proposal_if_absent(
             ConnectorOntologyProposalCreate(
                 tenant_id=run.tenant_id,
                 connector_id=run.connector_id,
@@ -1884,7 +1879,9 @@ def _record_live_sync_proposals(
                 ],
             )
         )
-    return len(proposal_ids)
+        if created:
+            created_count += 1
+    return created_count
 
 
 def _record_live_sync_batch_checkpoint(
@@ -1899,6 +1896,9 @@ def _record_live_sync_batch_checkpoint(
     batch_offset: int,
     sequence: int,
     proposal_count: int,
+    total_records_read: int,
+    total_records_rejected: int,
+    total_proposals_recorded: int,
     external_query_started: bool,
 ) -> None:
     checkpoint_id = f"chk_{run.run_id}_batch_{batch_index}"
@@ -1958,6 +1958,9 @@ def _record_live_sync_batch_checkpoint(
                 "batch_records_read": str(len(batch.records)),
                 "batch_records_rejected": str(batch.records_rejected),
                 "batch_proposals_recorded": str(proposal_count),
+                "total_records_read": str(total_records_read),
+                "total_records_rejected": str(total_records_rejected),
+                "total_proposals_recorded": str(total_proposals_recorded),
                 "source_exhausted": _bool_summary_text(batch.source_exhausted),
                 "source_mode": plan.source_mode,
                 "external_query_started": _bool_summary_text(external_query_started),
