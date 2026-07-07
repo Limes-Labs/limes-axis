@@ -1130,6 +1130,22 @@ textarea:focus-visible {
   grid-column: 1 / -1;
 }
 
+.policy-authoring-form .toggle-field {
+  grid-column: 1 / -1;
+  grid-auto-flow: column;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.policy-authoring-form .toggle-field input {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  padding: 0;
+  box-shadow: none;
+}
+
 .policy-authoring-form .condition-group {
   display: grid;
   gap: 6px;

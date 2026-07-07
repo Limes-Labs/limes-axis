@@ -12,6 +12,7 @@ export type NavigationItem = {
     | "scroll"
     | "receipt"
     | "cable"
+    | "building"
     | "settings";
 };
 
@@ -58,6 +59,7 @@ export const navigationItems: NavigationItem[] = [
   { href: "/audit", label: "Audit", icon: "receipt" },
   { href: "/simulation", label: "Simulation", icon: "workflow" },
   { href: "/connectors", label: "Connectors", icon: "cable" },
+  { href: "/tenants", label: "Tenants", icon: "building" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
 

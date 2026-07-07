@@ -1086,9 +1086,21 @@ audit writes from live route decisions remain Platform work.
   request rejection at the OIDC principal boundary, and typed quotas (API
   requests per window, concurrent sessions, live-sync rows per run) enforced
   through a short-TTL tenant state cache with per-change audit evidence.
-- [ ] Add tenant deletion and data-export pipelines, approval-gated lifecycle
-  transitions and a tenant administration console on top of the lifecycle
-  foundation.
+- [x] Add the tenant operations console: a top-level `/tenants` operator
+  surface with the tenant list (status filter, API-required and empty states),
+  a provision form with client-side `tenant_id` validation, a client-generated
+  idempotency key and distinct 201/replay/409/422 handling, a tenant detail
+  view with the lifecycle timeline and suspend/reactivate actions (inline 403
+  on missing scope), and a per-tenant quota view/edit with null-clear semantics
+  and confirmed PUT, all through the typed `lib/platform-tenants.ts` bindings.
+  The list and detail-derivation read at the `limit=200` API maximum and show a
+  visible cap notice past it (no silent truncation).
+- [ ] Add a single-tenant `GET /platform/tenants/{id}` route and server-side
+  cursor pagination so the console is not bounded by the `limit=200` listing
+  ceiling (the console currently reads the registry at the maximum and surfaces
+  a cap notice).
+- [ ] Add tenant deletion and data-export pipelines and approval-gated
+  lifecycle transitions on top of the lifecycle foundation and its console.
 - [x] Add baseline single-tenant managed deployment profile, render checks and
   readiness gates.
 - [x] Add baseline private-cloud and on-prem/offline deployment profiles,
