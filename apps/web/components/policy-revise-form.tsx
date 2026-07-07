@@ -18,6 +18,7 @@ import {
   type PolicyDraftFieldErrors,
   type PolicyDraftFormState,
 } from "@/lib/platform-policies";
+import { safeRandomUuid } from "@/lib/ids";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -41,7 +42,7 @@ export function PolicyReviseForm({
   const [draft, setDraft] = useState<PolicyDraftFormState>(() =>
     draftFromPolicyRecord(current),
   );
-  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => safeRandomUuid());
   const [fieldErrors, setFieldErrors] = useState<PolicyDraftFieldErrors>({});
   const [submission, setSubmission] = useState<SubmissionState>({ phase: "idle" });
 
@@ -80,7 +81,7 @@ export function PolicyReviseForm({
         setFieldErrors({});
         setSubmission({ phase: "created", record: result.record });
         // A fresh key for the next revision; the applied one is spent.
-        setIdempotencyKey(crypto.randomUUID());
+        setIdempotencyKey(safeRandomUuid());
         triggerRefresh();
         return;
       }
@@ -93,7 +94,7 @@ export function PolicyReviseForm({
       if (result.kind === "conflict") {
         // The key was already used with a different payload; retrying with the
         // same key can never succeed, so rotate it and tell the operator.
-        setIdempotencyKey(crypto.randomUUID());
+        setIdempotencyKey(safeRandomUuid());
         setSubmission({
           phase: "conflict",
           message: `${result.message} A fresh idempotency key was generated for the next attempt.`,
