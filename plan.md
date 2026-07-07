@@ -93,6 +93,11 @@ Foundation acceptance is tracked in
   against known workflow runs.
 - [x] Record governed action-run outcomes with audit evidence, idempotency and
   workflow completion timeline updates.
+- [x] Add scheduled/periodic background maintenance jobs on Temporal Schedules in
+  the worker (audit retention deletion sweep, orphaned/expired session sweep and
+  tenant-state reconciliation), reusing existing persistence/service functions,
+  with idempotent create-or-update schedule registration behind a master enable
+  flag, and deploy the worker via Docker Compose and Helm.
 - [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
   and scopes.
 - [x] Enforce relationship-derived ontology scopes on entity detail reads and

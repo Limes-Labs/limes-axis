@@ -134,6 +134,31 @@ Docker Compose stack remains the local demo path; Kubernetes production
 operators should bring hardened dependencies that match their infrastructure
 policy.
 
+## Worker Deployment
+
+The Temporal worker (`services/worker`) is deployed as its own workload
+alongside the API and web Deployments. It hosts the approval workflow plus the
+scheduled maintenance workflows and their DB-owning activities, and on startup it
+reconciles the Temporal Schedules for periodic maintenance (see
+[Platform Scheduled Jobs](platform-scheduled-jobs.md)).
+
+- **Helm**: `templates/worker-deployment.yaml` renders a `worker` Deployment
+  (enabled by default via `worker.enabled`) that shares the platform ConfigMap
+  and runtime Secret, so it reads the same `AXIS_POSTGRES_DSN` and
+  `AXIS_TEMPORAL_ADDRESS` as the API. Schedule intervals and the master enable
+  flag live under `worker.scheduledJobs` in `values.yaml`. A single replica is
+  used so schedule reconciliation is not duplicated; the schedule overlap policy
+  guards against overlapping runs regardless of replica count.
+- **Docker Compose**: the `worker` service is built from
+  `services/worker/Dockerfile` and depends on `postgres` (healthy) and
+  `temporal`.
+- **Local**: `make worker` runs `python -m axis_worker` against the dev stack.
+- **Images**: `make container-build-worker` builds `limes-axis-worker:local`.
+
+Scheduled maintenance jobs are opt-in (`AXIS_SCHEDULED_JOBS_ENABLED=false` by
+default): the worker always reconciles the schedules but leaves them paused until
+the flag is enabled, so existing deployments are unaffected.
+
 ## Ingress And TLS
 
 The chart can render a Kubernetes `networking.k8s.io/v1` `Ingress` when

@@ -543,6 +543,7 @@ Architecture and acceptance notes:
 - [`docs/platform-simulation.md`](./docs/platform-simulation.md)
 - [`docs/platform-manufacturing-operations.md`](./docs/platform-manufacturing-operations.md)
 - [`docs/platform-connectors.md`](./docs/platform-connectors.md)
+- [`docs/platform-scheduled-jobs.md`](./docs/platform-scheduled-jobs.md)
 - [`docs/platform-settings.md`](./docs/platform-settings.md)
 - [`docs/threat-model.md`](./docs/threat-model.md)
 - [`docs/support-operations.md`](./docs/support-operations.md)
