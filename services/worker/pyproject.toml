@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Worker runtime for Limes Axis workflows and agent actions."
 requires-python = ">=3.12,<3.14"
 dependencies = [
+  "limes-axis-api",
   "opentelemetry-api>=1.39",
   "opentelemetry-sdk>=1.39",
   "pydantic>=2.12",
@@ -19,6 +20,9 @@ dev = [
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+limes-axis-api = { path = "../api", editable = true }
 
 [tool.ruff]
 line-length = 100
