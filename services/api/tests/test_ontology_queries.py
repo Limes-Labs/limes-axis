@@ -200,6 +200,52 @@ def test_typedb_ontology_query_runtime_maps_structured_rows() -> None:
     assert ontology.source_systems == ["TypeDB"]
 
 
+def test_typedb_ontology_query_runtime_filters_unscoped_relationships() -> None:
+    runtime = TypeDBOntologyQueryRuntime(
+        TypeDBOntologyQueryConfig(),
+        client=StructuredTypeDBClient(),
+    )
+
+    ontology = query_manufacturing_ontology_graph(
+        runtime,
+        OntologyGraphQueryRequest(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="operations-reader",
+            actor_scopes=["operations:read"],
+            enforce_relationship_scopes=True,
+        ),
+        ontology_bootstrap_model(),
+    )
+
+    assert ontology.graph_query.source == "typedb-read-boundary"
+    assert ontology.graph_query.query_mode == "permission_filtered"
+    assert ontology.relationships == []
+    assert ontology.nodes == []
+    assert ontology.graph_query.denied_relationship_count == 1
+    assert "quality:read" not in ontology.graph_query.applied_relationship_scopes
+
+
+def test_deferred_ontology_query_runtime_denies_all_relationships_for_empty_scopes() -> None:
+    runtime = DeferredOntologyQueryRuntime()
+    ontology = ontology_bootstrap_model()
+
+    filtered = query_manufacturing_ontology_graph(
+        runtime,
+        OntologyGraphQueryRequest(
+            tenant_id="tenant_demo_manufacturing",
+            actor_id="no-scope-reader",
+            actor_scopes=[],
+            enforce_relationship_scopes=True,
+        ),
+        ontology,
+    )
+
+    assert filtered.relationships == []
+    assert filtered.nodes == []
+    assert filtered.graph_query.denied_relationship_count == len(ontology.relationships)
+    assert filtered.graph_query.applied_relationship_scopes == []
+
+
 def test_deferred_ontology_query_runtime_filters_relationships_by_scope() -> None:
     runtime = DeferredOntologyQueryRuntime()
 

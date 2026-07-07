@@ -101,6 +101,9 @@ Foundation acceptance is tracked in
   optional TypeDB read boundary.
 - [x] Normalize TypeDB read answers and map structured ontology document rows
   into the public graph response shape.
+- [x] Enforce OIDC-derived relationship scopes at the ontology graph/entity
+  read boundary for the persisted-reference and TypeDB query runtimes, and
+  append audit evidence for denied ontology reads.
 - [x] Add relationship ownership, evidence, confidence, validity and
   verification metadata to ontology API responses and TypeDB graph primitives.
 - [x] Add a governance console OIDC session bridge for bearer-token API calls.

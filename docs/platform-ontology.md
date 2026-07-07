@@ -63,7 +63,13 @@ ontology graph; it does not load a local runtime seed.
 When a bearer token is present, or when OIDC auth is required by configuration,
 the graph endpoint derives actor, tenant and scopes from the principal, rejects
 tenant mismatch, filters relationships by token-derived relationship scopes and
-returns query metadata that records the filtering decision. `AXIS_ONTOLOGY_QUERIES_ENABLED=true`
+returns query metadata that records the filtering decision. Relationship
+filtering runs inside the ontology query adapter boundary and evaluates each
+relationship scope through the shared Axis permission module
+(`evaluate_permission` with relationship-aware scopes), so the deferred
+persisted-reference runtime and the TypeDB read-boundary runtime enforce the
+same decision before graph rows leave the boundary.
+`AXIS_ONTOLOGY_QUERIES_ENABLED=true`
 switches the boundary to the TypeDB query runtime while keeping response mapping
 and permission filtering behind the same Axis adapter contract. The TypeDB
 client normalizes read answers at the boundary: concept documents remain
@@ -71,9 +77,38 @@ structured dictionaries, concept rows are converted to public values, and
 structured node/relationship documents can be mapped into the public
 manufacturing ontology response before relationship-scope filtering runs.
 
-Entity detail reads evaluate the token-derived scopes against the relationship
-scopes connected to the requested node. Missing relationship scope coverage
-returns 403 before the graph detail is returned.
+Entity detail reads are authorized at the ontology read service boundary
+(`ontology_authorization.py`), not in the route handler: the boundary binds the
+OIDC principal's tenant, actor and scopes, loads the persisted detail and
+evaluates the token-derived scopes against the relationship scopes connected to
+the requested node through the shared permission module. Missing relationship
+scope coverage or a tenant mismatch raises a typed permission denial that the
+route maps to the standard `PERMISSION_DENIED` error body before the detail is
+returned. When OIDC auth is required by configuration, unauthenticated graph
+and entity reads return `AUTH_REQUIRED`.
+
+Denied ontology reads append persisted audit evidence. Tenant mismatch on graph
+reads appends `ontology.graph_read.denied`; tenant mismatch or missing
+relationship scopes on entity detail reads append
+`ontology.entity_read.denied`. Denial events are written to the authenticated
+actor's own tenant scope and carry the requested tenant, resource, node id,
+required permissions and permission decision without token contents or other
+sensitive payload material.
+
+Only hard denials (the 403 responses above) write audit events. Graph
+relationship filtering is silent by design: relationships outside the actor's
+scopes are dropped from the response and surface only as
+`denied_relationship_count` in the graph query metadata, without an audit
+event per filtered read.
+
+The two read surfaces intentionally enforce in different shapes. The graph
+endpoint filters per relationship, so a partially scoped actor still receives
+the subset of relationships they are scoped for. The entity detail endpoint is
+all-or-nothing on the union of the node's connected relationship scopes
+(`required_permissions`), so an actor missing any one scope receives 403 for
+the detail page even though the scoped subset of that node's relationships
+remains visible in the filtered graph. The asymmetry is strict in one
+direction: the detail view never reveals more than the graph would.
 
 The schema is included in `docs/openapi.json` and checked by CI.
 
@@ -129,6 +164,9 @@ Covered by:
 - API tests for TypeDB relationship metadata primitives;
 - API tests for entity detail, 404 handling, relationship-scope enforcement and
   endpoint exposure;
+- API and service-boundary tests for ontology read authorization: OIDC
+  requirement, cross-tenant denial, empty scopes, malformed permission payloads
+  and denial audit evidence;
 - web unit tests for OIDC session token parsing and authorization headers;
 - generated OpenAPI drift check;
 - web unit tests for graph helper and detail building contracts with local test
