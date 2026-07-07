@@ -130,13 +130,16 @@ flowchart LR
   protected mutations bind OIDC principals when present or required.
 - API to identity provider: `/identity/oidc/readiness`,
   `/identity/oidc/onboarding`, `/identity/oidc/authorize`,
-  `/identity/oidc/callback` and the verifier boundary use OIDC issuer,
-  audience, algorithms, JWKS and authorization-code settings. Browser SSO also
-  requires `openid` scope and validates the signed provider `id_token`, expiry,
-  client audience, authorized party when present, login nonce and cross-token
-  subject binding before minting the Axis session cookie. The readiness and IdP
-  onboarding reports are public-safe and do not return tokens, passwords or raw
-  JWKS.
+  `/identity/oidc/callback`, `/identity/session/refresh` and the verifier
+  boundary use OIDC issuer, audience, algorithms, JWKS and authorization-code
+  settings. Browser SSO also requires `openid` scope and validates the signed
+  provider `id_token`, expiry, client audience, authorized party when present,
+  login nonce and cross-token subject binding before minting the Axis session
+  cookie. Server-side refresh reuses the configured token endpoint only, stores
+  refresh tokens exclusively as AES-GCM ciphertext under an operator key,
+  rotates the Axis session id on every refresh and revokes the session when the
+  provider rejects the grant. The readiness and IdP onboarding reports are
+  public-safe and do not return tokens, passwords or raw JWKS.
 - API to Postgres: repository writes persist approvals, action runs, audit
   events, connector records and manufacturing operation records. Idempotency and
   schema validation protect many write paths.
@@ -163,7 +166,9 @@ flowchart LR
 | `/identity/oidc/onboarding` | HTTP GET | public-safe IdP onboarding metadata | Exact redirect URIs and claim mappings without token material | `services/api/tests/test_health.py` |
 | `/identity/oidc/authorize`, `/identity/oidc/callback` | HTTP GET | browser to OIDC provider and API callback | PKCE, state cookie, ID-token expiry/audience/nonce/subject binding and HTTP-only session cookie boundary | `services/api/tests/test_oidc_authorization_code_session.py` |
 | `/identity/oidc/logout` | HTTP GET | API to OIDC provider logout redirect | Server-side session revocation plus federated redirect without provider token storage | `services/api/tests/test_oidc_authorization_code_session.py` |
-| `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect | `services/api/tests/test_oidc_authorization_code_session.py` |
+| `/identity/session/logout` | HTTP POST | browser to API session boundary | Local server-side session revocation without IdP redirect; CSRF header required for cookie callers | `services/api/tests/test_oidc_authorization_code_session.py` |
+| `/identity/session/refresh` | HTTP POST | browser to API and API to OIDC token endpoint | CSRF-gated rotating refresh: session id and encrypted refresh credential rotate, absolute lifetime capped, provider rejection revokes the session | `services/api/tests/test_oidc_session_lifecycle.py` |
+| `/identity/sessions`, `/identity/sessions/{session_ref}/revoke` | HTTP GET/POST | actor to API session inventory | Tenant-isolated opaque session references; self service plus `identity:sessions:admin` for tenant-wide listing/revocation; CSRF header for cookie callers | `services/api/tests/test_oidc_session_lifecycle.py` |
 | `/deployment/readiness` | HTTP GET | public-safe deployment posture | Reports production blockers, including OIDC secure-session, network egress and DR procedure posture, without secrets | `services/api/tests/test_deployment_readiness.py` |
 | `/support/diagnostics` | HTTP GET | public-safe support posture | Reports support blockers, commitment gates and runbook links without sensitive runtime material | `services/api/tests/test_support_diagnostics.py` |
 | `/demo/manufacturing/operations/snapshot` | HTTP GET | API to persisted demo state | Drives overview cockpit | `docs/demo-readiness.md` |
@@ -234,7 +239,14 @@ flowchart LR
   `oidc_browser_sessions` revocation state, `POST /identity/session/logout`
   audit evidence, public-safe `/identity/oidc/readiness` posture reporting and
   deployment readiness gating for Secure cookies, signing secret presence,
-  bounded TTL and HTTPS API/public/redirect URLs.
+  bounded TTL and HTTPS API/public/redirect URLs. Production session lifecycle
+  adds server-side refresh rotation with AES-GCM-encrypted refresh credentials,
+  idle and absolute timeouts, per-actor concurrent-session caps, tenant-isolated
+  session listing and revocation (self plus `identity:sessions:admin`),
+  HMAC double-submit CSRF headers for cookie-authenticated mutations,
+  `__Host-`-prefixed Secure cookies, and audit evidence for logins, failed code
+  exchanges, refreshes, failed refreshes, revocations and logouts that
+  references sessions only by keyed hash.
 - Permissions: RBAC, ABAC and relationship-aware permission primitives with
   endpoint tests for approvals, actions and ontology reads. Ontology graph and
   entity detail reads enforce OIDC-derived relationship scopes at the

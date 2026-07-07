@@ -551,16 +551,6 @@
             "title": "Persisted",
             "type": "boolean"
           },
-          "platform_policy_decision": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlatformPolicyDecision"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "requested_by": {
             "minLength": 1,
             "title": "Requested By",
@@ -1147,16 +1137,6 @@
           "persisted": {
             "title": "Persisted",
             "type": "boolean"
-          },
-          "platform_policy_decision": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlatformPolicyDecision"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "status": {
             "minLength": 1,
@@ -9898,6 +9878,141 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IdentityBrowserSessionList": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityBrowserSessionRecord"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tenant_wide": {
+            "title": "Tenant Wide",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "actor_id",
+          "tenant_wide"
+        ],
+        "title": "IdentityBrowserSessionList",
+        "type": "object"
+      },
+      "IdentityBrowserSessionRecord": {
+        "properties": {
+          "absolute_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Expires At"
+          },
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "default": false,
+            "title": "Current",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "refresh_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Refresh Count",
+            "type": "integer"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "session_ref": {
+            "minLength": 1,
+            "title": "Session Ref",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_ref",
+          "actor_id",
+          "status",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "IdentityBrowserSessionRecord",
+        "type": "object"
+      },
       "IdentitySessionReadModel": {
         "properties": {
           "actor_id": {
@@ -13642,677 +13757,6 @@
         ],
         "title": "PermissionDecision",
         "type": "object"
-      },
-      "PlatformPolicyCreateRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "actor_scopes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Actor Scopes",
-            "type": "array"
-          },
-          "conditions": {
-            "additionalProperties": true,
-            "title": "Conditions",
-            "type": "object"
-          },
-          "created_by": {
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Created By",
-            "type": "string"
-          },
-          "description": {
-            "maxLength": 600,
-            "minLength": 1,
-            "title": "Description",
-            "type": "string"
-          },
-          "display_name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Display Name",
-            "type": "string"
-          },
-          "effect": {
-            "$ref": "#/components/schemas/PlatformPolicyEffect"
-          },
-          "notes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Notes",
-            "type": "array"
-          },
-          "policy_id": {
-            "maxLength": 180,
-            "minLength": 1,
-            "pattern": "^[a-z0-9][a-z0-9_-]*$",
-            "title": "Policy Id",
-            "type": "string"
-          },
-          "policy_version": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Policy Version",
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/PlatformPolicyScope"
-          },
-          "tenant_id": {
-            "default": "tenant_demo_manufacturing",
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "policy_id",
-          "policy_version",
-          "display_name",
-          "description",
-          "scope",
-          "effect",
-          "conditions",
-          "created_by"
-        ],
-        "title": "PlatformPolicyCreateRequest",
-        "type": "object"
-      },
-      "PlatformPolicyDecision": {
-        "properties": {
-          "effect": {
-            "minLength": 1,
-            "title": "Effect",
-            "type": "string"
-          },
-          "evaluated_policy_count": {
-            "minimum": 0.0,
-            "title": "Evaluated Policy Count",
-            "type": "integer"
-          },
-          "evidence": {
-            "additionalProperties": true,
-            "title": "Evidence",
-            "type": "object"
-          },
-          "matched": {
-            "title": "Matched",
-            "type": "boolean"
-          },
-          "matched_policies": {
-            "items": {
-              "$ref": "#/components/schemas/PlatformPolicyMatch"
-            },
-            "title": "Matched Policies",
-            "type": "array"
-          },
-          "matched_policy_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Matched Policy Id"
-          },
-          "matched_policy_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Matched Policy Version"
-          },
-          "matched_revision_number": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Matched Revision Number"
-          },
-          "precedence_rule": {
-            "default": "effect_severity_then_policy_id",
-            "minLength": 1,
-            "title": "Precedence Rule",
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/PlatformPolicyScope"
-          },
-          "tenant_id": {
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tenant_id",
-          "scope",
-          "effect",
-          "matched",
-          "evaluated_policy_count"
-        ],
-        "title": "PlatformPolicyDecision",
-        "type": "object"
-      },
-      "PlatformPolicyDetail": {
-        "properties": {
-          "current_revision": {
-            "$ref": "#/components/schemas/PlatformPolicyRecord"
-          },
-          "policy_id": {
-            "minLength": 1,
-            "title": "Policy Id",
-            "type": "string"
-          },
-          "revisions": {
-            "items": {
-              "$ref": "#/components/schemas/PlatformPolicyRecord"
-            },
-            "minItems": 1,
-            "title": "Revisions",
-            "type": "array"
-          },
-          "tenant_id": {
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tenant_id",
-          "policy_id",
-          "current_revision",
-          "revisions"
-        ],
-        "title": "PlatformPolicyDetail",
-        "type": "object"
-      },
-      "PlatformPolicyEffect": {
-        "enum": [
-          "require_approval",
-          "deny",
-          "allow_with_evidence"
-        ],
-        "title": "PlatformPolicyEffect",
-        "type": "string"
-      },
-      "PlatformPolicyEvaluationContext": {
-        "additionalProperties": false,
-        "properties": {
-          "action_domain": {
-            "anyOf": [
-              {
-                "maxLength": 160,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Action Domain"
-          },
-          "action_id": {
-            "anyOf": [
-              {
-                "maxLength": 180,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Action Id"
-          },
-          "autonomy_level": {
-            "anyOf": [
-              {
-                "pattern": "^L[0-4]$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Autonomy Level"
-          },
-          "requested_amount": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Requested Amount"
-          },
-          "requested_amount_malformed": {
-            "default": false,
-            "title": "Requested Amount Malformed",
-            "type": "boolean"
-          },
-          "risk_level": {
-            "anyOf": [
-              {
-                "maxLength": 40,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Risk Level"
-          }
-        },
-        "title": "PlatformPolicyEvaluationContext",
-        "type": "object"
-      },
-      "PlatformPolicyEvaluationRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "actor_id": {
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Actor Id",
-            "type": "string"
-          },
-          "actor_scopes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Actor Scopes",
-            "type": "array"
-          },
-          "context": {
-            "$ref": "#/components/schemas/PlatformPolicyEvaluationContext"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/PlatformPolicyScope"
-          },
-          "tenant_id": {
-            "default": "tenant_demo_manufacturing",
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "actor_id",
-          "scope",
-          "context"
-        ],
-        "title": "PlatformPolicyEvaluationRequest",
-        "type": "object"
-      },
-      "PlatformPolicyMatch": {
-        "properties": {
-          "effect": {
-            "$ref": "#/components/schemas/PlatformPolicyEffect"
-          },
-          "matched_constraints": {
-            "additionalProperties": true,
-            "title": "Matched Constraints",
-            "type": "object"
-          },
-          "policy_id": {
-            "minLength": 1,
-            "title": "Policy Id",
-            "type": "string"
-          },
-          "policy_version": {
-            "minLength": 1,
-            "title": "Policy Version",
-            "type": "string"
-          },
-          "revision_number": {
-            "minimum": 1.0,
-            "title": "Revision Number",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "policy_id",
-          "revision_number",
-          "policy_version",
-          "effect"
-        ],
-        "title": "PlatformPolicyMatch",
-        "type": "object"
-      },
-      "PlatformPolicyRecord": {
-        "properties": {
-          "audit_event_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Audit Event Id"
-          },
-          "audit_event_type": {
-            "minLength": 1,
-            "title": "Audit Event Type",
-            "type": "string"
-          },
-          "conditions": {
-            "$ref": "#/components/schemas/PlatformPolicyRuleConditions"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "created_by": {
-            "minLength": 1,
-            "title": "Created By",
-            "type": "string"
-          },
-          "description": {
-            "minLength": 1,
-            "title": "Description",
-            "type": "string"
-          },
-          "display_name": {
-            "minLength": 1,
-            "title": "Display Name",
-            "type": "string"
-          },
-          "effect": {
-            "$ref": "#/components/schemas/PlatformPolicyEffect"
-          },
-          "idempotent_replay": {
-            "default": false,
-            "title": "Idempotent Replay",
-            "type": "boolean"
-          },
-          "notes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Notes",
-            "type": "array"
-          },
-          "permission_decision": {
-            "$ref": "#/components/schemas/PermissionDecision"
-          },
-          "policy_id": {
-            "minLength": 1,
-            "title": "Policy Id",
-            "type": "string"
-          },
-          "policy_version": {
-            "minLength": 1,
-            "title": "Policy Version",
-            "type": "string"
-          },
-          "replaced_by_revision_number": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Replaced By Revision Number"
-          },
-          "required_authoring_scope": {
-            "minLength": 1,
-            "title": "Required Authoring Scope",
-            "type": "string"
-          },
-          "revises_revision_number": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Revises Revision Number"
-          },
-          "revision_idempotency_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Revision Idempotency Key"
-          },
-          "revision_number": {
-            "minimum": 1.0,
-            "title": "Revision Number",
-            "type": "integer"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/PlatformPolicyScope"
-          },
-          "status": {
-            "minLength": 1,
-            "title": "Status",
-            "type": "string"
-          },
-          "tenant_id": {
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tenant_id",
-          "policy_id",
-          "revision_number",
-          "policy_version",
-          "display_name",
-          "description",
-          "scope",
-          "effect",
-          "conditions",
-          "status",
-          "created_by",
-          "required_authoring_scope",
-          "permission_decision",
-          "audit_event_type",
-          "created_at"
-        ],
-        "title": "PlatformPolicyRecord",
-        "type": "object"
-      },
-      "PlatformPolicyRegistry": {
-        "properties": {
-          "active_policy_count": {
-            "minimum": 0.0,
-            "title": "Active Policy Count",
-            "type": "integer"
-          },
-          "policies": {
-            "items": {
-              "$ref": "#/components/schemas/PlatformPolicyRecord"
-            },
-            "title": "Policies",
-            "type": "array"
-          },
-          "policy_count": {
-            "minimum": 0.0,
-            "title": "Policy Count",
-            "type": "integer"
-          },
-          "policy_notes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Policy Notes",
-            "type": "array"
-          },
-          "tenant_id": {
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tenant_id",
-          "policy_count",
-          "active_policy_count"
-        ],
-        "title": "PlatformPolicyRegistry",
-        "type": "object"
-      },
-      "PlatformPolicyReviseRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "actor_scopes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Actor Scopes",
-            "type": "array"
-          },
-          "conditions": {
-            "additionalProperties": true,
-            "title": "Conditions",
-            "type": "object"
-          },
-          "description": {
-            "maxLength": 600,
-            "minLength": 1,
-            "title": "Description",
-            "type": "string"
-          },
-          "display_name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Display Name",
-            "type": "string"
-          },
-          "effect": {
-            "$ref": "#/components/schemas/PlatformPolicyEffect"
-          },
-          "idempotency_key": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Idempotency Key",
-            "type": "string"
-          },
-          "notes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Notes",
-            "type": "array"
-          },
-          "policy_id": {
-            "maxLength": 180,
-            "minLength": 1,
-            "pattern": "^[a-z0-9][a-z0-9_-]*$",
-            "title": "Policy Id",
-            "type": "string"
-          },
-          "policy_version": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Policy Version",
-            "type": "string"
-          },
-          "tenant_id": {
-            "default": "tenant_demo_manufacturing",
-            "minLength": 1,
-            "title": "Tenant Id",
-            "type": "string"
-          },
-          "updated_by": {
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Updated By",
-            "type": "string"
-          }
-        },
-        "required": [
-          "policy_id",
-          "policy_version",
-          "display_name",
-          "description",
-          "effect",
-          "conditions",
-          "updated_by",
-          "idempotency_key"
-        ],
-        "title": "PlatformPolicyReviseRequest",
-        "type": "object"
-      },
-      "PlatformPolicyRuleConditions": {
-        "additionalProperties": false,
-        "properties": {
-          "action_domains": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Action Domains",
-            "type": "array"
-          },
-          "autonomy_levels": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Autonomy Levels",
-            "type": "array"
-          },
-          "requested_amount_at_least": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Requested Amount At Least"
-          },
-          "risk_levels": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Risk Levels",
-            "type": "array"
-          }
-        },
-        "title": "PlatformPolicyRuleConditions",
-        "type": "object"
-      },
-      "PlatformPolicyScope": {
-        "enum": [
-          "action_execution",
-          "approval_requirement"
-        ],
-        "title": "PlatformPolicyScope",
-        "type": "string"
       },
       "PolicySetVersionDiff": {
         "properties": {
@@ -21662,64 +21106,32 @@
         ]
       }
     },
-    "/platform/policies": {
+    "/identity/session/refresh": {
+      "post": {
+        "operationId": "identity_session_refresh_identity_session_refresh_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Identity Session Refresh",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/identity/sessions": {
       "get": {
-        "operationId": "platform_policy_registry_platform_policies_get",
+        "operationId": "identity_sessions_identity_sessions_get",
         "parameters": [
           {
             "in": "query",
-            "name": "tenant_id",
+            "name": "tenant_wide",
             "required": false,
             "schema": {
-              "default": "tenant_demo_manufacturing",
-              "minLength": 1,
-              "title": "Tenant Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "scope",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/PlatformPolicyScope"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Scope"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
+              "default": false,
+              "title": "Tenant Wide",
+              "type": "boolean"
             }
           },
           {
@@ -21744,17 +21156,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PlatformPolicyRegistry"
+                  "$ref": "#/components/schemas/IdentityBrowserSessionList"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "401": {
-            "description": "OIDC authentication required"
-          },
-          "403": {
-            "description": "Platform policy read permission denied"
           },
           "422": {
             "content": {
@@ -21767,157 +21173,23 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Platform Policy Registry",
+        "summary": "Identity Sessions",
         "tags": [
-          "platform"
-        ]
-      },
-      "post": {
-        "operationId": "platform_policy_create_platform_policies_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlatformPolicyCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlatformPolicyRecord"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "description": "OIDC authentication required"
-          },
-          "403": {
-            "description": "Platform policy authoring permission denied"
-          },
-          "409": {
-            "description": "Platform policy already exists"
-          },
-          "422": {
-            "description": "Platform policy validation failed"
-          }
-        },
-        "summary": "Platform Policy Create",
-        "tags": [
-          "platform"
+          "system"
         ]
       }
     },
-    "/platform/policies/evaluate": {
+    "/identity/sessions/{session_ref}/revoke": {
       "post": {
-        "operationId": "platform_policy_evaluate_platform_policies_evaluate_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlatformPolicyEvaluationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlatformPolicyDecision"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "description": "OIDC authentication required"
-          },
-          "403": {
-            "description": "Platform policy evaluation permission denied"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Platform Policy Evaluate",
-        "tags": [
-          "platform"
-        ]
-      }
-    },
-    "/platform/policies/{policy_id}": {
-      "get": {
-        "operationId": "platform_policy_detail_platform_policies__policy_id__get",
+        "operationId": "identity_session_revoke_identity_sessions__session_ref__revoke_post",
         "parameters": [
           {
             "in": "path",
-            "name": "policy_id",
+            "name": "session_ref",
             "required": true,
             "schema": {
-              "title": "Policy Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "tenant_id",
-            "required": false,
-            "schema": {
-              "default": "tenant_demo_manufacturing",
-              "minLength": 1,
-              "title": "Tenant Id",
+              "format": "uuid",
+              "title": "Session Ref",
               "type": "string"
             }
           },
@@ -21939,24 +21211,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlatformPolicyDetail"
-                }
-              }
-            },
+          "204": {
             "description": "Successful Response"
-          },
-          "401": {
-            "description": "OIDC authentication required"
-          },
-          "403": {
-            "description": "Platform policy read permission denied"
-          },
-          "404": {
-            "description": "Platform policy not found"
           },
           "422": {
             "content": {
@@ -21969,82 +21225,9 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Platform Policy Detail",
+        "summary": "Identity Session Revoke",
         "tags": [
-          "platform"
-        ]
-      }
-    },
-    "/platform/policies/{policy_id}/revisions": {
-      "post": {
-        "operationId": "platform_policy_revise_platform_policies__policy_id__revisions_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "policy_id",
-            "required": true,
-            "schema": {
-              "title": "Policy Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlatformPolicyReviseRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlatformPolicyRecord"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "description": "OIDC authentication required"
-          },
-          "403": {
-            "description": "Platform policy revision permission denied"
-          },
-          "404": {
-            "description": "Platform policy not found"
-          },
-          "409": {
-            "description": "Platform policy revision idempotency conflict"
-          },
-          "422": {
-            "description": "Platform policy revision validation failed"
-          }
-        },
-        "summary": "Platform Policy Revise",
-        "tags": [
-          "platform"
+          "system"
         ]
       }
     },
