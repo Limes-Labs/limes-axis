@@ -1,7 +1,7 @@
 """connector live sync single-active checkpoint claim index
 
 Revision ID: 0045_connector_live_sync_claim
-Revises: 0043_oidc_browser_sessions
+Revises: 0044_platform_policies
 Create Date: 2026-07-07
 """
 
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "0045_connector_live_sync_claim"
-down_revision: str | None = "0043_oidc_browser_sessions"
+down_revision: str | None = "0044_platform_policies"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
