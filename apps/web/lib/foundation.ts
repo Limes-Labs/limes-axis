@@ -3,7 +3,16 @@ export type FoundationStatus = "ready" | "guarded" | "planned";
 export type NavigationItem = {
   href: string;
   label: string;
-  icon: "gauge" | "network" | "workflow" | "bot" | "shield" | "receipt" | "cable" | "settings";
+  icon:
+    | "gauge"
+    | "network"
+    | "workflow"
+    | "bot"
+    | "shield"
+    | "scroll"
+    | "receipt"
+    | "cable"
+    | "settings";
 };
 
 export type FoundationMetric = {
@@ -45,6 +54,7 @@ export const navigationItems: NavigationItem[] = [
   { href: "/agents", label: "Agents", icon: "bot" },
   { href: "/model-routing", label: "Models", icon: "gauge" },
   { href: "/approvals", label: "Approvals", icon: "shield" },
+  { href: "/policies", label: "Policies", icon: "scroll" },
   { href: "/audit", label: "Audit", icon: "receipt" },
   { href: "/simulation", label: "Simulation", icon: "workflow" },
   { href: "/connectors", label: "Connectors", icon: "cable" },
