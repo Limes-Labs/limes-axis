@@ -32,6 +32,12 @@ export function buildOidcAuthorizeUrl(apiBaseUrl: string, returnTo: string | nul
   return authorizeUrl.toString();
 }
 
+export function buildOidcLogoutUrl(apiBaseUrl: string, returnTo: string | null | undefined): string {
+  const logoutUrl = new URL("/identity/oidc/logout", apiBaseUrl.endsWith("/") ? apiBaseUrl : `${apiBaseUrl}/`);
+  logoutUrl.searchParams.set("return_to", normalizeOidcReturnTo(returnTo));
+  return logoutUrl.toString();
+}
+
 function decodeBase64Url(value: string): string {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");

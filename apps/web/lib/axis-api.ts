@@ -1,5 +1,10 @@
 import { getApiBaseUrl } from "./api-status";
 import { buildAxisAuthInit, type OidcConsoleSession } from "./oidc-session";
+import {
+  AXIS_CSRF_HEADER_NAME,
+  readCsrfTokenFromCookieHeader,
+  shouldAttachCsrfHeader,
+} from "./session-csrf";
 
 export class AxisApiError extends Error {
   readonly status: number;
@@ -21,10 +26,20 @@ export type AxisFetchOptions = {
   headers?: HeadersInit;
 };
 
-export async function axisFetch(
-  path: string,
-  { session, signal, method = "GET", body, headers }: AxisFetchOptions = {},
-): Promise<Response> {
+export const AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT = "limes-axis:browser-session-signed-out";
+
+const SESSION_REFRESH_PATH = "/identity/session/refresh";
+
+function browserCookieHeader(): string {
+  if (typeof document === "undefined") {
+    return "";
+  }
+  return document.cookie ?? "";
+}
+
+function buildRequestInit(
+  { session, signal, method = "GET", body, headers }: AxisFetchOptions,
+): RequestInit {
   const init = buildAxisAuthInit(
     {
       method,
@@ -37,15 +52,108 @@ export async function axisFetch(
     session ?? null,
   );
 
-  if (body !== undefined) {
-    const requestHeaders = new Headers(init.headers);
-    if (!requestHeaders.has("Content-Type")) {
-      requestHeaders.set("Content-Type", "application/json");
+  const requestHeaders = new Headers(init.headers);
+  if (body !== undefined && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+  if (
+    !requestHeaders.has(AXIS_CSRF_HEADER_NAME)
+    && shouldAttachCsrfHeader({
+      method,
+      hasAuthorizationHeader: requestHeaders.has("Authorization"),
+    })
+  ) {
+    const csrfToken = readCsrfTokenFromCookieHeader(browserCookieHeader());
+    if (csrfToken) {
+      requestHeaders.set(AXIS_CSRF_HEADER_NAME, csrfToken);
     }
-    init.headers = requestHeaders;
+  }
+  init.headers = requestHeaders;
+
+  return init;
+}
+
+function announceBrowserSessionSignedOut(): void {
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event(AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT));
+  }
+}
+
+let inflightBrowserSessionRefresh: Promise<boolean> | null = null;
+
+async function performBrowserSessionRefresh(): Promise<boolean> {
+  const headers = new Headers();
+  const csrfToken = readCsrfTokenFromCookieHeader(browserCookieHeader());
+  if (csrfToken) {
+    headers.set(AXIS_CSRF_HEADER_NAME, csrfToken);
   }
 
-  return fetch(`${getApiBaseUrl()}${path}`, init);
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${SESSION_REFRESH_PATH}`, {
+      cache: "no-store",
+      credentials: "include",
+      headers,
+      method: "POST",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rotate the API-owned browser session once, deduplicating concurrent callers.
+ *
+ * Multiple 401s from parallel requests share one in-flight POST
+ * /identity/session/refresh instead of storming the atomic rotation claim.
+ */
+export function refreshBrowserSession(): Promise<boolean> {
+  if (!inflightBrowserSessionRefresh) {
+    inflightBrowserSessionRefresh = performBrowserSessionRefresh().finally(() => {
+      inflightBrowserSessionRefresh = null;
+    });
+  }
+  return inflightBrowserSessionRefresh;
+}
+
+function shouldAttemptSessionRefresh(
+  response: Response,
+  init: RequestInit,
+  path: string,
+): boolean {
+  if (response.status !== 401 || path === SESSION_REFRESH_PATH) {
+    return false;
+  }
+  // Bearer-mode requests own their token lifecycle; the cookie refresh
+  // endpoint cannot mint bearer credentials for them.
+  if (new Headers(init.headers).has("Authorization")) {
+    return false;
+  }
+  // Without the readable CSRF cookie there is no browser session to refresh,
+  // so anonymous 401s never trigger refresh attempts.
+  return readCsrfTokenFromCookieHeader(browserCookieHeader()) !== null;
+}
+
+export async function axisFetch(
+  path: string,
+  options: AxisFetchOptions = {},
+): Promise<Response> {
+  const init = buildRequestInit(options);
+  const response = await fetch(`${getApiBaseUrl()}${path}`, init);
+
+  if (!shouldAttemptSessionRefresh(response, init, path)) {
+    return response;
+  }
+
+  const refreshed = await refreshBrowserSession();
+  if (!refreshed) {
+    announceBrowserSessionSignedOut();
+    return response;
+  }
+
+  // Retry exactly once. The init is rebuilt so the retried request picks up
+  // the rotated CSRF cookie issued by the refresh response.
+  return fetch(`${getApiBaseUrl()}${path}`, buildRequestInit(options));
 }
 
 export async function axisFetchJson<T>(
