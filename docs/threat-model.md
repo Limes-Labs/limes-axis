@@ -171,6 +171,7 @@ flowchart LR
 | `/demo/manufacturing/actions` mutation paths | HTTP POST | agent proposal to API | Typed schemas, idempotency, permission checks | `services/api/tests/test_action_runs.py` |
 | `/demo/manufacturing/connectors` paths | HTTP GET/POST | operator to connector boundary | Manifest, config, lease and egress policy gates | `docs/platform-connectors.md` |
 | `/demo/manufacturing/audit` paths | HTTP GET/POST | operator to audit ledger | OIDC-bound audit read/export/admin controls, retention deletion and legal holds | `services/api/tests/test_audit_queries.py` |
+| `/demo/manufacturing/ontology` read paths | HTTP GET | user/agent to ontology graph boundary | OIDC-bound relationship-scope enforcement at the query/service boundary with denial audit evidence | `services/api/tests/test_ontology_authorization.py` |
 | Web console routes | Browser navigation | browser to API | API-required, no local fallback records | `apps/web/e2e/smoke.spec.ts` |
 | Makefile/scripts | Local operator CLI | developer/operator machine | Demo and posture checks | `Makefile` |
 
@@ -235,7 +236,10 @@ flowchart LR
   deployment readiness gating for Secure cookies, signing secret presence,
   bounded TTL and HTTPS API/public/redirect URLs.
 - Permissions: RBAC, ABAC and relationship-aware permission primitives with
-  endpoint tests for approvals, actions and ontology reads.
+  endpoint tests for approvals, actions and ontology reads. Ontology graph and
+  entity detail reads enforce OIDC-derived relationship scopes at the
+  query/service boundary for both the persisted-reference and TypeDB read
+  runtimes, and denied ontology reads append tenant-scoped audit evidence.
 - Connector governance: manifest lifecycle gates, active preview requirements,
   credential handles, connector credential leases, egress policy evidence,
   checkpoint claims and deferred execution boundaries.

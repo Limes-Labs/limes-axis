@@ -20522,6 +20522,12 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Ontology graph read permission denied"
+          },
           "404": {
             "description": "Manufacturing ontology reference record not found"
           },
@@ -20586,6 +20592,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Ontology entity read permission denied"
           },
           "404": {
             "description": "Manufacturing ontology entity or reference record not found"
