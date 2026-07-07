@@ -34,7 +34,12 @@ from axis_api.oidc_code_flow import (
     refresh_token_encryption_key_is_strong,
     validate_refresh_token_encryption_key,
 )
-from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    DemoReferenceRecordCreate,
+    TenantQuotaUpsert,
+)
+from axis_api.platform_tenants import TenantQuotaKey
 from axis_api.workflow_runtime import WorkflowSignalResult
 
 TOKEN_SECRET = "axis-test-secret"
@@ -453,6 +458,33 @@ def test_concurrent_session_limit_revokes_oldest_session() -> None:
             "identity.oidc_session.created",
             "identity.oidc_session.revoked",
         ]
+
+    assert client.get("/identity/session").status_code == 200
+
+
+def test_tenant_quota_overrides_concurrent_session_limit() -> None:
+    settings = _settings(oidc_session_max_concurrent=5)
+    client, factory, token_endpoint = _build_app(settings)
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_tenant_quota(
+            TenantQuotaUpsert(
+                tenant_id=DEFAULT_TENANT,
+                quota_key=TenantQuotaKey.MAX_CONCURRENT_SESSIONS.value,
+                quota_value=1,
+                updated_by="axis-platform-operator-role",
+            )
+        )
+
+    _login(client, token_endpoint)
+    _login(client, token_endpoint)
+
+    with factory() as session:
+        stored = _sessions(session)
+        assert len(stored) == 2
+        oldest, newest = stored
+        assert oldest.status == "revoked"
+        assert oldest.revocation_reason == "concurrent_session_limit"
+        assert newest.status == "active"
 
     assert client.get("/identity/session").status_code == 200
 
