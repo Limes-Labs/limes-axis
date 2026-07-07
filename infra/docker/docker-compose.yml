@@ -71,6 +71,25 @@ services:
     volumes:
       - ./keycloak/axis-realm.json:/opt/keycloak/data/import/axis-realm.json:ro
 
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    environment:
+      AXIS_ENV: development
+      AXIS_POSTGRES_DSN: postgresql+psycopg://axis:axis@postgres:5432/axis
+      AXIS_TEMPORAL_ADDRESS: temporal:7233
+      AXIS_TEMPORAL_NAMESPACE: default
+      # Scheduled maintenance jobs are opt-in. The worker always reconciles the
+      # Temporal Schedules on startup, but leaves them paused unless this is true.
+      AXIS_SCHEDULED_JOBS_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   axis-postgres:
   axis-typedb:
