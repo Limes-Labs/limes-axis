@@ -368,8 +368,15 @@ def verify_cookie(
     encoded_payload, separator, encoded_signature = cookie_value.partition(".")
     if not separator or not encoded_payload or not encoded_signature:
         raise OidcCookieValidationError("invalid_cookie")
+    try:
+        # Header values are latin-1 decodable, so an attacker can place
+        # non-ASCII characters in the cookie value; fail closed instead of
+        # letting UnicodeEncodeError escape signature verification.
+        encoded_payload_bytes = encoded_payload.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise OidcCookieValidationError("invalid_cookie") from exc
     expected_signature = _b64url(
-        hmac.new(secret, encoded_payload.encode("ascii"), hashlib.sha256).digest()
+        hmac.new(secret, encoded_payload_bytes, hashlib.sha256).digest()
     )
     if not hmac.compare_digest(encoded_signature, expected_signature):
         raise OidcCookieValidationError("invalid_cookie_signature")

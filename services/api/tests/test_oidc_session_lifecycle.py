@@ -822,6 +822,36 @@ def test_refresh_after_rotation_replay_produces_no_second_child() -> None:
         assert sum(1 for row in stored if row.status == "active") == 1
 
 
+def test_non_ascii_session_cookie_is_rejected_as_invalid_not_500() -> None:
+    settings = _settings()
+    client, _factory, _token_endpoint = _build_app(settings)
+
+    # Header values are latin-1 decodable, so an attacker can smuggle
+    # non-ASCII bytes into the cookie value; it must fail closed as an
+    # invalid cookie instead of crashing signature verification.
+    response = client.get(
+        "/identity/session",
+        headers={"Cookie": b"axis_session=\xffgarbage.\xffsig"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["reason"] == "invalid_session_cookie"
+
+
+def test_non_ascii_csrf_header_is_rejected_as_mismatch_not_500() -> None:
+    settings = _settings()
+    client, _factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+
+    response = client.post(
+        "/identity/session/refresh",
+        headers={"X-Axis-Csrf-Token": b"\xff" * 64},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "csrf_token_mismatch"
+
+
 def _mark_session_refreshing(
     factory: sessionmaker[Session],
     *,
