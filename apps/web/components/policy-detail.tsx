@@ -34,7 +34,6 @@ type DetailSource = "loading" | "api" | "unavailable" | "missing";
 
 type EvaluationFormFields = {
   scope: PlatformPolicyScope;
-  actionId: string;
   actionDomain: string;
   riskLevel: string;
   autonomyLevel: string;
@@ -59,11 +58,13 @@ function sourceLabel(source: DetailSource): string {
   return source === "loading" ? "Loading policy API" : "Policy API unavailable";
 }
 
-function ConditionTagList({ items, anyLabel }: { items: string[]; anyLabel: string }) {
+function ConditionTagList({ items, anyLabel }: { items?: string[]; anyLabel: string }) {
+  const values = items ?? [];
+
   return (
     <div className="tag-list">
-      {items.length > 0 ? (
-        items.map((item) => (
+      {values.length > 0 ? (
+        values.map((item) => (
           <span className="tag" key={item}>
             {item}
           </span>
@@ -95,7 +96,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
                 <span className="mono">
                   r{revision.revision_number} / {revision.policy_version}
                 </span>
-                {revision.revises_revision_number !== null ? (
+                {revision.revises_revision_number != null ? (
                   <p className="row-detail">Revises r{revision.revises_revision_number}</p>
                 ) : (
                   <p className="row-detail">Initial revision</p>
@@ -113,7 +114,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
                 <span className={`status-pill ${policyStatusClass(revision.status)}`}>
                   {policyStatusLabel(revision.status)}
                 </span>
-                {revision.replaced_by_revision_number !== null ? (
+                {revision.replaced_by_revision_number != null ? (
                   <p className="row-detail">
                     Superseded by r{revision.replaced_by_revision_number}
                   </p>
@@ -132,7 +133,8 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
 }
 
 function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
-  const evidenceEntries = Object.entries(decision.evidence);
+  const matchedPolicies = decision.matched_policies ?? [];
+  const evidenceEntries = Object.entries(decision.evidence ?? {});
 
   return (
     <div className="stack">
@@ -146,8 +148,8 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
               : "No active policy matched this context"}
           </p>
           <p className="row-detail">
-            {decision.evaluated_policy_count} active policies evaluated /{" "}
-            {decision.precedence_rule}
+            {decision.evaluated_policy_count} active policies evaluated
+            {decision.precedence_rule ? ` / ${decision.precedence_rule}` : ""}
           </p>
         </div>
         <span className={`status-pill ${policyEffectClass(decision.effect)}`}>
@@ -155,11 +157,11 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
         </span>
       </div>
 
-      {decision.matched_policies.length > 0 ? (
+      {matchedPolicies.length > 0 ? (
         <div>
           <p className="metric-label">Matched Policies</p>
           <div className="payload-grid">
-            {decision.matched_policies.map((match) => (
+            {matchedPolicies.map((match) => (
               <div className="payload-row" key={`${match.policy_id}-${match.revision_number}`}>
                 <span>
                   <span className="metric-label">{match.policy_id}</span>
@@ -199,7 +201,6 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
   const [evaluationForm, setEvaluationForm] = useState<EvaluationFormFields>({
     scope: "action_execution",
-    actionId: "",
     actionDomain: "",
     riskLevel: "",
     autonomyLevel: "",
@@ -269,7 +270,6 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       const decision = await evaluatePlatformPolicy(
         buildPolicyEvaluationPayload(detail.tenant_id, {
           scope: evaluationForm.scope,
-          actionId: evaluationForm.actionId,
           actionDomain: evaluationForm.actionDomain,
           riskLevel: evaluationForm.riskLevel,
           autonomyLevel: evaluationForm.autonomyLevel,
@@ -389,14 +389,14 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           <div>
             <p className="metric-label">Amount Threshold</p>
             <p className="row-title mono">
-              {current.conditions.requested_amount_at_least !== null
+              {current.conditions.requested_amount_at_least != null
                 ? `>= ${current.conditions.requested_amount_at_least}`
                 : "No amount gate"}
             </p>
             <p className="row-detail">Malformed amounts fail closed</p>
           </div>
         </div>
-        {current.notes.length > 0 ? (
+        {current.notes && current.notes.length > 0 ? (
           <div className="stack">
             {current.notes.map((note) => (
               <p className="row-detail" key={note}>

@@ -65,9 +65,11 @@ export function PolicyRegistry() {
     );
   }
 
-  const denyCount = countPoliciesByEffect(registry.policies, "deny");
-  const requireApprovalCount = countPoliciesByEffect(registry.policies, "require_approval");
-  const evidenceCount = countPoliciesByEffect(registry.policies, "allow_with_evidence");
+  const policies = registry.policies ?? [];
+  const policyNotes = registry.policy_notes ?? [];
+  const denyCount = countPoliciesByEffect(policies, "deny");
+  const requireApprovalCount = countPoliciesByEffect(policies, "require_approval");
+  const evidenceCount = countPoliciesByEffect(policies, "allow_with_evidence");
 
   return (
     <div className="console-stack">
@@ -154,7 +156,7 @@ export function PolicyRegistry() {
         </div>
       </section>
 
-      {registry.policies.length > 0 ? (
+      {policies.length > 0 ? (
         <section className="table-panel">
           <table className="data-table">
             <thead>
@@ -169,7 +171,7 @@ export function PolicyRegistry() {
               </tr>
             </thead>
             <tbody>
-              {registry.policies.map((policy) => (
+              {policies.map((policy) => (
                 <tr key={`${policy.policy_id}-${policy.revision_number}`}>
                   <td>
                     <Link className="text-link" href={`/policies/${policy.policy_id}`}>
@@ -234,11 +236,11 @@ export function PolicyRegistry() {
         </div>
       </section>
 
-      {registry.policy_notes.length > 0 ? (
+      {policyNotes.length > 0 ? (
         <section className="panel">
           <p className="section-label">Registry Notes</p>
           <div className="stack">
-            {registry.policy_notes.map((note) => (
+            {policyNotes.map((note) => (
               <p className="row-detail" key={note}>
                 {note}
               </p>

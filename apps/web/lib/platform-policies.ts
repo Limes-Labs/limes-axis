@@ -5,10 +5,10 @@ export type PlatformPolicyScope = "action_execution" | "approval_requirement";
 export type PlatformPolicyEffect = "deny" | "require_approval" | "allow_with_evidence";
 
 export type PlatformPolicyRuleConditions = {
-  action_domains: string[];
-  risk_levels: string[];
-  autonomy_levels: string[];
-  requested_amount_at_least: number | null;
+  action_domains?: string[];
+  risk_levels?: string[];
+  autonomy_levels?: string[];
+  requested_amount_at_least?: number | null;
 };
 
 export type PlatformPolicyRecord = {
@@ -22,16 +22,16 @@ export type PlatformPolicyRecord = {
   effect: PlatformPolicyEffect;
   conditions: PlatformPolicyRuleConditions;
   status: string;
-  notes: string[];
+  notes?: string[];
   created_by: string;
   created_at: string;
   required_authoring_scope: string;
-  revises_revision_number: number | null;
-  replaced_by_revision_number: number | null;
-  revision_idempotency_key: string | null;
-  idempotent_replay: boolean;
+  revises_revision_number?: number | null;
+  replaced_by_revision_number?: number | null;
+  revision_idempotency_key?: string | null;
+  idempotent_replay?: boolean;
   audit_event_type: string;
-  audit_event_id: string | null;
+  audit_event_id?: string | null;
   permission_decision: {
     allowed: boolean;
     reason: string;
@@ -42,8 +42,8 @@ export type PlatformPolicyRegistry = {
   tenant_id: string;
   policy_count: number;
   active_policy_count: number;
-  policies: PlatformPolicyRecord[];
-  policy_notes: string[];
+  policies?: PlatformPolicyRecord[];
+  policy_notes?: string[];
 };
 
 export type PlatformPolicyDetail = {
@@ -66,17 +66,16 @@ export type PlatformPolicyDecision = {
   scope: PlatformPolicyScope;
   effect: string;
   matched: boolean;
-  matched_policy_id: string | null;
-  matched_policy_version: string | null;
-  matched_revision_number: number | null;
-  matched_policies: PlatformPolicyMatch[];
+  matched_policy_id?: string | null;
+  matched_policy_version?: string | null;
+  matched_revision_number?: number | null;
+  matched_policies?: PlatformPolicyMatch[];
   evaluated_policy_count: number;
-  precedence_rule: string;
-  evidence: Record<string, unknown>;
+  precedence_rule?: string;
+  evidence?: Record<string, unknown>;
 };
 
 export type PlatformPolicyEvaluationContextPayload = {
-  action_id?: string;
   action_domain?: string;
   risk_level?: string;
   autonomy_level?: string;
@@ -180,20 +179,23 @@ export function policyStatusClass(status: string): string {
 
 export function summarizePolicyConditions(conditions: PlatformPolicyRuleConditions): string {
   const parts: string[] = [];
+  const actionDomains = conditions.action_domains ?? [];
+  const riskLevels = conditions.risk_levels ?? [];
+  const autonomyLevels = conditions.autonomy_levels ?? [];
 
-  if (conditions.action_domains.length > 0) {
-    parts.push(`domains ${conditions.action_domains.join(", ")}`);
+  if (actionDomains.length > 0) {
+    parts.push(`domains ${actionDomains.join(", ")}`);
   }
 
-  if (conditions.risk_levels.length > 0) {
-    parts.push(`risk ${conditions.risk_levels.join(", ")}`);
+  if (riskLevels.length > 0) {
+    parts.push(`risk ${riskLevels.join(", ")}`);
   }
 
-  if (conditions.autonomy_levels.length > 0) {
-    parts.push(`autonomy ${conditions.autonomy_levels.join(", ")}`);
+  if (autonomyLevels.length > 0) {
+    parts.push(`autonomy ${autonomyLevels.join(", ")}`);
   }
 
-  if (conditions.requested_amount_at_least !== null) {
+  if (conditions.requested_amount_at_least != null) {
     parts.push(`amount >= ${conditions.requested_amount_at_least}`);
   }
 
@@ -229,7 +231,6 @@ export function parseRequestedAmount(value: string): RequestedAmountParseResult 
 
 export type PolicyEvaluationFormState = {
   scope: PlatformPolicyScope;
-  actionId: string;
   actionDomain: string;
   riskLevel: string;
   autonomyLevel: string;
@@ -241,12 +242,7 @@ export function buildPolicyEvaluationPayload(
   form: PolicyEvaluationFormState,
 ): PlatformPolicyEvaluationRequestPayload {
   const context: PlatformPolicyEvaluationContextPayload = {};
-  const actionId = form.actionId.trim();
   const actionDomain = form.actionDomain.trim();
-
-  if (actionId.length > 0) {
-    context.action_id = actionId;
-  }
 
   if (actionDomain.length > 0) {
     context.action_domain = actionDomain;

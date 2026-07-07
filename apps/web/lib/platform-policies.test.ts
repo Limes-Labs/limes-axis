@@ -122,6 +122,13 @@ describe("platform policy display helpers", () => {
     expect(summarizePolicyConditions(buildConditions())).toBe("Any evaluation context");
   });
 
+  it("survives a conditions payload that omits the optional arrays", () => {
+    // The OpenAPI contract does not mark the condition arrays as required, so a
+    // server that omits unset fields must still summarize cleanly.
+    expect(summarizePolicyConditions({})).toBe("Any evaluation context");
+    expect(summarizePolicyConditions({ risk_levels: ["critical"] })).toBe("risk critical");
+  });
+
   it("counts policies by effect for registry metrics", () => {
     const policies = [
       buildRecord(),
@@ -152,8 +159,7 @@ describe("dry-run evaluation payload builder", () => {
     expect(
       buildPolicyEvaluationPayload("tenant_demo_manufacturing", {
         scope: "action_execution",
-        actionId: " action_expedite_supplier ",
-        actionDomain: "Operations",
+        actionDomain: " Operations ",
         riskLevel: "high",
         autonomyLevel: "L3",
         requestedAmount: 10000,
@@ -164,7 +170,6 @@ describe("dry-run evaluation payload builder", () => {
       actor_scopes: ["platform:policy:evaluate"],
       scope: "action_execution",
       context: {
-        action_id: "action_expedite_supplier",
         action_domain: "Operations",
         risk_level: "high",
         autonomy_level: "L3",
@@ -175,7 +180,6 @@ describe("dry-run evaluation payload builder", () => {
     expect(
       buildPolicyEvaluationPayload("tenant_demo_manufacturing", {
         scope: "approval_requirement",
-        actionId: "",
         actionDomain: "  ",
         riskLevel: "",
         autonomyLevel: "",
@@ -278,7 +282,6 @@ describe("platform policy API bindings", () => {
 
     const payload = buildPolicyEvaluationPayload("tenant_demo_manufacturing", {
       scope: "action_execution",
-      actionId: "",
       actionDomain: "Operations",
       riskLevel: "critical",
       autonomyLevel: "",
@@ -297,6 +300,45 @@ describe("platform policy API bindings", () => {
     expect(JSON.parse(String(init?.body))).toEqual(payload);
   });
 
+  it("parses a decision that omits the optional (non-required) fields", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    // Only the OpenAPI-required PlatformPolicyDecision fields are present.
+    const minimalDecision = {
+      tenant_id: "tenant_demo_manufacturing",
+      scope: "action_execution",
+      effect: "allow",
+      matched: false,
+      evaluated_policy_count: 0,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        new Response(JSON.stringify(minimalDecision), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        }),
+      ),
+    );
+
+    const decision = await evaluatePlatformPolicy(
+      buildPolicyEvaluationPayload("tenant_demo_manufacturing", {
+        scope: "action_execution",
+        actionDomain: "",
+        riskLevel: "",
+        autonomyLevel: "",
+        requestedAmount: null,
+      }),
+    );
+
+    expect(decision.matched_policies).toBeUndefined();
+    expect(decision.evidence).toBeUndefined();
+    expect(decision.precedence_rule).toBeUndefined();
+    expect(decision.matched).toBe(false);
+    // Guard the access sites the way the console does.
+    expect((decision.matched_policies ?? []).length).toBe(0);
+    expect(Object.keys(decision.evidence ?? {})).toEqual([]);
+  });
+
   it("propagates evaluation failures as typed AxisApiError values", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     vi.stubGlobal(
@@ -306,7 +348,6 @@ describe("platform policy API bindings", () => {
 
     const payload = buildPolicyEvaluationPayload("tenant_demo_manufacturing", {
       scope: "action_execution",
-      actionId: "",
       actionDomain: "",
       riskLevel: "",
       autonomyLevel: "",

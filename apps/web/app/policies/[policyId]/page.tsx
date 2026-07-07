@@ -16,7 +16,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
       subtitle="Full policy definition, typed conditions, append-only revision history and dry-run evaluation."
       title="Policy detail"
     >
-      <PolicyDetail policyId={policyId} />
+      <PolicyDetail key={policyId} policyId={policyId} />
     </ConsolePage>
   );
 }
