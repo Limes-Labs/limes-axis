@@ -795,6 +795,9 @@ class OidcBrowserSessionCreate(BaseModel):
     actor_id: str = Field(min_length=1)
     scopes: list[str] = Field(default_factory=list)
     expires_at: datetime
+    absolute_expires_at: datetime | None = None
+    refresh_token_ciphertext: str | None = None
+    refresh_count: int = Field(default=0, ge=0)
     created_audit_event_id: UUID | None = None
 
 
@@ -854,6 +857,9 @@ class AxisPersistenceRepository:
             status="active",
             scopes=record.scopes,
             expires_at=record.expires_at,
+            absolute_expires_at=record.absolute_expires_at,
+            refresh_token_ciphertext=record.refresh_token_ciphertext,
+            refresh_count=record.refresh_count,
             created_audit_event_id=record.created_audit_event_id,
         )
         self.session.add(browser_session)
@@ -868,6 +874,83 @@ class AxisPersistenceRepository:
             OidcBrowserSession.session_id_hash == session_id_hash
         )
         return self.session.scalar(statement)
+
+    def get_oidc_browser_session(
+        self,
+        tenant_id: str,
+        session_ref: UUID,
+    ) -> OidcBrowserSession | None:
+        statement: Select[tuple[OidcBrowserSession]] = select(OidcBrowserSession).where(
+            OidcBrowserSession.tenant_id == tenant_id,
+            OidcBrowserSession.id == session_ref,
+        )
+        return self.session.scalar(statement)
+
+    def list_oidc_browser_sessions(
+        self,
+        tenant_id: str,
+        actor_id: str | None = None,
+        limit: int = 100,
+    ) -> list[OidcBrowserSession]:
+        statement: Select[tuple[OidcBrowserSession]] = select(OidcBrowserSession).where(
+            OidcBrowserSession.tenant_id == tenant_id
+        )
+        if actor_id is not None:
+            statement = statement.where(OidcBrowserSession.actor_id == actor_id)
+        statement = statement.order_by(
+            OidcBrowserSession.created_at.desc(),
+            OidcBrowserSession.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_active_oidc_browser_sessions(
+        self,
+        tenant_id: str,
+        actor_id: str,
+    ) -> list[OidcBrowserSession]:
+        statement: Select[tuple[OidcBrowserSession]] = (
+            select(OidcBrowserSession)
+            .where(
+                OidcBrowserSession.tenant_id == tenant_id,
+                OidcBrowserSession.actor_id == actor_id,
+                OidcBrowserSession.status == "active",
+            )
+            .order_by(
+                OidcBrowserSession.created_at.asc(),
+                OidcBrowserSession.id.asc(),
+            )
+        )
+        return list(self.session.scalars(statement))
+
+    def touch_oidc_browser_session(
+        self,
+        session_id_hash: str,
+        seen_at: datetime,
+    ) -> OidcBrowserSession | None:
+        browser_session = self.get_oidc_browser_session_by_hash(session_id_hash)
+        if browser_session is None:
+            return None
+        browser_session.last_seen_at = seen_at
+        browser_session.updated_at = seen_at
+        self.session.flush()
+        return browser_session
+
+    def mark_oidc_browser_session_rotated(
+        self,
+        *,
+        session_id_hash: str,
+        rotated_to_session_id_hash: str,
+    ) -> OidcBrowserSession | None:
+        browser_session = self.get_oidc_browser_session_by_hash(session_id_hash)
+        if browser_session is None:
+            return None
+        now = utc_now()
+        browser_session.status = "rotated"
+        browser_session.rotated_to_session_id_hash = rotated_to_session_id_hash
+        browser_session.refresh_token_ciphertext = None
+        browser_session.updated_at = now
+        self.session.flush()
+        return browser_session
 
     def revoke_oidc_browser_session(
         self,

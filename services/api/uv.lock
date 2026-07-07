@@ -317,6 +317,7 @@ version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "minio" },
     { name = "opentelemetry-api" },
@@ -341,6 +342,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.17" },
+    { name = "cryptography", specifier = ">=43" },
     { name = "fastapi", specifier = ">=0.128" },
     { name = "minio", specifier = ">=7.2.20" },
     { name = "opentelemetry-api", specifier = ">=1.39" },

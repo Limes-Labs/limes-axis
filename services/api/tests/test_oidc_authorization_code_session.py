@@ -177,6 +177,12 @@ def _start_oidc_login(
     return params["state"][0]
 
 
+def _csrf_headers(client: TestClient) -> dict[str, str]:
+    csrf_token = client.cookies.get("axis_csrf")
+    assert csrf_token
+    return {"X-Axis-Csrf-Token": csrf_token}
+
+
 def _one_oidc_browser_session(session: Session) -> dict:
     assert inspect(session.bind).has_table("oidc_browser_sessions")
     row = dict(
@@ -264,8 +270,9 @@ def test_oidc_callback_exchanges_code_and_sets_api_validated_session_cookie() ->
         assert persisted_session["actor_id"] == "plant-operations-owner-role"
         assert persisted_session["tenant_id"] == "tenant_demo_manufacturing"
         assert persisted_session["scopes"] == ["approvals:supply:decide", "audit:read"]
+        assert persisted_session["refresh_token_ciphertext"] is None
+        assert persisted_session["absolute_expires_at"] is not None
         assert "access_token" not in str(persisted_session).lower()
-        assert "refresh_token" not in str(persisted_session).lower()
         audit_events = list(session.scalars(select(AuditEvent)))
         assert [event.event_type for event in audit_events] == [
             "identity.oidc_session.created"
@@ -305,7 +312,10 @@ def test_oidc_callback_rejects_missing_id_token_without_creating_session() -> No
             session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
             == 0
         )
-        assert list(session.scalars(select(AuditEvent))) == []
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == ["identity.oidc_login.failed"]
+        assert audit_events[0].payload["reason"] == "missing_id_token"
+        assert "access_token" not in str(audit_events[0].payload).lower()
 
 
 def test_oidc_callback_rejects_id_token_nonce_mismatch_without_creating_session() -> None:
@@ -328,7 +338,9 @@ def test_oidc_callback_rejects_id_token_nonce_mismatch_without_creating_session(
             session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
             == 0
         )
-        assert list(session.scalars(select(AuditEvent))) == []
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == ["identity.oidc_login.failed"]
+        assert audit_events[0].payload["reason"] == "id_token_nonce_mismatch"
 
 
 def test_oidc_callback_rejects_id_token_audience_mismatch() -> None:
@@ -349,7 +361,8 @@ def test_oidc_callback_rejects_id_token_audience_mismatch() -> None:
             session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
             == 0
         )
-        assert list(session.scalars(select(AuditEvent))) == []
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == ["identity.oidc_login.failed"]
 
 
 def test_oidc_callback_rejects_cross_token_subject_mismatch_with_custom_actor_claim() -> None:
@@ -377,7 +390,9 @@ def test_oidc_callback_rejects_cross_token_subject_mismatch_with_custom_actor_cl
             session.execute(text("SELECT count(*) FROM oidc_browser_sessions")).scalar_one()
             == 0
         )
-        assert list(session.scalars(select(AuditEvent))) == []
+        audit_events = list(session.scalars(select(AuditEvent)))
+        assert [event.event_type for event in audit_events] == ["identity.oidc_login.failed"]
+        assert audit_events[0].payload["reason"] == "id_token_subject_mismatch"
 
 
 def test_oidc_callback_rejects_state_mismatch_without_token_exchange() -> None:
@@ -416,7 +431,7 @@ def test_oidc_session_logout_revokes_persisted_session_and_deletes_cookie() -> N
     callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
     assert callback.status_code == 307
 
-    logout = client.post("/identity/session/logout")
+    logout = client.post("/identity/session/logout", headers=_csrf_headers(client))
 
     assert logout.status_code == 204
     assert "axis_session=" in logout.headers["set-cookie"]
@@ -512,7 +527,8 @@ def test_revoked_oidc_session_cookie_cannot_authenticate_again() -> None:
     state = _start_oidc_login(client, id_token_context)
     callback = client.get(f"/identity/oidc/callback?code=valid-code&state={state}")
     cookie_value = SimpleCookie(callback.headers["set-cookie"])["axis_session"].value
-    assert client.post("/identity/session/logout").status_code == 204
+    csrf_headers = _csrf_headers(client)
+    assert client.post("/identity/session/logout", headers=csrf_headers).status_code == 204
     client.cookies.set("axis_session", cookie_value)
 
     response = client.get("/identity/session")

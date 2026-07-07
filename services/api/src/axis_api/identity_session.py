@@ -1,7 +1,31 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
 from axis_api.identity import OidcPrincipal
+
+
+class IdentityBrowserSessionRecord(BaseModel):
+    session_ref: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    current: bool = False
+    created_at: datetime
+    expires_at: datetime
+    absolute_expires_at: datetime | None = None
+    last_seen_at: datetime | None = None
+    refresh_count: int = Field(default=0, ge=0)
+    revoked_at: datetime | None = None
+    revocation_reason: str | None = None
+
+
+class IdentityBrowserSessionList(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    tenant_wide: bool
+    sessions: list[IdentityBrowserSessionRecord] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
 
 
 class IdentitySessionReadModel(BaseModel):

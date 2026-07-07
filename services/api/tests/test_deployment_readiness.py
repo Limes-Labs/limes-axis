@@ -30,6 +30,7 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "oidc_post_logout_redirect_uri": "https://console.axis.example/signed-out",
         "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
         "oidc_session_cookie_secure": True,
+        "oidc_refresh_token_encryption_key": "axis-refresh-credential-key",
         "api_rate_limit_enabled": True,
         "api_rate_limit_requests": 120,
         "api_rate_limit_window_seconds": 60,

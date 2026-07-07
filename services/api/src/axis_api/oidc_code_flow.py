@@ -12,7 +12,14 @@ from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 from axis_api.config import Settings
+
+_HOST_COOKIE_PREFIX = "__Host-"
+_REFRESH_TOKEN_AAD = b"axis-oidc-refresh-token"
+_REFRESH_TOKEN_NONCE_BYTES = 12
 
 
 class OidcCodeFlowConfigurationError(ValueError):
@@ -73,6 +80,30 @@ def end_session_endpoint(settings: Settings) -> str:
     if settings.oidc_end_session_url:
         return settings.oidc_end_session_url
     return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/logout"
+
+
+def _host_prefixed_cookie_name(name: str, settings: Settings) -> str:
+    if not settings.oidc_session_cookie_secure or not settings.oidc_session_cookie_host_prefix:
+        return name
+    if name.startswith(_HOST_COOKIE_PREFIX):
+        return name
+    return f"{_HOST_COOKIE_PREFIX}{name}"
+
+
+def session_cookie_name(settings: Settings) -> str:
+    return _host_prefixed_cookie_name(settings.oidc_session_cookie_name, settings)
+
+
+def csrf_cookie_name(settings: Settings) -> str:
+    return _host_prefixed_cookie_name(settings.oidc_csrf_cookie_name, settings)
+
+
+def csrf_token_for_session(session_id: str, settings: Settings) -> str:
+    return hmac.new(
+        _cookie_secret(settings),
+        f"oidc-csrf:{session_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def redirect_uri(settings: Settings) -> str:
@@ -169,6 +200,50 @@ def build_token_exchange_form(
     return form
 
 
+def build_refresh_token_form(*, settings: Settings, refresh_token: str) -> dict[str, str]:
+    if not refresh_token:
+        raise OidcTokenExchangeError("missing_refresh_token")
+    form = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": settings.oidc_client_id or "",
+    }
+    if settings.oidc_client_secret:
+        form["client_secret"] = settings.oidc_client_secret
+    return form
+
+
+def _refresh_token_key(settings: Settings) -> bytes:
+    value = settings.oidc_refresh_token_encryption_key
+    if not value:
+        raise OidcCodeFlowConfigurationError("missing_refresh_token_encryption_key")
+    return hashlib.sha256(value.encode("utf-8")).digest()
+
+
+def encrypt_refresh_token(refresh_token: str, settings: Settings) -> str:
+    if not refresh_token:
+        raise OidcTokenExchangeError("missing_refresh_token")
+    key = _refresh_token_key(settings)
+    nonce = secrets.token_bytes(_REFRESH_TOKEN_NONCE_BYTES)
+    ciphertext = AESGCM(key).encrypt(
+        nonce,
+        refresh_token.encode("utf-8"),
+        _REFRESH_TOKEN_AAD,
+    )
+    return _b64url(nonce + ciphertext)
+
+
+def decrypt_refresh_token(ciphertext_value: str, settings: Settings) -> str:
+    key = _refresh_token_key(settings)
+    try:
+        raw = _b64url_decode(ciphertext_value)
+        nonce = raw[:_REFRESH_TOKEN_NONCE_BYTES]
+        ciphertext = raw[_REFRESH_TOKEN_NONCE_BYTES:]
+        return AESGCM(key).decrypt(nonce, ciphertext, _REFRESH_TOKEN_AAD).decode("utf-8")
+    except (InvalidTag, ValueError) as exc:
+        raise OidcTokenExchangeError("refresh_token_unreadable") from exc
+
+
 def exchange_authorization_code(form: dict[str, str], settings: Settings) -> dict[str, Any]:
     body = urlencode(form).encode("utf-8")
     request = Request(
@@ -193,6 +268,7 @@ def session_cookie_from_principal(
     settings: Settings,
     *,
     session_id: str | None = None,
+    max_age_ceiling: int | None = None,
 ) -> tuple[str, int, str]:
     resolved_session_id = session_id or secrets.token_urlsafe(48)
     expires_in = token_response.get("expires_in")
@@ -205,6 +281,10 @@ def session_cookie_from_principal(
         if token_remaining_seconds <= 0:
             raise OidcTokenExchangeError("expired_access_token")
         max_age = min(max_age, token_remaining_seconds)
+    if max_age_ceiling is not None:
+        if max_age_ceiling <= 0:
+            raise OidcTokenExchangeError("expired_session_absolute_lifetime")
+        max_age = min(max_age, max_age_ceiling)
     if max_age <= 0:
         raise OidcTokenExchangeError("invalid_session_ttl")
     expires_at = now + max_age
