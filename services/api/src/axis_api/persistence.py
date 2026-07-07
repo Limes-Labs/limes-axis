@@ -1075,6 +1075,75 @@ class AxisPersistenceRepository:
         self.session.flush()
         return browser_session
 
+    def list_orphaned_refreshing_oidc_browser_sessions(
+        self,
+        *,
+        claim_deadline: datetime,
+        tenant_id: str | None = None,
+        limit: int = 200,
+    ) -> list[OidcBrowserSession]:
+        """Return sessions stuck in ``refreshing`` past the claim staleness window.
+
+        A refresh claim is normally resolved (rotated or revoked) within one IdP
+        exchange. A row whose ``updated_at`` is older than ``claim_deadline`` means
+        the refreshing process crashed between claim and completion, so the row is
+        an orphan that the request path only recovers lazily on re-presentation.
+        """
+        statement: Select[tuple[OidcBrowserSession]] = select(OidcBrowserSession).where(
+            OidcBrowserSession.status == "refreshing",
+            OidcBrowserSession.updated_at <= claim_deadline,
+        )
+        if tenant_id is not None:
+            statement = statement.where(OidcBrowserSession.tenant_id == tenant_id)
+        statement = statement.order_by(
+            OidcBrowserSession.updated_at.asc(),
+            OidcBrowserSession.id.asc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_expired_active_oidc_browser_sessions(
+        self,
+        *,
+        now: datetime,
+        idle_deadline: datetime | None = None,
+        tenant_id: str | None = None,
+        limit: int = 200,
+    ) -> list[OidcBrowserSession]:
+        """Return active sessions past their absolute/idle expiry that still linger.
+
+        The request path expires these lazily on presentation; without a sweep, a
+        session that is never presented again stays ``active`` at rest forever. A
+        row qualifies when its sliding ``expires_at`` has passed, its
+        ``absolute_expires_at`` has passed, or its last activity is older than
+        ``idle_deadline`` (when idle timeout is enabled).
+        """
+        expiry_clauses = [
+            OidcBrowserSession.expires_at <= now,
+            and_(
+                OidcBrowserSession.absolute_expires_at.is_not(None),
+                OidcBrowserSession.absolute_expires_at <= now,
+            ),
+        ]
+        if idle_deadline is not None:
+            expiry_clauses.append(
+                func.coalesce(
+                    OidcBrowserSession.last_seen_at,
+                    OidcBrowserSession.created_at,
+                )
+                <= idle_deadline
+            )
+        statement: Select[tuple[OidcBrowserSession]] = select(OidcBrowserSession).where(
+            OidcBrowserSession.status == "active",
+            or_(*expiry_clauses),
+        )
+        if tenant_id is not None:
+            statement = statement.where(OidcBrowserSession.tenant_id == tenant_id)
+        statement = statement.order_by(
+            OidcBrowserSession.created_at.asc(),
+            OidcBrowserSession.id.asc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
     def list_audit_events(
         self,
         tenant_id: str,

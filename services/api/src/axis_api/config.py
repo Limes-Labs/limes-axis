@@ -44,6 +44,47 @@ class Settings(BaseSettings):
         ge=0,
         alias="AXIS_TENANT_STATE_CACHE_TTL_SECONDS",
     )
+    scheduled_jobs_enabled: bool = Field(
+        default=False,
+        alias="AXIS_SCHEDULED_JOBS_ENABLED",
+    )
+    scheduled_audit_retention_interval_seconds: int = Field(
+        default=86_400,
+        ge=60,
+        alias="AXIS_SCHEDULED_AUDIT_RETENTION_INTERVAL_SECONDS",
+    )
+    scheduled_audit_retention_days: int = Field(
+        default=365,
+        ge=30,
+        le=3650,
+        alias="AXIS_SCHEDULED_AUDIT_RETENTION_DAYS",
+    )
+    scheduled_audit_retention_dry_run: bool = Field(
+        default=True,
+        alias="AXIS_SCHEDULED_AUDIT_RETENTION_DRY_RUN",
+    )
+    scheduled_audit_retention_batch_limit: int = Field(
+        default=500,
+        ge=1,
+        le=1000,
+        alias="AXIS_SCHEDULED_AUDIT_RETENTION_BATCH_LIMIT",
+    )
+    scheduled_session_sweep_interval_seconds: int = Field(
+        default=900,
+        ge=60,
+        alias="AXIS_SCHEDULED_SESSION_SWEEP_INTERVAL_SECONDS",
+    )
+    scheduled_session_sweep_batch_limit: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+        alias="AXIS_SCHEDULED_SESSION_SWEEP_BATCH_LIMIT",
+    )
+    scheduled_tenant_reconciliation_interval_seconds: int = Field(
+        default=3600,
+        ge=60,
+        alias="AXIS_SCHEDULED_TENANT_RECONCILIATION_INTERVAL_SECONDS",
+    )
     postgres_dsn: str = Field(
         default="postgresql+psycopg://axis:axis@localhost:5432/axis",
         alias="AXIS_POSTGRES_DSN",
