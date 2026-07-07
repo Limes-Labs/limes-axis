@@ -1108,7 +1108,8 @@ textarea:focus-visible {
 }
 
 .policy-authoring-form input,
-.policy-authoring-form select {
+.policy-authoring-form select,
+.policy-authoring-form textarea {
   min-height: 38px;
   width: 100%;
   border: 1px solid var(--line-strong);
@@ -1117,6 +1118,34 @@ textarea:focus-visible {
   color: var(--text);
   padding: 0 10px;
   box-shadow: var(--shadow);
+}
+
+.policy-authoring-form textarea {
+  padding: 8px 10px;
+  resize: vertical;
+  font: inherit;
+}
+
+.policy-authoring-form .field-wide {
+  grid-column: 1 / -1;
+}
+
+.policy-authoring-form .condition-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  align-content: start;
+  grid-column: 1 / -1;
+}
+
+.policy-authoring-form button.tag {
+  cursor: pointer;
+}
+
+.policy-authoring-form button.tag[aria-pressed="true"] {
+  border-color: var(--signal-blue);
+  background: rgb(62 107 255 / 12%);
+  box-shadow: inset 0 0 0 1px var(--signal-blue);
 }
 
 .policy-authoring-form .command-button {
@@ -1927,6 +1956,7 @@ textarea:focus-visible {
   .audit-filters select,
   .policy-authoring-form input,
   .policy-authoring-form select,
+  .policy-authoring-form textarea,
   .agent-filters select,
   .action-filters select,
   .model-filters select {

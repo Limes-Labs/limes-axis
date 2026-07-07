@@ -5,6 +5,7 @@ import { useState } from "react";
 import { RadioTower, RotateCcw, ScrollText, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { PolicyCreateForm } from "@/components/policy-create-form";
 import {
   allPolicyFilter,
   buildPlatformPoliciesPath,
@@ -214,8 +215,7 @@ export function PolicyRegistry() {
             <h2 className="panel-title">No policies match the current filters</h2>
             <p className="row-detail">
               The policy API responded without records for this tenant, scope and status
-              selection. Policies are authored through the API; this console is read and
-              evaluate only.
+              selection. Author the tenant&apos;s first policy with the form below.
             </p>
           </div>
           <span className="status-pill status-checking">
@@ -224,6 +224,8 @@ export function PolicyRegistry() {
           </span>
         </section>
       )}
+
+      <PolicyCreateForm tenantId={registry.tenant_id} />
 
       <section className="panel">
         <p className="section-label">Evaluation Precedence</p>

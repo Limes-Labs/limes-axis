@@ -1,50 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, FlaskConical, RadioTower, ScrollText, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, FlaskConical, GitCompareArrows, RadioTower, ScrollText, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
+import { PolicyReviseForm } from "@/components/policy-revise-form";
+import { PolicyRevisionCompare } from "@/components/policy-revision-compare";
 import {
   buildPlatformPolicyDetailPath,
-  buildPolicyEvaluationPayload,
-  evaluatePlatformPolicy,
   fetchPlatformPolicyDetail,
-  parseRequestedAmount,
-  platformPolicyAutonomyLevels,
   platformPolicyPrecedenceSteps,
-  platformPolicyRiskLevels,
-  platformPolicyScopes,
   policyEffectClass,
   policyEffectLabel,
   policyScopeLabel,
   policyStatusClass,
   policyStatusLabel,
   summarizePolicyConditions,
-  type PlatformPolicyDecision,
   type PlatformPolicyDetail,
   type PlatformPolicyRecord,
-  type PlatformPolicyScope,
 } from "@/lib/platform-policies";
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
 type DetailSource = "loading" | "api" | "unavailable" | "missing";
-
-type EvaluationFormFields = {
-  scope: PlatformPolicyScope;
-  actionDomain: string;
-  riskLevel: string;
-  autonomyLevel: string;
-  requestedAmount: string;
-};
-
-type EvaluationState =
-  | { phase: "idle" }
-  | { phase: "evaluating" }
-  | { phase: "decided"; decision: PlatformPolicyDecision }
-  | { phase: "failed"; message: string };
 
 function sourceLabel(source: DetailSource): string {
   if (source === "api") {
@@ -132,81 +113,12 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
   );
 }
 
-function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
-  const matchedPolicies = decision.matched_policies ?? [];
-  const evidenceEntries = Object.entries(decision.evidence ?? {});
-
-  return (
-    <div className="stack">
-      <div className="row">
-        <div>
-          <p className="metric-label">Decision</p>
-          <p className="row-title">{policyEffectLabel(decision.effect)}</p>
-          <p className="row-detail">
-            {decision.matched && decision.matched_policy_id
-              ? `Matched ${decision.matched_policy_id} r${decision.matched_revision_number} / ${decision.matched_policy_version}`
-              : "No active policy matched this context"}
-          </p>
-          <p className="row-detail">
-            {decision.evaluated_policy_count} active policies evaluated
-            {decision.precedence_rule ? ` / ${decision.precedence_rule}` : ""}
-          </p>
-        </div>
-        <span className={`status-pill ${policyEffectClass(decision.effect)}`}>
-          {policyEffectLabel(decision.effect)}
-        </span>
-      </div>
-
-      {matchedPolicies.length > 0 ? (
-        <div>
-          <p className="metric-label">Matched Policies</p>
-          <div className="payload-grid">
-            {matchedPolicies.map((match) => (
-              <div className="payload-row" key={`${match.policy_id}-${match.revision_number}`}>
-                <span>
-                  <span className="metric-label">{match.policy_id}</span>
-                  <span className="row-detail">
-                    r{match.revision_number} / {match.policy_version}
-                  </span>
-                </span>
-                <span className="mono">{match.effect}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {evidenceEntries.length > 0 ? (
-        <div>
-          <p className="metric-label">Evidence Payload</p>
-          <div className="payload-grid">
-            {evidenceEntries.map(([key, value]) => (
-              <div className="payload-row" key={key}>
-                <span className="metric-label">{key}</span>
-                <span className="mono">{JSON.stringify(value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export function PolicyDetail({ policyId }: { policyId: string }) {
   const [detail, setDetail] = useState<PlatformPolicyDetail | null>(null);
   const [source, setSource] = useState<DetailSource>("loading");
+  const [compareRevisionNumber, setCompareRevisionNumber] = useState("");
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
-
-  const [evaluationForm, setEvaluationForm] = useState<EvaluationFormFields>({
-    scope: "action_execution",
-    actionDomain: "",
-    riskLevel: "",
-    autonomyLevel: "",
-    requestedAmount: "",
-  });
-  const [evaluation, setEvaluation] = useState<EvaluationState>({ phase: "idle" });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -226,10 +138,6 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
         setDetail(policyDetail);
         setSource("api");
-        setEvaluationForm((current) => ({
-          ...current,
-          scope: policyDetail.current_revision.scope,
-        }));
       } catch {
         if (!controller.signal.aborted) {
           setDetail(null);
@@ -242,50 +150,6 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
     return () => controller.abort();
   }, [policyId, session, refreshNonce]);
-
-  function updateEvaluationField(field: keyof EvaluationFormFields, value: string) {
-    setEvaluationForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  }
-
-  async function runEvaluation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!detail) {
-      return;
-    }
-
-    const parsedAmount = parseRequestedAmount(evaluationForm.requestedAmount);
-
-    if (!parsedAmount.ok) {
-      setEvaluation({ phase: "failed", message: parsedAmount.message });
-      return;
-    }
-
-    setEvaluation({ phase: "evaluating" });
-
-    try {
-      const decision = await evaluatePlatformPolicy(
-        buildPolicyEvaluationPayload(detail.tenant_id, {
-          scope: evaluationForm.scope,
-          actionDomain: evaluationForm.actionDomain,
-          riskLevel: evaluationForm.riskLevel,
-          autonomyLevel: evaluationForm.autonomyLevel,
-          requestedAmount: parsedAmount.amount,
-        }),
-        { session },
-      );
-      setEvaluation({ phase: "decided", decision });
-    } catch (error) {
-      setEvaluation({
-        phase: "failed",
-        message:
-          error instanceof Error ? error.message : "Policy evaluation API is unavailable.",
-      });
-    }
-  }
 
   if (!detail) {
     if (source !== "missing") {
@@ -316,6 +180,13 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
   }
 
   const current = detail.current_revision;
+  const compareCandidates = detail.revisions.filter(
+    (revision) => revision.revision_number !== current.revision_number,
+  );
+  const compareRevision =
+    compareCandidates.find(
+      (revision) => String(revision.revision_number) === compareRevisionNumber,
+    ) ?? null;
 
   return (
     <div className="console-stack">
@@ -419,6 +290,12 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </div>
       </section>
 
+      <PolicyReviseForm
+        current={current}
+        key={`revise-${current.revision_number}`}
+        tenantId={detail.tenant_id}
+      />
+
       <section className="panel">
         <div className="row">
           <div>
@@ -436,6 +313,45 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       <section className="panel">
         <div className="row">
           <div>
+            <p className="section-label">Revision Compare</p>
+            <h2 className="panel-title">Diff a revision against the current one</h2>
+            <p className="row-detail">
+              Field-level compare of name, description, effect and typed conditions.
+            </p>
+          </div>
+          <GitCompareArrows size={18} />
+        </div>
+        {compareCandidates.length > 0 ? (
+          <div className="policy-authoring-form">
+            <label>
+              <span className="metric-label">Compare Revision</span>
+              <select
+                aria-label="Revision to compare"
+                onChange={(event) => setCompareRevisionNumber(event.target.value)}
+                value={compareRevisionNumber}
+              >
+                <option value="">Select a revision</option>
+                {compareCandidates.map((revision) => (
+                  <option key={revision.revision_number} value={revision.revision_number}>
+                    r{revision.revision_number} / {revision.policy_version}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : (
+          <p className="row-detail">
+            Only the initial revision exists; append a revision to compare definitions.
+          </p>
+        )}
+        {compareRevision ? (
+          <PolicyRevisionCompare base={compareRevision} target={current} />
+        ) : null}
+      </section>
+
+      <section className="panel">
+        <div className="row">
+          <div>
             <p className="section-label">Dry-Run Evaluation</p>
             <h2 className="panel-title">Evaluate a context against tenant policies</h2>
             <p className="row-detail">
@@ -445,93 +361,11 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           </div>
           <FlaskConical size={18} />
         </div>
-        <form
-          aria-label="Policy dry-run evaluation"
-          className="policy-authoring-form"
-          onSubmit={(event) => void runEvaluation(event)}
-        >
-          <label>
-            <span className="metric-label">Scope</span>
-            <select
-              aria-label="Evaluation scope"
-              onChange={(event) => updateEvaluationField("scope", event.target.value)}
-              value={evaluationForm.scope}
-            >
-              {platformPolicyScopes.map((scope) => (
-                <option key={scope} value={scope}>
-                  {policyScopeLabel(scope)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Action Domain</span>
-            <input
-              aria-label="Action domain"
-              onChange={(event) => updateEvaluationField("actionDomain", event.target.value)}
-              placeholder="Operations"
-              type="text"
-              value={evaluationForm.actionDomain}
-            />
-          </label>
-          <label>
-            <span className="metric-label">Risk Level</span>
-            <select
-              aria-label="Risk level"
-              onChange={(event) => updateEvaluationField("riskLevel", event.target.value)}
-              value={evaluationForm.riskLevel}
-            >
-              <option value="">Not set</option>
-              {platformPolicyRiskLevels.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Autonomy Level</span>
-            <select
-              aria-label="Autonomy level"
-              onChange={(event) => updateEvaluationField("autonomyLevel", event.target.value)}
-              value={evaluationForm.autonomyLevel}
-            >
-              <option value="">Not set</option>
-              {platformPolicyAutonomyLevels.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Requested Amount</span>
-            <input
-              aria-label="Requested amount"
-              min="0"
-              onChange={(event) => updateEvaluationField("requestedAmount", event.target.value)}
-              placeholder="Optional"
-              step="any"
-              type="number"
-              value={evaluationForm.requestedAmount}
-            />
-          </label>
-          <button
-            className="command-button"
-            disabled={evaluation.phase === "evaluating"}
-            type="submit"
-          >
-            <FlaskConical size={15} />
-            {evaluation.phase === "evaluating" ? "Evaluating" : "Run dry-run evaluation"}
-          </button>
-        </form>
-
-        {evaluation.phase === "failed" ? (
-          <p className="row-detail" role="alert">
-            Dry-run evaluation failed: {evaluation.message}
-          </p>
-        ) : null}
-        {evaluation.phase === "decided" ? <DecisionResult decision={evaluation.decision} /> : null}
+        <PolicyEvaluationPanel
+          formLabel="Policy dry-run evaluation"
+          scope={current.scope}
+          tenantId={detail.tenant_id}
+        />
       </section>
     </div>
   );

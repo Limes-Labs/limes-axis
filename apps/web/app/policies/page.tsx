@@ -5,7 +5,7 @@ export default function PoliciesPage() {
   return (
     <ConsolePage
       eyebrow="Policies"
-      subtitle="Tenant-scoped platform policies with typed conditions, append-only revisions and deterministic dry-run evaluation."
+      subtitle="Tenant-scoped platform policies with typed conditions, append-only revisions, console authoring and deterministic dry-run evaluation."
       title="Platform policy rules"
     >
       <PolicyRegistry />
