@@ -52,8 +52,12 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
     const controller = new AbortController();
 
     async function load() {
+      // Stale-while-revalidate: keep the previously loaded registry mounted
+      // during a reload (filter change or console refresh) so sibling surfaces
+      // — notably the provision form and its success confirmation — are not
+      // torn down by the `!registry` guard. The registry is only null on the
+      // very first load, or when a load genuinely fails with nothing cached.
       setSource("loading");
-      setRegistry(null);
 
       try {
         const page = await fetchTenantRegistry(filters, {
@@ -67,7 +71,9 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
         }
       } catch {
         if (!controller.signal.aborted) {
-          setRegistry(null);
+          // Preserve any already-loaded registry on a refetch failure; only a
+          // first load (registry still null) falls through to the unavailable
+          // state. Surface the unavailable source either way.
           setSource("unavailable");
         }
       }
