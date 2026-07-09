@@ -358,6 +358,16 @@ textarea:focus-visible {
   backdrop-filter: blur(18px);
 }
 
+.table-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+
 .metric-card {
   min-height: 152px;
   padding: 16px;

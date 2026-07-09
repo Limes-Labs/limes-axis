@@ -33,6 +33,8 @@ export type TenantRegistry = {
   tenant_count: number;
   active_tenant_count: number;
   tenants?: TenantRecord[];
+  has_more?: boolean;
+  next_cursor?: string | null;
   tenant_notes?: string[];
 };
 
@@ -131,11 +133,10 @@ const TENANT_ID_MAX_LENGTH = 80;
 
 export const platformTenantsPath = "/platform/tenants";
 
-// The list route caps at le=200 (its server maximum) and is ordered by
-// tenant_id, with no cursor pagination yet. The console always requests the
-// maximum so the ceiling is as high as the API allows, and surfaces a visible
-// notice when the returned rows reach it (see tenantListIsCapped). A dedicated
-// single-tenant GET route and real pagination are a documented follow-up.
+// Page size for the tenant listing. The list route is a keyset-cursor surface
+// ordered by tenant_id ascending; the console requests the server maximum per
+// page (le=200) and follows next_cursor to page beyond it (see
+// fetchTenantRegistry / mergeTenantRegistryPage), so there is no listing cap.
 export const tenantRegistryLimit = 200;
 
 export type TenantQuotaField = keyof TenantQuotaValues;
@@ -176,6 +177,7 @@ export const tenantQuotaFields: TenantQuotaFieldDescriptor[] = [
 export function buildPlatformTenantsPath(
   filters: TenantRegistryFilters,
   limit: number = tenantRegistryLimit,
+  cursor?: string | null,
 ): string {
   const params = new URLSearchParams();
 
@@ -183,22 +185,37 @@ export function buildPlatformTenantsPath(
     params.set("status", filters.status);
   }
 
-  // Always request the server maximum so the listing ceiling is as high as the
-  // API allows; the UI surfaces a notice when the rows reach it.
+  // Request a full page (the server maximum); pagination continues via cursor.
   params.set("limit", String(limit));
+
+  if (cursor) {
+    params.set("cursor", cursor);
+  }
 
   return `${platformTenantsPath}?${params.toString()}`;
 }
 
 /**
- * Whether the returned registry may be truncated: the row count reached the
- * requested limit, so more tenants could exist beyond the (unpaginated) cap.
+ * Append a fetched page to the accumulated registry for cursor pagination.
+ *
+ * Tenant and active counts are recomputed over the merged tenant list so the
+ * headline metrics reflect everything loaded so far, while has_more/next_cursor
+ * always track the most recently fetched page.
  */
-export function tenantListIsCapped(
-  registry: TenantRegistry,
-  limit: number = tenantRegistryLimit,
-): boolean {
-  return (registry.tenants ?? []).length >= limit;
+export function mergeTenantRegistryPage(
+  existing: TenantRegistry | null,
+  page: TenantRegistry,
+): TenantRegistry {
+  const tenants = [...(existing?.tenants ?? []), ...(page.tenants ?? [])];
+
+  return {
+    tenant_count: tenants.length,
+    active_tenant_count: tenants.filter((tenant) => tenant.status === "active").length,
+    tenants,
+    has_more: page.has_more ?? false,
+    next_cursor: page.next_cursor ?? null,
+    tenant_notes: page.tenant_notes ?? existing?.tenant_notes,
+  };
 }
 
 export function buildPlatformTenantDetailPath(tenantId: string): string {
@@ -603,8 +620,9 @@ async function readJsonBody(response: Response): Promise<unknown> {
 export async function fetchTenantRegistry(
   filters: TenantRegistryFilters,
   options: AxisFetchOptions = {},
+  cursor?: string | null,
 ): Promise<TenantRegistry> {
-  const path = buildPlatformTenantsPath(filters);
+  const path = buildPlatformTenantsPath(filters, tenantRegistryLimit, cursor);
   const response = await axisFetch(path, options);
 
   if (!response.ok) {
@@ -616,31 +634,30 @@ export async function fetchTenantRegistry(
 
 export type TenantDetailResult =
   | { kind: "found"; record: TenantRecord }
-  | { kind: "notFound"; beyondCap: boolean };
+  | { kind: "notFound" };
 
 /**
- * The lifecycle API exposes no single-tenant GET route (#252 ships list,
- * suspend, reactivate and quota routes only), so the detail view derives its
- * record from the registry read at the server maximum (limit=200). When the
- * tenant is not in that page and the page reached the cap, the tenant may
- * exist beyond the (unpaginated) listing ceiling — the result flags this so
- * the UI does not misreport a real tenant as absent. A dedicated single-tenant
- * GET route and cursor pagination are a documented follow-up.
+ * Read a single tenant from the dedicated GET /platform/tenants/{tenant_id}
+ * route. A 404 is authoritative — the tenant does not exist — so the detail
+ * view no longer depends on scanning a capped registry listing, and can resolve
+ * tenants regardless of how many exist.
  */
 export async function fetchTenantDetail(
   tenantId: string,
   options: AxisFetchOptions = {},
 ): Promise<TenantDetailResult> {
-  const registry = await fetchTenantRegistry({ status: allTenantFilter }, options);
-  const record = (registry.tenants ?? []).find(
-    (tenant) => tenant.tenant_id === tenantId,
-  );
+  const path = buildPlatformTenantDetailPath(tenantId);
+  const response = await axisFetch(path, options);
 
-  if (record) {
-    return { kind: "found", record };
+  if (response.status === 404) {
+    return { kind: "notFound" };
   }
 
-  return { kind: "notFound", beyondCap: tenantListIsCapped(registry) };
+  if (!response.ok) {
+    throw new AxisApiError(path, response.status);
+  }
+
+  return { kind: "found", record: (await response.json()) as TenantRecord };
 }
 
 export async function fetchTenantQuotas(

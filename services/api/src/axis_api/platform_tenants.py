@@ -8,6 +8,9 @@ rate limits, concurrent-session caps and live-sync row caps).
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -71,6 +74,12 @@ class TenantLifecycleConflict(ValueError):
 
 class TenantNotFound(LookupError):
     pass
+
+
+class TenantListCursorError(ValueError):
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 REQUIRED_OPERATOR_SCOPE = "platform:tenant:operator"
@@ -180,6 +189,8 @@ class TenantRegistry(BaseModel):
     tenant_count: int = Field(ge=0)
     active_tenant_count: int = Field(ge=0)
     tenants: list[TenantRecord] = Field(default_factory=list)
+    has_more: bool = False
+    next_cursor: str | None = None
     tenant_notes: list[str] = Field(default_factory=list)
 
 
@@ -303,23 +314,77 @@ def provision_tenant(
     return _tenant_from_record(tenant, permission_decision=permission_decision)
 
 
+def get_tenant_detail(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+) -> TenantRecord:
+    """Return a single tenant record, raising ``TenantNotFound`` when absent."""
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
+    return _tenant_from_record(tenant)
+
+
+def encode_tenant_cursor(record) -> str:
+    """Keyset cursor for the tenant listing, ordered by ``tenant_id`` ascending.
+
+    The tenant id is the primary key, so a single-column keyset is a total
+    order and needs no tiebreaker, unlike the ``/identity/sessions`` keyset.
+    """
+    payload = {"tenant_id": record.id}
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def decode_tenant_cursor(cursor: str | None) -> str | None:
+    if cursor is None:
+        return None
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+        tenant_id = str(payload["tenant_id"])
+    except (
+        KeyError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ) as exc:
+        raise TenantListCursorError("invalid_tenant_cursor") from exc
+    if not tenant_id:
+        raise TenantListCursorError("invalid_tenant_cursor")
+    return tenant_id
+
+
 def build_tenant_registry(
     repository: AxisPersistenceRepository,
     status: TenantLifecycleStatus | None = None,
     limit: int = 100,
+    cursor_tenant_id: str | None = None,
 ) -> TenantRegistry:
+    # Over-fetch by one to detect a further page without a second count query,
+    # matching the keyset precedent used by /identity/sessions.
     records = repository.list_tenants(
         status=status.value if status is not None else None,
-        limit=limit,
+        limit=limit + 1,
+        cursor_tenant_id=cursor_tenant_id,
     )
-    tenants = [_tenant_from_record(record) for record in records]
+    has_more = len(records) > limit
+    page_records = records[:limit]
+    tenants = [_tenant_from_record(record) for record in page_records]
     active_count = sum(
         1 for tenant in tenants if tenant.status == TenantLifecycleStatus.ACTIVE
+    )
+    next_cursor = (
+        encode_tenant_cursor(page_records[-1]) if has_more and page_records else None
     )
     return TenantRegistry(
         tenant_count=len(tenants),
         active_tenant_count=active_count,
         tenants=tenants,
+        has_more=has_more,
+        next_cursor=next_cursor,
         tenant_notes=[
             "Tenant lifecycle is a platform-operator surface, not a tenant surface.",
             "Suspended and pending-deletion tenants are rejected fail-closed at the "

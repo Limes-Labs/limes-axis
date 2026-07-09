@@ -991,6 +991,12 @@ test.describe("Axis console smoke", () => {
     ]);
     expect(typeof provisionBody.idempotency_key).toBe("string");
     await expect(page.getByText("Tenant provisioned.")).toBeVisible();
+    // The provision success triggers a console refresh that reloads the tenant
+    // registry. The registry must stay mounted (stale-while-revalidate) rather
+    // than flashing to the API-unavailable state, otherwise the provision form
+    // and this confirmation would be torn down mid-refresh.
+    await expect(page.getByRole("heading", { name: "Tenant lifecycle" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toHaveCount(0);
 
     // Suspend the tenant from the detail view; the action posts the reason.
     await page.route(
@@ -1009,6 +1015,19 @@ test.describe("Axis console smoke", () => {
         await route.fulfill({
           contentType: "application/json",
           json: { ...tenantRecord, status: "suspended", suspended_by: "operator" },
+          status: 200,
+        });
+      },
+    );
+
+    // The detail view reads the dedicated single-tenant route rather than
+    // deriving the record from the registry list.
+    await page.route(
+      "http://127.0.0.1:65534/platform/tenants/tenant_acme",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          json: tenantRecord,
           status: 200,
         });
       },
