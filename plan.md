@@ -1,6 +1,6 @@
 # Limes Axis Public Plan
 
-Last updated: 2026-07-04
+Last updated: 2026-07-11
 
 ## Summary
 
@@ -1249,6 +1249,73 @@ Platform work.
 - [x] Add public-safe production support commitment readiness gates for signed
   support commitments, named staffing model, customer-specific incident
   operations and legal SLA terms.
+
+### Operate
+
+Operate closes the open Platform and Enterprise items above and adds the layer
+where organizations work with Axis every day: permission-aware search, grounded
+and cited answers, ontology conversation, forward-looking simulation, packaged
+verticals, SME-grade onboarding and a clear editions boundary — all inside the
+existing governance, audit, tenancy and sovereignty boundaries. The detailed
+plan is
+[`docs/plans/2026-07-11-operate-milestone.md`](./docs/plans/2026-07-11-operate-milestone.md).
+
+- [ ] Execute the editions restructuring: rename the public repository to the
+  open-source edition, create the private downstream hosted-edition
+  repository with core development remaining public-upstream, and record the
+  decision.
+- [ ] Run the editions audit against the written boundary rule (single-tenant
+  self-hosting stays fully usable open source) and publish the public
+  editions statement in `docs/editions.md`.
+- [ ] Design the invite-based hosted prospect sandbox with automatic reset and
+  time-boxed access as the first hosted-edition deliverable.
+- [ ] Complete the governance console redesign (phases 2-6): action-first
+  overview and approvals, rebuilt agents, workflows, connectors and ontology
+  surfaces, governance pages, onboarding checklist and demo-data switch.
+- [ ] Broaden the connector framework with object-storage drop ingestion, a
+  generic REST-pull source, an additional external database profile,
+  per-tenant connector enablement and a documented connector-authoring
+  contract.
+- [ ] Add the Axis Search foundation: tenant-scoped document, connector and
+  ontology indexing with Postgres full-text search behind a search adapter
+  boundary.
+- [ ] Add the document upload subsystem with text extraction, size and type
+  limits through the object-store adapter.
+- [ ] Add self-hosted embedding capability to the model router and hybrid
+  full-text plus vector retrieval behind explicit flags, with graceful
+  full-text-only degradation.
+- [ ] Add grounded, citation-bound answer generation over permission-filtered
+  retrieval, with fail-closed refusal when grounding is missing.
+- [ ] Add Axis Assistant: tenant-scoped governed conversations grounded in
+  permission-filtered ontology and search reads, with a cite-or-refuse
+  composer, a global context-aware console panel and a dedicated page.
+- [ ] Route assistant action requests through the existing agent-run propose
+  mode, autonomy ceilings and the approval pipeline, never a new execution
+  path.
+- [ ] Add Axis Scenarios: deterministic what-if simulation with a generic
+  typed-perturbation contract, vertical-registered vocabularies and governed
+  persisted outputs on the replay foundation.
+- [ ] Close the manufacturing reference demo with live workflow execution and
+  connector-backed production actions.
+- [ ] Define the reusable vertical template (ontology, agent, workflow,
+  connector, scenario-vocabulary packs plus demo dataset), ship Axis for
+  Manufacturing as its first instance and validate the template shape at
+  design level against a second vertical.
+- [ ] Add guided tenant onboarding with a one-command demo tenant bootstrap and
+  a documented default self-hosted model stack for the demo runtime.
+- [ ] Add a single-node deployment profile with render checks and readiness
+  gates.
+- [ ] Extend per-tenant usage metering to model, search, embedding and
+  assistant metrics with exportable signed usage statements.
+- [ ] Add console internationalization with Italian as the first locale, after
+  the console redesign stabilizes.
+- [ ] Add repository hygiene: changelog, architecture decision records,
+  code owners, code of conduct, support policy and automated dependency
+  updates.
+- [ ] Close the remaining open Platform items (sustained HA validation) and
+  Enterprise items (tenant deletion and export, reference architectures,
+  production disaster recovery, enterprise audit export, SSO hardening,
+  external security review) as tracked in their sections above.
 
 ## Expansion Rule
 
