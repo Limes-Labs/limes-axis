@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { summarizeApiStatus } from "./api-status";
+import { isDefaultApiBaseUrl, summarizeApiStatus } from "./api-status";
 
 describe("api status summary", () => {
   it("reports online when health and readiness are responding", () => {
@@ -22,5 +22,26 @@ describe("api status summary", () => {
       state: "unavailable",
       label: "Unavailable",
     });
+  });
+});
+
+describe("default api base url detection", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("reports the default when no override is configured", () => {
+    vi.stubEnv("NEXT_PUBLIC_AXIS_API_BASE_URL", "");
+    expect(isDefaultApiBaseUrl()).toBe(true);
+  });
+
+  it("reports the default when the override matches the default", () => {
+    vi.stubEnv("NEXT_PUBLIC_AXIS_API_BASE_URL", "http://localhost:8000");
+    expect(isDefaultApiBaseUrl()).toBe(true);
+  });
+
+  it("reports a custom base url when an override is configured", () => {
+    vi.stubEnv("NEXT_PUBLIC_AXIS_API_BASE_URL", "https://axis.example.com");
+    expect(isDefaultApiBaseUrl()).toBe(false);
   });
 });
