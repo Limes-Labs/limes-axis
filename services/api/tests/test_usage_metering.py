@@ -3,6 +3,7 @@ import threading
 import time
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -20,7 +21,12 @@ from test_oidc_authorization_code_session import (
 
 from axis_api.config import Settings
 from axis_api.connector_execution import ConnectorSyncExecutionResult
-from axis_api.connector_runs import _record_connector_sync_rows_usage
+from axis_api.connector_runs import (
+    SYNC_BATCH_CHECKPOINT_TYPE,
+    SYNC_BATCH_COMMITTED_STATUS,
+    _live_sync_resume_records_seed,
+    _record_connector_sync_rows_usage,
+)
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import Base, TenantUsageRecord
@@ -238,6 +244,32 @@ def test_accumulator_restore_does_not_lose_counts_on_flush_failure() -> None:
     assert _usage_rows(factory, TENANT_ID)[0].quantity == 4
 
 
+def test_flush_restores_counts_when_session_factory_fails() -> None:
+    # A non-SQLAlchemy failure (e.g. session construction) must not drop the
+    # drained counts: they are restored and recovered by the next flush.
+    accumulator = UsageAccumulator(enabled=True)
+    moment = datetime(2026, 7, 10, 8, 0, 0, tzinfo=UTC)
+    accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value, 4, occurred_at=moment)
+
+    class _FailingFactory:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self):
+            self.calls += 1
+            raise RuntimeError("session construction failed")
+
+    failing = _FailingFactory()
+    with pytest.raises(RuntimeError):
+        accumulator.flush(failing)
+    assert failing.calls == 1
+
+    # The drained deltas were restored, so a later healthy flush recovers them.
+    factory = _factory()
+    assert accumulator.flush(factory) == 4
+    assert _usage_rows(factory, TENANT_ID)[0].quantity == 4
+
+
 def test_concurrent_records_and_flushes_do_not_lose_counts() -> None:
     # Simulated concurrency at the persistence seam: many recorder threads folding
     # in-memory deltas while a flusher thread drains to the ledger.
@@ -328,6 +360,101 @@ def test_connector_sync_rows_zero_is_not_recorded() -> None:
         )
         session.commit()
     assert _usage_rows(factory, TENANT_ID) == []
+
+
+def _sync_result(records_read: int, status: str = "sync_execution_completed"):
+    return ConnectorSyncExecutionResult(
+        adapter="file_csv",
+        status=status,
+        sync_ref="sync_ref_1",
+        external_sync_started=True,
+        idempotency_key="idem_1",
+        result_summary={"records_read": str(records_read)},
+    )
+
+
+def test_connector_sync_rows_meters_delta_on_resume() -> None:
+    # A resumed run reports the run-CUMULATIVE records_read; metering must
+    # subtract the resume seed so only this attempt's increment is billed.
+    factory = _factory()
+    with factory() as session:
+        _record_connector_sync_rows_usage(
+            AxisPersistenceRepository(session),
+            TENANT_ID,
+            _sync_result(250),
+            DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+            resume_records_seed=100,
+        )
+        session.commit()
+    rows = _usage_rows(factory, TENANT_ID)
+    assert len(rows) == 1
+    assert rows[0].quantity == 150
+
+
+def test_connector_sync_failed_then_retry_resume_does_not_double_count() -> None:
+    # Attempt A reads 100 rows and fails (metered on the failed outcome); Attempt
+    # B resumes from the committed checkpoint (seed 100), reads 150 more and
+    # completes with cumulative records_read=250. The ledger must total the true
+    # 250 rows read, not 350.
+    factory = _factory()
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        # Attempt A: fresh (seed 0), fails after reading 100.
+        _record_connector_sync_rows_usage(
+            repository,
+            TENANT_ID,
+            _sync_result(100, status="sync_execution_failed"),
+            DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+            resume_records_seed=0,
+        )
+        # Attempt B: resumes from seed 100, completes at cumulative 250.
+        _record_connector_sync_rows_usage(
+            repository,
+            TENANT_ID,
+            _sync_result(250),
+            DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+            resume_records_seed=100,
+        )
+        session.commit()
+
+    rows = _usage_rows(factory, TENANT_ID)
+    assert len(rows) == 1
+    assert rows[0].metric_key == TenantUsageMetric.CONNECTOR_SYNC_ROWS.value
+    assert rows[0].quantity == 250
+
+
+class _RunStub:
+    def __init__(self, tenant_id: str, run_id: str, connector_id: str) -> None:
+        self.tenant_id = tenant_id
+        self.run_id = run_id
+        self.connector_id = connector_id
+
+
+def test_live_sync_resume_records_seed_reads_committed_checkpoint() -> None:
+    from axis_api.persistence import ConnectorSyncCheckpointCreate
+
+    factory = _factory()
+    run = _RunStub(TENANT_ID, "run_live_1", "connector_file_csv")
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        # No checkpoint yet: a fresh run seeds zero.
+        assert _live_sync_resume_records_seed(repository, run) == 0
+        repository.create_connector_sync_checkpoint(
+            ConnectorSyncCheckpointCreate(
+                tenant_id=TENANT_ID,
+                connector_id="connector_file_csv",
+                run_id="run_live_1",
+                checkpoint_id="chk_batch_1",
+                checkpoint_type=SYNC_BATCH_CHECKPOINT_TYPE,
+                status=SYNC_BATCH_COMMITTED_STATUS,
+                sequence=1,
+                runtime_boundary="axis_self_hosted_runtime",
+                adapter="file_csv",
+                cursor={"next_offset": "100", "total_records_read": "100"},
+            )
+        )
+        session.commit()
+        assert _live_sync_resume_records_seed(repository, run) == 100
 
 
 # --------------------------------------------------------------------------- #
@@ -516,6 +643,19 @@ def test_usage_read_rejects_invalid_window() -> None:
     response = client.get(
         f"/platform/tenants/{TENANT_ID}/usage",
         params={"from": "2999-01-01T00:00:00Z", "to": "2000-01-01T00:00:00Z"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["reason"] == "invalid_usage_window"
+
+
+def test_usage_read_naive_future_from_yields_422_not_500() -> None:
+    # A naive `from` (no tz) with `to` omitted compares against an aware now();
+    # normalization must yield a clean 422, not a TypeError-driven 500.
+    client, factory = _build_client()
+    _provision_tenant(factory)
+    response = client.get(
+        f"/platform/tenants/{TENANT_ID}/usage",
+        params={"from": "2999-01-01T00:00:00"},
     )
     assert response.status_code == 422
     assert response.json()["detail"]["reason"] == "invalid_usage_window"
