@@ -44,6 +44,22 @@ class Settings(BaseSettings):
         ge=0,
         alias="AXIS_TENANT_STATE_CACHE_TTL_SECONDS",
     )
+    usage_metering_enabled: bool = Field(
+        default=False,
+        alias="AXIS_USAGE_METERING_ENABLED",
+    )
+    usage_metering_flush_interval_seconds: float = Field(
+        default=5.0,
+        ge=0.1,
+        le=3600.0,
+        alias="AXIS_USAGE_METERING_FLUSH_INTERVAL_SECONDS",
+    )
+    usage_metering_aggregation_window_seconds: int = Field(
+        default=86_400,
+        ge=60,
+        le=86_400,
+        alias="AXIS_USAGE_METERING_AGGREGATION_WINDOW_SECONDS",
+    )
     scheduled_jobs_enabled: bool = Field(
         default=False,
         alias="AXIS_SCHEDULED_JOBS_ENABLED",
