@@ -187,7 +187,7 @@ const approvals = {
     confirm: "Confirm decision",
     cancel: "Cancel",
     persisting: "Recording decision…",
-    persisted: "Decision recorded",
+    persisted: "Recorded as evidence",
     auditLink: "View audit event",
     toastTitle: "Decision recorded",
   },
