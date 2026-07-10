@@ -1,11 +1,29 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, RefreshCw, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ExternalLink, Moon, RefreshCw, Sun } from "lucide-react";
 
-import { navigationItems } from "@/lib/foundation";
+import { navIconMap } from "@/components/nav-icons";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
+import { axisFetchJson } from "@/lib/axis-api";
+import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
+import { navGroups } from "@/lib/nav";
+import type { OidcConsoleSession } from "@/lib/oidc-session";
+import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
+import { strings } from "@/lib/strings";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import type { ManufacturingWorkflowConsole } from "@/lib/workflow-demo";
+import { useTheme } from "@/providers/theme-provider";
 
 type CommandMenuProps = {
   apiLabel: string;
@@ -14,171 +32,183 @@ type CommandMenuProps = {
   open: boolean;
 };
 
-const supportLinks = [
-  {
-    description: "Append-only events, decisions and connector evidence.",
-    href: "/audit",
-    label: "Open audit stream",
-  },
-  {
-    description: "Public architecture, platform and acceptance documentation.",
-    href: "https://github.com/Limes-Labs/limes-axis/tree/main/docs",
-    label: "Open product docs",
-  },
-];
+type EntityCommand = {
+  id: string;
+  name: string;
+  href: string;
+  kind: string;
+};
 
-function isExternalHref(href: string): boolean {
-  return href.startsWith("http");
+const copy = strings.commandMenu;
+
+/**
+ * Best-effort entity index for the search menu: fetched in parallel when the
+ * menu opens; endpoints that fail are silently skipped.
+ */
+async function loadEntityCommands(
+  session: OidcConsoleSession | null,
+): Promise<EntityCommand[]> {
+  const [workflows, agents, policies, connectors] = await Promise.all([
+    axisFetchJson<ManufacturingWorkflowConsole>("/demo/manufacturing/workflows", {
+      session,
+    }).catch(() => null),
+    axisFetchJson<ManufacturingAgentRegistry>("/demo/manufacturing/agents", { session }).catch(
+      () => null,
+    ),
+    axisFetchJson<PlatformPolicyRegistry>("/platform/policies", { session }).catch(() => null),
+    axisFetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors", {
+      session,
+    }).catch(() => null),
+  ]);
+
+  return [
+    ...(workflows?.workflow_runs ?? []).map((run) => ({
+      id: run.workflow_id,
+      name: run.name,
+      href: "/workflows",
+      kind: strings.pages.workflows.title,
+    })),
+    ...(agents?.agents ?? []).map((agent) => ({
+      id: agent.agent_id,
+      name: agent.name,
+      href: "/agents",
+      kind: strings.pages.agents.title,
+    })),
+    ...(policies?.policies ?? []).map((policy) => ({
+      id: policy.policy_id,
+      name: policy.display_name,
+      href: "/policies",
+      kind: strings.pages.policies.title,
+    })),
+    ...(connectors?.connectors ?? []).map((connector) => ({
+      id: connector.manifest.connector_id,
+      name: connector.manifest.display_name,
+      href: "/connectors",
+      kind: strings.pages.connectors.title,
+    })),
+  ];
 }
 
-export function ConsoleCommandMenu({
-  apiLabel,
-  onClose,
-  onRefresh,
-  open,
-}: CommandMenuProps) {
-  const pathname = usePathname();
-  const [query, setQuery] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    window.setTimeout(() => inputRef.current?.focus(), 0);
-  }, [open]);
+export function ConsoleCommandMenu({ apiLabel, onClose, onRefresh, open }: CommandMenuProps) {
+  const router = useRouter();
+  const { session } = useOidcConsoleSession();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [entities, setEntities] = useState<EntityCommand[]>([]);
 
   useEffect(() => {
     if (!open) {
       return undefined;
     }
 
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
+    let cancelled = false;
+
+    void loadEntityCommands(session).then((commands) => {
+      if (!cancelled) {
+        setEntities(commands);
       }
-    }
+    });
 
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose, open]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, session]);
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const results = useMemo(() => {
-    const allResults = [
-      ...navigationItems.map((item) => ({
-        description: item.href === pathname ? "Current console section." : "Navigate to console section.",
-        href: item.href,
-        label: item.label,
-      })),
-      ...supportLinks,
-    ];
-
-    if (!normalizedQuery) {
-      return allResults;
-    }
-
-    return allResults.filter((item) =>
-      `${item.label} ${item.description}`.toLowerCase().includes(normalizedQuery),
-    );
-  }, [normalizedQuery, pathname]);
-
-  if (!open) {
-    return null;
+  function navigate(href: string) {
+    router.push(href);
+    onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-80 grid place-items-start justify-items-center bg-navy/40 px-4 pt-[min(12vh,96px)] pb-4 backdrop-blur-[2px]" role="presentation" onMouseDown={onClose}>
-      <section
-        aria-label="Console command menu"
-        aria-modal="true"
-        className="grid w-[min(680px,100%)] gap-2.5 rounded-3xl border border-mist bg-surface p-3.5 shadow-[0_30px_90px_rgb(4_18_46/0.24)] dark:border-white/12"
-        onMouseDown={(event) => event.stopPropagation()}
-        role="dialog"
-      >
-        <div className="grid min-h-[46px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] border border-line bg-ink/4 py-1 pr-2 pl-3 text-muted dark:border-white/10 dark:bg-white/5">
-          <Search size={18} />
-          <input
-            className="w-full border-0 bg-transparent text-ink outline-0 placeholder:text-muted/75"
-            aria-label="Search console commands"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search pages, evidence, docs"
-            ref={inputRef}
-            value={query}
-          />
-          <button
-            aria-label="Close command menu"
-            className="icon-button"
-            onClick={onClose}
-            title="Close"
-            type="button"
+    <CommandDialog
+      onOpenChange={(next) => {
+        if (!next) {
+          onClose();
+        }
+      }}
+      open={open}
+      title="Console command menu"
+    >
+      <CommandInput aria-label="Search console commands" placeholder={copy.placeholder} />
+      <CommandList>
+        <CommandEmpty>{copy.empty}</CommandEmpty>
+        {navGroups.map((group) => (
+          <CommandGroup heading={group.label} key={group.label}>
+            {group.items.map((item) => {
+              const Icon = navIconMap[item.icon];
+
+              return (
+                <CommandItem
+                  key={item.href}
+                  onSelect={() => navigate(item.href)}
+                  value={`${group.label} ${item.label}`}
+                >
+                  <Icon className="shrink-0 text-muted" size={15} />
+                  <span>{item.label}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        ))}
+        <CommandSeparator />
+        <CommandGroup heading={copy.actionsHeading}>
+          <CommandItem
+            onSelect={() => {
+              onRefresh();
+              onClose();
+            }}
+            value={copy.refresh.label}
           >
-            <X size={17} />
-          </button>
-        </div>
-
-        <div className="flex justify-between gap-3 rounded-[14px] border border-line/60 bg-ink/3 px-3 py-2.5 text-xs text-muted dark:border-white/10 dark:bg-white/4 [&>span]:font-mono [&>span]:text-[10.5px] [&>span]:font-medium [&>span]:tracking-[0.16em] [&>span]:uppercase [&>span]:text-signal [&>strong]:text-positive" aria-label="Current API status">
-          <span>API status</span>
-          <strong>{apiLabel}</strong>
-        </div>
-
-        <button
-          className={`cursor-pointer grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-line/60 bg-ink/3 p-3 text-left text-ink/80 transition-colors dark:border-white/10 dark:bg-white/4 [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink [&_small]:mt-0.5 [&_small]:block [&_small]:text-xs [&_small]:leading-snug [&_small]:text-muted hover:border-signal/45 hover:bg-signal/10`}
-          onClick={() => {
-            onRefresh();
-            onClose();
-          }}
-          type="button"
-        >
-          <RefreshCw size={17} />
-          <span>
-            <strong>Refresh live state</strong>
-            <small>Re-fetch every API-backed console.</small>
-          </span>
-        </button>
-
-        <div className="grid max-h-[min(48vh,420px)] gap-2 overflow-y-auto" role="list">
-          {results.length > 0 ? (
-            results.map((item) => {
-              const external = isExternalHref(item.href);
-              const content = (
-                <>
-                  <FileText size={17} />
-                  <span>
-                    <strong>{item.label}</strong>
-                    <small>{item.description}</small>
-                  </span>
-                </>
-              );
-
-              return external ? (
-                <a
-                  className={`grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-line/60 bg-ink/3 p-3 text-left text-ink/80 transition-colors dark:border-white/10 dark:bg-white/4 [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink [&_small]:mt-0.5 [&_small]:block [&_small]:text-xs [&_small]:leading-snug [&_small]:text-muted hover:border-signal/45 hover:bg-signal/10`}
-                  href={item.href}
-                  key={item.href}
-                  onClick={onClose}
-                  rel="noreferrer"
-                  target="_blank"
+            <RefreshCw className="shrink-0 text-muted" size={15} />
+            <span>{copy.refresh.label}</span>
+            <span className="ml-auto pl-2 text-xs text-muted">{copy.refresh.detail}</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setTheme(resolvedTheme === "dark" ? "light" : "dark");
+              onClose();
+            }}
+            value={copy.toggleTheme.label}
+          >
+            <Sun className="shrink-0 text-muted dark:hidden" size={15} />
+            <Moon className="hidden shrink-0 text-muted dark:block" size={15} />
+            <span>{copy.toggleTheme.label}</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              window.open(copy.docs.href, "_blank", "noreferrer");
+              onClose();
+            }}
+            value={copy.docs.label}
+          >
+            <ExternalLink className="shrink-0 text-muted" size={15} />
+            <span>{copy.docs.label}</span>
+          </CommandItem>
+        </CommandGroup>
+        {entities.length > 0 ? (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading={copy.entitiesHeading}>
+              {entities.map((entity) => (
+                <CommandItem
+                  key={`${entity.href}:${entity.id}`}
+                  onSelect={() => navigate(entity.href)}
+                  value={`${entity.name} ${entity.id}`}
                 >
-                  {content}
-                </a>
-              ) : (
-                <Link
-                  className={`grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-line/60 bg-ink/3 p-3 text-left text-ink/80 transition-colors dark:border-white/10 dark:bg-white/4 [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink [&_small]:mt-0.5 [&_small]:block [&_small]:text-xs [&_small]:leading-snug [&_small]:text-muted hover:border-signal/45 hover:bg-signal/10`}
-                  href={item.href}
-                  key={item.href}
-                  onClick={onClose}
-                >
-                  {content}
-                </Link>
-              );
-            })
-          ) : (
-            <p className="m-0 p-3 text-xs leading-snug text-muted">No matching console command.</p>
-          )}
-        </div>
-      </section>
-    </div>
+                  <span className="min-w-0 truncate">{entity.name}</span>
+                  <span className="ml-auto shrink-0 pl-2 text-xs text-muted">{entity.kind}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        ) : null}
+      </CommandList>
+      <div
+        aria-label="Current API status"
+        className="flex items-center justify-between border-t border-line px-3.5 py-2 font-mono text-[10.5px] font-medium tracking-[0.16em] text-muted uppercase dark:border-white/10"
+      >
+        <span>{copy.apiStatus}</span>
+        <span className="text-positive">{apiLabel}</span>
+      </div>
+    </CommandDialog>
   );
 }

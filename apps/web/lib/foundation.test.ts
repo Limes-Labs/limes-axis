@@ -6,15 +6,15 @@ describe("foundation console contracts", () => {
   it("keeps the expected top-level sections addressable", () => {
     expect(navigationItems.map((item) => item.href)).toEqual([
       "/",
-      "/ontology",
+      "/approvals",
       "/workflows",
       "/agents",
+      "/ontology",
+      "/connectors",
       "/model-routing",
-      "/approvals",
       "/policies",
       "/audit",
       "/simulation",
-      "/connectors",
       "/tenants",
       "/settings",
     ]);

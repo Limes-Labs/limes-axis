@@ -151,8 +151,30 @@ const pages = {
 
 export type PageKey = keyof typeof pages;
 
+const commandMenu = {
+  placeholder: "Search pages, entities, actions",
+  empty: "No matching command.",
+  apiStatus: "API status",
+  actionsHeading: "Actions",
+  entitiesHeading: "Entities",
+  refresh: {
+    label: "Refresh live state",
+    detail: "Re-fetch every API-backed console.",
+  },
+  toggleTheme: {
+    label: "Toggle color theme",
+    detail: "Switch between light and dark.",
+  },
+  docs: {
+    label: "Open product docs",
+    detail: "Architecture, platform and acceptance documentation.",
+    href: "https://github.com/Limes-Labs/limes-axis/tree/main/docs",
+  },
+} as const;
+
 export const strings = {
   nav,
+  commandMenu,
   states: {
     loading: "Loading…",
     error: {

@@ -47,7 +47,8 @@ export function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close aria-label="Close" className="icon-button absolute top-3 right-3">
+        {/* `absolute!`: .icon-button sets position: relative and would otherwise win. */}
+        <DialogPrimitive.Close aria-label="Close" className="icon-button absolute! top-3 right-3">
           <X aria-hidden="true" size={16} />
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>

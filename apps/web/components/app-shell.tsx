@@ -2,37 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType, ReactNode } from "react";
-import {
-  Bot,
-  Building2,
-  Cable,
-  Gauge,
-  Network,
-  ReceiptText,
-  ScrollText,
-  Settings,
-  ShieldCheck,
-  Workflow,
-} from "lucide-react";
+import type { ReactNode } from "react";
 
 import { AxisMark } from "@/components/axis-mark";
+import { navIconMap } from "@/components/nav-icons";
+import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import { navigationItems, type NavigationItem } from "@/lib/foundation";
+import { navGroups, navItems, type NavItem } from "@/lib/nav";
+import { useAxisQuery } from "@/lib/use-axis-query";
 import { ConsoleProvider } from "@/providers/console-provider";
-
-const iconMap: Record<NavigationItem["icon"], ComponentType<{ size?: number }>> = {
-  gauge: Gauge,
-  network: Network,
-  workflow: Workflow,
-  bot: Bot,
-  shield: ShieldCheck,
-  scroll: ScrollText,
-  receipt: ReceiptText,
-  cable: Cable,
-  building: Building2,
-  settings: Settings,
-};
 
 const navItemClass =
   "flex min-h-[44px] items-center gap-2.5 rounded-xl px-3 text-[13px] font-medium text-muted transition-colors hover:bg-signal/8 hover:text-ink";
@@ -47,28 +25,68 @@ function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * Pending-approvals count pill next to the Approvals nav label. Best-effort:
+ * while loading or when the API is unavailable it renders nothing.
+ */
+function ApprovalsBadge() {
+  const { data } = useAxisQuery<ManufacturingApprovalInbox>("/demo/manufacturing/approvals");
+  const pendingCount =
+    data?.approvals?.filter((approval) => approval.status === "pending").length ?? 0;
+
+  if (pendingCount === 0) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-label={`${pendingCount} pending approvals`}
+      className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-signal px-1.5 font-mono text-[10px] leading-none font-bold text-white"
+    >
+      {pendingCount > 9 ? "9+" : pendingCount}
+    </span>
+  );
+}
+
+function NavLink({
+  item,
+  pathname,
+  className,
+}: {
+  item: NavItem;
+  pathname: string;
+  className?: string;
+}) {
+  const Icon = navIconMap[item.icon];
+  const active = isNavActive(pathname, item.href);
+
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={cn(navItemClass, className, active && navItemActiveClass)}
+      href={item.href}
+    >
+      <Icon size={18} />
+      <span>{item.label}</span>
+      {item.badge === "approvals" ? <ApprovalsBadge /> : null}
+    </Link>
+  );
+}
+
 function Navigation({ pathname }: { pathname: string }) {
   return (
     <nav
-      className="nav-list grid min-h-0 grow content-start gap-1.5 overflow-y-auto overscroll-contain pr-1 pb-1"
+      className="nav-list grid min-h-0 grow content-start gap-1 overflow-y-auto overscroll-contain pr-1 pb-1"
       aria-label="Axis sections"
     >
-      {navigationItems.map((item) => {
-        const Icon = iconMap[item.icon];
-        const active = isNavActive(pathname, item.href);
-
-        return (
-          <Link
-            aria-current={active ? "page" : undefined}
-            className={cn(navItemClass, active && navItemActiveClass)}
-            href={item.href}
-            key={item.href}
-          >
-            <Icon size={18} />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
+      {navGroups.map((group, index) => (
+        <section aria-label={group.label} className="grid gap-1" key={group.label}>
+          <span className={cn("eyebrow px-3", index === 0 ? "pt-1" : "pt-3")}>{group.label}</span>
+          {group.items.map((item) => (
+            <NavLink item={item} key={item.href} pathname={pathname} />
+          ))}
+        </section>
+      ))}
     </nav>
   );
 }
@@ -80,22 +98,9 @@ function TopNavigation({ pathname }: { pathname: string }) {
         className="topnav flex max-w-full min-w-0 gap-1.5 overflow-x-auto pb-0.5"
         aria-label="Axis sections"
       >
-        {navigationItems.map((item) => {
-          const Icon = iconMap[item.icon];
-          const active = isNavActive(pathname, item.href);
-
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={cn(navItemClass, "shrink-0", active && navItemActiveClass)}
-              href={item.href}
-              key={item.href}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {navItems.map((item) => (
+          <NavLink className="shrink-0" item={item} key={item.href} pathname={pathname} />
+        ))}
       </div>
     </div>
   );

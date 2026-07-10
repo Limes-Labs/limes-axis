@@ -1,3 +1,5 @@
+import { navItems, type NavItem } from "./nav";
+
 export type FoundationStatus = "ready" | "guarded" | "planned";
 
 /**
@@ -35,21 +37,8 @@ export const brandTokens = {
   },
 } as const;
 
-export type NavigationItem = {
-  href: string;
-  label: string;
-  icon:
-    | "gauge"
-    | "network"
-    | "workflow"
-    | "bot"
-    | "shield"
-    | "scroll"
-    | "receipt"
-    | "cable"
-    | "building"
-    | "settings";
-};
+/** @deprecated Use `NavItem` from `lib/nav.ts`; kept as an alias for compatibility. */
+export type NavigationItem = NavItem;
 
 export type FoundationMetric = {
   label: string;
@@ -83,20 +72,11 @@ export type AuditEvent = {
   result: string;
 };
 
-export const navigationItems: NavigationItem[] = [
-  { href: "/", label: "Operations", icon: "gauge" },
-  { href: "/ontology", label: "Ontology", icon: "network" },
-  { href: "/workflows", label: "Workflows", icon: "workflow" },
-  { href: "/agents", label: "Agents", icon: "bot" },
-  { href: "/model-routing", label: "Models", icon: "gauge" },
-  { href: "/approvals", label: "Approvals", icon: "shield" },
-  { href: "/policies", label: "Policies", icon: "scroll" },
-  { href: "/audit", label: "Audit", icon: "receipt" },
-  { href: "/simulation", label: "Simulation", icon: "workflow" },
-  { href: "/connectors", label: "Connectors", icon: "cable" },
-  { href: "/tenants", label: "Tenants", icon: "building" },
-  { href: "/settings", label: "Settings", icon: "settings" },
-];
+/**
+ * @deprecated Flat list retained for compatibility; new code should render
+ * from `navGroups` in `lib/nav.ts`.
+ */
+export const navigationItems: NavigationItem[] = navItems;
 
 export const foundationMetrics: FoundationMetric[] = [
   {
