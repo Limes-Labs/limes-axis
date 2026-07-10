@@ -211,7 +211,11 @@ def record_demo_connector_ontology_promotion(
     try:
         ontology_mutation = runtime.promote_connector_proposal(mutation_request)
     except OntologyMutationError as exc:
-        ontology_mutation = ontology_mutation_failure_result(mutation_request, reason=str(exc))
+        ontology_mutation = ontology_mutation_failure_result(
+            mutation_request,
+            reason=str(exc),
+            status=getattr(exc, "status", "type_db_mutation_unavailable"),
+        )
 
     promotion_status = _promotion_status(ontology_mutation)
     audit_event_type = _audit_event_type(ontology_mutation)

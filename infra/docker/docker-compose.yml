@@ -22,6 +22,16 @@ services:
       - "8001:8000"
     volumes:
       - axis-typedb:/var/lib/typedb/data
+    # Liveness probe: the gRPC server listens on 1729. A TCP connect is a
+    # driver-agnostic readiness signal; the axis meta-ontology schema is loaded
+    # separately via `python -m axis_api.ontology.bootstrap` (see
+    # type-db-init/README.md).
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/1729'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   temporal:
     image: temporalio/auto-setup:1.25

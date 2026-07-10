@@ -45,6 +45,9 @@ class DeploymentReadinessCapabilities(BaseModel):
     deployment_operator_access_runbook_configured: bool
     deployment_break_glass_approval_configured: bool
     external_model_egress_enabled: bool
+    ontology_mutations_enabled: bool
+    ontology_queries_enabled: bool
+    ontology_typedb_address_configured: bool
     connector_sync_execution_enabled: bool
     external_db_sync_execution_enabled: bool
     external_db_live_query_preflight_enabled: bool
@@ -202,6 +205,14 @@ def build_deployment_readiness_report(
     observability_ready = bool(observability["otel_enabled"]) and bool(
         observability["otel_exporter_endpoint_configured"]
     )
+    # Ontology graph mutation posture. Disabled-by-default is a ready posture
+    # (promotions defer, nothing is written). If mutations are enabled the live
+    # path must be coherent: a reachable TypeDB address and ontology reads
+    # enabled so promoted nodes can be read back and served under the ontology
+    # read authorization.
+    ontology_graph_mutation_posture_ready = (not settings.ontology_mutations_enabled) or (
+        bool(settings.typedb_address) and settings.ontology_queries_enabled
+    )
     resolved_redirect_uri = redirect_uri(settings)
     resolved_post_logout_redirect_uri = post_logout_redirect_uri(settings, "/")
     oidc_session_cookie_ttl_seconds = max(0, settings.oidc_session_cookie_ttl_seconds)
@@ -247,6 +258,9 @@ def build_deployment_readiness_report(
             settings.deployment_break_glass_approval_configured
         ),
         external_model_egress_enabled=settings.external_model_egress_enabled,
+        ontology_mutations_enabled=settings.ontology_mutations_enabled,
+        ontology_queries_enabled=settings.ontology_queries_enabled,
+        ontology_typedb_address_configured=bool(settings.typedb_address),
         connector_sync_execution_enabled=settings.connector_sync_execution_enabled,
         external_db_sync_execution_enabled=settings.external_db_sync_execution_enabled,
         external_db_live_query_preflight_enabled=settings.external_db_live_query_preflight_enabled,
@@ -350,6 +364,21 @@ def build_deployment_readiness_report(
                 "One or more live connector execution flags are enabled; require "
                 "provider policy bundles and support runbooks."
             ),
+        ),
+        _check(
+            "ontology_graph_mutation_posture",
+            ontology_graph_mutation_posture_ready,
+            (
+                "Connector ontology graph promotion is either deferred (disabled) "
+                "or enabled with a configured TypeDB address and ontology reads "
+                "enabled for verifiable read-back."
+            ),
+            (
+                "Ontology graph mutations are enabled without a coherent live path; "
+                "configure AXIS_TYPEDB_ADDRESS and enable AXIS_ONTOLOGY_QUERIES_ENABLED "
+                "so promoted nodes are written and read back."
+            ),
+            production_required=False,
         ),
         _check(
             "audit_ledger_signing_configured",

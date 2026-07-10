@@ -69,6 +69,36 @@ class FailingOntologyMutationRuntime:
         raise OntologyMutationError("synthetic_typedb_down")
 
 
+class VerificationFailingOntologyMutationRuntime:
+    def promote_connector_proposal(
+        self,
+        request: OntologyMutationRequest,
+    ) -> OntologyMutationResult:
+        raise OntologyMutationError(
+            "verification_missing_node", status="type_db_mutation_failed"
+        )
+
+
+class DeferredRecordingOntologyMutationRuntime:
+    """Mirrors the production deferred runtime: reports deferred, writes nothing."""
+
+    def __init__(self) -> None:
+        self.requests: list[OntologyMutationRequest] = []
+
+    def promote_connector_proposal(
+        self,
+        request: OntologyMutationRequest,
+    ) -> OntologyMutationResult:
+        self.requests.append(request)
+        return OntologyMutationResult(
+            status="type_db_mutation_deferred",
+            adapter="axis-deferred-ontology-adapter",
+            mutation_ref=None,
+            typeql=request.typeql,
+            payload=request.audit_payload,
+        )
+
+
 @pytest.fixture
 def session_factory() -> sessionmaker[Session]:
     engine = create_engine(
@@ -479,7 +509,7 @@ def test_record_connector_ontology_promotion_applies_mutation_and_updates_record
     assert audit_event.payload["promotion_id"] == "promote_asset_line_2_packaging_20260622"
     assert audit_event.payload["manual_import_id"] == "import_assets_manual_20260622"
     assert audit_event.payload["graph_mutation_status"] == "type_db_mutation_applied"
-    assert ontology_runtime.requests[0].typeql.startswith("insert")
+    assert ontology_runtime.requests[0].typeql.startswith("put $asset isa axis_asset")
     assert "axis_asset" in ontology_runtime.requests[0].typeql
     assert "asset_line_2_packaging" in ontology_runtime.requests[0].typeql
     assert "csv_content" not in str(audit_event.payload).lower()
@@ -1093,6 +1123,58 @@ def test_connector_ontology_promotion_endpoint_records_runtime_unavailable(
     assert body["ontology_mutation"]["payload"]["reason"] == "synthetic_typedb_down"
     assert body["proposal"]["status"] == "proposed_from_preview"
     assert body["proposal"]["graph_mutation_status"] == "not_applied"
+
+
+def test_connector_ontology_promotion_records_verification_failure(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    app.state.ontology_mutation_runtime = VerificationFailingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        seed_promotable_connector_proposal(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        json=promotion_payload(),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "promotion_failed"
+    assert body["graph_mutation_status"] == "type_db_mutation_failed"
+    assert body["ontology_mutation"]["payload"]["reason"] == "verification_missing_node"
+    # Fail-closed: the proposal is NOT marked promoted and stays retry-safe.
+    assert body["proposal"]["status"] == "proposed_from_preview"
+    assert body["proposal"]["graph_mutation_status"] == "not_applied"
+    assert body["audit_event_type"] == "connector.ontology_promotion.failed"
+
+
+def test_connector_ontology_promotion_deferred_runtime_writes_nothing(
+    session_factory: sessionmaker[Session],
+) -> None:
+    ontology_runtime = DeferredRecordingOntologyMutationRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_promotable_connector_proposal(repository)
+        result = record_demo_connector_ontology_promotion(
+            repository,
+            ConnectorOntologyPromotionRequest(**promotion_payload()),
+            ontology_runtime,
+        )
+
+    with session_factory() as session:
+        promotion = session.scalars(select(ConnectorOntologyPromotion)).one()
+        proposal = session.scalars(select(ConnectorOntologyProposal)).one()
+
+    assert result.status == "promotion_deferred"
+    assert result.graph_mutation_status == "type_db_mutation_deferred"
+    assert promotion.status == "promotion_deferred"
+    # Proposal is untouched, so it remains promotable once mutations are enabled.
+    assert proposal.status == "proposed_from_preview"
+    assert proposal.graph_mutation_status == "not_applied"
+    assert proposal.promotion_id is None
 
 
 def test_connector_ontology_promotion_is_idempotent_for_same_payload(

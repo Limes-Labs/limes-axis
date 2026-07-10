@@ -40,6 +40,7 @@ def test_ready_returns_dependency_configuration_without_secrets() -> None:
         "postgres": True,
         "typedb": True,
         "typedb_queries": False,
+        "typedb_mutations": False,
         "temporal": True,
     }
     assert "password" not in str(body).lower()
