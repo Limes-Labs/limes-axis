@@ -143,6 +143,10 @@ class Settings(BaseSettings):
         default=True,
         alias="AXIS_WORKFLOW_SIGNALS_ENABLED",
     )
+    workflow_history_persistence_enabled: bool = Field(
+        default=False,
+        alias="AXIS_WORKFLOW_HISTORY_PERSISTENCE_ENABLED",
+    )
     oidc_issuer: str = Field(
         default="http://localhost:8080/realms/axis",
         alias="AXIS_OIDC_ISSUER",

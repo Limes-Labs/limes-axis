@@ -21,6 +21,7 @@ from axis_api.platform_policies import (
     PlatformPolicyScope,
     enforce_platform_policy_deny,
 )
+from axis_api.workflow_history import ensure_workflow_run
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     WorkflowSignalError,
@@ -378,6 +379,8 @@ async def record_demo_approval_decision(
     approval_id: str,
     request: ApprovalDecisionRequest,
     workflow_runtime: WorkflowSignalRuntime | None = None,
+    *,
+    workflow_history_persistence_enabled: bool = False,
 ) -> ApprovalDecisionPersistenceResult:
     tenant_id, approval = _find_demo_approval(repository, approval_id)
     action_id = _approval_action_id(approval.approval_id)
@@ -402,6 +405,8 @@ async def record_demo_approval_decision(
         )
     )
     workflow_signal = await _signal_approval_workflow(runtime, tenant_id, approval, request)
+    if workflow_history_persistence_enabled:
+        ensure_workflow_run(repository, tenant_id, approval.workflow_id)
     workflow_run = repository.record_workflow_approval_decision(
         WorkflowApprovalDecisionUpdate(
             tenant_id=tenant_id,

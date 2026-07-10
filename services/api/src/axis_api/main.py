@@ -7112,7 +7112,15 @@ def create_app(
         )
         try:
             bound_action_run = _bind_demo_actor(action_run, principal)
-            result = await record_demo_action_run(repository, action_id, bound_action_run, runtime)
+            result = await record_demo_action_run(
+                repository,
+                action_id,
+                bound_action_run,
+                runtime,
+                workflow_history_persistence_enabled=(
+                    resolved_settings.workflow_history_persistence_enabled
+                ),
+            )
         except DemoActionNotFound as exc:
             raise HTTPException(status_code=404, detail="Action not found") from exc
         except ActionReferenceRecordNotFound as exc:
@@ -7222,6 +7230,9 @@ def create_app(
                 repository,
                 action_run_id,
                 bound_outcome,
+                workflow_history_persistence_enabled=(
+                    resolved_settings.workflow_history_persistence_enabled
+                ),
             )
         except DemoActionRunNotFound as exc:
             raise HTTPException(
@@ -7346,6 +7357,9 @@ def create_app(
                 approval_id,
                 bound_decision,
                 runtime,
+                workflow_history_persistence_enabled=(
+                    resolved_settings.workflow_history_persistence_enabled
+                ),
             )
             telemetry.approval_decision_counter.add(
                 1, {"decision": getattr(decision.decision, "value", "unknown")}
