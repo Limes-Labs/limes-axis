@@ -83,12 +83,31 @@ services:
       # Scheduled maintenance jobs are opt-in. The worker always reconciles the
       # Temporal Schedules on startup, but leaves them paused unless this is true.
       AXIS_SCHEDULED_JOBS_ENABLED: "false"
+      # OpenTelemetry tracing/metrics are off by default. To emit traces, set
+      # AXIS_OTEL_ENABLED=true and uncomment the otel-collector service below;
+      # the OTLP/HTTP exporter posts to :4318 (/v1/traces and /v1/metrics).
+      AXIS_OTEL_ENABLED: "false"
+      AXIS_OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      AXIS_OTEL_METRICS_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
       temporal:
         condition: service_started
     restart: unless-stopped
+
+  # Optional OpenTelemetry collector. Uncomment (and set AXIS_OTEL_ENABLED=true on
+  # the API/worker) to receive OTLP traces/metrics and fan them out to a backend
+  # such as Jaeger, Tempo, or Grafana. Kept commented so the default demo stack
+  # stays lean and no collector image is pulled unless observability is wanted.
+  # otel-collector:
+  #   image: otel/opentelemetry-collector-contrib:0.116.0
+  #   command: ["--config=/etc/otel-collector-config.yaml"]
+  #   volumes:
+  #     - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+  #   ports:
+  #     - "4317:4317"  # OTLP gRPC
+  #     - "4318:4318"  # OTLP HTTP
 
 volumes:
   axis-postgres:
