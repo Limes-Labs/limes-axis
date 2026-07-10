@@ -1366,6 +1366,79 @@ class ModelInvocation(Base):
     )
 
 
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    agent_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    mode: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    autonomy_level: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
+    request_fingerprint: Mapped[dict] = mapped_column(JSON, nullable=False)
+    context_refs: Mapped[list] = mapped_column(JSON, nullable=False)
+    model_invocation_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    proposed_action_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True, index=True
+    )
+    proposal_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    platform_policy_decision: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error_reason: Mapped[str | None] = mapped_column(String(240), nullable=True, index=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "agent_id",
+            "idempotency_key",
+            name="uq_agent_runs_tenant_agent_idempotency",
+        ),
+        Index(
+            "ix_agent_runs_tenant_agent_created_at",
+            "tenant_id",
+            "agent_id",
+            "created_at",
+        ),
+    )
+
+
+class AgentRunStep(Base):
+    """Append-only agent run step timeline; steps are never updated or deleted."""
+
+    __tablename__ = "agent_run_steps"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    step_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "run_id",
+            "seq",
+            name="uq_agent_run_steps_tenant_run_seq",
+        ),
+    )
+
+
 class PlatformPolicy(Base):
     __tablename__ = "platform_policies"
 

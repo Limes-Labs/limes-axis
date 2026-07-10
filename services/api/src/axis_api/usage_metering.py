@@ -63,6 +63,7 @@ class TenantUsageMetric(StrEnum):
     MODEL_INVOCATIONS = "model_invocations"
     MODEL_INPUT_TOKENS = "model_input_tokens"
     MODEL_OUTPUT_TOKENS = "model_output_tokens"
+    AGENT_RUNS = "agent_runs"
 
 
 def usage_period_start(

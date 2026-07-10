@@ -384,6 +384,16 @@ def _action_run_body() -> dict:
     }
 
 
+def _agent_run_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "actor_id": "plant-operations-owner",
+        "actor_scopes": [],
+        "idempotency_key": "agent-run-isolation",
+        "mode": "propose",
+    }
+
+
 def _action_outcome_body() -> dict:
     return {
         "actor_id": "workflow-runtime",
@@ -543,6 +553,12 @@ ENFORCED_WRITE_CASES: list[tuple[str, str, str, Callable[[], dict]]] = [
         _action_run_body,
     ),
     (
+        "agent_run",
+        "post",
+        "/demo/manufacturing/agents/agent_daily_brief/runs",
+        _agent_run_body,
+    ),
+    (
         "action_outcome",
         "post",
         "/demo/manufacturing/actions/runs/00000000-0000-0000-0000-000000000000/outcome",
@@ -628,6 +644,11 @@ def test_tenant_b_cannot_mutate_tenant_a_resource(
 # --------------------------------------------------------------------------- #
 
 ENFORCED_READ_PATHS: list[tuple[str, str]] = [
+    ("agent_runs", "/demo/manufacturing/agents/agent_daily_brief/runs"),
+    (
+        "agent_run_detail",
+        "/demo/manufacturing/agents/agent_daily_brief/runs/00000000-0000-0000-0000-000000000000",
+    ),
     ("audit_events", "/demo/manufacturing/audit/events"),
     ("audit_export", "/demo/manufacturing/audit/export"),
     ("audit_legal_holds", "/demo/manufacturing/audit/legal-holds"),
