@@ -1,0 +1,286 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ToastProvider } from "@/components/ui/toast";
+import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
+
+const mocks = vi.hoisted(() => ({
+  axisFetchJson: vi.fn(),
+  useAxisQuery: vi.fn(),
+}));
+
+vi.mock("@/lib/axis-api", () => ({
+  axisFetchJson: mocks.axisFetchJson,
+}));
+
+vi.mock("@/lib/use-axis-query", () => ({
+  useAxisQuery: mocks.useAxisQuery,
+}));
+
+vi.mock("@/lib/use-oidc-session", () => ({
+  useOidcConsoleSession: () => ({ session: null }),
+}));
+
+import { ApprovalInbox } from "./approval-inbox";
+
+const inboxFixture: ManufacturingApprovalInbox = {
+  tenant_id: "tenant_fixture",
+  plant_name: "Fixture Plant",
+  scenario: "Runtime contract fixture",
+  as_of: "2026-07-10T09:00:00+02:00",
+  queue_status: "action_required",
+  policy_notes: ["Fixture data is scoped to tests."],
+  approvals: [
+    {
+      approval_id: "appr_supply_fixture",
+      action: "Expedite fixture batch",
+      risk_level: "high",
+      status: "pending",
+      requested_by: "agent_supply_fixture",
+      owner_role: "plant-operations-owner",
+      due: "Today 17:30",
+      workflow_id: "wf_supply_fixture_with_a_very_long_identifier_suffix",
+      domain: "Supply",
+      summary: "Approve or reject a governed supply action.",
+      evidence: ["Supplier confirmed capacity for the expedite window."],
+      data_accessed: ["Supplier status"],
+      risks: ["External shipment mutation"],
+      alternatives: ["Adjust production schedule"],
+      estimated_cost: "EUR 120",
+      model_policy: "no-external-egress",
+      required_permission: "approvals:supply:decide",
+      audit_event_preview: {
+        event: "approval.decision.recorded",
+        actor_role: "plant-operations-owner",
+        scope: "wf_supply_fixture",
+        result: "pending",
+      },
+      decision_options: [
+        {
+          decision: "approve",
+          label: "Approve & execute",
+          consequence: "The expedite order is dispatched to the supplier.",
+        },
+        {
+          decision: "reject",
+          label: "Reject",
+          consequence: "The current production plan stays unchanged.",
+        },
+      ],
+    },
+    {
+      approval_id: "appr_quality_fixture",
+      action: "Place fixture quality hold",
+      risk_level: "medium",
+      status: "pending",
+      requested_by: "agent_quality_fixture",
+      owner_role: "quality-owner",
+      due: "Today 18:00",
+      workflow_id: "wf_quality_fixture",
+      domain: "Quality",
+      summary: "Review quality hold evidence.",
+      evidence: ["QMS deviation recorded on lot 42."],
+      data_accessed: ["QMS deviation summary"],
+      risks: ["Production delay"],
+      alternatives: ["Escalate to quality review"],
+      estimated_cost: "EUR 0",
+      model_policy: "local-only",
+      required_permission: "approvals:quality:decide",
+      audit_event_preview: {
+        event: "approval.decision.recorded",
+        actor_role: "quality-owner",
+        scope: "wf_quality_fixture",
+        result: "pending",
+      },
+      decision_options: [
+        {
+          decision: "approve",
+          label: "Approve hold",
+          consequence: "The batch is held for quality review.",
+        },
+        {
+          decision: "reject",
+          label: "Reject",
+          consequence: "The batch is released to shipping.",
+        },
+      ],
+    },
+  ],
+};
+
+const persistenceResultFixture = {
+  tenant_id: "tenant_fixture",
+  approval_id: "appr_supply_fixture",
+  workflow_id: "wf_supply_fixture_with_a_very_long_identifier_suffix",
+  action_id: "act_fixture",
+  decision: "approve",
+  status: "approved",
+  actor_id: "plant-operations-owner-role",
+  audit_event_id: "22222222-2222-4222-8222-222222222222",
+  audit_event_type: "approval.decision.recorded",
+  persisted: true,
+  permission_decision: { allowed: true, reason: "required_scope_present" },
+  workflow_signal: {
+    workflow_id: "wf_supply_fixture_with_a_very_long_identifier_suffix",
+    status: "signaled",
+    adapter: "memory",
+    signal_name: "approval_decision",
+    payload: { approval_id: "appr_supply_fixture", approved: true },
+  },
+  workflow_signal_status: "signaled",
+};
+
+function mockQuery(result: {
+  data: ManufacturingApprovalInbox | null;
+  source: "loading" | "api" | "unavailable";
+}) {
+  mocks.useAxisQuery.mockReturnValue({
+    data: result.data,
+    source: result.source,
+    error: result.source === "unavailable" ? "Axis API request failed." : null,
+    isRefreshing: false,
+    isLoading: result.source === "loading",
+    isUnavailable: result.source === "unavailable",
+  });
+}
+
+function renderInbox() {
+  return render(
+    <ToastProvider>
+      <ApprovalInbox />
+    </ToastProvider>,
+  );
+}
+
+beforeEach(() => {
+  mocks.axisFetchJson.mockReset();
+  mocks.useAxisQuery.mockReset();
+});
+
+describe("ApprovalInbox states", () => {
+  it("renders a loading skeleton without any error copy while loading", () => {
+    mockQuery({ data: null, source: "loading" });
+    renderInbox();
+
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/API required/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the ErrorPanel when the approval API is unavailable", () => {
+    mockQuery({ data: null, source: "unavailable" });
+    renderInbox();
+
+    expect(
+      screen.getByRole("heading", { name: "Approval API unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Local fallback approval records are disabled\./),
+    ).toBeInTheDocument();
+    // Endpoint stays demoted behind the technical-details expander.
+    expect(screen.queryByText("/demo/manufacturing/approvals")).not.toBeInTheDocument();
+  });
+
+  it("renders the EmptyPanel when the API responds with zero approvals", () => {
+    mockQuery({ data: { ...inboxFixture, approvals: [] }, source: "api" });
+    renderInbox();
+
+    expect(screen.getByRole("heading", { name: "No approvals waiting" })).toBeInTheDocument();
+    expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ApprovalInbox decision flow", () => {
+  beforeEach(() => {
+    mockQuery({ data: inboxFixture, source: "api" });
+  });
+
+  it("shows consequence text for every option without hover", () => {
+    renderInbox();
+
+    expect(
+      screen.getByText("The expedite order is dispatched to the supplier."),
+    ).toBeVisible();
+    expect(screen.getByText("The current production plan stays unchanged.")).toBeVisible();
+  });
+
+  it("switches the detail panel when a queue item is selected", async () => {
+    const user = userEvent.setup();
+    renderInbox();
+
+    expect(
+      screen.getByRole("heading", { name: "Expedite fixture batch" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Place fixture quality hold/ }));
+    expect(
+      screen.getByRole("heading", { name: "Place fixture quality hold" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("The batch is held for quality review.")).toBeVisible();
+  });
+
+  it("moves the queue selection with ArrowDown and ArrowUp", async () => {
+    const user = userEvent.setup();
+    renderInbox();
+
+    const firstItem = screen.getByRole("button", { name: /Expedite fixture batch/ });
+    firstItem.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByRole("heading", { name: "Place fixture quality hold" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{ArrowUp}");
+    expect(
+      screen.getByRole("heading", { name: "Expedite fixture batch" }),
+    ).toBeInTheDocument();
+  });
+
+  it("gates persistence behind the confirm dialog and posts the decision payload", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetchJson.mockResolvedValue(persistenceResultFixture);
+    renderInbox();
+
+    await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(mocks.axisFetchJson).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Confirm decision" }));
+
+    await waitFor(() => {
+      expect(mocks.axisFetchJson).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.axisFetchJson).toHaveBeenCalledWith(
+      "/demo/manufacturing/approvals/appr_supply_fixture/decision",
+      expect.objectContaining({
+        method: "POST",
+        body: {
+          decision: "approve",
+          actor_id: "plant-operations-owner-role",
+          actor_scopes: ["approvals:supply:decide"],
+          note: "Console decision recorded for appr_supply_fixture.",
+        },
+      }),
+    );
+
+    // Inline confirmation links to the created audit event.
+    const decisionSection = screen.getByRole("region", { name: "Decision" });
+    expect(
+      await within(decisionSection).findByRole("link", { name: "View audit event" }),
+    ).toHaveAttribute("href", "/audit?event_id=22222222-2222-4222-8222-222222222222");
+  });
+
+  it("truncates the workflow id and exposes the full value in a tooltip", () => {
+    renderInbox();
+
+    const workflowValue = screen.getByText(
+      "wf_supply_fixture_with_a_very_long_identifier_suffix",
+    );
+    expect(workflowValue).toHaveClass("truncate");
+    expect(workflowValue).toHaveAttribute(
+      "title",
+      "wf_supply_fixture_with_a_very_long_identifier_suffix",
+    );
+  });
+});
