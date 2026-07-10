@@ -13,10 +13,14 @@ from axis_api.main import create_app
 from axis_api.models import AuditEvent, Base, ReplaySimulationOutput
 from axis_api.persistence import (
     AxisPersistenceRepository,
+    ConnectorPromotionPolicyCreate,
+    ConnectorPromotionPolicySetCreate,
     WorkflowRunCreate,
     WorkflowTimelineEventCreate,
 )
 from axis_api.replay_simulation import (
+    ReplayPolicySetDiffDisabled,
+    ReplayPolicySetDiffValidationError,
     ReplaySimulationQuery,
     build_replay_simulation,
 )
@@ -159,6 +163,100 @@ def seed_replay_history(repository: AxisPersistenceRepository) -> None:
             payload={"workflow_id": "wf_other", "decision": "approve"},
         )
     )
+
+
+def seed_promotion_policy(
+    repository: AxisPersistenceRepository,
+    policy_id: str,
+    required_manual_import_status: str,
+    tenant_id: str = "tenant_demo_manufacturing",
+) -> None:
+    repository.create_connector_promotion_policy(
+        ConnectorPromotionPolicyCreate(
+            tenant_id=tenant_id,
+            connector_id="file_csv_manufacturing_assets",
+            policy_id=policy_id,
+            policy_version="2026-06-22.1",
+            status="enabled",
+            enforcement_mode="required",
+            created_by="connector-governance-owner-role",
+            required_scopes=["connectors:ontology:promote"],
+            required_manual_import_status=required_manual_import_status,
+            required_workflow_signal_status="manual_import_signal_requested",
+            allowed_risk_levels=["high", "medium"],
+            allowed_ontology_types=["manufacturing_asset"],
+            review_window_hours=24,
+        )
+    )
+
+
+def seed_promotion_policy_set(
+    repository: AxisPersistenceRepository,
+    policy_set_id: str,
+    policy_set_version: str,
+    policy_ids: list[str],
+    tenant_id: str = "tenant_demo_manufacturing",
+    connector_id: str = "file_csv_manufacturing_assets",
+) -> None:
+    repository.create_connector_promotion_policy_set(
+        ConnectorPromotionPolicySetCreate(
+            tenant_id=tenant_id,
+            connector_id=connector_id,
+            policy_set_id=policy_set_id,
+            policy_set_version=policy_set_version,
+            status="active",
+            activated_by="connector-governance-owner-role",
+            policy_ids=policy_ids,
+            activation_reason="Seed policy set for arbitrary replay comparison tests.",
+        )
+    )
+
+
+def seed_policy_set_comparison_fixtures(repository: AxisPersistenceRepository) -> None:
+    seed_promotion_policy(
+        repository,
+        "policy_gate_status_approval_required",
+        "approval_required",
+    )
+    seed_promotion_policy(
+        repository,
+        "policy_gate_status_approval_required_v2",
+        "approval_required",
+    )
+    seed_promotion_policy(
+        repository,
+        "policy_gate_status_approval_approved",
+        "approval_approved",
+    )
+    seed_promotion_policy_set(
+        repository,
+        "policy_set_replay_baseline",
+        "2026-06-22.1",
+        ["policy_gate_status_approval_required"],
+    )
+    seed_promotion_policy_set(
+        repository,
+        "policy_set_replay_baseline_clone",
+        "2026-06-22.2",
+        ["policy_gate_status_approval_required_v2"],
+    )
+    seed_promotion_policy_set(
+        repository,
+        "policy_set_replay_candidate",
+        "2026-06-22.3",
+        ["policy_gate_status_approval_approved"],
+    )
+
+
+def arbitrary_diff_query(**overrides) -> ReplaySimulationQuery:
+    params = {
+        "tenant_id": "tenant_demo_manufacturing",
+        "baseline_policy_set_id": "policy_set_replay_baseline",
+        "candidate_policy_set_id": "policy_set_replay_candidate",
+        "connector_id": "file_csv_manufacturing_assets",
+    }
+    params.update(overrides)
+    return ReplaySimulationQuery(**params)
 
 
 def replay_output_payload() -> dict:
@@ -563,3 +661,395 @@ def test_openapi_exposes_replay_simulation_endpoint() -> None:
     assert response.status_code == 200
     assert "/demo/manufacturing/simulation/replay" in response.json()["paths"]
     assert "/demo/manufacturing/simulation/replay/outputs" in response.json()["paths"]
+
+
+def test_replay_arbitrary_policy_set_diff_reports_changed_outcomes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        simulation = build_replay_simulation(
+            repository,
+            arbitrary_diff_query(),
+            arbitrary_policy_set_diff_enabled=True,
+        )
+
+    artifact = simulation.artifacts[0]
+    assert len(artifact.policy_set_diffs) == 1
+    diff = artifact.policy_set_diffs[0]
+    assert diff.diff_id.startswith("policy-set-diff-wf_supplier_delay_review-")
+    assert diff.connector_id == "file_csv_manufacturing_assets"
+    assert diff.baseline_policy_set_id == "policy_set_replay_baseline"
+    assert diff.baseline_policy_set_version == "2026-06-22.1"
+    assert diff.candidate_policy_set_id == "policy_set_replay_candidate"
+    assert diff.candidate_policy_set_version == "2026-06-22.3"
+    assert diff.historical_event_count == 4
+    assert diff.events_evaluated == 4
+    assert diff.changed_outcome_event_count == 1
+    assert diff.changed_outcome is True
+    assert diff.diff_status == "changed_outcome_detected"
+    assert diff.audit_event_type == "connector.promotion_policy_set.simulated_diff"
+    assert diff.changed_policy_ids == [
+        "policy_gate_status_approval_approved",
+        "policy_gate_status_approval_required",
+    ]
+    assert diff.baseline_decision == "block_until_required_policy_gate"
+    assert diff.candidate_decision == "block_until_required_policy_gate"
+    assert len(diff.event_decisions) == 4
+    changed_decisions = [
+        decision for decision in diff.event_decisions if decision.changed_outcome
+    ]
+    assert len(changed_decisions) == 1
+    assert changed_decisions[0].event_kind == "audit"
+    assert changed_decisions[0].baseline_decision == "allow_historical_event"
+    assert changed_decisions[0].candidate_decision == "block_until_required_policy_gate"
+    timeline_decisions = [
+        decision for decision in diff.event_decisions if decision.event_kind == "timeline"
+    ]
+    assert len(timeline_decisions) == 2
+    assert all(not decision.changed_outcome for decision in timeline_decisions)
+    assert "credential_secret" not in diff.model_dump_json()
+
+
+def test_replay_arbitrary_policy_set_diff_reports_no_outcome_change(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        simulation = build_replay_simulation(
+            repository,
+            arbitrary_diff_query(
+                candidate_policy_set_id="policy_set_replay_baseline_clone",
+            ),
+            arbitrary_policy_set_diff_enabled=True,
+        )
+
+    diff = simulation.artifacts[0].policy_set_diffs[0]
+    assert diff.baseline_policy_set_id == "policy_set_replay_baseline"
+    assert diff.candidate_policy_set_id == "policy_set_replay_baseline_clone"
+    assert diff.events_evaluated == 4
+    assert diff.changed_outcome_event_count == 0
+    assert diff.changed_outcome is False
+    assert diff.diff_status == "no_outcome_change"
+    assert diff.changed_policy_ids == [
+        "policy_gate_status_approval_required",
+        "policy_gate_status_approval_required_v2",
+    ]
+    assert all(not decision.changed_outcome for decision in diff.event_decisions)
+
+
+def test_replay_arbitrary_policy_set_diff_rejects_unknown_baseline(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        with pytest.raises(ReplayPolicySetDiffValidationError) as excinfo:
+            build_replay_simulation(
+                repository,
+                arbitrary_diff_query(baseline_policy_set_id="policy_set_missing"),
+                arbitrary_policy_set_diff_enabled=True,
+            )
+
+    assert excinfo.value.reason == "policy_set_diff_baseline_not_found"
+
+
+def test_replay_arbitrary_policy_set_diff_rejects_unknown_candidate(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        with pytest.raises(ReplayPolicySetDiffValidationError) as excinfo:
+            build_replay_simulation(
+                repository,
+                arbitrary_diff_query(candidate_policy_set_id="policy_set_missing"),
+                arbitrary_policy_set_diff_enabled=True,
+            )
+
+    assert excinfo.value.reason == "policy_set_diff_candidate_not_found"
+
+
+def test_replay_arbitrary_policy_set_diff_rejects_partial_params(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        with pytest.raises(ReplayPolicySetDiffValidationError) as baseline_only:
+            build_replay_simulation(
+                repository,
+                arbitrary_diff_query(candidate_policy_set_id=None, connector_id=None),
+                arbitrary_policy_set_diff_enabled=True,
+            )
+        with pytest.raises(ReplayPolicySetDiffValidationError) as connector_only:
+            build_replay_simulation(
+                repository,
+                arbitrary_diff_query(
+                    baseline_policy_set_id=None,
+                    candidate_policy_set_id=None,
+                ),
+                arbitrary_policy_set_diff_enabled=True,
+            )
+
+    assert baseline_only.value.reason == "policy_set_diff_pair_required"
+    assert connector_only.value.reason == "policy_set_diff_pair_required"
+
+
+def test_replay_arbitrary_policy_set_diff_rejects_identical_ids(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        with pytest.raises(ReplayPolicySetDiffValidationError) as excinfo:
+            build_replay_simulation(
+                repository,
+                arbitrary_diff_query(
+                    candidate_policy_set_id="policy_set_replay_baseline",
+                ),
+                arbitrary_policy_set_diff_enabled=True,
+            )
+
+    assert excinfo.value.reason == "policy_set_diff_identical_policy_sets"
+
+
+def test_replay_arbitrary_policy_set_diff_rejects_cross_tenant_policy_set(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        seed_promotion_policy(
+            repository,
+            "policy_gate_other_tenant",
+            "approval_required",
+            tenant_id="tenant_other",
+        )
+        seed_promotion_policy_set(
+            repository,
+            "policy_set_other_tenant",
+            "2026-06-22.9",
+            ["policy_gate_other_tenant"],
+            tenant_id="tenant_other",
+        )
+        with pytest.raises(ReplayPolicySetDiffValidationError) as excinfo:
+            build_replay_simulation(
+                repository,
+                arbitrary_diff_query(baseline_policy_set_id="policy_set_other_tenant"),
+                arbitrary_policy_set_diff_enabled=True,
+            )
+
+    assert excinfo.value.reason == "policy_set_diff_baseline_not_found"
+
+
+def test_replay_arbitrary_policy_set_diff_requires_flag(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        with pytest.raises(ReplayPolicySetDiffDisabled) as excinfo:
+            build_replay_simulation(repository, arbitrary_diff_query())
+
+    assert excinfo.value.reason == "arbitrary_policy_set_diff_disabled"
+
+
+def test_replay_simulation_endpoint_rejects_arbitrary_diff_when_flag_disabled(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+    client = TestClient(app)
+
+    get_response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "baseline_policy_set_id": "policy_set_replay_baseline",
+            "candidate_policy_set_id": "policy_set_replay_candidate",
+        },
+    )
+    output_payload = replay_output_payload()
+    output_payload["baseline_policy_set_id"] = "policy_set_replay_baseline"
+    output_payload["candidate_policy_set_id"] = "policy_set_replay_candidate"
+    post_response = client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=output_payload,
+    )
+
+    client.close()
+    assert get_response.status_code == 403
+    assert get_response.json()["detail"]["code"] == "PERMISSION_DENIED"
+    assert get_response.json()["detail"]["reason"] == "arbitrary_policy_set_diff_disabled"
+    assert post_response.status_code == 403
+    assert post_response.json()["detail"]["reason"] == "arbitrary_policy_set_diff_disabled"
+
+
+def test_replay_arbitrary_policy_set_diff_id_is_deterministic(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        first = build_replay_simulation(
+            repository,
+            arbitrary_diff_query(),
+            arbitrary_policy_set_diff_enabled=True,
+        )
+        second = build_replay_simulation(
+            repository,
+            arbitrary_diff_query(),
+            arbitrary_policy_set_diff_enabled=True,
+        )
+
+    first_diff = first.artifacts[0].policy_set_diffs[0]
+    second_diff = second.artifacts[0].policy_set_diffs[0]
+    assert first_diff.diff_id == second_diff.diff_id
+    assert first_diff.model_dump() == second_diff.model_dump()
+
+
+def test_replay_arbitrary_policy_set_diff_respects_retention_window(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+        repository.append_workflow_timeline_event(
+            WorkflowTimelineEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                workflow_id="wf_supplier_delay_review",
+                sequence=3,
+                event="workflow.legacy_checkpoint",
+                occurred_at=datetime.now(UTC) - timedelta(days=90),
+                actor="axis-temporal-adapter",
+                result="expired_checkpoint",
+                summary="Legacy checkpoint outside replay retention.",
+            )
+        )
+        old_audit = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="workflow-runtime",
+                event_type="workflow.legacy_checkpoint.recorded",
+                payload={
+                    "workflow_id": "wf_supplier_delay_review",
+                    "status": "expired_checkpoint",
+                },
+            )
+        )
+        old_audit.created_at = datetime.now(UTC) - timedelta(days=90)
+        simulation = build_replay_simulation(
+            repository,
+            arbitrary_diff_query(retention_days=30),
+            arbitrary_policy_set_diff_enabled=True,
+        )
+
+    diff = simulation.artifacts[0].policy_set_diffs[0]
+    assert diff.events_evaluated == 4
+    assert diff.historical_event_count == 4
+    assert simulation.retention_window.excluded_timeline_event_count == 1
+    assert simulation.retention_window.excluded_audit_event_count == 1
+    assert all(
+        "workflow.legacy_checkpoint" not in decision.event_ref
+        for decision in diff.event_decisions
+    )
+
+
+def test_replay_simulation_endpoint_returns_arbitrary_policy_set_diff(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            replay_arbitrary_policy_set_diff_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "baseline_policy_set_id": "policy_set_replay_baseline",
+            "candidate_policy_set_id": "policy_set_replay_candidate",
+            "connector_id": "file_csv_manufacturing_assets",
+        },
+    )
+
+    client.close()
+    assert response.status_code == 200
+    body = response.json()
+    diff = body["artifacts"][0]["policy_set_diffs"][0]
+    assert diff["baseline_policy_set_id"] == "policy_set_replay_baseline"
+    assert diff["candidate_policy_set_id"] == "policy_set_replay_candidate"
+    assert diff["events_evaluated"] == 4
+    assert diff["changed_outcome_event_count"] == 1
+    assert diff["diff_status"] == "changed_outcome_detected"
+    assert "tenant_other" not in str(body)
+
+
+def test_replay_simulation_output_round_trips_arbitrary_policy_set_diff(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            replay_arbitrary_policy_set_diff_enabled=True,
+        )
+    )
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_replay_history(repository)
+        seed_policy_set_comparison_fixtures(repository)
+    client = TestClient(app)
+
+    payload = replay_output_payload()
+    payload["baseline_policy_set_id"] = "policy_set_replay_baseline"
+    payload["candidate_policy_set_id"] = "policy_set_replay_candidate"
+    payload["connector_id"] = "file_csv_manufacturing_assets"
+    create_response = client.post(
+        "/demo/manufacturing/simulation/replay/outputs",
+        json=payload,
+    )
+    read_response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    client.close()
+    assert create_response.status_code == 201
+    created_diff = create_response.json()["artifact"]["policy_set_diffs"][0]
+    assert created_diff["baseline_policy_set_id"] == "policy_set_replay_baseline"
+    assert created_diff["candidate_policy_set_id"] == "policy_set_replay_candidate"
+    assert read_response.status_code == 200
+    persisted_diff = read_response.json()["persisted_outputs"][0]["artifact"][
+        "policy_set_diffs"
+    ][0]
+    assert persisted_diff == created_diff
+    assert persisted_diff["events_evaluated"] == 4
+    assert persisted_diff["changed_outcome_event_count"] == 1
+    assert persisted_diff["changed_outcome"] is True
+    assert len(persisted_diff["event_decisions"]) == 4

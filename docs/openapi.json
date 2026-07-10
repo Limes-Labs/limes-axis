@@ -16058,6 +16058,43 @@
         "title": "PlatformPolicyScope",
         "type": "string"
       },
+      "PolicySetEventDecision": {
+        "properties": {
+          "baseline_decision": {
+            "minLength": 1,
+            "title": "Baseline Decision",
+            "type": "string"
+          },
+          "candidate_decision": {
+            "minLength": 1,
+            "title": "Candidate Decision",
+            "type": "string"
+          },
+          "changed_outcome": {
+            "title": "Changed Outcome",
+            "type": "boolean"
+          },
+          "event_kind": {
+            "minLength": 1,
+            "title": "Event Kind",
+            "type": "string"
+          },
+          "event_ref": {
+            "minLength": 1,
+            "title": "Event Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_ref",
+          "event_kind",
+          "baseline_decision",
+          "candidate_decision",
+          "changed_outcome"
+        ],
+        "title": "PolicySetEventDecision",
+        "type": "object"
+      },
       "PolicySetVersionDiff": {
         "properties": {
           "audit_event_type": {
@@ -16099,6 +16136,12 @@
             "title": "Changed Outcome",
             "type": "boolean"
           },
+          "changed_outcome_event_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Changed Outcome Event Count",
+            "type": "integer"
+          },
           "changed_policy_ids": {
             "items": {
               "type": "string"
@@ -16120,6 +16163,19 @@
             "minLength": 1,
             "title": "Diff Status",
             "type": "string"
+          },
+          "event_decisions": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySetEventDecision"
+            },
+            "title": "Event Decisions",
+            "type": "array"
+          },
+          "events_evaluated": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Events Evaluated",
+            "type": "integer"
           },
           "evidence_refs": {
             "items": {
@@ -16576,6 +16632,45 @@
             },
             "title": "Actor Scopes",
             "type": "array"
+          },
+          "baseline_policy_set_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Policy Set Id"
+          },
+          "candidate_policy_set_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Policy Set Id"
+          },
+          "connector_id": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
           },
           "idempotency_key": {
             "maxLength": 200,
@@ -24606,6 +24701,76 @@
               "title": "Legal Hold",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "baseline_policy_set_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 180,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Baseline Policy Set Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "candidate_policy_set_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 180,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Candidate Policy Set Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connector_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connector Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -24619,15 +24784,11 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Replay policy-set comparison denied or disabled"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Replay policy-set comparison validation failed"
           }
         },
         "summary": "Manufacturing Replay Simulation",

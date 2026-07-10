@@ -471,6 +471,10 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED",
     )
+    replay_arbitrary_policy_set_diff_enabled: bool = Field(
+        default=False,
+        alias="AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED",
+    )
     dr_runbook_configured: bool = Field(
         default=False,
         alias="AXIS_DR_RUNBOOK_CONFIGURED",
