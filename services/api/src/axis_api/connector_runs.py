@@ -50,6 +50,11 @@ from axis_api.persistence import (
     ConnectorSyncCheckpointCreate,
 )
 from axis_api.platform_tenants import TenantQuotaKey
+from axis_api.usage_metering import (
+    DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+    TenantUsageMetric,
+    record_tenant_usage_event,
+)
 
 
 class ConnectorRunValidationError(ValueError):
@@ -1208,6 +1213,9 @@ def execute_demo_connector_sync(
     request: ConnectorRunSyncExecutionRequest,
     sync_execution_runtime: ConnectorSyncExecutionRuntime | None = None,
     live_sync_runtime: ConnectorLiveSyncRuntime | None = None,
+    *,
+    usage_metering_enabled: bool = False,
+    usage_window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
 ) -> ConnectorRunRecord:
     _validate_sync_execution_scope(request)
     run = repository.get_connector_run(request.tenant_id, run_id)
@@ -1279,6 +1287,9 @@ def execute_demo_connector_sync(
         )
     if live_sync_plan is not None and live_sync_plan.status != LIVE_SYNC_PLAN_DEFERRED_STATUS:
         _validate_active_live_manifest_for_live_sync(manifest)
+        # Capture the resume seed BEFORE the attempt runs so usage meters only the
+        # rows this attempt reads, not the run-cumulative total on a resume.
+        resume_records_seed = _live_sync_resume_records_seed(repository, run)
         sync_execution_result = _execute_live_connector_sync(
             repository,
             run,
@@ -1295,6 +1306,9 @@ def execute_demo_connector_sync(
             sync_execution_result,
             schedule_result=schedule_result,
             dispatch_result=dispatch_result,
+            usage_metering_enabled=usage_metering_enabled,
+            usage_window_seconds=usage_window_seconds,
+            resume_records_seed=resume_records_seed,
         )
 
     execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
@@ -1343,6 +1357,8 @@ def execute_demo_connector_sync(
         sync_execution_result,
         schedule_result=schedule_result,
         dispatch_result=dispatch_result,
+        usage_metering_enabled=usage_metering_enabled,
+        usage_window_seconds=usage_window_seconds,
     )
 
 
@@ -1354,6 +1370,9 @@ def _persist_sync_execution_outcome(
     *,
     schedule_result: ConnectorSyncScheduleResult,
     dispatch_result: ConnectorSyncDispatchResult,
+    usage_metering_enabled: bool = False,
+    usage_window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+    resume_records_seed: int = 0,
 ) -> ConnectorRunRecord:
     result_summary = dict(run.result_summary)
     result_summary.update(sync_execution_result.result_summary)
@@ -1404,7 +1423,67 @@ def _persist_sync_execution_outcome(
             notes=[*run.notes, *request.notes],
         )
     )
+    if usage_metering_enabled:
+        # Meter the rows read by THIS execution attempt. For a resumed live sync
+        # the summary's records_read is the run-cumulative total (it is seeded
+        # from the last committed checkpoint), so metering the cumulative value
+        # would double-count rows already billed by the earlier attempt. Subtract
+        # the resume seed to meter only this attempt's incremental rows.
+        _record_connector_sync_rows_usage(
+            repository,
+            run.tenant_id,
+            sync_execution_result,
+            usage_window_seconds,
+            resume_records_seed=resume_records_seed,
+        )
     return _run_from_record(updated)
+
+
+def _record_connector_sync_rows_usage(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    sync_execution_result: ConnectorSyncExecutionResult,
+    usage_window_seconds: int,
+    *,
+    resume_records_seed: int = 0,
+) -> None:
+    raw_rows = sync_execution_result.result_summary.get("records_read", "0")
+    try:
+        cumulative_rows_read = int(raw_rows)
+    except (TypeError, ValueError):
+        cumulative_rows_read = 0
+    # Fresh (non-resumed) runs and the deferred non-live path carry a zero seed,
+    # so the delta is the full count; resumed runs meter only their increment.
+    rows_this_execution = cumulative_rows_read - resume_records_seed
+    if rows_this_execution <= 0:
+        return
+    record_tenant_usage_event(
+        repository,
+        tenant_id,
+        TenantUsageMetric.CONNECTOR_SYNC_ROWS.value,
+        rows_this_execution,
+        window_seconds=usage_window_seconds,
+    )
+
+
+def _live_sync_resume_records_seed(repository: AxisPersistenceRepository, run) -> int:
+    """Rows already read+committed before this attempt (its resume seed).
+
+    Mirrors the seed :func:`_execute_live_connector_sync` reads from the latest
+    committed batch checkpoint. Queried before the attempt runs, so it is the
+    pre-attempt cumulative total; the attempt's own new checkpoints do not affect
+    it. Zero for a fresh (never-resumed) run.
+    """
+    latest_batch_checkpoint = repository.get_latest_connector_sync_checkpoint(
+        run.tenant_id,
+        run_id=run.run_id,
+        connector_id=run.connector_id,
+        checkpoint_type=SYNC_BATCH_CHECKPOINT_TYPE,
+        status=SYNC_BATCH_COMMITTED_STATUS,
+    )
+    if latest_batch_checkpoint is None:
+        return 0
+    return _cursor_int(latest_batch_checkpoint.cursor, "total_records_read")
 
 
 def _live_sync_requested(run_record) -> bool:

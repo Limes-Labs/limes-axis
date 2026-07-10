@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 from sqlalchemy import Select, and_, func, or_, select, update
@@ -39,6 +39,7 @@ from axis_api.models import (
     ReplaySimulationOutput,
     Tenant,
     TenantQuota,
+    TenantUsageRecord,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
     utc_now,
@@ -648,6 +649,23 @@ class TenantQuotaUpsert(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="platform.tenant.quota.updated", min_length=1)
     notes: list[str] = Field(default_factory=list)
+
+
+class TenantUsageAdd(BaseModel):
+    """A single consumption delta to fold into the (tenant, metric, period) row."""
+
+    tenant_id: str = Field(min_length=1)
+    metric_key: str = Field(min_length=1)
+    period_start: datetime
+    quantity: int = Field(ge=0)
+    occurred_at: datetime
+    dimensions: dict = Field(default_factory=dict)
+
+
+class TenantUsagePeriodTotal(BaseModel):
+    metric_key: str
+    period_start: datetime
+    quantity: int
 
 
 class ActorCreate(BaseModel):
@@ -3234,6 +3252,82 @@ class AxisPersistenceRepository:
         self.session.delete(quota)
         self.session.flush()
         return True
+
+    def add_tenant_usage(self, record: TenantUsageAdd) -> None:
+        """Fold a consumption delta into the (tenant, metric, period) ledger row.
+
+        This is an upsert-add: the first delta for a bucket inserts the row, later
+        deltas increment ``quantity`` in place via ``ON CONFLICT DO UPDATE`` with
+        ``quantity = quantity + excluded.quantity``. The add happens in a single
+        SQL statement under a row lock, so concurrent flushers, replicas and the
+        synchronous choke-point recorders can all target the same bucket without
+        losing or double-counting deltas. ``first_recorded_at`` is preserved on
+        conflict; ``last_recorded_at``/``updated_at`` advance to the new delta.
+        """
+        now = utc_now()
+        insert_stmt = self._insert_with_on_conflict(TenantUsageRecord).values(
+            id=uuid4(),
+            tenant_id=record.tenant_id,
+            metric_key=record.metric_key,
+            period_start=record.period_start,
+            quantity=record.quantity,
+            dimensions=record.dimensions,
+            first_recorded_at=record.occurred_at,
+            last_recorded_at=record.occurred_at,
+            created_at=now,
+            updated_at=now,
+        )
+        statement = insert_stmt.on_conflict_do_update(
+            index_elements=["tenant_id", "metric_key", "period_start"],
+            set_={
+                "quantity": TenantUsageRecord.quantity + insert_stmt.excluded.quantity,
+                "last_recorded_at": insert_stmt.excluded.last_recorded_at,
+                "updated_at": insert_stmt.excluded.updated_at,
+            },
+        )
+        self.session.execute(statement)
+        self.session.flush()
+
+    def aggregate_tenant_usage(
+        self,
+        tenant_id: str,
+        *,
+        period_start_from: datetime | None = None,
+        period_start_to: datetime | None = None,
+        metric_keys: list[str] | None = None,
+    ) -> list[TenantUsagePeriodTotal]:
+        """Return per-(metric, period) totals for a tenant over a period window.
+
+        ``period_start_to`` is an exclusive upper bound. Results are ordered by
+        metric then period so the read layer can build a stable breakdown.
+        """
+        statement = (
+            select(
+                TenantUsageRecord.metric_key,
+                TenantUsageRecord.period_start,
+                func.sum(TenantUsageRecord.quantity),
+            )
+            .where(TenantUsageRecord.tenant_id == tenant_id)
+            .group_by(TenantUsageRecord.metric_key, TenantUsageRecord.period_start)
+            .order_by(
+                TenantUsageRecord.metric_key.asc(),
+                TenantUsageRecord.period_start.asc(),
+            )
+        )
+        if period_start_from is not None:
+            statement = statement.where(TenantUsageRecord.period_start >= period_start_from)
+        if period_start_to is not None:
+            statement = statement.where(TenantUsageRecord.period_start < period_start_to)
+        if metric_keys:
+            statement = statement.where(TenantUsageRecord.metric_key.in_(metric_keys))
+        return [
+            TenantUsagePeriodTotal(
+                metric_key=metric_key,
+                period_start=period_start,
+                quantity=int(quantity or 0),
+            )
+            for metric_key, period_start, quantity in self.session.execute(statement)
+        ]
 
     def get_actor(self, actor_id: str) -> Actor | None:
         return self.session.get(Actor, actor_id)
