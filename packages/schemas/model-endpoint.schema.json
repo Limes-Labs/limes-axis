@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.limeslabs.eu/axis/model-endpoint.schema.json",
+  "title": "Limes Axis Model Endpoint Record",
+  "description": "A tenant-scoped model endpoint registration as returned by the /platform/models/endpoints API. Mirrors the ModelEndpointRecord component of the generated OpenAPI contract. The API currently accepts provider_type 'openai_compatible', hosting boundaries 'self_hosted', 'approved_private_endpoint' and 'external', and statuses 'enabled'/'disabled'; those value sets are enforced by the API, not frozen in this schema.",
+  "type": "object",
+  "required": [
+    "tenant_id",
+    "endpoint_id",
+    "display_name",
+    "provider_type",
+    "hosting_boundary",
+    "base_url",
+    "default_model",
+    "task_types",
+    "status",
+    "cost_input_per_1k",
+    "cost_output_per_1k",
+    "created_by",
+    "audit_event_type",
+    "created_at"
+  ],
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "endpoint_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hosting_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_url": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_types": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cost_input_per_1k": {
+      "type": "number",
+      "minimum": 0
+    },
+    "cost_output_per_1k": {
+      "type": "number",
+      "minimum": 0
+    },
+    "credential_handle_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "egress_policy_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "audit_event_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "audit_event_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

@@ -32,6 +32,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint schemas
+        run: pnpm --filter @limes-axis/schemas lint
+
+      - name: Test schemas
+        run: pnpm --filter @limes-axis/schemas test
+
       - name: Lint
         run: pnpm --filter @limes-axis/web lint
 

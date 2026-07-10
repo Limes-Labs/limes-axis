@@ -1,13 +1,25 @@
 # Platform Model Routing And Cost Observability
 
-The model routing slice exposes the public-safe manufacturing demo view for
-provider selection, egress decisions, token estimates, cost posture and audit
-evidence.
+The model routing surface has two parts: the read-only reference telemetry
+view described below, and a flag-gated execution slice.
 
-It is read-only. The endpoint reads a persisted tenant-scoped bootstrap record
-instead of a route-owned runtime seed. It does not call a live model provider,
-does not send prompts outside the demo tenant boundary and does not enforce
-production budgets yet.
+The execution slice registers tenant-scoped model endpoints through
+`GET/POST /platform/models/endpoints` (openai-compatible providers;
+`self_hosted`, `approved_private_endpoint` and `external` hosting boundaries;
+scope `platform:model:endpoint:admin`) and runs governed invocations through
+`POST /platform/models/invocations` (scope `models:invoke`), with routing
+telemetry at `GET /platform/models/routing/telemetry`. Execution requires
+`AXIS_MODEL_ROUTING_EXECUTION_ENABLED=true` (default `false`; disabled
+invocations record an honest deferred status). Invocation records are
+metadata-only — token counts, latency, status and audit evidence; prompt text
+is excerpted only up to `AXIS_MODEL_INVOCATION_PROMPT_EXCERPT_CHARS` (default
+`0`) — and feed per-tenant usage metering. Non-self-hosted egress stays
+separately blocked while `AXIS_EXTERNAL_MODEL_EGRESS_ENABLED=false`.
+
+The reference telemetry view is read-only. The endpoint reads a persisted
+tenant-scoped bootstrap record instead of a route-owned runtime seed. It does
+not call a live model provider, does not send prompts outside the demo tenant
+boundary and does not enforce production budgets yet.
 
 The API module no longer defines a model routing runtime seed factory. Contract
 tests validate the Alembic bootstrap payload directly against the public API
@@ -59,14 +71,17 @@ Delivered:
 - local and approved-provider route examples;
 - token and cost estimates;
 - API response contracts;
-- Playwright smoke coverage for API-required behavior.
+- Playwright smoke coverage for API-required behavior;
+- flag-gated model endpoint registration and governed invocations
+  (`AXIS_MODEL_ROUTING_EXECUTION_ENABLED`, off by default) with the
+  openai-compatible provider adapter;
+- metadata-only persisted invocation records with audit ledger evidence and
+  per-tenant usage metering;
+- model-routed agent proposals through the governed agent run slice.
 
 Still Platform work:
 
-- live provider adapters;
+- additional provider adapters beyond openai-compatible endpoints;
 - provider-specific billing ingestion;
 - tenant-scoped budget enforcement;
-- persisted usage records;
-- OpenTelemetry spans emitted by runtime code;
-- policy-managed exception workflow for external model egress;
-- audit ledger writes from live route decisions.
+- policy-managed exception workflow for external model egress.

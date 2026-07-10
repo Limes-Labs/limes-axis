@@ -360,14 +360,62 @@ Foundation acceptance is tracked in
 - [x] Add container vulnerability scanning policy baseline.
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
-  (In progress: governed live sync and the live TypeDB graph promotion path are
-  now activated and hardened behind explicit flags; remaining work is broader
-  connector coverage and per-tenant enablement.)
+  (In progress: governed live sync, scheduled live sync, lease-scoped secret
+  resolution, runtime egress enforcement and the live TypeDB graph promotion
+  path are now activated and hardened behind explicit flags, and every
+  connector read/write route binds the OIDC principal tenant; remaining work
+  is broader connector coverage and per-tenant enablement.)
 - [x] Add governed live connector sync execution for the file/CSV dropzone and
   allowlisted external Postgres sources behind explicit flags, `active_live`
   manifests, lease/egress evidence, committed batch checkpoints, fail-closed
   error taxonomy, claim-gated resume and proposal-only output.
+- [x] Add lease-scoped secret resolution and runtime egress enforcement for
+  external DB live paths behind
+  `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED` and
+  `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED`, keeping the resolver
+  reference-only and binding the runtime target to persisted egress policy
+  evidence.
+- [x] Add scheduled governed live sync behind
+  `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED` with a bounded interval,
+  tenant scoping and the same fail-closed gate chain as operator-triggered
+  live sync.
+- [x] Enforce principal tenant binding on the connector read and write routes
+  and add the canonical table-driven tenant-isolation matrix
+  (`services/api/tests/test_tenant_isolation.py`) covering reads, listings,
+  mutations and token/path tenant mismatches across the API surface.
+- [x] Add the model router execution slice: tenant-scoped
+  `/platform/models/endpoints` registration with hosting boundaries and
+  supported provider types, governed `/platform/models/invocations` with
+  metadata-only persisted records, usage metering and audit evidence, behind
+  `AXIS_MODEL_ROUTING_EXECUTION_ENABLED` (off by default) with external
+  egress separately gated.
+- [x] Add governed agent run execution: `POST/GET
+  /demo/manufacturing/agents/{agent_id}/runs` with dry-run and propose modes,
+  persisted append-only step timelines, autonomy ceilings, platform policy
+  enforcement, model-routed proposal parsing that fails closed, and
+  approval-gated action run creation, behind
+  `AXIS_AGENT_RUN_EXECUTION_ENABLED` (off by default).
+- [x] Support arbitrary policy-set comparison over historical replay windows
+  behind `AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED`.
+- [x] Redesign the core console pages with the shared brand primitives,
+  light/dark theming and the ontology graph view.
+- [x] Make `packages/schemas` a real contract package: JSON Schema (draft
+  2020-12) files for action definitions, tenants, audit ledger events,
+  connector manifests, model endpoints and agent runs, ajv-backed lint/test
+  scripts wired into CI, and an API-side contract test
+  (`test_schemas_package_contract.py`) that validates real domain payloads
+  against the published schemas.
+- [x] Add the compose-based manufacturing plant walkthrough example
+  (`examples/manufacturing-plant`) covering stack bring-up, console tour,
+  flag-gated model routing with a local Ollama endpoint, a governed agent
+  dry-run, the SDK quickstart and teardown.
+- [x] Add the security review checklist (`docs/security-review-checklist.md`)
+  and the secret rotation and incident response runbooks under
+  `docs/runbooks/`.
 - [ ] Build the manufacturing operations reference demo.
+  (In progress: the persisted cockpit, governed artifacts, walkthrough example
+  and flag-gated model/agent execution exist; remaining work is broader live
+  workflow execution and connector-backed production actions.)
 - [ ] Add sustained production HA validation under customer-profile load, TLS
   certificate automation, backup/restore and cluster operations hardening.
 - [x] Add optional External Secrets Operator chart integration for runtime
@@ -1054,15 +1102,23 @@ only when both lifecycle and live-enable scopes, live-capable runtime policy,
 live sync mode and approval/policy/credential evidence are present. The
 transition writes append-only audit evidence and still does not retrieve
 secrets, execute connector code, start external sync or mutate the ontology
-graph. Live provider secret retrieval, provider-specific scheduled live sync
-beyond the self-hosted execution boundary, live external database adapters and
-connector-backed production actions remain Platform work.
+graph. Scheduled governed live sync, lease-scoped secret resolution and
+runtime egress enforcement now exist behind their own explicit flags (all off
+by default). Broader provider adapters beyond the file/CSV dropzone and
+allowlisted Postgres profiles, and connector-backed production actions, remain
+Platform work.
 
-The agent registry is currently read-only and API required. The browser no
+The agent registry is API required for catalog browsing; the browser no
 longer carries local agent fallback records, and the API module no longer
-defines an agent registry runtime seed factory. Production action execution,
-persisted agent state, tenant-scoped agent configuration, runtime policy
-enforcement and model cost observability remain Platform work.
+defines an agent registry runtime seed factory. Governed agent run execution
+now exists behind `AXIS_AGENT_RUN_EXECUTION_ENABLED` (off by default): runs
+persist append-only step timelines, enforce autonomy ceilings, registry
+permissions and platform policies, route model calls through registered
+endpoints, and turn parseable proposals into approval-gated action runs
+(dry-run mode records the proposal only). Runs never execute side effects
+directly and fail closed on unparseable or unpermitted model output. Direct
+production action execution, tenant-scoped agent configuration storage and
+SDK/connector-driven agent registration remain Platform work.
 
 The action registry UI is API required for catalog browsing. The browser no
 longer carries local action fallback records, and the API module no longer
@@ -1085,13 +1141,20 @@ state/status/current step are updated and a workflow timeline event is appended.
 This keeps the persisted workflow console coherent without requiring a live
 Temporal worker.
 
-The model routing and cost observability layer is currently read-only and API
-required. The browser no longer carries local route telemetry fallback records,
-and the API reference now comes from a persisted tenant-scoped bootstrap row.
-The API module no longer defines a route telemetry seed factory.
-Live provider adapters, provider-specific billing ingestion, tenant budget
-enforcement, persisted usage records, OpenTelemetry spans from runtime code and
-audit writes from live route decisions remain Platform work.
+The model routing and cost observability layer has two parts. The reference
+telemetry view stays read-only and API required: the browser no longer carries
+local route telemetry fallback records, the API reference comes from a
+persisted tenant-scoped bootstrap row and the API module no longer defines a
+route telemetry seed factory. The execution slice is now real behind
+`AXIS_MODEL_ROUTING_EXECUTION_ENABLED` (off by default): tenant-scoped model
+endpoints register through `/platform/models/endpoints` with hosting
+boundaries and openai-compatible provider support, governed invocations run
+through `/platform/models/invocations` with metadata-only persisted records
+(token counts, latency, status; prompt excerpts default to zero characters),
+audit evidence and usage metering, and non-self-hosted egress stays separately
+gated by `AXIS_EXTERNAL_MODEL_EGRESS_ENABLED=false`. Provider-specific billing
+ingestion, tenant budget enforcement and additional provider adapters remain
+Platform work.
 
 ### Enterprise
 
@@ -1121,10 +1184,10 @@ audit writes from live route decisions remain Platform work.
   totals + a per-period breakdown over a queryable window, with a read-only usage
   panel on the tenant detail console. Quotas are ceilings, metering is cumulative
   accounting, and billing is a future consumer.
-- [ ] Add a single-tenant `GET /platform/tenants/{id}` route and server-side
+- [x] Add a single-tenant `GET /platform/tenants/{id}` route and server-side
   cursor pagination so the console is not bounded by the `limit=200` listing
-  ceiling (the console currently reads the registry at the maximum and surfaces
-  a cap notice).
+  ceiling (the console requests full pages and follows `next_cursor` beyond
+  the page maximum).
 - [ ] Add tenant deletion and data-export pipelines and approval-gated
   lifecycle transitions on top of the lifecycle foundation and its console.
 - [x] Add baseline single-tenant managed deployment profile, render checks and

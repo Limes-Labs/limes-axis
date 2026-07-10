@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.limeslabs.eu/axis/agent-run.schema.json",
+  "title": "Limes Axis Agent Run Result",
+  "description": "A governed agent run result as returned by the /demo/manufacturing/agents/{agent_id}/runs API. Mirrors the AgentRunResult component of the generated OpenAPI contract. platform_policy_decision is intentionally kept loose here because its nested policy-match shape evolves with the policy engine; the OpenAPI contract remains authoritative for it.",
+  "type": "object",
+  "required": [
+    "tenant_id",
+    "run_id",
+    "agent_id",
+    "idempotency_key",
+    "status",
+    "mode",
+    "requested_by",
+    "autonomy_level",
+    "permission_decision",
+    "created_at"
+  ],
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "autonomy_level": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotent_replay": {
+      "type": "boolean",
+      "default": false
+    },
+    "persisted": {
+      "type": "boolean",
+      "default": true
+    },
+    "permission_decision": {
+      "$ref": "#/$defs/permission_decision"
+    },
+    "platform_policy_decision": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "context_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "model_invocation_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposal_payload": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "proposed_action_run_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "error_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "audit_event_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "audit_event_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "permission_decision": {
+      "type": "object",
+      "required": [
+        "allowed",
+        "reason"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "step": {
+      "type": "object",
+      "required": [
+        "seq",
+        "step_type",
+        "status",
+        "created_at"
+      ],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "step_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.limeslabs.eu/axis/audit-event.schema.json",
+  "title": "Limes Axis Audit Ledger Event",
+  "description": "A public-safe audit ledger event as returned by the audit explorer and export APIs. Mirrors the AuditLedgerEvent component of the generated OpenAPI contract; payload previews are redacted string summaries, never raw payloads.",
+  "type": "object",
+  "required": [
+    "audit_event_id",
+    "occurred_at",
+    "tenant_id",
+    "actor_id",
+    "actor_type",
+    "event_type",
+    "category",
+    "domain",
+    "scope",
+    "result",
+    "severity",
+    "source",
+    "summary",
+    "permission_scope",
+    "data_classification",
+    "evidence_refs",
+    "payload_preview"
+  ],
+  "properties": {
+    "audit_event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result": {
+      "type": "string",
+      "minLength": 1
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "watch",
+        "action_required"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "permission_scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "data_classification": {
+      "type": "string",
+      "minLength": 1
+    },
+    "related_workflow_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "related_approval_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "related_agent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "payload_preview": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

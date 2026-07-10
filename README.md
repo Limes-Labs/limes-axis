@@ -173,6 +173,55 @@ standard error envelope and conservative idempotent-only retries. It is tested
 end-to-end against the in-process API application and documented in
 [`docs/sdk-python.md`](./docs/sdk-python.md).
 
+### Governed Execution, Isolation And Console (Current Slices)
+
+The newest slices make execution real while keeping every new capability
+off by default behind explicit flags:
+
+- Model router execution: tenant-scoped model endpoints register through
+  `/platform/models/endpoints` (openai-compatible providers; self-hosted,
+  approved-private-endpoint and external hosting boundaries), and governed
+  invocations run through `/platform/models/invocations` with metadata-only
+  persisted records (token counts, latency, status; prompt excerpts default
+  to zero characters), audit evidence and usage metering. Execution requires
+  `AXIS_MODEL_ROUTING_EXECUTION_ENABLED=true`; external egress stays
+  separately blocked by `AXIS_EXTERNAL_MODEL_EGRESS_ENABLED=false`. See
+  [`docs/platform-model-routing.md`](./docs/platform-model-routing.md).
+- Governed agent runs: `POST /demo/manufacturing/agents/{agent_id}/runs`
+  executes registry agents in dry-run or propose mode behind
+  `AXIS_AGENT_RUN_EXECUTION_ENABLED=true`, persisting append-only step
+  timelines, enforcing autonomy ceilings, permissions and platform policies,
+  and turning parseable model proposals into approval-gated action runs.
+  Agents never execute side effects directly and fail closed on unparseable
+  or unpermitted output.
+- Governed live sync hardening: lease-scoped secret resolution
+  (`AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED`), runtime egress
+  enforcement (`AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED`) and
+  scheduled governed live sync (`AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED`)
+  extend the existing flag-gated live sync path while keeping the secret
+  resolver reference-only. Approved connector ontology promotions write live
+  TypeDB entities behind `AXIS_ONTOLOGY_MUTATIONS_ENABLED`.
+- Tenant isolation: principal tenant binding is enforced across the connector
+  read/write routes, and `services/api/tests/test_tenant_isolation.py` keeps
+  a canonical table-driven cross-tenant matrix (reads, listings, mutations
+  and token/path tenant mismatches) over the API surface.
+- Replay comparison: arbitrary policy-set diffs over historical replay
+  windows are available behind `AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED`.
+- Console: the core pages are rebuilt on shared brand primitives with
+  light/dark theming and an ontology graph view.
+- Contracts and docs: [`packages/schemas`](./packages/schemas) publishes JSON
+  Schema (draft 2020-12) contracts for action definitions, tenants, audit
+  ledger events, connector manifests, model endpoints and agent runs,
+  validated in CI and pinned to real API payloads by an API-side contract
+  test. Security review is supported by
+  [`docs/security-review-checklist.md`](./docs/security-review-checklist.md)
+  and the runbooks in [`docs/runbooks`](./docs/runbooks).
+
+All of these are evaluation capabilities of the open core, not production
+service claims; observability is OpenTelemetry-first
+([`docs/platform-observability.md`](./docs/platform-observability.md)) and
+audit exports keep WORM-gated retention semantics.
+
 ## Demo Environment
 
 Use [`docs/demo-readiness.md`](./docs/demo-readiness.md) for the repeatable SME
@@ -231,8 +280,8 @@ been removed from the API module; tests validate the Alembic bootstrap payloads 
 Remaining API-owned reference
 records are tracked for migration to persisted, tenant-scoped bootstrap
 records. The model routing reference runtime factory has also been removed;
-tests validate the Alembic bootstrap payload directly while live provider
-routing remains out of scope.
+tests validate the Alembic bootstrap payload directly, while live provider
+routing now exists as a separate flag-gated execution slice (see below).
 
 The connector foundation adds a
 public-safe connector manifest registry, a preview-only manufacturing file/CSV
@@ -567,6 +616,9 @@ Architecture and acceptance notes:
 - [`docs/platform-observability.md`](./docs/platform-observability.md)
 - [`docs/platform-settings.md`](./docs/platform-settings.md)
 - [`docs/threat-model.md`](./docs/threat-model.md)
+- [`docs/security-review-checklist.md`](./docs/security-review-checklist.md)
+- [`docs/runbooks/secret-rotation.md`](./docs/runbooks/secret-rotation.md)
+- [`docs/runbooks/incident-response.md`](./docs/runbooks/incident-response.md)
 - [`docs/support-operations.md`](./docs/support-operations.md)
 - [`docs/sdk-python.md`](./docs/sdk-python.md)
 
