@@ -524,6 +524,21 @@ from axis_api.support_diagnostics import (
     SupportDiagnosticsReport,
     build_support_diagnostics_report,
 )
+from axis_api.telemetry import (
+    ATTR_ACTION_ID,
+    ATTR_ACTOR_ID,
+    ATTR_APPROVAL_ID,
+    ATTR_CONNECTOR_ID,
+    ATTR_DECISION,
+    ATTR_EXPORT_FORMAT,
+    ATTR_OUTCOME,
+    ATTR_TENANT_ID,
+    TelemetryRuntime,
+    annotate_current_span,
+    configure_api_telemetry,
+    instrument_fastapi_app,
+    set_span_attributes,
+)
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_reference import (
     WorkflowReferenceRecordInvalid,
@@ -783,6 +798,7 @@ def oidc_principal(
                     raise OidcCookieValidationError(cookie_failure_reason)
                 if principal is not None:
                     _reject_suspended_tenant_request(request, principal)
+                    _annotate_request_span_with_principal(principal)
                     return principal
             except (
                 OidcCodeFlowConfigurationError,
@@ -833,7 +849,37 @@ def oidc_principal(
             },
         ) from exc
     _reject_suspended_tenant_request(request, principal)
+    _annotate_request_span_with_principal(principal)
     return principal
+
+
+def _connector_sync_rows(record) -> int:
+    """Best-effort extract of the synced row count from a connector run record.
+
+    Reads the ``records_read`` field the sync execution runtime records in its
+    ``result_summary`` (stringified). Returns 0 when absent or unparseable so the
+    metric never fabricates a count.
+    """
+    sync_result = getattr(record, "sync_execution_result", None)
+    if sync_result is None:
+        return 0
+    raw = sync_result.result_summary.get("records_read")
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _annotate_request_span_with_principal(principal: OidcPrincipal) -> None:
+    """Tag the active request span with tenant/actor (non-sensitive ids only)."""
+    annotate_current_span(
+        {
+            ATTR_TENANT_ID: principal.tenant_id,
+            ATTR_ACTOR_ID: principal.actor_id,
+        }
+    )
 
 
 def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal) -> None:
@@ -2038,7 +2084,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    telemetry: TelemetryRuntime | None = None,
+) -> FastAPI:
     resolved_settings = settings or Settings()
     app = FastAPI(
         title="Limes Axis API",
@@ -2068,6 +2118,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ],
     )
     app.state.settings = resolved_settings
+    telemetry = telemetry or configure_api_telemetry(resolved_settings)
+    app.state.telemetry = telemetry
+    instrument_fastapi_app(app, telemetry)
     app.state.session_factory = create_session_factory(resolved_settings)
     app.state.tenant_state_cache = TenantStateCache(
         ttl_seconds=resolved_settings.tenant_state_cache_ttl_seconds,
@@ -5021,13 +5074,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             actor_field="executed_by",
         )
         try:
-            return execute_demo_connector_sync(
+          with telemetry.tracer.start_as_current_span("axis.connector_sync.execute") as span:
+            set_span_attributes(
+                span,
+                {
+                    ATTR_CONNECTOR_ID: getattr(bound_execution, "connector_id", None),
+                    ATTR_TENANT_ID: principal.tenant_id if principal else None,
+                },
+            )
+            record = execute_demo_connector_sync(
                 repository,
                 run_id,
                 bound_execution,
                 sync_execution_runtime,
                 live_sync_runtime=live_sync_runtime,
             )
+            rows = _connector_sync_rows(record)
+            set_span_attributes(span, {ATTR_OUTCOME: record.status})
+            if rows:
+                telemetry.connector_sync_rows_counter.add(
+                    rows, {"connector_id": record.connector_id, "status": record.status}
+                )
+            return record
         except ConnectorRunPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -6296,6 +6364,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: OidcPrincipalDependency,
         response: Response,
     ) -> ActionRunPersistenceResult:
+      with telemetry.tracer.start_as_current_span("axis.action_run.create") as span:
+        set_span_attributes(
+            span,
+            {
+                ATTR_ACTION_ID: action_id,
+                ATTR_TENANT_ID: principal.tenant_id if principal else None,
+                ATTR_ACTOR_ID: principal.actor_id if principal else None,
+            },
+        )
         try:
             bound_action_run = _bind_demo_actor(action_run, principal)
             result = await record_demo_action_run(repository, action_id, bound_action_run, runtime)
@@ -6375,6 +6452,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             ) from exc
 
+        outcome = "idempotent_replay" if result.idempotent_replay else "recorded"
+        set_span_attributes(span, {ATTR_OUTCOME: outcome})
+        telemetry.action_run_counter.add(1, {"outcome": outcome})
         if result.idempotent_replay:
             response.status_code = status.HTTP_200_OK
 
@@ -6512,14 +6592,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         runtime: WorkflowRuntime,
         principal: OidcPrincipalDependency,
     ) -> ApprovalDecisionPersistenceResult:
+      with telemetry.tracer.start_as_current_span("axis.approval.decide") as span:
+        set_span_attributes(
+            span,
+            {
+                ATTR_APPROVAL_ID: approval_id,
+                ATTR_DECISION: getattr(decision.decision, "value", None),
+                ATTR_TENANT_ID: principal.tenant_id if principal else None,
+                ATTR_ACTOR_ID: principal.actor_id if principal else None,
+            },
+        )
         try:
             bound_decision = _bind_demo_actor(decision, principal)
-            return await record_demo_approval_decision(
+            result = await record_demo_approval_decision(
                 repository,
                 approval_id,
                 bound_decision,
                 runtime,
             )
+            telemetry.approval_decision_counter.add(
+                1, {"decision": getattr(decision.decision, "value", "unknown")}
+            )
+            return result
         except DemoApprovalNotFound as exc:
             raise HTTPException(status_code=404, detail="Approval not found") from exc
         except ApprovalReferenceRecordNotFound as exc:
@@ -6671,7 +6765,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             else None
         )
         try:
-            return export_persisted_audit_events(
+          with telemetry.tracer.start_as_current_span("axis.audit.export") as span:
+            set_span_attributes(
+                span,
+                {
+                    ATTR_TENANT_ID: tenant_id,
+                    ATTR_EXPORT_FORMAT: format,
+                    ATTR_ACTOR_ID: principal.actor_id if principal else None,
+                },
+            )
+            bundle = export_persisted_audit_events(
                 repository,
                 AuditExportQuery(
                     tenant_id=tenant_id,
@@ -6688,6 +6791,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 object_lock_capability=object_lock_capability,
                 require_worm_compliance=require_worm_compliance,
             )
+            telemetry.audit_export_counter.add(1, {"format": format})
+            return bundle
         except AuditExportWormEnforcementError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

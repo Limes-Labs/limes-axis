@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from axis_api.config import Settings
 from axis_api.object_storage import ObjectLockCapability, build_object_store_readiness
 from axis_api.oidc_code_flow import post_logout_redirect_uri, redirect_uri
+from axis_api.telemetry import observability_posture
 
 OIDC_SESSION_COOKIE_MAX_TTL_SECONDS = 12 * 60 * 60
 SUPPORTED_DEPLOYMENT_TENANCY_MODES = {
@@ -68,6 +69,9 @@ class DeploymentReadinessCapabilities(BaseModel):
     dr_rehearsal_evidence_configured: bool
     dr_restore_owner_configured: bool
     dr_customer_approval_configured: bool
+    otel_enabled: bool
+    otel_metrics_enabled: bool
+    otel_exporter_endpoint_configured: bool
 
 
 class DeploymentReadinessReport(BaseModel):
@@ -194,6 +198,10 @@ def build_deployment_readiness_report(
             settings.dr_customer_approval_configured,
         )
     )
+    observability = observability_posture(settings)
+    observability_ready = bool(observability["otel_enabled"]) and bool(
+        observability["otel_exporter_endpoint_configured"]
+    )
     resolved_redirect_uri = redirect_uri(settings)
     resolved_post_logout_redirect_uri = post_logout_redirect_uri(settings, "/")
     oidc_session_cookie_ttl_seconds = max(0, settings.oidc_session_cookie_ttl_seconds)
@@ -269,6 +277,11 @@ def build_deployment_readiness_report(
         dr_rehearsal_evidence_configured=settings.dr_rehearsal_evidence_configured,
         dr_restore_owner_configured=settings.dr_restore_owner_configured,
         dr_customer_approval_configured=settings.dr_customer_approval_configured,
+        otel_enabled=bool(observability["otel_enabled"]),
+        otel_metrics_enabled=bool(observability["otel_metrics_enabled"]),
+        otel_exporter_endpoint_configured=bool(
+            observability["otel_exporter_endpoint_configured"]
+        ),
     )
 
     checks = [
@@ -355,6 +368,20 @@ def build_deployment_readiness_report(
                 "S3/MinIO WORM retention is not production-ready; missing "
                 f"{public_object_store_missing_requirements}."
             ),
+        ),
+        _check(
+            "observability_instrumentation",
+            observability_ready,
+            (
+                "OpenTelemetry instrumentation is enabled and an OTLP exporter "
+                "endpoint is configured."
+            ),
+            (
+                "OpenTelemetry instrumentation is disabled (default); enable "
+                "AXIS_OTEL_ENABLED and point AXIS_OTEL_EXPORTER_OTLP_ENDPOINT at a "
+                "collector to emit distributed traces and metrics."
+            ),
+            production_required=False,
         ),
         _check(
             "production_dr_procedures",
