@@ -9915,6 +9915,18 @@
             "title": "Oidc Session Cookie Ttl Seconds",
             "type": "integer"
           },
+          "ontology_mutations_enabled": {
+            "title": "Ontology Mutations Enabled",
+            "type": "boolean"
+          },
+          "ontology_queries_enabled": {
+            "title": "Ontology Queries Enabled",
+            "type": "boolean"
+          },
+          "ontology_typedb_address_configured": {
+            "title": "Ontology Typedb Address Configured",
+            "type": "boolean"
+          },
           "otel_enabled": {
             "title": "Otel Enabled",
             "type": "boolean"
@@ -9952,6 +9964,9 @@
           "deployment_operator_access_runbook_configured",
           "deployment_break_glass_approval_configured",
           "external_model_egress_enabled",
+          "ontology_mutations_enabled",
+          "ontology_queries_enabled",
+          "ontology_typedb_address_configured",
           "connector_sync_execution_enabled",
           "external_db_sync_execution_enabled",
           "external_db_live_query_preflight_enabled",

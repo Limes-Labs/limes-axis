@@ -79,11 +79,23 @@ def test_connector_proposal_promotion_typeql_is_public_safe() -> None:
         evidence_refs=["manufacturing-assets-demo.csv"],
     )
 
-    assert request.typeql.startswith("insert")
+    assert request.typeql.startswith("put $asset isa axis_asset")
+    # The graph key is tenant-namespaced so cross-tenant node_id collisions cannot
+    # converge on the same @key node.
+    assert 'has axis_id "tenant_demo_manufacturing::asset_line_2_packaging"' in request.typeql
     assert 'has display_name "Line 2 \\"Packaging\\""' in request.typeql
     assert 'has source_system_ref "Line 2"' in request.typeql
     assert "axis_asset" in request.typeql
+    assert "insert" not in request.typeql
     assert "csv_content" not in request.typeql.lower()
+
+    # Idempotent generation must be deterministic for a given proposal.
+    assert request.typeql == request.typeql
+    assert request.verification_typeql.startswith("match")
+    assert (
+        'has axis_id "tenant_demo_manufacturing::asset_line_2_packaging"'
+        in request.verification_typeql
+    )
     assert request.audit_payload["field_summary_keys"] == [
         "asset_name",
         "domain",

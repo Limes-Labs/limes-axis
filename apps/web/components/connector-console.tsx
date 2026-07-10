@@ -18,8 +18,11 @@ import {
   buildConnectorEvidenceInvariantSnapshotHistoryPath,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
+  buildConnectorOntologyPromotionRequest,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  findApprovedManualImportForProposal,
+  resolveOntologyPromotionStatus,
   filterConnectorCredentialLeaseInvariantsByLeases,
   filterConnectorEgressPolicyInvariantsByPolicies,
   filterConnectorSyncCheckpointClaimInvariantsByClaims,
@@ -37,6 +40,7 @@ import {
   type ConnectorEvidenceInvariantSnapshotExportRequestRecord,
   type ConnectorEvidenceInvariantSnapshotHistory,
   type ConnectorEvidenceInvariantSnapshotRecord,
+  type ConnectorOntologyProposalRecord,
   type ConnectorPromotionPolicyCreateRequest,
   type ConnectorPromotionPolicyEnableRequest,
   type ConnectorRunRecord,
@@ -64,6 +68,26 @@ import {
 type ConnectorSource = "loading" | "api" | "unavailable";
 type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "error";
 type PolicyEnableStatus = "idle" | "saving" | "api_enabled" | "error";
+type ProposalPromotionStatus =
+  | "idle"
+  | "promoting"
+  | "promoted"
+  | "deferred"
+  | "failed"
+  | "forbidden"
+  | "no_evidence"
+  | "error";
+
+const PROPOSAL_PROMOTION_STATUS_LABEL: Record<ProposalPromotionStatus, string> = {
+  idle: "",
+  promoting: "promoting…",
+  promoted: "promoted to graph",
+  deferred: "promotion deferred (mutations disabled)",
+  failed: "promotion failed",
+  forbidden: "permission denied",
+  no_evidence: "approved manual import required",
+  error: "promotion request failed",
+};
 type EvidenceSnapshotStatus = "idle" | "saving" | "api_created" | "error";
 type EvidenceSnapshotExportRequestStatus = "idle" | "saving" | "api_created" | "error";
 type EvidenceSnapshotExportDecisionStatus = "idle" | "saving" | "api_decided" | "error";
@@ -505,6 +529,9 @@ export function ConnectorConsole() {
   const [policyAuthoringStatus, setPolicyAuthoringStatus] =
     useState<PolicyAuthoringStatus>("idle");
   const [policyEnableStatus, setPolicyEnableStatus] = useState<PolicyEnableStatus>("idle");
+  const [proposalPromotionStatuses, setProposalPromotionStatuses] = useState<
+    Record<string, ProposalPromotionStatus>
+  >({});
   const [evidenceSnapshotStatus, setEvidenceSnapshotStatus] =
     useState<EvidenceSnapshotStatus>("idle");
   const { refreshNonce } = useConsole();
@@ -778,6 +805,75 @@ export function ConnectorConsole() {
       setPolicyEnableStatus("api_enabled");
     } catch {
       setPolicyEnableStatus("error");
+    }
+  }
+
+  async function promoteOntologyProposal(proposal: ConnectorOntologyProposalRecord) {
+    // The promotion is governed server-side (approved manual import, promotion
+    // policy, permission scope). The console only submits the request; the API
+    // remains the source of truth. We optimistically render "promoting" and
+    // reconcile from the server response (including a 403 rollback).
+    const approvedImport = findApprovedManualImportForProposal(
+      selectedManualImports,
+      proposal.proposal_id,
+    );
+    if (!approvedImport) {
+      setProposalPromotionStatuses((current) => ({
+        ...current,
+        [proposal.proposal_id]: "no_evidence",
+      }));
+      return;
+    }
+
+    setProposalPromotionStatuses((current) => ({
+      ...current,
+      [proposal.proposal_id]: "promoting",
+    }));
+
+    const request = buildConnectorOntologyPromotionRequest({
+      tenantId: registry.tenant_id,
+      proposalId: proposal.proposal_id,
+      manualImportId: approvedImport.import_id,
+    });
+
+    try {
+      const response = await axisFetch(
+        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+        {
+          method: "POST",
+          body: request,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (response.status === 403) {
+        setProposalPromotionStatuses((current) => ({
+          ...current,
+          [proposal.proposal_id]: "forbidden",
+        }));
+        return;
+      }
+      if (!response.ok) {
+        setProposalPromotionStatuses((current) => ({
+          ...current,
+          [proposal.proposal_id]: "error",
+        }));
+        return;
+      }
+
+      const result = (await response.json()) as { graph_mutation_status?: string };
+      setProposalPromotionStatuses((current) => ({
+        ...current,
+        [proposal.proposal_id]: resolveOntologyPromotionStatus(
+          result.graph_mutation_status ?? "",
+        ),
+      }));
+      await refreshConnectorData();
+    } catch {
+      setProposalPromotionStatuses((current) => ({
+        ...current,
+        [proposal.proposal_id]: "error",
+      }));
     }
   }
 
@@ -2048,6 +2144,35 @@ export function ConnectorConsole() {
                   <p className="row-detail">
                     {proposal.ontology_mutation?.status ?? proposal.graph_mutation_status}
                   </p>
+                  {proposal.status === "promoted_to_graph" ? (
+                    <p className="row-detail">graph mutation applied</p>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="command-button"
+                        onClick={() => void promoteOntologyProposal(proposal)}
+                        disabled={
+                          proposalPromotionStatuses[proposal.proposal_id] === "promoting"
+                        }
+                      >
+                        Promote to graph
+                      </button>
+                      {proposalPromotionStatuses[proposal.proposal_id] &&
+                      proposalPromotionStatuses[proposal.proposal_id] !== "idle" ? (
+                        <p
+                          className="row-detail"
+                          data-testid={`promotion-status-${proposal.proposal_id}`}
+                        >
+                          {
+                            PROPOSAL_PROMOTION_STATUS_LABEL[
+                              proposalPromotionStatuses[proposal.proposal_id]
+                            ]
+                          }
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                 </div>
                 <div>
                   <p className="metric-label">Policy</p>

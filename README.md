@@ -84,6 +84,12 @@ token-bound API paths without a full production login flow. Ontology graph list
 reads now pass through an Axis query runtime boundary that can filter returned
 relationships by OIDC-derived scopes and can be switched from the deferred
 reference runtime to a TypeDB read boundary independently from graph mutations.
+Connector ontology promotions can, behind `AXIS_ONTOLOGY_MUTATIONS_ENABLED`,
+write governed entities into TypeDB using an idempotent `put` mutation that is
+read back for verification before a proposal is marked promoted; the path is
+fail-closed and off by default (see
+[docs/platform-connectors.md](docs/platform-connectors.md) and
+[docs/deployment.md](docs/deployment.md)).
 The API also exposes a public-safe OIDC readiness report at
 `/identity/oidc/readiness`, and `/ready` includes a short identity summary, so
 demo and enterprise evaluation sessions can distinguish local OIDC demos from a

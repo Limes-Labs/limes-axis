@@ -826,10 +826,74 @@ Successful promotions write through the Axis ontology mutation runtime adapter
 and record `type_db_mutation_applied` on the proposal. If the TypeDB mutation
 runtime is disabled, the default adapter records `type_db_mutation_deferred`
 without mutating the graph. Runtime failures are recorded as
-`type_db_mutation_unavailable`. Successful, deferred and failed promotion
-attempts write append-only `connector.ontology_promotion.*` audit evidence with
-the manifest runtime boundary that authorized the mutation path, and never
-store raw CSV content or credential material.
+`type_db_mutation_unavailable` (the datastore/driver was unreachable) or
+`type_db_mutation_failed` (the write committed but the mandatory read-back could
+not confirm the node). Successful, deferred and failed promotion attempts write
+append-only `connector.ontology_promotion.*` audit evidence with the manifest
+runtime boundary that authorized the mutation path, and never store raw CSV
+content or credential material.
+
+### Graph mutation: idempotency, verification, failure and read-back
+
+The live TypeDB mutation path is off by default and gated behind
+`AXIS_ONTOLOGY_MUTATIONS_ENABLED`. When enabled it is real, atomic and
+fail-closed:
+
+- **Deterministic, idempotent TypeQL.** The runtime generates a TypeDB 3.x
+  `put` (match-or-insert) pipeline keyed on the `@key` `axis_id` attribute of
+  `axis_asset`, one object per `put` stage. The generated TypeQL is stable for a
+  given proposal, so promoting the same proposal twice converges on a single
+  logical node instead of inserting a duplicate.
+- **Tenant-namespaced graph key.** The graph is a single shared TypeDB database
+  and a proposal's `node_id` is a raw connector source-column value, so two
+  tenants can legitimately share a `node_id` string. The written `axis_id`
+  `@key` is therefore namespaced as `<tenant_id>::<node_id>`, not the bare
+  `node_id`. Within-tenant re-promotes still converge on one node, but two
+  tenants promoting the same `node_id` land on distinct nodes and can never
+  co-mingle attributes. The un-namespaced `node_id` remains the display identity
+  in proposals and the console; the namespaced key appears in the mutation
+  reference and the audit `graph_key`.
+- **Atomicity.** The whole `put` pipeline is submitted as one TypeDB write
+  transaction that commits or rolls back as a unit; a partial or failed write
+  leaves nothing behind and is safe to retry.
+- **Read-back verification.** After commit the runtime reads the node back and
+  only reports `type_db_mutation_applied` (and transitions the proposal to
+  `promoted_to_graph`) once the node is observed. A read-back that cannot find
+  the node is a `type_db_mutation_failed` data-integrity failure.
+- **Fail-closed.** On `type_db_mutation_deferred`, `_unavailable` or `_failed`
+  the proposal is **not** marked `promoted_to_graph`, its graph mutation status
+  stays `not_applied`, and it remains promotable once the datastore recovers.
+  Idempotency (deterministic `promotion_id`/`idempotency_key`) makes retries
+  safe: replaying a completed promotion returns the recorded result, and a
+  previously-failed promotion can be re-attempted without corruption.
+- **Enablement.** Two process-global flags govern the live path:
+  `AXIS_ONTOLOGY_MUTATIONS_ENABLED` (writes) and `AXIS_ONTOLOGY_QUERIES_ENABLED`
+  (reads). Enabling mutations without reads means promoted nodes are written but
+  not served back through the ontology read API, so enable both together and
+  load the schema first (`python -m axis_api.ontology.bootstrap`). Per-tenant
+  enablement is not currently modeled; the flags are process-wide. Promoted
+  nodes are still subject to the ontology read authorization — enabling reads
+  does not bypass relationship-scope or per-entity read gates. The deployment
+  readiness report exposes this as the `ontology_graph_mutation_posture` check.
+
+Known limitation — proposal mutation semantics: idempotency is keyed on the
+identity (`axis_id`). Only the identity anchor is `@key`; the non-key attributes
+(`display_name`, `asset_type`, `domain`, `risk_level`, `source_system_ref`) are
+written with per-attribute `put`. Re-promoting an otherwise-identical proposal is
+a no-op, but re-promoting a **mutated** proposal that keeps the same `node_id`
+while changing a non-key attribute value **adds** the new value alongside the old
+one rather than replacing it, leaving the node with multiple values for that
+attribute. In the current flow this is not reachable through the API (a proposal
+transitions to `promoted_to_graph` on success and cannot be re-promoted, and the
+promotion idempotency key is deterministic), but a future re-promotion or
+proposal-edit flow must delete-then-`put` the changed non-key attributes if it
+needs replace semantics.
+
+The connector console surfaces a governed **Promote to graph** action on each
+review-only proposal. It submits the same governed request (approved
+manual-import evidence, promotion policy and `connectors:ontology:promote` scope
+are enforced server-side) and renders the resulting graph mutation status; a
+403 rolls the action back client-side.
 
 Promotion policies are authored through
 `POST /demo/manufacturing/connectors/promotion-policies` and listed through

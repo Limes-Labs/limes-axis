@@ -36,7 +36,7 @@ entity axis_organization,
   plays axis_owns_relation:owned;
 
 entity axis_asset,
-  owns axis_id,
+  owns axis_id @key,
   owns display_name,
   owns asset_type,
   owns domain,

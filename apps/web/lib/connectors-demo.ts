@@ -1175,6 +1175,64 @@ export function buildConnectorPromotionPolicyDraftRequest(
   };
 }
 
+export type ConnectorOntologyPromotionRequest = {
+  tenant_id: string;
+  promotion_id: string;
+  idempotency_key: string;
+  proposal_id: string;
+  manual_import_id: string;
+  actor_id: string;
+  actor_scopes: string[];
+  note?: string;
+};
+
+// The console derives promotion_id/idempotency_key deterministically from the
+// proposal id so that clicking Promote twice is an idempotent server replay
+// rather than a conflicting new promotion.
+export function buildConnectorOntologyPromotionRequest(input: {
+  tenantId: string;
+  proposalId: string;
+  manualImportId: string;
+  actorId?: string;
+}): ConnectorOntologyPromotionRequest {
+  return {
+    tenant_id: input.tenantId,
+    promotion_id: `promote_${input.proposalId}`,
+    idempotency_key: `promote-${input.proposalId}`,
+    proposal_id: input.proposalId,
+    manual_import_id: input.manualImportId,
+    actor_id: input.actorId ?? "connector-console-operator",
+    actor_scopes: ["connectors:ontology:promote"],
+    note: "Promoted from the connector console.",
+  };
+}
+
+// Maps the server graph_mutation_status to the console's promotion badge state.
+export function resolveOntologyPromotionStatus(
+  graphMutationStatus: string,
+): "promoted" | "deferred" | "failed" {
+  if (graphMutationStatus === "type_db_mutation_applied") {
+    return "promoted";
+  }
+  if (graphMutationStatus === "type_db_mutation_deferred") {
+    return "deferred";
+  }
+  return "failed";
+}
+
+// Finds the approved manual-import evidence that authorizes promoting a proposal.
+export function findApprovedManualImportForProposal(
+  imports: ConnectorManualImportRecord[],
+  proposalId: string,
+): ConnectorManualImportRecord | undefined {
+  return imports.find(
+    (manualImport) =>
+      manualImport.proposal_ids.includes(proposalId) &&
+      manualImport.status === "approval_approved" &&
+      manualImport.decision === "approve",
+  );
+}
+
 export function buildConnectorPromotionPolicyEnableRequest(
   overrides: Partial<ConnectorPromotionPolicyEnableRequest> = {},
 ): ConnectorPromotionPolicyEnableRequest {

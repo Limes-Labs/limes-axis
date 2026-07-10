@@ -2343,6 +2343,7 @@ def create_app(
                 "postgres": bool(resolved_settings.postgres_dsn),
                 "typedb": bool(resolved_settings.typedb_address),
                 "typedb_queries": resolved_settings.ontology_queries_enabled,
+                "typedb_mutations": resolved_settings.ontology_mutations_enabled,
                 "temporal": bool(resolved_settings.temporal_address),
             },
             "identity": _oidc_readiness_summary(resolved_settings),

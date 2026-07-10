@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -5,13 +6,50 @@ from pydantic import BaseModel, Field
 
 from axis_api.ontology.client import OntologyClient, OntologyClientConfig
 
+# The mutation runtime returns these on the OntologyMutationResult.status field.
+MUTATION_STATUS_APPLIED = "type_db_mutation_applied"
+MUTATION_STATUS_DEFERRED = "type_db_mutation_deferred"
+# The datastore/driver was unreachable, timed out, or refused the transaction.
+MUTATION_STATUS_UNAVAILABLE = "type_db_mutation_unavailable"
+# The write transaction committed but the mandatory read-back could not confirm
+# the node landed (data-integrity failure). Distinct from _unavailable so
+# operators can tell "TypeDB was down" apart from "TypeDB accepted a write that
+# did not verify".
+MUTATION_STATUS_FAILED = "type_db_mutation_failed"
+
+# Delimiter between tenant_id and node_id in the tenant-namespaced graph key.
+# tenant_id is a controlled identifier without this sequence, so the first
+# occurrence unambiguously delimits the namespace from the connector-derived
+# node_id.
+GRAPH_KEY_SEPARATOR = "::"
+
 
 class OntologyMutationError(RuntimeError):
-    pass
+    """A live TypeDB promotion could not be completed.
+
+    ``status`` carries the fail-closed ``OntologyMutationResult.status`` the
+    caller should surface (unavailable vs failed); the message carries a short,
+    audit-safe reason.
+    """
+
+    def __init__(self, reason: str, *, status: str = MUTATION_STATUS_UNAVAILABLE) -> None:
+        super().__init__(reason)
+        self.status = status
 
 
 def _typeql_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+# field_summary key -> axis_asset attribute label (schema.tql). Ordering is
+# significant: the generated TypeQL must be deterministic for a given proposal
+# so idempotency/replay comparisons and audits are stable.
+_FIELD_TO_ATTRIBUTE = {
+    "asset_name": "display_name",
+    "domain": "domain",
+    "risk_level": "risk_level",
+    "station": "source_system_ref",
+}
 
 
 class OntologyMutationRequest(BaseModel):
@@ -28,24 +66,54 @@ class OntologyMutationRequest(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
 
     @property
+    def graph_key(self) -> str:
+        """Tenant-namespaced identity written as ``axis_id`` in the shared graph.
+
+        The graph is a single shared TypeDB database and ``node_id`` is a raw
+        connector source-column value, so two tenants can legitimately propose
+        the same ``node_id`` string. Because ``axis_id`` is the ``@key`` of
+        ``axis_asset``, keying on the bare ``node_id`` would ``put`` both tenants
+        onto the SAME node and co-mingle their attributes — a tenant-isolation
+        break. Namespacing the key with the (controlled, delimiter-free)
+        ``tenant_id`` keeps within-tenant re-promotes converging on one node while
+        making cross-tenant same-``node_id`` collisions impossible. ``node_id``
+        stays the display identity everywhere the UI shows it.
+        """
+        return f"{self.tenant_id}{GRAPH_KEY_SEPARATOR}{self.node_id}"
+
+    @property
     def typeql(self) -> str:
-        clauses = [
-            "$asset isa axis_asset",
-            f'has axis_id "{_typeql_string(self.node_id)}"',
-            f'has asset_type "{_typeql_string(self.ontology_type)}"',
+        """Deterministic, idempotent TypeQL for promoting this proposal.
+
+        Uses TypeDB 3.x ``put`` (match-or-insert) stages keyed on the ``@key``
+        ``axis_id`` attribute (the tenant-namespaced ``graph_key``) rather than a
+        bare ``insert``. Re-running the same promotion is a no-op: the identity
+        anchor matches the existing entity and each attribute ``put`` matches the
+        already-owned value. One object per ``put`` stage (the documented safe
+        form), pipelined so later stages bind ``$asset`` from the identity anchor.
+        The whole string is submitted as one atomic TypeDB write transaction (see
+        OntologyClient.execute_write).
+        """
+        graph_key = _typeql_string(self.graph_key)
+        statements = [
+            f'put $asset isa axis_asset, has axis_id "{graph_key}";',
+            f'put $asset has asset_type "{_typeql_string(self.ontology_type)}";',
         ]
-        field_to_attribute = {
-            "asset_name": "display_name",
-            "domain": "domain",
-            "risk_level": "risk_level",
-            "station": "source_system_ref",
-        }
-        for field_name, attribute_name in field_to_attribute.items():
+        for field_name, attribute_name in _FIELD_TO_ATTRIBUTE.items():
             value = self.field_summary.get(field_name)
             if value:
-                clauses.append(f'has {attribute_name} "{_typeql_string(value)}"')
+                statements.append(
+                    f'put $asset has {attribute_name} "{_typeql_string(value)}";'
+                )
+        return "\n".join(statements)
 
-        return "insert\n" + ",\n  ".join(clauses) + ";"
+    @property
+    def verification_typeql(self) -> str:
+        """Read-back query confirming the promoted node exists post-commit."""
+        return (
+            f'match\n  $asset isa axis_asset, has axis_id "{_typeql_string(self.graph_key)}";\n'
+            'fetch {\n  "axis_id": $asset.axis_id\n};'
+        )
 
     @property
     def audit_payload(self) -> dict:
@@ -57,6 +125,7 @@ class OntologyMutationRequest(BaseModel):
             "manual_import_id": self.manual_import_id,
             "actor_id": self.actor_id,
             "node_id": self.node_id,
+            "graph_key": self.graph_key,
             "node_type": self.node_type,
             "ontology_type": self.ontology_type,
             "field_summary_keys": sorted(self.field_summary.keys()),
@@ -107,17 +176,38 @@ class TypeDBOntologyMutationRuntime:
         self,
         request: OntologyMutationRequest,
     ) -> OntologyMutationResult:
+        # 1. Atomic, idempotent write. execute_write commits or rolls back the
+        #    whole put-pipeline as a single transaction; a driver/connection
+        #    failure here is fail-closed and retry-safe (nothing partial lands).
         try:
             self.client.execute_write(request.typeql)
         except Exception as exc:
-            raise OntologyMutationError(exc.__class__.__name__) from exc
+            raise OntologyMutationError(
+                exc.__class__.__name__, status=MUTATION_STATUS_UNAVAILABLE
+            ) from exc
+
+        # 2. Mandatory read-back. We only report the proposal promoted_to_graph
+        #    once we can observe the node in TypeDB. A read error is treated as
+        #    the datastore being unavailable; a successful read that does not
+        #    contain the node is a data-integrity failure.
+        try:
+            rows = self.client.execute_read(request.verification_typeql)
+        except Exception as exc:
+            raise OntologyMutationError(
+                f"verification_read_{exc.__class__.__name__}",
+                status=MUTATION_STATUS_UNAVAILABLE,
+            ) from exc
+        if not _verification_confirms_node(rows, request.graph_key):
+            raise OntologyMutationError(
+                "verification_missing_node", status=MUTATION_STATUS_FAILED
+            )
 
         return OntologyMutationResult(
-            status="type_db_mutation_applied",
+            status=MUTATION_STATUS_APPLIED,
             adapter=self.adapter_name,
-            mutation_ref=f"typedb://{self.client.config.database}/{request.node_id}",
+            mutation_ref=f"typedb://{self.client.config.database}/{request.graph_key}",
             typeql=request.typeql,
-            payload=request.audit_payload,
+            payload={**request.audit_payload, "verified": True},
         )
 
 
@@ -129,7 +219,7 @@ class DeferredOntologyMutationRuntime:
         request: OntologyMutationRequest,
     ) -> OntologyMutationResult:
         return OntologyMutationResult(
-            status="type_db_mutation_deferred",
+            status=MUTATION_STATUS_DEFERRED,
             adapter=self.adapter_name,
             mutation_ref=None,
             typeql=request.typeql,
@@ -137,13 +227,48 @@ class DeferredOntologyMutationRuntime:
         )
 
 
+def _fetched_values(value: object) -> list[str]:
+    """Flatten a fetched ``axis_id`` document value into candidate strings.
+
+    A TypeDB 3.x ``fetch { "axis_id": $asset.axis_id }`` projection returns a
+    scalar for a single-valued attribute and a list for a multi-valued one. To be
+    robust across driver rendering (and the nested attribute-concept shape
+    ``{"value": ..., "value_type": ...}`` used by ``$var.*`` / ``[$var.attr]``
+    fetches), we accept scalars, lists/tuples, and mappings carrying a ``value``.
+    """
+    if value is None:
+        return []
+    if isinstance(value, Mapping):
+        if "value" in value:
+            return _fetched_values(value["value"])
+        return []
+    if isinstance(value, (list, tuple)):
+        results: list[str] = []
+        for item in value:
+            results.extend(_fetched_values(item))
+        return results
+    return [str(value)]
+
+
+def _verification_confirms_node(rows: Sequence[object], graph_key: str) -> bool:
+    """True if the read-back rows observe an ``axis_id`` equal to ``graph_key``."""
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if graph_key in _fetched_values(row.get("axis_id")):
+            return True
+    return False
+
+
 def ontology_mutation_failure_result(
     request: OntologyMutationRequest,
     reason: str,
+    *,
+    status: str = MUTATION_STATUS_UNAVAILABLE,
     adapter: str = TypeDBOntologyMutationRuntime.adapter_name,
 ) -> OntologyMutationResult:
     return OntologyMutationResult(
-        status="type_db_mutation_unavailable",
+        status=status,
         adapter=adapter,
         mutation_ref=None,
         typeql=request.typeql,
