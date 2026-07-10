@@ -12,6 +12,8 @@ from axis_api.audit import AuditEventCreate
 from axis_api.models import (
     ActionRun,
     Actor,
+    AgentRun,
+    AgentRunStep,
     ApprovalRecord,
     AuditEvent,
     AuditLegalHold,
@@ -725,6 +727,45 @@ class ModelInvocationResultRecord(BaseModel):
     audit_event_id: UUID | None = None
     audit_event_type: str | None = None
     notes: list[str] | None = None
+
+
+class AgentRunCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    agent_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    status: str = Field(default="requested", min_length=1)
+    mode: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+    autonomy_level: str = Field(min_length=1)
+    request_fingerprint: dict = Field(default_factory=dict)
+    context_refs: list[str] = Field(default_factory=list)
+    model_invocation_ids: list[str] = Field(default_factory=list)
+    permission_decision: dict = Field(default_factory=dict)
+    platform_policy_decision: dict | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class AgentRunResultRecord(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    run_id: UUID
+    status: str = Field(min_length=1)
+    context_refs: list[str] | None = None
+    model_invocation_ids: list[str] | None = None
+    proposed_action_run_id: UUID | None = None
+    proposal_payload: dict | None = None
+    error_reason: str | None = None
+    audit_event_id: UUID | None = None
+    audit_event_type: str | None = None
+    notes: list[str] | None = None
+
+
+class AgentRunStepCreate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    run_id: UUID
+    seq: int = Field(ge=1)
+    step_type: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    evidence: dict = Field(default_factory=dict)
 
 
 class ActorCreate(BaseModel):
@@ -3668,6 +3709,123 @@ class AxisPersistenceRepository:
                 PlatformPolicy.policy_id.asc(),
                 PlatformPolicy.revision_number.desc(),
             )
+        )
+        return list(self.session.scalars(statement))
+
+    def create_agent_run(self, record: AgentRunCreate) -> AgentRun:
+        agent_run = AgentRun(
+            tenant_id=record.tenant_id,
+            agent_id=record.agent_id,
+            idempotency_key=record.idempotency_key,
+            status=record.status,
+            mode=record.mode,
+            requested_by=record.requested_by,
+            autonomy_level=record.autonomy_level,
+            request_fingerprint=record.request_fingerprint,
+            context_refs=record.context_refs,
+            model_invocation_ids=record.model_invocation_ids,
+            permission_decision=record.permission_decision,
+            platform_policy_decision=record.platform_policy_decision,
+            notes=record.notes,
+        )
+        self.session.add(agent_run)
+        self.session.flush()
+        return agent_run
+
+    def get_agent_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None:
+        statement: Select[tuple[AgentRun]] = select(AgentRun).where(
+            AgentRun.tenant_id == tenant_id,
+            AgentRun.id == run_id,
+        )
+        return self.session.scalar(statement)
+
+    def get_agent_run_by_idempotency_key(
+        self,
+        tenant_id: str,
+        agent_id: str,
+        idempotency_key: str,
+    ) -> AgentRun | None:
+        statement: Select[tuple[AgentRun]] = select(AgentRun).where(
+            AgentRun.tenant_id == tenant_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.idempotency_key == idempotency_key,
+        )
+        return self.session.scalar(statement)
+
+    def record_agent_run_result(self, result: AgentRunResultRecord) -> AgentRun:
+        agent_run = self.get_agent_run(result.tenant_id, result.run_id)
+        if agent_run is None:
+            raise PersistenceRecordNotFound("Agent run not found")
+        agent_run.status = result.status
+        if result.context_refs is not None:
+            agent_run.context_refs = result.context_refs
+        if result.model_invocation_ids is not None:
+            agent_run.model_invocation_ids = result.model_invocation_ids
+        if result.proposed_action_run_id is not None:
+            agent_run.proposed_action_run_id = result.proposed_action_run_id
+        if result.proposal_payload is not None:
+            agent_run.proposal_payload = result.proposal_payload
+        agent_run.error_reason = result.error_reason
+        agent_run.audit_event_id = result.audit_event_id
+        agent_run.audit_event_type = result.audit_event_type
+        if result.notes is not None:
+            agent_run.notes = result.notes
+        agent_run.updated_at = utc_now()
+        self.session.flush()
+        return agent_run
+
+    def list_agent_runs(
+        self,
+        tenant_id: str,
+        agent_id: str,
+        cursor_created_at: datetime | None = None,
+        cursor_row_id: UUID | None = None,
+        limit: int = 100,
+    ) -> list[AgentRun]:
+        statement: Select[tuple[AgentRun]] = select(AgentRun).where(
+            AgentRun.tenant_id == tenant_id,
+            AgentRun.agent_id == agent_id,
+        )
+        if cursor_created_at is not None and cursor_row_id is not None:
+            # Newest-first keyset continuation: resume strictly after the
+            # cursor row in (created_at desc, id desc) order.
+            statement = statement.where(
+                or_(
+                    AgentRun.created_at < cursor_created_at,
+                    and_(
+                        AgentRun.created_at == cursor_created_at,
+                        AgentRun.id < cursor_row_id,
+                    ),
+                )
+            )
+        statement = statement.order_by(
+            AgentRun.created_at.desc(),
+            AgentRun.id.desc(),
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def append_agent_run_step(self, record: AgentRunStepCreate) -> AgentRunStep:
+        """Append a step to the run timeline; steps are immutable once written."""
+        step = AgentRunStep(
+            tenant_id=record.tenant_id,
+            run_id=record.run_id,
+            seq=record.seq,
+            step_type=record.step_type,
+            status=record.status,
+            evidence=record.evidence,
+        )
+        self.session.add(step)
+        self.session.flush()
+        return step
+
+    def list_agent_run_steps(self, tenant_id: str, run_id: UUID) -> list[AgentRunStep]:
+        statement: Select[tuple[AgentRunStep]] = (
+            select(AgentRunStep)
+            .where(
+                AgentRunStep.tenant_id == tenant_id,
+                AgentRunStep.run_id == run_id,
+            )
+            .order_by(AgentRunStep.seq.asc())
         )
         return list(self.session.scalars(statement))
 

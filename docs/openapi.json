@@ -958,6 +958,307 @@
         "title": "AgentRegistryFilterOptions",
         "type": "object"
       },
+      "AgentRunList": {
+        "properties": {
+          "agent_id": {
+            "minLength": 1,
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "run_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Run Notes",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRunResult"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "agent_id"
+        ],
+        "title": "AgentRunList",
+        "type": "object"
+      },
+      "AgentRunResult": {
+        "properties": {
+          "agent_id": {
+            "minLength": 1,
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Type"
+          },
+          "autonomy_level": {
+            "minLength": 1,
+            "title": "Autonomy Level",
+            "type": "string"
+          },
+          "context_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Context Refs",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Reason"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "mode": {
+            "minLength": 1,
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_invocation_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Model Invocation Ids",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "persisted": {
+            "default": true,
+            "title": "Persisted",
+            "type": "boolean"
+          },
+          "platform_policy_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlatformPolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposal_payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Payload"
+          },
+          "proposed_action_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Action Run Id"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRunStepView"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "run_id",
+          "agent_id",
+          "idempotency_key",
+          "status",
+          "mode",
+          "requested_by",
+          "autonomy_level",
+          "permission_decision",
+          "created_at"
+        ],
+        "title": "AgentRunResult",
+        "type": "object"
+      },
+      "AgentRunStartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "mode": {
+            "default": "propose",
+            "pattern": "^(propose|dry_run)$",
+            "title": "Mode",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_id",
+          "idempotency_key"
+        ],
+        "title": "AgentRunStartRequest",
+        "type": "object"
+      },
+      "AgentRunStepView": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "seq": {
+            "minimum": 1.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "step_type": {
+            "minLength": 1,
+            "title": "Step Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "step_type",
+          "status",
+          "created_at"
+        ],
+        "title": "AgentRunStepView",
+        "type": "object"
+      },
       "AgentSummary": {
         "properties": {
           "agent_id": {
@@ -15751,7 +16052,8 @@
         "enum": [
           "action_execution",
           "approval_requirement",
-          "model_invocation"
+          "model_invocation",
+          "agent_run"
         ],
         "title": "PlatformPolicyScope",
         "type": "string"
@@ -18273,6 +18575,253 @@
           }
         },
         "summary": "Manufacturing Agent Registry",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/agents/{agent_id}/runs": {
+      "get": {
+        "operationId": "manufacturing_agent_run_list_demo_manufacturing_agents__agent_id__runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 600,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Agent run read permission denied"
+          },
+          "422": {
+            "description": "Agent run listing cursor is invalid"
+          }
+        },
+        "summary": "Manufacturing Agent Run List",
+        "tags": [
+          "demo"
+        ]
+      },
+      "post": {
+        "operationId": "manufacturing_agent_run_demo_manufacturing_agents__agent_id__runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Agent run permission denied or platform policy denied"
+          },
+          "404": {
+            "description": "Agent or agent registry reference record not found"
+          },
+          "409": {
+            "description": "Agent run idempotency conflict"
+          },
+          "422": {
+            "description": "Agent is not executable or the registry reference payload is invalid"
+          }
+        },
+        "summary": "Manufacturing Agent Run",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/agents/{agent_id}/runs/{run_id}": {
+      "get": {
+        "operationId": "manufacturing_agent_run_detail_demo_manufacturing_agents__agent_id__runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Agent run read permission denied"
+          },
+          "404": {
+            "description": "Agent run not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Agent Run Detail",
         "tags": [
           "demo"
         ]

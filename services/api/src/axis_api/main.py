@@ -37,6 +37,22 @@ from axis_api.agent_reference import (
     AgentReferenceRecordNotFound,
     get_persisted_manufacturing_agent_registry,
 )
+from axis_api.agent_runs import (
+    AgentRunAgentNotExecutable,
+    AgentRunAgentNotFound,
+    AgentRunCursorError,
+    AgentRunIdempotencyConflict,
+    AgentRunList,
+    AgentRunNotFound,
+    AgentRunPermissionDenied,
+    AgentRunResult,
+    AgentRunStartRequest,
+    decode_agent_run_cursor,
+    encode_agent_run_cursor,
+    get_agent_run_result,
+    list_agent_run_results,
+    start_agent_run,
+)
 from axis_api.approval_decisions import (
     ApprovalDecisionPersistenceResult,
     ApprovalDecisionRequest,
@@ -1499,6 +1515,30 @@ def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
         ) from exc
 
 
+def _bind_demo_tenant_actor(request_model, principal: OidcPrincipal | None):
+    """Bind a demo request that also carries a ``tenant_id`` field.
+
+    ``_bind_demo_actor`` pins the principal to the demo tenant and overwrites
+    the actor identity; this variant additionally rejects a request body whose
+    ``tenant_id`` differs from the authenticated principal's tenant, so a bound
+    write can never land in another tenant's scope (same ``tenant_mismatch``
+    contract as ``_bind_platform_policy_actor``).
+    """
+    bound_request = _bind_demo_actor(request_model, principal)
+    if principal is not None and getattr(bound_request, "tenant_id", None) != (
+        principal.tenant_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+    return bound_request
+
+
 def _bind_audit_actor(request_model, principal: OidcPrincipal | None):
     if principal is None:
         return request_model
@@ -2212,6 +2252,29 @@ def _authorize_connector_tenant_read(
     principal (same pattern as ``_authorize_connector_sync_checkpoint_read``)
     keeps one tenant's connector records -- credential handles, configurations,
     manifests and friends -- out of another tenant's reach. Unauthenticated demo
+    traffic (no principal) is unaffected, preserving the
+    ``AXIS_OIDC_AUTH_REQUIRED`` demo-mode convention.
+    """
+    if principal is not None and principal.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+
+
+def _authorize_agent_run_tenant_read(
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+) -> None:
+    """Reject an agent run read whose query ``tenant_id`` differs from the principal.
+
+    Agent run records carry governance evidence (permission decisions, context
+    references, proposal payloads), so reads bind the verified OIDC principal
+    the same way ``_authorize_connector_tenant_read`` does. Unauthenticated demo
     traffic (no principal) is unaffected, preserving the
     ``AXIS_OIDC_AUTH_REQUIRED`` demo-mode convention.
     """
@@ -3968,6 +4031,222 @@ def create_app(
                     "message": "Manufacturing agent registry reference payload is invalid.",
                     "tenant_id": tenant_id,
                     "surface": "agents",
+                },
+            ) from exc
+
+    @app.post(
+        "/demo/manufacturing/agents/{agent_id}/runs",
+        response_model=AgentRunResult,
+        responses={
+            403: {"description": "Agent run permission denied or platform policy denied"},
+            404: {"description": "Agent or agent registry reference record not found"},
+            409: {"description": "Agent run idempotency conflict"},
+            422: {
+                "description": (
+                    "Agent is not executable or the registry reference payload is invalid"
+                )
+            },
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    async def manufacturing_agent_run(
+        agent_id: str,
+        run_request: AgentRunStartRequest,
+        repository: PersistenceRepository,
+        model_runtime: ModelInvocationRuntimeDependency,
+        workflow_runtime: WorkflowRuntime,
+        principal: OidcPrincipalDependency,
+        response: Response,
+    ) -> AgentRunResult:
+      with telemetry.tracer.start_as_current_span("axis.agent_run.start") as span:
+        set_span_attributes(
+            span,
+            {
+                ATTR_TENANT_ID: principal.tenant_id if principal else None,
+                ATTR_ACTOR_ID: principal.actor_id if principal else None,
+            },
+        )
+        try:
+            bound_run_request = _bind_demo_tenant_actor(run_request, principal)
+            result = await start_agent_run(
+                repository,
+                agent_id,
+                bound_run_request,
+                model_runtime,
+                execution_enabled=resolved_settings.agent_run_execution_enabled,
+                max_model_calls=resolved_settings.agent_run_max_model_calls,
+                external_model_egress_enabled=(
+                    resolved_settings.external_model_egress_enabled
+                ),
+                model_prompt_excerpt_chars=(
+                    resolved_settings.model_invocation_prompt_excerpt_chars
+                ),
+                usage_metering_enabled=resolved_settings.usage_metering_enabled,
+                usage_window_seconds=(
+                    resolved_settings.usage_metering_aggregation_window_seconds
+                ),
+                workflow_runtime=workflow_runtime,
+            )
+        except AgentReferenceRecordNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Manufacturing agent registry reference record not found.",
+                    "surface": "agents",
+                },
+            ) from exc
+        except AgentReferenceRecordInvalid as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "Manufacturing agent registry reference payload is invalid.",
+                    "surface": "agents",
+                },
+            ) from exc
+        except AgentRunAgentNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The agent was not found in the persisted registry.",
+                    "reason": "agent_not_found",
+                    "agent_id": agent_id,
+                },
+            ) from exc
+        except AgentRunAgentNotExecutable as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                    "agent_id": agent_id,
+                },
+            ) from exc
+        except AgentRunPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot execute runs for this agent.",
+                    "required_permissions": exc.required_permissions,
+                    "reason": exc.decision.reason,
+                },
+            ) from exc
+        except PlatformPolicyEnforcementDenied as exc:
+            repository.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=_platform_policy_denied_detail(
+                    exc,
+                    "A platform policy denies this agent run.",
+                ),
+            ) from exc
+        except AgentRunIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": (
+                        "The idempotency key already exists with a different payload."
+                    ),
+                    "reason": "idempotency_key_conflict",
+                    "run_id": str(exc.run_id),
+                },
+            ) from exc
+
+        outcome = "idempotent_replay" if result.idempotent_replay else result.status
+        set_span_attributes(span, {ATTR_OUTCOME: outcome})
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @app.get(
+        "/demo/manufacturing/agents/{agent_id}/runs",
+        response_model=AgentRunList,
+        responses={
+            403: {"description": "Agent run read permission denied"},
+            422: {"description": "Agent run listing cursor is invalid"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_agent_run_list(
+        agent_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        page_size: int = Query(default=20, ge=1, le=100),
+        cursor: str | None = Query(default=None, min_length=1, max_length=600),
+    ) -> AgentRunList:
+        _authorize_agent_run_tenant_read(tenant_id, principal)
+        try:
+            cursor_created_at, cursor_row_id = decode_agent_run_cursor(cursor)
+        except AgentRunCursorError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The agent run listing cursor is invalid.",
+                    "reason": exc.reason,
+                },
+            ) from exc
+        results = list_agent_run_results(
+            repository,
+            tenant_id,
+            agent_id,
+            cursor_created_at=cursor_created_at,
+            cursor_row_id=cursor_row_id,
+            limit=page_size + 1,
+        )
+        has_more = len(results) > page_size
+        page_results = results[:page_size]
+        next_cursor = (
+            encode_agent_run_cursor(page_results[-1])
+            if has_more and page_results
+            else None
+        )
+        return AgentRunList(
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            runs=page_results,
+            has_more=has_more,
+            next_cursor=next_cursor,
+            run_notes=[
+                "Runs are listed newest-first with keyset continuation.",
+                "Context evidence is reference-based; prompts and model outputs "
+                "are never persisted on the run.",
+            ],
+        )
+
+    @app.get(
+        "/demo/manufacturing/agents/{agent_id}/runs/{run_id}",
+        response_model=AgentRunResult,
+        responses={
+            403: {"description": "Agent run read permission denied"},
+            404: {"description": "Agent run not found"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_agent_run_detail(
+        agent_id: str,
+        run_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> AgentRunResult:
+        _authorize_agent_run_tenant_read(tenant_id, principal)
+        try:
+            return get_agent_run_result(repository, tenant_id, agent_id, run_id)
+        except AgentRunNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The agent run was not found.",
+                    "reason": "agent_run_not_found",
                 },
             ) from exc
 
