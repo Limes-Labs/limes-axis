@@ -17,6 +17,7 @@ class PlatformPolicyScope(StrEnum):
     ACTION_EXECUTION = "action_execution"
     APPROVAL_REQUIREMENT = "approval_requirement"
     MODEL_INVOCATION = "model_invocation"
+    AGENT_RUN = "agent_run"
 
 
 class PlatformPolicyEffect(StrEnum):

@@ -254,6 +254,16 @@ class Settings(BaseSettings):
         le=2000,
         alias="AXIS_MODEL_INVOCATION_PROMPT_EXCERPT_CHARS",
     )
+    agent_run_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_AGENT_RUN_EXECUTION_ENABLED",
+    )
+    agent_run_max_model_calls: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        alias="AXIS_AGENT_RUN_MAX_MODEL_CALLS",
+    )
     deployment_network_policy_enabled: bool = Field(
         default=False,
         alias="AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED",
