@@ -84,20 +84,24 @@ def test_promotion_writes_reads_back_and_is_idempotent() -> None:
     )
     read_client = _client(database)
     try:
-        first = runtime.promote_connector_proposal(_request(node_id))
+        request = _request(node_id)
+        graph_key = request.graph_key  # tenant-namespaced @key actually written
+        first = runtime.promote_connector_proposal(request)
         assert first.status == "type_db_mutation_applied"
 
         rows = read_client.execute_read(
-            f'match $a isa axis_asset, has axis_id "{node_id}";'
+            f'match $a isa axis_asset, has axis_id "{graph_key}";'
             ' fetch { "axis_id": $a.axis_id };'
         )
-        assert any(str(row.get("axis_id")) == node_id for row in rows if isinstance(row, dict))
+        assert any(
+            str(row.get("axis_id")) == graph_key for row in rows if isinstance(row, dict)
+        )
 
         # Re-promote: must remain a single logical node (idempotent put).
         second = runtime.promote_connector_proposal(_request(node_id))
         assert second.status == "type_db_mutation_applied"
         count_rows = read_client.execute_read(
-            f'match $a isa axis_asset, has axis_id "{node_id}";'
+            f'match $a isa axis_asset, has axis_id "{graph_key}";'
             " reduce $n = count;"
         )
         assert count_rows, "count query returned no rows"

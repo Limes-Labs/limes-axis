@@ -844,6 +844,15 @@ fail-closed:
   `axis_asset`, one object per `put` stage. The generated TypeQL is stable for a
   given proposal, so promoting the same proposal twice converges on a single
   logical node instead of inserting a duplicate.
+- **Tenant-namespaced graph key.** The graph is a single shared TypeDB database
+  and a proposal's `node_id` is a raw connector source-column value, so two
+  tenants can legitimately share a `node_id` string. The written `axis_id`
+  `@key` is therefore namespaced as `<tenant_id>::<node_id>`, not the bare
+  `node_id`. Within-tenant re-promotes still converge on one node, but two
+  tenants promoting the same `node_id` land on distinct nodes and can never
+  co-mingle attributes. The un-namespaced `node_id` remains the display identity
+  in proposals and the console; the namespaced key appears in the mutation
+  reference and the audit `graph_key`.
 - **Atomicity.** The whole `put` pipeline is submitted as one TypeDB write
   transaction that commits or rolls back as a unit; a partial or failed write
   leaves nothing behind and is safe to retry.
@@ -866,6 +875,19 @@ fail-closed:
   nodes are still subject to the ontology read authorization — enabling reads
   does not bypass relationship-scope or per-entity read gates. The deployment
   readiness report exposes this as the `ontology_graph_mutation_posture` check.
+
+Known limitation — proposal mutation semantics: idempotency is keyed on the
+identity (`axis_id`). Only the identity anchor is `@key`; the non-key attributes
+(`display_name`, `asset_type`, `domain`, `risk_level`, `source_system_ref`) are
+written with per-attribute `put`. Re-promoting an otherwise-identical proposal is
+a no-op, but re-promoting a **mutated** proposal that keeps the same `node_id`
+while changing a non-key attribute value **adds** the new value alongside the old
+one rather than replacing it, leaving the node with multiple values for that
+attribute. In the current flow this is not reachable through the API (a proposal
+transitions to `promoted_to_graph` on success and cannot be re-promoted, and the
+promotion idempotency key is deterministic), but a future re-promotion or
+proposal-edit flow must delete-then-`put` the changed non-key attributes if it
+needs replace semantics.
 
 The connector console surfaces a governed **Promote to graph** action on each
 review-only proposal. It submits the same governed request (approved

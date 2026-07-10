@@ -17,6 +17,12 @@ MUTATION_STATUS_UNAVAILABLE = "type_db_mutation_unavailable"
 # did not verify".
 MUTATION_STATUS_FAILED = "type_db_mutation_failed"
 
+# Delimiter between tenant_id and node_id in the tenant-namespaced graph key.
+# tenant_id is a controlled identifier without this sequence, so the first
+# occurrence unambiguously delimits the namespace from the connector-derived
+# node_id.
+GRAPH_KEY_SEPARATOR = "::"
+
 
 class OntologyMutationError(RuntimeError):
     """A live TypeDB promotion could not be completed.
@@ -60,20 +66,37 @@ class OntologyMutationRequest(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
 
     @property
+    def graph_key(self) -> str:
+        """Tenant-namespaced identity written as ``axis_id`` in the shared graph.
+
+        The graph is a single shared TypeDB database and ``node_id`` is a raw
+        connector source-column value, so two tenants can legitimately propose
+        the same ``node_id`` string. Because ``axis_id`` is the ``@key`` of
+        ``axis_asset``, keying on the bare ``node_id`` would ``put`` both tenants
+        onto the SAME node and co-mingle their attributes — a tenant-isolation
+        break. Namespacing the key with the (controlled, delimiter-free)
+        ``tenant_id`` keeps within-tenant re-promotes converging on one node while
+        making cross-tenant same-``node_id`` collisions impossible. ``node_id``
+        stays the display identity everywhere the UI shows it.
+        """
+        return f"{self.tenant_id}{GRAPH_KEY_SEPARATOR}{self.node_id}"
+
+    @property
     def typeql(self) -> str:
         """Deterministic, idempotent TypeQL for promoting this proposal.
 
         Uses TypeDB 3.x ``put`` (match-or-insert) stages keyed on the ``@key``
-        ``axis_id`` attribute rather than a bare ``insert``. Re-running the same
-        promotion is a no-op: the identity anchor matches the existing entity and
-        each attribute ``put`` matches the already-owned value. One object per
-        ``put`` stage (the documented safe form), pipelined so later stages bind
-        ``$asset`` from the identity anchor. The whole string is submitted as one
-        atomic TypeDB write transaction (see OntologyClient.execute_write).
+        ``axis_id`` attribute (the tenant-namespaced ``graph_key``) rather than a
+        bare ``insert``. Re-running the same promotion is a no-op: the identity
+        anchor matches the existing entity and each attribute ``put`` matches the
+        already-owned value. One object per ``put`` stage (the documented safe
+        form), pipelined so later stages bind ``$asset`` from the identity anchor.
+        The whole string is submitted as one atomic TypeDB write transaction (see
+        OntologyClient.execute_write).
         """
-        node_id = _typeql_string(self.node_id)
+        graph_key = _typeql_string(self.graph_key)
         statements = [
-            f'put $asset isa axis_asset, has axis_id "{node_id}";',
+            f'put $asset isa axis_asset, has axis_id "{graph_key}";',
             f'put $asset has asset_type "{_typeql_string(self.ontology_type)}";',
         ]
         for field_name, attribute_name in _FIELD_TO_ATTRIBUTE.items():
@@ -88,7 +111,7 @@ class OntologyMutationRequest(BaseModel):
     def verification_typeql(self) -> str:
         """Read-back query confirming the promoted node exists post-commit."""
         return (
-            f'match\n  $asset isa axis_asset, has axis_id "{_typeql_string(self.node_id)}";\n'
+            f'match\n  $asset isa axis_asset, has axis_id "{_typeql_string(self.graph_key)}";\n'
             'fetch {\n  "axis_id": $asset.axis_id\n};'
         )
 
@@ -102,6 +125,7 @@ class OntologyMutationRequest(BaseModel):
             "manual_import_id": self.manual_import_id,
             "actor_id": self.actor_id,
             "node_id": self.node_id,
+            "graph_key": self.graph_key,
             "node_type": self.node_type,
             "ontology_type": self.ontology_type,
             "field_summary_keys": sorted(self.field_summary.keys()),
@@ -173,7 +197,7 @@ class TypeDBOntologyMutationRuntime:
                 f"verification_read_{exc.__class__.__name__}",
                 status=MUTATION_STATUS_UNAVAILABLE,
             ) from exc
-        if not _verification_confirms_node(rows, request.node_id):
+        if not _verification_confirms_node(rows, request.graph_key):
             raise OntologyMutationError(
                 "verification_missing_node", status=MUTATION_STATUS_FAILED
             )
@@ -181,7 +205,7 @@ class TypeDBOntologyMutationRuntime:
         return OntologyMutationResult(
             status=MUTATION_STATUS_APPLIED,
             adapter=self.adapter_name,
-            mutation_ref=f"typedb://{self.client.config.database}/{request.node_id}",
+            mutation_ref=f"typedb://{self.client.config.database}/{request.graph_key}",
             typeql=request.typeql,
             payload={**request.audit_payload, "verified": True},
         )
@@ -203,16 +227,35 @@ class DeferredOntologyMutationRuntime:
         )
 
 
-def _verification_confirms_node(rows: Sequence[object], node_id: str) -> bool:
-    """True if the read-back rows observe an ``axis_id`` equal to ``node_id``."""
+def _fetched_values(value: object) -> list[str]:
+    """Flatten a fetched ``axis_id`` document value into candidate strings.
+
+    A TypeDB 3.x ``fetch { "axis_id": $asset.axis_id }`` projection returns a
+    scalar for a single-valued attribute and a list for a multi-valued one. To be
+    robust across driver rendering (and the nested attribute-concept shape
+    ``{"value": ..., "value_type": ...}`` used by ``$var.*`` / ``[$var.attr]``
+    fetches), we accept scalars, lists/tuples, and mappings carrying a ``value``.
+    """
+    if value is None:
+        return []
+    if isinstance(value, Mapping):
+        if "value" in value:
+            return _fetched_values(value["value"])
+        return []
+    if isinstance(value, (list, tuple)):
+        results: list[str] = []
+        for item in value:
+            results.extend(_fetched_values(item))
+        return results
+    return [str(value)]
+
+
+def _verification_confirms_node(rows: Sequence[object], graph_key: str) -> bool:
+    """True if the read-back rows observe an ``axis_id`` equal to ``graph_key``."""
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        value = row.get("axis_id")
-        if isinstance(value, (list, tuple)):
-            if any(str(item) == node_id for item in value):
-                return True
-        elif value is not None and str(value) == node_id:
+        if graph_key in _fetched_values(row.get("axis_id")):
             return True
     return False
 
