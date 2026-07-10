@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -7,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -1258,6 +1260,108 @@ class PlatformNotificationAcknowledgement(Base):
             "notification_id",
             "actor_id",
             name="uq_platform_notification_ack_tenant_notification_actor",
+        ),
+    )
+
+
+class ModelEndpoint(Base):
+    __tablename__ = "model_endpoints"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    endpoint_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    hosting_boundary: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    base_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    default_model: Mapped[str] = mapped_column(String(160), nullable=False)
+    task_types: Mapped[list] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    credential_handle_id: Mapped[str | None] = mapped_column(
+        String(160), nullable=True, index=True
+    )
+    egress_policy_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    cost_input_per_1k: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0"), server_default=text("0")
+    )
+    cost_output_per_1k: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0"), server_default=text("0")
+    )
+    created_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "endpoint_id",
+            name="uq_model_endpoints_tenant_endpoint",
+        ),
+    )
+
+
+class ModelInvocation(Base):
+    __tablename__ = "model_invocations"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    task_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    endpoint_id: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    provider_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    hosting_boundary: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    model_id: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    requested_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    route_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    permission_decision: Mapped[dict] = mapped_column(JSON, nullable=False)
+    platform_policy_decision: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    egress_decision: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    prompt_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    response_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    prompt_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    input_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    output_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    latency_ms: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    estimated_cost_eur: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0"), server_default=text("0")
+    )
+    provider_request_ref: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    audit_event_type: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_model_invocations_tenant_idempotency",
+        ),
+        Index(
+            "ix_model_invocations_tenant_created_at",
+            "tenant_id",
+            "created_at",
         ),
     )
 
