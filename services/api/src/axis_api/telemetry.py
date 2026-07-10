@@ -22,6 +22,8 @@ See :data:`SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS`.
 
 from __future__ import annotations
 
+import contextlib
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -57,6 +59,9 @@ ATTR_JOB = "axis.job"
 # Defence-in-depth guard: attribute keys containing any of these substrings must
 # never be attached to a span. Callers are expected to only pass the curated keys
 # above; this is a belt-and-braces filter enforced by ``set_span_attributes``.
+# Substrings are matched with word boundaries (see ``_is_sensitive_attribute_key``)
+# so e.g. "token" matches "id_token" but a benign key like "axis.recipe_id" is not
+# stripped just because it contains "ip"/"id".
 SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS = (
     "token",
     "secret",
@@ -64,10 +69,32 @@ SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS = (
     "authorization",
     "cookie",
     "credential",
-    "ip",
-    "client.address",
     "api_key",
     "apikey",
+)
+
+# Client-IP attributes emitted by the ASGI/HTTP instrumentation. Matched exactly
+# (not by the bare substring "ip", which would strip benign keys like
+# "axis.pipeline_id"). Covers both the legacy and stable HTTP semantic conventions.
+SENSITIVE_IP_ATTRIBUTE_KEYS = frozenset(
+    {
+        "net.peer.ip",
+        "net.sock.peer.addr",
+        "net.host.ip",
+        "client.address",
+        "client.socket.address",
+        "http.client_ip",
+    }
+)
+
+# URL attributes whose value carries the raw query string (which may contain
+# cursors, filters, or — defensively — a token in a query param). The path is
+# kept; everything from "?" onward is scrubbed before export.
+URL_QUERY_ATTRIBUTE_KEYS = frozenset({"http.url", "http.target", "url.full", "url.query"})
+
+_SENSITIVE_WORD_BOUNDARY_PATTERNS = tuple(
+    re.compile(rf"(?:^|[^a-z0-9])({re.escape(term)})(?:[^a-z0-9]|$)")
+    for term in SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS
 )
 
 _W3C_PROPAGATOR = TraceContextTextMapPropagator()
@@ -75,7 +102,20 @@ _W3C_PROPAGATOR = TraceContextTextMapPropagator()
 
 def _is_sensitive_attribute_key(key: str) -> bool:
     lowered = key.casefold()
-    return any(token in lowered for token in SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS)
+    if lowered in SENSITIVE_IP_ATTRIBUTE_KEYS:
+        return True
+    return any(pattern.search(lowered) for pattern in _SENSITIVE_WORD_BOUNDARY_PATTERNS)
+
+
+def _scrub_query_from_url(value: object) -> object:
+    """Strip the query string from a URL-bearing attribute value.
+
+    ``url.query`` holds only the query, so scrubbing it yields an empty string.
+    ``http.url`` / ``http.target`` keep scheme/host/path.
+    """
+    if isinstance(value, str) and "?" in value:
+        return value.split("?", 1)[0]
+    return value
 
 
 def set_span_attributes(span: Span, attributes: Mapping[str, object]) -> None:
@@ -196,14 +236,43 @@ def _build_runtime(
     )
 
 
+def scrub_span_attributes(attributes: Mapping[str, object]) -> dict[str, object] | None:
+    """Return a privacy-scrubbed copy of ``attributes``, or ``None`` if unchanged.
+
+    Enforces the audit-grade privacy rules on the raw attributes recorded by the
+    framework instrumentation (which we do not control directly):
+
+    - drop any attribute whose key is a client-IP key or trips the sensitive-key
+      guard (tokens, secrets, cookies, ...);
+    - scrub the query string from URL-bearing attributes (``http.url`` /
+      ``http.target`` / ``url.full`` / ``url.query``) so cursors, filters, or a
+      token planted in a query param are never exported — the path is kept.
+    """
+
+    scrubbed: dict[str, object] = {}
+    changed = False
+    for key, value in attributes.items():
+        if _is_sensitive_attribute_key(key):
+            changed = True
+            continue
+        if key.casefold() in URL_QUERY_ATTRIBUTE_KEYS:
+            cleaned = _scrub_query_from_url(value)
+            if cleaned != value:
+                changed = True
+            scrubbed[key] = cleaned
+            continue
+        scrubbed[key] = value
+    return scrubbed if changed else None
+
+
 class _PrivacyFilteringSpanExporter:
-    """Wrap a span exporter and strip sensitive attributes before export.
+    """Wrap a span exporter and privacy-scrub every span before export.
 
     The FastAPI/ASGI auto-instrumentation records standard HTTP attributes that
-    include the client IP (``net.peer.ip`` / ``client.address``). Axis follows the
-    same privacy rules as its audit payloads — no IPs, tokens, or secrets — so we
-    drop any attribute whose key trips the sensitive-substring guard on every span
-    regardless of which exporter is configured.
+    include the client IP (``net.peer.ip`` / ``client.address``) and the full
+    request URL with its query string. Axis follows the same privacy rules as its
+    audit payloads — no IPs, tokens, secrets, or raw query strings — so every span
+    is scrubbed here regardless of which exporter is configured.
     """
 
     def __init__(self, wrapped) -> None:
@@ -212,12 +281,11 @@ class _PrivacyFilteringSpanExporter:
     def export(self, spans):
         for span in spans:
             attributes = span.attributes
-            if attributes and any(_is_sensitive_attribute_key(key) for key in attributes):
-                span._attributes = {
-                    key: value
-                    for key, value in attributes.items()
-                    if not _is_sensitive_attribute_key(key)
-                }
+            if not attributes:
+                continue
+            scrubbed = scrub_span_attributes(attributes)
+            if scrubbed is not None:
+                span._attributes = scrubbed
         return self._wrapped.export(spans)
 
     def shutdown(self):
@@ -225,6 +293,26 @@ class _PrivacyFilteringSpanExporter:
 
     def force_flush(self, timeout_millis: int = 30_000):
         return self._wrapped.force_flush(timeout_millis)
+
+
+def shutdown_providers(tracer_provider, meter_provider) -> None:
+    """Flush and shut down app-scoped providers (no-op when none installed).
+
+    Ensures BatchSpanProcessor-buffered spans are exported and the exporter
+    threads are torn down on API/worker shutdown. Guards each call so a failing
+    exporter never breaks graceful shutdown.
+    """
+
+    for provider in (tracer_provider, meter_provider):
+        if provider is None:
+            continue
+        for method in ("force_flush", "shutdown"):
+            hook = getattr(provider, method, None)
+            if hook is None:
+                continue
+            # Shutdown must never raise and break graceful teardown.
+            with contextlib.suppress(Exception):
+                hook()
 
 
 def build_resource(settings: Settings, *, service_name: str, service_version: str):

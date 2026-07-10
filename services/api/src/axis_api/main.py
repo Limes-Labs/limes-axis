@@ -538,6 +538,7 @@ from axis_api.telemetry import (
     configure_api_telemetry,
     instrument_fastapi_app,
     set_span_attributes,
+    shutdown_providers,
 )
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_reference import (
@@ -2081,7 +2082,12 @@ def _bind_connector_run_actor(
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _warm_audit_export_object_lock_capability(app)
-    yield
+    try:
+        yield
+    finally:
+        runtime: TelemetryRuntime | None = getattr(app.state, "telemetry", None)
+        if runtime is not None and runtime.enabled:
+            shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
 
 
 def create_app(

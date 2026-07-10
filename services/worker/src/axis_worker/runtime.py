@@ -20,6 +20,7 @@ import asyncio
 import logging
 
 from axis_api.config import Settings
+from axis_api.telemetry import shutdown_providers
 from temporalio.client import Client
 from temporalio.worker import Worker
 
@@ -79,7 +80,11 @@ async def run_worker(settings: Settings | None = None) -> None:
         ],
     )
     logger.info("axis-worker started task_queue=%s", config.task_queue)
-    await worker.run()
+    try:
+        await worker.run()
+    finally:
+        if telemetry.enabled:
+            shutdown_providers(telemetry.tracer_provider, telemetry.meter_provider)
 
 
 def main() -> None:
