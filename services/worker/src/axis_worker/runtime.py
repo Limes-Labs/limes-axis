@@ -24,11 +24,15 @@ from axis_api.telemetry import shutdown_providers
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from axis_worker.connector_live_sync_activities import ConnectorLiveSyncActivities
 from axis_worker.maintenance_activities import MaintenanceActivities
 from axis_worker.schedules import register_maintenance_schedules
 from axis_worker.telemetry import configure_worker_telemetry
 from axis_worker.temporal_adapter import TemporalAdapterConfig
 from axis_worker.workflows.approval_workflow import ApprovalWorkflow
+from axis_worker.workflows.connector_live_sync_workflows import (
+    ConnectorScheduledLiveSyncWorkflow,
+)
 from axis_worker.workflows.maintenance_workflows import (
     AuditRetentionDeletionWorkflow,
     OrphanedSessionSweepWorkflow,
@@ -42,6 +46,7 @@ WORKFLOWS = [
     AuditRetentionDeletionWorkflow,
     OrphanedSessionSweepWorkflow,
     TenantStateReconciliationWorkflow,
+    ConnectorScheduledLiveSyncWorkflow,
 ]
 
 
@@ -69,6 +74,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     )
 
     activities = MaintenanceActivities(settings, telemetry=telemetry)
+    live_sync_activities = ConnectorLiveSyncActivities(settings, telemetry=telemetry)
     worker = Worker(
         client,
         task_queue=config.task_queue,
@@ -77,6 +83,10 @@ async def run_worker(settings: Settings | None = None) -> None:
             activities.run_audit_retention_deletion,
             activities.run_orphaned_session_sweep,
             activities.run_tenant_state_reconciliation,
+            live_sync_activities.list_scheduled_live_sync_candidates,
+            live_sync_activities.claim_scheduled_live_sync_checkpoint,
+            live_sync_activities.execute_scheduled_live_sync,
+            live_sync_activities.release_scheduled_live_sync_claim,
         ],
     )
     logger.info("axis-worker started task_queue=%s", config.task_queue)

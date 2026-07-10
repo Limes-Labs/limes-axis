@@ -97,6 +97,46 @@ and no revocations on re-run.
 
 Summary evidence: `platform.scheduled_job.tenant_reconciliation.completed`.
 
+### 4. Connector scheduled live sync — `axis-connector-scheduled-live-sync`
+
+Worker-scheduled execution of governed connector live-sync runs (the doc-167
+pattern applied to the connector stack; see
+`docs/platform-connectors.md`, "Scheduled Live Sync Last Mile"). Unlike the
+maintenance jobs this schedule is **registered only** when
+`AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED=true`, so flag-off deployments
+keep today's exact schedule set. It additionally requires
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED` and
+`AXIS_CONNECTOR_LIVE_SYNC_EXECUTION_ENABLED`; with either off the candidate
+listing is empty and nothing executes.
+
+Each tick the `ConnectorScheduledLiveSyncWorkflow` drives four DB-owning
+activities (`axis_worker.connector_live_sync_activities`), which call the
+existing API-side claim/execute/release functions in
+`axis_api.connector_runs` in process:
+
+1. **list** dispatched (or failed-resumable) `scheduled_sync_plan` runs with
+   `live_sync_requested=true` and an active credential lease for the
+   configured tenant;
+2. **claim** the latest committed batch checkpoint for resume runs. A racing
+   worker hits the existing single-active-claim conflict (backed by the
+   migration-0045 partial unique index) and the run is skipped as
+   `skipped_claim_conflict`. Fresh runs need no resume claim. A claim inside
+   its renewal guard is renewed before execution;
+3. **execute** the existing sync-execution batch loop, which persists one
+   committed checkpoint per batch and fails closed with resumable evidence;
+4. **release** the claim with `scheduled_live_sync_completed` or
+   `scheduled_live_sync_failed` — the failure path always releases so the next
+   tick can re-claim and resume from the last committed checkpoint.
+
+Idempotent: per-attempt execution ids/idempotency keys plus the run-level
+replay rules make a repeated tick a no-op for completed runs; the schedule's
+`SKIP` overlap policy prevents concurrent ticks.
+
+Evidence: the standard connector run/checkpoint/claim audit trail
+(`connector.run.sync_execution_*`, `connector.run.sync_batch_committed`,
+`connector.run.sync_checkpoint_claim*`) recorded by the reused API functions,
+with the worker actor `axis-scheduled-live-sync-worker`.
+
 ## Schedules, overlap and idempotency
 
 Schedules use the modern Temporal Python SDK Schedule API (the repo pins
@@ -133,6 +173,9 @@ unaffected (`AXIS_SCHEDULED_JOBS_ENABLED=false`).
 | `AXIS_SCHEDULED_SESSION_SWEEP_INTERVAL_SECONDS` | `900` | Session sweep interval. |
 | `AXIS_SCHEDULED_SESSION_SWEEP_BATCH_LIMIT` | `500` | Max sessions per category per run. |
 | `AXIS_SCHEDULED_TENANT_RECONCILIATION_INTERVAL_SECONDS` | `3600` | Reconciliation interval. |
+| `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED` | `false` | Registers the connector scheduled live-sync schedule. Off keeps today's exact schedule set (the schedule is not created at all). |
+| `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_INTERVAL_SECONDS` | `3600` | Scheduled live-sync tick interval. |
+| `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_TENANT_ID` | `tenant_demo_manufacturing` | Tenant whose dispatched live-sync runs the worker executes. |
 
 The session windows are shared with the request path:
 `AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS`,

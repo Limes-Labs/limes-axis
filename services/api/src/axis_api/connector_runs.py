@@ -423,6 +423,9 @@ LIVE_READ_PUBLIC_SAFE_RESULT_SUMMARY_KEYS = {
     "secret_reference_result_status",
     "secret_reference_runtime_boundary",
     "secret_reference_scope",
+    "secret_resolution_provider_profile",
+    "secret_resolution_runtime_boundary",
+    "runtime_egress_enforcement",
     "secret_retrieval_decision",
     "selected_column_count",
     "source_mode",
@@ -1298,6 +1301,8 @@ def execute_demo_connector_sync(
             plan=live_sync_plan,
             manifest=manifest,
             schedule_result=schedule_result,
+            credential_lease=credential_lease,
+            egress_policy_evidence=egress_policy_evidence,
         )
         return _persist_sync_execution_outcome(
             repository,
@@ -1325,6 +1330,8 @@ def execute_demo_connector_sync(
             credential_lease_mode=credential_lease.lease_mode,
             credential_lease_runtime_boundary=credential_lease.runtime_boundary,
             credential_lease_result=credential_lease.lease_result,
+            credential_secret_provider=credential_lease.secret_provider,
+            credential_secret_ref=credential_lease.secret_ref,
             egress_policy_evidence=egress_policy_evidence,
             schedule_id=schedule_result.result_summary.get("schedule_id", "unknown_schedule"),
             schedule_ref=schedule_result.schedule_ref,
@@ -1559,6 +1566,8 @@ def _execute_live_connector_sync(
     plan: ConnectorLiveSyncPlan,
     manifest,
     schedule_result: ConnectorSyncScheduleResult,
+    credential_lease=None,
+    egress_policy_evidence: dict[str, str] | None = None,
 ) -> ConnectorSyncExecutionResult:
     base_summary = _live_sync_base_summary(run, request, plan, schedule_result)
     if plan.status == LIVE_SYNC_PLAN_BLOCKED_STATUS:
@@ -1675,12 +1684,27 @@ def _execute_live_connector_sync(
                 offset=offset,
                 batch_size=batch_size,
                 field_mappings=field_mappings,
+                credential_lease_result=(
+                    credential_lease.lease_result if credential_lease is not None else {}
+                ),
+                credential_secret_provider=(
+                    credential_lease.secret_provider if credential_lease is not None else ""
+                ),
+                credential_secret_ref=(
+                    credential_lease.secret_ref if credential_lease is not None else ""
+                ),
+                egress_policy_evidence=egress_policy_evidence or {},
                 input_summary=run.input_summary,
             )
         )
         if batch.status != LIVE_SYNC_BATCH_READ_STATUS:
             error_code = batch.error_code or "sync_batch_failed"
             break
+        if batch.evidence_summary:
+            # Public-safe runtime security evidence (lease-scoped secret
+            # resolution decision, runtime egress enforcement outcome) flows
+            # into the batch checkpoint and the final result summary.
+            base_summary.update(batch.evidence_summary)
         if plan.external_query_required:
             external_query_started = True
         proposal_count = 0
