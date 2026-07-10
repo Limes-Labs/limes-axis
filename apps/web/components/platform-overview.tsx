@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   Bot,
   ClipboardCheck,
   FileCheck2,
@@ -16,8 +17,17 @@ import {
 } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { AxisMark, AxisMarkGlyph } from "@/components/axis-mark";
 import { ConsoleTopbar } from "@/components/console-topbar";
+import { Reveal } from "@/components/reveal";
+import { PlatformStatusPill } from "@/components/status-pill";
+import { Card } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { MetricSparkbar } from "@/components/ui/metric-sparkbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { axisFetchJson } from "@/lib/axis-api";
+import { cn } from "@/lib/cn";
 import { buildOidcAuthorizeUrl } from "@/lib/oidc-session";
 import {
   countBlockedModelRoutes,
@@ -45,7 +55,6 @@ import {
   platformStatusClass,
   platformStatusLabel,
   sortDomainSnapshotsByOperationalPriority,
-  type ManufacturingDemoReadinessCheck,
   type ManufacturingDemoReadinessReport,
   type ManufacturingDomainSnapshot,
   type IdentitySessionReadModel,
@@ -59,11 +68,6 @@ import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
 type OverviewSource = "loading" | "api" | "unavailable";
-
-type HealthSignal = {
-  label: string;
-  status: PlatformStatus;
-};
 
 type StatusKpi = {
   label: string;
@@ -126,13 +130,6 @@ function metricByLabel(overview: ManufacturingOverview, label: string): Overview
   return overview.metrics.find((metric) => metric.label === label) ?? null;
 }
 
-function readinessCheckById(
-  report: ManufacturingDemoReadinessReport,
-  checkId: string,
-): ManufacturingDemoReadinessCheck | null {
-  return report.checks.find((check) => check.check_id === checkId) ?? null;
-}
-
 function statusScore(status: PlatformStatus): number {
   if (status === "ready") {
     return 0.92;
@@ -162,12 +159,133 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
     : platformStatusClass(route.route_status);
 }
 
-function StatusPill({ status }: { status: PlatformStatus }) {
-  return <span className={`status-pill ${platformStatusClass(status)}`}>{platformStatusLabel(status)}</span>;
+function domainSnapshotStatus(domain: ManufacturingDomainSnapshot): PlatformStatus {
+  if (domain.action_required_count > 0) {
+    return "action_required";
+  }
+
+  return domain.watch_count > 0 ? "watch" : "ready";
 }
 
 function StatusDot({ status }: { status: PlatformStatus }) {
-  return <span aria-hidden="true" className={`status-dot ${platformStatusClass(status)}`} />;
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-block size-2 shrink-0 rounded-full",
+        status === "ready" && "bg-positive",
+        status === "watch" && "bg-warning",
+        status === "action_required" && "bg-danger",
+      )}
+    />
+  );
+}
+
+function PanelLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      className="mt-auto inline-flex items-center gap-1.5 pt-1 font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+      href={href}
+    >
+      {children}
+      <ArrowRight aria-hidden="true" size={13} />
+    </Link>
+  );
+}
+
+function PanelHeader({
+  eyebrow,
+  title,
+  aside,
+}: {
+  eyebrow: string;
+  title?: string;
+  aside?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="grid gap-1">
+        <Eyebrow>{eyebrow}</Eyebrow>
+        {title ? <h2 className="font-display m-0 text-lg text-ink">{title}</h2> : null}
+      </div>
+      {aside}
+    </div>
+  );
+}
+
+function OverviewHero({
+  overview,
+  operationsSnapshot,
+  onRefresh,
+}: {
+  overview: ManufacturingOverview;
+  operationsSnapshot: ManufacturingOperationsSnapshot;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="relative overflow-hidden rounded-3xl border border-navy bg-navy px-6 py-8 text-white sm:px-10 sm:py-10 dark:border-white/10">
+      {/* Signal glow + static dot grid, same treatment in both themes. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 80% 90% at 50% 110%, rgb(47 100 255 / 0.35) 0%, rgb(47 100 255 / 0.08) 45%, transparent 70%), radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px)",
+          backgroundSize: "auto, 22px 22px",
+        }}
+      />
+      <div className="relative z-10 grid gap-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AxisMark className="h-9 w-9 text-white" />
+            <Eyebrow className="text-signal">
+              {overview.plant_name} / Governed operations
+            </Eyebrow>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/20 px-3 py-1 font-mono text-[11px] tracking-[0.12em] text-white/80 uppercase">
+              Latest evidence
+            </span>
+            <button
+              aria-label="Refresh state"
+              className="inline-flex size-8 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-signal hover:text-white"
+              onClick={onRefresh}
+              title="Refresh state"
+              type="button"
+            >
+              <RefreshCw size={15} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <h1 className="font-display m-0 max-w-3xl text-4xl text-white sm:text-5xl">
+            <span className="text-signal">Operations</span> {overview.scenario}
+          </h1>
+          <p className="ops-page-subtitle m-0! max-w-2xl text-[15px]! text-white/70!">
+            {overview.plant_name} / {overview.scenario} /{" "}
+            {formatOverviewTimestamp(operationsSnapshot.as_of)}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          {[
+            { label: "Workflows", value: overview.workflows.length },
+            { label: "Approvals pending", value: overview.approvals.length },
+            { label: "Agents governed", value: overview.agents.length },
+            { label: "Audit events", value: operationsSnapshot.recent_audit_events.length },
+          ].map((fact) => (
+            <div className="grid gap-0.5" key={fact.label}>
+              <span className="font-display text-2xl text-white">{fact.value}</span>
+              <span className="font-mono text-[10.5px] tracking-[0.14em] text-white/60 uppercase">
+                {fact.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function TopKpis({
@@ -231,22 +349,89 @@ function TopKpis({
   ];
 
   return (
-    <div className="ops-kpi-grid" aria-label="Operations status metrics">
-      {kpis.map((kpi) => {
-        const Icon = kpi.icon;
+    <Reveal>
+      <div
+        aria-label="Operations status metrics"
+        className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5"
+      >
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon;
 
-        return (
-          <article className="ops-kpi-card" key={kpi.label}>
-            <Icon size={32} strokeWidth={1.5} />
-            <div>
-              <p className="section-label">{kpi.label}</p>
-              <p className={`ops-kpi-value ${platformStatusClass(kpi.status)}`}>{kpi.value}</p>
-              <p className="row-detail">{kpi.detail}</p>
-            </div>
-          </article>
-        );
-      })}
-    </div>
+          return (
+            <Card className="grid content-start gap-2 p-5" data-kpi-card key={kpi.label}>
+              <div className="flex items-start justify-between gap-2">
+                <Icon className="text-signal" size={22} strokeWidth={1.6} />
+                <StatusDot status={kpi.status} />
+              </div>
+              <Eyebrow>{kpi.label}</Eyebrow>
+              <p className="font-display m-0 text-xl break-words text-ink">{kpi.value}</p>
+              <div aria-hidden="true" className="rule-dotted" />
+              <p className="m-0 text-xs text-muted">{kpi.detail}</p>
+            </Card>
+          );
+        })}
+      </div>
+    </Reveal>
+  );
+}
+
+function DomainSnapshots({ snapshot }: { snapshot: ManufacturingOperationsSnapshot }) {
+  const domains = sortDomainSnapshotsByOperationalPriority(snapshot.domain_snapshots);
+
+  return (
+    <Reveal>
+      <section className="grid gap-4" aria-label="Domain snapshots">
+        <PanelHeader eyebrow="Domain snapshots" title="Operational domains" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Card className="grid content-start gap-3 p-5">
+            <Eyebrow>Records by domain</Eyebrow>
+            <MetricSparkbar
+              caption="Record counts per operational domain from the operations snapshot"
+              points={domains.map((domain) => ({
+                label: domain.domain,
+                value: domain.record_count,
+              }))}
+            />
+            <p className="m-0 text-xs text-muted">
+              {domains.reduce((total, domain) => total + domain.record_count, 0)} records across{" "}
+              {domains.length} domains
+            </p>
+          </Card>
+          {domains.map((domain) => (
+            <Card className="grid content-start gap-3 p-5" key={domain.domain}>
+              <div className="flex items-start justify-between gap-2">
+                <Eyebrow>{domain.domain}</Eyebrow>
+                <PlatformStatusPill status={domainSnapshotStatus(domain)} />
+              </div>
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="font-display text-2xl text-ink">{domain.record_count}</span>
+                <span className="font-mono text-[10.5px] tracking-[0.14em] text-muted uppercase">
+                  records
+                </span>
+              </div>
+              <div aria-hidden="true" className="rule-dotted" />
+              <div className="grid grid-cols-3 gap-2 text-xs text-muted">
+                <span>
+                  <strong className="block text-sm text-ink">{domain.action_required_count}</strong>
+                  action
+                </span>
+                <span>
+                  <strong className="block text-sm text-ink">{domain.watch_count}</strong>
+                  watch
+                </span>
+                <span>
+                  <strong className="block text-sm text-ink">{domain.workflow_ids.length}</strong>
+                  workflows
+                </span>
+              </div>
+              <p className="m-0 font-mono text-[11px] text-muted">
+                risk: {domain.highest_risk_level} / {domain.owner_roles.join(", ")}
+              </p>
+            </Card>
+          ))}
+        </div>
+      </section>
+    </Reveal>
   );
 }
 
@@ -314,36 +499,43 @@ function OperationsArtifactPanel({
   }
 
   return (
-    <section className="ops-panel operations-artifact-panel">
-      <div className="ops-panel-header">
-        <div>
-          <p className="section-label">Operations artifact runtime</p>
-          <h2 className="ops-panel-title">Generate governed evidence</h2>
-        </div>
-        <span className={`status-pill ${platformStatusClass(sessionStatus)}`}>{sessionLabel}</span>
-      </div>
-      <p className="row-detail">
+    <Card className="grid content-start gap-4">
+      <PanelHeader
+        aside={
+          <span className={`status-pill ${platformStatusClass(sessionStatus)}`}>
+            {sessionLabel}
+          </span>
+        }
+        eyebrow="Operations artifact runtime"
+        title="Generate governed evidence"
+      />
+      <p className="m-0 max-w-3xl text-sm text-muted">
         Each action calls the live Axis API, persists a tenant-scoped artifact, writes audit
         evidence and refreshes the operations snapshot. No browser-local data is generated.
       </p>
 
       {!identitySession?.authenticated ? (
-        <div className="operations-artifact-sso-callout">
-          <ShieldCheck size={18} />
-          <div>
-            <p className="row-title">Browser SSO required for artifact generation</p>
-            <p className="row-detail">
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-signal/30 bg-tint-50 p-4 dark:bg-signal/10">
+          <ShieldCheck className="shrink-0 text-signal" size={18} />
+          <div className="grid min-w-0 flex-1 gap-0.5">
+            <p className="m-0 text-sm font-medium text-ink">
+              Browser SSO required for artifact generation
+            </p>
+            <p className="m-0 text-xs text-muted">
               Sign in with the API-owned OIDC session before creating daily briefs or risk
               scenarios.
             </p>
           </div>
-          <a className="command-button" href={signInUrl}>
+          <a
+            className="inline-flex items-center gap-2 rounded-full bg-navy px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-signal dark:bg-signal dark:hover:bg-white dark:hover:text-navy"
+            href={signInUrl}
+          >
             Sign in with SSO
           </a>
         </div>
       ) : null}
 
-      <div className="operations-artifact-actions">
+      <div className="grid gap-3 md:grid-cols-3">
         {OPERATIONS_ARTIFACT_ACTIONS.map((action) => {
           const state = getOperationsArtifactActionState(action.kind, identitySession);
           const pending = pendingKind === action.kind;
@@ -351,25 +543,27 @@ function OperationsArtifactPanel({
           return (
             <button
               aria-describedby={`${action.kind}-artifact-state`}
-              className="artifact-action-button"
+              className="flex items-start gap-3 rounded-2xl border border-line bg-transparent p-4 text-left transition-colors enabled:hover:border-signal/50 enabled:hover:bg-tint-50 disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/10 dark:enabled:hover:bg-white/5"
               disabled={!state.canRun || Boolean(pendingKind)}
               key={action.kind}
               onClick={() => void submitArtifact(action.kind)}
               title={state.reason ?? action.description}
               type="button"
             >
-              <span className="artifact-action-icon">
+              <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-tint-100 text-signal dark:bg-signal/15">
                 {action.kind === "daily_brief" ? (
-                  <FileCheck2 size={18} />
+                  <FileCheck2 size={16} />
                 ) : action.kind === "supplier_delay" ? (
-                  <AlertTriangle size={18} />
+                  <AlertTriangle size={16} />
                 ) : (
-                  <ShieldCheck size={18} />
+                  <ShieldCheck size={16} />
                 )}
               </span>
-              <span>
-                <strong>{pending ? "Persisting..." : action.label}</strong>
-                <small id={`${action.kind}-artifact-state`}>
+              <span className="grid min-w-0 gap-1">
+                <strong className="text-sm font-medium text-ink">
+                  {pending ? "Persisting..." : action.label}
+                </strong>
+                <small className="text-xs text-muted" id={`${action.kind}-artifact-state`}>
                   {state.reason ?? action.description}
                 </small>
               </span>
@@ -379,21 +573,29 @@ function OperationsArtifactPanel({
       </div>
 
       {artifact ? (
-        <div className="operations-artifact-result" role="status">
+        <div
+          className="flex flex-wrap items-start gap-3 rounded-2xl border border-positive/35 bg-positive/8 p-4"
+          role="status"
+        >
           <StatusDot status="ready" />
-          <div>
-            <p className="row-title">
+          <div className="grid min-w-0 flex-1 gap-1">
+            <p className="m-0 font-mono text-sm break-words text-ink">
               {artifact.actionLabel} / {operationsArtifactRecordId(artifact.response)}
             </p>
-            <p className="row-detail">{operationsArtifactHeadline(artifact.response)}</p>
-            <div className="artifact-result-meta">
+            <p className="m-0 text-xs text-muted">
+              {operationsArtifactHeadline(artifact.response)}
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted">
               <span>{artifact.response.idempotent_replay ? "Idempotent replay" : "Created"}</span>
               <span>{artifact.response.source_record_ids.length} source records</span>
               <span>{artifact.response.audit_event_type}</span>
             </div>
           </div>
           {artifact.response.audit_event_id ? (
-            <Link className="side-link" href="/audit">
+            <Link
+              className="font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+              href="/audit"
+            >
               Open audit
             </Link>
           ) : null}
@@ -401,130 +603,150 @@ function OperationsArtifactPanel({
       ) : null}
 
       {error ? (
-        <p className="operations-artifact-error" role="status">
+        <p className="m-0 text-sm text-danger" role="status">
           {error}
         </p>
       ) : null}
-    </section>
+    </Card>
   );
 }
 
 function OntologyMap({ domains }: { domains: ManufacturingDomainSnapshot[] }) {
   const sortedDomains = sortDomainSnapshotsByOperationalPriority(domains).slice(0, 6);
+  const width = 300;
+  const height = 190;
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = 72;
 
   return (
-    <section className="ops-panel ops-ontology-card">
-      <div className="ops-panel-header">
-        <div>
-          <p className="section-label">Operational ontology</p>
-          <h2 className="ops-panel-title">Domain graph</h2>
-        </div>
-      </div>
-      <div className="ontology-map" aria-label="Operational ontology graph">
-        <div className="ontology-center">Axis</div>
-        {sortedDomains.map((domain, index) => (
-          <div className={`ontology-node ontology-node-${index + 1}`} key={domain.domain}>
-            <span className="ontology-node-dot" />
-            {domain.domain}
-          </div>
-        ))}
-        <div className="ontology-legend" aria-label="Ontology legend">
-          <span>
-            <span className="legend-dot entity" /> Entity
-          </span>
-          <span>
-            <span className="legend-line" /> Relation
-          </span>
-          <span>
-            <span className="legend-dot attribute" /> Attribute
-          </span>
-        </div>
-      </div>
-      <Link className="ops-panel-link" href="/ontology">
-        Explore ontology
-        <span aria-hidden="true">-&gt;</span>
-      </Link>
-    </section>
+    <Card className="flex flex-col gap-3">
+      <PanelHeader eyebrow="Operational ontology" title="Domain graph" />
+      <svg
+        aria-label="Operational ontology graph"
+        className="h-auto w-full"
+        role="img"
+        viewBox={`0 0 ${width} ${height}`}
+      >
+        {sortedDomains.map((domain, index) => {
+          const angle = -Math.PI / 2 + (Math.PI * 2 * index) / Math.max(1, sortedDomains.length);
+          const x = cx + Math.cos(angle) * radius;
+          const y = cy + Math.sin(angle) * radius * 0.72;
+
+          return (
+            <g key={domain.domain}>
+              <line
+                stroke="rgb(var(--signal))"
+                strokeOpacity={0.35}
+                x1={cx}
+                x2={x}
+                y1={cy}
+                y2={y}
+              />
+              <rect
+                fill="rgb(var(--ink))"
+                height={7}
+                transform={`rotate(45 ${x} ${y})`}
+                width={7}
+                x={x - 3.5}
+                y={y - 3.5}
+              />
+              <text
+                className="font-mono"
+                fill="rgb(var(--muted))"
+                fontSize={9.5}
+                textAnchor="middle"
+                x={x}
+                y={y + (Math.sin(angle) >= 0 ? 16 : -10)}
+              >
+                {domain.domain}
+              </text>
+            </g>
+          );
+        })}
+        <AxisMarkGlyph cx={cx} cy={cy} r={16} rayColor="rgb(var(--ink))" />
+      </svg>
+      <PanelLink href="/ontology">Explore ontology</PanelLink>
+    </Card>
   );
 }
 
 function WorkflowOrchestration({ overview }: { overview: ManufacturingOverview }) {
   return (
-    <section className="ops-panel ops-workflow-card">
-      <div className="ops-panel-header">
-        <div>
-          <p className="section-label">Workflow orchestration</p>
-          <h2 className="ops-panel-title">Human-gated flow</h2>
-        </div>
-      </div>
-      <div className="workflow-pipeline" aria-label="Workflow pipeline">
+    <Card className="flex flex-col gap-3">
+      <PanelHeader eyebrow="Workflow orchestration" title="Human-gated flow" />
+      <div className="grid gap-0" aria-label="Workflow pipeline">
         {overview.workflows.slice(0, 3).map((workflow, index) => (
-          <div className="pipeline-step" key={workflow.workflow_id}>
-            <span className="pipeline-step-index mono">{index + 1}</span>
-            <div>
-              <p className="row-title">{compactWorkflowName(workflow.name)}</p>
-              <p className="row-detail">{normalizeLabel(workflow.state)}</p>
+          <div className="grid gap-3 py-2.5 first:pt-0" key={workflow.workflow_id}>
+            {index > 0 ? <div aria-hidden="true" className="rule-dotted -mt-2.5 mb-1" /> : null}
+            <div className="flex items-center gap-3">
+              <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-signal/40 font-mono text-xs text-signal">
+                {index + 1}
+              </span>
+              <div className="grid min-w-0 gap-0.5">
+                <p className="m-0 text-sm font-medium text-ink">
+                  {compactWorkflowName(workflow.name)}
+                </p>
+                <p className="m-0 text-xs text-muted">{normalizeLabel(workflow.state)}</p>
+              </div>
             </div>
           </div>
         ))}
-        <div className="pipeline-step pipeline-step-approval">
-          <ShieldCheck size={17} />
-          <div>
-            <p className="row-title">Approval gate</p>
-            <p className="row-detail">{overview.approvals.length} requests</p>
+        <div aria-hidden="true" className="rule-dotted mb-1" />
+        <div className="flex items-center gap-3 rounded-xl bg-tint-50 px-3 py-2.5 dark:bg-signal/10">
+          <ShieldCheck className="shrink-0 text-signal" size={17} />
+          <div className="grid gap-0.5">
+            <p className="m-0 text-sm font-medium text-ink">Approval gate</p>
+            <p className="m-0 text-xs text-muted">{overview.approvals.length} requests</p>
           </div>
         </div>
       </div>
-      <div className="ops-panel-metrics">
+      <div className="flex gap-6 text-xs text-muted">
         <span>
-          <strong>{overview.workflows.length}</strong>
+          <strong className="mr-1 font-display text-base text-ink">
+            {overview.workflows.length}
+          </strong>
           active executions
         </span>
         <span>
-          <strong>{overview.approvals.length}</strong>
+          <strong className="mr-1 font-display text-base text-ink">
+            {overview.approvals.length}
+          </strong>
           pending review
         </span>
       </div>
-      <Link className="ops-panel-link" href="/workflows">
-        Open workflows
-        <span aria-hidden="true">-&gt;</span>
-      </Link>
-    </section>
+      <PanelLink href="/workflows">Open workflows</PanelLink>
+    </Card>
   );
 }
 
 function AgentControl({ overview }: { overview: ManufacturingOverview }) {
   return (
-    <section className="ops-panel">
-      <div className="ops-panel-header">
-        <div>
-          <p className="section-label">Agent control</p>
-          <h2 className="ops-panel-title">Governed autonomy</h2>
-        </div>
-        <span className="section-label">Status</span>
-      </div>
-      <div className="ops-list">
-        {overview.agents.map((agent) => (
-          <div className="ops-list-row" key={agent.agent_id}>
-            <Bot size={18} />
-            <div>
-              <p className="row-title">{agent.name}</p>
-              <p className="row-detail ops-agent-policy">
-                {agent.autonomy_level} / {compactPolicyLabel(agent.model_policy)}
-              </p>
+    <Card className="flex flex-col gap-3">
+      <PanelHeader eyebrow="Agent control" title="Governed autonomy" />
+      <div className="grid gap-3">
+        {overview.agents.map((agent) => {
+          const waiting = agent.status.includes("waiting");
+
+          return (
+            <div className="flex items-center gap-3" key={agent.agent_id}>
+              <Bot className="shrink-0 text-signal" size={18} />
+              <div className="grid min-w-0 flex-1 gap-0.5">
+                <p className="m-0 text-sm font-medium text-ink">{agent.name}</p>
+                <p className="m-0 font-mono text-[11px] text-muted">
+                  {agent.autonomy_level} / {compactPolicyLabel(agent.model_policy)}
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-2 text-xs whitespace-nowrap text-muted">
+                {compactAgentStatus(agent.status)}
+                <StatusDot status={waiting ? "watch" : "ready"} />
+              </span>
             </div>
-            <span className={`ops-live-status ${agent.status.includes("waiting") ? "signal-watch" : "signal-ready"}`}>
-              {compactAgentStatus(agent.status)}
-              <StatusDot status={agent.status.includes("waiting") ? "watch" : "ready"} />
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <Link className="ops-panel-link" href="/agents">
-        Manage agents
-        <span aria-hidden="true">-&gt;</span>
-      </Link>
-    </section>
+      <PanelLink href="/agents">Manage agents</PanelLink>
+    </Card>
   );
 }
 
@@ -534,59 +756,59 @@ function ConnectorEvidence({ snapshot }: { snapshot: ManufacturingOperationsSnap
     .slice(0, 5);
 
   return (
-    <section className="ops-panel">
-      <p className="section-label">Connectors</p>
-      <h2 className="ops-panel-title">Evidence stream</h2>
-      <div className="ops-table" role="table" aria-label="Connector evidence events">
-        <div className="ops-table-row ops-table-head" role="row">
-          <span>Name</span>
-          <span>Type</span>
-          <span>Status</span>
-          <span>Last sync</span>
-        </div>
-        {connectorEvents.map((event) => (
-          <div className="ops-table-row" role="row" key={`${event.event_type}-${event.created_at}`}>
-            <span>{compactConnectorEvent(event.event_type)}</span>
-            <span>Audit</span>
-            <span className="signal-ready">Recorded</span>
-            <span className="mono">{shortTime(event.created_at)}</span>
-          </div>
-        ))}
-      </div>
-      <Link className="ops-panel-link" href="/connectors">
-        Manage connectors
-        <span aria-hidden="true">-&gt;</span>
-      </Link>
-    </section>
+    <Card className="flex flex-col gap-3">
+      <PanelHeader eyebrow="Connectors" title="Evidence stream" />
+      <DataTable aria-label="Connector evidence events" minWidth={0}>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Last sync</th>
+          </tr>
+        </thead>
+        <tbody>
+          {connectorEvents.map((event) => (
+            <tr key={`${event.event_type}-${event.created_at}`}>
+              <td className="text-xs">{compactConnectorEvent(event.event_type)}</td>
+              <td className="text-xs text-muted">Audit</td>
+              <td className="text-xs text-positive">Recorded</td>
+              <td className="font-mono text-xs text-muted">{shortTime(event.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
+      <PanelLink href="/connectors">Manage connectors</PanelLink>
+    </Card>
   );
 }
 
 function ApprovalQueue({ overview }: { overview: ManufacturingOverview }) {
   return (
-    <section className="ops-panel">
-      <p className="section-label">Approvals</p>
-      <h2 className="ops-panel-title">Pending decisions</h2>
-      <div className="ops-table" role="table" aria-label="Approval requests">
-        <div className="ops-table-row ops-table-head" role="row">
-          <span>Request</span>
-          <span>Requested by</span>
-          <span>Type</span>
-          <span>Due</span>
-        </div>
-        {overview.approvals.map((approval) => (
-          <div className="ops-table-row" role="row" key={approval.approval_id}>
-            <span>{approval.action}</span>
-            <span>{normalizeLabel(approval.requested_by)}</span>
-            <span>{normalizeLabel(approval.risk_level)}</span>
-            <span>{approval.due}</span>
-          </div>
-        ))}
-      </div>
-      <Link className="ops-panel-link" href="/approvals">
-        Review approvals
-        <span aria-hidden="true">-&gt;</span>
-      </Link>
-    </section>
+    <Card className="flex flex-col gap-3">
+      <PanelHeader eyebrow="Approvals" title="Pending decisions" />
+      <DataTable aria-label="Approval requests" minWidth={0}>
+        <thead>
+          <tr>
+            <th>Request</th>
+            <th>Requested by</th>
+            <th>Type</th>
+            <th>Due</th>
+          </tr>
+        </thead>
+        <tbody>
+          {overview.approvals.map((approval) => (
+            <tr key={approval.approval_id}>
+              <td className="text-xs">{approval.action}</td>
+              <td className="text-xs text-muted">{normalizeLabel(approval.requested_by)}</td>
+              <td className="text-xs text-muted">{normalizeLabel(approval.risk_level)}</td>
+              <td className="font-mono text-xs text-muted">{approval.due}</td>
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
+      <PanelLink href="/approvals">Review approvals</PanelLink>
+    </Card>
   );
 }
 
@@ -602,42 +824,62 @@ function AuditObservability({ snapshot }: { snapshot: ManufacturingOperationsSna
     .join(" ");
 
   return (
-    <section className="ops-panel">
-      <p className="section-label">Audit observability</p>
-      <h2 className="ops-panel-title">Recent evidence</h2>
-      <svg className="audit-chart" viewBox="0 0 300 96" role="img" aria-label="Recent audit evidence chart">
-        <defs>
-          <pattern id="audit-grid" width="20" height="16" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 16" fill="none" stroke="rgba(220,226,234,.10)" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width="300" height="96" fill="url(#audit-grid)" />
-        <polyline points={points} fill="none" stroke="var(--signal-blue)" strokeWidth="2" />
-        {points.split(" ").map((point) => {
-          const [cx, cy] = point.split(",");
+    <Card className="flex flex-col gap-3">
+      <PanelHeader eyebrow="Audit observability" title="Recent evidence" />
+      <Reveal>
+        <svg
+          aria-label="Recent audit evidence chart"
+          className="h-auto w-full"
+          role="img"
+          viewBox="0 0 300 96"
+        >
+          <defs>
+            <pattern height="16" id="audit-grid" patternUnits="userSpaceOnUse" width="20">
+              <path
+                d="M 20 0 L 0 0 0 16"
+                fill="none"
+                stroke="rgb(var(--line) / 0.5)"
+                strokeWidth="1"
+              />
+            </pattern>
+          </defs>
+          <rect fill="url(#audit-grid)" height="96" width="300" />
+          <polyline
+            className="draw-path"
+            fill="none"
+            points={points}
+            stroke="rgb(var(--signal))"
+            strokeWidth="2"
+          />
+          {points.split(" ").map((point) => {
+            const [pointX, pointY] = point.split(",");
 
-          return <circle cx={cx} cy={cy} fill="var(--signal-blue)" key={point} r="3" />;
-        })}
-      </svg>
-      <div className="ops-panel-metrics">
+            return <circle cx={pointX} cy={pointY} fill="rgb(var(--signal))" key={point} r="3" />;
+          })}
+        </svg>
+      </Reveal>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted">
         <span>
-          <strong>{snapshot.recent_audit_events.length}</strong>
+          <strong className="mr-1 font-display text-base text-ink">
+            {snapshot.recent_audit_events.length}
+          </strong>
           recent events
         </span>
         <span>
-          <strong>{getPersistedArtifactCount(snapshot)}</strong>
+          <strong className="mr-1 font-display text-base text-ink">
+            {getPersistedArtifactCount(snapshot)}
+          </strong>
           governed artifacts
         </span>
         <span>
-          <strong>{connectionEvents(snapshot)}</strong>
+          <strong className="mr-1 font-display text-base text-ink">
+            {connectionEvents(snapshot)}
+          </strong>
           connector events
         </span>
       </div>
-      <Link className="ops-panel-link" href="/audit">
-        Open audit
-        <span aria-hidden="true">-&gt;</span>
-      </Link>
-    </section>
+      <PanelLink href="/audit">Open audit</PanelLink>
+    </Card>
   );
 }
 
@@ -654,16 +896,26 @@ function SystemHealth({
 }) {
   const workflowMetric = metricByLabel(overview, "Workflow Load");
   const agentsMetric = metricByLabel(overview, "Agents");
-  const healthSignals: HealthSignal[] = [
+  const healthSignals: { label: string; status: PlatformStatus }[] = [
     {
       label: "Policies",
-      status: readinessCheckById(demoReadiness, "human_approval_gates")?.status ?? "watch",
+      status:
+        demoReadiness.checks.find((check) => check.check_id === "human_approval_gates")?.status ??
+        "watch",
     },
     { label: "Security", status: getDemoReadinessPriorityStatus(demoReadiness) },
-    { label: "Data", status: operationsSnapshot.metrics.every((metric) => metric.status === "ready") ? "ready" : "watch" },
+    {
+      label: "Data",
+      status: operationsSnapshot.metrics.every((metric) => metric.status === "ready")
+        ? "ready"
+        : "watch",
+    },
     { label: "Workflows", status: workflowMetric?.status ?? "watch" },
     { label: "Agents", status: agentsMetric?.status ?? "ready" },
-    { label: "Connectors", status: connectionEvents(operationsSnapshot) > 0 ? "ready" : "watch" },
+    {
+      label: "Connectors",
+      status: connectionEvents(operationsSnapshot) > 0 ? "ready" : "watch",
+    },
   ];
   const polygon = healthSignals
     .map((signal, index) => radarPoint(index, healthSignals.length, signal.status))
@@ -673,96 +925,133 @@ function SystemHealth({
     .join(" ");
 
   return (
-    <section className="ops-panel side-panel">
-      <h2 className="section-label">System health</h2>
-      <svg className="radar-chart" viewBox="0 0 108 108" role="img" aria-label="System health radar">
+    <Card className="grid content-start gap-3">
+      <h2 className="eyebrow m-0 text-[11px] font-medium">System health</h2>
+      <svg
+        aria-label="System health radar"
+        className="mx-auto h-auto w-full max-w-52"
+        role="img"
+        viewBox="0 0 108 108"
+      >
         {[18, 30, 42].map((radius) => (
-          <circle cx="54" cy="54" fill="none" key={radius} r={radius} stroke="rgba(220,226,234,.14)" />
+          <circle
+            cx="54"
+            cy="54"
+            fill="none"
+            key={radius}
+            r={radius}
+            stroke="rgb(var(--line) / 0.7)"
+          />
         ))}
         {healthSignals.map((signal, index) => {
           const point = radarPoint(index, healthSignals.length, "ready");
           const [x, y] = point.split(",");
 
           return (
-            <line
-              key={signal.label}
-              x1="54"
-              y1="54"
-              x2={x}
-              y2={y}
-              stroke="rgba(220,226,234,.12)"
-            />
+            <line key={signal.label} stroke="rgb(var(--line) / 0.6)" x1="54" x2={x} y1="54" y2={y} />
           );
         })}
-        <polygon points={baseline} fill="none" stroke="rgba(220,226,234,.35)" strokeDasharray="2 3" />
-        <polygon points={polygon} fill="rgba(62,107,255,.18)" stroke="var(--signal-blue)" strokeWidth="2" />
+        <polygon
+          fill="none"
+          points={baseline}
+          stroke="rgb(var(--muted) / 0.5)"
+          strokeDasharray="2 3"
+        />
+        <polygon
+          fill="rgb(var(--signal) / 0.16)"
+          points={polygon}
+          stroke="rgb(var(--signal))"
+          strokeWidth="2"
+        />
       </svg>
-      <div className="radar-labels">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         {healthSignals.map((signal) => (
-          <span key={signal.label}>
+          <span className="inline-flex items-center gap-2 text-xs text-muted" key={signal.label}>
             <StatusDot status={signal.status} />
             {signal.label}
           </span>
         ))}
       </div>
-      <p className="row-detail">
+      <div aria-hidden="true" className="rule-dotted" />
+      <p className="m-0 text-xs text-muted">
         Routing posture: {platformStatusLabel(modelRouting.routing_status)} /{" "}
         {countBlockedModelRoutes(modelRouting)} blocked route
       </p>
-    </section>
+    </Card>
   );
 }
 
 function RiskSignals({ overview }: { overview: ManufacturingOverview }) {
   return (
-    <section className="ops-panel side-panel">
-      <div className="ops-panel-header">
-        <p className="section-label">Risk signals</p>
-        <Link className="side-link" href="/audit">
-          View all
-        </Link>
-      </div>
-      <div className="side-list">
+    <Card className="grid content-start gap-3">
+      <PanelHeader
+        aside={
+          <Link
+            className="font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+            href="/audit"
+          >
+            View all
+          </Link>
+        }
+        eyebrow="Risk signals"
+      />
+      <div className="grid gap-3">
         {overview.risk_signals.map((signal) => (
-          <div className="side-list-row" key={signal.title}>
+          <div className="flex items-start gap-3" key={signal.title}>
             <AlertTriangle
-              className={platformStatusClass(signal.severity)}
-              size={21}
+              className={cn(
+                "mt-0.5 shrink-0",
+                signal.severity === "ready" && "text-positive",
+                signal.severity === "watch" && "text-warning",
+                signal.severity === "action_required" && "text-danger",
+              )}
+              size={18}
               strokeWidth={1.8}
             />
-            <div>
-              <p className="row-title">{signal.title}</p>
-              <p className="row-detail">{signal.evidence}</p>
+            <div className="grid gap-0.5">
+              <p className="m-0 text-sm font-medium text-ink">{signal.title}</p>
+              <p className="m-0 text-xs text-muted">{signal.evidence}</p>
             </div>
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }
 
 function RecentActivity({ snapshot }: { snapshot: ManufacturingOperationsSnapshot }) {
   return (
-    <section className="ops-panel side-panel">
-      <div className="ops-panel-header">
-        <p className="section-label">Recent activity</p>
-        <Link className="side-link" href="/audit">
-          View all
-        </Link>
-      </div>
-      <div className="side-list">
+    <Card className="grid content-start gap-3">
+      <PanelHeader
+        aside={
+          <Link
+            className="font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+            href="/audit"
+          >
+            View all
+          </Link>
+        }
+        eyebrow="Recent activity"
+      />
+      <div className="grid gap-3">
         {snapshot.recent_audit_events.slice(0, 5).map((event) => (
-          <div className="activity-row" key={`${event.event_type}-${event.created_at}`}>
-            <StatusDot status="ready" />
-            <div>
-              <p className="row-title">{normalizeLabel(event.event_type)}</p>
-              <p className="row-detail">{normalizeLabel(event.actor_id)}</p>
+          <div className="flex items-start gap-3" key={`${event.event_type}-${event.created_at}`}>
+            <span className="mt-1.5">
+              <StatusDot status="ready" />
+            </span>
+            <div className="grid min-w-0 flex-1 gap-0.5">
+              <p className="m-0 text-sm font-medium break-words text-ink">
+                {normalizeLabel(event.event_type)}
+              </p>
+              <p className="m-0 text-xs text-muted">{normalizeLabel(event.actor_id)}</p>
             </div>
-            <span className="mono">{shortTime(event.created_at)}</span>
+            <span className="font-mono text-xs whitespace-nowrap text-muted">
+              {shortTime(event.created_at)}
+            </span>
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -775,21 +1064,25 @@ function QuickActions() {
   ];
 
   return (
-    <section className="ops-panel side-panel">
-      <p className="section-label">Quick actions</p>
-      <div className="quick-action-grid">
+    <Card className="grid content-start gap-3">
+      <Eyebrow>Quick actions</Eyebrow>
+      <div className="grid grid-cols-2 gap-2">
         {actions.map((action) => {
           const Icon = action.icon;
 
           return (
-            <Link className="quick-action" href={action.href} key={action.label}>
-              <Icon size={17} />
+            <Link
+              className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 text-xs font-medium text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/10"
+              href={action.href}
+              key={action.label}
+            >
+              <Icon className="shrink-0" size={15} />
               {action.label}
             </Link>
           );
         })}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -797,52 +1090,152 @@ function ModelRoutingStrip({ routing }: { routing: ManufacturingModelRouting }) 
   const primaryRoute = routing.routes[0];
   const blockedRoutes = countBlockedModelRoutes(routing);
   const totalCost = sumEstimatedModelCost(routing);
+  const stages = [
+    {
+      label: "Request",
+      title: primaryRoute.prompt_classification,
+      detail: `Source: ${primaryRoute.agent_name}`,
+      titleClass: "",
+    },
+    {
+      label: "Routing decision",
+      title: primaryRoute.model,
+      detail: primaryRoute.data_boundary,
+      titleClass: "",
+    },
+    {
+      label: "Execution",
+      title: formatModelRoutingLabel(primaryRoute.egress_decision),
+      detail: `Latency: ${primaryRoute.latency_ms} ms`,
+      titleClass:
+        routeDecisionClass(primaryRoute) === "signal-ready" ? "text-positive" : "text-warning",
+    },
+    {
+      label: "Response",
+      title: formatEuroCost(totalCost),
+      detail: `${blockedRoutes} blocked route`,
+      titleClass: "",
+    },
+  ];
 
   return (
-    <section className="ops-panel model-strip">
-      <div className="ops-panel-header">
-        <div>
-          <p className="section-label">Model routing</p>
-          <h2 className="ops-panel-title">Persisted routing posture</h2>
-        </div>
-        <Link className="side-link" href="/model-routing">
-          View routing
-        </Link>
+    <Card className="grid content-start gap-4">
+      <PanelHeader
+        aside={
+          <Link
+            className="font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+            href="/model-routing"
+          >
+            View routing
+          </Link>
+        }
+        eyebrow="Model routing"
+        title="Persisted routing posture"
+      />
+      <div
+        aria-label="Model routing decision flow"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {stages.map((stage, index) => (
+          <div
+            className="relative grid content-start gap-1 rounded-2xl border border-line p-4 dark:border-white/10"
+            key={stage.label}
+          >
+            <Eyebrow>{stage.label}</Eyebrow>
+            <p className={cn("m-0 text-sm font-medium break-words text-ink", stage.titleClass)}>
+              {stage.title}
+            </p>
+            <p className="m-0 text-xs text-muted">{stage.detail}</p>
+            {index < stages.length - 1 ? (
+              <ArrowRight
+                aria-hidden="true"
+                className="absolute top-1/2 -right-2.5 hidden -translate-y-1/2 text-signal xl:block"
+                size={15}
+              />
+            ) : null}
+          </div>
+        ))}
       </div>
-      <div className="model-strip-flow" aria-label="Model routing decision flow">
-        <div className="model-strip-node">
-          <p className="section-label">Request</p>
-          <p className="row-title">{primaryRoute.prompt_classification}</p>
-          <p className="row-detail">Source: {primaryRoute.agent_name}</p>
+    </Card>
+  );
+}
+
+function ReadinessPanel({ demoReadiness }: { demoReadiness: ManufacturingDemoReadinessReport }) {
+  const readinessCounts = getDemoReadinessCounts(demoReadiness);
+
+  return (
+    <Card className="grid content-start gap-4" id="readiness">
+      <PanelHeader
+        aside={<PlatformStatusPill status={getDemoReadinessPriorityStatus(demoReadiness)} />}
+        eyebrow="Demo readiness"
+        title="Feedback environment"
+      />
+      <p className="m-0 max-w-3xl text-sm text-muted">{demoReadiness.summary}</p>
+      <Reveal>
+        <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
+          <div className="grid content-start gap-2">
+            <MetricSparkbar
+              caption="Demo readiness check counts: ready, watch, action required"
+              points={[
+                { label: "ready", value: readinessCounts.ready },
+                { label: "watch", value: readinessCounts.watch },
+                { label: "action required", value: readinessCounts.action_required },
+              ]}
+            />
+            <div className="grid grid-cols-3 gap-2 text-[11px] tracking-[0.1em] text-muted uppercase">
+              <span>
+                <strong className="block font-display text-lg tracking-normal text-ink">
+                  {readinessCounts.ready}
+                </strong>
+                ready
+              </span>
+              <span>
+                <strong className="block font-display text-lg tracking-normal text-ink">
+                  {readinessCounts.watch}
+                </strong>
+                watch
+              </span>
+              <span>
+                <strong className="block font-display text-lg tracking-normal text-ink">
+                  {readinessCounts.action_required}
+                </strong>
+                action required
+              </span>
+            </div>
+          </div>
+          <div className="grid content-start gap-2 sm:grid-cols-2">
+            {demoReadiness.tracks.map((track) => (
+              <div
+                className="flex items-start justify-between gap-3 rounded-2xl border border-line p-3.5 dark:border-white/10"
+                key={track.name}
+              >
+                <div className="grid min-w-0 gap-0.5">
+                  <p className="m-0 text-sm font-medium text-ink">{track.name}</p>
+                  <p className="m-0 text-xs text-muted">{track.detail}</p>
+                </div>
+                <PlatformStatusPill status={track.status} />
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="model-flow-arrow" aria-hidden="true">
-          -&gt;
-        </div>
-        <div className="model-strip-node">
-          <p className="section-label">Routing decision</p>
-          <p className="row-title">{primaryRoute.model}</p>
-          <p className="row-detail">{primaryRoute.data_boundary}</p>
-        </div>
-        <div className="model-flow-arrow" aria-hidden="true">
-          -&gt;
-        </div>
-        <div className="model-strip-node">
-          <p className="section-label">Execution</p>
-          <p className={`row-title ${routeDecisionClass(primaryRoute)}`}>
-            {formatModelRoutingLabel(primaryRoute.egress_decision)}
-          </p>
-          <p className="row-detail">Latency: {primaryRoute.latency_ms} ms</p>
-        </div>
-        <div className="model-flow-arrow" aria-hidden="true">
-          -&gt;
-        </div>
-        <div className="model-strip-node model-strip-node-compact">
-          <p className="section-label">Response</p>
-          <p className="row-title">{formatEuroCost(totalCost)}</p>
-          <p className="row-detail">{blockedRoutes} blocked route</p>
-        </div>
+      </Reveal>
+    </Card>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="grid gap-5 px-6 py-6" aria-busy="true" aria-label="Loading operations API">
+      <Skeleton className="h-64 rounded-3xl" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        <Skeleton className="h-36" />
+        <Skeleton className="h-36" />
+        <Skeleton className="h-36" />
+        <Skeleton className="h-36" />
+        <Skeleton className="h-36" />
       </div>
-    </section>
+      <Skeleton className="h-72" />
+    </div>
   );
 }
 
@@ -912,34 +1305,24 @@ export function PlatformOverview() {
     return () => controller.abort();
   }, [refreshNonce, session]);
 
-  const readinessCounts = useMemo(
-    () =>
-      demoReadiness
-        ? getDemoReadinessCounts(demoReadiness)
-        : { action_required: 0, ready: 0, watch: 0 },
-    [demoReadiness],
-  );
-
   if (!overview || !operationsSnapshot || !demoReadiness || !modelRouting) {
     return (
       <div className="ops-console">
         <ConsoleTopbar
           evidenceLabel={source === "api" ? "Evidence present" : "Evidence required"}
-          sourceLabel={
-            source === "api"
-              ? "Live API"
-              : source === "loading"
-                ? "Loading API"
-                : "API unavailable"
-          }
+          sourceLabel={sourceLabel(source)}
         />
-        <div className="ops-loading-shell">
-          <ApiRequiredState
-            detail="Axis did not receive API-backed overview, operations snapshot, demo-readiness and model-routing records. Local fallback overview records are disabled."
-            endpoint="/demo/manufacturing/overview + /demo/manufacturing/operations/snapshot + /demo/manufacturing/demo-readiness + /demo/manufacturing/model-routing"
-            title={source === "loading" ? "Loading operations API" : "Operations API unavailable"}
-          />
-        </div>
+        {source === "loading" ? (
+          <OverviewSkeleton />
+        ) : (
+          <div className="mx-auto grid min-h-[60vh] w-full max-w-3xl content-center px-6 py-6">
+            <ApiRequiredState
+              detail="Axis did not receive API-backed overview, operations snapshot, demo-readiness and model-routing records. Local fallback overview records are disabled."
+              endpoint="/demo/manufacturing/overview + /demo/manufacturing/operations/snapshot + /demo/manufacturing/demo-readiness + /demo/manufacturing/model-routing"
+              title="Operations API unavailable"
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -948,32 +1331,17 @@ export function PlatformOverview() {
     <div className="ops-console">
       <ConsoleTopbar
         evidenceLabel={source === "api" ? "Evidence present" : "Evidence required"}
-        sourceLabel={source === "api" ? "Live API" : sourceLabel(source)}
+        sourceLabel={sourceLabel(source)}
       />
-      <section className="ops-page-header">
-        <div>
-          <h1 className="ops-page-title">Operations</h1>
-          <p className="ops-page-subtitle">
-            {overview.plant_name} / {overview.scenario} / {formatOverviewTimestamp(operationsSnapshot.as_of)}
-          </p>
-        </div>
-        <div className="ops-controls" aria-label="Operations controls">
-          <span className="control-chip">{overview.plant_name}</span>
-          <span className="control-chip">Latest evidence</span>
-          <button
-            className="ops-icon-button"
-            type="button"
-            aria-label="Refresh state"
-            title="Refresh state"
-            onClick={triggerRefresh}
-          >
-            <RefreshCw size={17} />
-          </button>
-        </div>
-      </section>
 
-      <div className="ops-dashboard-grid">
-        <main className="ops-dashboard-main" aria-label="Operations dashboard">
+      <div className="ops-dashboard-grid grid grid-cols-1 gap-5 px-5 py-6 min-[1400px]:grid-cols-[minmax(0,1fr)_320px] sm:px-6">
+        <main aria-label="Operations dashboard" className="ops-dashboard-main grid min-w-0 gap-5">
+          <OverviewHero
+            onRefresh={triggerRefresh}
+            operationsSnapshot={operationsSnapshot}
+            overview={overview}
+          />
+
           <TopKpis
             demoReadiness={demoReadiness}
             operationsSnapshot={operationsSnapshot}
@@ -988,55 +1356,25 @@ export function PlatformOverview() {
             session={session}
           />
 
-          <div className="ops-main-grid">
-            <OntologyMap domains={operationsSnapshot.domain_snapshots} />
-            <WorkflowOrchestration overview={overview} />
-            <AgentControl overview={overview} />
-            <ConnectorEvidence snapshot={operationsSnapshot} />
-            <ApprovalQueue overview={overview} />
-            <AuditObservability snapshot={operationsSnapshot} />
-          </div>
+          <DomainSnapshots snapshot={operationsSnapshot} />
+
+          <Reveal>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <OntologyMap domains={operationsSnapshot.domain_snapshots} />
+              <WorkflowOrchestration overview={overview} />
+              <AgentControl overview={overview} />
+              <ConnectorEvidence snapshot={operationsSnapshot} />
+              <ApprovalQueue overview={overview} />
+              <AuditObservability snapshot={operationsSnapshot} />
+            </div>
+          </Reveal>
 
           <ModelRoutingStrip routing={modelRouting} />
 
-          <section className="ops-panel readiness-panel" id="readiness">
-            <div className="ops-panel-header">
-              <div>
-                <p className="section-label">Demo readiness</p>
-                <h2 className="ops-panel-title">Feedback environment</h2>
-              </div>
-              <StatusPill status={getDemoReadinessPriorityStatus(demoReadiness)} />
-            </div>
-            <p className="row-detail">{demoReadiness.summary}</p>
-            <div className="readiness-counts">
-              <span>
-                <strong>{readinessCounts.ready}</strong>
-                ready
-              </span>
-              <span>
-                <strong>{readinessCounts.watch}</strong>
-                watch
-              </span>
-              <span>
-                <strong>{readinessCounts.action_required}</strong>
-                action required
-              </span>
-            </div>
-            <div className="readiness-track-grid">
-              {demoReadiness.tracks.map((track) => (
-                <div className="readiness-track" key={track.name}>
-                  <div>
-                    <p className="row-title">{track.name}</p>
-                    <p className="row-detail">{track.detail}</p>
-                  </div>
-                  <StatusPill status={track.status} />
-                </div>
-              ))}
-            </div>
-          </section>
+          <ReadinessPanel demoReadiness={demoReadiness} />
         </main>
 
-        <aside className="ops-right-rail" aria-label="Operations side rail">
+        <aside aria-label="Operations side rail" className="ops-right-rail grid min-w-0 content-start gap-4">
           <SystemHealth
             demoReadiness={demoReadiness}
             modelRouting={modelRouting}

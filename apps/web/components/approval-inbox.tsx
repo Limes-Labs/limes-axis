@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { Button, type ButtonVariant } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { Skeleton } from "@/components/ui/skeleton";
 import { axisFetchJson } from "@/lib/axis-api";
 import {
   approvalDecisionLabel,
@@ -21,8 +25,10 @@ import {
   type ApprovalDecision,
   type ApprovalDecisionOption,
   type ApprovalDecisionPersistenceResult,
+  type ApprovalInboxItem,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
+import { cn } from "@/lib/cn";
 import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -39,6 +45,14 @@ type LocalApprovalDecision = {
   persistenceDetail?: string;
   permissionDetail?: string;
   workflowSignalDetail?: string;
+};
+
+type RailStageState = "done" | "current" | "pending";
+
+type RailStage = {
+  label: string;
+  detail: string;
+  state: RailStageState;
 };
 
 function sourceLabel(source: "loading" | "api" | "unavailable"): string {
@@ -61,6 +75,14 @@ function DecisionIcon({ decision }: { decision: ApprovalDecision }) {
   return decision === "reject" ? <CircleX size={17} /> : <MessageSquare size={17} />;
 }
 
+function decisionVariant(decision: ApprovalDecision): ButtonVariant {
+  if (decision === "approve") {
+    return "primary";
+  }
+
+  return decision === "reject" ? "destructive" : "secondary";
+}
+
 function countLocalDecisions(
   inbox: ManufacturingApprovalInbox,
   localDecisions: Record<string, LocalApprovalDecision>,
@@ -68,6 +90,131 @@ function countLocalDecisions(
   const approvalIds = new Set(inbox.approvals.map((approval) => approval.approval_id));
 
   return Object.keys(localDecisions).filter((approvalId) => approvalIds.has(approvalId)).length;
+}
+
+/**
+ * Stage rail derived from the real approval record: submission metadata,
+ * the attached policy controls, the human decision, and the persisted audit
+ * evidence returned by the decision API.
+ */
+function buildDecisionRail(
+  approval: ApprovalInboxItem,
+  decision: LocalApprovalDecision | undefined,
+): RailStage[] {
+  const decided = Boolean(decision);
+  const recorded = decision?.storage === "persisted";
+
+  return [
+    {
+      label: "Submitted",
+      detail: `${approval.requested_by} / due ${approval.due}`,
+      state: "done",
+    },
+    {
+      label: "Policy evaluation",
+      detail: `${approval.required_permission} / ${approval.model_policy}`,
+      state: "done",
+    },
+    {
+      label: "Approval",
+      detail: decision
+        ? approvalDecisionLabel(decision.decision)
+        : `${approval.owner_role} decision pending`,
+      state: decided ? "done" : "current",
+    },
+    {
+      label: "Recorded",
+      detail: recorded
+        ? (decision?.auditEventId ?? approval.audit_event_preview.event)
+        : decided
+          ? "Persisting audit evidence"
+          : approval.audit_event_preview.event,
+      state: recorded ? "done" : decided ? "current" : "pending",
+    },
+  ];
+}
+
+function RailMarker({ state }: { state: RailStageState }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-block size-2.5 shrink-0 rotate-45",
+        state === "done" && "bg-signal",
+        state === "current" && "border-2 border-signal bg-transparent",
+        state === "pending" && "border border-mist bg-transparent dark:border-white/25",
+      )}
+      style={
+        state === "current"
+          ? { animation: "tick-pulse 1.6s ease-in-out infinite" }
+          : undefined
+      }
+    />
+  );
+}
+
+function DecisionRail({
+  approval,
+  decision,
+}: {
+  approval: ApprovalInboxItem;
+  decision: LocalApprovalDecision | undefined;
+}) {
+  const stages = buildDecisionRail(approval, decision);
+  const currentIndex = stages.findIndex((stage) => stage.state === "current");
+
+  return (
+    <div className="grid gap-2" aria-label="Decision stage rail">
+      <div className="flex items-center gap-2">
+        {stages.map((stage, index) => (
+          <div
+            className={cn("flex items-center gap-2", index > 0 && "min-w-0 flex-1")}
+            key={stage.label}
+          >
+            {index > 0 ? (
+              <div className="rule-dotted relative h-px min-w-6 flex-1 overflow-hidden">
+                {index === currentIndex ? (
+                  <span
+                    className="absolute top-1/2 left-0 h-[3px] w-1/5 -translate-y-1/2 rounded-full bg-signal"
+                    style={{ animation: "rail-pulse 1.8s linear infinite" }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            <RailMarker state={stage.state} />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {stages.map((stage) => (
+          <div className="grid min-w-0 gap-0.5" key={stage.label}>
+            <p
+              className={cn(
+                "m-0 font-mono text-[10.5px] tracking-[0.14em] uppercase",
+                stage.state === "pending" ? "text-muted" : "text-signal",
+              )}
+            >
+              {stage.label}
+            </p>
+            <p className="m-0 truncate text-xs text-muted" title={stage.detail}>
+              {stage.detail}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ApprovalMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <Card className="grid content-start gap-2 p-5">
+      <Eyebrow>{label}</Eyebrow>
+      <p className="font-display m-0 text-3xl text-ink">{value}</p>
+      <div aria-hidden="true" className="rule-dotted" />
+      <p className="m-0 text-xs text-muted">{detail}</p>
+    </Card>
+  );
 }
 
 export function ApprovalInbox() {
@@ -178,11 +325,29 @@ export function ApprovalInbox() {
   }
 
   if (!inbox) {
+    if (source === "loading") {
+      return (
+        <div className="grid gap-5" aria-busy="true" aria-label="Loading approval API">
+          <Skeleton className="h-28" />
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[2fr_3fr]">
+            <Skeleton className="h-96" />
+            <Skeleton className="h-96" />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed approval records. Local fallback approval records are disabled."
         endpoint="/demo/manufacturing/approvals"
-        title={source === "loading" ? "Loading approval API" : "Approval API unavailable"}
+        title="Approval API unavailable"
       />
     );
   }
@@ -198,16 +363,19 @@ export function ApprovalInbox() {
   }
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
-        <div>
-          <p className="section-label">Demo Approval Queue</p>
-          <h2 className="panel-title">{inbox.plant_name}</h2>
-          <p className="row-detail">
+    <div className="grid gap-5">
+      <Card className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-1">
+          <Eyebrow>Demo Approval Queue</Eyebrow>
+          <h2 className="font-display m-0 text-2xl text-ink">{inbox.plant_name}</h2>
+          <p className="m-0 text-sm text-muted">
             {inbox.scenario} / {inbox.tenant_id}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Approval source and status">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          aria-label="Approval source and status"
+        >
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -216,38 +384,42 @@ export function ApprovalInbox() {
             <ShieldAlert size={15} />
             {pendingCount} pending
           </span>
-          <span className="mono">{formatOverviewTimestamp(inbox.as_of)}</span>
+          <span className="font-mono text-xs text-muted">
+            {formatOverviewTimestamp(inbox.as_of)}
+          </span>
         </div>
-      </section>
+      </Card>
 
-      <div className="metric-grid">
-        <article className="metric-card compact-card">
-          <p className="metric-label">Pending</p>
-          <p className="metric-value">{pendingCount}</p>
-          <p className="metric-detail">Human-gated decisions in the demo queue</p>
-        </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">High Risk</p>
-          <p className="metric-value">{highRiskCount}</p>
-          <p className="metric-detail">Actions that cannot execute without owner approval</p>
-        </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Decisions</p>
-          <p className="metric-value">{localDecisionCount}</p>
-          <p className="metric-detail">Persisted through the API when available</p>
-        </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Policy</p>
-          <p className="metric-value">L2</p>
-          <p className="metric-detail">Agent proposals remain under human approval</p>
-        </article>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <ApprovalMetric
+          detail="Human-gated decisions in the demo queue"
+          label="Pending"
+          value={String(pendingCount)}
+        />
+        <ApprovalMetric
+          detail="Actions that cannot execute without owner approval"
+          label="High Risk"
+          value={String(highRiskCount)}
+        />
+        <ApprovalMetric
+          detail="Persisted through the API when available"
+          label="Decisions"
+          value={String(localDecisionCount)}
+        />
+        <ApprovalMetric
+          detail="Agent proposals remain under human approval"
+          label="Policy"
+          value="L2"
+        />
       </div>
 
-      <div className="approval-layout">
-        <section className="panel">
-          <p className="section-label">Queue</p>
-          <h2 className="panel-title">Approval inbox</h2>
-          <div className="approval-list">
+      <div className="grid items-start gap-4 xl:grid-cols-[2fr_3fr]">
+        <Card className="grid content-start gap-4">
+          <div className="grid gap-1">
+            <Eyebrow>Queue</Eyebrow>
+            <h2 className="font-display m-0 text-xl text-ink">Approval inbox</h2>
+          </div>
+          <div className="grid gap-2">
             {inbox.approvals.map((approval) => {
               const localDecision = localDecisions[approval.approval_id];
               const isSelected = approval.approval_id === selectedApproval.approval_id;
@@ -255,17 +427,22 @@ export function ApprovalInbox() {
               return (
                 <button
                   aria-pressed={isSelected}
-                  className={`approval-list-item${isSelected ? " active" : ""}`}
+                  className={cn(
+                    "flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
+                    isSelected
+                      ? "border-signal/60 bg-tint-100 dark:bg-signal/15"
+                      : "border-line bg-transparent hover:border-signal/40 hover:bg-tint-50 dark:border-white/10 dark:hover:bg-white/5",
+                  )}
                   key={approval.approval_id}
                   onClick={() => setSelectedApprovalId(approval.approval_id)}
                   type="button"
                 >
-                  <span>
-                    <span className="row-title">{approval.action}</span>
-                    <span className="row-detail">
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="text-sm font-medium text-ink">{approval.action}</span>
+                    <span className="text-xs text-muted">
                       {approval.domain} / {approval.owner_role}
                     </span>
-                    <span className="row-detail">Due {approval.due}</span>
+                    <span className="font-mono text-xs text-muted">Due {approval.due}</span>
                   </span>
                   <span
                     className={`status-pill ${
@@ -280,16 +457,16 @@ export function ApprovalInbox() {
               );
             })}
           </div>
-        </section>
+        </Card>
 
-        <section className="panel approval-detail">
-          <div className="approval-detail-header">
-            <div>
-              <p className="section-label">{selectedApproval.domain}</p>
-              <h2 className="panel-title">{selectedApproval.action}</h2>
-              <p className="row-detail">{selectedApproval.summary}</p>
+        <Card className="grid content-start gap-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid max-w-xl gap-1">
+              <Eyebrow>{selectedApproval.domain}</Eyebrow>
+              <h2 className="font-display m-0 text-xl text-ink">{selectedApproval.action}</h2>
+              <p className="m-0 text-sm text-muted">{selectedApproval.summary}</p>
             </div>
-            <div className="status-stack">
+            <div className="flex flex-col items-end gap-2">
               <span className={`status-pill ${approvalRiskClass(selectedApproval.risk_level)}`}>
                 {selectedApproval.risk_level}
               </span>
@@ -297,45 +474,51 @@ export function ApprovalInbox() {
             </div>
           </div>
 
-          <div className="approval-detail-grid">
-            <div>
-              <p className="metric-label">Workflow</p>
-              <p className="row-title mono">{selectedApproval.workflow_id}</p>
+          <DecisionRail approval={selectedApproval} decision={selectedDecision} />
+
+          <div aria-hidden="true" className="rule-dotted" />
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid gap-1">
+              <Eyebrow>Workflow</Eyebrow>
+              <p className="m-0 font-mono text-sm break-words text-ink">
+                {selectedApproval.workflow_id}
+              </p>
             </div>
-            <div>
-              <p className="metric-label">Requested By</p>
-              <p className="row-title">{selectedApproval.requested_by}</p>
+            <div className="grid gap-1">
+              <Eyebrow>Requested By</Eyebrow>
+              <p className="m-0 text-sm text-ink">{selectedApproval.requested_by}</p>
             </div>
-            <div>
-              <p className="metric-label">Owner</p>
-              <p className="row-title">{selectedApproval.owner_role}</p>
+            <div className="grid gap-1">
+              <Eyebrow>Owner</Eyebrow>
+              <p className="m-0 text-sm text-ink">{selectedApproval.owner_role}</p>
             </div>
-            <div>
-              <p className="metric-label">Cost Exposure</p>
-              <p className="row-title">{selectedApproval.estimated_cost}</p>
+            <div className="grid gap-1">
+              <Eyebrow>Cost Exposure</Eyebrow>
+              <p className="m-0 text-sm text-ink">{selectedApproval.estimated_cost}</p>
             </div>
           </div>
 
-          <div className="approval-columns">
-            <section>
-              <p className="section-label">Evidence</p>
-              <ul className="clean-list">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <section className="grid content-start gap-2">
+              <Eyebrow>Evidence</Eyebrow>
+              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
                 {selectedApproval.evidence.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
             </section>
-            <section>
-              <p className="section-label">Risks</p>
-              <ul className="clean-list">
+            <section className="grid content-start gap-2">
+              <Eyebrow>Risks</Eyebrow>
+              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
                 {selectedApproval.risks.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
             </section>
-            <section>
-              <p className="section-label">Alternatives</p>
-              <ul className="clean-list">
+            <section className="grid content-start gap-2">
+              <Eyebrow>Alternatives</Eyebrow>
+              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
                 {selectedApproval.alternatives.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
@@ -343,105 +526,114 @@ export function ApprovalInbox() {
             </section>
           </div>
 
-          <div className="approval-policy-band">
-            <div>
-              <p className="metric-label">Data Accessed</p>
-              <div className="tag-list">
+          <div className="grid gap-4 rounded-2xl border border-line bg-tint-50 p-4 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5">
+            <div className="grid content-start gap-2">
+              <Eyebrow>Data Accessed</Eyebrow>
+              <div className="flex flex-wrap gap-2">
                 {selectedApproval.data_accessed.map((item) => (
-                  <span className="tag" key={item}>
+                  <span
+                    className="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted dark:border-white/15 dark:bg-transparent"
+                    key={item}
+                  >
                     {item}
                   </span>
                 ))}
               </div>
             </div>
-            <div>
-              <p className="metric-label">Controls</p>
-              <p className="row-detail">
+            <div className="grid content-start gap-2">
+              <Eyebrow>Controls</Eyebrow>
+              <p className="m-0 font-mono text-xs break-words text-muted">
                 {selectedApproval.required_permission} / {selectedApproval.model_policy}
               </p>
             </div>
           </div>
 
-          <div className="decision-panel">
-            <div>
-              <p className="section-label">Decision</p>
-              <h3 className="subsection-title">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="grid gap-1">
+              <Eyebrow>Decision</Eyebrow>
+              <h3 className="font-display m-0 text-lg text-ink">
                 {selectedDecision
                   ? approvalDecisionLabel(selectedDecision.decision)
                   : "Pending review"}
               </h3>
               {selectedDecision ? (
-                <p className="row-detail">
+                <p className="m-0 text-xs text-muted">
                   {selectedDecision.label} / {selectedDecision.decidedAt}
                 </p>
               ) : null}
               {selectedDecision ? (
-                <p className="row-detail">
+                <p className="m-0 text-xs text-muted">
                   {selectedDecision.storage === "persisted"
                     ? "Persisted decision"
                     : "Recording decision"}
                 </p>
               ) : null}
               {selectedDecisionError ? (
-                <p className="row-detail">Decision persistence error: {selectedDecisionError}</p>
+                <p className="m-0 text-xs text-danger">
+                  Decision persistence error: {selectedDecisionError}
+                </p>
               ) : null}
             </div>
-            <div className="decision-toolbar">
+            <div className="flex flex-wrap gap-2">
               {selectedApproval.decision_options.map((option) => (
-                <button
-                  className="command-button decision-command"
+                <Button
+                  className="px-4 py-2 text-sm"
                   disabled={selectedDecision?.storage === "persisting"}
                   key={option.decision}
                   onClick={() => void recordDecision(option)}
                   title={option.consequence}
-                  type="button"
+                  variant={decisionVariant(option.decision)}
                 >
                   <DecisionIcon decision={option.decision} />
                   {option.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
 
-          <div className="audit-preview">
-            <FileClock size={19} />
-            <div>
-              <p className="row-title mono">{selectedApproval.audit_event_preview.event}</p>
-              <p className="row-detail">
+          <div className="flex items-start gap-3 rounded-2xl border border-line p-4 dark:border-white/10">
+            <FileClock className="mt-0.5 shrink-0 text-signal" size={18} />
+            <div className="grid min-w-0 gap-1">
+              <p className="m-0 font-mono text-sm break-words text-ink">
+                {selectedApproval.audit_event_preview.event}
+              </p>
+              <p className="m-0 text-xs text-muted">
                 {selectedApproval.audit_event_preview.actor_role} /{" "}
                 {selectedApproval.audit_event_preview.scope} /{" "}
                 {selectedDecision?.auditResult ?? selectedApproval.audit_event_preview.result}
               </p>
               {selectedDecision?.auditEventId ? (
-                <p className="row-detail mono">{selectedDecision.auditEventId}</p>
+                <p className="m-0 font-mono text-xs break-words text-muted">
+                  {selectedDecision.auditEventId}
+                </p>
               ) : null}
               {selectedDecision?.persistenceDetail ? (
-                <p className="row-detail">{selectedDecision.persistenceDetail}</p>
+                <p className="m-0 text-xs text-muted">{selectedDecision.persistenceDetail}</p>
               ) : null}
               {selectedDecision?.permissionDetail ? (
-                <p className="row-detail">{selectedDecision.permissionDetail}</p>
+                <p className="m-0 text-xs text-muted">{selectedDecision.permissionDetail}</p>
               ) : null}
               {selectedDecision?.workflowSignalDetail ? (
-                <p className="row-detail">{selectedDecision.workflowSignalDetail}</p>
+                <p className="m-0 text-xs text-muted">{selectedDecision.workflowSignalDetail}</p>
               ) : null}
               {selectedDecisionError ? (
-                <p className="row-detail">{selectedDecisionError}</p>
+                <p className="m-0 text-xs text-danger">{selectedDecisionError}</p>
               ) : null}
             </div>
           </div>
-        </section>
+        </Card>
       </div>
 
-      <section className="panel">
-        <p className="section-label">Policy Notes</p>
-        <div className="stack">
+      <Card className="grid content-start gap-3">
+        <Eyebrow>Policy Notes</Eyebrow>
+        <div className="grid gap-2">
           {inbox.policy_notes.map((note) => (
-            <p className="row-detail" key={note}>
+            <p className="m-0 text-sm text-muted" key={note}>
               {note}
             </p>
           ))}
         </div>
-      </section>
+      </Card>
     </div>
   );
 }
