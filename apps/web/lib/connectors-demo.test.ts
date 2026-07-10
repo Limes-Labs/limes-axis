@@ -13,8 +13,11 @@ import {
   buildConnectorSnapshotHref,
   buildConnectorSyncCheckpointClaimQueryPath,
   buildConnectorSyncCheckpointQueryPath,
+  buildConnectorOntologyPromotionRequest,
   buildConnectorPromotionPolicyDraftRequest,
   buildConnectorPromotionPolicyEnableRequest,
+  findApprovedManualImportForProposal,
+  resolveOntologyPromotionStatus,
   filterConnectorCredentialLeaseInvariantsByLeases,
   filterConnectorEgressPolicyInvariantsByPolicies,
   filterConnectorSyncCheckpointClaimInvariantsByClaims,
@@ -1134,5 +1137,73 @@ describe("manufacturing connector helpers", () => {
     expect(path).toBe(
       "/demo/manufacturing/connectors/runs/checkpoints/claims?tenant_id=tenant_demo_manufacturing&actor_scopes=connectors%3Async%3Acheckpoint%3Aclaim%3Aread&created_after=2026-06-25T10%3A15%3A00Z&created_before=2026-06-25T10%3A25%3A00Z",
     );
+  });
+
+  it("builds a governed, idempotent ontology promotion request from a proposal", () => {
+    const request = buildConnectorOntologyPromotionRequest({
+      tenantId: "tenant_demo_manufacturing",
+      proposalId: "proposal_asset_line_2_packaging",
+      manualImportId: "import_assets_manual_20260622",
+    });
+
+    expect(request.promotion_id).toBe("promote_proposal_asset_line_2_packaging");
+    // Deterministic idempotency key -> clicking Promote twice replays, not conflicts.
+    expect(request.idempotency_key).toBe("promote-proposal_asset_line_2_packaging");
+    expect(request.actor_scopes).toEqual(["connectors:ontology:promote"]);
+    expect(request.manual_import_id).toBe("import_assets_manual_20260622");
+  });
+
+  it("maps server graph_mutation_status to console promotion badge state", () => {
+    expect(resolveOntologyPromotionStatus("type_db_mutation_applied")).toBe("promoted");
+    expect(resolveOntologyPromotionStatus("type_db_mutation_deferred")).toBe("deferred");
+    expect(resolveOntologyPromotionStatus("type_db_mutation_unavailable")).toBe("failed");
+    expect(resolveOntologyPromotionStatus("type_db_mutation_failed")).toBe("failed");
+  });
+
+  it("selects only approved manual-import evidence for a proposal", () => {
+    const base = {
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      idempotency_key: "k",
+      import_mode: "manual_import_request",
+      requested_by: "r",
+      owner_role: "o",
+      risk_level: "high",
+      approval_id: "a",
+      workflow_id: "w",
+      import_summary: {} as Record<string, string>,
+      controls: [] as string[],
+      graph_mutation_status: "not_applied",
+      workflow_signal_status: "manual_import_signal_requested",
+      decision_actor_id: null,
+      decision_note: null,
+      decided_at: null,
+      workflow_signal: null,
+      audit_event_id: null,
+      audit_event_type: "connector.manual_import.decision_recorded",
+      notes: [] as string[],
+      created_at: "2026-06-22T00:00:00Z",
+      idempotent_replay: false,
+    };
+    const imports = [
+      {
+        ...base,
+        import_id: "import_pending",
+        proposal_ids: ["proposal_asset_line_2_packaging"],
+        status: "approval_required",
+        decision: null,
+      },
+      {
+        ...base,
+        import_id: "import_approved",
+        proposal_ids: ["proposal_asset_line_2_packaging"],
+        status: "approval_approved",
+        decision: "approve",
+      },
+    ];
+
+    const match = findApprovedManualImportForProposal(imports, "proposal_asset_line_2_packaging");
+    expect(match?.import_id).toBe("import_approved");
+    expect(findApprovedManualImportForProposal(imports, "proposal_other")).toBeUndefined();
   });
 });
