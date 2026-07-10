@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Database, Network, RadioTower, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Database, Network, RadioTower } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { Reveal } from "@/components/reveal";
+import { PlatformStatusPill } from "@/components/status-pill";
+import { Card } from "@/components/ui/card";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { Skeleton } from "@/components/ui/skeleton";
 import { axisFetch } from "@/lib/axis-api";
 import {
   formatNodeType,
   type ManufacturingOntologyEntityDetail,
 } from "@/lib/ontology-demo";
-import {
-  formatOverviewTimestamp,
-  platformStatusClass,
-  platformStatusLabel,
-} from "@/lib/platform-overview";
+import { formatOverviewTimestamp } from "@/lib/platform-overview";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -33,18 +34,30 @@ function sourceLabel(source: EntitySource): string {
 }
 
 function TagList({ items, emptyLabel }: { items: string[]; emptyLabel: string }) {
+  const rendered = items.length > 0 ? items : [emptyLabel];
+
   return (
-    <div className="tag-list">
-      {items.length > 0 ? (
-        items.map((item) => (
-          <span className="tag" key={item}>
-            {item}
-          </span>
-        ))
-      ) : (
-        <span className="tag">{emptyLabel}</span>
-      )}
+    <div className="flex flex-wrap gap-2">
+      {rendered.map((item) => (
+        <span
+          className="inline-flex items-center rounded-full border border-line px-3 py-1 font-mono text-xs text-muted dark:border-white/15"
+          key={item}
+        >
+          {item}
+        </span>
+      ))}
     </div>
+  );
+}
+
+function EntityMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <Card className="grid content-start gap-2 p-5">
+      <Eyebrow>{label}</Eyebrow>
+      <p className="font-display m-0 text-2xl break-words text-ink">{value}</p>
+      <div aria-hidden="true" className="rule-dotted" />
+      <p className="m-0 font-mono text-xs break-words text-muted">{detail}</p>
+    </Card>
   );
 }
 
@@ -93,182 +106,221 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   }, [nodeId, session, refreshNonce]);
 
   if (!detail) {
+    if (source === "loading") {
+      return (
+        <div className="grid gap-5" aria-busy="true" aria-label="Loading entity API">
+          <Skeleton className="h-28" />
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </div>
+          <Skeleton className="h-72" />
+        </div>
+      );
+    }
+
     if (source !== "missing") {
       return (
         <ApiRequiredState
           detail="Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled."
           endpoint={`/demo/manufacturing/ontology/entities/${nodeId}`}
-          title={source === "loading" ? "Loading entity API" : "Entity API unavailable"}
+          title="Entity API unavailable"
         />
       );
     }
 
     return (
-    <div className="console-stack">
-      <section className="panel overview-context">
-        <div>
-          <p className="section-label">Ontology Entity</p>
-          <h2 className="panel-title">Entity not found</h2>
-            <p className="row-detail mono">{nodeId}</p>
-          </div>
-          <Link className="command-button" href="/ontology">
-            <ArrowLeft size={17} />
-            Ontology
-          </Link>
-        </section>
-      </div>
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div className="grid gap-1">
+          <Eyebrow>Ontology Entity</Eyebrow>
+          <h2 className="font-display m-0 text-2xl text-ink">Entity not found</h2>
+          <p className="m-0 font-mono text-sm text-muted">{nodeId}</p>
+        </div>
+        <Link
+          className="inline-flex items-center gap-2 rounded-full border border-mist bg-surface px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/20"
+          href="/ontology"
+        >
+          <ArrowLeft size={16} />
+          Ontology
+        </Link>
+      </Card>
     );
   }
 
   return (
-    <div className="stack">
-      <section className="panel overview-context">
-        <div>
-          <p className="section-label">Ontology Entity</p>
-          <h2 className="panel-title">{detail.node.label}</h2>
-          <p className="row-detail">
+    <div className="grid gap-5">
+      <Card className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-1">
+          <Eyebrow>Ontology Entity</Eyebrow>
+          <h2 className="font-display m-0 text-2xl text-ink">{detail.node.label}</h2>
+          <p className="m-0 text-sm text-muted">
             {detail.scenario} / {detail.tenant_id}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Entity source and node status">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          aria-label="Entity source and node status"
+        >
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
           </span>
-          <span className={`status-pill ${platformStatusClass(detail.node.status)}`}>
-            <Network size={15} />
-            {platformStatusLabel(detail.node.status)}
+          <PlatformStatusPill status={detail.node.status} />
+          <span className="font-mono text-xs text-muted">
+            {formatOverviewTimestamp(detail.as_of)}
           </span>
-          <span className="mono">{formatOverviewTimestamp(detail.as_of)}</span>
         </div>
-      </section>
+      </Card>
 
-      <div className="metric-grid">
-        <article className="metric-card compact-card">
-          <p className="metric-label">Type</p>
-          <p className="metric-value">{formatNodeType(detail.node.node_type)}</p>
-          <p className="metric-detail">{detail.node.node_id}</p>
-        </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Domain</p>
-          <p className="metric-value">{detail.node.domain}</p>
-          <p className="metric-detail">{detail.node.source_system}</p>
-        </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Inbound</p>
-          <p className="metric-value">{detail.inbound_count}</p>
-          <p className="metric-detail">Incoming relationships</p>
-        </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Outbound</p>
-          <p className="metric-value">{detail.outbound_count}</p>
-          <p className="metric-detail">Outgoing relationships</p>
-        </article>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <EntityMetric
+          detail={detail.node.node_id}
+          label="Type"
+          value={formatNodeType(detail.node.node_type)}
+        />
+        <EntityMetric detail={detail.node.source_system} label="Domain" value={detail.node.domain} />
+        <EntityMetric
+          detail="Incoming relationships"
+          label="Inbound"
+          value={String(detail.inbound_count)}
+        />
+        <EntityMetric
+          detail="Outgoing relationships"
+          label="Outbound"
+          value={String(detail.outbound_count)}
+        />
       </div>
 
-      <section className="panel entity-summary-panel">
-        <div>
-          <p className="section-label">Summary</p>
-          <h2 className="panel-title">Read-only entity context</h2>
-          <p className="row-detail">{detail.node.summary}</p>
+      <Card className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid max-w-2xl gap-1">
+          <Eyebrow>Summary</Eyebrow>
+          <h2 className="font-display m-0 text-xl text-ink">Read-only entity context</h2>
+          <p className="m-0 text-sm text-muted">{detail.node.summary}</p>
         </div>
-        <Link className="command-button" href="/ontology">
-          <ArrowLeft size={17} />
+        <Link
+          className="inline-flex items-center gap-2 rounded-full border border-mist bg-surface px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/20"
+          href="/ontology"
+        >
+          <ArrowLeft size={16} />
           Ontology
         </Link>
-      </section>
+      </Card>
 
-      <div className="entity-layout">
-        <section className="panel entity-detail">
-          <div className="entity-detail-header">
-            <div>
-              <p className="section-label">Relationships</p>
-              <h2 className="panel-title">{detail.connected_relationships.length} connected</h2>
+      <Reveal>
+        <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
+          <Card className="grid content-start gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="grid gap-1">
+                <Eyebrow>Relationships</Eyebrow>
+                <h2 className="font-display m-0 text-xl text-ink">
+                  {detail.connected_relationships.length} connected
+                </h2>
+              </div>
+              <Network className="text-signal" size={18} />
             </div>
-            <ShieldCheck size={18} />
-          </div>
-          <div className="entity-relationship-list">
-            {detail.connected_relationships.map((item) => (
-              <div className="entity-relationship-item" key={item.relationship.relationship_id}>
-                <div>
-                  <p className="row-title">
-                    {item.direction} / {item.relationship.relation_type}
-                  </p>
-                  <p className="row-detail">{item.relationship.summary}</p>
-                  <p className="row-detail mono">{item.relationship.permission_scope}</p>
-                  <p className="row-detail">
-                    {item.relationship.metadata.owner_role} /{" "}
-                    {item.relationship.metadata.verification_status}
-                  </p>
-                  <p className="row-detail mono">
-                    {item.relationship.metadata.evidence_refs.join(", ")}
-                  </p>
+            <div className="grid gap-0">
+              {detail.connected_relationships.map((item, index) => (
+                <div
+                  className="grid gap-3 py-4 first:pt-0 last:pb-0"
+                  key={item.relationship.relationship_id}
+                >
+                  {index > 0 ? <div aria-hidden="true" className="rule-dotted -mt-4 mb-1" /> : null}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="grid min-w-0 gap-1">
+                      <p className="m-0 inline-flex items-center gap-2 text-sm font-medium text-ink">
+                        <ArrowLeftRight className="shrink-0 text-signal" size={14} />
+                        {item.direction} / {item.relationship.relation_type}
+                      </p>
+                      <p className="m-0 text-sm text-muted">{item.relationship.summary}</p>
+                      <p className="m-0 font-mono text-xs text-muted">
+                        {item.relationship.permission_scope}
+                      </p>
+                      <p className="m-0 text-xs text-muted">
+                        {item.relationship.metadata.owner_role} /{" "}
+                        {item.relationship.metadata.verification_status}
+                      </p>
+                      <p className="m-0 font-mono text-xs break-words text-muted">
+                        {item.relationship.metadata.evidence_refs.join(", ")}
+                      </p>
+                    </div>
+                    <Link
+                      className="inline-flex items-center rounded-full border border-line px-3 py-1 font-mono text-xs text-ink transition-colors hover:border-signal/60 hover:text-signal dark:border-white/15"
+                      href={`/ontology/${item.peer_node.node_id}`}
+                    >
+                      {item.peer_node.label}
+                    </Link>
+                  </div>
                 </div>
-                <Link className="tag" href={`/ontology/${item.peer_node.node_id}`}>
-                  {item.peer_node.label}
-                </Link>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </Card>
 
-        <section className="panel entity-detail">
-          <p className="section-label">Governance</p>
-          <h2 className="panel-title">Access and evidence</h2>
-          <div className="entity-columns">
-            <section>
-              <p className="section-label">Required Permissions</p>
-              <TagList items={detail.required_permissions} emptyLabel="derived read scope" />
+          <Card className="grid content-start gap-4">
+            <div className="grid gap-1">
+              <Eyebrow>Governance</Eyebrow>
+              <h2 className="font-display m-0 text-xl text-ink">Access and evidence</h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="grid content-start gap-2">
+                <Eyebrow>Required Permissions</Eyebrow>
+                <TagList items={detail.required_permissions} emptyLabel="derived read scope" />
+              </section>
+              <section className="grid content-start gap-2">
+                <Eyebrow>Evidence</Eyebrow>
+                <TagList items={detail.evidence_refs} emptyLabel="node summary only" />
+              </section>
+            </div>
+            <div aria-hidden="true" className="rule-dotted" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="grid content-start gap-2">
+                <Eyebrow>Workflows</Eyebrow>
+                <TagList items={detail.related_workflows} emptyLabel="no workflow relation" />
+              </section>
+              <section className="grid content-start gap-2">
+                <Eyebrow>Approvals</Eyebrow>
+                <TagList items={detail.related_approvals} emptyLabel="no approval relation" />
+              </section>
+            </div>
+            <div aria-hidden="true" className="rule-dotted" />
+            <section className="grid content-start gap-2">
+              <Eyebrow>Agents</Eyebrow>
+              <TagList items={detail.related_agents} emptyLabel="no agent relation" />
             </section>
-            <section>
-              <p className="section-label">Evidence</p>
-              <TagList items={detail.evidence_refs} emptyLabel="node summary only" />
-            </section>
-          </div>
-          <div className="entity-columns">
-            <section>
-              <p className="section-label">Workflows</p>
-              <TagList items={detail.related_workflows} emptyLabel="no workflow relation" />
-            </section>
-            <section>
-              <p className="section-label">Approvals</p>
-              <TagList items={detail.related_approvals} emptyLabel="no approval relation" />
-            </section>
-          </div>
-          <section>
-            <p className="section-label">Agents</p>
-            <TagList items={detail.related_agents} emptyLabel="no agent relation" />
-          </section>
-        </section>
-      </div>
+          </Card>
+        </div>
+      </Reveal>
 
-      <div className="entity-layout">
-        <section className="panel">
-          <p className="section-label">Data Access</p>
-          <div className="stack">
-            {detail.data_access.map((item) => (
-              <div className="row" key={item}>
-                <div>
-                  <p className="row-title">{item}</p>
-                  <p className="row-detail">Public demo summary only</p>
+      <Reveal>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="grid content-start gap-3">
+            <Eyebrow>Data Access</Eyebrow>
+            <div className="grid gap-3">
+              {detail.data_access.map((item) => (
+                <div className="flex items-start justify-between gap-3" key={item}>
+                  <div className="grid gap-0.5">
+                    <p className="m-0 text-sm font-medium text-ink">{item}</p>
+                    <p className="m-0 text-xs text-muted">Public demo summary only</p>
+                  </div>
+                  <Database className="shrink-0 text-signal" size={16} />
                 </div>
-                <Database size={17} />
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </Card>
 
-        <section className="panel">
-          <p className="section-label">Detail Notes</p>
-          <div className="stack">
-            {detail.detail_notes.map((note) => (
-              <p className="row-detail" key={note}>
-                {note}
-              </p>
-            ))}
-          </div>
-        </section>
-      </div>
+          <Card className="grid content-start gap-3">
+            <Eyebrow>Detail Notes</Eyebrow>
+            <div className="grid gap-2">
+              {detail.detail_notes.map((note) => (
+                <p className="m-0 text-sm text-muted" key={note}>
+                  {note}
+                </p>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </Reveal>
     </div>
   );
 }

@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { GitBranch, History, RadioTower, Route, TimerReset } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { PlatformStatusPill } from "@/components/status-pill";
+import { Card } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { Skeleton } from "@/components/ui/skeleton";
 import { axisFetchJson } from "@/lib/axis-api";
+import { cn } from "@/lib/cn";
 import {
   countWaitingWorkflowSignals,
   findWorkflowById,
@@ -40,6 +46,21 @@ function formatWorkflowTime(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function DetailField({ label, title, detail, mono = false }: {
+  label: string;
+  title: string;
+  detail: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="grid content-start gap-1">
+      <Eyebrow>{label}</Eyebrow>
+      <p className={cn("m-0 text-sm text-ink", mono && "font-mono break-words")}>{title}</p>
+      <p className="m-0 text-xs text-muted">{detail}</p>
+    </div>
+  );
 }
 
 export function WorkflowConsole() {
@@ -97,11 +118,29 @@ export function WorkflowConsole() {
   const waitingSignals = workflowData ? countWaitingWorkflowSignals(workflowData) : 0;
 
   if (!workflowData) {
+    if (source === "loading") {
+      return (
+        <div className="grid gap-5" aria-busy="true" aria-label="Loading workflow API">
+          <Skeleton className="h-28" />
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[2fr_3fr]">
+            <Skeleton className="h-96" />
+            <Skeleton className="h-96" />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed workflow records. Local fallback workflow records are disabled."
         endpoint="/demo/manufacturing/workflows/runs"
-        title={source === "loading" ? "Loading workflow API" : "Workflow API unavailable"}
+        title="Workflow API unavailable"
       />
     );
   }
@@ -117,16 +156,19 @@ export function WorkflowConsole() {
   }
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
-        <div>
-          <p className="section-label">Demo Workflow Runtime</p>
-          <h2 className="panel-title">{workflowData.plant_name}</h2>
-          <p className="row-detail">
+    <div className="grid gap-5">
+      <Card className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-1">
+          <Eyebrow>Demo Workflow Runtime</Eyebrow>
+          <h2 className="font-display m-0 text-2xl text-ink">{workflowData.plant_name}</h2>
+          <p className="m-0 text-sm text-muted">
             {workflowData.scenario} / {workflowData.tenant_id}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Workflow source and runtime status">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          aria-label="Workflow source and runtime status"
+        >
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -135,65 +177,71 @@ export function WorkflowConsole() {
             <Route size={15} />
             {platformStatusLabel(workflowData.runtime_status)}
           </span>
-          <span className="mono">{formatOverviewTimestamp(workflowData.as_of)}</span>
+          <span className="font-mono text-xs text-muted">
+            {formatOverviewTimestamp(workflowData.as_of)}
+          </span>
         </div>
-      </section>
+      </Card>
 
-      <div className="metric-grid">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {workflowData.metrics.map((metric) => (
-          <article className="metric-card compact-card" key={metric.label}>
-            <div className="row">
-              <p className="metric-label">{metric.label}</p>
-              <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
-              </span>
+          <Card className="grid content-start gap-2 p-5" key={metric.label}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <Eyebrow>{metric.label}</Eyebrow>
+              <PlatformStatusPill status={metric.status} />
             </div>
-            <p className="metric-value">{metric.value}</p>
-            <p className="metric-detail">{metric.detail}</p>
-          </article>
+            <p className="font-display m-0 text-3xl text-ink">{metric.value}</p>
+            <div aria-hidden="true" className="rule-dotted" />
+            <p className="m-0 text-xs text-muted">{metric.detail}</p>
+          </Card>
         ))}
       </div>
 
-      <div className="workflow-layout">
-        <section className="panel">
-          <p className="section-label">Runs</p>
-          <h2 className="panel-title">Workflow console</h2>
-          <div className="workflow-list">
+      <div className="grid items-start gap-4 xl:grid-cols-[2fr_3fr]">
+        <Card className="grid content-start gap-4">
+          <div className="grid gap-1">
+            <Eyebrow>Runs</Eyebrow>
+            <h2 className="font-display m-0 text-xl text-ink">Workflow console</h2>
+          </div>
+          <div className="grid gap-2">
             {workflowData.workflow_runs.map((run) => {
               const isSelected = run.workflow_id === selectedWorkflow.workflow_id;
 
               return (
                 <button
                   aria-pressed={isSelected}
-                  className={`workflow-list-item${isSelected ? " active" : ""}`}
+                  className={cn(
+                    "flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
+                    isSelected
+                      ? "border-signal/60 bg-tint-100 dark:bg-signal/15"
+                      : "border-line bg-transparent hover:border-signal/40 hover:bg-tint-50 dark:border-white/10 dark:hover:bg-white/5",
+                  )}
                   key={run.workflow_id}
                   onClick={() => setSelectedWorkflowId(run.workflow_id)}
                   type="button"
                 >
-                  <span>
-                    <span className="row-title">{run.name}</span>
-                    <span className="row-detail">
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="text-sm font-medium text-ink">{run.name}</span>
+                    <span className="text-xs text-muted">
                       {run.domain} / {formatWorkflowState(run.state)}
                     </span>
-                    <span className="row-detail">ETA {run.eta}</span>
+                    <span className="font-mono text-xs text-muted">ETA {run.eta}</span>
                   </span>
-                  <span className={`status-pill ${platformStatusClass(run.status)}`}>
-                    {platformStatusLabel(run.status)}
-                  </span>
+                  <PlatformStatusPill status={run.status} />
                 </button>
               );
             })}
           </div>
-        </section>
+        </Card>
 
-        <section className="panel workflow-detail">
-          <div className="workflow-detail-header">
-            <div>
-              <p className="section-label">{selectedWorkflow.domain}</p>
-              <h2 className="panel-title">{selectedWorkflow.name}</h2>
-              <p className="row-detail">{selectedWorkflow.objective}</p>
+        <Card className="grid content-start gap-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid max-w-xl gap-1">
+              <Eyebrow>{selectedWorkflow.domain}</Eyebrow>
+              <h2 className="font-display m-0 text-xl text-ink">{selectedWorkflow.name}</h2>
+              <p className="m-0 text-sm text-muted">{selectedWorkflow.objective}</p>
             </div>
-            <div className="status-stack">
+            <div className="flex flex-col items-end gap-2">
               <span className={`status-pill ${platformStatusClass(selectedWorkflow.status)}`}>
                 {formatWorkflowState(selectedWorkflow.state)}
               </span>
@@ -201,62 +249,70 @@ export function WorkflowConsole() {
             </div>
           </div>
 
-          <div className="workflow-detail-grid">
-            <div>
-              <p className="metric-label">Runtime</p>
-              <p className="row-title">{selectedWorkflow.runtime}</p>
-              <p className="row-detail">{selectedWorkflow.adapter}</p>
-            </div>
-            <div>
-              <p className="metric-label">Owner</p>
-              <p className="row-title">{selectedWorkflow.owner_role}</p>
-              <p className="row-detail">{selectedWorkflow.autonomy_level}</p>
-            </div>
-            <div>
-              <p className="metric-label">Started</p>
-              <p className="row-title">{formatWorkflowTime(selectedWorkflow.started_at)}</p>
-              <p className="row-detail">ETA {selectedWorkflow.eta}</p>
-            </div>
-            <div>
-              <p className="metric-label">Audit Scope</p>
-              <p className="row-title mono">{selectedWorkflow.audit_scope}</p>
-              <p className="row-detail">Replay preview only</p>
-            </div>
+          <div aria-hidden="true" className="rule-dotted" />
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <DetailField
+              detail={selectedWorkflow.adapter}
+              label="Runtime"
+              title={selectedWorkflow.runtime}
+            />
+            <DetailField
+              detail={selectedWorkflow.autonomy_level}
+              label="Owner"
+              title={selectedWorkflow.owner_role}
+            />
+            <DetailField
+              detail={`ETA ${selectedWorkflow.eta}`}
+              label="Started"
+              title={formatWorkflowTime(selectedWorkflow.started_at)}
+            />
+            <DetailField
+              detail="Replay preview only"
+              label="Audit Scope"
+              mono
+              title={selectedWorkflow.audit_scope}
+            />
           </div>
 
           {selectedWorkflow.blocker ? (
-            <div className="workflow-blocker">
-              <TimerReset size={18} />
-              <div>
-                <p className="row-title">Current blocker</p>
-                <p className="row-detail">{selectedWorkflow.blocker}</p>
+            <div className="flex items-start gap-3 rounded-2xl border border-warning/40 bg-warning/8 p-4">
+              <TimerReset className="mt-0.5 shrink-0 text-warning" size={18} />
+              <div className="grid gap-0.5">
+                <p className="m-0 text-sm font-medium text-ink">Current blocker</p>
+                <p className="m-0 text-xs text-muted">{selectedWorkflow.blocker}</p>
               </div>
             </div>
           ) : null}
 
-          <div className="workflow-columns">
-            <section>
-              <p className="section-label">Inputs</p>
-              <ul className="clean-list">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <section className="grid content-start gap-2">
+              <Eyebrow>Inputs</Eyebrow>
+              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
                 {selectedWorkflow.inputs.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
             </section>
-            <section>
-              <p className="section-label">Proposed Outputs</p>
-              <ul className="clean-list">
+            <section className="grid content-start gap-2">
+              <Eyebrow>Proposed Outputs</Eyebrow>
+              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
                 {selectedWorkflow.proposed_outputs.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
             </section>
-            <section>
-              <p className="section-label">Related Context</p>
-              <div className="tag-list">
-                <span className="tag">{selectedWorkflow.related_risk}</span>
+            <section className="grid content-start gap-2">
+              <Eyebrow>Related Context</Eyebrow>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center rounded-full border border-line px-3 py-1 font-mono text-xs text-muted dark:border-white/15">
+                  {selectedWorkflow.related_risk}
+                </span>
                 {selectedWorkflow.related_assets.map((asset) => (
-                  <span className="tag" key={asset}>
+                  <span
+                    className="inline-flex items-center rounded-full border border-line px-3 py-1 font-mono text-xs text-muted dark:border-white/15"
+                    key={asset}
+                  >
                     {asset}
                   </span>
                 ))}
@@ -264,15 +320,15 @@ export function WorkflowConsole() {
             </section>
           </div>
 
-          <div className="workflow-signal-band">
-            <div>
-              <p className="section-label">Pending Signals</p>
-              <div className="stack">
+          <div className="grid gap-4 rounded-2xl border border-line bg-tint-50 p-4 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5">
+            <div className="grid content-start gap-3">
+              <Eyebrow>Pending Signals</Eyebrow>
+              <div className="grid gap-3">
                 {selectedWorkflow.pending_signals.map((signal) => (
-                  <div className="row" key={signal.signal}>
-                    <div>
-                      <p className="row-title mono">{signal.signal}</p>
-                      <p className="row-detail">
+                  <div className="flex flex-wrap items-start justify-between gap-2" key={signal.signal}>
+                    <div className="grid min-w-0 gap-0.5">
+                      <p className="m-0 font-mono text-sm break-words text-ink">{signal.signal}</p>
+                      <p className="m-0 text-xs text-muted">
                         {signal.required_role}
                         {signal.approval_id ? ` / ${signal.approval_id}` : ""}
                       </p>
@@ -282,11 +338,14 @@ export function WorkflowConsole() {
                 ))}
               </div>
             </div>
-            <div>
-              <p className="section-label">Controls</p>
-              <div className="tag-list">
+            <div className="grid content-start gap-2">
+              <Eyebrow>Controls</Eyebrow>
+              <div className="flex flex-wrap gap-2">
                 {selectedWorkflow.controls.map((control) => (
-                  <span className="tag" key={control}>
+                  <span
+                    className="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted dark:border-white/15 dark:bg-transparent"
+                    key={control}
+                  >
                     {control}
                   </span>
                 ))}
@@ -294,48 +353,58 @@ export function WorkflowConsole() {
             </div>
           </div>
 
-          <section className="workflow-history">
-            <div className="workflow-history-header">
-              <div>
-                <p className="section-label">History Preview</p>
-                <h3 className="subsection-title">Runtime timeline</h3>
+          <section className="grid content-start gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="grid gap-1">
+                <Eyebrow>History Preview</Eyebrow>
+                <h3 className="font-display m-0 text-lg text-ink">Runtime timeline</h3>
               </div>
               <span className="status-pill signal-watch">
                 <History size={15} />
                 {waitingSignals} waiting
               </span>
             </div>
-            <div className="timeline">
-              {selectedWorkflow.timeline.map((event, index) => (
-                <div className="timeline-item" key={`${event.event}-${event.at}`}>
-                  <div className="timeline-index">{index + 1}</div>
-                  <div className="row">
-                    <div>
-                      <p className="row-title mono">{event.event}</p>
-                      <p className="row-detail">
-                        {formatWorkflowTime(event.at)} / {event.actor} / {event.result}
-                      </p>
-                      <p className="row-detail">{event.summary}</p>
-                    </div>
-                    <GitBranch size={18} aria-label={event.result} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DataTable aria-label="Workflow runtime timeline" minWidth={560}>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Event</th>
+                  <th>At / Actor / Result</th>
+                  <th>Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedWorkflow.timeline.map((event, index) => (
+                  <tr key={`${event.event}-${event.at}`}>
+                    <td className="font-mono text-xs text-muted">{index + 1}</td>
+                    <td>
+                      <span className="inline-flex items-center gap-2 font-mono text-xs text-ink">
+                        <GitBranch aria-label={event.result} className="text-signal" size={14} />
+                        {event.event}
+                      </span>
+                    </td>
+                    <td className="text-xs text-muted">
+                      {formatWorkflowTime(event.at)} / {event.actor} / {event.result}
+                    </td>
+                    <td className="text-xs text-muted">{event.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
           </section>
-        </section>
+        </Card>
       </div>
 
-      <section className="panel">
-        <p className="section-label">Runtime Notes</p>
-        <div className="stack">
+      <Card className="grid content-start gap-3">
+        <Eyebrow>Runtime Notes</Eyebrow>
+        <div className="grid gap-2">
           {workflowData.runtime_notes.map((note) => (
-            <p className="row-detail" key={note}>
+            <p className="m-0 text-sm text-muted" key={note}>
               {note}
             </p>
           ))}
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

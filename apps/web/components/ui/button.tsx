@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "destructive" | "ghost";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -17,6 +17,8 @@ const variants: Record<ButtonVariant, string> = {
     "bg-navy text-white hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none",
   secondary:
     "border border-mist bg-surface text-ink hover:border-signal/50 hover:text-signal dark:border-white/20 dark:hover:border-signal/60",
+  destructive:
+    "border border-danger/40 bg-surface text-danger hover:border-danger hover:bg-danger/8 dark:border-danger/50 dark:bg-transparent dark:hover:bg-danger/12",
   ghost: "px-3 py-2 text-ink hover:text-signal",
 };
 

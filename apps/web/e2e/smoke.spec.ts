@@ -386,6 +386,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Local fallback ontology records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback ontology seed")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Line 2 Packaging" })).toHaveCount(0);
+    await expect(page.getByTestId("ontology-graph")).toHaveCount(0);
 
     await page.goto("/ontology/asset_line_2_packaging");
 

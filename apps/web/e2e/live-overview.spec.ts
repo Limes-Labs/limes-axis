@@ -164,13 +164,13 @@ test.describe("Axis live overview demo", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
     await expect(page.locator(".ops-dashboard-grid")).toBeVisible();
-    await expect(page.locator(".ops-kpi-card")).toHaveCount(5);
+    await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
 
     const dashboardLayout = await page.evaluate(() => {
       const dashboard = document.querySelector<HTMLElement>(".ops-dashboard-grid");
       const main = document.querySelector<HTMLElement>(".ops-dashboard-main");
       const rightRail = document.querySelector<HTMLElement>(".ops-right-rail");
-      const kpiCards = Array.from(document.querySelectorAll<HTMLElement>(".ops-kpi-card"));
+      const kpiCards = Array.from(document.querySelectorAll<HTMLElement>("[data-kpi-card]"));
 
       const rect = (element: HTMLElement | null) => {
         if (!element) {
