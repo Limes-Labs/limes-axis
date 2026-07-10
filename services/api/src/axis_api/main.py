@@ -394,12 +394,15 @@ from axis_api.model_endpoints import (
     MODEL_ENDPOINT_READ_SCOPE,
     ModelEndpointConflict,
     ModelEndpointCreateRequest,
+    ModelEndpointNotFound,
     ModelEndpointPermissionDenied,
     ModelEndpointRecord,
     ModelEndpointRegistry,
+    ModelEndpointStatusUpdateRequest,
     ModelEndpointValidationError,
     build_model_endpoint_registry,
     record_model_endpoint,
+    update_model_endpoint_status,
 )
 from axis_api.model_invocations import (
     ModelEgressBlocked,
@@ -7784,6 +7787,61 @@ def create_app(
                     "code": AxisErrorCode.CONFLICT.value,
                     "message": "The model endpoint already exists.",
                     "reason": "endpoint_already_exists",
+                    "endpoint_id": exc.endpoint_id,
+                },
+            ) from exc
+        except ModelEndpointValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+    @app.post(
+        "/platform/models/endpoints/{endpoint_id}/status",
+        response_model=ModelEndpointRecord,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Model endpoint admin permission denied"},
+            404: {"description": "Model endpoint not found"},
+            422: {"description": "Model endpoint status transition invalid"},
+        },
+        tags=["platform"],
+    )
+    def platform_model_endpoint_status_update(
+        endpoint_id: str,
+        status_request: ModelEndpointStatusUpdateRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> ModelEndpointRecord:
+        try:
+            bound_status = _bind_platform_policy_actor(
+                status_request, principal, "updated_by"
+            )
+            return update_model_endpoint_status(repository, endpoint_id, bound_status)
+        except ModelEndpointPermissionDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot administer model endpoints.",
+                    "required_permission": exc.required_permission,
+                    "reason": "missing_required_scope"
+                    if exc.decision.reason.startswith("missing_scope:")
+                    else exc.decision.reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except ModelEndpointNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The model endpoint was not found.",
+                    "reason": "model_endpoint_not_found",
                     "endpoint_id": exc.endpoint_id,
                 },
             ) from exc

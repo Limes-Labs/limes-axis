@@ -13,11 +13,15 @@ from axis_api.model_endpoints import (
     MODEL_ENDPOINT_ADMIN_SCOPE,
     ModelEndpointConflict,
     ModelEndpointCreateRequest,
+    ModelEndpointNotFound,
     ModelEndpointPermissionDenied,
+    ModelEndpointStatusUpdateRequest,
     ModelEndpointValidationError,
     build_model_endpoint_registry,
     record_model_endpoint,
+    update_model_endpoint_status,
 )
+from axis_api.model_invocations import decide_model_route
 from axis_api.models import AuditEvent, Base
 from axis_api.persistence import (
     AxisPersistenceRepository,
@@ -212,6 +216,123 @@ def test_build_model_endpoint_registry_filters_by_status(
         ]
 
 
+def status_update_request(**overrides) -> ModelEndpointStatusUpdateRequest:
+    payload = {
+        "tenant_id": TENANT_ID,
+        "target_status": "disabled",
+        "reason": "Mis-registered base URL captured routing.",
+        "updated_by": "platform-admin",
+        "actor_scopes": [MODEL_ENDPOINT_ADMIN_SCOPE],
+    }
+    payload.update(overrides)
+    return ModelEndpointStatusUpdateRequest(**payload)
+
+
+def test_update_model_endpoint_status_persists_transition_and_audit_event(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_model_endpoint(repository, endpoint_request())
+
+        updated = update_model_endpoint_status(
+            repository,
+            "vllm_plant_local",
+            status_update_request(),
+        )
+
+        assert updated.status == "disabled"
+        assert updated.audit_event_type == "model.endpoint.status_changed"
+        assert updated.audit_event_id is not None
+        assert any("Status transition: disabled" in note for note in updated.notes)
+
+        audit_events = list(session.scalars(select(AuditEvent)))
+        status_events = [
+            event
+            for event in audit_events
+            if event.event_type == "model.endpoint.status_changed"
+        ]
+        assert len(status_events) == 1
+        assert status_events[0].payload["endpoint_id"] == "vllm_plant_local"
+        assert status_events[0].payload["from_status"] == "enabled"
+        assert status_events[0].payload["target_status"] == "disabled"
+
+        registry = build_model_endpoint_registry(repository, tenant_id=TENANT_ID)
+        assert registry.enabled_endpoint_count == 0
+
+        re_enabled = update_model_endpoint_status(
+            repository,
+            "vllm_plant_local",
+            status_update_request(target_status="enabled", reason="Endpoint fixed."),
+        )
+        assert re_enabled.status == "enabled"
+
+
+def test_update_model_endpoint_status_requires_admin_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_model_endpoint(repository, endpoint_request())
+
+        with pytest.raises(ModelEndpointPermissionDenied) as excinfo:
+            update_model_endpoint_status(
+                repository,
+                "vllm_plant_local",
+                status_update_request(actor_scopes=["models:invoke"]),
+            )
+
+        assert excinfo.value.required_permission == MODEL_ENDPOINT_ADMIN_SCOPE
+
+
+def test_update_model_endpoint_status_rejects_unknown_endpoint_and_status(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_model_endpoint(repository, endpoint_request())
+
+        with pytest.raises(ModelEndpointNotFound) as not_found:
+            update_model_endpoint_status(
+                repository,
+                "endpoint_does_not_exist",
+                status_update_request(),
+            )
+        assert not_found.value.endpoint_id == "endpoint_does_not_exist"
+
+        with pytest.raises(ModelEndpointValidationError) as invalid:
+            update_model_endpoint_status(
+                repository,
+                "vllm_plant_local",
+                status_update_request(target_status="paused"),
+            )
+        assert invalid.value.reason == "unsupported_endpoint_status"
+
+
+def test_disabled_endpoint_is_skipped_by_model_routing(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_model_endpoint(repository, endpoint_request())
+
+        routable = build_model_endpoint_registry(repository, tenant_id=TENANT_ID)
+        routed = decide_model_route(routable.endpoints, task_type="summarize")
+        assert routed.status == "routed"
+        assert routed.endpoint_id == "vllm_plant_local"
+
+        update_model_endpoint_status(
+            repository,
+            "vllm_plant_local",
+            status_update_request(),
+        )
+
+        disabled = build_model_endpoint_registry(repository, tenant_id=TENANT_ID)
+        blocked = decide_model_route(disabled.endpoints, task_type="summarize")
+        assert blocked.status == "blocked"
+        assert blocked.reason == "no_matching_endpoint"
+
+
 def test_model_endpoint_routes_create_list_and_translate_errors(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -251,3 +372,56 @@ def test_model_endpoint_routes_create_list_and_translate_errors(
     listing_body = listing.json()
     assert listing_body["endpoint_count"] == 1
     assert listing_body["endpoints"][0]["endpoint_id"] == "vllm_plant_local"
+
+
+def test_model_endpoint_status_route_updates_and_translates_errors(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    client.post(
+        "/platform/models/endpoints",
+        json=endpoint_request().model_dump(mode="json"),
+    ).raise_for_status()
+    status_payload = status_update_request().model_dump(mode="json")
+
+    disabled = client.post(
+        "/platform/models/endpoints/vllm_plant_local/status",
+        json=status_payload,
+    )
+    assert disabled.status_code == 200
+    disabled_body = disabled.json()
+    assert disabled_body["status"] == "disabled"
+    assert disabled_body["audit_event_type"] == "model.endpoint.status_changed"
+    assert disabled_body["audit_event_id"] is not None
+
+    listing = client.get(
+        "/platform/models/endpoints",
+        params={"tenant_id": TENANT_ID, "status": "enabled"},
+    )
+    assert listing.status_code == 200
+    assert listing.json()["endpoint_count"] == 0
+
+    missing = client.post(
+        "/platform/models/endpoints/endpoint_does_not_exist/status",
+        json=status_payload,
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "NOT_FOUND"
+    assert missing.json()["detail"]["reason"] == "model_endpoint_not_found"
+
+    invalid = client.post(
+        "/platform/models/endpoints/vllm_plant_local/status",
+        json={**status_payload, "target_status": "paused"},
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["detail"]["reason"] == "unsupported_endpoint_status"
+
+    denied = client.post(
+        "/platform/models/endpoints/vllm_plant_local/status",
+        json={**status_payload, "actor_scopes": []},
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "PERMISSION_DENIED"
+    assert denied.json()["detail"]["required_permission"] == MODEL_ENDPOINT_ADMIN_SCOPE

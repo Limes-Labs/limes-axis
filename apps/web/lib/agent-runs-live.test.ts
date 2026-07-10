@@ -124,6 +124,34 @@ describe("parseAgentRunList", () => {
   });
 });
 
+describe("parseAgentRun on the run detail surface", () => {
+  it("parses list-shaped runs without steps to an empty step list", () => {
+    // The runs LIST endpoint omits step records; only the run DETAIL
+    // endpoint carries them. The runs panel must therefore fetch the detail
+    // before rendering a step rail with real statuses.
+    const listShapedRun: Record<string, unknown> = { ...runFixture };
+    delete listShapedRun.steps;
+
+    expect(parseAgentRun(listShapedRun).steps).toEqual([]);
+    expect(parseAgentRun({ ...runFixture, steps: [] }).steps).toEqual([]);
+  });
+
+  it("parses detail payloads into an ordered step rail with recorded statuses", () => {
+    const detailRun = parseAgentRun(runFixture);
+
+    expect(detailRun.steps.map((step) => [step.step_type, step.status])).toEqual([
+      ["context_read", "completed"],
+      ["model_invocation", "completed"],
+      ["proposal", "completed"],
+    ]);
+    expect(buildAgentRunRail(detailRun).map((stage) => stage.state)).toEqual([
+      "done",
+      "done",
+      "done",
+    ]);
+  });
+});
+
 describe("agent run status helpers", () => {
   it("labels and classifies run statuses", () => {
     expect(agentRunStatusLabel("proposal_recorded")).toBe("Proposal recorded");

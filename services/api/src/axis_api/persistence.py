@@ -693,6 +693,15 @@ class ModelEndpointCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ModelEndpointStatusUpdate(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    endpoint_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(default="model.endpoint.status_changed", min_length=1)
+    note: str = Field(min_length=1)
+
+
 class ModelInvocationCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1)
@@ -3595,6 +3604,22 @@ class AxisPersistenceRepository:
             statement = statement.where(ModelEndpoint.status == status)
         statement = statement.order_by(ModelEndpoint.endpoint_id.asc()).limit(limit)
         return list(self.session.scalars(statement))
+
+    def update_model_endpoint_status(
+        self,
+        record: ModelEndpointStatusUpdate,
+    ) -> ModelEndpoint:
+        endpoint = self.get_model_endpoint(record.tenant_id, record.endpoint_id)
+        if endpoint is None:
+            raise PersistenceRecordNotFound("Model endpoint not found")
+
+        endpoint.status = record.status
+        endpoint.audit_event_id = record.audit_event_id
+        endpoint.audit_event_type = record.audit_event_type
+        endpoint.notes = [*endpoint.notes, record.note]
+        endpoint.updated_at = utc_now()
+        self.session.flush()
+        return endpoint
 
     def create_model_invocation(self, record: ModelInvocationCreate) -> ModelInvocation:
         invocation = ModelInvocation(

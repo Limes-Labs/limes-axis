@@ -115,7 +115,10 @@ AXIS_MODEL_ROUTING_EXECUTION_ENABLED=true \
 
 Ollama exposes an OpenAI-compatible API at `http://127.0.0.1:11434/v1`
 (install from <https://ollama.com>, then e.g. `ollama pull llama3.2`). Register
-it as a self-hosted endpoint (scope `platform:model:endpoint:admin`):
+it as a self-hosted endpoint (scope `platform:model:endpoint:admin`). Either
+`base_url` shape works — `http://127.0.0.1:11434` or
+`http://127.0.0.1:11434/v1` — because Axis appends `/v1/chat/completions` and
+never doubles a trailing `/v1`:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/platform/models/endpoints \
@@ -139,6 +142,25 @@ Then request a governed invocation (scope `models:invoke`) through
 Every invocation persists a metadata-only record (token counts, latency,
 status, audit evidence) — prompt text is excerpted only up to
 `AXIS_MODEL_INVOCATION_PROMPT_EXCERPT_CHARS`, which defaults to `0`.
+
+If you mis-register an endpoint (for example a wrong port or model id),
+disable it with the governed status route instead of leaving it to capture
+routing:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/platform/models/endpoints/ollama_local/status \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "tenant_id": "tenant_demo_manufacturing",
+    "target_status": "disabled",
+    "reason": "Mis-registered during walkthrough",
+    "updated_by": "platform-admin",
+    "actor_scopes": ["platform:model:endpoint:admin"]
+  }'
+```
+
+Disabled endpoints are skipped by the deterministic router, so re-registering
+a corrected endpoint id takes over cleanly.
 
 Because the endpoint is registered with `hosting_boundary: self_hosted`, no
 external egress is involved; `AXIS_EXTERNAL_MODEL_EGRESS_ENABLED` stays
