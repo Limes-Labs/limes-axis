@@ -1,0 +1,80 @@
+import { describe, expect, it } from "vitest";
+
+import { glossary, strings } from "./strings";
+
+const consoleRoutes = [
+  "overview",
+  "agents",
+  "approvals",
+  "audit",
+  "connectors",
+  "model-routing",
+  "ontology",
+  "policies",
+  "settings",
+  "simulation",
+  "tenants",
+  "workflows",
+] as const;
+
+const glossaryKeys = [
+  "ontology",
+  "autonomy_level",
+  "egress",
+  "evidence",
+  "dry_run",
+  "replay",
+  "idempotency",
+  "connector_manifest",
+  "policy_scope",
+] as const;
+
+const navGroupLabels = ["Operate", "Data & Models", "Governance", "Platform"];
+
+describe("strings.pages", () => {
+  it("has an entry for each of the 12 console routes", () => {
+    for (const route of consoleRoutes) {
+      expect(strings.pages[route], `missing page strings for "${route}"`).toBeDefined();
+    }
+    expect(Object.keys(strings.pages)).toHaveLength(consoleRoutes.length);
+  });
+
+  it("gives every page a non-empty eyebrow, title and one-sentence description", () => {
+    for (const route of consoleRoutes) {
+      const page = strings.pages[route];
+      expect(page.eyebrow.length).toBeGreaterThan(0);
+      expect(page.title.length).toBeGreaterThan(0);
+      expect(page.description.length).toBeGreaterThan(0);
+      expect(navGroupLabels).toContain(page.eyebrow);
+    }
+  });
+});
+
+describe("strings.nav", () => {
+  it("exposes the four sidebar group labels", () => {
+    expect(Object.values(strings.nav)).toEqual(navGroupLabels);
+  });
+});
+
+describe("strings.states", () => {
+  it("provides generic loading, error and empty copy", () => {
+    expect(strings.states.loading.length).toBeGreaterThan(0);
+    expect(strings.states.error.title.length).toBeGreaterThan(0);
+    expect(strings.states.error.detail.length).toBeGreaterThan(0);
+    expect(strings.states.error.retry.length).toBeGreaterThan(0);
+    expect(strings.states.empty.title.length).toBeGreaterThan(0);
+    expect(strings.states.empty.detail.length).toBeGreaterThan(0);
+  });
+});
+
+describe("glossary", () => {
+  it("defines every platform term", () => {
+    for (const key of glossaryKeys) {
+      const entry = glossary[key];
+      expect(entry, `missing glossary entry "${key}"`).toBeDefined();
+      expect(entry.label.length).toBeGreaterThan(0);
+      expect(entry.definition.length).toBeGreaterThan(20);
+    }
+    expect(Object.keys(glossary)).toHaveLength(glossaryKeys.length);
+  });
+});
