@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from axis_api.config import Settings
 from axis_api.models import Base
+from axis_api.telemetry import shutdown_providers
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import get_current_span
@@ -55,6 +56,15 @@ def test_configure_worker_telemetry_builds_provider_when_enabled() -> None:
     runtime, _, _ = _enabled_runtime()
     assert runtime.enabled is True
     assert runtime.tracer_provider is not None
+
+
+def test_shutdown_providers_is_safe_and_idempotent() -> None:
+    # Mirrors run_worker's finally-block teardown of the app-scoped providers.
+    runtime, _, _ = _enabled_runtime()
+    with runtime.tracer.start_as_current_span("axis.test.flush"):
+        pass
+    shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
+    shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
 
 
 async def test_disabled_activity_emits_no_spans(session_factory) -> None:

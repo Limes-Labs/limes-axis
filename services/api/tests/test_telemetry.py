@@ -20,6 +20,8 @@ from axis_api.telemetry import (
     extract_trace_context,
     inject_trace_context,
     observability_posture,
+    scrub_span_attributes,
+    shutdown_providers,
 )
 
 
@@ -182,6 +184,93 @@ def test_operation_counters_export_data_points() -> None:
         "axis.audit_exports",
         "axis.connector_sync_rows",
     } <= metric_names
+
+
+# --- privacy: query-string scrubbing + key guard ----------------------------
+
+
+def test_request_url_query_string_is_scrubbed_from_exported_spans() -> None:
+    # Plant a known-sensitive value in the request query string; the framework
+    # records it verbatim in http.url / http.target, so the privacy exporter must
+    # strip the entire query before export.
+    client, exporter, _ = _app_with_in_memory_telemetry(_enabled_settings())
+    secret = "SUPERSECRETQUERYVALUE"
+
+    response = client.get(f"/health?access_token={secret}&cursor=abc123")
+    assert response.status_code == 200
+
+    spans = exporter.get_finished_spans()
+    assert spans
+    for span in spans:
+        for key, value in span.attributes.items():
+            assert secret not in str(value), f"secret leaked via {key}"
+            assert "abc123" not in str(value), f"query leaked via {key}"
+    # The path is preserved even though the query is gone.
+    request_spans = [s for s in spans if s.attributes.get("http.route") == "/health"]
+    assert request_spans
+    url = request_spans[0].attributes.get("http.url")
+    assert url is not None and url.endswith("/health") and "?" not in url
+
+
+def test_scrub_span_attributes_keeps_benign_ids_and_strips_sensitive() -> None:
+    scrubbed = scrub_span_attributes(
+        {
+            "axis.pipeline_id": "p1",
+            "axis.recipe_id": "r1",
+            "axis.tenant_id": "tenant_a",
+            "net.peer.ip": "203.0.113.7",
+            "client.address": "203.0.113.7",
+            "id_token": "leak",
+            "http.url": "http://host/path?token=leak&cursor=x",
+        }
+    )
+    assert scrubbed is not None
+    # Benign ids that merely contain "ip"/"id" as substrings are kept.
+    assert scrubbed["axis.pipeline_id"] == "p1"
+    assert scrubbed["axis.recipe_id"] == "r1"
+    assert scrubbed["axis.tenant_id"] == "tenant_a"
+    # Exact client-IP keys and sensitive keys are dropped.
+    assert "net.peer.ip" not in scrubbed
+    assert "client.address" not in scrubbed
+    assert "id_token" not in scrubbed
+    # URL query is stripped, path kept.
+    assert scrubbed["http.url"] == "http://host/path"
+
+
+def test_scrub_span_attributes_returns_none_when_nothing_sensitive() -> None:
+    assert scrub_span_attributes({"axis.tenant_id": "t", "http.method": "GET"}) is None
+
+
+# --- provider lifecycle -----------------------------------------------------
+
+
+def test_shutdown_providers_flushes_and_is_idempotent() -> None:
+    runtime = configure_api_telemetry(
+        _enabled_settings(),
+        span_exporter=InMemorySpanExporter(),
+        metric_reader=InMemoryMetricReader(),
+    )
+    with runtime.tracer.start_as_current_span("axis.test.flush"):
+        pass
+
+    # Must not raise, must be safe to call twice, and None-safe.
+    shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
+    shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
+    shutdown_providers(None, None)
+
+
+def test_enabled_app_shuts_down_telemetry_on_lifespan_exit() -> None:
+    settings = _enabled_settings()
+    runtime = configure_api_telemetry(
+        settings,
+        span_exporter=InMemorySpanExporter(),
+        metric_reader=InMemoryMetricReader(),
+    )
+    app = create_app(settings, telemetry=runtime)
+    # Entering/exiting the TestClient context runs the lifespan, whose shutdown
+    # branch flushes and tears down the app-scoped providers without error.
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
 
 
 # --- propagation ------------------------------------------------------------

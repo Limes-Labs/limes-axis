@@ -94,25 +94,42 @@ active when `AXIS_OTEL_ENABLED` is also true).
 The API calls the worker by signalling a Temporal workflow through
 `TemporalWorkflowSignalRuntime`. For the dict-payload signals (action run,
 connector manual import, evidence snapshot export) the active W3C trace context
-is injected into the signal payload as a `traceparent` (and `tracestate`) key via
-`inject_trace_context`. The worker rebuilds the context with
-`extract_trace_context` so the downstream span links to the originating request
-trace. When telemetry is disabled the current span is non-recording and the
-propagator injects nothing, so the payload is unchanged.
+is **injected** into the signal payload as a `traceparent` (and `tracestate`) key
+via `inject_trace_context`. When telemetry is disabled the current span is
+non-recording and the propagator injects nothing, so the payload is unchanged.
+
+The **consumption** side is provided but not yet wired into the workflow signal
+handlers: `WorkerTelemetryRuntime.activity_span(name, carrier=...)` calls
+`extract_trace_context` to continue an originating trace from a carrier, and the
+scheduled-job activities are fully span-instrumented (as root spans, since a
+schedule has no inbound context). Extracting the propagated `traceparent` inside
+the `ApprovalWorkflow` signal handler is deferred: workflow code runs in
+Temporal's deterministic sandbox where starting OTel spans is a side effect, so
+the idiomatic path is a Temporal tracing interceptor — which is incompatible with
+the app-scoped (non-global) providers used here. In short, today the API
+**injects** context into the outbound signal payload and the worker's activity
+spans can link to a carrier, but end-to-end signal-side extraction inside the
+workflow is a documented follow-up — no claim is made that a signalled workflow
+currently continues the API trace automatically.
 
 ## Privacy
 
 Span attributes and metric labels follow the **same rules as audit payloads**:
 only stable, non-sensitive identifiers (tenant id, actor id, resource ids,
-outcomes). Tokens, secrets, credentials, cookies and client IPs are never
-recorded. This is enforced two ways:
+outcomes). Tokens, secrets, credentials, cookies, client IPs and raw query
+strings are never recorded. This is enforced two ways:
 
 1. Instrumented code only ever sets the curated `axis.*` attribute keys through
-   `set_span_attributes`, which drops any key that trips a sensitive-substring
-   guard (`SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS`).
-2. A `_PrivacyFilteringSpanExporter` wraps every span exporter and strips
-   sensitive attributes (including the framework-added client IP) from every span
-   before export, regardless of exporter.
+   `set_span_attributes`, which drops any key that trips the sensitive-key guard
+   (word-boundary substrings such as `token`/`secret`/`cookie`, plus the exact
+   client-IP keys — the bare substring `ip` is deliberately not used, so benign
+   keys like `axis.pipeline_id` are kept).
+2. A `_PrivacyFilteringSpanExporter` wraps every span exporter and privacy-scrubs
+   every span before export, regardless of exporter: it drops sensitive
+   attributes (including the framework-added client IP) and strips the query
+   string from URL-bearing attributes (`http.url`, `http.target`, `url.full`,
+   `url.query`) — keeping scheme/host/path — so cursors, filters, or a token
+   planted in a query parameter are never exported.
 
 ## Configuration
 
