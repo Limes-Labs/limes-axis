@@ -19249,6 +19249,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -19261,6 +19277,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector configuration read permission denied"
           },
           "422": {
             "content": {
@@ -19374,6 +19393,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -19386,6 +19421,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential handle read permission denied"
           },
           "422": {
             "content": {
@@ -19572,6 +19610,22 @@
               "title": "Actor Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -19584,6 +19638,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential lease read permission denied"
           },
           "422": {
             "content": {
@@ -19810,6 +19867,22 @@
               "title": "Actor Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -19822,6 +19895,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector egress policy read permission denied"
           },
           "422": {
             "content": {
@@ -19926,6 +20002,22 @@
               "title": "Actor Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -19938,6 +20030,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector evidence invariant read permission denied"
           },
           "422": {
             "content": {
@@ -20055,6 +20150,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -20622,6 +20733,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -20634,6 +20761,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest read permission denied"
           },
           "422": {
             "content": {
@@ -20653,6 +20783,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_manifest_create_demo_manufacturing_connectors_manifests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20673,6 +20821,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest actor binding permission denied"
           },
           "409": {
             "description": "Connector manifest already exists"
@@ -20795,6 +20946,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -20807,6 +20974,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manual import read permission denied"
           },
           "422": {
             "content": {
@@ -20997,6 +21167,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -21009,6 +21195,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector ontology proposal read permission denied"
           },
           "422": {
             "content": {
@@ -21183,6 +21372,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -21195,6 +21400,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector promotion policy read permission denied"
           },
           "422": {
             "content": {
@@ -21469,6 +21677,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -21481,6 +21705,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector promotion policy set read permission denied"
           },
           "422": {
             "content": {
@@ -21618,6 +21845,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -21630,6 +21873,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector run read permission denied"
           },
           "422": {
             "content": {
