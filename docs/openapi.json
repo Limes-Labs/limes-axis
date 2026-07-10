@@ -9915,6 +9915,18 @@
             "title": "Oidc Session Cookie Ttl Seconds",
             "type": "integer"
           },
+          "otel_enabled": {
+            "title": "Otel Enabled",
+            "type": "boolean"
+          },
+          "otel_exporter_endpoint_configured": {
+            "title": "Otel Exporter Endpoint Configured",
+            "type": "boolean"
+          },
+          "otel_metrics_enabled": {
+            "title": "Otel Metrics Enabled",
+            "type": "boolean"
+          },
           "public_base_url_https": {
             "title": "Public Base Url Https",
             "type": "boolean"
@@ -9963,7 +9975,10 @@
           "dr_rpo_rto_defined",
           "dr_rehearsal_evidence_configured",
           "dr_restore_owner_configured",
-          "dr_customer_approval_configured"
+          "dr_customer_approval_configured",
+          "otel_enabled",
+          "otel_metrics_enabled",
+          "otel_exporter_endpoint_configured"
         ],
         "title": "DeploymentReadinessCapabilities",
         "type": "object"

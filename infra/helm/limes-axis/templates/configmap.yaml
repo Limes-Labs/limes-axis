@@ -27,6 +27,9 @@ data:
   AXIS_SCHEDULED_SESSION_SWEEP_INTERVAL_SECONDS: {{ .Values.worker.scheduledJobs.sessionSweepIntervalSeconds | quote }}
   AXIS_SCHEDULED_SESSION_SWEEP_BATCH_LIMIT: {{ .Values.worker.scheduledJobs.sessionSweepBatchLimit | quote }}
   AXIS_SCHEDULED_TENANT_RECONCILIATION_INTERVAL_SECONDS: {{ .Values.worker.scheduledJobs.tenantReconciliationIntervalSeconds | quote }}
+  AXIS_OTEL_ENABLED: {{ .Values.observability.otel.enabled | quote }}
+  AXIS_OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.observability.otel.exporterOtlpEndpoint | quote }}
+  AXIS_OTEL_METRICS_ENABLED: {{ .Values.observability.otel.metricsEnabled | quote }}
   AXIS_OIDC_ISSUER: {{ .Values.api.env.AXIS_OIDC_ISSUER | quote }}
   AXIS_OIDC_AUDIENCE: {{ .Values.api.env.AXIS_OIDC_AUDIENCE | quote }}
   AXIS_OIDC_JWKS_URL: {{ .Values.api.env.AXIS_OIDC_JWKS_URL | quote }}

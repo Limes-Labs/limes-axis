@@ -20,11 +20,13 @@ import asyncio
 import logging
 
 from axis_api.config import Settings
+from axis_api.telemetry import shutdown_providers
 from temporalio.client import Client
 from temporalio.worker import Worker
 
 from axis_worker.maintenance_activities import MaintenanceActivities
 from axis_worker.schedules import register_maintenance_schedules
+from axis_worker.telemetry import configure_worker_telemetry
 from axis_worker.temporal_adapter import TemporalAdapterConfig
 from axis_worker.workflows.approval_workflow import ApprovalWorkflow
 from axis_worker.workflows.maintenance_workflows import (
@@ -53,6 +55,8 @@ def adapter_config_from_settings(settings: Settings) -> TemporalAdapterConfig:
 async def run_worker(settings: Settings | None = None) -> None:
     settings = settings or Settings()
     config = adapter_config_from_settings(settings)
+    telemetry = configure_worker_telemetry(settings)
+    logger.info("axis-worker telemetry enabled=%s", telemetry.enabled)
     client = await Client.connect(config.address, namespace=config.namespace)
 
     outcomes = await register_maintenance_schedules(
@@ -64,7 +68,7 @@ async def run_worker(settings: Settings | None = None) -> None:
         outcomes,
     )
 
-    activities = MaintenanceActivities(settings)
+    activities = MaintenanceActivities(settings, telemetry=telemetry)
     worker = Worker(
         client,
         task_queue=config.task_queue,
@@ -76,7 +80,11 @@ async def run_worker(settings: Settings | None = None) -> None:
         ],
     )
     logger.info("axis-worker started task_queue=%s", config.task_queue)
-    await worker.run()
+    try:
+        await worker.run()
+    finally:
+        if telemetry.enabled:
+            shutdown_providers(telemetry.tracer_provider, telemetry.meter_provider)
 
 
 def main() -> None:

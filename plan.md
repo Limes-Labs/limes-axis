@@ -98,6 +98,13 @@ Foundation acceptance is tracked in
   tenant-state reconciliation), reusing existing persistence/service functions,
   with idempotent create-or-update schedule registration behind a master enable
   flag, and deploy the worker via Docker Compose and Helm.
+- [x] Add OTel-first observability: OpenTelemetry distributed tracing and metrics
+  for the API and worker (FastAPI request spans plus manual spans around action
+  runs, approvals, connector sync, audit export and scheduled jobs), W3C
+  trace-context propagation across the API-to-worker signal boundary, tenant/actor
+  span attributes with audit-grade privacy (no tokens, secrets or client IPs), an
+  OTLP/HTTP exporter and a deployment-readiness observability posture — all behind
+  a master enable flag that is off by default.
 - [x] Bind approval/action mutation endpoints to OIDC-derived actor identity
   and scopes.
 - [x] Enforce relationship-derived ontology scopes on entity detail reads and

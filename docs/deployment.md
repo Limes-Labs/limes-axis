@@ -610,6 +610,23 @@ cluster operators remain responsible for installing the operator, binding it to
 their secret manager and reviewing the underlying KMS, access and rotation
 policy.
 
+## Observability (OpenTelemetry)
+
+OpenTelemetry distributed tracing and metrics for the API and worker are off by
+default (`observability.otel.enabled=false`, env `AXIS_OTEL_ENABLED=false`), so
+existing deployments and the test suite are unaffected — no provider is
+installed and instrumented code paths are no-ops. To enable, set
+`observability.otel.enabled=true` and point `observability.otel.exporterOtlpEndpoint`
+(env `AXIS_OTEL_EXPORTER_OTLP_ENDPOINT`) at an OTLP/HTTP collector; `/v1/traces`
+and `/v1/metrics` are appended per signal. The chart wires these into the shared
+ConfigMap for both the API and worker Deployments. `GET /deployment/readiness`
+reports the observability posture under
+`capabilities.otel_*` and the non-blocking `observability_instrumentation`
+check. Span attributes record only tenant and actor ids and follow the same
+privacy rules as audit payloads: no tokens, secrets, or client IPs. See
+[`platform-observability.md`](./platform-observability.md) for what is traced,
+the exporter setup and how to point at a Jaeger/Tempo collector.
+
 ## Object Storage
 
 Governed connector evidence materializations use the object-store adapter

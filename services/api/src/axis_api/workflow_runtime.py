@@ -9,6 +9,7 @@ from temporalio.exceptions import TemporalError
 from temporalio.service import RPCError
 
 from axis_api.demo import ApprovalDecision
+from axis_api.telemetry import inject_trace_context
 
 
 class WorkflowSignalRequest(BaseModel):
@@ -188,6 +189,19 @@ class WorkflowSignalError(RuntimeError):
     pass
 
 
+def _with_trace_context(payload: dict) -> dict:
+    """Return ``payload`` augmented with the active W3C trace context.
+
+    When telemetry is enabled and a request span is recording, this adds a
+    ``traceparent`` (and, if present, ``tracestate``) key so the signalled
+    workflow/activity on the worker can continue the originating trace. When
+    telemetry is disabled the current span is non-recording and the propagator
+    injects nothing, so the payload is returned unchanged.
+    """
+
+    return inject_trace_context(dict(payload))
+
+
 @dataclass(frozen=True)
 class TemporalWorkflowSignalConfig:
     address: str = "localhost:7233"
@@ -246,7 +260,7 @@ class TemporalWorkflowSignalRuntime:
             handle = client.get_workflow_handle(request.workflow_id)
             await handle.signal(
                 request.signal_name,
-                request.runtime_payload,
+                _with_trace_context(request.runtime_payload),
                 rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
         except (OSError, RuntimeError, TemporalError, RPCError) as exc:
@@ -269,7 +283,7 @@ class TemporalWorkflowSignalRuntime:
             handle = client.get_workflow_handle(request.workflow_id)
             await handle.signal(
                 request.signal_name,
-                request.runtime_payload,
+                _with_trace_context(request.runtime_payload),
                 rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
         except (OSError, RuntimeError, TemporalError, RPCError) as exc:
@@ -292,7 +306,7 @@ class TemporalWorkflowSignalRuntime:
             handle = client.get_workflow_handle(request.workflow_id)
             await handle.signal(
                 request.signal_name,
-                request.runtime_payload,
+                _with_trace_context(request.runtime_payload),
                 rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
         except (OSError, RuntimeError, TemporalError, RPCError) as exc:
