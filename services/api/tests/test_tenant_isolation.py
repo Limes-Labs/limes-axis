@@ -26,25 +26,17 @@ Rejections must also leave tenant A's append-only audit ledger untouched, so the
 enforced-rejection cases assert the tenant A (and tenant B) audit-event counts
 are unchanged across the attempt.
 
-Isolation leaks
----------------
-Where a real cross-tenant read or write currently *succeeds* (a genuine
-isolation leak, matching threat-model item TM-001 "add tenant-scoped query
-checks everywhere"), the case is marked ``xfail(strict=True)`` and enumerated in
-the module docstring below and the PR description. These are NOT fixed here --
-fixes are separate PRs, and ``strict=True`` guarantees the xfail flips to a hard
-failure the moment product code starts enforcing isolation.
-
-Known leaks captured as strict xfails (see individual tests):
-
-* GET  /demo/manufacturing/connectors/credential-handles  -- an authenticated
-  tenant-B principal reads tenant A's credential handles (route has no principal
-  binding; filters solely on the caller-supplied ``tenant_id`` query param).
-* GET  /demo/manufacturing/connectors/configurations       -- same gap for
-  connector tenant configurations.
-* POST /demo/manufacturing/connectors/manifests            -- an authenticated
-  tenant-B principal writes a connector manifest into tenant A (route has no
-  principal binding; trusts the request-body ``tenant_id``).
+Connector surface enforcement
+-----------------------------
+The connector read/list routes (credential handles, configurations, manifests,
+runs, leases, egress policies, evidence invariants, ontology proposals,
+promotion policies/sets, manual imports) and the manifest-create write were
+originally captured here as strict-xfail isolation leaks (threat-model item
+TM-001 "add tenant-scoped query checks everywhere"): they had no principal
+binding and trusted the caller-supplied ``tenant_id``. They now bind the OIDC
+principal and reject a tenant mismatch with the canonical 403
+``tenant_mismatch`` shape, so the cases live in the enforced tables below as
+hard assertions.
 
 The demo reference registries (agents/actions/connectors/model-routing/overview)
 share the same no-binding shape but serve public demo reference content, so they
@@ -487,6 +479,18 @@ def _audit_retention_body() -> dict:
     }
 
 
+def _connector_manifest_body() -> dict:
+    connector = connector_registry_payload()["connectors"][0]
+    return {
+        "tenant_id": TENANT_A,
+        "registered_by": "platform-connector-owner-role",
+        "manifest": connector["manifest"],
+        "runtime_policy": connector["runtime_policy"],
+        "preview_sample": connector["preview_sample"],
+        "notes": ["Cross-tenant write attempt from tenant B."],
+    }
+
+
 def _platform_policy_body() -> dict:
     return {
         "tenant_id": TENANT_A,
@@ -526,6 +530,12 @@ ENFORCED_WRITE_CASES: list[tuple[str, str, str, Callable[[], dict]]] = [
         lambda: _risk_scenario_body("supply:read"),
     ),
     ("connector_run", "post", "/demo/manufacturing/connectors/runs", _connector_run_body),
+    (
+        "connector_manifest_create",
+        "post",
+        "/demo/manufacturing/connectors/manifests",
+        _connector_manifest_body,
+    ),
     (
         "action_run",
         "post",
@@ -621,6 +631,21 @@ ENFORCED_READ_PATHS: list[tuple[str, str]] = [
     ("audit_events", "/demo/manufacturing/audit/events"),
     ("audit_export", "/demo/manufacturing/audit/export"),
     ("audit_legal_holds", "/demo/manufacturing/audit/legal-holds"),
+    ("connector_manifests", "/demo/manufacturing/connectors/manifests"),
+    ("connector_configurations", "/demo/manufacturing/connectors/configurations"),
+    ("connector_credential_handles", "/demo/manufacturing/connectors/credential-handles"),
+    ("connector_credential_leases", "/demo/manufacturing/connectors/credential-leases"),
+    ("connector_egress_policies", "/demo/manufacturing/connectors/egress-policies"),
+    ("connector_evidence_invariants", "/demo/manufacturing/connectors/evidence-invariants"),
+    (
+        "connector_evidence_snapshots",
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+    ),
+    ("connector_runs", "/demo/manufacturing/connectors/runs"),
+    ("connector_ontology_proposals", "/demo/manufacturing/connectors/ontology-proposals"),
+    ("connector_promotion_policies", "/demo/manufacturing/connectors/promotion-policies"),
+    ("connector_promotion_policy_sets", "/demo/manufacturing/connectors/promotion-policy-sets"),
+    ("connector_manual_imports", "/demo/manufacturing/connectors/manual-imports"),
     ("sync_checkpoints", "/demo/manufacturing/connectors/runs/checkpoints"),
     ("sync_checkpoint_claims", "/demo/manufacturing/connectors/runs/checkpoints/claims"),
     ("platform_policies", "/platform/policies"),
@@ -762,26 +787,33 @@ def test_tenant_b_cannot_revoke_tenant_a_session() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Isolation LEAKS (strict xfail).                                              #
+# Connector surface positive controls.                                         #
 #                                                                              #
-# These surfaces have no principal binding: they trust the caller-supplied     #
-# ``tenant_id`` (query or body) and so a tenant-B principal reaches tenant A's  #
-# operational data. Each asserts the *secure* outcome (never 200/201 with      #
-# tenant A data); the assertion currently fails, so the case is a strict       #
-# xfail. When product code adds tenant-scoped checks the xfail flips to XPASS   #
-# and fails the suite, prompting removal of the marker.                        #
+# The connector read routes were the TM-001 isolation leaks (strict xfails)    #
+# before principal binding was added; the negative cases now live in the       #
+# enforced tables above. These controls prove the binding does not over-block: #
+# a tenant-A principal still reads tenant A's own connector records, and a     #
+# tenant-B read denial leaks nothing about tenant A's data.                    #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "tenant isolation leak: GET /demo/manufacturing/connectors/credential-handles "
-        "has no principal binding; an authenticated tenant-B caller reads tenant A's "
-        "credential handles by supplying tenant_id=tenant_demo_manufacturing (TM-001)."
-    ),
-)
-def test_leak_tenant_b_reads_tenant_a_credential_handles() -> None:
+def test_tenant_a_reads_its_own_credential_handles() -> None:
+    client, factory = build_test_client()
+    seed_connector_registry_reference(factory)
+    seed_tenant_a_credential_handle(factory)
+    as_principal(client, tenant_id=TENANT_A, actor_id=ACTOR_A)
+
+    response = client.get(
+        "/demo/manufacturing/connectors/credential-handles",
+        params={"tenant_id": TENANT_A},
+        headers=BEARER,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["handles"], "tenant A must read its own credential handles"
+
+
+def test_tenant_b_credential_handle_denial_reveals_no_tenant_a_data() -> None:
     client, factory = build_test_client()
     seed_connector_registry_reference(factory)
     seed_tenant_a_credential_handle(factory)
@@ -793,25 +825,16 @@ def test_leak_tenant_b_reads_tenant_a_credential_handles() -> None:
         headers=BEARER,
     )
 
-    # Secure expectation: tenant B must not receive tenant A's handles.
-    assert not (
-        response.status_code == 200 and response.json()["handles"]
-    ), "tenant B received tenant A credential handles"
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"]["reason"] == "tenant_mismatch"
+    assert "vault://" not in response.text, "denial must not leak secret refs"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "tenant isolation leak: GET /demo/manufacturing/connectors/configurations has no "
-        "principal binding; an authenticated tenant-B caller reads tenant A's connector "
-        "tenant configurations by supplying tenant_id=tenant_demo_manufacturing (TM-001)."
-    ),
-)
-def test_leak_tenant_b_reads_tenant_a_configurations() -> None:
+def test_tenant_a_reads_its_own_configurations() -> None:
     client, factory = build_test_client()
     seed_connector_registry_reference(factory)
     seed_tenant_a_configuration(factory)
-    as_tenant_b(client)
+    as_principal(client, tenant_id=TENANT_A, actor_id=ACTOR_A)
 
     response = client.get(
         "/demo/manufacturing/connectors/configurations",
@@ -819,42 +842,9 @@ def test_leak_tenant_b_reads_tenant_a_configurations() -> None:
         headers=BEARER,
     )
 
-    assert not (
-        response.status_code == 200 and response.json()["configurations"]
-    ), "tenant B received tenant A connector configurations"
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "tenant isolation leak: POST /demo/manufacturing/connectors/manifests has no "
-        "principal binding; an authenticated tenant-B caller writes a connector manifest "
-        "into tenant A by supplying tenant_id=tenant_demo_manufacturing in the body "
-        "(TM-001 cross-tenant write)."
-    ),
-)
-def test_leak_tenant_b_writes_manifest_into_tenant_a() -> None:
-    client, factory = build_test_client()
-    seed_connector_registry_reference(factory)
-    as_tenant_b(client)
-
-    connector = connector_registry_payload()["connectors"][0]
-    response = client.post(
-        "/demo/manufacturing/connectors/manifests",
-        json={
-            "tenant_id": TENANT_A,
-            "registered_by": "platform-connector-owner-role",
-            "manifest": connector["manifest"],
-            "runtime_policy": connector["runtime_policy"],
-            "preview_sample": connector["preview_sample"],
-            "notes": ["Cross-tenant write attempt from tenant B."],
-        },
-        headers=BEARER,
-    )
-
-    # Secure expectation: a tenant-B principal cannot create a tenant-A manifest.
-    assert response.status_code in (403, 404), (
-        "tenant B created a connector manifest inside tenant A"
+    assert response.status_code == 200, response.text
+    assert response.json()["configurations"], (
+        "tenant A must read its own connector configurations"
     )
 
 

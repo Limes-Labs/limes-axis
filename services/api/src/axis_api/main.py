@@ -2201,6 +2201,31 @@ def _authorize_connector_sync_checkpoint_claim_read(
         )
 
 
+def _authorize_connector_tenant_read(
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+) -> None:
+    """Reject a connector read whose query ``tenant_id`` differs from the principal.
+
+    Connector list/read routes historically trusted the caller-supplied
+    ``tenant_id`` query parameter. Binding the read to the verified OIDC
+    principal (same pattern as ``_authorize_connector_sync_checkpoint_read``)
+    keeps one tenant's connector records -- credential handles, configurations,
+    manifests and friends -- out of another tenant's reach. Unauthenticated demo
+    traffic (no principal) is unaffected, preserving the
+    ``AXIS_OIDC_AUTH_REQUIRED`` demo-mode convention.
+    """
+    if principal is not None and principal.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The authenticated OIDC tenant cannot access this tenant scope.",
+                "reason": "tenant_mismatch",
+            },
+        )
+
+
 def _bind_connector_run_actor(
     request_model,
     principal: OidcPrincipal | None,
@@ -4027,15 +4052,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/manifests",
         response_model=ManufacturingConnectorManifestRegistry,
+        responses={403: {"description": "Connector manifest read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_manifests(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorManifestRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return build_connector_manifest_registry(
             repository,
             ConnectorManifestQuery(
@@ -4050,6 +4078,7 @@ def create_app(
         "/demo/manufacturing/connectors/manifests",
         response_model=ConnectorManifestRecordView,
         responses={
+            403: {"description": "Connector manifest actor binding permission denied"},
             409: {"description": "Connector manifest already exists"},
             422: {"description": "Connector manifest validation failed"},
         },
@@ -4059,9 +4088,15 @@ def create_app(
     def manufacturing_connector_manifest_create(
         manifest: ConnectorManifestCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorManifestRecordView:
+        bound_manifest = _bind_connector_run_actor(
+            manifest,
+            principal,
+            actor_field="registered_by",
+        )
         try:
-            return record_demo_connector_manifest(repository, manifest)
+            return record_demo_connector_manifest(repository, bound_manifest)
         except ConnectorManifestConflict as exc:
             raise HTTPException(
                 status_code=409,
@@ -4124,15 +4159,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/configurations",
         response_model=ManufacturingConnectorConfigurationRegistry,
+        responses={403: {"description": "Connector configuration read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_configurations(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorConfigurationRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return build_connector_configuration_registry(
             repository,
             ConnectorConfigurationQuery(
@@ -4190,15 +4228,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/credential-handles",
         response_model=ManufacturingConnectorCredentialHandleRegistry,
+        responses={403: {"description": "Connector credential handle read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_credential_handles(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorCredentialHandleRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return build_connector_credential_handle_registry(
             repository,
             ConnectorCredentialHandleQuery(
@@ -4280,10 +4321,12 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/credential-leases",
         response_model=ManufacturingConnectorCredentialLeaseRegistry,
+        responses={403: {"description": "Connector credential lease read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_credential_leases(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         handle_id: str | None = Query(default=None, min_length=1),
@@ -4291,6 +4334,7 @@ def create_app(
         limit: int = Query(default=100, ge=1, le=200),
         actor_id: str = Query(default="connector-credential-lease-reader", min_length=1),
     ) -> ManufacturingConnectorCredentialLeaseRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return read_connector_credential_lease_registry(
             repository,
             ConnectorCredentialLeaseQuery(
@@ -4464,16 +4508,19 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/egress-policies",
         response_model=ManufacturingConnectorEgressPolicyRegistry,
+        responses={403: {"description": "Connector egress policy read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_egress_policies(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
         actor_id: str = Query(default="connector-egress-policy-reader", min_length=1),
     ) -> ManufacturingConnectorEgressPolicyRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return read_connector_egress_policy_registry(
             repository,
             ConnectorEgressPolicyQuery(
@@ -4511,15 +4558,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/evidence-invariants",
         response_model=ManufacturingConnectorEvidenceInvariantReport,
+        responses={403: {"description": "Connector evidence invariant read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_evidence_invariants(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
         actor_id: str = Query(default="connector-evidence-report-reader", min_length=1),
     ) -> ManufacturingConnectorEvidenceInvariantReport:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return read_connector_evidence_invariant_report(
             repository,
             ConnectorEvidenceInvariantQuery(
@@ -4792,6 +4842,7 @@ def create_app(
     )
     def manufacturing_connector_evidence_invariant_snapshot_history(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         snapshot_id: str | None = Query(default=None, min_length=1),
@@ -4800,6 +4851,7 @@ def create_app(
         actor_scopes: list[str] = CheckpointActorScopesQuery,
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ConnectorEvidenceInvariantSnapshotHistory:
+        _authorize_connector_tenant_read(tenant_id, principal)
         try:
             return read_connector_evidence_invariant_snapshot_history(
                 repository,
@@ -4827,15 +4879,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/runs",
         response_model=ManufacturingConnectorRunRegistry,
+        responses={403: {"description": "Connector run read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_runs(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorRunRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return build_connector_run_registry(
             repository,
             ConnectorRunQuery(
@@ -5377,15 +5432,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/ontology-proposals",
         response_model=ManufacturingConnectorOntologyProposalRegistry,
+        responses={403: {"description": "Connector ontology proposal read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_ontology_proposals(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorOntologyProposalRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return build_connector_ontology_proposal_registry(
             repository,
             ConnectorOntologyProposalQuery(
@@ -5539,15 +5597,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/promotion-policies",
         response_model=ManufacturingConnectorPromotionPolicyRegistry,
+        responses={403: {"description": "Connector promotion policy read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_promotion_policies(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorPromotionPolicyRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         query = ConnectorPromotionPolicyQuery(
             tenant_id=tenant_id,
             connector_id=connector_id,
@@ -5814,15 +5875,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/promotion-policy-sets",
         response_model=ManufacturingConnectorPromotionPolicySetRegistry,
+        responses={403: {"description": "Connector promotion policy set read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_promotion_policy_sets(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorPromotionPolicySetRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         query = ConnectorPromotionPolicySetQuery(
             tenant_id=tenant_id,
             connector_id=connector_id,
@@ -5914,15 +5978,18 @@ def create_app(
     @app.get(
         "/demo/manufacturing/connectors/manual-imports",
         response_model=ManufacturingConnectorManualImportRegistry,
+        responses={403: {"description": "Connector manual import read permission denied"}},
         tags=["demo"],
     )
     def manufacturing_connector_manual_imports(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingConnectorManualImportRegistry:
+        _authorize_connector_tenant_read(tenant_id, principal)
         return build_connector_manual_import_registry(
             repository,
             ConnectorManualImportQuery(
