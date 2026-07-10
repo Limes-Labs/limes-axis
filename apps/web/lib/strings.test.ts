@@ -67,6 +67,22 @@ describe("strings.states", () => {
   });
 });
 
+describe("strings.approvals", () => {
+  it("provides decision-flow, empty and error copy for the approval inbox", () => {
+    const approvals = strings.approvals;
+    expect(approvals.error.title.length).toBeGreaterThan(0);
+    expect(approvals.error.detail).toContain("Local fallback approval records are disabled.");
+    expect(approvals.empty.title.length).toBeGreaterThan(0);
+    expect(approvals.empty.detail.length).toBeGreaterThan(0);
+    expect(approvals.decision.confirmTitle.length).toBeGreaterThan(0);
+    expect(approvals.decision.rationaleLabel.length).toBeGreaterThan(0);
+    expect(approvals.decision.confirm.length).toBeGreaterThan(0);
+    expect(approvals.decision.cancel.length).toBeGreaterThan(0);
+    expect(approvals.decision.toastTitle.length).toBeGreaterThan(0);
+    expect(approvals.decision.auditLink.length).toBeGreaterThan(0);
+  });
+});
+
 describe("glossary", () => {
   it("defines every platform term", () => {
     for (const key of glossaryKeys) {

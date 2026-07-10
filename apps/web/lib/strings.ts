@@ -172,9 +172,55 @@ const commandMenu = {
   },
 } as const;
 
+/** Approval inbox copy: decision flow, empty queue, and API-down states. */
+const approvals = {
+  queue: {
+    eyebrow: "Queue",
+    title: "Approval inbox",
+  },
+  decision: {
+    eyebrow: "Decision",
+    pending: "Pending review",
+    confirmTitle: "Confirm decision",
+    rationaleLabel: "Rationale (optional)",
+    rationalePlaceholder: "Why you are deciding this way — recorded with the audit evidence.",
+    confirm: "Confirm decision",
+    cancel: "Cancel",
+    persisting: "Recording decision…",
+    persisted: "Decision recorded",
+    auditLink: "View audit event",
+    toastTitle: "Decision recorded",
+  },
+  sections: {
+    evidence: "Evidence",
+    risksAlternatives: "Risks & alternatives",
+    dataAccessed: "Data accessed",
+    inspect: "Inspect raw record",
+  },
+  metrics: {
+    pending: "Pending",
+    pendingDetail: "Waiting on a human decision",
+    highRisk: "High risk",
+    highRiskDetail: "Cannot execute without owner approval",
+    decided: "Decided",
+    decidedDetail: "Recorded as audit evidence this session",
+  },
+  error: {
+    title: "Approval API unavailable",
+    detail:
+      "Axis did not receive API-backed approval records. Local fallback approval records are disabled.",
+  },
+  empty: {
+    title: "No approvals waiting",
+    detail:
+      "When an agent proposes an action that needs a human decision, it will appear here for review.",
+  },
+} as const;
+
 export const strings = {
   nav,
   commandMenu,
+  approvals,
   states: {
     loading: "Loading…",
     error: {
