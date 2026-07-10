@@ -7,6 +7,7 @@ import { ArrowLeft, History, RadioTower, ShieldCheck } from "lucide-react";
 import { ApiRequiredState } from "@/components/api-required-state";
 import { TenantLifecycleActions } from "@/components/tenant-lifecycle-actions";
 import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
+import { TenantUsagePanel } from "@/components/tenant-usage-panel";
 import {
   buildPlatformTenantDetailPath,
   fetchTenantDetail,
@@ -244,6 +245,8 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       </section>
 
       <TenantLifecycleActions tenant={tenant} />
+
+      <TenantUsagePanel tenantId={tenant.tenant_id} />
 
       <TenantQuotaEditor tenantId={tenant.tenant_id} />
 

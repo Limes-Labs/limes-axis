@@ -16529,6 +16529,105 @@
         "title": "TenantSuspendRequest",
         "type": "object"
       },
+      "TenantUsageMetricTotal": {
+        "properties": {
+          "metric_key": {
+            "minLength": 1,
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "quantity": {
+            "minimum": 0.0,
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric_key",
+          "quantity"
+        ],
+        "title": "TenantUsageMetricTotal",
+        "type": "object"
+      },
+      "TenantUsagePeriodPoint": {
+        "properties": {
+          "metric_key": {
+            "minLength": 1,
+            "title": "Metric Key",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "quantity": {
+            "minimum": 0.0,
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period_start",
+          "metric_key",
+          "quantity"
+        ],
+        "title": "TenantUsagePeriodPoint",
+        "type": "object"
+      },
+      "TenantUsageSummary": {
+        "properties": {
+          "metric_totals": {
+            "items": {
+              "$ref": "#/components/schemas/TenantUsageMetricTotal"
+            },
+            "title": "Metric Totals",
+            "type": "array"
+          },
+          "period_window_seconds": {
+            "minimum": 1.0,
+            "title": "Period Window Seconds",
+            "type": "integer"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/TenantUsagePeriodPoint"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "usage_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Usage Notes",
+            "type": "array"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "window_start",
+          "window_end",
+          "period_window_seconds"
+        ],
+        "title": "TenantUsageSummary",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -23922,6 +24021,112 @@
           }
         },
         "summary": "Platform Tenant Suspend",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/tenants/{tenant_id}/usage": {
+      "get": {
+        "operationId": "platform_tenant_usage_platform_tenants__tenant_id__usage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last_days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 366,
+              "minimum": 1,
+              "title": "Last Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantUsageSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Platform tenant usage read permission denied"
+          },
+          "404": {
+            "description": "Tenant not found"
+          },
+          "422": {
+            "description": "Usage window is invalid"
+          }
+        },
+        "summary": "Platform Tenant Usage",
         "tags": [
           "platform"
         ]

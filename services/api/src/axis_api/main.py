@@ -1,6 +1,7 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator, Generator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, NamedTuple
 from uuid import UUID
@@ -539,6 +540,16 @@ from axis_api.telemetry import (
     instrument_fastapi_app,
     set_span_attributes,
     shutdown_providers,
+)
+from axis_api.usage_metering import (
+    REQUIRED_USAGE_READ_SCOPE as PLATFORM_TENANT_USAGE_SCOPE,
+)
+from axis_api.usage_metering import (
+    TenantUsageMetric,
+    TenantUsageSummary,
+    UsageAccumulator,
+    build_tenant_usage_summary,
+    record_tenant_usage_event,
 )
 from axis_api.workflow_queries import WorkflowRunQuery, query_persisted_workflow_runs
 from axis_api.workflow_reference import (
@@ -1165,6 +1176,9 @@ CheckpointCreatedAfterQuery = Query(default=None)
 CheckpointCreatedBeforeQuery = Query(default=None)
 PlatformPolicyScopeQuery = Query(default=None)
 TenantLifecycleStatusQuery = Query(default=None, alias="status")
+TenantUsageLastDaysQuery = Query(default=7, ge=1, le=366)
+TenantUsageFromQuery = Query(default=None, alias="from")
+TenantUsageToQuery = Query(default=None, alias="to")
 AUDIT_READ_SCOPE = "audit:read"
 
 
@@ -1813,6 +1827,55 @@ def _authorize_platform_tenant_read(
         )
 
 
+def _authorize_platform_tenant_usage_read(
+    principal: OidcPrincipal | None,
+    *,
+    resource: str,
+) -> None:
+    """Authorize the operator-scoped usage read.
+
+    Usage is a billing-adjacent read: it requires the platform operator scope
+    plus a dedicated ``platform:tenant:usage`` scope, following the same
+    cross-tenant operator convention as the rest of the platform-tenant surface
+    (the operator authenticates under their own tenant and reads any tenant's
+    consumption). Demo/offline mode (no principal) is intentionally not gated.
+    """
+    if principal is None:
+        return
+
+    decision = evaluate_permission(
+        PermissionRequest(
+            tenant_id=principal.tenant_id,
+            actor_id=principal.actor_id,
+            actor_scopes=principal.scopes,
+            required_scopes=[
+                PLATFORM_TENANT_OPERATOR_SCOPE,
+                PLATFORM_TENANT_USAGE_SCOPE,
+            ],
+            attributes={
+                "surface": "platform_tenant_usage",
+                "resource": resource,
+            },
+        )
+    )
+    if not decision.allowed:
+        required_permission = decision.reason.removeprefix("missing_scope:")
+        if required_permission == decision.reason:
+            required_permission = PLATFORM_TENANT_USAGE_SCOPE
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The actor cannot read platform tenant usage.",
+                "required_permission": required_permission,
+                "reason": "missing_required_scope"
+                if decision.reason.startswith("missing_scope:")
+                else decision.reason,
+                "permission_reason": decision.reason,
+            },
+        )
+
+
 def _platform_tenant_denied_http_exception(
     exc: TenantPermissionDenied,
     message: str,
@@ -2079,12 +2142,56 @@ def _bind_connector_run_actor(
     return request_model.model_copy(update=update)
 
 
+async def _usage_metering_flush_loop(app: FastAPI) -> None:
+    """Periodically drain the usage accumulator into the ledger.
+
+    Runs in the API process (the accumulator is in-process) rather than the
+    worker. A flush failure is logged and retried on the next tick; the deltas
+    are restored by :meth:`UsageAccumulator.flush`, so a transient DB error never
+    loses consumption. The loop exits cleanly on cancellation.
+    """
+    settings = app.state.settings
+    interval = settings.usage_metering_flush_interval_seconds
+    accumulator: UsageAccumulator = app.state.usage_accumulator
+    session_factory = app.state.session_factory
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            flushed = await asyncio.to_thread(accumulator.flush, session_factory)
+            if flushed:
+                _LOGGER.debug("Usage metering flush wrote %s units.", flushed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - a flush error must not kill the loop
+            _LOGGER.warning(
+                "Usage metering flush failed; deltas retained for retry.",
+                exc_info=True,
+            )
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _warm_audit_export_object_lock_capability(app)
+    flush_task: asyncio.Task[None] | None = None
+    if app.state.settings.usage_metering_enabled:
+        flush_task = asyncio.create_task(_usage_metering_flush_loop(app))
     try:
         yield
     finally:
+        if flush_task is not None:
+            flush_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await flush_task
+        # Final drain so in-flight counts are not lost on a clean shutdown.
+        if app.state.settings.usage_metering_enabled:
+            try:
+                await asyncio.to_thread(
+                    app.state.usage_accumulator.flush, app.state.session_factory
+                )
+            except Exception:  # noqa: BLE001 - shutdown flush is best-effort
+                _LOGGER.warning(
+                    "Final usage metering flush failed at shutdown.", exc_info=True
+                )
         runtime: TelemetryRuntime | None = getattr(app.state, "telemetry", None)
         if runtime is not None and runtime.enabled:
             shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
@@ -2130,6 +2237,10 @@ def create_app(
     app.state.session_factory = create_session_factory(resolved_settings)
     app.state.tenant_state_cache = TenantStateCache(
         ttl_seconds=resolved_settings.tenant_state_cache_ttl_seconds,
+    )
+    app.state.usage_accumulator = UsageAccumulator(
+        window_seconds=resolved_settings.usage_metering_aggregation_window_seconds,
+        enabled=resolved_settings.usage_metering_enabled,
     )
     app.state.workflow_runtime = (
         TemporalWorkflowSignalRuntime(
@@ -2512,6 +2623,18 @@ def create_app(
                         created_audit_event_id=audit_event.id,
                     )
                 )
+                if resolved_settings.usage_metering_enabled:
+                    # Meter the established session on the same durable transaction
+                    # that persisted it, so consumption is never at risk of loss.
+                    record_tenant_usage_event(
+                        repository,
+                        principal.tenant_id,
+                        TenantUsageMetric.SESSION_CREATED.value,
+                        1,
+                        window_seconds=(
+                            resolved_settings.usage_metering_aggregation_window_seconds
+                        ),
+                    )
                 max_concurrent = resolved_settings.oidc_session_max_concurrent
                 concurrent_session_quota = repository.get_tenant_quota(
                     principal.tenant_id,
@@ -5095,6 +5218,10 @@ def create_app(
                 bound_execution,
                 sync_execution_runtime,
                 live_sync_runtime=live_sync_runtime,
+                usage_metering_enabled=resolved_settings.usage_metering_enabled,
+                usage_window_seconds=(
+                    resolved_settings.usage_metering_aggregation_window_seconds
+                ),
             )
             rows = _connector_sync_rows(record)
             set_span_attributes(span, {ATTR_OUTCOME: record.status})
@@ -6309,6 +6436,56 @@ def create_app(
         _authorize_platform_tenant_read(principal, resource="platform_tenant_quotas")
         try:
             return get_tenant_quota_set(repository, tenant_id)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+
+    @app.get(
+        "/platform/tenants/{tenant_id}/usage",
+        response_model=TenantUsageSummary,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant usage read permission denied"},
+            404: {"description": "Tenant not found"},
+            422: {"description": "Usage window is invalid"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_usage(
+        tenant_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        last_days: int = TenantUsageLastDaysQuery,
+        from_: datetime | None = TenantUsageFromQuery,
+        to: datetime | None = TenantUsageToQuery,
+    ) -> TenantUsageSummary:
+        _authorize_platform_tenant_usage_read(principal, resource="platform_tenant_usage")
+        # Normalize mixed naive/aware inputs to UTC so a naive from/to compared
+        # against an aware now() yields a clean 422, not a TypeError-driven 500.
+        window_end = _ensure_aware_datetime(to) if to is not None else datetime.now(UTC)
+        window_start = (
+            _ensure_aware_datetime(from_)
+            if from_ is not None
+            else window_end - timedelta(days=last_days)
+        )
+        if window_start >= window_end:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The usage window start must be before the window end.",
+                    "reason": "invalid_usage_window",
+                },
+            )
+        try:
+            return build_tenant_usage_summary(
+                repository,
+                tenant_id,
+                window_start=window_start,
+                window_end=window_end,
+                window_seconds=(
+                    resolved_settings.usage_metering_aggregation_window_seconds
+                ),
+            )
         except TenantNotFound as exc:
             raise _platform_tenant_not_found_http_exception(tenant_id) from exc
 

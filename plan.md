@@ -1110,6 +1110,17 @@ audit writes from live route decisions remain Platform work.
   and confirmed PUT, all through the typed `lib/platform-tenants.ts` bindings.
   The list and detail-derivation read at the `limit=200` API maximum and show a
   visible cap notice past it (no silent truncation).
+- [x] Add per-tenant usage metering: the cumulative consumption ledger beneath
+  the quota ceilings. A `tenant_usage_records` table (migration 0049) accounts
+  the `api_request`, `connector_sync_rows` and `session_created` metrics at the
+  existing choke points via a bounded in-process aggregator on the hot path
+  (batched, flushed to per-period buckets) and durable per-event upsert-adds for
+  the low-volume paths, correct under concurrency (single-statement upsert-add;
+  drain/restore with no loss or double count). An operator-scoped
+  (`platform:tenant:usage`) `GET /platform/tenants/{id}/usage` returns per-metric
+  totals + a per-period breakdown over a queryable window, with a read-only usage
+  panel on the tenant detail console. Quotas are ceilings, metering is cumulative
+  accounting, and billing is a future consumer.
 - [ ] Add a single-tenant `GET /platform/tenants/{id}` route and server-side
   cursor pagination so the console is not bounded by the `limit=200` listing
   ceiling (the console currently reads the registry at the maximum and surfaces

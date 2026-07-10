@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     DateTime,
     Index,
     Integer,
@@ -96,6 +97,53 @@ class TenantQuota(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "quota_key", name="uq_tenant_quotas_tenant_quota_key"),
+    )
+
+
+class TenantUsageRecord(Base):
+    __tablename__ = "tenant_usage_records"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    metric_key: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    # Left-edge of the aggregation window this row accumulates (UTC, epoch-aligned).
+    period_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    # Cumulative consumption for (tenant, metric, period). Incremented in place via
+    # upsert-add, so it is a running total rather than a single event.
+    quantity: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    dimensions: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict, server_default="{}"
+    )
+    first_recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    last_recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "metric_key",
+            "period_start",
+            name="uq_tenant_usage_records_tenant_metric_period",
+        ),
+        Index(
+            "ix_tenant_usage_records_tenant_metric_period",
+            "tenant_id",
+            "metric_key",
+            "period_start",
+        ),
     )
 
 
