@@ -36,7 +36,12 @@ TM-001 "add tenant-scoped query checks everywhere"): they had no principal
 binding and trusted the caller-supplied ``tenant_id``. They now bind the OIDC
 principal and reject a tenant mismatch with the canonical 403
 ``tenant_mismatch`` shape, so the cases live in the enforced tables below as
-hard assertions.
+hard assertions. The remaining connector write routes (configuration,
+credential handle/rotation, credential lease create/renew/revoke, egress
+policy, evidence snapshot create/export-request, ontology proposal, manual
+import create, manifest lifecycle, and the csv/external-db previews that read
+registry state from a body ``tenant_id``) are bound the same way and covered
+by ``ENFORCED_WRITE_CASES``.
 
 The demo reference registries (agents/actions/connectors/model-routing/overview)
 share the same no-binding shape but serve public demo reference content, so they
@@ -501,6 +506,158 @@ def _connector_manifest_body() -> dict:
     }
 
 
+def _connector_manifest_lifecycle_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "transitioned_by": "platform-connector-owner-role",
+        "target_status": "certified",
+        "actor_scopes": ["connectors:manifest:lifecycle"],
+        "transition_reason": "Cross-tenant lifecycle attempt from tenant B.",
+    }
+
+
+def _connector_configuration_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "file_csv_manufacturing_assets",
+        "display_name": "Manufacturing assets CSV intake",
+        "sync_mode": "preview",
+        "created_by": ACTOR_A,
+    }
+
+
+def _connector_credential_handle_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "file_csv_manufacturing_assets",
+        "handle_id": "cred_file_csv_readonly",
+        "display_name": "File CSV readonly vault reference",
+        "secret_provider": "external_vault",
+        "secret_ref": "vault://axis/demo/connectors/file-csv-readonly",
+        "purpose": "preview_import_readonly",
+        "created_by": ACTOR_A,
+    }
+
+
+def _connector_credential_rotation_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "rotated_by": ACTOR_A,
+        "evidence_ref": "audit_credential_rotation_iso",
+    }
+
+
+def _connector_credential_lease_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "file_csv_manufacturing_assets",
+        "handle_id": "cred_file_csv_readonly",
+        "lease_id": "lease_file_csv_iso_20260710",
+        "requested_by": ACTOR_A,
+        "lease_purpose": "preview_import_readonly",
+    }
+
+
+def _connector_credential_lease_renew_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "renewed_by": ACTOR_A,
+        "renewal_reason": "Extend preview import window.",
+        "evidence_ref": "audit_credential_lease_renewal_iso",
+    }
+
+
+def _connector_credential_lease_revoke_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "revoked_by": ACTOR_A,
+        "revocation_reason": "Revoke preview import lease.",
+        "evidence_ref": "audit_credential_lease_revocation_iso",
+    }
+
+
+def _connector_egress_policy_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "external_db_operational_mirror",
+        "policy_id": "policy_egress_ops_mirror_iso_v1",
+        "display_name": "Operational mirror egress policy",
+        "connection_profile_id": "profile_postgres_ops_readonly",
+        "egress_boundary": "private_endpoint_only",
+        "policy_mode": "enforce",
+        "private_endpoint_ref": "vpce://axis/demo/postgres-ops-readonly",
+        "created_by": ACTOR_A,
+    }
+
+
+def _connector_evidence_snapshot_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "snapshot_id": "snapshot_evidence_iso_20260710",
+        "requested_by": ACTOR_A,
+        "idempotency_key": "idem_snapshot_evidence_iso_20260710",
+        "reason": "Cross-tenant snapshot attempt from tenant B.",
+    }
+
+
+def _connector_evidence_snapshot_export_request_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "export_request_id": "export_req_evidence_iso_20260710",
+        "idempotency_key": "idem_export_req_evidence_iso_20260710",
+        "requested_by": ACTOR_A,
+        "owner_role": "plant-operations-owner-role",
+        "risk_level": "medium",
+        "approval_id": "appr_evidence_export_iso",
+        "workflow_id": "wf_evidence_export_iso",
+    }
+
+
+def _connector_ontology_proposal_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "file_csv_manufacturing_assets",
+        "source_file_name": "assets.csv",
+        "proposed_by": ACTOR_A,
+        "proposed_entities": [
+            {
+                "proposal_id": "proposal_asset_line_2_packaging",
+                "node_id": "asset_line_2_packaging",
+                "node_type": "Asset",
+                "ontology_type": "manufacturing_asset",
+            }
+        ],
+    }
+
+
+def _connector_manual_import_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "file_csv_manufacturing_assets",
+        "import_id": "import_assets_iso_20260710",
+        "idempotency_key": "idem_import_assets_iso_20260710",
+        "requested_by": ACTOR_A,
+        "owner_role": "plant-operations-owner-role",
+        "risk_level": "medium",
+        "approval_id": "appr_manual_import_iso",
+        "workflow_id": "wf_manual_import_iso",
+        "proposal_ids": ["proposal_asset_line_2_packaging"],
+    }
+
+
+def _connector_csv_preview_body() -> dict:
+    return {
+        "tenant_id": TENANT_A,
+        "connector_id": "file_csv_manufacturing_assets",
+        "file_name": "assets.csv",
+        "csv_content": "asset_id,asset_name\nasset_1,Line 1 packer\n",
+    }
+
+
+def _connector_external_db_preview_body() -> dict:
+    return {"tenant_id": TENANT_A}
+
+
 def _platform_policy_body() -> dict:
     return {
         "tenant_id": TENANT_A,
@@ -593,6 +750,90 @@ ENFORCED_WRITE_CASES: list[tuple[str, str, str, Callable[[], dict]]] = [
         "post",
         "/demo/manufacturing/connectors/promotion-policy-sets",
         _promotion_policy_set_body,
+    ),
+    (
+        "connector_manifest_lifecycle",
+        "post",
+        "/demo/manufacturing/connectors/manifests/file_csv_manufacturing_assets/lifecycle",
+        _connector_manifest_lifecycle_body,
+    ),
+    (
+        "connector_configuration_create",
+        "post",
+        "/demo/manufacturing/connectors/configurations",
+        _connector_configuration_body,
+    ),
+    (
+        "connector_credential_handle_create",
+        "post",
+        "/demo/manufacturing/connectors/credential-handles",
+        _connector_credential_handle_body,
+    ),
+    (
+        "connector_credential_rotation",
+        "post",
+        "/demo/manufacturing/connectors/credential-handles/cred_file_csv_readonly/rotations",
+        _connector_credential_rotation_body,
+    ),
+    (
+        "connector_credential_lease_create",
+        "post",
+        "/demo/manufacturing/connectors/credential-leases",
+        _connector_credential_lease_body,
+    ),
+    (
+        "connector_credential_lease_renew",
+        "post",
+        "/demo/manufacturing/connectors/credential-leases/lease_file_csv_iso_20260710/renew",
+        _connector_credential_lease_renew_body,
+    ),
+    (
+        "connector_credential_lease_revoke",
+        "post",
+        "/demo/manufacturing/connectors/credential-leases/lease_file_csv_iso_20260710/revoke",
+        _connector_credential_lease_revoke_body,
+    ),
+    (
+        "connector_egress_policy_create",
+        "post",
+        "/demo/manufacturing/connectors/egress-policies",
+        _connector_egress_policy_body,
+    ),
+    (
+        "connector_evidence_snapshot",
+        "post",
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        _connector_evidence_snapshot_body,
+    ),
+    (
+        "connector_evidence_snapshot_export_request",
+        "post",
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        _connector_evidence_snapshot_export_request_body,
+    ),
+    (
+        "connector_ontology_proposal_create",
+        "post",
+        "/demo/manufacturing/connectors/ontology-proposals",
+        _connector_ontology_proposal_body,
+    ),
+    (
+        "connector_manual_import_create",
+        "post",
+        "/demo/manufacturing/connectors/manual-imports",
+        _connector_manual_import_body,
+    ),
+    (
+        "connector_csv_preview",
+        "post",
+        "/demo/manufacturing/connectors/file-csv/preview",
+        _connector_csv_preview_body,
+    ),
+    (
+        "connector_external_db_preview",
+        "post",
+        "/demo/manufacturing/connectors/external-db/preview",
+        _connector_external_db_preview_body,
     ),
     (
         "audit_legal_hold",
@@ -867,6 +1108,43 @@ def test_tenant_a_reads_its_own_configurations() -> None:
     assert response.json()["configurations"], (
         "tenant A must read its own connector configurations"
     )
+
+
+def test_tenant_a_creates_its_own_configuration() -> None:
+    """Positive write control: the binding must not block a same-tenant write."""
+    client, factory = build_test_client()
+    seed_connector_registry_reference(factory)
+    as_principal(client, tenant_id=TENANT_A, actor_id=ACTOR_A)
+
+    manifest_body = _connector_manifest_body()
+    manifest_body["registered_by"] = ACTOR_A
+    manifest = client.post(
+        "/demo/manufacturing/connectors/manifests",
+        json=manifest_body,
+        headers=BEARER,
+    )
+    assert manifest.status_code == 201, manifest.text
+
+    lifecycle_body = _connector_manifest_lifecycle_body()
+    lifecycle_body["transitioned_by"] = ACTOR_A
+    lifecycle_body["target_status"] = "active_preview"
+    lifecycle = client.post(
+        "/demo/manufacturing/connectors/manifests/file_csv_manufacturing_assets/lifecycle",
+        json=lifecycle_body,
+        headers=BEARER,
+    )
+    assert lifecycle.status_code == 200, lifecycle.text
+
+    response = client.post(
+        "/demo/manufacturing/connectors/configurations",
+        json=_connector_configuration_body(),
+        headers=BEARER,
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["tenant_id"] == TENANT_A
+    assert body["created_by"] == ACTOR_A
 
 
 # --------------------------------------------------------------------------- #

@@ -4409,12 +4409,18 @@ def create_app(
         connector_id: str,
         lifecycle_request: ConnectorManifestLifecycleRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorManifestRecordView:
+        bound_lifecycle = _bind_connector_run_actor(
+            lifecycle_request,
+            principal,
+            actor_field="transitioned_by",
+        )
         try:
             return transition_demo_connector_manifest_lifecycle(
                 repository,
                 connector_id,
-                lifecycle_request,
+                bound_lifecycle,
             )
         except ConnectorManifestLifecycleValidationError as exc:
             status_code = (
@@ -4464,6 +4470,7 @@ def create_app(
         "/demo/manufacturing/connectors/configurations",
         response_model=ConnectorTenantConfiguration,
         responses={
+            403: {"description": "Connector configuration actor binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             422: {"description": "Connector configuration or registry reference validation failed"},
         },
@@ -4473,9 +4480,15 @@ def create_app(
     def manufacturing_connector_configuration_create(
         configuration: ConnectorConfigurationCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorTenantConfiguration:
+        bound_configuration = _bind_connector_run_actor(
+            configuration,
+            principal,
+            actor_field="created_by",
+        )
         try:
-            return record_demo_connector_configuration(repository, configuration)
+            return record_demo_connector_configuration(repository, bound_configuration)
         except ConnectorReferenceRecordNotFound as exc:
             raise HTTPException(
                 status_code=404,
@@ -4533,6 +4546,7 @@ def create_app(
         "/demo/manufacturing/connectors/credential-handles",
         response_model=ConnectorCredentialHandleRecord,
         responses={
+            403: {"description": "Connector credential handle actor binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             422: {"description": "Connector credential handle or registry validation failed"},
         },
@@ -4542,9 +4556,15 @@ def create_app(
     def manufacturing_connector_credential_handle_create(
         credential_handle: ConnectorCredentialHandleCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorCredentialHandleRecord:
+        bound_handle = _bind_connector_run_actor(
+            credential_handle,
+            principal,
+            actor_field="created_by",
+        )
         try:
-            return record_demo_connector_credential_handle(repository, credential_handle)
+            return record_demo_connector_credential_handle(repository, bound_handle)
         except ConnectorReferenceRecordNotFound as exc:
             raise HTTPException(
                 status_code=404,
@@ -4576,7 +4596,10 @@ def create_app(
     @app.post(
         "/demo/manufacturing/connectors/credential-handles/{handle_id}/rotations",
         response_model=ConnectorCredentialHandleRecord,
-        responses={422: {"description": "Connector credential rotation validation failed"}},
+        responses={
+            403: {"description": "Connector credential rotation actor binding permission denied"},
+            422: {"description": "Connector credential rotation validation failed"},
+        },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
@@ -4584,9 +4607,19 @@ def create_app(
         handle_id: str,
         rotation: ConnectorCredentialRotationRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorCredentialHandleRecord:
+        bound_rotation = _bind_connector_run_actor(
+            rotation,
+            principal,
+            actor_field="rotated_by",
+        )
         try:
-            return record_demo_connector_credential_rotation(repository, handle_id, rotation)
+            return record_demo_connector_credential_rotation(
+                repository,
+                handle_id,
+                bound_rotation,
+            )
         except ConnectorCredentialHandleValidationError as exc:
             raise HTTPException(
                 status_code=422,
@@ -4642,11 +4675,17 @@ def create_app(
         lease_request: ConnectorCredentialLeaseRequest,
         repository: PersistenceRepository,
         lease_runtime: CredentialLeaseRuntimeDependency,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorCredentialLeaseRecord:
+        bound_lease = _bind_connector_run_actor(
+            lease_request,
+            principal,
+            actor_field="requested_by",
+        )
         try:
             return record_demo_connector_credential_lease(
                 repository,
-                lease_request,
+                bound_lease,
                 lease_runtime,
             )
         except ConnectorReferenceRecordNotFound as exc:
@@ -4712,12 +4751,18 @@ def create_app(
         renew_request: ConnectorCredentialLeaseRenewRequest,
         repository: PersistenceRepository,
         lease_runtime: CredentialLeaseRuntimeDependency,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorCredentialLeaseRecord:
+        bound_renew = _bind_connector_run_actor(
+            renew_request,
+            principal,
+            actor_field="renewed_by",
+        )
         try:
             return renew_demo_connector_credential_lease(
                 repository,
                 lease_id,
-                renew_request,
+                bound_renew,
                 lease_runtime,
             )
         except ConnectorCredentialLeasePermissionDenied as exc:
@@ -4755,12 +4800,18 @@ def create_app(
         revoke_request: ConnectorCredentialLeaseRevokeRequest,
         repository: PersistenceRepository,
         lease_runtime: CredentialLeaseRuntimeDependency,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorCredentialLeaseRecord:
+        bound_revoke = _bind_connector_run_actor(
+            revoke_request,
+            principal,
+            actor_field="revoked_by",
+        )
         try:
             return revoke_demo_connector_credential_lease(
                 repository,
                 lease_id,
-                revoke_request,
+                bound_revoke,
                 lease_runtime,
             )
         except ConnectorCredentialLeasePermissionDenied as exc:
@@ -4814,16 +4865,25 @@ def create_app(
     @app.post(
         "/demo/manufacturing/connectors/egress-policies",
         response_model=ConnectorEgressPolicyRecord,
-        responses={422: {"description": "Connector egress policy validation failed"}},
+        responses={
+            403: {"description": "Connector egress policy actor binding permission denied"},
+            422: {"description": "Connector egress policy validation failed"},
+        },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
     def manufacturing_connector_egress_policy_create(
         egress_policy: ConnectorEgressPolicyCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorEgressPolicyRecord:
+        bound_policy = _bind_connector_run_actor(
+            egress_policy,
+            principal,
+            actor_field="created_by",
+        )
         try:
-            return record_demo_connector_egress_policy(repository, egress_policy)
+            return record_demo_connector_egress_policy(repository, bound_policy)
         except ConnectorEgressPolicyValidationError as exc:
             raise HTTPException(
                 status_code=422,
@@ -4872,9 +4932,15 @@ def create_app(
     def manufacturing_connector_evidence_invariant_snapshot(
         request: ConnectorEvidenceInvariantSnapshotRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorEvidenceInvariantSnapshotRecord:
+        bound_request = _bind_connector_run_actor(
+            request,
+            principal,
+            actor_field="requested_by",
+        )
         try:
-            return persist_connector_evidence_invariant_snapshot(repository, request)
+            return persist_connector_evidence_invariant_snapshot(repository, bound_request)
         except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
             raise HTTPException(
                 status_code=403,
@@ -4961,11 +5027,17 @@ def create_app(
         request: ConnectorEvidenceInvariantSnapshotExportRequest,
         repository: PersistenceRepository,
         response: Response,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorEvidenceInvariantSnapshotExportRequestRecord:
+        bound_request = _bind_connector_run_actor(
+            request,
+            principal,
+            actor_field="requested_by",
+        )
         try:
             result = record_connector_evidence_invariant_snapshot_export_request(
                 repository,
-                request,
+                bound_request,
             )
         except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
             raise HTTPException(
@@ -5737,6 +5809,7 @@ def create_app(
         "/demo/manufacturing/connectors/ontology-proposals",
         response_model=ManufacturingConnectorOntologyProposalRegistry,
         responses={
+            403: {"description": "Connector ontology proposal actor binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             422: {"description": "Connector ontology proposal or registry validation failed"},
         },
@@ -5746,9 +5819,15 @@ def create_app(
     def manufacturing_connector_ontology_proposal_create(
         proposal_request: ConnectorOntologyProposalCreateRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ManufacturingConnectorOntologyProposalRegistry:
+        bound_proposal = _bind_connector_run_actor(
+            proposal_request,
+            principal,
+            actor_field="proposed_by",
+        )
         try:
-            return record_demo_connector_ontology_proposals(repository, proposal_request)
+            return record_demo_connector_ontology_proposals(repository, bound_proposal)
         except ConnectorReferenceRecordNotFound as exc:
             raise HTTPException(
                 status_code=404,
@@ -6283,6 +6362,7 @@ def create_app(
         "/demo/manufacturing/connectors/manual-imports",
         response_model=ConnectorManualImportRecord,
         responses={
+            403: {"description": "Connector manual import actor binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             409: {"description": "Connector manual import idempotency conflict"},
             422: {"description": "Connector manual import or registry validation failed"},
@@ -6294,9 +6374,15 @@ def create_app(
         manual_import_request: ConnectorManualImportCreateRequest,
         repository: PersistenceRepository,
         response: Response,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorManualImportRecord:
+        bound_import = _bind_connector_run_actor(
+            manual_import_request,
+            principal,
+            actor_field="requested_by",
+        )
         try:
-            result = record_demo_connector_manual_import(repository, manual_import_request)
+            result = record_demo_connector_manual_import(repository, bound_import)
         except ConnectorReferenceRecordNotFound as exc:
             raise HTTPException(
                 status_code=404,
@@ -6391,6 +6477,7 @@ def create_app(
         "/demo/manufacturing/connectors/file-csv/preview",
         response_model=ConnectorCsvPreviewResult,
         responses={
+            403: {"description": "Connector preview tenant binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             422: {"description": "Connector registry reference payload invalid"},
         },
@@ -6399,7 +6486,9 @@ def create_app(
     def manufacturing_file_csv_connector_preview(
         preview_request: ConnectorCsvPreviewRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorCsvPreviewResult:
+        _authorize_connector_tenant_read(preview_request.tenant_id, principal)
         try:
             registry = get_persisted_manufacturing_connector_registry(
                 repository,
@@ -6429,6 +6518,7 @@ def create_app(
         "/demo/manufacturing/connectors/external-db/preview",
         response_model=ConnectorExternalDbPreviewResult,
         responses={
+            403: {"description": "Connector preview tenant binding permission denied"},
             404: {"description": "Connector registry reference record not found"},
             422: {"description": "Connector registry reference payload invalid"},
         },
@@ -6437,7 +6527,9 @@ def create_app(
     def manufacturing_external_db_connector_preview(
         preview_request: ConnectorExternalDbPreviewRequest,
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
     ) -> ConnectorExternalDbPreviewResult:
+        _authorize_connector_tenant_read(preview_request.tenant_id, principal)
         try:
             registry = get_persisted_manufacturing_connector_registry(
                 repository,
