@@ -6458,9 +6458,13 @@ def create_app(
         to: datetime | None = TenantUsageToQuery,
     ) -> TenantUsageSummary:
         _authorize_platform_tenant_usage_read(principal, resource="platform_tenant_usage")
-        window_end = to or datetime.now(UTC)
+        # Normalize mixed naive/aware inputs to UTC so a naive from/to compared
+        # against an aware now() yields a clean 422, not a TypeError-driven 500.
+        window_end = _ensure_aware_datetime(to) if to is not None else datetime.now(UTC)
         window_start = (
-            from_ if from_ is not None else window_end - timedelta(days=last_days)
+            _ensure_aware_datetime(from_)
+            if from_ is not None
+            else window_end - timedelta(days=last_days)
         )
         if window_start >= window_end:
             raise HTTPException(

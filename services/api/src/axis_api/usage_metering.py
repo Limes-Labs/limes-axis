@@ -27,7 +27,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from axis_api.db import session_scope
@@ -196,7 +195,10 @@ class UsageAccumulator:
                             occurred_at=item.occurred_at,
                         )
                     )
-        except SQLAlchemyError:
+        except Exception:
+            # Any flush failure (a wrapped or unwrapped driver/pool error, or a
+            # failure constructing the session) must not drop the drained deltas:
+            # restore them so the next flush retries with no loss, then re-raise.
             self.restore(items)
             raise
         return sum(item.quantity for item in items)
