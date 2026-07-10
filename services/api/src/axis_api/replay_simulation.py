@@ -27,6 +27,22 @@ class ReplaySimulationQuery(BaseModel):
     limit: int = Field(default=20, ge=1, le=100)
     retention_days: int = Field(default=365, ge=1, le=3650)
     legal_hold: bool = False
+    baseline_policy_set_id: str | None = Field(default=None, min_length=1, max_length=180)
+    candidate_policy_set_id: str | None = Field(default=None, min_length=1, max_length=180)
+    connector_id: str | None = Field(default=None, min_length=1, max_length=160)
+
+
+class ReplayPolicySetDiffValidationError(ValueError):
+    def __init__(self, message: str, reason: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.reason = reason
+
+
+class ReplayPolicySetDiffDisabled(PermissionError):
+    def __init__(self) -> None:
+        super().__init__(ARBITRARY_POLICY_SET_DIFF_DISABLED_REASON)
+        self.reason = ARBITRARY_POLICY_SET_DIFF_DISABLED_REASON
 
 
 class ReplaySimulationOutputValidationError(ValueError):
@@ -66,6 +82,9 @@ class ReplaySimulationOutputPersistRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=600)
     retention_window_days: int = Field(default=30, ge=1, le=3650)
     notes: list[str] = Field(default_factory=list)
+    baseline_policy_set_id: str | None = Field(default=None, min_length=1, max_length=180)
+    candidate_policy_set_id: str | None = Field(default=None, min_length=1, max_length=180)
+    connector_id: str | None = Field(default=None, min_length=1, max_length=160)
 
 
 class PolicySimulationResult(BaseModel):
@@ -76,6 +95,14 @@ class PolicySimulationResult(BaseModel):
     changed_outcome: bool
     evidence_refs: list[str] = Field(default_factory=list)
     summary: str = Field(min_length=1)
+
+
+class PolicySetEventDecision(BaseModel):
+    event_ref: str = Field(min_length=1)
+    event_kind: str = Field(min_length=1)
+    baseline_decision: str = Field(min_length=1)
+    candidate_decision: str = Field(min_length=1)
+    changed_outcome: bool
 
 
 class PolicySetVersionDiff(BaseModel):
@@ -94,6 +121,9 @@ class PolicySetVersionDiff(BaseModel):
     audit_event_type: str = Field(min_length=1)
     evidence_refs: list[str] = Field(default_factory=list)
     summary: str = Field(min_length=1)
+    events_evaluated: int = Field(default=0, ge=0)
+    changed_outcome_event_count: int = Field(default=0, ge=0)
+    event_decisions: list[PolicySetEventDecision] = Field(default_factory=list)
 
 
 class ReplayArtifact(BaseModel):
@@ -165,6 +195,13 @@ class ManufacturingReplaySimulation(BaseModel):
 
 REQUIRED_REPLAY_OUTPUT_SCOPE = "simulation:replay:persist"
 REPLAY_OUTPUT_AUDIT_EVENT_TYPE = "simulation.replay_output.persisted"
+POLICY_SET_DIFF_AUDIT_EVENT_TYPE = "connector.promotion_policy_set.simulated_diff"
+ARBITRARY_POLICY_SET_DIFF_DISABLED_REASON = "arbitrary_policy_set_diff_disabled"
+SYNTHETIC_BASELINE_POLICY_SET_ID = "policy_set_connector_asset_required_20260622_v2"
+SYNTHETIC_CANDIDATE_POLICY_SET_ID = "policy_set_connector_asset_required_20260622_rollback"
+POLICY_SET_EVENT_ALLOW_DECISION = "allow_historical_event"
+POLICY_SET_EVENT_BLOCK_DECISION = "block_until_required_policy_gate"
+POLICY_SET_ALLOW_ALL_DECISION = "allow_historical_events"
 
 
 @dataclass
@@ -182,11 +219,26 @@ class _ReplayRetentionCounts:
         )
 
 
+@dataclass
+class _ArbitraryPolicySetDiffContext:
+    baseline: object
+    candidate: object
+    baseline_policies: list
+    candidate_policies: list
+
+
 def build_replay_simulation(
     repository: AxisPersistenceRepository,
     query: ReplaySimulationQuery,
+    *,
+    arbitrary_policy_set_diff_enabled: bool = False,
 ) -> ManufacturingReplaySimulation:
     generated_at = datetime.now(UTC)
+    diff_context = _load_arbitrary_policy_set_diff_context(
+        repository,
+        query,
+        enabled=arbitrary_policy_set_diff_enabled,
+    )
     retention_counts = _ReplayRetentionCounts()
     workflow_records = repository.list_workflow_runs(
         tenant_id=query.tenant_id,
@@ -226,6 +278,7 @@ def build_replay_simulation(
                 workflow,
                 retained_timeline,
                 retained_audit,
+                diff_context=diff_context,
             )
         )
     artifacts = [artifact for artifact in artifacts if artifact.timeline or artifact.audit_events]
@@ -349,9 +402,91 @@ def _retention_window(
     )
 
 
+def _load_arbitrary_policy_set_diff_context(
+    repository: AxisPersistenceRepository,
+    query: ReplaySimulationQuery,
+    *,
+    enabled: bool,
+) -> _ArbitraryPolicySetDiffContext | None:
+    requested = any(
+        value is not None
+        for value in (
+            query.baseline_policy_set_id,
+            query.candidate_policy_set_id,
+            query.connector_id,
+        )
+    )
+    if not requested:
+        return None
+    if not enabled:
+        raise ReplayPolicySetDiffDisabled()
+    if query.baseline_policy_set_id is None or query.candidate_policy_set_id is None:
+        raise ReplayPolicySetDiffValidationError(
+            "Arbitrary policy-set comparison requires both baseline and candidate "
+            "policy set ids.",
+            "policy_set_diff_pair_required",
+        )
+    if query.baseline_policy_set_id == query.candidate_policy_set_id:
+        raise ReplayPolicySetDiffValidationError(
+            "Arbitrary policy-set comparison requires two distinct policy sets.",
+            "policy_set_diff_identical_policy_sets",
+        )
+    baseline = repository.get_connector_promotion_policy_set(
+        query.tenant_id,
+        query.baseline_policy_set_id,
+    )
+    if baseline is None:
+        raise ReplayPolicySetDiffValidationError(
+            "Arbitrary policy-set comparison baseline policy set was not found "
+            "in this tenant.",
+            "policy_set_diff_baseline_not_found",
+        )
+    candidate = repository.get_connector_promotion_policy_set(
+        query.tenant_id,
+        query.candidate_policy_set_id,
+    )
+    if candidate is None:
+        raise ReplayPolicySetDiffValidationError(
+            "Arbitrary policy-set comparison candidate policy set was not found "
+            "in this tenant.",
+            "policy_set_diff_candidate_not_found",
+        )
+    if baseline.connector_id != candidate.connector_id:
+        raise ReplayPolicySetDiffValidationError(
+            "Arbitrary policy-set comparison cannot cross connector boundaries.",
+            "policy_set_diff_connector_mismatch",
+        )
+    if query.connector_id is not None and query.connector_id != baseline.connector_id:
+        raise ReplayPolicySetDiffValidationError(
+            "Arbitrary policy-set comparison connector does not match the policy sets.",
+            "policy_set_diff_connector_mismatch",
+        )
+    return _ArbitraryPolicySetDiffContext(
+        baseline=baseline,
+        candidate=candidate,
+        baseline_policies=_member_policies(repository, query.tenant_id, baseline.policy_ids),
+        candidate_policies=_member_policies(repository, query.tenant_id, candidate.policy_ids),
+    )
+
+
+def _member_policies(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    policy_ids: list[str],
+) -> list:
+    policies = []
+    for policy_id in policy_ids:
+        policy = repository.get_connector_promotion_policy(tenant_id, policy_id)
+        if policy is not None:
+            policies.append(policy)
+    return policies
+
+
 def persist_replay_simulation_output(
     repository: AxisPersistenceRepository,
     request: ReplaySimulationOutputPersistRequest,
+    *,
+    arbitrary_policy_set_diff_enabled: bool = False,
 ) -> ReplaySimulationOutputRecord:
     existing_replay = repository.get_replay_simulation_output_by_idempotency_key(
         request.tenant_id,
@@ -384,7 +519,11 @@ def persist_replay_simulation_output(
             tenant_id=request.tenant_id,
             workflow_id=request.workflow_id,
             limit=1,
+            baseline_policy_set_id=request.baseline_policy_set_id,
+            candidate_policy_set_id=request.candidate_policy_set_id,
+            connector_id=request.connector_id,
         ),
+        arbitrary_policy_set_diff_enabled=arbitrary_policy_set_diff_enabled,
     )
     if not simulation.artifacts:
         raise ReplaySimulationOutputValidationError(
@@ -520,12 +659,28 @@ def _build_artifact(
     workflow: WorkflowRunRecord,
     timeline_records: list[WorkflowTimelineRecord],
     audit_records: list[AuditEvent],
+    diff_context: _ArbitraryPolicySetDiffContext | None = None,
 ) -> ReplayArtifact:
     timeline = [_timeline_event_to_public(event) for event in timeline_records]
     audit_events = [_audit_event_to_ledger_event(event) for event in audit_records]
     evidence_refs = _evidence_refs(workflow, audit_events)
 
     policy_result = _human_approval_policy(workflow, audit_events, evidence_refs)
+    if diff_context is not None:
+        policy_set_diff = _arbitrary_policy_set_diff(
+            workflow=workflow,
+            timeline=timeline,
+            audit_events=audit_events,
+            evidence_refs=evidence_refs,
+            context=diff_context,
+        )
+    else:
+        policy_set_diff = _connector_policy_set_diff(
+            workflow=workflow,
+            timeline=timeline,
+            audit_events=audit_events,
+            evidence_refs=evidence_refs,
+        )
     return ReplayArtifact(
         artifact_id=_artifact_id(workflow, timeline, audit_events),
         workflow_id=workflow.workflow_id,
@@ -540,14 +695,7 @@ def _build_artifact(
         timeline=timeline,
         audit_events=audit_events,
         policy_results=[policy_result],
-        policy_set_diffs=[
-            _connector_policy_set_diff(
-                workflow=workflow,
-                timeline=timeline,
-                audit_events=audit_events,
-                evidence_refs=evidence_refs,
-            )
-        ],
+        policy_set_diffs=[policy_set_diff],
     )
 
 
@@ -638,9 +786,9 @@ def _connector_policy_set_diff(
     return PolicySetVersionDiff(
         diff_id=_policy_set_diff_id(workflow, audit_events),
         connector_id="file_csv_manufacturing_assets",
-        baseline_policy_set_id="policy_set_connector_asset_required_20260622_v2",
+        baseline_policy_set_id=SYNTHETIC_BASELINE_POLICY_SET_ID,
         baseline_policy_set_version="2026-06-22.2",
-        candidate_policy_set_id="policy_set_connector_asset_required_20260622_rollback",
+        candidate_policy_set_id=SYNTHETIC_CANDIDATE_POLICY_SET_ID,
         candidate_policy_set_version="2026-06-22.3",
         historical_event_count=historical_event_count,
         changed_policy_ids=changed_policy_ids,
@@ -648,7 +796,7 @@ def _connector_policy_set_diff(
         candidate_decision="block_until_required_asset_gate",
         changed_outcome=True,
         diff_status="changed_outcome_detected",
-        audit_event_type="connector.promotion_policy_set.simulated_diff",
+        audit_event_type=POLICY_SET_DIFF_AUDIT_EVENT_TYPE,
         evidence_refs=evidence_refs[:8],
         summary=(
             "Historical workflow and audit evidence would be re-gated by the rollback "
@@ -657,16 +805,134 @@ def _connector_policy_set_diff(
     )
 
 
+def _arbitrary_policy_set_diff(
+    workflow: WorkflowRunRecord,
+    timeline: list[WorkflowTimelineEvent],
+    audit_events: list[AuditLedgerEvent],
+    evidence_refs: list[str],
+    context: _ArbitraryPolicySetDiffContext,
+) -> PolicySetVersionDiff:
+    event_decisions: list[PolicySetEventDecision] = []
+    for event in timeline:
+        event_decisions.append(
+            _policy_set_event_decision(
+                event_ref=f"timeline:{workflow.workflow_id}:{event.at}:{event.event}",
+                event_kind="timeline",
+                attributes={"workflow_signal_status": event.result},
+                context=context,
+            )
+        )
+    for audit_event in audit_events:
+        event_decisions.append(
+            _policy_set_event_decision(
+                event_ref=f"audit:{audit_event.audit_event_id}",
+                event_kind="audit",
+                attributes={
+                    "status": audit_event.payload_preview.get("status"),
+                    "workflow_signal_status": audit_event.payload_preview.get(
+                        "workflow_signal_status"
+                    ),
+                },
+                context=context,
+            )
+        )
+    changed_count = sum(decision.changed_outcome for decision in event_decisions)
+    changed_outcome = changed_count > 0
+    changed_policy_ids = sorted(
+        set(context.baseline.policy_ids) ^ set(context.candidate.policy_ids)
+    )
+    return PolicySetVersionDiff(
+        diff_id=_policy_set_diff_id(
+            workflow,
+            audit_events,
+            baseline_policy_set_id=context.baseline.policy_set_id,
+            candidate_policy_set_id=context.candidate.policy_set_id,
+            timeline=timeline,
+        ),
+        connector_id=context.baseline.connector_id,
+        baseline_policy_set_id=context.baseline.policy_set_id,
+        baseline_policy_set_version=context.baseline.policy_set_version,
+        candidate_policy_set_id=context.candidate.policy_set_id,
+        candidate_policy_set_version=context.candidate.policy_set_version,
+        historical_event_count=len(event_decisions),
+        changed_policy_ids=changed_policy_ids,
+        baseline_decision=_policy_set_overall_decision(
+            decision.baseline_decision for decision in event_decisions
+        ),
+        candidate_decision=_policy_set_overall_decision(
+            decision.candidate_decision for decision in event_decisions
+        ),
+        changed_outcome=changed_outcome,
+        diff_status="changed_outcome_detected" if changed_outcome else "no_outcome_change",
+        audit_event_type=POLICY_SET_DIFF_AUDIT_EVENT_TYPE,
+        evidence_refs=evidence_refs[:8],
+        summary=(
+            f"Arbitrary policy-set comparison evaluated {len(event_decisions)} historical "
+            f"events for {context.baseline.policy_set_id} vs "
+            f"{context.candidate.policy_set_id}; {changed_count} outcome(s) changed."
+        ),
+        events_evaluated=len(event_decisions),
+        changed_outcome_event_count=changed_count,
+        event_decisions=event_decisions,
+    )
+
+
+def _policy_set_event_decision(
+    event_ref: str,
+    event_kind: str,
+    attributes: dict[str, str | None],
+    context: _ArbitraryPolicySetDiffContext,
+) -> PolicySetEventDecision:
+    baseline_decision = _policy_set_decision_for_event(context.baseline_policies, attributes)
+    candidate_decision = _policy_set_decision_for_event(context.candidate_policies, attributes)
+    return PolicySetEventDecision(
+        event_ref=event_ref,
+        event_kind=event_kind,
+        baseline_decision=baseline_decision,
+        candidate_decision=candidate_decision,
+        changed_outcome=baseline_decision != candidate_decision,
+    )
+
+
+def _policy_set_decision_for_event(
+    policies: list,
+    attributes: dict[str, str | None],
+) -> str:
+    gated = any(_policy_gates_event(policy, attributes) for policy in policies)
+    return POLICY_SET_EVENT_BLOCK_DECISION if gated else POLICY_SET_EVENT_ALLOW_DECISION
+
+
+def _policy_gates_event(policy, attributes: dict[str, str | None]) -> bool:
+    if policy.status != "enabled" or policy.enforcement_mode != "required":
+        return False
+    status = attributes.get("status")
+    if status is not None and status != policy.required_manual_import_status:
+        return True
+    signal_status = attributes.get("workflow_signal_status")
+    return signal_status is not None and signal_status != policy.required_workflow_signal_status
+
+
+def _policy_set_overall_decision(event_decisions) -> str:
+    if any(decision == POLICY_SET_EVENT_BLOCK_DECISION for decision in event_decisions):
+        return POLICY_SET_EVENT_BLOCK_DECISION
+    return POLICY_SET_ALLOW_ALL_DECISION
+
+
 def _policy_set_diff_id(
     workflow: WorkflowRunRecord,
     audit_events: list[AuditLedgerEvent],
+    baseline_policy_set_id: str = SYNTHETIC_BASELINE_POLICY_SET_ID,
+    candidate_policy_set_id: str = SYNTHETIC_CANDIDATE_POLICY_SET_ID,
+    timeline: list[WorkflowTimelineEvent] | None = None,
 ) -> str:
     payload = {
         "workflow_id": workflow.workflow_id,
-        "baseline_policy_set_id": "policy_set_connector_asset_required_20260622_v2",
-        "candidate_policy_set_id": "policy_set_connector_asset_required_20260622_rollback",
+        "baseline_policy_set_id": baseline_policy_set_id,
+        "candidate_policy_set_id": candidate_policy_set_id,
         "audit": [event.audit_event_id for event in audit_events],
     }
+    if timeline is not None:
+        payload["timeline"] = [f"{event.at}:{event.event}" for event in timeline]
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     checksum = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
     return f"policy-set-diff-{workflow.workflow_id}-{checksum}"

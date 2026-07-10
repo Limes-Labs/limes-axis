@@ -559,6 +559,8 @@ from axis_api.platform_tenants import (
 from axis_api.rate_limit import ApiRateLimitMiddleware
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
+    ReplayPolicySetDiffDisabled,
+    ReplayPolicySetDiffValidationError,
     ReplaySimulationOutputConflict,
     ReplaySimulationOutputPermissionDenied,
     ReplaySimulationOutputPersistRequest,
@@ -3445,26 +3447,66 @@ def create_app(
     @app.get(
         "/demo/manufacturing/simulation/replay",
         response_model=ManufacturingReplaySimulation,
+        responses={
+            403: {"description": "Replay policy-set comparison denied or disabled"},
+            422: {"description": "Replay policy-set comparison validation failed"},
+        },
         tags=["demo"],
     )
     def manufacturing_replay_simulation(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         workflow_id: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=20, ge=1, le=100),
         retention_days: int = Query(default=365, ge=1, le=3650),
         legal_hold: bool = Query(default=False),
+        baseline_policy_set_id: str | None = Query(default=None, min_length=1, max_length=180),
+        candidate_policy_set_id: str | None = Query(default=None, min_length=1, max_length=180),
+        connector_id: str | None = Query(default=None, min_length=1, max_length=160),
     ) -> ManufacturingReplaySimulation:
-        return build_replay_simulation(
-            repository,
-            ReplaySimulationQuery(
-                tenant_id=tenant_id,
-                workflow_id=workflow_id,
-                limit=limit,
-                retention_days=retention_days,
-                legal_hold=legal_hold,
-            ),
-        )
+        if any(
+            value is not None
+            for value in (baseline_policy_set_id, candidate_policy_set_id, connector_id)
+        ):
+            _authorize_connector_tenant_read(tenant_id, principal)
+        try:
+            return build_replay_simulation(
+                repository,
+                ReplaySimulationQuery(
+                    tenant_id=tenant_id,
+                    workflow_id=workflow_id,
+                    limit=limit,
+                    retention_days=retention_days,
+                    legal_hold=legal_hold,
+                    baseline_policy_set_id=baseline_policy_set_id,
+                    candidate_policy_set_id=candidate_policy_set_id,
+                    connector_id=connector_id,
+                ),
+                arbitrary_policy_set_diff_enabled=(
+                    resolved_settings.replay_arbitrary_policy_set_diff_enabled
+                ),
+            )
+        except ReplayPolicySetDiffDisabled as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": (
+                        "Arbitrary policy-set comparison over replay windows is disabled."
+                    ),
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except ReplayPolicySetDiffValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
 
     @app.post(
         "/demo/manufacturing/simulation/replay/outputs",
@@ -3485,7 +3527,33 @@ def create_app(
     ) -> ReplaySimulationOutputRecord:
         try:
             bound_request = _bind_demo_requested_by(replay_output_request, principal)
-            result = persist_replay_simulation_output(repository, bound_request)
+            result = persist_replay_simulation_output(
+                repository,
+                bound_request,
+                arbitrary_policy_set_diff_enabled=(
+                    resolved_settings.replay_arbitrary_policy_set_diff_enabled
+                ),
+            )
+        except ReplayPolicySetDiffDisabled as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": (
+                        "Arbitrary policy-set comparison over replay windows is disabled."
+                    ),
+                    "reason": exc.reason,
+                },
+            ) from exc
+        except ReplayPolicySetDiffValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
         except ReplaySimulationOutputPermissionDenied as exc:
             reason = (
                 "missing_required_scope"
