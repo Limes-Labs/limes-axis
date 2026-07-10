@@ -12,7 +12,7 @@ export default async function OntologyEntityPage({ params }: OntologyEntityPageP
 
   return (
     <ConsolePage
-      eyebrow="Ontology"
+      pageKey="ontology"
       subtitle="Connected relationships, permission scopes, evidence references and read-only governance boundaries."
       title="Entity detail"
     >

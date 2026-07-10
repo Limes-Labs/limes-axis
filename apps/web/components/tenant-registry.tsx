@@ -23,6 +23,7 @@ import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: TenantRegistryFilters = {
   status: allTenantFilter,
@@ -121,11 +122,15 @@ export function TenantRegistry() {
   }
 
   if (!registry) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed platform tenant records. Local fallback tenant records are disabled."
         endpoint={platformTenantsPath}
-        title={source === "loading" ? "Loading tenant API" : "Tenant API unavailable"}
+        title="Tenant API unavailable"
       />
     );
   }
@@ -140,16 +145,14 @@ export function TenantRegistry() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Platform Tenant Registry</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant lifecycle</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Cross-tenant operator surface. Requires the platform:tenant:operator scope plus a
-            per-action scope; every lifecycle change appends audit evidence.
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Tenant source and registry status">
+      <div
+        aria-label="Tenant source and registry status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          Cross-tenant operator surface; every lifecycle change appends audit evidence.
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -159,7 +162,7 @@ export function TenantRegistry() {
             {registry.active_tenant_count} active
           </span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">

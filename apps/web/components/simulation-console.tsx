@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, GitBranch, History, RadioTower, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { LoadingPanel } from "@/components/ui/states";
 import { axisFetchJson } from "@/lib/axis-api";
 import {
   countChangedPolicySetDiffs,
@@ -84,11 +85,15 @@ export function SimulationConsole() {
   const changedPolicySetDiffs = simulationData ? countChangedPolicySetDiffs(simulationData) : 0;
 
   if (!simulationData) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed replay artifacts. Local fallback replay records are disabled."
         endpoint="/demo/manufacturing/simulation/replay"
-        title={source === "loading" ? "Loading replay API" : "Replay API unavailable"}
+        title="Replay API unavailable"
       />
     );
   }
@@ -114,15 +119,14 @@ export function SimulationConsole() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Replay Foundation</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{simulationData.plant_name}</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {simulationData.scenario} / {simulationData.tenant_id}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Simulation source and status">
+      <div
+        aria-label="Simulation source and status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          {simulationData.plant_name} / {simulationData.scenario} / {simulationData.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -131,9 +135,9 @@ export function SimulationConsole() {
             <ShieldCheck size={15} />
             {platformStatusLabel(simulationData.simulation_status)}
           </span>
-          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(simulationData.as_of)}</span>
+          <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(simulationData.as_of)}</span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {simulationData.metrics.map((metric) => (

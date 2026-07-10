@@ -12,7 +12,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
 
   return (
     <ConsolePage
-      eyebrow="Policies"
+      pageKey="policies"
       subtitle="Full policy definition, typed conditions, revision authoring with idempotent replay, revision compare and dry-run evaluation."
       title="Policy detail"
     >

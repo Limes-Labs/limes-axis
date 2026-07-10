@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowLeftRight, Database, Network, RadioTower } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { EmptyPanel } from "@/components/ui/states";
 import { Reveal } from "@/components/reveal";
 import { PlatformStatusPill } from "@/components/status-pill";
 import { Card } from "@/components/ui/card";
@@ -132,20 +133,11 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     }
 
     return (
-      <Card className="flex flex-wrap items-center justify-between gap-4">
-        <div className="grid gap-1">
-          <Eyebrow>Ontology Entity</Eyebrow>
-          <h2 className="font-display m-0 text-2xl text-ink">Entity not found</h2>
-          <p className="m-0 font-mono text-sm text-muted">{nodeId}</p>
-        </div>
-        <Link
-          className="inline-flex items-center gap-2 rounded-full border border-mist bg-surface px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/20"
-          href="/ontology"
-        >
-          <ArrowLeft size={16} />
-          Ontology
-        </Link>
-      </Card>
+      <EmptyPanel
+        action={{ label: "Back to ontology", href: "/ontology" }}
+        detail={`No ontology entity exists with the id ${nodeId}. It may have been renamed or removed from the graph.`}
+        title="Entity not found"
+      />
     );
   }
 

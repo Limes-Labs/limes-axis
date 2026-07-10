@@ -65,6 +65,9 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Operations API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback overview records are disabled.")).toBeVisible();
+    // Endpoint paths are demoted behind the ErrorPanel "Technical details" expander.
+    await expect(page.getByText("/demo/manufacturing/overview")).toHaveCount(0);
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/demo/manufacturing/overview")).toBeVisible();
     await expect(page.getByText("/demo/manufacturing/model-routing")).toBeVisible();
     await expect(page.getByText("Fallback demo seed")).toHaveCount(0);
@@ -125,8 +128,9 @@ test.describe("Axis console smoke", () => {
 
     await page.getByRole("button", { name: "Search console" }).click();
     await expect(page.getByRole("dialog", { name: "Console command menu" })).toBeVisible();
-    await page.getByLabel("Search console commands").fill("audit");
-    await expect(page.getByRole("link", { name: /Open audit stream/ })).toBeVisible();
+    await page.getByRole("combobox", { name: "Search console commands" }).fill("audit");
+    // cmdk renders commands as options, not links.
+    await expect(page.getByRole("option", { name: "Audit", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Console command menu" })).toHaveCount(0);
 
@@ -171,7 +175,10 @@ test.describe("Axis console smoke", () => {
       "href",
       "http://127.0.0.1:65534/identity/oidc/onboarding",
     );
-    await expect(page.getByRole("button", { name: "Connect bearer token" })).toBeVisible();
+    // The bearer-token form is demoted behind the "Developer access" collapsible.
+    await expect(page.getByRole("button", { name: "Attach bearer bridge" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Developer access" }).click();
+    await expect(page.getByRole("button", { name: "Attach bearer bridge" })).toBeVisible();
     const accountTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
     );
@@ -259,17 +266,18 @@ test.describe("Axis console smoke", () => {
       };
     });
 
+    // Grouped nav order from lib/nav.ts, flattened.
     expect(sidebarState.links).toEqual([
-      "Operations",
-      "Ontology",
+      "Overview",
+      "Approvals",
       "Workflows",
       "Agents",
+      "Ontology",
+      "Connectors",
       "Models",
-      "Approvals",
       "Policies",
       "Audit",
       "Simulation",
-      "Connectors",
       "Tenants",
       "Settings",
     ]);
@@ -283,7 +291,7 @@ test.describe("Axis console smoke", () => {
     await page.locator(".nav-list").evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
-    await expect(page.getByRole("link", { name: "Connectors" })).toBeInViewport();
+    await expect(page.getByRole("link", { name: "Settings" })).toBeInViewport();
   });
 
   test("keeps topbar utility hitboxes and popovers stable", async ({ page }) => {
@@ -363,9 +371,7 @@ test.describe("Axis console smoke", () => {
     );
     await page.goto("/agents");
 
-    await expect(
-      page.getByRole("heading", { name: "Autonomy and action registry" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Agent API unavailable" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Action API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback agent records are disabled.")).toBeVisible();
@@ -387,7 +393,7 @@ test.describe("Axis console smoke", () => {
   test("requires the ontology APIs instead of local graph data", async ({ page }) => {
     await page.goto("/ontology");
 
-    await expect(page.getByRole("heading", { name: "Operational knowledge model" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ontology", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Ontology API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback ontology records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback ontology seed")).toHaveCount(0);
@@ -407,7 +413,7 @@ test.describe("Axis console smoke", () => {
   test("requires the model routing API instead of local routing data", async ({ page }) => {
     await page.goto("/model-routing");
 
-    await expect(page.getByRole("heading", { name: "Model routing and spend" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Models", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Routing API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback routing records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback routing seed")).toHaveCount(0);
@@ -422,6 +428,12 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Model endpoint API unavailable" }),
     ).toBeVisible();
+    // Endpoint paths sit behind the per-panel "Technical details" expanders.
+    const routingDetailToggles = page.getByRole("button", { name: "Technical details" });
+    await expect(routingDetailToggles).toHaveCount(3);
+    for (let index = 0; index < 3; index += 1) {
+      await routingDetailToggles.nth(index).click();
+    }
     await expect(page.getByText("/platform/models/invocations", { exact: true })).toBeVisible();
     await expect(page.getByText("/platform/models/endpoints", { exact: true })).toBeVisible();
     await expect(page.locator("[data-testid='live-invocations-table']")).toHaveCount(0);
@@ -436,7 +448,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/approvals");
 
-    await expect(page.getByRole("heading", { name: "Policy gate queue" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Approvals", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Approval API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback approval records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback approval seed")).toHaveCount(0);
@@ -453,7 +465,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/workflows");
 
-    await expect(page.getByRole("heading", { name: "Runtime adapter track" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Workflow API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback workflow records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback workflow seed")).toHaveCount(0);
@@ -475,9 +487,10 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/policies");
 
-    await expect(page.getByRole("heading", { name: "Platform policy rules" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Policies", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback policy records are disabled.")).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/platform/policies", { exact: true })).toBeVisible();
     await expect(page.getByText("Fallback policy seed")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Deny critical actions/ })).toHaveCount(0);
@@ -488,6 +501,7 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Policy detail" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/platform/policies/deny_critical_actions")).toBeVisible();
     await expect(page.getByRole("form", { name: "Policy dry-run evaluation" })).toHaveCount(0);
     await expect(page.getByRole("form", { name: "Platform policy revision" })).toHaveCount(0);
@@ -722,7 +736,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/audit");
 
-    await expect(page.getByRole("heading", { name: "Append-only evidence" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Audit", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Audit API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback audit records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback audit seed")).toHaveCount(0);
@@ -739,7 +753,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/simulation");
 
-    await expect(page.getByRole("heading", { name: "Replay and simulation" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Simulation", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Replay API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback replay records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback replay seed")).toHaveCount(0);
@@ -755,7 +769,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/connectors");
 
-    await expect(page.getByRole("heading", { name: "Connector intake" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Connectors", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Connector API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback connector records are disabled.")).toBeVisible();
     await expect(page.getByText("API required")).toBeVisible();
@@ -775,6 +789,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("heading", { name: "Session security" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Session API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback session records are disabled.")).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/identity/session /identity/sessions")).toBeVisible();
     await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
 
@@ -921,9 +936,10 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/tenants");
 
-    await expect(page.getByRole("heading", { name: "Tenant operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenants", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback tenant records are disabled.")).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/platform/tenants", { exact: true })).toBeVisible();
     await expect(page.getByRole("form", { name: "Tenant provisioning" })).toHaveCount(0);
 
@@ -931,6 +947,7 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Tenant detail" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/platform/tenants/tenant_acme", { exact: true })).toBeVisible();
     await expect(page.getByRole("form", { name: "Suspend tenant" })).toHaveCount(0);
     await expect(page.getByRole("form", { name: "Tenant quota update" })).toHaveCount(0);
@@ -1010,7 +1027,7 @@ test.describe("Axis console smoke", () => {
     // the API allows.
     expect(new URL(listRequest.url()).searchParams.get("limit")).toBe("200");
 
-    await expect(page.getByRole("heading", { name: "Tenant lifecycle" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenants", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Acme Manufacturing" })).toBeVisible();
     // A short list is not capped, so no cap notice is shown.
     await expect(page.getByRole("heading", { name: /Showing the first 200 tenants/ })).toHaveCount(
@@ -1056,7 +1073,7 @@ test.describe("Axis console smoke", () => {
     // registry. The registry must stay mounted (stale-while-revalidate) rather
     // than flashing to the API-unavailable state, otherwise the provision form
     // and this confirmation would be torn down mid-refresh.
-    await expect(page.getByRole("heading", { name: "Tenant lifecycle" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Acme Manufacturing" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toHaveCount(0);
 
     // Suspend the tenant from the detail view; the action posts the reason.
@@ -1124,9 +1141,10 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/settings");
 
-    await expect(page.getByRole("heading", { name: "Platform settings" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Settings API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback settings records are disabled.")).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/ready")).toBeVisible();
     await expect(page.getByText("/deployment/readiness")).toBeVisible();
     await expect(page.getByText("/support/diagnostics")).toBeVisible();

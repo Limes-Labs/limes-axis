@@ -725,6 +725,9 @@ function AgentControl({ overview }: { overview: ManufacturingOverview }) {
     <Card className="flex flex-col gap-3">
       <PanelHeader eyebrow="Agent control" title="Governed autonomy" />
       <div className="grid gap-3">
+        {overview.agents.length === 0 ? (
+          <p className="m-0 text-xs text-muted">No agents registered for this tenant yet.</p>
+        ) : null}
         {overview.agents.map((agent) => {
           const waiting = agent.status.includes("waiting");
 
@@ -768,14 +771,22 @@ function ConnectorEvidence({ snapshot }: { snapshot: ManufacturingOperationsSnap
           </tr>
         </thead>
         <tbody>
-          {connectorEvents.map((event) => (
-            <tr key={`${event.event_type}-${event.created_at}`}>
-              <td className="text-xs">{compactConnectorEvent(event.event_type)}</td>
-              <td className="text-xs text-muted">Audit</td>
-              <td className="text-xs text-positive">Recorded</td>
-              <td className="font-mono text-xs text-muted">{shortTime(event.created_at)}</td>
+          {connectorEvents.length === 0 ? (
+            <tr>
+              <td className="text-xs text-muted" colSpan={4}>
+                No connector evidence recorded yet.
+              </td>
             </tr>
-          ))}
+          ) : (
+            connectorEvents.map((event) => (
+              <tr key={`${event.event_type}-${event.created_at}`}>
+                <td className="text-xs">{compactConnectorEvent(event.event_type)}</td>
+                <td className="text-xs text-muted">Audit</td>
+                <td className="text-xs text-positive">Recorded</td>
+                <td className="font-mono text-xs text-muted">{shortTime(event.created_at)}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </DataTable>
       <PanelLink href="/connectors">Manage connectors</PanelLink>
@@ -797,14 +808,22 @@ function ApprovalQueue({ overview }: { overview: ManufacturingOverview }) {
           </tr>
         </thead>
         <tbody>
-          {overview.approvals.map((approval) => (
-            <tr key={approval.approval_id}>
-              <td className="text-xs">{approval.action}</td>
-              <td className="text-xs text-muted">{normalizeLabel(approval.requested_by)}</td>
-              <td className="text-xs text-muted">{normalizeLabel(approval.risk_level)}</td>
-              <td className="font-mono text-xs text-muted">{approval.due}</td>
+          {overview.approvals.length === 0 ? (
+            <tr>
+              <td className="text-xs text-muted" colSpan={4}>
+                No pending approvals — nothing needs a decision right now.
+              </td>
             </tr>
-          ))}
+          ) : (
+            overview.approvals.map((approval) => (
+              <tr key={approval.approval_id}>
+                <td className="text-xs">{approval.action}</td>
+                <td className="text-xs text-muted">{normalizeLabel(approval.requested_by)}</td>
+                <td className="text-xs text-muted">{normalizeLabel(approval.risk_level)}</td>
+                <td className="font-mono text-xs text-muted">{approval.due}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </DataTable>
       <PanelLink href="/approvals">Review approvals</PanelLink>

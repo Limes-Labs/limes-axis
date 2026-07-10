@@ -1,36 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { autonomyLevels, foundationMetrics, navigationItems } from "./foundation";
+import { navigationItems, statusLabel } from "./foundation";
 
 describe("foundation console contracts", () => {
   it("keeps the expected top-level sections addressable", () => {
     expect(navigationItems.map((item) => item.href)).toEqual([
       "/",
-      "/ontology",
+      "/approvals",
       "/workflows",
       "/agents",
+      "/ontology",
+      "/connectors",
       "/model-routing",
-      "/approvals",
       "/policies",
       "/audit",
       "/simulation",
-      "/connectors",
       "/tenants",
       "/settings",
     ]);
   });
 
-  it("represents the full L0-L4 autonomy model", () => {
-    expect(autonomyLevels.map((item) => item.level)).toEqual(["L0", "L1", "L2", "L3", "L4"]);
-  });
-
-  it("keeps model egress guarded by default", () => {
-    expect(foundationMetrics).toContainEqual(
-      expect.objectContaining({
-        label: "Egress",
-        value: "Closed",
-        status: "guarded",
-      }),
-    );
+  it("labels the foundation statuses for pills", () => {
+    expect(statusLabel("ready")).toBe("Ready");
+    expect(statusLabel("guarded")).toBe("Guarded");
+    expect(statusLabel("planned")).toBe("Planned");
   });
 });

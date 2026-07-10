@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, FlaskConical, GitCompareArrows, RadioTower, ScrollText, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { LoadingPanel } from "@/components/ui/states";
 import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
 import { PolicyReviseForm } from "@/components/policy-revise-form";
 import { PolicyRevisionCompare } from "@/components/policy-revision-compare";
@@ -154,12 +155,16 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
   }, [policyId, session, refreshNonce]);
 
   if (!detail) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     if (source !== "missing") {
       return (
         <ApiRequiredState
           detail="Axis did not receive an API-backed platform policy. Local fallback policy records are disabled."
           endpoint={buildPlatformPolicyDetailPath(policyId)}
-          title={source === "loading" ? "Loading policy API" : "Policy API unavailable"}
+          title="Policy API unavailable"
         />
       );
     }

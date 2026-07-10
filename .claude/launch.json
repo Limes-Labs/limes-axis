@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@limes-axis/web", "dev"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "web-3100",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@limes-axis/web", "dev", "--port", "3100"],
+      "port": 3100
+    }
+  ]
+}

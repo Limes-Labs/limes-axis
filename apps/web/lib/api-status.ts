@@ -17,6 +17,11 @@ export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_AXIS_API_BASE_URL ?? DEFAULT_API_BASE_URL;
 }
 
+export function isDefaultApiBaseUrl(): boolean {
+  const configured = process.env.NEXT_PUBLIC_AXIS_API_BASE_URL;
+  return !configured || configured === DEFAULT_API_BASE_URL;
+}
+
 export function summarizeApiStatus(probe: ApiProbeResult): ApiStatusSummary {
   if (probe.healthOk && probe.readyOk) {
     return {
