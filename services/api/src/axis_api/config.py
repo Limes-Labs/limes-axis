@@ -379,6 +379,32 @@ class Settings(BaseSettings):
         ),
         alias="AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF",
     )
+    external_db_lease_scoped_secret_resolution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED",
+    )
+    external_db_runtime_egress_enforcement_enabled: bool = Field(
+        default=False,
+        alias="AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED",
+    )
+    external_db_live_query_endpoint_target_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[a-f0-9]{64}$",
+        alias="AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256",
+    )
+    connector_scheduled_live_sync_enabled: bool = Field(
+        default=False,
+        alias="AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED",
+    )
+    connector_scheduled_live_sync_interval_seconds: int = Field(
+        default=3600,
+        ge=60,
+        alias="AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_INTERVAL_SECONDS",
+    )
+    connector_scheduled_live_sync_tenant_id: str = Field(
+        default="tenant_demo_manufacturing",
+        alias="AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_TENANT_ID",
+    )
     audit_ledger_signing_key_id: str = Field(
         default="axis-self-hosted-audit-ledger",
         alias="AXIS_AUDIT_LEDGER_SIGNING_KEY_ID",

@@ -169,15 +169,10 @@ from axis_api.connector_execution import (
     ConnectorSyncExecutionRuntime,
     ConnectorSyncSchedulerRuntime,
     DeferredConnectorExecutionRuntime,
-    DeferredConnectorLiveSyncRuntime,
     DeferredConnectorSyncDispatchRuntime,
-    DeferredConnectorSyncExecutionRuntime,
     DeferredConnectorSyncSchedulerRuntime,
-    ExternalPostgresLiveQueryProfile,
-    FileCsvLiveSyncProfile,
-    SelfHostedConnectorLiveSyncRuntime,
-    SelfHostedConnectorSyncExecutionRuntime,
-    postgres_endpoint_target_sha256,
+    connector_live_sync_runtime_from_settings,
+    connector_sync_execution_runtime_from_settings,
 )
 from axis_api.connector_manifests import (
     ConnectorManifestConflict,
@@ -1247,36 +1242,6 @@ def _oidc_jwks_url(settings: Settings) -> str:
     if settings.oidc_jwks_url:
         return settings.oidc_jwks_url
     return f"{settings.oidc_issuer.rstrip('/')}/protocol/openid-connect/certs"
-
-
-def _file_csv_live_sync_profile(settings: Settings) -> FileCsvLiveSyncProfile | None:
-    if not settings.file_csv_live_sync_root:
-        return None
-    return FileCsvLiveSyncProfile(
-        profile_id=settings.file_csv_live_sync_profile_id,
-        source_root=settings.file_csv_live_sync_root,
-        max_rows=settings.file_csv_live_sync_max_rows,
-        batch_size=settings.file_csv_live_sync_batch_size,
-    )
-
-
-def _external_postgres_live_query_profile(
-    settings: Settings,
-) -> ExternalPostgresLiveQueryProfile | None:
-    if not settings.external_db_live_query_dsn:
-        return None
-    return ExternalPostgresLiveQueryProfile(
-        profile_id=settings.external_db_live_query_profile_id,
-        dsn=settings.external_db_live_query_dsn,
-        schema_name=settings.external_db_live_query_schema,
-        table_name=settings.external_db_live_query_table,
-        allowed_columns=settings.external_db_live_query_columns,
-        private_endpoint_ref=settings.external_db_live_query_private_endpoint_ref,
-        endpoint_target_sha256=postgres_endpoint_target_sha256(
-            settings.external_db_live_query_dsn,
-        ),
-        row_limit=settings.external_db_live_query_row_limit,
-    )
 
 
 OIDC_ASYMMETRIC_ALGORITHMS = {
@@ -2405,37 +2370,10 @@ def create_app(
     app.state.connector_sync_scheduler_runtime = DeferredConnectorSyncSchedulerRuntime()
     app.state.connector_sync_dispatch_runtime = DeferredConnectorSyncDispatchRuntime()
     app.state.connector_sync_execution_runtime = (
-        SelfHostedConnectorSyncExecutionRuntime(
-            external_db_sync_enabled=resolved_settings.external_db_sync_execution_enabled,
-            external_db_live_query_preflight_enabled=(
-                resolved_settings.external_db_live_query_preflight_enabled
-            ),
-            external_db_live_query_execution_enabled=(
-                resolved_settings.external_db_live_query_execution_enabled
-            ),
-            external_postgres_live_query_profile=_external_postgres_live_query_profile(
-                resolved_settings
-            ),
-        )
-        if resolved_settings.connector_sync_execution_enabled
-        else DeferredConnectorSyncExecutionRuntime()
+        connector_sync_execution_runtime_from_settings(resolved_settings)
     )
-    app.state.connector_live_sync_runtime = (
-        SelfHostedConnectorLiveSyncRuntime(
-            file_csv_profile=_file_csv_live_sync_profile(resolved_settings),
-            external_db_live_sync_enabled=(
-                resolved_settings.external_db_sync_execution_enabled
-                and resolved_settings.external_db_live_query_preflight_enabled
-                and resolved_settings.external_db_live_query_execution_enabled
-            ),
-            external_postgres_profile=_external_postgres_live_query_profile(
-                resolved_settings
-            ),
-            external_db_batch_size=resolved_settings.external_db_live_sync_batch_size,
-        )
-        if resolved_settings.connector_sync_execution_enabled
-        and resolved_settings.connector_live_sync_execution_enabled
-        else DeferredConnectorLiveSyncRuntime()
+    app.state.connector_live_sync_runtime = connector_live_sync_runtime_from_settings(
+        resolved_settings
     )
     if resolved_settings.credential_lease_provider_adapters_enabled:
         app.state.credential_lease_runtime = ProviderSpecificVaultKmsLeaseRuntime()

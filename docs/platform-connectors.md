@@ -1091,6 +1091,62 @@ scheduler/dispatch/execution evidence. The self-hosted sync executor is opt-in
 for local/demo execution and does not represent provider-specific production
 egress.
 
+## Scheduled Live Sync Last Mile
+
+Three flag-gated legs close the connector execution path from lease evidence
+to worker-scheduled runs. All three default OFF and require the existing
+`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED` /
+`AXIS_CONNECTOR_LIVE_SYNC_EXECUTION_ENABLED` preconditions; with the new flags
+off, behavior is byte-identical to the static-DSN, API-invoked path.
+
+### Lease-scoped secret resolution
+
+`AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED` replaces the static
+`AXIS_EXTERNAL_DB_LIVE_QUERY_DSN` with per-query resolution in
+`axis_api.connector_secret_resolution`. The `LeaseScopedSecretResolver`
+protocol resolves a DSN from (secret reference, lease evidence) into an
+in-memory-only `ResolvedSecret`; the material is handed straight to the
+database driver and is never persisted, logged or copied into audit payloads
+(the `secret_material_returned=false` invariant holds everywhere). Resolution
+requires an executed/renewed lease, the `lease_scoped_secret_ref` credential
+access mode, a provider lease reference and valid secret-reference evidence.
+The only public-safe live resolver is the `env://VAR_NAME` provider profile
+(`EnvLeaseScopedSecretResolver`); Vault/AWS/GCP/Azure provider profiles are
+explicit fail-closed not-implemented branches with typed
+`secret_resolution_*` reasons. On success the persisted
+`secret_retrieval_decision` escalates from `lease_scoped_reference_only` to
+`resolved_lease_scoped_secret`. Without a static DSN, the live-query profile
+is built from `AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256` (the pinned
+sha256 of the approved `host:port`); the static-DSN construction path is
+preserved as the fallback whenever the flag is off.
+
+### Runtime egress enforcement
+
+`AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED` upgrades egress policy
+from preflight *evidence* to connect-time *enforcement*: before psycopg dials
+out, the sha256 of the ACTUAL host:port in the (resolved or static) DSN must
+match both the profile's pinned endpoint target hash and the approved
+egress-policy evidence (private endpoint reference included). Any mismatch —
+including an unparseable DSN — fails closed as
+`blocked_runtime_egress_target_mismatch`, stage-audited like other blocks,
+before any connection is attempted. Enforcement also hardens the session at
+connect time with `default_transaction_read_only=on` plus a bounded
+`statement_timeout`, on top of the existing per-transaction
+`SET TRANSACTION READ ONLY`.
+
+### Worker-scheduled execution
+
+`AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED` registers the
+`axis-connector-scheduled-live-sync` Temporal Schedule (see
+`docs/platform-scheduled-jobs.md`). Each tick the worker lists dispatched (or
+failed-resumable) governed live-sync runs, claims the latest committed batch
+checkpoint for resume runs (a racing worker receives the existing
+single-active-claim conflict — backed by the migration-0045 partial unique
+index — and skips), invokes the existing API-side sync-execution loop which
+persists one committed checkpoint per batch, and always releases the claim
+with a completion or failure reason so the next tick can resume from the last
+committed checkpoint.
+
 ## Governance Boundary
 
 Connectors are designed as extractable from day one. The current manifest
@@ -1166,14 +1222,20 @@ contract keeps these boundaries visible:
   promotion;
 - promotion policy authoring before required enforcement;
 - TypeDB ontology mutation adapter, deferred by default unless explicitly
-  enabled.
+  enabled;
+- lease-scoped `env://` secret resolution with fail-closed provider profiles
+  and in-memory-only resolved material;
+- runtime egress target enforcement at psycopg connect time with hardened
+  read-only, statement-timeout sessions;
+- worker-scheduled live sync behind the Temporal schedule flag with
+  single-active-claim checkpoint ownership.
 
 Future Platform work should add:
 
-- live provider secret retrieval beyond provider-specific lease validation;
-- provider-specific scheduled live sync beyond the checkpointed self-hosted
-  execution boundary;
-- live external database adapters behind the Axis connector runtime boundary;
+- live Vault/AWS/GCP/Azure secret-provider resolvers behind the fail-closed
+  `LeaseScopedSecretResolver` provider-profile branches;
+- live external database adapters beyond Postgres behind the Axis connector
+  runtime boundary;
 - connector-backed action invocation behind policy and approval gates.
 
 Future extraction to `limes-axis-connectors` becomes mandatory when the
@@ -1219,6 +1281,16 @@ The slice is covered by:
   lease expiry, checkpoint claim resume/conflict handling, egress blocking,
   idempotent replay, tenant isolation and flag-off deferred behavior, plus an
   integration-gated batched live sync read against local Postgres;
+- API unit tests for lease-scoped secret resolution (the full fail-closed
+  resolver matrix, resolved-decision escalation, no material in any persisted
+  or audited payload) and runtime egress enforcement (connect-target mismatch
+  blocking with stage audit, hardened session options, flags-off byte-identical
+  static-DSN behavior), plus an integration-gated scheduled live sync run
+  against local Postgres with `env://` resolution and checkpoint-resume
+  determinism;
+- worker tests for the scheduled live-sync schedule registration flag, the
+  claim → batches → checkpoints → release workflow lifecycle, claim-conflict
+  skip and the failure path releasing its claim;
 - API unit tests for connector ontology proposal persistence, `active_preview`
   manifest gating, audit writes, graph-write rejection and raw payload
   rejection;
