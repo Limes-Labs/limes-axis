@@ -50,6 +50,11 @@ from axis_api.persistence import (
     ConnectorSyncCheckpointCreate,
 )
 from axis_api.platform_tenants import TenantQuotaKey
+from axis_api.usage_metering import (
+    DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+    TenantUsageMetric,
+    record_tenant_usage_event,
+)
 
 
 class ConnectorRunValidationError(ValueError):
@@ -1208,6 +1213,9 @@ def execute_demo_connector_sync(
     request: ConnectorRunSyncExecutionRequest,
     sync_execution_runtime: ConnectorSyncExecutionRuntime | None = None,
     live_sync_runtime: ConnectorLiveSyncRuntime | None = None,
+    *,
+    usage_metering_enabled: bool = False,
+    usage_window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
 ) -> ConnectorRunRecord:
     _validate_sync_execution_scope(request)
     run = repository.get_connector_run(request.tenant_id, run_id)
@@ -1295,6 +1303,8 @@ def execute_demo_connector_sync(
             sync_execution_result,
             schedule_result=schedule_result,
             dispatch_result=dispatch_result,
+            usage_metering_enabled=usage_metering_enabled,
+            usage_window_seconds=usage_window_seconds,
         )
 
     execution_runtime = sync_execution_runtime or DeferredConnectorSyncExecutionRuntime()
@@ -1343,6 +1353,8 @@ def execute_demo_connector_sync(
         sync_execution_result,
         schedule_result=schedule_result,
         dispatch_result=dispatch_result,
+        usage_metering_enabled=usage_metering_enabled,
+        usage_window_seconds=usage_window_seconds,
     )
 
 
@@ -1354,6 +1366,8 @@ def _persist_sync_execution_outcome(
     *,
     schedule_result: ConnectorSyncScheduleResult,
     dispatch_result: ConnectorSyncDispatchResult,
+    usage_metering_enabled: bool = False,
+    usage_window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
 ) -> ConnectorRunRecord:
     result_summary = dict(run.result_summary)
     result_summary.update(sync_execution_result.result_summary)
@@ -1404,7 +1418,38 @@ def _persist_sync_execution_outcome(
             notes=[*run.notes, *request.notes],
         )
     )
+    if usage_metering_enabled:
+        # Meter the actual rows read by this run. The authoritative count is the
+        # records_read the runtime reports in the sync execution result summary.
+        _record_connector_sync_rows_usage(
+            repository,
+            run.tenant_id,
+            sync_execution_result,
+            usage_window_seconds,
+        )
     return _run_from_record(updated)
+
+
+def _record_connector_sync_rows_usage(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    sync_execution_result: ConnectorSyncExecutionResult,
+    usage_window_seconds: int,
+) -> None:
+    raw_rows = sync_execution_result.result_summary.get("records_read", "0")
+    try:
+        rows_read = int(raw_rows)
+    except (TypeError, ValueError):
+        rows_read = 0
+    if rows_read <= 0:
+        return
+    record_tenant_usage_event(
+        repository,
+        tenant_id,
+        TenantUsageMetric.CONNECTOR_SYNC_ROWS.value,
+        rows_read,
+        window_seconds=usage_window_seconds,
+    )
 
 
 def _live_sync_requested(run_record) -> bool:

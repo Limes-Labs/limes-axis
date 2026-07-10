@@ -19,6 +19,7 @@ from axis_api.oidc_code_flow import (
     session_cookie_name,
 )
 from axis_api.platform_tenants import TenantQuotaKey, TenantStateCache
+from axis_api.usage_metering import TenantUsageMetric, UsageAccumulator
 
 
 @dataclass
@@ -85,16 +86,31 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         self.enabled = settings.api_rate_limit_enabled
         self.protected_paths = set(settings.api_rate_limit_paths)
         self.window_seconds = max(1, settings.api_rate_limit_window_seconds)
+        # Usage metering reuses the same verified-cookie tenant resolution and the
+        # same protected-path set, but is gated by its own flag so it can run even
+        # when rate limiting is disabled (metering is passive accounting).
+        self.metering_enabled = settings.usage_metering_enabled
+        self.metered_paths = set(settings.api_rate_limit_paths)
         self.limiter = InMemoryRateLimiter(
             limit=settings.api_rate_limit_requests,
             window_seconds=settings.api_rate_limit_window_seconds,
         )
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if not self._should_limit(request):
+        should_limit = self._should_limit(request)
+        should_meter = self._should_meter(request)
+        if not should_limit and not should_meter:
             return await call_next(request)
 
+        # Resolve the tenant once from the verified cookie and share it between
+        # metering and rate limiting so the hot path parses the cookie at most once.
         tenant_id = self._session_cookie_tenant(request)
+        if should_meter and tenant_id is not None:
+            self._record_api_request_usage(request, tenant_id)
+
+        if not should_limit:
+            return await call_next(request)
+
         tenant_limit = self._tenant_request_limit(request, tenant_id)
         if tenant_id is not None and tenant_limit is not None:
             # A per-tenant quota shares one bucket across the tenant's clients.
@@ -134,6 +150,22 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
             and request.method != "OPTIONS"
             and request.url.path in self.protected_paths
         )
+
+    def _should_meter(self, request: Request) -> bool:
+        return (
+            self.metering_enabled
+            and request.method != "OPTIONS"
+            and request.url.path in self.metered_paths
+        )
+
+    def _record_api_request_usage(self, request: Request, tenant_id: str) -> None:
+        accumulator: UsageAccumulator | None = getattr(
+            request.app.state, "usage_accumulator", None
+        )
+        if accumulator is None:
+            return
+        # In-memory increment only; the ledger write happens on the periodic flush.
+        accumulator.record(tenant_id, TenantUsageMetric.API_REQUEST.value)
 
     def _session_cookie_tenant(self, request: Request) -> str | None:
         """Resolve the tenant from the HMAC-verified session cookie only.
