@@ -15,6 +15,7 @@ import {
 } from "@/lib/agent-demo";
 import {
   AGENT_RUN_EXECUTION_FLAG,
+  agentRunDetailPath,
   agentRunStatusClass,
   agentRunStatusLabel,
   agentRunsPath,
@@ -22,6 +23,7 @@ import {
   buildApprovalActionRunHref,
   isDeferredAgentRunStatus,
   modelInvocationDetailPath,
+  parseAgentRun,
   parseAgentRunList,
   type AgentRunRailState,
   type AgentRunRecord,
@@ -553,12 +555,37 @@ function useLinkedModelInvocations(invocationIds: string[]): LinkedInvocationsSt
   };
 }
 
-function AgentRunDetail({ run }: { run: AgentRunRecord }) {
+function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord }) {
   const linked = useLinkedModelInvocations(run.model_invocation_ids);
+  // The run LIST endpoint returns runs without their step records; only the
+  // run DETAIL endpoint carries the persisted context_read → model call →
+  // proposal steps. Fetch the detail for the selected run so the step rail
+  // reflects recorded step statuses instead of always rendering "pending".
+  const detailQuery = useAxisQuery<unknown>(agentRunDetailPath(agentId, run.run_id));
+  const detailRun = useMemo(() => {
+    if (detailQuery.data === null || detailQuery.data === undefined) {
+      return null;
+    }
+    try {
+      return parseAgentRun(detailQuery.data);
+    } catch {
+      return null;
+    }
+  }, [detailQuery.data]);
 
   return (
     <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3 dark:border-white/10" data-run-detail={run.run_id}>
-      <AgentRunRail run={run} />
+      {detailQuery.isLoading ? (
+        <Skeleton aria-label="Loading agent run steps" className="h-14 w-full" />
+      ) : detailRun ? (
+        <AgentRunRail run={detailRun} />
+      ) : (
+        <ApiRequiredState
+          detail="Axis did not receive the persisted step records for this run. Step timelines are never fabricated."
+          endpoint={agentRunDetailPath(agentId, run.run_id)}
+          title="Agent run detail unavailable"
+        />
+      )}
 
       {run.error_reason ? (
         <p className="m-0 font-mono text-xs break-words text-muted">
@@ -778,7 +805,7 @@ function AgentRunsPanel({ agentId, agentName }: { agentId: string; agentName: st
             })}
           </div>
 
-          {selectedRun ? <AgentRunDetail run={selectedRun} /> : null}
+          {selectedRun ? <AgentRunDetail agentId={agentId} run={selectedRun} /> : null}
 
           {runList.run_notes.length > 0 ? (
             <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">

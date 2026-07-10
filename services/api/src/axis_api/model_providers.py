@@ -25,6 +25,22 @@ from pydantic import BaseModel, Field
 MODEL_INVOCATION_COMPLETED_STATUS = "model_invocation_completed"
 MODEL_INVOCATION_DEFERRED_STATUS = "model_invocation_deferred"
 OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH = "/v1/chat/completions"
+_OPENAI_COMPATIBLE_V1_SUFFIX = "/v1"
+
+
+def openai_compatible_chat_completions_url(base_url: str) -> str:
+    """Join a registered base URL with ``/v1/chat/completions`` without doubling ``/v1``.
+
+    Operators register OpenAI-compatible endpoints in both common shapes —
+    ``http://host:11434`` and ``http://host:11434/v1`` (the form Ollama
+    documents). Naively appending the chat-completions path to the second
+    shape produces ``/v1/v1/chat/completions`` and a guaranteed provider 404,
+    so a trailing ``/v1`` segment is stripped before joining.
+    """
+    normalized = base_url.rstrip("/")
+    if normalized.lower().endswith(_OPENAI_COMPATIBLE_V1_SUFFIX):
+        normalized = normalized[: -len(_OPENAI_COMPATIBLE_V1_SUFFIX)]
+    return normalized + OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH
 
 
 class ModelProviderInvocationError(RuntimeError):
@@ -122,9 +138,7 @@ class SelfHostedOpenAICompatibleRuntime:
         self,
         request: ModelInvocationRuntimeRequest,
     ) -> ModelInvocationRuntimeResult:
-        url = (
-            request.base_url.rstrip("/") + OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH
-        )
+        url = openai_compatible_chat_completions_url(request.base_url)
         payload: dict = {
             "model": request.model_id,
             "messages": [{"role": "user", "content": request.prompt}],

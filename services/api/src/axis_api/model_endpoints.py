@@ -23,11 +23,14 @@ from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate
 from axis_api.persistence import (
     AxisPersistenceRepository,
     ModelEndpointCreate,
+    ModelEndpointStatusUpdate,
+    PersistenceRecordNotFound,
 )
 
 MODEL_ENDPOINT_ADMIN_SCOPE = "platform:model:endpoint:admin"
 MODEL_ENDPOINT_READ_SCOPE = "platform:model:endpoint:read"
 MODEL_ENDPOINT_REGISTERED_AUDIT_EVENT_TYPE = "model.endpoint.registered"
+MODEL_ENDPOINT_STATUS_CHANGED_AUDIT_EVENT_TYPE = "model.endpoint.status_changed"
 
 SELF_HOSTED_BOUNDARY = "self_hosted"
 APPROVED_PRIVATE_ENDPOINT_BOUNDARY = "approved_private_endpoint"
@@ -61,6 +64,12 @@ class ModelEndpointConflict(ValueError):
         self.endpoint_id = endpoint_id
 
 
+class ModelEndpointNotFound(LookupError):
+    def __init__(self, endpoint_id: str) -> None:
+        super().__init__("Model endpoint not found")
+        self.endpoint_id = endpoint_id
+
+
 class ModelEndpointCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -80,6 +89,16 @@ class ModelEndpointCreateRequest(BaseModel):
     created_by: str = Field(min_length=1, max_length=160)
     actor_scopes: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+
+class ModelEndpointStatusUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    target_status: str = Field(min_length=1, max_length=40)
+    reason: str = Field(min_length=1, max_length=600)
+    updated_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
 
 
 class ModelEndpointRecord(BaseModel):
@@ -115,7 +134,17 @@ def record_model_endpoint(
     repository: AxisPersistenceRepository,
     request: ModelEndpointCreateRequest,
 ) -> ModelEndpointRecord:
-    permission_decision = _evaluate_admin_permission(request)
+    permission_decision = _evaluate_admin_permission(
+        tenant_id=request.tenant_id,
+        actor_id=request.created_by,
+        actor_scopes=request.actor_scopes,
+        attributes={
+            "endpoint_id": request.endpoint_id,
+            "provider_type": request.provider_type,
+            "hosting_boundary": request.hosting_boundary,
+            "operation": "record_model_endpoint",
+        },
+    )
     _validate_endpoint_request(repository, request)
 
     existing = repository.get_model_endpoint(request.tenant_id, request.endpoint_id)
@@ -166,6 +195,69 @@ def record_model_endpoint(
         )
     )
     return model_endpoint_record(endpoint)
+
+
+def update_model_endpoint_status(
+    repository: AxisPersistenceRepository,
+    endpoint_id: str,
+    request: ModelEndpointStatusUpdateRequest,
+) -> ModelEndpointRecord:
+    """Governed enable/disable transition for a registered model endpoint.
+
+    Disabled endpoints are skipped by :func:`decide_model_route`, so this is
+    the sanctioned way to take a mis-registered endpoint out of routing
+    without deleting its audit history. The transition itself writes a
+    ``model.endpoint.status_changed`` audit event before persisting.
+    """
+    permission_decision = _evaluate_admin_permission(
+        tenant_id=request.tenant_id,
+        actor_id=request.updated_by,
+        actor_scopes=request.actor_scopes,
+        attributes={
+            "endpoint_id": endpoint_id,
+            "target_status": request.target_status,
+            "operation": "update_model_endpoint_status",
+        },
+    )
+    if request.target_status not in SUPPORTED_ENDPOINT_STATUSES:
+        raise ModelEndpointValidationError(
+            f"Unsupported model endpoint status: {request.target_status}",
+            "unsupported_endpoint_status",
+        )
+
+    endpoint = repository.get_model_endpoint(request.tenant_id, endpoint_id)
+    if endpoint is None:
+        raise ModelEndpointNotFound(endpoint_id)
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.updated_by,
+            event_type=MODEL_ENDPOINT_STATUS_CHANGED_AUDIT_EVENT_TYPE,
+            payload={
+                "endpoint_id": endpoint_id,
+                "from_status": endpoint.status,
+                "target_status": request.target_status,
+                "reason": request.reason,
+                "required_permission": MODEL_ENDPOINT_ADMIN_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+            },
+        )
+    )
+    try:
+        updated = repository.update_model_endpoint_status(
+            ModelEndpointStatusUpdate(
+                tenant_id=request.tenant_id,
+                endpoint_id=endpoint_id,
+                status=request.target_status,
+                audit_event_id=audit_event.id,
+                audit_event_type=audit_event.event_type,
+                note=f"Status transition: {request.target_status} ({request.reason})",
+            )
+        )
+    except PersistenceRecordNotFound as exc:
+        raise ModelEndpointNotFound(endpoint_id) from exc
+    return model_endpoint_record(updated)
 
 
 def build_model_endpoint_registry(
@@ -286,20 +378,19 @@ def _validate_base_url(base_url: str) -> None:
 
 
 def _evaluate_admin_permission(
-    request: ModelEndpointCreateRequest,
+    *,
+    tenant_id: str,
+    actor_id: str,
+    actor_scopes: list[str],
+    attributes: dict[str, str],
 ) -> PermissionDecision:
     decision = evaluate_permission(
         PermissionRequest(
-            tenant_id=request.tenant_id,
-            actor_id=request.created_by,
-            actor_scopes=request.actor_scopes,
+            tenant_id=tenant_id,
+            actor_id=actor_id,
+            actor_scopes=actor_scopes,
             required_scopes=[MODEL_ENDPOINT_ADMIN_SCOPE],
-            attributes={
-                "endpoint_id": request.endpoint_id,
-                "provider_type": request.provider_type,
-                "hosting_boundary": request.hosting_boundary,
-                "operation": "record_model_endpoint",
-            },
+            attributes=attributes,
         )
     )
     if not decision.allowed:

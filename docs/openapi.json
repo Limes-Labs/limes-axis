@@ -13776,6 +13776,49 @@
         "title": "ModelEndpointRegistry",
         "type": "object"
       },
+      "ModelEndpointStatusUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "reason": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "target_status": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Target Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "updated_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Updated By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_status",
+          "reason",
+          "updated_by"
+        ],
+        "title": "ModelEndpointStatusUpdateRequest",
+        "type": "object"
+      },
       "ModelInvocationList": {
         "properties": {
           "has_more": {
@@ -25549,6 +25592,76 @@
           }
         },
         "summary": "Platform Model Endpoint Create",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/models/endpoints/{endpoint_id}/status": {
+      "post": {
+        "operationId": "platform_model_endpoint_status_update_platform_models_endpoints__endpoint_id__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "endpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Endpoint Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelEndpointStatusUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelEndpointRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model endpoint admin permission denied"
+          },
+          "404": {
+            "description": "Model endpoint not found"
+          },
+          "422": {
+            "description": "Model endpoint status transition invalid"
+          }
+        },
+        "summary": "Platform Model Endpoint Status Update",
         "tags": [
           "platform"
         ]
