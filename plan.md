@@ -173,6 +173,11 @@ Foundation acceptance is tracked in
 - [x] Require active preview connector manifests before ontology proposal creation.
 - [x] Require active preview connector manifests before ontology promotion execution.
 - [x] Persist connector ontology proposals without graph mutation.
+- [x] Activate and harden the live TypeDB graph promotion path behind
+  `AXIS_ONTOLOGY_MUTATIONS_ENABLED`: idempotent `put` TypeQL keyed on
+  `axis_id`, atomic write transaction, mandatory read-back verification,
+  fail-closed unavailable/failed statuses, schema bootstrap tooling and a
+  governed connector-console promote action.
 - [x] Record manual connector import requests behind approval, workflow and
   idempotency gates.
 - [x] Add Vault/KMS credential lease records with renew/revoke evidence.
@@ -355,6 +360,9 @@ Foundation acceptance is tracked in
 - [x] Add container vulnerability scanning policy baseline.
 - [x] Add vulnerability management baseline with SARIF and expiring exceptions.
 - [ ] Build the full connector framework beyond preview-only manifests.
+  (In progress: governed live sync and the live TypeDB graph promotion path are
+  now activated and hardened behind explicit flags; remaining work is broader
+  connector coverage and per-tenant enablement.)
 - [x] Add governed live connector sync execution for the file/CSV dropzone and
   allowlisted external Postgres sources behind explicit flags, `active_live`
   manifests, lease/egress evidence, committed batch checkpoints, fail-closed

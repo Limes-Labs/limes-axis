@@ -120,7 +120,10 @@ Axis remains self-hostable and does not require managed services, but the Helm
 chart expects production-grade dependencies to be provided outside the chart:
 
 - external Postgres with `AXIS_POSTGRES_DSN` stored in a Kubernetes Secret.
-- TypeDB reachable through `AXIS_TYPEDB_ADDRESS`.
+- TypeDB reachable through `AXIS_TYPEDB_ADDRESS`. Required only when the
+  ontology query or mutation paths are enabled (see below); otherwise the
+  deferred runtimes serve the persisted reference graph and no TypeDB
+  connection is used.
 - Temporal OSS reachable through `AXIS_TEMPORAL_ADDRESS`.
 - OIDC provider, normally Keycloak or an enterprise IdP, with issuer, audience
   and JWKS URL configured.
@@ -133,6 +136,37 @@ The chart does not create Postgres, TypeDB, Temporal, MinIO or Keycloak. The
 Docker Compose stack remains the local demo path; Kubernetes production
 operators should bring hardened dependencies that match their infrastructure
 policy.
+
+## Ontology Graph Mutation
+
+Connector ontology promotions can write governed entities into TypeDB. The live
+path is off by default; existing deployments are unaffected until it is enabled.
+
+- **Flags.** `AXIS_ONTOLOGY_MUTATIONS_ENABLED` gates real TypeDB writes and
+  `AXIS_ONTOLOGY_QUERIES_ENABLED` gates TypeDB reads. Both default `false` and
+  are process-global (there is no per-tenant enablement). Enable them together
+  so promoted nodes can be read back; enabling mutations alone writes nodes that
+  the ontology read API will not serve.
+- **TypeDB requirement.** When mutations are enabled, a reachable TypeDB
+  (`AXIS_TYPEDB_ADDRESS`, `AXIS_TYPEDB_USERNAME`/`PASSWORD`,
+  `AXIS_TYPEDB_DATABASE`) is required. Load the `axis_` meta-ontology schema once
+  per environment before the first promotion:
+
+  ```
+  cd services/api && uv run python -m axis_api.ontology.bootstrap
+  ```
+
+  The command is idempotent and creates the database if absent.
+- **Safety.** Each promotion is one atomic TypeDB write transaction using an
+  idempotent `put` pipeline keyed on `axis_id`, followed by a read-back that must
+  observe the node before the proposal is marked `promoted_to_graph`. TypeDB
+  unavailability or a failed read-back is fail-closed (`type_db_mutation_unavailable`
+  / `type_db_mutation_failed`); the proposal stays promotable and retries are
+  safe. See [Platform Connectors](platform-connectors.md) for the full gate list.
+- **Readiness.** `GET /deployment/readiness` includes an
+  `ontology_graph_mutation_posture` check that flags mutations enabled without a
+  TypeDB address or without reads enabled. `GET /ready` reports
+  `typedb_mutations` and `typedb_queries`.
 
 ## Worker Deployment
 
