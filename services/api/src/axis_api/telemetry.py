@@ -55,6 +55,11 @@ ATTR_SIGNAL_STATUS = "axis.signal_status"
 ATTR_DECISION = "axis.decision"
 ATTR_EXPORT_FORMAT = "axis.export_format"
 ATTR_JOB = "axis.job"
+ATTR_MODEL_PROVIDER_ID = "axis.model.provider_id"
+ATTR_MODEL_ID = "axis.model.model_id"
+ATTR_MODEL_LATENCY_MS = "axis.model.latency_ms"
+ATTR_MODEL_INPUT_TOKENS = "axis.model.input_tokens"
+ATTR_MODEL_OUTPUT_TOKENS = "axis.model.output_tokens"
 
 # Defence-in-depth guard: attribute keys containing any of these substrings must
 # never be attached to a span. Callers are expected to only pass the curated keys
