@@ -144,6 +144,15 @@ filter, provisions new tenants with client-side id validation and a generated
 idempotency key, and exposes the lifecycle timeline, suspend/reactivate actions
 and per-tenant quota editing (with the API's null-clear semantics) on the
 tenant detail view.
+Per-tenant usage metering adds the cumulative consumption ledger beneath the
+quota ceilings: a `tenant_usage_records` table accounts `api_request`,
+`connector_sync_rows` and `session_created` at the existing choke points via a
+bounded in-process aggregator (hot path) and durable per-event upsert-adds (low
+volume), all correct under concurrency, with an operator-scoped
+`GET /platform/tenants/{tenant_id}/usage` read and a read-only usage panel on
+the tenant detail view (see
+[`docs/platform-usage-metering.md`](./docs/platform-usage-metering.md)). Quotas
+are ceilings; metering is cumulative accounting; billing is a future consumer.
 
 The web console runtime libraries no longer export browser-local fallback seed
 records, including the connector console records; those pages are API-required
