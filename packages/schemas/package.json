@@ -5,8 +5,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "lint": "echo schemas lint ready",
-    "test": "echo schemas test ready",
-    "typecheck": "echo schemas typecheck ready"
+    "lint": "node scripts/validate-schemas.mjs --lint",
+    "test": "node scripts/validate-schemas.mjs",
+    "typecheck": "node --check scripts/validate-schemas.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
   }
 }

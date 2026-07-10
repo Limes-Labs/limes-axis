@@ -3,9 +3,18 @@
 The Platform agent registry slice introduces a public-safe, read-only view of
 governed agents in the manufacturing reference scenario.
 
-It is intentionally a registry and governance surface, not a production agent
-runtime. Agents can recommend, draft proposals and link evidence, but this slice
-does not execute actions, persist agent state or mutate external systems.
+It is a registry and governance surface first. A separate flag-gated slice
+adds governed agent run execution: `POST/GET
+/demo/manufacturing/agents/{agent_id}/runs` runs a registry agent in dry-run
+or propose mode behind `AXIS_AGENT_RUN_EXECUTION_ENABLED=true` (default
+`false`; disabled runs record an honest deferred status). Runs require
+`agents:run:execute` and `models:invoke` plus the agent's registry
+permissions, persist an append-only step timeline (`context_read`,
+`model_invocation`, `proposal`), enforce autonomy ceilings and platform
+policies, route model calls through registered model endpoints and turn
+parseable proposals into approval-gated action runs. Agents never execute
+actions or mutate external systems directly, and runs fail closed on
+unparseable or unpermitted model output.
 
 ## Current Scope
 
@@ -49,13 +58,13 @@ tenant-scoped record.
 
 It does not yet include:
 
-- persisted agent state;
-- production action execution;
-- workflow signal execution from agent proposals;
-- model cost and token observability;
+- direct production action execution (agent proposals stay approval-gated);
 - tenant-scoped agent configuration storage;
-- SDK or connector-driven agent registration;
-- runtime policy enforcement beyond the public reference contract.
+- SDK or connector-driven agent registration.
+
+Governed run execution, persisted run/step state, platform policy enforcement
+on runs and model token/cost accounting exist behind
+`AXIS_AGENT_RUN_EXECUTION_ENABLED` as described above.
 
 Those capabilities remain Platform work and should be implemented behind the
 existing typed action registry, workflow runtime adapter, permission primitives,

@@ -14,9 +14,16 @@ between a local demo profile and production readiness. The current repository
   authorization-code PKCE session cookies, permission checks, manifest
   lifecycle gates, credential lease records, egress policy preflight evidence,
   append-only audit events, OpenAPI contract checks and API-required web
-  consoles. The remaining enterprise risk is concentrated around production
-  deployment, full SSO operations, WORM retention, live connector execution and
-  support runbooks.
+  consoles. Live connector sync, model routing execution and governed agent
+  runs are now shipped capabilities rather than future work, but each is
+  fail-closed behind explicit `AXIS_` flags that default off, and principal
+  tenant binding is enforced on the connector read/write routes with a
+  canonical isolation test matrix (`test_tenant_isolation.py`). The remaining
+  enterprise risk is concentrated around production deployment, full SSO
+  operations, WORM retention operations, broader connector/provider coverage
+  and support runbooks. Use
+  [`docs/security-review-checklist.md`](./security-review-checklist.md) to
+  apply this model in PR review.
 
 ## Scope And Assumptions
 
@@ -207,8 +214,16 @@ flowchart LR
 
 - The attacker is not assumed to control the host filesystem or Docker daemon.
 - The attacker is not assumed to possess customer production credentials.
-- The attacker cannot execute live source-system connector writes unless future
-  deployment explicitly enables guarded runtime paths.
+- The attacker cannot execute live source-system connector access while the
+  connector execution flags hold their `false` defaults
+  (`AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED`,
+  `AXIS_CONNECTOR_LIVE_SYNC_EXECUTION_ENABLED`,
+  `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED` and the external-DB live-query
+  flags); connector writes to source systems are not implemented at all.
+- The attacker cannot trigger model invocations or agent runs while
+  `AXIS_MODEL_ROUTING_EXECUTION_ENABLED=false` and
+  `AXIS_AGENT_RUN_EXECUTION_ENABLED=false` hold; those paths record honest
+  deferred statuses instead of executing.
 - The attacker cannot force external model provider egress while the default
   `AXIS_EXTERNAL_MODEL_EGRESS_ENABLED=false` boundary holds.
 
@@ -233,11 +248,11 @@ flowchart LR
 
 | Threat ID | Threat Source | Prerequisites | Threat Action | Impact | Impacted Assets | Existing Controls | Gaps | Recommended Mitigations | Detection Ideas | Likelihood | Impact Severity | Priority |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| TM-001 | Authenticated tenant user | Token or request path reaches protected API | Tenant or actor impersonation | Cross-tenant data exposure or unauthorized mutation | Operational records, approvals, audit | OIDC actor binding and tenant mismatch rejection in `main.py`; tests in `test_approval_decisions.py`, `test_action_runs.py` | OIDC auth optional in local demo | Require OIDC in non-dev profiles, add tenant-scoped query checks everywhere, add integration tests for every mutation | Alert on 403 tenant mismatch and actor mismatch spikes | Medium | High | High |
+| TM-001 | Authenticated tenant user | Token or request path reaches protected API | Tenant or actor impersonation | Cross-tenant data exposure or unauthorized mutation | Operational records, approvals, audit | OIDC actor binding and tenant mismatch rejection in `main.py`; principal tenant binding enforced on connector read/write routes; canonical table-driven isolation matrix in `test_tenant_isolation.py` plus per-surface tests in `test_approval_decisions.py`, `test_action_runs.py` | OIDC auth optional in local demo | Require OIDC in non-dev profiles, extend the isolation matrix with every new tenant-scoped surface in the same PR | Alert on 403 tenant mismatch and actor mismatch spikes | Medium | High | High |
 | TM-002 | Malicious operator | Connector input accepted by API | Submit raw secret/DSN/query material | Credential disclosure in storage, logs or exports | Credential handles, connector records, audit | Secret rejection tests in connector modules; credential lease evidence boundary | Future provider adapters may add new secret shapes | Centralize redaction schema, add fuzz cases for DSN/token patterns, keep exports public-safe | Audit unsafe-input rejection counts | Medium | High | High |
-| TM-003 | Compromised agent or operator | Runtime flags or connector execution enabled | Trigger live query or sync without all gates | External system access or data exfiltration | Source systems, connector leases, audit | Active manifest, lease, egress policy, checkpoint claim and public-safe evidence gates | Full live execution path remains future work | Keep default deferred, require policy bundles and worker claims for every provider adapter | Alert on preflight failures and runtime flag changes | Low | High | Medium |
+| TM-003 | Compromised agent or operator | Runtime flags or connector execution enabled | Trigger live query or sync without all gates | External system access or data exfiltration | Source systems, connector leases, audit | Live sync and live query are shipped but fail-closed behind explicit flags (off by default) and require `active_live` manifests, lease-scoped secret resolution, persisted egress policy evidence, runtime egress enforcement, worker checkpoint claims and public-safe evidence gates | Broader provider adapter coverage; flag enablement is an operator decision without a dedicated approval workflow yet | Keep defaults off, require policy bundles and worker claims for every new provider adapter, audit-alert on flag enablement | Alert on preflight failures and runtime flag changes | Low | High | Medium |
 | TM-004 | Privileged insider or compromised API path | Access to audit/retention APIs or storage | Delete or rewrite audit evidence | Governance evidence loss | Append-only audit, MinIO artifacts | OIDC-bound audit read/export/admin routes, audit legal holds, retention checks, checksum/signature proof, append-only rows, S3-compatible retention adapter | Provider-specific KMS signing, restore drills and legal operations not production complete | Add KMS signing, restore drills, customer bucket-policy review and legal hold admin UI | Monitor retention deletion requests, tenant mismatch denials and checksum mismatches | Medium | High | High |
-| TM-005 | Agent or route operator | External egress enabled incorrectly | Send operations context to external model | Data leakage and compliance breach | Operational records, model routing telemetry | External model egress disabled by default, route metadata public-safe | Provider adapters and usage metering not complete | Enforce tenant policy approval, classify prompts, log route decisions to audit | Alert on external egress enablement and route decisions | Low | High | Medium |
+| TM-005 | Agent or route operator | External egress enabled incorrectly | Send operations context to external model | Data leakage and compliance breach | Operational records, model routing telemetry | Model routing execution and governed agent runs ship behind `AXIS_MODEL_ROUTING_EXECUTION_ENABLED` / `AXIS_AGENT_RUN_EXECUTION_ENABLED` (off by default); external egress separately gated by `AXIS_EXTERNAL_MODEL_EGRESS_ENABLED=false`; endpoints declare hosting boundaries; invocations persist metadata-only records (prompt excerpt length defaults to 0) with audit evidence and usage metering | Only the openai-compatible provider adapter exists; no per-tenant egress exception workflow yet | Enforce tenant policy approval for non-self-hosted boundaries, classify prompts, keep prompt excerpts disabled by default | Alert on external egress enablement and route decisions | Low | High | Medium |
 | TM-006 | Operator or sales workflow | Demo limitations not shared | Overclaim readiness | Customer trust and compliance risk | Security posture, contracts, operations | `docs/demo-readiness.md`, `docs/backup-restore.md`, `docs/support-operations.md`, `/identity/oidc/readiness`, `/deployment/readiness`, `/support/diagnostics` | Full production runbook execution still depends on customer environment | Add production DR, support, SSO, KMS and customer bucket operations runbooks; require pre-demo checklist | Track demo readiness, deployment readiness, support diagnostics and security-check output per walkthrough | Medium | Medium | Medium |
 
 ## Existing Controls
@@ -295,7 +310,12 @@ flowchart LR
 - Audit: persisted append-only audit rows, OIDC-bound read/export/admin routes,
   export bundles, checksum/hash-chain proof, legal hold and retention deletion
   blocking.
-- Model routing: external model egress disabled by default.
+- Model routing and agent runs: model routing execution and governed agent run
+  execution are flag-gated and off by default with honest deferred statuses;
+  external model egress is separately disabled by default; model invocations
+  persist metadata-only records with audit evidence; agent runs produce
+  approval-gated action proposals only and fail closed on unparseable or
+  unpermitted model output.
 - Web: API-required console smoke tests prevent browser-local fallback data.
 - Support: public-safe support diagnostics and the support operations runbook
   expose demo support posture, production support-readiness, SLO target checks
@@ -340,7 +360,12 @@ flowchart LR
 - Enterprise SSO has an explicit secure browser-session readiness gate,
   `openid` scope gating and ID-token nonce/subject binding, but still needs
   refresh-token rotation and customer-specific production operations runbooks.
-- Live connector execution against customer systems remains future guarded work.
+- Governed live connector sync, external DB live query, model routing
+  execution and agent runs are shipped flag-gated capabilities (off by
+  default). Residual risk is operational: enabling the flags is an operator
+  decision, provider adapter coverage is narrow (file/CSV dropzone,
+  allowlisted Postgres profiles, openai-compatible model endpoints), and
+  per-tenant enablement/approval workflows for flag changes are not built yet.
 - In-process API rate limiting exists for public and sensitive routes, but
   global abuse throttling, production telemetry alerting and incident response
   are not complete controls.
@@ -359,7 +384,9 @@ flowchart LR
 | `services/api/src/axis_api/oidc_code_flow.py` | Authorization-code PKCE, state cookie, token exchange, session-id hashing and signed session cookie boundary | TM-001, TM-006 |
 | `services/api/src/axis_api/connector_*` | Connector manifest, credential, lease, policy and execution gates | TM-002, TM-003 |
 | `services/api/src/axis_api/audit_queries.py` | Audit export, legal hold and retention deletion controls | TM-004 |
-| `services/api/src/axis_api/model_routing.py` | Model egress policy and route metadata | TM-005 |
+| `services/api/src/axis_api/model_endpoints.py`, `model_invocations.py`, `model_providers.py` | Model endpoint registration, hosting-boundary/egress gating and governed invocation runtime | TM-005 |
+| `services/api/src/axis_api/agent_runs.py` | Governed agent run execution, autonomy ceilings and proposal gating | TM-003, TM-005 |
+| `services/api/tests/test_tenant_isolation.py` | Canonical cross-tenant isolation matrix across the API surface | TM-001 |
 | `apps/web/e2e/smoke.spec.ts` | Guards API-required UI behavior and prevents fallback data | TM-006 |
 | `infra/docker/docker-compose.yml` | Local runtime topology and exposed service ports | TM-006 |
 | `infra/helm/limes-axis` | Kubernetes deployment baseline, tenancy profile readiness env, TLS Ingress routing, cert-manager ingress-shim annotation support, HPA/PDB availability controls, scheduling/topology controls, rollout strategy and termination controls, Helm smoke tests, rollout rehearsal runbook, HA restart rehearsal, load rehearsal, TLS readiness rehearsal, production backup, Postgres restore, TypeDB recovery, object-store recovery, Temporal namespace/history evidence and active/staged Secret rotation rehearsals, external dependency wiring, ExternalSecret synchronization and secret references | TM-006 |
@@ -371,7 +398,9 @@ flowchart LR
 ## Review Cadence
 
 - Run `make security-check` before PRs that change identity, permissions,
-  connectors, audit, model routing, deployment, backup/restore or demo claims.
+  connectors, audit, model routing, deployment, backup/restore or demo claims,
+  and walk [`docs/security-review-checklist.md`](./security-review-checklist.md)
+  for the sections the PR touches.
 - Run `make deployment-check` before PRs that change `infra/helm/limes-axis`,
   production deployment docs or Kubernetes readiness claims.
 - Review this document after each merged enterprise hardening slice.
