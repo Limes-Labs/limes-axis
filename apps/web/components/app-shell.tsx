@@ -16,6 +16,7 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { AxisMark } from "@/components/axis-mark";
 import { navigationItems, type NavigationItem } from "@/lib/foundation";
 import { ConsoleProvider } from "@/providers/console-provider";
 
@@ -96,15 +97,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="app-shell">
         <aside className="sidebar" data-console-sidebar>
           <Link className="brand" href="/" aria-label="Limes Axis home">
-            <span className="brand-mark" aria-hidden="true">
-              <span className="brand-axis brand-axis-vertical" />
-              <span className="brand-axis brand-axis-horizontal" />
-              <span className="brand-axis brand-axis-diagonal-a" />
-              <span className="brand-axis brand-axis-diagonal-b" />
-              <span className="brand-diamond" />
-            </span>
+            <AxisMark className="brand-mark-svg" />
             <span>
-              <span className="brand-title">Limes Axis</span>
+              <span className="brand-title font-display">Limes Axis</span>
               <span className="brand-subtitle">Control plane</span>
             </span>
           </Link>

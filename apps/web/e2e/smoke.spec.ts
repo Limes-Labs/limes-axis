@@ -30,24 +30,29 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.hasOverflow, JSON.stringify(overflow, null, 2)).toBe(false);
 }
 
-async function expectAxisDarkShell(page: Page) {
+async function expectAxisLightShell(page: Page) {
   const shell = await page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
-    const brandDiamond = document.querySelector<HTMLElement>(".brand-diamond");
+    const axisMark = document.querySelector<SVGSVGElement>(".sidebar .axis-mark");
+    const axisDiamond = document.querySelector<SVGRectElement>(".sidebar .axis-mark rect");
 
     return {
-      axisBlack: root.getPropertyValue("--axis-black").trim(),
+      axisMarkPresent: Boolean(axisMark),
+      axisDiamondFill: axisDiamond ? getComputedStyle(axisDiamond).fill : null,
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
       colorScheme: root.colorScheme,
-      signalBlue: root.getPropertyValue("--signal-blue").trim(),
-      brandDiamondColor: brandDiamond ? getComputedStyle(brandDiamond).backgroundColor : null,
+      signalChannels: root.getPropertyValue("--signal").trim(),
+      theme: document.documentElement.dataset.theme ?? null,
     };
   });
 
   expect(shell).toEqual({
-    axisBlack: "#070b10",
-    colorScheme: "dark",
-    signalBlue: "#3e6bff",
-    brandDiamondColor: "rgb(62, 107, 255)",
+    axisMarkPresent: true,
+    axisDiamondFill: "rgb(47, 100, 255)",
+    bodyBackground: "rgb(247, 248, 251)",
+    colorScheme: "light",
+    signalChannels: "47 100 255",
+    theme: "light",
   });
 }
 
@@ -70,8 +75,43 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("button", { name: "Refresh state" }).click();
     await expect(page.getByText("API unavailable", { exact: true })).toBeVisible();
 
-    await expectAxisDarkShell(page);
+    await expectAxisLightShell(page);
     await expectNoHorizontalOverflow(page);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("toggles to the navy dark theme and persists it across reloads", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/");
+    await expectAxisLightShell(page);
+
+    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+    const dark = await page.evaluate(() => ({
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
+      colorScheme: getComputedStyle(document.documentElement).colorScheme,
+      storedPreference: localStorage.getItem("axis-theme"),
+    }));
+    expect(dark).toEqual({
+      bodyBackground: "rgb(4, 18, 46)",
+      colorScheme: "dark",
+      storedPreference: "dark",
+    });
+
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    const reloaded = await page.evaluate(
+      () => getComputedStyle(document.body).backgroundColor,
+    );
+    expect(reloaded).toBe("rgb(4, 18, 46)");
+    await expectNoHorizontalOverflow(page);
+
+    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expectAxisLightShell(page);
     expect(pageErrors).toEqual([]);
   });
 

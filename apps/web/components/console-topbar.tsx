@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { axisFetchJson } from "@/lib/axis-api";
 import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
@@ -585,6 +586,7 @@ export function ConsoleTopbar({
         >
           <RefreshCw size={17} />
         </button>
+        <ThemeToggle />
         <button
           className="ops-icon-button"
           type="button"
