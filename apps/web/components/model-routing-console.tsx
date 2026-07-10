@@ -1,9 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileText, Filter, Gauge, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
+import {
+  Activity,
+  Cable,
+  FileText,
+  Filter,
+  Gauge,
+  KeyRound,
+  RadioTower,
+  RotateCcw,
+  ShieldCheck,
+} from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { buildAuditEventHref } from "@/lib/audit-demo";
 import {
   allModelRoutingFilter,
   countBlockedModelRoutes,
@@ -17,13 +28,31 @@ import {
   type ModelRouteTelemetry,
 } from "@/lib/model-routing-demo";
 import {
+  MODEL_ROUTING_EXECUTION_FLAG,
+  countDeferredModelInvocations,
+  formatLiveEuroCost,
+  formatLiveTimestamp,
+  isDeferredModelInvocationStatus,
+  liveEndpointStatusClass,
+  liveInvocationStatusClass,
+  modelEndpointsPath,
+  modelInvocationsPath,
+  modelRoutingTelemetryPath,
+  parseModelEndpointRegistry,
+  parseModelInvocationList,
+  parseModelRoutingTelemetry,
+  sumLiveInvocationCost,
+} from "@/lib/model-routing-live";
+import {
   formatOverviewTimestamp,
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { DataTable } from "@/components/ui/data-table";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -48,6 +77,15 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 }
 
 export function ModelRoutingConsole() {
+  return (
+    <div className="grid min-w-0 gap-4">
+      <ReferenceModelRouting />
+      <LiveModelRouterSection />
+    </div>
+  );
+}
+
+function ReferenceModelRouting() {
   const { data: routing, source } = useAxisQuery<ManufacturingModelRouting>(
     "/demo/manufacturing/model-routing",
   );
@@ -122,6 +160,10 @@ export function ModelRoutingConsole() {
           </p>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Model routing source and status">
+          <span className="status-pill signal-watch" data-source-badge="reference">
+            <FileText size={15} />
+            Reference
+          </span>
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -392,5 +434,340 @@ export function ModelRoutingConsole() {
         </section>
       </div>
     </div>
+  );
+}
+
+type ParsedQueryState<T> = {
+  data: T | null;
+  isLoading: boolean;
+};
+
+function useParsedAxisQuery<T>(path: string, parse: (input: unknown) => T): ParsedQueryState<T> {
+  const { data, isLoading } = useAxisQuery<unknown>(path);
+
+  const parsed = useMemo(() => {
+    if (data === null || data === undefined) {
+      return null;
+    }
+    try {
+      return parse(data);
+    } catch {
+      // A malformed payload is treated exactly like an unavailable API:
+      // the console never renders partially-fabricated records.
+      return null;
+    }
+  }, [data, parse]);
+
+  return { data: parsed, isLoading };
+}
+
+function LiveSourceBadge() {
+  return (
+    <span className="status-pill signal-ready" data-source-badge="live">
+      <Activity size={15} />
+      Live executed
+    </span>
+  );
+}
+
+function LivePanelSkeleton() {
+  return (
+    <div className="grid gap-2.5" aria-label="Loading live model router data">
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-2/3" />
+    </div>
+  );
+}
+
+function endpointChip(label: string): string {
+  return label;
+}
+
+/**
+ * Live model-router surfaces backed by persisted execution records:
+ * routing telemetry, real invocation rows and the metadata-only endpoint
+ * registry. Nothing here is seeded — every row is a recorded invocation.
+ */
+function LiveModelRouterSection() {
+  const telemetry = useParsedAxisQuery(modelRoutingTelemetryPath, parseModelRoutingTelemetry);
+  const invocations = useParsedAxisQuery(modelInvocationsPath(), parseModelInvocationList);
+  const endpoints = useParsedAxisQuery(modelEndpointsPath, parseModelEndpointRegistry);
+
+  const deferredCount = invocations.data
+    ? countDeferredModelInvocations(invocations.data.invocations)
+    : 0;
+  const liveCost = invocations.data
+    ? sumLiveInvocationCost(invocations.data.invocations)
+    : 0;
+
+  return (
+    <section className="grid min-w-0 gap-4" data-live-model-router>
+      <div className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow m-0">Live Model Router</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Executed invocations</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+            Persisted invocation records from the platform model router. Token counts, latency,
+            cost estimates and egress decisions are recorded values, never reference data.
+          </p>
+        </div>
+        <div
+          className="flex min-w-0 flex-wrap items-center justify-end gap-2"
+          aria-label="Live model router source and status"
+        >
+          <LiveSourceBadge />
+          {telemetry.data ? (
+            <span className="status-pill signal-ready">
+              <Gauge size={15} />
+              {telemetry.data.route_count} recorded
+            </span>
+          ) : null}
+          {deferredCount > 0 ? (
+            <span className="status-pill signal-watch">
+              {deferredCount} deferred (flag-gated)
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow m-0">Live Invocations</p>
+            <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
+              {invocations.data
+                ? `${invocations.data.invocations.length} recorded${invocations.data.has_more ? "+" : ""}`
+                : "Awaiting invocation API"}
+            </h3>
+          </div>
+          {invocations.data && invocations.data.invocations.length > 0 ? (
+            <span className="status-pill signal-ready">
+              {formatLiveEuroCost(liveCost)} estimated
+            </span>
+          ) : null}
+        </div>
+
+        {invocations.isLoading ? (
+          <LivePanelSkeleton />
+        ) : !invocations.data ? (
+          <ApiRequiredState
+            detail="Axis did not receive persisted model invocation records. Live invocation rows are never fabricated."
+            endpoint="/platform/models/invocations"
+            title="Model invocation API unavailable"
+          />
+        ) : invocations.data.invocations.length === 0 ? (
+          <section
+            className="min-w-0 rounded-2xl border border-dashed border-slate/45 bg-surface/55 p-4.5 dark:border-white/20 dark:bg-white/4"
+            data-live-invocations-empty
+          >
+            <p className="eyebrow m-0">Flag-Gated</p>
+            <h4 className="font-display mx-0 mt-2 mb-1.5 text-xl text-ink">
+              Execution disabled — flag-gated
+            </h4>
+            <p className="m-0 max-w-2xl text-sm leading-snug text-muted">
+              No live model invocations are recorded for this tenant. Model routing execution is
+              deferred by default until {MODEL_ROUTING_EXECUTION_FLAG} is enabled on the API;
+              deferred requests perform zero provider calls and Axis never fabricates rows.
+            </p>
+          </section>
+        ) : (
+          <DataTable data-testid="live-invocations-table" minWidth={980}>
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Endpoint</th>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Tokens in / out</th>
+                <th>Est. cost</th>
+                <th>Latency</th>
+                <th>Egress</th>
+                <th>Recorded</th>
+                <th>Audit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invocations.data.invocations.map((invocation) => (
+                <tr data-invocation-id={invocation.invocation_id} key={invocation.invocation_id}>
+                  <td className="font-mono text-[13px] text-ink">
+                    {invocation.model_id ?? "unrouted"}
+                  </td>
+                  <td className="font-mono text-[13px]">{invocation.endpoint_id ?? "unrouted"}</td>
+                  <td>{invocation.task_type}</td>
+                  <td>
+                    <span className={`status-pill ${liveInvocationStatusClass(invocation.status)}`}>
+                      {formatModelRoutingLabel(
+                        isDeferredModelInvocationStatus(invocation.status)
+                          ? "deferred"
+                          : invocation.status.replace("model_invocation_", ""),
+                      )}
+                    </span>
+                  </td>
+                  <td className="font-mono text-[13px]">
+                    {invocation.input_tokens} / {invocation.output_tokens}
+                  </td>
+                  <td className="font-mono text-[13px]">
+                    {formatLiveEuroCost(invocation.estimated_cost_eur)}
+                  </td>
+                  <td className="font-mono text-[13px]">{invocation.latency_ms} ms</td>
+                  <td>{formatModelRoutingLabel(invocation.egress_decision)}</td>
+                  <td className="font-mono text-[13px]">
+                    {formatLiveTimestamp(invocation.created_at)}
+                  </td>
+                  <td>
+                    {invocation.audit_event_id ? (
+                      <a
+                        className="font-mono text-[13px] text-signal underline-offset-2 hover:underline"
+                        href={buildAuditEventHref(invocation.audit_event_id)}
+                      >
+                        Open audit
+                      </a>
+                    ) : (
+                      <span className="font-mono text-[13px] text-muted">pending</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
+
+        {invocations.data && invocations.data.invocation_notes.length > 0 ? (
+          <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
+            {invocations.data.invocation_notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      <div className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow m-0">Endpoint Registry</p>
+            <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
+              {endpoints.data
+                ? `${endpoints.data.enabled_endpoint_count} of ${endpoints.data.endpoint_count} enabled`
+                : "Awaiting endpoint API"}
+            </h3>
+          </div>
+          <span className="status-pill signal-ready">
+            <Cable size={15} />
+            Metadata only
+          </span>
+        </div>
+
+        {endpoints.isLoading ? (
+          <LivePanelSkeleton />
+        ) : !endpoints.data ? (
+          <ApiRequiredState
+            detail="Axis did not receive the model endpoint registry. Endpoint cards are never fabricated."
+            endpoint="/platform/models/endpoints"
+            title="Model endpoint API unavailable"
+          />
+        ) : endpoints.data.endpoints.length === 0 ? (
+          <section
+            className="min-w-0 rounded-2xl border border-dashed border-slate/45 bg-surface/55 p-4.5 dark:border-white/20 dark:bg-white/4"
+            data-live-endpoints-empty
+          >
+            <p className="eyebrow m-0">Empty Registry</p>
+            <h4 className="font-display mx-0 mt-2 mb-1.5 text-xl text-ink">
+              No model endpoints registered
+            </h4>
+            <p className="m-0 max-w-2xl text-sm leading-snug text-muted">
+              This tenant has no registered model endpoints. Register an endpoint through
+              POST /platform/models/endpoints to enable deterministic, fail-closed routing.
+            </p>
+          </section>
+        ) : (
+          <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0">
+            {endpoints.data.endpoints.map((endpoint) => (
+              <article
+                className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 grid content-start gap-3"
+                data-endpoint-id={endpoint.endpoint_id}
+                key={endpoint.endpoint_id}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="m-0 font-medium text-ink break-words">{endpoint.display_name}</p>
+                    <p className="mx-0 mt-1 mb-0 font-mono text-xs text-muted break-words">
+                      {endpoint.endpoint_id}
+                    </p>
+                  </div>
+                  <span className={`status-pill ${liveEndpointStatusClass(endpoint.status)}`}>
+                    {formatModelRoutingLabel(endpoint.status)}
+                  </span>
+                </div>
+                <div className="flex min-w-0 flex-wrap gap-2">
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-signal/40 bg-signal/10 px-3 py-1 font-mono text-xs text-signal break-words">
+                    {endpointChip(endpoint.hosting_boundary)}
+                  </span>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words dark:border-white/15 dark:bg-white/5">
+                    {endpointChip(endpoint.provider_type)}
+                  </span>
+                </div>
+                <div>
+                  <p className="eyebrow m-0">Default Model</p>
+                  <p className="mx-0 mt-1 mb-0 font-mono text-[13px] text-ink break-words">
+                    {endpoint.default_model}
+                  </p>
+                </div>
+                <div>
+                  <p className="eyebrow m-0">Task Types</p>
+                  <div className="mt-1.5 flex min-w-0 flex-wrap gap-2">
+                    {endpoint.task_types.map((taskType) => (
+                      <span
+                        className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words dark:border-white/15 dark:bg-white/5"
+                        key={taskType}
+                      >
+                        {taskType}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-line/60 pt-3 dark:border-white/10">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs ${
+                      endpoint.credential_attached ? "text-ink" : "text-muted"
+                    }`}
+                  >
+                    <KeyRound size={14} />
+                    {endpoint.credential_attached ? "Credential attached" : "No credential handle"}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs ${
+                      endpoint.egress_policy_attached ? "text-ink" : "text-muted"
+                    }`}
+                  >
+                    <ShieldCheck size={14} />
+                    {endpoint.egress_policy_attached ? "Egress policy attached" : "No egress policy"}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {endpoints.data && endpoints.data.endpoint_notes.length > 0 ? (
+          <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
+            {endpoints.data.endpoint_notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      {telemetry.data && telemetry.data.telemetry_notes.length > 0 ? (
+        <div className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <p className="eyebrow m-0">Telemetry Notes</p>
+          <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
+            {telemetry.data.telemetry_notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   );
 }
