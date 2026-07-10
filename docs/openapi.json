@@ -19299,6 +19299,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_configuration_create_demo_manufacturing_connectors_configurations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19319,6 +19337,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector configuration actor binding permission denied"
           },
           "404": {
             "description": "Connector registry reference record not found"
@@ -19443,6 +19464,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_credential_handle_create_demo_manufacturing_connectors_credential_handles_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19463,6 +19502,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential handle actor binding permission denied"
           },
           "404": {
             "description": "Connector registry reference record not found"
@@ -19489,6 +19531,22 @@
               "title": "Handle Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -19511,6 +19569,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector credential rotation actor binding permission denied"
           },
           "422": {
             "description": "Connector credential rotation validation failed"
@@ -19660,6 +19721,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_credential_lease_create_demo_manufacturing_connectors_credential_leases_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19712,6 +19791,22 @@
               "title": "Lease Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -19759,6 +19854,22 @@
             "schema": {
               "title": "Lease Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -19917,6 +20028,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_egress_policy_create_demo_manufacturing_connectors_egress_policies_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19937,6 +20066,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector egress policy actor binding permission denied"
           },
           "422": {
             "description": "Connector egress policy validation failed"
@@ -20201,6 +20333,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_evidence_invariant_snapshot_demo_manufacturing_connectors_evidence_invariants_snapshots_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20404,6 +20554,24 @@
     "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests": {
       "post": {
         "operationId": "manufacturing_connector_evidence_invariant_snapshot_export_request_demo_manufacturing_connectors_evidence_invariants_snapshots_export_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20602,6 +20770,24 @@
     "/demo/manufacturing/connectors/external-db/preview": {
       "post": {
         "operationId": "manufacturing_external_db_connector_preview_demo_manufacturing_connectors_external_db_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20623,6 +20809,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Connector preview tenant binding permission denied"
+          },
           "404": {
             "description": "Connector registry reference record not found"
           },
@@ -20639,6 +20828,24 @@
     "/demo/manufacturing/connectors/file-csv/preview": {
       "post": {
         "operationId": "manufacturing_file_csv_connector_preview_demo_manufacturing_connectors_file_csv_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20659,6 +20866,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector preview tenant binding permission denied"
           },
           "404": {
             "description": "Connector registry reference record not found"
@@ -20850,6 +21060,22 @@
               "title": "Connector Id",
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -20996,6 +21222,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_manual_import_create_demo_manufacturing_connectors_manual_imports_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -21016,6 +21260,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manual import actor binding permission denied"
           },
           "404": {
             "description": "Connector registry reference record not found"
@@ -21217,6 +21464,24 @@
       },
       "post": {
         "operationId": "manufacturing_connector_ontology_proposal_create_demo_manufacturing_connectors_ontology_proposals_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -21237,6 +21502,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector ontology proposal actor binding permission denied"
           },
           "404": {
             "description": "Connector registry reference record not found"
