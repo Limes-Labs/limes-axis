@@ -1,19 +1,22 @@
 <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
   <!--
-    Favicon derived from the AxisMark brand geometry (components/axis-mark.tsx):
-    a vertical Signal Blue axis with a centered diamond and three rays
-    converging from each side. Strokes are slightly boldened versus the inline
-    mark so the icon stays legible at 16px, and the rays use a mid slate that
-    reads on both light and dark browser tabs. Background stays transparent.
+    Favicon from the AxisMark brand geometry (components/axis-mark.tsx):
+    a vertical Signal Blue axis split by the center diamond (inner ends
+    tapered toward it), with six rays converging on the center - one
+    horizontal and two true-45deg diagonals per side; horizontals reach
+    further out than the diagonals. Strokes are boldened versus the inline
+    mark so the icon stays legible at 16px, and the rays use a mid slate
+    that reads on both light and dark browser tabs. Transparent background.
   -->
-  <line x1="24" y1="4" x2="24" y2="44" stroke="#2F64FF" stroke-width="3" stroke-linecap="round" />
+  <path d="M22.8 3 H25.2 V16.9 L24 19 L22.8 16.9 Z" fill="#2F64FF" />
+  <path d="M22.8 45 H25.2 V31.1 L24 29 L22.8 31.1 Z" fill="#2F64FF" />
   <g stroke="#64748B" stroke-linecap="round">
-    <line x1="4.5" y1="24" x2="17.5" y2="24" stroke-width="3.2" />
-    <line x1="9" y1="16.5" x2="18" y2="22.2" stroke-width="2.6" />
-    <line x1="9" y1="31.5" x2="18" y2="25.8" stroke-width="2.6" />
-    <line x1="43.5" y1="24" x2="30.5" y2="24" stroke-width="3.2" />
-    <line x1="39" y1="16.5" x2="30" y2="22.2" stroke-width="2.6" />
-    <line x1="39" y1="31.5" x2="30" y2="25.8" stroke-width="2.6" />
+    <line x1="5.65" y1="24" x2="17.75" y2="24" stroke-width="2.4" />
+    <line x1="42.35" y1="24" x2="30.25" y2="24" stroke-width="2.4" />
+    <line x1="13.92" y1="13.92" x2="19.86" y2="19.86" stroke-width="2.2" />
+    <line x1="13.92" y1="34.08" x2="19.86" y2="28.14" stroke-width="2.2" />
+    <line x1="34.08" y1="13.92" x2="28.14" y2="19.86" stroke-width="2.2" />
+    <line x1="34.08" y1="34.08" x2="28.14" y2="28.14" stroke-width="2.2" />
   </g>
-  <rect x="19.5" y="19.5" width="9" height="9" rx="1.4" fill="#2F64FF" transform="rotate(45 24 24)" />
+  <rect x="21.31" y="21.31" width="5.37" height="5.37" rx="0.55" fill="#2F64FF" transform="rotate(45 24 24)" />
 </svg>
