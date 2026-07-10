@@ -60,7 +60,6 @@ import {
   type ManufacturingConnectorSyncCheckpointRegistry,
 } from "@/lib/connectors-demo";
 import {
-  formatOverviewTimestamp,
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
@@ -1039,15 +1038,14 @@ export function ConnectorConsole() {
   if (!selectedConnector) {
     return (
       <div className="grid min-w-0 gap-4">
-        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="eyebrow m-0">Connector Foundation</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.plant_name}</h2>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              {registry.scenario} / {registry.tenant_id}
-            </p>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Connector source and status">
+        <div
+          aria-label="Connector source and status"
+          className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+        >
+          <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+            {registry.plant_name} / {registry.scenario} / {registry.tenant_id}
+          </p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className={`status-pill ${sourcePillClass(source)}`}>
               <Cable size={15} />
               {sourceLabel(source)}
@@ -1056,9 +1054,8 @@ export function ConnectorConsole() {
               <ShieldCheck size={15} />
               {platformStatusLabel(registry.registry_status)}
             </span>
-            <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
           </div>
-        </section>
+        </div>
 
         {connectorMetrics.length > 0 ? (
           <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
@@ -1117,15 +1114,14 @@ export function ConnectorConsole() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Connector Foundation</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.plant_name}</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {registry.scenario} / {registry.tenant_id}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Connector source and status">
+      <div
+        aria-label="Connector source and status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          {registry.plant_name} / {registry.scenario} / {registry.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className={`status-pill ${sourcePillClass(source)}`}>
             <Cable size={15} />
             {sourceLabel(source)}
@@ -1134,9 +1130,8 @@ export function ConnectorConsole() {
             <ShieldCheck size={15} />
             {platformStatusLabel(registry.registry_status)}
           </span>
-          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {connectorMetrics.map((metric) => (

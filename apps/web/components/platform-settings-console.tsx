@@ -112,12 +112,7 @@ export function PlatformSettingsConsole() {
 
   if (hasUnavailableSettings || !hasApiSettings) {
     return (
-      <ConsolePage
-        eyebrow="Platform control"
-        sourceLabel={sourceLabel}
-        subtitle="Identity, deployment, support and runtime posture from Axis API contracts."
-        title="Platform settings"
-      >
+      <ConsolePage pageKey="settings" sourceLabel={sourceLabel}>
         <SettingsApiRequired />
       </ConsolePage>
     );
@@ -158,12 +153,7 @@ export function PlatformSettingsConsole() {
   ];
 
   return (
-    <ConsolePage
-      eyebrow="Platform control"
-      sourceLabel={sourceLabel}
-      subtitle="Identity, deployment, support and runtime posture from Axis API contracts."
-      title="Platform settings"
-    >
+    <ConsolePage pageKey="settings" sourceLabel={sourceLabel}>
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label="Platform readiness metrics">
         {cards.map((card) => {
           const Icon = card.icon;

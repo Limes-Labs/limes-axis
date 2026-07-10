@@ -48,6 +48,7 @@ import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyPanel, LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: AgentFilters = {
   domain: allAgentFilter,
@@ -100,12 +101,16 @@ export function AgentRegistry() {
   }
 
   if (!registry) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     return (
       <div className="grid min-w-0 gap-4">
         <ApiRequiredState
           detail="Axis did not receive API-backed agent records. Local fallback agent records are disabled."
           endpoint="/demo/manufacturing/agents"
-          title={source === "loading" ? "Loading agent API" : "Agent API unavailable"}
+          title="Agent API unavailable"
         />
         <ApiRequiredState
           detail="Live agent run records need the agent registry API first. Run timelines are never fabricated."
@@ -128,15 +133,14 @@ export function AgentRegistry() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Demo Agent Registry</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.plant_name}</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {registry.scenario} / {registry.tenant_id}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Agent source and registry status">
+      <div
+        aria-label="Agent source and registry status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          {registry.plant_name} / {registry.scenario} / {registry.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -145,9 +149,9 @@ export function AgentRegistry() {
             <Bot size={15} />
             {platformStatusLabel(registry.registry_status)}
           </span>
-          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(registry.as_of)}</span>
+          <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(registry.as_of)}</span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {registry.metrics.map((metric) => (
@@ -221,6 +225,13 @@ export function AgentRegistry() {
               {proposalCount} proposals
             </span>
           </div>
+          {filteredAgents.length === 0 ? (
+            <EmptyPanel
+              action={{ label: "Reset filters", onClick: resetFilters }}
+              detail="Adjust or reset the domain, autonomy and status filters to see registered agents."
+              title="No agents match the current filters"
+            />
+          ) : null}
           <div className="grid">
             {filteredAgents.map((agent) => {
               const isSelected = agent.agent_id === selectedAgent.agent_id;
@@ -745,19 +756,10 @@ function AgentRunsPanel({ agentId, agentName }: { agentId: string; agentName: st
           title="Agent runs API unavailable"
         />
       ) : runList.runs.length === 0 ? (
-        <section
-          className="min-w-0 rounded-2xl border border-dashed border-slate/45 bg-surface/55 p-4.5 dark:border-white/20 dark:bg-white/4"
-          data-agent-runs-empty
-        >
-          <p className="eyebrow m-0">Flag-Gated</p>
-          <h4 className="font-display mx-0 mt-2 mb-1.5 text-xl text-ink">
-            No runs recorded — execution flag-gated
-          </h4>
-          <p className="m-0 max-w-2xl text-sm leading-snug text-muted">
-            No runs are recorded for this agent. Agent run execution is deferred by default until{" "}
-            {AGENT_RUN_EXECUTION_FLAG} is enabled on the API; Axis never fabricates run rows.
-          </p>
-        </section>
+        <EmptyPanel
+          detail={`No runs are recorded for this agent. Agent run execution is deferred by default until ${AGENT_RUN_EXECUTION_FLAG} is enabled on the API; Axis never fabricates run rows.`}
+          title="No runs recorded yet"
+        />
       ) : (
         <div className="grid min-w-0 gap-3">
           {deferredCount > 0 ? (

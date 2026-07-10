@@ -157,18 +157,14 @@ export function WorkflowConsole() {
 
   return (
     <div className="grid gap-5">
-      <Card className="flex flex-wrap items-start justify-between gap-4">
-        <div className="grid gap-1">
-          <Eyebrow>Demo Workflow Runtime</Eyebrow>
-          <h2 className="font-display m-0 text-2xl text-ink">{workflowData.plant_name}</h2>
-          <p className="m-0 text-sm text-muted">
-            {workflowData.scenario} / {workflowData.tenant_id}
-          </p>
-        </div>
-        <div
-          className="flex flex-wrap items-center gap-2"
-          aria-label="Workflow source and runtime status"
-        >
+      <div
+        aria-label="Workflow source and runtime status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm break-words text-muted">
+          {workflowData.plant_name} / {workflowData.scenario} / {workflowData.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -181,7 +177,7 @@ export function WorkflowConsole() {
             {formatOverviewTimestamp(workflowData.as_of)}
           </span>
         </div>
-      </Card>
+      </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {workflowData.metrics.map((metric) => (

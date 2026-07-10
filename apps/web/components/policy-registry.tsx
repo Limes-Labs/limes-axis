@@ -27,6 +27,7 @@ import { formatOverviewTimestamp } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: PlatformPolicyRegistryFilters = {
   scope: allPolicyFilter,
@@ -59,11 +60,15 @@ export function PolicyRegistry() {
   }
 
   if (!registry) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed platform policy records. Local fallback policy records are disabled."
         endpoint={platformPoliciesPath}
-        title={source === "loading" ? "Loading policy API" : "Policy API unavailable"}
+        title="Policy API unavailable"
       />
     );
   }
@@ -76,15 +81,14 @@ export function PolicyRegistry() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Platform Policy Registry</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant policy rules</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Versioned governance rules for {registry.tenant_id}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Policy source and registry status">
+      <div
+        aria-label="Policy source and registry status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          Versioned governance rules for {registry.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -94,7 +98,7 @@ export function PolicyRegistry() {
             {registry.active_policy_count} active
           </span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">

@@ -12,7 +12,7 @@ export default async function TenantDetailPage({ params }: TenantDetailPageProps
 
   return (
     <ConsolePage
-      eyebrow="Tenants"
+      pageKey="tenants"
       subtitle="Full tenant record, lifecycle timeline with actor and audit evidence, suspend/reactivate actions and per-tenant quota administration."
       title="Tenant detail"
     >

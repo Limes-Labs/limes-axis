@@ -3,11 +3,7 @@ import { AuditExplorer } from "@/components/audit-explorer";
 
 export default function AuditPage() {
   return (
-    <ConsolePage
-      eyebrow="Audit"
-      subtitle="Append-only operational evidence with retention windows, export bundles and integrity proofs."
-      title="Append-only evidence"
-    >
+    <ConsolePage pageKey="audit">
       <AuditExplorer />
     </ConsolePage>
   );

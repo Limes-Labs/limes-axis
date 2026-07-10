@@ -24,6 +24,7 @@ import {
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { EmptyPanel, LoadingPanel } from "@/components/ui/states";
 
 type AuditSource = "loading" | "persisted" | "api" | "unavailable";
 
@@ -163,11 +164,15 @@ export function AuditExplorer() {
   }
 
   if (!auditData) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed audit records. Local fallback audit records are disabled."
         endpoint="/demo/manufacturing/audit/events"
-        title={source === "loading" ? "Loading audit API" : "Audit API unavailable"}
+        title="Audit API unavailable"
       />
     );
   }
@@ -184,15 +189,14 @@ export function AuditExplorer() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Demo Audit Ledger</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{auditData.plant_name}</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {auditData.scenario} / {auditData.tenant_id}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Audit source and ledger status">
+      <div
+        aria-label="Audit source and ledger status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          {auditData.plant_name} / {auditData.scenario} / {auditData.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -201,9 +205,9 @@ export function AuditExplorer() {
             <ShieldCheck size={15} />
             {platformStatusLabel(auditData.ledger_status)}
           </span>
-          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(auditData.as_of)}</span>
+          <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(auditData.as_of)}</span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {auditData.metrics.map((metric) => (
@@ -277,6 +281,13 @@ export function AuditExplorer() {
               {auditData.events.length} total
             </span>
           </div>
+          {filteredEvents.length === 0 ? (
+            <EmptyPanel
+              action={{ label: "Reset filters", onClick: resetFilters }}
+              detail="Adjust or reset the tenant, event and scope filters to see recorded audit events."
+              title="No events match the current filters"
+            />
+          ) : null}
           <div className="grid">
             {filteredEvents.map((event) => {
               const isSelected = event.audit_event_id === selectedEvent.audit_event_id;

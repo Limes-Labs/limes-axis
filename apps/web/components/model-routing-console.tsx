@@ -53,6 +53,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyPanel, LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -130,11 +131,15 @@ function ReferenceModelRouting() {
   }
 
   if (!routing) {
+    if (source === "loading") {
+      return <LoadingPanel layout="detail" />;
+    }
+
     return (
       <ApiRequiredState
         detail="Axis did not receive API-backed model routing records. Local fallback routing records are disabled."
         endpoint="/demo/manufacturing/model-routing"
-        title={source === "loading" ? "Loading routing API" : "Routing API unavailable"}
+        title="Routing API unavailable"
       />
     );
   }
@@ -151,15 +156,14 @@ function ReferenceModelRouting() {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow m-0">Demo Model Router</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{routing.plant_name}</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {routing.scenario} / {routing.tenant_id}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Model routing source and status">
+      <div
+        aria-label="Model routing source and status"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          {routing.plant_name} / {routing.scenario} / {routing.tenant_id}
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-watch" data-source-badge="reference">
             <FileText size={15} />
             Reference
@@ -172,9 +176,9 @@ function ReferenceModelRouting() {
             <Gauge size={15} />
             {platformStatusLabel(routing.routing_status)}
           </span>
-          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(routing.as_of)}</span>
+          <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(routing.as_of)}</span>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {routing.metrics.map((metric) => (
@@ -557,20 +561,10 @@ function LiveModelRouterSection() {
             title="Model invocation API unavailable"
           />
         ) : invocations.data.invocations.length === 0 ? (
-          <section
-            className="min-w-0 rounded-2xl border border-dashed border-slate/45 bg-surface/55 p-4.5 dark:border-white/20 dark:bg-white/4"
-            data-live-invocations-empty
-          >
-            <p className="eyebrow m-0">Flag-Gated</p>
-            <h4 className="font-display mx-0 mt-2 mb-1.5 text-xl text-ink">
-              Execution disabled — flag-gated
-            </h4>
-            <p className="m-0 max-w-2xl text-sm leading-snug text-muted">
-              No live model invocations are recorded for this tenant. Model routing execution is
-              deferred by default until {MODEL_ROUTING_EXECUTION_FLAG} is enabled on the API;
-              deferred requests perform zero provider calls and Axis never fabricates rows.
-            </p>
-          </section>
+          <EmptyPanel
+            detail={`No live model invocations are recorded for this tenant. Model routing execution is deferred by default until ${MODEL_ROUTING_EXECUTION_FLAG} is enabled on the API; deferred requests perform zero provider calls and Axis never fabricates rows.`}
+            title="No invocations recorded yet"
+          />
         ) : (
           <DataTable data-testid="live-invocations-table" minWidth={980}>
             <thead>
@@ -667,19 +661,10 @@ function LiveModelRouterSection() {
             title="Model endpoint API unavailable"
           />
         ) : endpoints.data.endpoints.length === 0 ? (
-          <section
-            className="min-w-0 rounded-2xl border border-dashed border-slate/45 bg-surface/55 p-4.5 dark:border-white/20 dark:bg-white/4"
-            data-live-endpoints-empty
-          >
-            <p className="eyebrow m-0">Empty Registry</p>
-            <h4 className="font-display mx-0 mt-2 mb-1.5 text-xl text-ink">
-              No model endpoints registered
-            </h4>
-            <p className="m-0 max-w-2xl text-sm leading-snug text-muted">
-              This tenant has no registered model endpoints. Register an endpoint through
-              POST /platform/models/endpoints to enable deterministic, fail-closed routing.
-            </p>
-          </section>
+          <EmptyPanel
+            detail="This tenant has no registered model endpoints. Register an endpoint through POST /platform/models/endpoints to enable deterministic, fail-closed routing."
+            title="No model endpoints registered"
+          />
         ) : (
           <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0">
             {endpoints.data.endpoints.map((endpoint) => (
