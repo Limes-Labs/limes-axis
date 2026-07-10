@@ -28,11 +28,20 @@
     },
     "risk_level": {
       "type": "string",
-      "enum": ["low", "medium", "high", "critical"]
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
     },
     "approval_mode": {
       "type": "string",
-      "enum": ["not_required", "required", "conditional"]
+      "enum": [
+        "not_required",
+        "required",
+        "conditional"
+      ]
     },
     "input_schema": {
       "type": "object"

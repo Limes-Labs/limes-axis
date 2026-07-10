@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.limeslabs.eu/axis/connector-manifest.schema.json",
+  "title": "Limes Axis Connector Manifest",
+  "description": "A public-safe connector manifest document as accepted by POST /demo/manufacturing/connectors/manifests and stored on ConnectorManifestRecordView.manifest. Mirrors the ConnectorManifest component of the generated OpenAPI contract. Credential requirements are metadata-only external secret references; raw secret material is rejected by the API.",
+  "type": "object",
+  "required": [
+    "connector_id",
+    "display_name",
+    "connector_type",
+    "version",
+    "source_type",
+    "runtime_boundary",
+    "credential_requirements"
+  ],
+  "properties": {
+    "connector_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "connector_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sync_modes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "runtime_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "credential_requirements": {
+      "$ref": "#/$defs/credential_requirements"
+    },
+    "schema_fields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/schema_field"
+      }
+    },
+    "mapping_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "credential_requirements": {
+      "type": "object",
+      "required": [
+        "storage"
+      ],
+      "properties": {
+        "storage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_secret_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "schema_field": {
+      "type": "object",
+      "required": [
+        "source_column",
+        "target_field",
+        "ontology_target",
+        "data_type",
+        "required",
+        "description"
+      ],
+      "properties": {
+        "source_column": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ontology_target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
