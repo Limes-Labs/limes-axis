@@ -2,12 +2,26 @@ import csv
 import hashlib
 import re
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlparse
 
 import psycopg
 from psycopg import sql
 from pydantic import BaseModel, Field
+
+from axis_api.connector_secret_resolution import (
+    SECRET_RESOLUTION_RESOLVER_NOT_CONFIGURED as _RESOLVER_NOT_CONFIGURED_REASON,
+)
+from axis_api.connector_secret_resolution import (
+    EnvLeaseScopedSecretResolver,
+    LeaseScopedSecretResolver,
+    ResolvedSecret,
+    SecretResolutionError,
+    SecretResolutionRequest,
+)
+
+if TYPE_CHECKING:
+    from axis_api.config import Settings
 
 POSTGRESQL_SQLALCHEMY_SCHEME = "postgresql+psycopg://"
 POSTGRESQL_PSYCOPG_SCHEME = "postgresql://"
@@ -24,6 +38,14 @@ LIVE_SYNC_BATCH_READ_STATUS = "live_sync_batch_read"
 LIVE_SYNC_BATCH_FAILED_STATUS = "live_sync_batch_failed"
 FILE_CSV_LIVE_SYNC_SOURCE_MODE = "file_csv_live_sync"
 EXTERNAL_DB_LIVE_SYNC_SOURCE_MODE = "external_db_live_sync"
+RUNTIME_EGRESS_BLOCK_REASON = "runtime_egress_target_mismatch"
+RUNTIME_EGRESS_ENFORCED_TARGET_MATCH = "enforced_target_match"
+# Placeholder DSN used when the profile is configured for lease-scoped secret
+# resolution: the real DSN is resolved per query from lease evidence and this
+# sentinel (an unresolvable host) fails closed if it is ever used directly.
+LEASE_SCOPED_RESOLUTION_DSN_SENTINEL = (
+    "postgresql://lease-scoped-secret-resolution.invalid:5432/axis"
+)
 
 
 class ConnectorExecutionRequest(BaseModel):
@@ -123,6 +145,8 @@ class ConnectorSyncExecutionRequest(BaseModel):
     credential_lease_mode: str = Field(default="", min_length=0)
     credential_lease_runtime_boundary: str = Field(default="", min_length=0)
     credential_lease_result: dict = Field(default_factory=dict)
+    credential_secret_provider: str = Field(default="", min_length=0)
+    credential_secret_ref: str = Field(default="", min_length=0)
     egress_policy_evidence: dict[str, str] = Field(default_factory=dict)
     schedule_id: str = Field(min_length=1)
     schedule_ref: str = Field(min_length=1)
@@ -161,6 +185,21 @@ class ExternalPostgresLiveQueryProfile(BaseModel):
     )
     row_limit: int = Field(default=100, ge=1, le=1_000)
     connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
+    statement_timeout_seconds: int = Field(default=10, ge=1, le=300)
+
+    def with_resolved_secret(
+        self,
+        resolved_secret: ResolvedSecret,
+    ) -> "ExternalPostgresLiveQueryProfile":
+        """From-resolved-secret construction path.
+
+        Only the DSN is replaced with the in-memory resolved material. The
+        pinned ``endpoint_target_sha256`` is deliberately NOT recomputed from
+        the resolved DSN: runtime egress enforcement compares the resolved
+        connection target against this pinned hash (and against the egress
+        policy evidence), so a swapped secret cannot silently retarget egress.
+        """
+        return self.model_copy(update={"dsn": resolved_secret.dsn})
 
 
 class FileCsvLiveSyncProfile(BaseModel):
@@ -212,6 +251,10 @@ class ConnectorLiveSyncBatchRequest(BaseModel):
     offset: int = Field(ge=0)
     batch_size: int = Field(ge=1)
     field_mappings: list[ConnectorLiveSyncFieldMapping] = Field(default_factory=list)
+    credential_lease_result: dict = Field(default_factory=dict)
+    credential_secret_provider: str = Field(default="", min_length=0)
+    credential_secret_ref: str = Field(default="", min_length=0)
+    egress_policy_evidence: dict[str, str] = Field(default_factory=dict)
     input_summary: dict[str, str] = Field(default_factory=dict)
 
 
@@ -230,6 +273,9 @@ class ConnectorLiveSyncBatchResult(BaseModel):
     next_offset: int = Field(default=0, ge=0)
     source_exhausted: bool = False
     error_code: str = Field(default="", min_length=0)
+    # Public-safe runtime evidence (secret resolution decision, runtime egress
+    # enforcement outcome). Never carries secret material or connection strings.
+    evidence_summary: dict[str, str] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
 
 
@@ -360,6 +406,9 @@ class SelfHostedConnectorSyncExecutionRuntime:
         external_db_live_query_preflight_enabled: bool = False,
         external_db_live_query_execution_enabled: bool = False,
         external_postgres_live_query_profile: ExternalPostgresLiveQueryProfile | None = None,
+        lease_scoped_secret_resolution_enabled: bool = False,
+        runtime_egress_enforcement_enabled: bool = False,
+        secret_resolver: LeaseScopedSecretResolver | None = None,
     ) -> None:
         self.external_db_sync_enabled = external_db_sync_enabled
         self.external_db_live_query_preflight_enabled = external_db_live_query_preflight_enabled
@@ -367,6 +416,9 @@ class SelfHostedConnectorSyncExecutionRuntime:
             external_db_live_query_execution_enabled
         )
         self.external_postgres_live_query_profile = external_postgres_live_query_profile
+        self.lease_scoped_secret_resolution_enabled = lease_scoped_secret_resolution_enabled
+        self.runtime_egress_enforcement_enabled = runtime_egress_enforcement_enabled
+        self.secret_resolver = secret_resolver
 
     def execute(self, request: ConnectorSyncExecutionRequest) -> ConnectorSyncExecutionResult:
         if (
@@ -645,14 +697,63 @@ class SelfHostedConnectorSyncExecutionRuntime:
                 reason=reason,
             )
 
+        effective_profile = profile
+        runtime_security_evidence: dict[str, str] = {}
+        if self.lease_scoped_secret_resolution_enabled:
+            try:
+                resolved_secret = _resolve_lease_scoped_secret(
+                    resolver=self.secret_resolver,
+                    connector_id=request.connector_id,
+                    connection_profile_id=connection_profile_id,
+                    credential_access_mode=request.input_summary.get(
+                        "credential_access_mode", ""
+                    ),
+                    secret_provider=request.credential_secret_provider,
+                    secret_ref=request.credential_secret_ref,
+                    lease_result=request.credential_lease_result,
+                )
+            except SecretResolutionError as exc:
+                return _blocked_external_db_live_read_result(
+                    request,
+                    preflight_result_summary={
+                        **preflight_result_summary,
+                        "secret_retrieval_decision": f"blocked_{exc.reason}",
+                    },
+                    connection_profile_id=connection_profile_id,
+                    reason=exc.reason,
+                )
+            effective_profile = profile.with_resolved_secret(resolved_secret)
+            runtime_security_evidence.update(resolved_secret.public_evidence())
+        if self.runtime_egress_enforcement_enabled:
+            egress_block_reason = runtime_egress_target_block_reason(
+                dsn=effective_profile.dsn,
+                profile=profile,
+                egress_policy_evidence=request.egress_policy_evidence,
+            )
+            if egress_block_reason is not None:
+                return _blocked_external_db_live_read_result(
+                    request,
+                    preflight_result_summary={
+                        **preflight_result_summary,
+                        **runtime_security_evidence,
+                        "runtime_egress_enforcement": f"blocked_{egress_block_reason}",
+                    },
+                    connection_profile_id=connection_profile_id,
+                    reason=egress_block_reason,
+                )
+            runtime_security_evidence["runtime_egress_enforcement"] = (
+                RUNTIME_EGRESS_ENFORCED_TARGET_MATCH
+            )
+
         selected_columns = _requested_or_default_columns(
             request.input_summary.get("selected_columns", ""),
             profile.allowed_columns,
         )
         try:
             records_read = _read_external_postgres_rows(
-                profile,
+                effective_profile,
                 selected_columns=selected_columns,
+                session_hardening_enabled=self.runtime_egress_enforcement_enabled,
             )
         except psycopg.Error:
             return _blocked_external_db_live_read_result(
@@ -664,6 +765,7 @@ class SelfHostedConnectorSyncExecutionRuntime:
 
         result_summary = {
             **preflight_result_summary,
+            **runtime_security_evidence,
             "runtime_status": "sync_execution_completed",
             "external_sync_started": "true",
             "schema_name": schema_name,
@@ -739,11 +841,17 @@ class SelfHostedConnectorLiveSyncRuntime:
         external_db_live_sync_enabled: bool = False,
         external_postgres_profile: ExternalPostgresLiveQueryProfile | None = None,
         external_db_batch_size: int = 100,
+        lease_scoped_secret_resolution_enabled: bool = False,
+        runtime_egress_enforcement_enabled: bool = False,
+        secret_resolver: LeaseScopedSecretResolver | None = None,
     ) -> None:
         self.file_csv_profile = file_csv_profile
         self.external_db_live_sync_enabled = external_db_live_sync_enabled
         self.external_postgres_profile = external_postgres_profile
         self.external_db_batch_size = external_db_batch_size
+        self.lease_scoped_secret_resolution_enabled = lease_scoped_secret_resolution_enabled
+        self.runtime_egress_enforcement_enabled = runtime_egress_enforcement_enabled
+        self.secret_resolver = secret_resolver
 
     def plan(self, request: ConnectorLiveSyncPlanRequest) -> ConnectorLiveSyncPlan:
         if not request.field_mappings:
@@ -957,14 +1065,55 @@ class SelfHostedConnectorLiveSyncRuntime:
                 status=LIVE_SYNC_BATCH_FAILED_STATUS,
                 error_code="source_schema_mismatch",
             )
+        effective_profile = profile
+        evidence_summary: dict[str, str] = {}
+        if self.lease_scoped_secret_resolution_enabled:
+            try:
+                resolved_secret = _resolve_lease_scoped_secret(
+                    resolver=self.secret_resolver,
+                    connector_id=request.connector_id,
+                    connection_profile_id=request.input_summary.get(
+                        "connection_profile_id", ""
+                    ),
+                    credential_access_mode=request.input_summary.get(
+                        "credential_access_mode", ""
+                    ),
+                    secret_provider=request.credential_secret_provider,
+                    secret_ref=request.credential_secret_ref,
+                    lease_result=request.credential_lease_result,
+                )
+            except SecretResolutionError as exc:
+                return ConnectorLiveSyncBatchResult(
+                    adapter=self.external_db_adapter_name,
+                    status=LIVE_SYNC_BATCH_FAILED_STATUS,
+                    error_code=f"blocked_{exc.reason}",
+                )
+            effective_profile = profile.with_resolved_secret(resolved_secret)
+            evidence_summary.update(resolved_secret.public_evidence())
+        if self.runtime_egress_enforcement_enabled:
+            egress_block_reason = runtime_egress_target_block_reason(
+                dsn=effective_profile.dsn,
+                profile=profile,
+                egress_policy_evidence=request.egress_policy_evidence,
+            )
+            if egress_block_reason is not None:
+                return ConnectorLiveSyncBatchResult(
+                    adapter=self.external_db_adapter_name,
+                    status=LIVE_SYNC_BATCH_FAILED_STATUS,
+                    error_code=f"blocked_{egress_block_reason}",
+                )
+            evidence_summary["runtime_egress_enforcement"] = (
+                RUNTIME_EGRESS_ENFORCED_TARGET_MATCH
+            )
         batch_size = min(request.batch_size, profile.row_limit - request.offset)
         try:
             rows = _read_external_postgres_batch_rows(
-                profile,
+                effective_profile,
                 selected_columns=selected_columns,
                 order_column=order_column,
                 offset=request.offset,
                 batch_size=batch_size,
+                session_hardening_enabled=self.runtime_egress_enforcement_enabled,
             )
         except psycopg.OperationalError:
             return ConnectorLiveSyncBatchResult(
@@ -987,6 +1136,7 @@ class SelfHostedConnectorLiveSyncRuntime:
             records_rejected=records_rejected,
             next_offset=next_offset,
             source_exhausted=len(rows) < batch_size or next_offset >= profile.row_limit,
+            evidence_summary=evidence_summary,
             notes=["Postgres batch read through the allowlisted profile boundary."],
         )
 
@@ -1144,6 +1294,7 @@ def _read_external_postgres_batch_rows(
     order_column: str,
     offset: int,
     batch_size: int,
+    session_hardening_enabled: bool = False,
 ) -> list[dict[str, str]]:
     query = sql.SQL(
         "SELECT {columns} FROM {schema}.{table} ORDER BY {order_column} "
@@ -1159,6 +1310,7 @@ def _read_external_postgres_batch_rows(
     with psycopg.connect(
         _psycopg_dsn(profile.dsn),
         connect_timeout=profile.connect_timeout_seconds,
+        **_session_hardening_connect_kwargs(profile, session_hardening_enabled),
     ) as connection, connection.cursor() as cursor:
         cursor.execute("SET TRANSACTION READ ONLY")
         cursor.execute(query)
@@ -1283,6 +1435,7 @@ def _read_external_postgres_rows(
     profile: ExternalPostgresLiveQueryProfile,
     *,
     selected_columns: list[str],
+    session_hardening_enabled: bool = False,
 ) -> int:
     bounded_read = sql.SQL(
         "SELECT {columns} FROM {schema}.{table} LIMIT {limit}"
@@ -1298,11 +1451,98 @@ def _read_external_postgres_rows(
     with psycopg.connect(
         _psycopg_dsn(profile.dsn),
         connect_timeout=profile.connect_timeout_seconds,
+        **_session_hardening_connect_kwargs(profile, session_hardening_enabled),
     ) as connection, connection.cursor() as cursor:
         cursor.execute("SET TRANSACTION READ ONLY")
         cursor.execute(query)
         row = cursor.fetchone()
     return int(row[0]) if row is not None else 0
+
+
+def _session_hardening_connect_kwargs(
+    profile: ExternalPostgresLiveQueryProfile,
+    session_hardening_enabled: bool,
+) -> dict[str, str]:
+    """Session-level read-only + statement timeout startup options.
+
+    Applied only when runtime egress enforcement is enabled so flag-off
+    behavior stays byte-identical: the existing per-transaction
+    ``SET TRANSACTION READ ONLY`` remains in both modes.
+    """
+    if not session_hardening_enabled:
+        return {}
+    statement_timeout_ms = profile.statement_timeout_seconds * 1000
+    return {
+        "options": (
+            "-c default_transaction_read_only=on "
+            f"-c statement_timeout={statement_timeout_ms}"
+        ),
+    }
+
+
+def runtime_egress_target_block_reason(
+    *,
+    dsn: str,
+    profile: ExternalPostgresLiveQueryProfile,
+    egress_policy_evidence: dict[str, str],
+) -> str | None:
+    """Fail-closed runtime egress enforcement against the ACTUAL connect target.
+
+    The preflight validates egress-policy *evidence*; this helper enforces it at
+    connect time: the sha256 of the host:port the driver is about to dial must
+    match both the profile's pinned endpoint target hash and the egress-policy
+    evidence (private endpoint ref included). Any mismatch — including an
+    unparseable DSN — blocks with ``runtime_egress_target_mismatch``.
+    """
+    try:
+        connect_target_sha256 = postgres_endpoint_target_sha256(dsn)
+    except ValueError:
+        return RUNTIME_EGRESS_BLOCK_REASON
+    if connect_target_sha256 != profile.endpoint_target_sha256:
+        return RUNTIME_EGRESS_BLOCK_REASON
+    if (
+        egress_policy_evidence.get("egress_policy_endpoint_target_sha256", "")
+        != connect_target_sha256
+    ):
+        return RUNTIME_EGRESS_BLOCK_REASON
+    if (
+        egress_policy_evidence.get("egress_policy_private_endpoint_ref", "")
+        != profile.private_endpoint_ref
+    ):
+        return RUNTIME_EGRESS_BLOCK_REASON
+    return None
+
+
+def _resolve_lease_scoped_secret(
+    *,
+    resolver: LeaseScopedSecretResolver | None,
+    connector_id: str,
+    connection_profile_id: str,
+    credential_access_mode: str,
+    secret_provider: str,
+    secret_ref: str,
+    lease_result: dict,
+) -> ResolvedSecret:
+    if resolver is None:
+        raise SecretResolutionError(
+            _RESOLVER_NOT_CONFIGURED_REASON,
+            "Lease-scoped secret resolution is enabled but no resolver is configured; "
+            "failing closed.",
+        )
+    return resolver.resolve(
+        SecretResolutionRequest(
+            connector_id=connector_id,
+            connection_profile_id=connection_profile_id,
+            credential_access_mode=credential_access_mode,
+            secret_provider=secret_provider,
+            secret_ref=secret_ref,
+            lease_status=str(lease_result.get("status", "")),
+            lease_ref=str(lease_result.get("provider_lease_ref", "")),
+            secret_material_returned=_bool_as_text(
+                lease_result.get("secret_material_returned", True)
+            ),
+        )
+    )
 
 
 def _psycopg_dsn(dsn: str) -> str:
@@ -1453,6 +1693,7 @@ def _secret_retrieval_decision(
     secret_reference_evidence_valid: bool,
     lease_evidence_valid: bool,
     secret_material_returned: str,
+    lease_scoped_secret_resolution: str = "",
 ) -> str:
     if not preflight_enabled:
         return "not_started"
@@ -1463,5 +1704,123 @@ def _secret_retrieval_decision(
     if not secret_reference_evidence_valid:
         return "blocked_secret_reference_evidence"
     if lease_evidence_valid:
+        # Lease-scoped resolution (when enabled) escalates the decision from
+        # reference-only to `resolved_lease_scoped_secret` (or a typed
+        # `blocked_secret_resolution_*` reason). Empty keeps today's decision.
+        if lease_scoped_secret_resolution:
+            return lease_scoped_secret_resolution
         return "lease_scoped_reference_only"
     return "blocked_credential_lease_evidence"
+
+
+def file_csv_live_sync_profile_from_settings(
+    settings: "Settings",
+) -> FileCsvLiveSyncProfile | None:
+    if not settings.file_csv_live_sync_root:
+        return None
+    return FileCsvLiveSyncProfile(
+        profile_id=settings.file_csv_live_sync_profile_id,
+        source_root=settings.file_csv_live_sync_root,
+        max_rows=settings.file_csv_live_sync_max_rows,
+        batch_size=settings.file_csv_live_sync_batch_size,
+    )
+
+
+def external_postgres_live_query_profile_from_settings(
+    settings: "Settings",
+) -> ExternalPostgresLiveQueryProfile | None:
+    if settings.external_db_live_query_dsn:
+        # Static-DSN path: preserved as the fallback profile construction.
+        return ExternalPostgresLiveQueryProfile(
+            profile_id=settings.external_db_live_query_profile_id,
+            dsn=settings.external_db_live_query_dsn,
+            schema_name=settings.external_db_live_query_schema,
+            table_name=settings.external_db_live_query_table,
+            allowed_columns=settings.external_db_live_query_columns,
+            private_endpoint_ref=settings.external_db_live_query_private_endpoint_ref,
+            endpoint_target_sha256=postgres_endpoint_target_sha256(
+                settings.external_db_live_query_dsn,
+            ),
+            row_limit=settings.external_db_live_query_row_limit,
+        )
+    if (
+        settings.external_db_lease_scoped_secret_resolution_enabled
+        and settings.external_db_live_query_endpoint_target_sha256
+    ):
+        # Lease-scoped resolution path: no static DSN is configured; the
+        # operator pins the approved endpoint target hash instead and the DSN
+        # is resolved per query from lease-scoped secret references.
+        return ExternalPostgresLiveQueryProfile(
+            profile_id=settings.external_db_live_query_profile_id,
+            dsn=LEASE_SCOPED_RESOLUTION_DSN_SENTINEL,
+            schema_name=settings.external_db_live_query_schema,
+            table_name=settings.external_db_live_query_table,
+            allowed_columns=settings.external_db_live_query_columns,
+            private_endpoint_ref=settings.external_db_live_query_private_endpoint_ref,
+            endpoint_target_sha256=settings.external_db_live_query_endpoint_target_sha256,
+            row_limit=settings.external_db_live_query_row_limit,
+        )
+    return None
+
+
+def lease_scoped_secret_resolver_from_settings(
+    settings: "Settings",
+) -> LeaseScopedSecretResolver | None:
+    if not settings.external_db_lease_scoped_secret_resolution_enabled:
+        return None
+    return EnvLeaseScopedSecretResolver()
+
+
+def connector_sync_execution_runtime_from_settings(
+    settings: "Settings",
+) -> ConnectorSyncExecutionRuntime:
+    if not settings.connector_sync_execution_enabled:
+        return DeferredConnectorSyncExecutionRuntime()
+    return SelfHostedConnectorSyncExecutionRuntime(
+        external_db_sync_enabled=settings.external_db_sync_execution_enabled,
+        external_db_live_query_preflight_enabled=(
+            settings.external_db_live_query_preflight_enabled
+        ),
+        external_db_live_query_execution_enabled=(
+            settings.external_db_live_query_execution_enabled
+        ),
+        external_postgres_live_query_profile=(
+            external_postgres_live_query_profile_from_settings(settings)
+        ),
+        lease_scoped_secret_resolution_enabled=(
+            settings.external_db_lease_scoped_secret_resolution_enabled
+        ),
+        runtime_egress_enforcement_enabled=(
+            settings.external_db_runtime_egress_enforcement_enabled
+        ),
+        secret_resolver=lease_scoped_secret_resolver_from_settings(settings),
+    )
+
+
+def connector_live_sync_runtime_from_settings(
+    settings: "Settings",
+) -> ConnectorLiveSyncRuntime:
+    if not (
+        settings.connector_sync_execution_enabled
+        and settings.connector_live_sync_execution_enabled
+    ):
+        return DeferredConnectorLiveSyncRuntime()
+    return SelfHostedConnectorLiveSyncRuntime(
+        file_csv_profile=file_csv_live_sync_profile_from_settings(settings),
+        external_db_live_sync_enabled=(
+            settings.external_db_sync_execution_enabled
+            and settings.external_db_live_query_preflight_enabled
+            and settings.external_db_live_query_execution_enabled
+        ),
+        external_postgres_profile=(
+            external_postgres_live_query_profile_from_settings(settings)
+        ),
+        external_db_batch_size=settings.external_db_live_sync_batch_size,
+        lease_scoped_secret_resolution_enabled=(
+            settings.external_db_lease_scoped_secret_resolution_enabled
+        ),
+        runtime_egress_enforcement_enabled=(
+            settings.external_db_runtime_egress_enforcement_enabled
+        ),
+        secret_resolver=lease_scoped_secret_resolver_from_settings(settings),
+    )

@@ -14,6 +14,7 @@ from temporalio.client import Schedule, ScheduleAlreadyRunningError
 
 from axis_worker.schedules import (
     AUDIT_RETENTION_SCHEDULE_ID,
+    CONNECTOR_LIVE_SYNC_SCHEDULE_ID,
     SESSION_SWEEP_SCHEDULE_ID,
     TENANT_RECONCILIATION_SCHEDULE_ID,
     register_maintenance_schedules,
@@ -176,3 +177,43 @@ async def test_schedule_intervals_read_from_settings() -> None:
     assert audit.spec.intervals[0].every.total_seconds() == 1000
     sweep = client.schedules[SESSION_SWEEP_SCHEDULE_ID]
     assert sweep.spec.intervals[0].every.total_seconds() == 200
+
+
+async def test_connector_live_sync_schedule_absent_when_flag_disabled() -> None:
+    client = FakeScheduleClient()
+    outcomes = await register_maintenance_schedules(
+        client, _settings(), task_queue="axis-foundation"
+    )
+
+    # Flag-off keeps today's exact schedule set: no new schedule appears.
+    assert set(outcomes) == ALL_IDS
+    assert CONNECTOR_LIVE_SYNC_SCHEDULE_ID not in client.schedules
+
+
+async def test_connector_live_sync_schedule_registered_behind_flag() -> None:
+    client = FakeScheduleClient()
+    settings = _settings(
+        AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED="true",
+        AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_INTERVAL_SECONDS="600",
+        AXIS_SCHEDULED_JOBS_ENABLED="true",
+    )
+    outcomes = await register_maintenance_schedules(
+        client, settings, task_queue="axis-foundation"
+    )
+
+    assert set(outcomes) == ALL_IDS | {CONNECTOR_LIVE_SYNC_SCHEDULE_ID}
+    schedule = client.schedules[CONNECTOR_LIVE_SYNC_SCHEDULE_ID]
+    assert schedule.spec.intervals[0].every.total_seconds() == 600
+    assert schedule.state.paused is False
+
+
+async def test_connector_live_sync_schedule_created_paused_without_master_flag() -> None:
+    client = FakeScheduleClient()
+    settings = _settings(
+        AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_ENABLED="true",
+        AXIS_SCHEDULED_JOBS_ENABLED="false",
+    )
+    await register_maintenance_schedules(client, settings, task_queue="axis-foundation")
+
+    # The master scheduled-jobs flag still seeds the created paused state.
+    assert client.schedules[CONNECTOR_LIVE_SYNC_SCHEDULE_ID].state.paused is True

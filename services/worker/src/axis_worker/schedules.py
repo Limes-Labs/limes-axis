@@ -35,6 +35,9 @@ from temporalio.client import (
     ScheduleUpdateInput,
 )
 
+from axis_worker.workflows.connector_live_sync_workflows import (
+    ConnectorScheduledLiveSyncWorkflow,
+)
 from axis_worker.workflows.maintenance_workflows import (
     AuditRetentionDeletionWorkflow,
     OrphanedSessionSweepWorkflow,
@@ -44,6 +47,7 @@ from axis_worker.workflows.maintenance_workflows import (
 AUDIT_RETENTION_SCHEDULE_ID = "axis-audit-retention-deletion"
 SESSION_SWEEP_SCHEDULE_ID = "axis-orphaned-session-sweep"
 TENANT_RECONCILIATION_SCHEDULE_ID = "axis-tenant-state-reconciliation"
+CONNECTOR_LIVE_SYNC_SCHEDULE_ID = "axis-connector-scheduled-live-sync"
 
 
 class ScheduleClientPort(Protocol):
@@ -63,7 +67,7 @@ class ScheduledJobSpec:
 
 
 def build_scheduled_job_specs(settings: Settings) -> list[ScheduledJobSpec]:
-    return [
+    specs = [
         ScheduledJobSpec(
             schedule_id=AUDIT_RETENTION_SCHEDULE_ID,
             workflow=AuditRetentionDeletionWorkflow.run,
@@ -83,6 +87,18 @@ def build_scheduled_job_specs(settings: Settings) -> list[ScheduledJobSpec]:
             interval_seconds=settings.scheduled_tenant_reconciliation_interval_seconds,
         ),
     ]
+    if settings.connector_scheduled_live_sync_enabled:
+        # Registered only behind the worker flag so flag-off deployments keep
+        # today's exact schedule set (no new paused schedule appears).
+        specs.append(
+            ScheduledJobSpec(
+                schedule_id=CONNECTOR_LIVE_SYNC_SCHEDULE_ID,
+                workflow=ConnectorScheduledLiveSyncWorkflow.run,
+                workflow_id="axis-connector-scheduled-live-sync-run",
+                interval_seconds=settings.connector_scheduled_live_sync_interval_seconds,
+            )
+        )
+    return specs
 
 
 def _build_schedule(spec: ScheduledJobSpec, *, task_queue: str, paused: bool) -> Schedule:
