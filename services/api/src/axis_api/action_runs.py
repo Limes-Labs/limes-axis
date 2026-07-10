@@ -26,6 +26,7 @@ from axis_api.platform_policies import (
     PlatformPolicyScope,
     enforce_platform_policy_deny,
 )
+from axis_api.workflow_history import ensure_workflow_run
 from axis_api.workflow_runtime import (
     DeferredWorkflowSignalRuntime,
     WorkflowActionSignalRequest,
@@ -592,6 +593,8 @@ async def record_demo_action_run_outcome(
     repository: AxisPersistenceRepository,
     action_run_id: UUID | str,
     request: ActionRunOutcomeRequest,
+    *,
+    workflow_history_persistence_enabled: bool = False,
 ) -> ActionRunOutcomePersistenceResult:
     tenant_id = "tenant_demo_manufacturing"
     try:
@@ -669,6 +672,8 @@ async def record_demo_action_run_outcome(
     )
     workflow_run = None
     if action_run.workflow_id is not None:
+        if workflow_history_persistence_enabled:
+            ensure_workflow_run(repository, tenant_id, action_run.workflow_id)
         workflow_run = repository.record_workflow_action_run_outcome(
             WorkflowActionRunOutcomeUpdate(
                 tenant_id=tenant_id,
@@ -710,6 +715,8 @@ async def record_demo_action_run(
     action_id: str,
     request: ActionRunRequest,
     workflow_runtime: WorkflowSignalRuntime | None = None,
+    *,
+    workflow_history_persistence_enabled: bool = False,
 ) -> ActionRunPersistenceResult:
     tenant_id, action, schema_version = _find_demo_action(repository, action_id)
     _validate_payload(action, request.payload)
@@ -812,6 +819,8 @@ async def record_demo_action_run(
     )
     workflow_run = None
     if action.workflow_bindings:
+        if workflow_history_persistence_enabled:
+            ensure_workflow_run(repository, tenant_id, action.workflow_bindings[0])
         workflow_run = repository.record_workflow_action_run(
             WorkflowActionRunUpdate(
                 tenant_id=tenant_id,
