@@ -6,9 +6,11 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
   "limes-axis-api",
   "opentelemetry-api>=1.39",
+  "opentelemetry-exporter-otlp-proto-http>=1.42",
+  "opentelemetry-instrumentation>=0.63b0",
   "opentelemetry-sdk>=1.39",
   "pydantic>=2.12",
-  "temporalio>=1.20"
+  "temporalio>=1.20",
 ]
 
 [dependency-groups]

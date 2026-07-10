@@ -85,6 +85,22 @@ class Settings(BaseSettings):
         ge=60,
         alias="AXIS_SCHEDULED_TENANT_RECONCILIATION_INTERVAL_SECONDS",
     )
+    otel_enabled: bool = Field(
+        default=False,
+        alias="AXIS_OTEL_ENABLED",
+    )
+    otel_exporter_otlp_endpoint: str = Field(
+        default="http://localhost:4318",
+        alias="AXIS_OTEL_EXPORTER_OTLP_ENDPOINT",
+    )
+    otel_service_name: str | None = Field(
+        default=None,
+        alias="AXIS_OTEL_SERVICE_NAME",
+    )
+    otel_metrics_enabled: bool = Field(
+        default=True,
+        alias="AXIS_OTEL_METRICS_ENABLED",
+    )
     postgres_dsn: str = Field(
         default="postgresql+psycopg://axis:axis@localhost:5432/axis",
         alias="AXIS_POSTGRES_DSN",
