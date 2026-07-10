@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { ConsoleTopbar } from "@/components/console-topbar";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
 type ConsolePageProps = {
   title: string;
@@ -13,6 +14,12 @@ type ConsolePageProps = {
   children: ReactNode;
 };
 
+/** Two-tone page title: the first word renders in Signal Blue. */
+function splitTitle(title: string): { lead: string; rest: string } {
+  const [lead = "", ...rest] = title.trim().split(/\s+/);
+  return { lead, rest: rest.join(" ") };
+}
+
 export function ConsolePage({
   title,
   subtitle,
@@ -21,13 +28,24 @@ export function ConsolePage({
   controls,
   children,
 }: ConsolePageProps) {
+  const { lead, rest } = splitTitle(title);
+
   return (
     <div className="ops-console">
       <ConsoleTopbar sourceLabel={sourceLabel} />
       <section className="ops-page-header">
         <div>
-          {eyebrow ? <p className="section-label">{eyebrow}</p> : null}
-          <h1 className="ops-page-title">{title}</h1>
+          {eyebrow ? <Eyebrow className="section-label">{eyebrow}</Eyebrow> : null}
+          <h1 className="ops-page-title font-display">
+            {rest ? (
+              <>
+                <span className="ops-page-title-lead">{lead} </span>
+                {rest}
+              </>
+            ) : (
+              lead
+            )}
+          </h1>
           {subtitle ? <p className="ops-page-subtitle">{subtitle}</p> : null}
         </div>
         {controls ? (
@@ -36,6 +54,7 @@ export function ConsolePage({
           </div>
         ) : null}
       </section>
+      <div aria-hidden="true" className="rule-dotted ops-page-rule" />
       <div className="ops-page-content">{children}</div>
     </div>
   );
