@@ -15,7 +15,9 @@ import {
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Input } from "@/components/ui/input";
 import { axisFetchJson } from "@/lib/axis-api";
+import { cn } from "@/lib/cn";
 import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -28,6 +30,25 @@ import type {
 import { useConsole } from "@/providers/console-provider";
 
 type TopbarPanel = "notifications" | "help" | "account" | null;
+
+/* Shared popover chrome. The `.topbar-popover-header` / `.notification-row`
+ * class names stay as e2e markers; all styling is Tailwind on tokens. */
+const popoverClass =
+  "absolute top-[calc(100%+10px)] right-0 z-70 grid max-h-[calc(100vh-94px)] w-[min(360px,calc(100vw-32px))] gap-3 overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-3 shadow-[0_26px_80px_rgb(4_18_46/0.28)] dark:border-white/10";
+const popoverRowClass =
+  "grid min-w-0 grid-cols-[18px_minmax(0,1fr)] items-start gap-2.5 rounded-xl border border-line/60 bg-ink/3 p-2.5 text-ink/80 dark:border-white/10 dark:bg-white/4 " +
+  "[&_strong]:block [&_strong]:min-w-0 [&_strong]:text-xs [&_strong]:leading-tight [&_strong]:break-words [&_strong]:text-ink " +
+  "[&_small]:mt-0.5 [&_small]:block [&_small]:text-[11px] [&_small]:leading-snug [&_small]:text-muted [&>svg]:text-positive";
+const popoverRowLinkClass =
+  "transition-colors hover:border-signal/30 hover:bg-signal/10";
+const popoverLinkClass =
+  "inline-flex min-h-[34px] items-center justify-center rounded-xl border border-line text-xs font-semibold text-signal transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/15";
+const commandClass =
+  "inline-flex min-h-9 w-full min-w-0 items-center justify-center gap-2 rounded-full bg-navy px-4 text-sm font-medium text-white transition-colors select-none hover:bg-signal dark:bg-signal dark:hover:bg-white dark:hover:text-navy";
+const commandSecondaryClass =
+  "inline-flex min-h-9 w-full min-w-0 items-center justify-center gap-2 rounded-full border border-line bg-transparent px-4 text-sm font-medium text-ink transition-colors select-none hover:border-signal/50 hover:text-signal dark:border-white/20";
+const tagClass =
+  "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs break-words text-muted dark:border-white/15 dark:bg-white/5";
 
 function apiStatusClass(state: string): string {
   if (state === "online") {
@@ -100,6 +121,15 @@ function identitySessionTone(identitySession: IdentitySessionReadModel | null): 
   return identitySession.api_auth_required ? "signal-action-required" : "signal-watch";
 }
 
+function PopoverHeader({ label, children }: { label: string; children?: React.ReactNode }) {
+  return (
+    <div className="topbar-popover-header flex items-center justify-between gap-3">
+      <p className="eyebrow m-0">{label}</p>
+      {children}
+    </div>
+  );
+}
+
 function NotificationPanel({
   center,
   identitySession,
@@ -116,12 +146,11 @@ function NotificationPanel({
 
   if (!center) {
     return (
-      <section className="topbar-popover" aria-label="Notifications">
-        <div className="topbar-popover-header">
-          <p className="section-label">Notifications</p>
+      <section className={popoverClass} aria-label="Notifications">
+        <PopoverHeader label="Notifications">
           <span className="status-pill signal-action-required">API required</span>
-        </div>
-        <p className="row-detail">
+        </PopoverHeader>
+        <p className="m-0 text-sm leading-snug text-muted">
           Live notification data requires `/demo/manufacturing/notifications`.
         </p>
       </section>
@@ -175,12 +204,11 @@ function NotificationPanel({
   }
 
   return (
-    <section className="topbar-popover" aria-label="Notifications">
-      <div className="topbar-popover-header">
-        <p className="section-label">Notifications</p>
+    <section className={popoverClass} aria-label="Notifications">
+      <PopoverHeader label="Notifications">
         <span className="status-pill signal-ready">{center.unread_count} live</span>
-      </div>
-      <div className="topbar-popover-list">
+      </PopoverHeader>
+      <div className="grid gap-2">
         {items.length > 0 ? (
           items.map((item) => {
             const acknowledged = item.read_state === "acknowledged";
@@ -188,16 +216,18 @@ function NotificationPanel({
             return (
               <div
                 aria-label={`${item.action_label}: ${item.title}`}
-                className={`topbar-popover-row notification-row${
-                  acknowledged ? " notification-row-acknowledged" : ""
-                }`}
+                className={cn(
+                  "notification-row",
+                  popoverRowClass,
+                  acknowledged && "opacity-70",
+                )}
                 key={item.notification_id}
               >
                 <span
                   aria-hidden="true"
                   className={`status-dot ${notificationTone(item.severity)}`}
                 />
-                <span className="notification-row-copy">
+                <span className="min-w-0 [&_small]:line-clamp-2 [&_strong]:truncate">
                   <strong>{item.title}</strong>
                   <small>
                     {acknowledged
@@ -205,12 +235,16 @@ function NotificationPanel({
                       : item.detail}
                   </small>
                 </span>
-                <span className="notification-row-actions">
-                  <Link className="notification-open-link" href={item.route} title={item.action_label}>
+                <span className="col-start-2 mt-2 inline-flex items-center gap-1.5">
+                  <Link
+                    className="grid h-7 w-[54px] place-items-center rounded-lg border border-line text-[11px] leading-none font-bold whitespace-nowrap text-signal dark:border-white/15"
+                    href={item.route}
+                    title={item.action_label}
+                  >
                     Open
                   </Link>
                   <button
-                    className="notification-ack-button"
+                    className="grid h-7 w-[52px] cursor-pointer place-items-center rounded-lg border border-positive/35 bg-positive/8 text-[11px] leading-none font-bold whitespace-nowrap text-positive disabled:cursor-not-allowed disabled:border-line/60 disabled:bg-ink/3 disabled:text-muted dark:disabled:bg-white/5"
                     disabled={!canAcknowledge || acknowledged || pending}
                     onClick={() => void acknowledgeNotification(item)}
                     type="button"
@@ -222,7 +256,7 @@ function NotificationPanel({
             );
           })
         ) : (
-          <div className="topbar-popover-row">
+          <div className={popoverRowClass}>
             <span aria-hidden="true" className="status-dot signal-ready" />
             <span>
               <strong>No active notifications</strong>
@@ -232,14 +266,14 @@ function NotificationPanel({
         )}
       </div>
       {items.length > 0 && !canAcknowledge ? (
-        <p className="notification-panel-note">{sessionRequiredLabel}</p>
+        <p className="m-0 text-[11px] leading-snug text-muted">{sessionRequiredLabel}</p>
       ) : null}
       {acknowledgementError ? (
-        <p className="notification-panel-error" role="status">
+        <p className="m-0 text-[11px] leading-snug text-warning" role="status">
           {acknowledgementError}
         </p>
       ) : null}
-      <Link className="topbar-popover-link" href="/audit">
+      <Link className={popoverLinkClass} href="/audit">
         Open audit evidence
       </Link>
     </section>
@@ -248,13 +282,12 @@ function NotificationPanel({
 
 function HelpPanel() {
   return (
-    <section className="topbar-popover" aria-label="Platform help">
-      <div className="topbar-popover-header">
-        <p className="section-label">Platform help</p>
+    <section className={popoverClass} aria-label="Platform help">
+      <PopoverHeader label="Platform help">
         <span className="status-pill signal-ready">Docs</span>
-      </div>
-      <div className="topbar-popover-list">
-        <Link className="topbar-popover-row" href="/model-routing">
+      </PopoverHeader>
+      <div className="grid gap-2">
+        <Link className={cn(popoverRowClass, popoverRowLinkClass)} href="/model-routing">
           <ShieldCheck size={16} />
           <span>
             <strong>Model routing</strong>
@@ -262,7 +295,7 @@ function HelpPanel() {
           </span>
         </Link>
         <a
-          className="topbar-popover-row"
+          className={cn(popoverRowClass, popoverRowLinkClass)}
           href="https://github.com/Limes-Labs/limes-axis/blob/main/docs/architecture.md"
           rel="noreferrer"
           target="_blank"
@@ -330,27 +363,29 @@ function AccountPanel({
   }
 
   return (
-    <section className="topbar-popover account-popover" aria-label="Operator account">
-      <div className="topbar-popover-header">
-        <p className="section-label">Operator</p>
+    <section
+      className={cn(popoverClass, "w-[min(390px,calc(100vw-32px))]")}
+      aria-label="Operator account"
+    >
+      <PopoverHeader label="Operator">
         <span className={`status-pill ${identitySessionTone(identitySession)}`}>
           {identitySessionLabel(identitySession)}
         </span>
-      </div>
+      </PopoverHeader>
 
-      <div className="account-summary">
-        <div className="account-avatar">
+      <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3">
+        <div className="grid size-[42px] place-items-center rounded-full border border-line bg-signal/15 text-xs font-extrabold text-ink dark:border-white/15">
           {operatorInitials(identitySession?.actor_id ?? undefined)}
         </div>
         <div>
-          <p className="row-title">
+          <p className="m-0 font-medium break-words text-ink">
             {identitySession?.authenticated && identitySession.actor_id
               ? compactActorLabel(identitySession.actor_id)
               : identitySessionUnavailable
                 ? "Session API unavailable"
                 : "Public evaluation operator"}
           </p>
-          <p className="row-detail">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug break-words text-muted">
             {identitySession?.authenticated && identitySession.tenant_id
               ? identitySession.tenant_id
               : identitySession?.session_boundary ?? "Identity session requires `/identity/session`."}
@@ -358,7 +393,7 @@ function AccountPanel({
         </div>
       </div>
 
-      <div className="account-grid">
+      <div className="grid grid-cols-2 gap-2 [&>span]:min-w-0 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:block [&_small]:text-[11px] [&_small]:text-muted [&_strong]:mt-0.5 [&_strong]:block [&_strong]:min-w-0 [&_strong]:text-xs [&_strong]:leading-tight [&_strong]:break-words [&_strong]:text-ink">
         <span>
           <small>API</small>
           <strong>{apiBaseUrl}</strong>
@@ -384,9 +419,9 @@ function AccountPanel({
       </div>
 
       {identitySession ? (
-        <div className="topbar-popover-list account-readiness-list">
+        <div className="grid max-h-[188px] gap-2 overflow-y-auto overscroll-contain">
           {identitySession.capabilities.slice(0, 2).map((capability) => (
-            <div className="topbar-popover-row" key={capability}>
+            <div className={popoverRowClass} key={capability}>
               <span aria-hidden="true" className="status-dot signal-ready" />
               <span>
                 <strong>Capability</strong>
@@ -395,7 +430,7 @@ function AccountPanel({
             </div>
           ))}
           {identitySession.limitations.slice(0, 2).map((limitation) => (
-            <div className="topbar-popover-row" key={limitation}>
+            <div className={popoverRowClass} key={limitation}>
               <span aria-hidden="true" className="status-dot signal-watch" />
               <span>
                 <strong>Limitation</strong>
@@ -405,7 +440,7 @@ function AccountPanel({
           ))}
         </div>
       ) : (
-        <p className="row-detail">
+        <p className="m-0 text-sm leading-snug text-muted">
           The account panel needs `/identity/session` before it can display an API-verified
           actor.
         </p>
@@ -413,26 +448,26 @@ function AccountPanel({
 
       {verifiedCookieSession || session ? (
         <>
-          <div className="tag-list account-scope-list">
+          <div className="flex max-h-[86px] min-w-0 flex-wrap gap-2 overflow-y-auto overscroll-contain">
             {visibleScopes.length > 0 ? (
               visibleScopes.slice(0, 6).map((scope) => (
-                <span className="tag" key={scope}>
+                <span className={tagClass} key={scope}>
                   {scope}
                 </span>
               ))
             ) : (
-              <span className="tag">
+              <span className={tagClass}>
                 {identitySession?.authenticated ? "No scopes in token" : "Awaiting API validation"}
               </span>
             )}
           </div>
-          <Link className="command-button account-command account-command-secondary" href="/settings/sessions">
+          <Link className={commandSecondaryClass} href="/settings/sessions">
             <MonitorSmartphone size={16} />
             Manage sessions
           </Link>
           {verifiedCookieSession ? (
             <button
-              className="command-button account-command"
+              className={commandClass}
               onClick={signOutWithIdentityProvider}
               type="button"
             >
@@ -440,20 +475,20 @@ function AccountPanel({
               Sign out with identity provider
             </button>
           ) : (
-            <button className="command-button account-command" onClick={clearSession} type="button">
+            <button className={commandClass} onClick={clearSession} type="button">
               <LogOut size={16} />
               Clear bearer bridge
             </button>
           )}
         </>
       ) : (
-        <div className="account-auth-actions">
-          <a className="command-button account-command" href={authorizeUrl}>
+        <div className="grid gap-2">
+          <a className={commandClass} href={authorizeUrl}>
             <ShieldCheck size={16} />
             Sign in with SSO
           </a>
           <a
-            className="command-button account-command account-command-secondary"
+            className={commandSecondaryClass}
             href={onboardingUrl}
             rel="noreferrer"
             target="_blank"
@@ -462,7 +497,7 @@ function AccountPanel({
             Open SSO setup
           </a>
           <button
-            className="command-button account-command account-command-secondary"
+            className={commandSecondaryClass}
             onClick={() => setDeveloperBridgeOpen((value) => !value)}
             type="button"
           >
@@ -473,10 +508,10 @@ function AccountPanel({
       )}
 
       {!authenticatedSession && developerBridgeOpen ? (
-        <form className="account-token-form" onSubmit={connectSession}>
-          <label>
+        <form className="grid gap-2" onSubmit={connectSession}>
+          <label className="grid gap-1.5 text-xs font-semibold text-muted">
             Developer bearer bridge
-            <input
+            <Input
               aria-invalid={Boolean(error)}
               onChange={(event) => {
                 setAccessToken(event.target.value);
@@ -488,11 +523,11 @@ function AccountPanel({
             />
           </label>
           {error ? (
-            <span className="session-bridge-error" role="status">
+            <span className="text-xs font-semibold text-danger" role="status">
               {error}
             </span>
           ) : null}
-          <button className="command-button account-command" type="submit">
+          <button className={commandClass} type="submit">
             <KeyRound size={16} />
             Attach bearer bridge
           </button>
@@ -557,14 +592,17 @@ export function ConsoleTopbar({
   }, []);
 
   return (
-    <header className="ops-topbar" aria-label="Console status bar">
-      <div className="ops-topbar-left">
-        <span className="ops-product-pill">
+    <header
+      className="ops-topbar sticky top-0 isolate z-10 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-2 max-sm:py-1.5 dark:border-white/10"
+      aria-label="Console status bar"
+    >
+      <div className="hidden min-w-0 flex-1 sm:block">
+        <span className="flex items-center gap-2.5 text-xs font-semibold text-ink/80 [&>svg]:text-positive">
           <ShieldCheck size={17} />
           Sovereign Control
         </span>
       </div>
-      <div className="ops-live-pills">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-px max-sm:[&_.status-pill]:px-2 max-sm:[&_.status-pill]:text-[11px] max-sm:[&_.status-pill]:whitespace-nowrap sm:ml-auto sm:justify-end">
         <span className={`status-pill ${apiStatusClass(apiStatus.state)}`} title={apiStatus.detail}>
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
           API {apiStatus.label}
@@ -576,9 +614,12 @@ export function ConsoleTopbar({
           <span className="status-pill signal-ready">{evidenceLabel}</span>
         ) : null}
       </div>
-      <div className="ops-toolbar-icons" aria-label="Utility actions">
+      <div
+        className="ops-toolbar-icons flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:flex-nowrap max-sm:gap-1"
+        aria-label="Utility actions"
+      >
         <button
-          className="ops-icon-button"
+          className="icon-button"
           type="button"
           aria-label="Refresh state"
           title="Refresh state"
@@ -588,7 +629,7 @@ export function ConsoleTopbar({
         </button>
         <ThemeToggle />
         <button
-          className="ops-icon-button"
+          className="icon-button"
           type="button"
           aria-label="Search console"
           title="Search console"
@@ -600,7 +641,7 @@ export function ConsoleTopbar({
           <Search size={17} />
         </button>
         <button
-          className={`ops-icon-button${activePanel === "notifications" ? " ops-icon-button-active" : ""}`}
+          className={`icon-button${activePanel === "notifications" ? " icon-button-active" : ""}`}
           type="button"
           aria-expanded={activePanel === "notifications"}
           aria-label="Open notifications"
@@ -611,11 +652,13 @@ export function ConsoleTopbar({
         >
           <Bell size={17} />
           {notificationCount > 0 ? (
-            <span className="notification-badge">{notificationCount}</span>
+            <span className="absolute top-1 right-1 grid h-[14px] min-w-[14px] place-items-center rounded-full border border-surface bg-positive px-0.5 font-mono text-[9px] leading-none font-extrabold text-white">
+              {notificationCount}
+            </span>
           ) : null}
         </button>
         <button
-          className={`ops-icon-button${activePanel === "help" ? " ops-icon-button-active" : ""}`}
+          className={`icon-button${activePanel === "help" ? " icon-button-active" : ""}`}
           type="button"
           aria-expanded={activePanel === "help"}
           aria-label="Open platform help"
@@ -624,9 +667,12 @@ export function ConsoleTopbar({
         >
           <CircleHelp size={17} />
         </button>
-        <span className="topbar-divider" aria-hidden="true" />
+        <span className="mx-0.5 h-[22px] w-px shrink-0 bg-line dark:bg-white/15" aria-hidden="true" />
         <button
-          className={`ops-user-chip${activePanel === "account" ? " ops-user-chip-active" : ""}`}
+          className={cn(
+            "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-surface text-xs font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 active:translate-y-px dark:border-white/20 dark:bg-white/5",
+            activePanel === "account" && "border-signal/40 bg-signal/10",
+          )}
           type="button"
           aria-expanded={activePanel === "account"}
           aria-label="Open operator account"

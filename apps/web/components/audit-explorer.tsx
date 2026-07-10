@@ -22,6 +22,8 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useConsole } from "@/providers/console-provider";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 
 type AuditSource = "loading" | "persisted" | "api" | "unavailable";
 
@@ -181,16 +183,16 @@ export function AuditExplorer() {
   }
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
+    <div className="grid min-w-0 gap-4">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Demo Audit Ledger</p>
-          <h2 className="panel-title">{auditData.plant_name}</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Demo Audit Ledger</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{auditData.plant_name}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {auditData.scenario} / {auditData.tenant_id}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Audit source and ledger status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Audit source and ledger status">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -199,45 +201,43 @@ export function AuditExplorer() {
             <ShieldCheck size={15} />
             {platformStatusLabel(auditData.ledger_status)}
           </span>
-          <span className="mono">{formatOverviewTimestamp(auditData.as_of)}</span>
+          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(auditData.as_of)}</span>
         </div>
       </section>
 
-      <div className="metric-grid">
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {auditData.metrics.map((metric) => (
-          <article className="metric-card compact-card" key={metric.label}>
-            <div className="row">
-              <p className="metric-label">{metric.label}</p>
+          <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <p className="eyebrow m-0">{metric.label}</p>
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
             </div>
-            <p className="metric-value">{metric.value}</p>
-            <p className="metric-detail">{metric.detail}</p>
+            <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{metric.value}</p>
+            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
           </article>
         ))}
       </div>
 
-      <section className="panel audit-filter-panel">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="section-label">Filters</p>
-          <h2 className="panel-title">Audit explorer</h2>
+          <p className="eyebrow m-0">Filters</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Audit explorer</h2>
         </div>
-        <div className="audit-filters">
-          <label>
-            <span className="metric-label">Tenant</span>
-            <select value={filters.tenant} onChange={(event) => updateFilter("tenant", event.target.value)}>
+        <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
+          <Field label="Tenant">
+            <Select value={filters.tenant} onChange={(event) => updateFilter("tenant", event.target.value)}>
               <option value={allAuditFilter}>All tenants</option>
               {auditData.filter_options.tenants.map((tenant) => (
                 <option key={tenant} value={tenant}>
                   {tenant}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Event</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Event">
+            <Select
               value={filters.eventType}
               onChange={(event) => updateFilter("eventType", event.target.value)}
             >
@@ -247,45 +247,44 @@ export function AuditExplorer() {
                   {formatAuditLabel(eventType)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Scope</span>
-            <select value={filters.scope} onChange={(event) => updateFilter("scope", event.target.value)}>
+            </Select>
+          </Field>
+          <Field label="Scope">
+            <Select value={filters.scope} onChange={(event) => updateFilter("scope", event.target.value)}>
               <option value={allAuditFilter}>All scopes</option>
               {auditData.filter_options.scopes.map((scope) => (
                 <option key={scope} value={scope}>
                   {scope}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
             <RotateCcw size={17} />
           </button>
         </div>
       </section>
 
-      <div className="audit-layout">
-        <section className="panel">
-          <div className="audit-list-header">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(310px,0.48fr)_minmax(0,1fr)] [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Events</p>
-              <h2 className="panel-title">{filteredEvents.length} visible</h2>
+              <p className="eyebrow m-0">Events</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{filteredEvents.length} visible</h2>
             </div>
             <span className="status-pill signal-ready">
               <Filter size={15} />
               {auditData.events.length} total
             </span>
           </div>
-          <div className="audit-list">
+          <div className="grid">
             {filteredEvents.map((event) => {
               const isSelected = event.audit_event_id === selectedEvent.audit_event_id;
 
               return (
                 <button
                   aria-pressed={isSelected}
-                  className={`audit-list-item${isSelected ? " active" : ""}`}
+                  className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={event.audit_event_id}
                   onClick={() => {
                     setRequestedEventId(null);
@@ -294,11 +293,11 @@ export function AuditExplorer() {
                   type="button"
                 >
                   <span>
-                    <span className="row-title mono">{event.event_type}</span>
-                    <span className="row-detail">
+                    <span className="m-0 font-medium text-ink break-words font-mono text-[13px]">{event.event_type}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {formatAuditTime(event.occurred_at)} / {event.actor_id}
                     </span>
-                    <span className="row-detail">{event.scope}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{event.scope}</span>
                   </span>
                   <span className={`status-pill ${platformStatusClass(event.severity)}`}>
                     {event.result}
@@ -309,14 +308,14 @@ export function AuditExplorer() {
           </div>
         </section>
 
-        <section className="panel audit-detail">
-          <div className="audit-detail-header">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">{selectedEvent.category}</p>
-              <h2 className="panel-title">{formatAuditLabel(selectedEvent.event_type)}</h2>
-              <p className="row-detail">{selectedEvent.summary}</p>
+              <p className="eyebrow m-0">{selectedEvent.category}</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatAuditLabel(selectedEvent.event_type)}</h2>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.summary}</p>
             </div>
-            <div className="status-stack">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <span className={`status-pill ${platformStatusClass(selectedEvent.severity)}`}>
                 {platformStatusLabel(selectedEvent.severity)}
               </span>
@@ -324,38 +323,38 @@ export function AuditExplorer() {
             </div>
           </div>
 
-          <div className="audit-detail-grid">
+          <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="metric-label">Audit Event</p>
-              <p className="row-title mono">{selectedEvent.audit_event_id}</p>
-              <p className="row-detail">{selectedEvent.event_type}</p>
+              <p className="eyebrow m-0">Audit Event</p>
+              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">{selectedEvent.audit_event_id}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.event_type}</p>
             </div>
             <div>
-              <p className="metric-label">Actor</p>
-              <p className="row-title">{selectedEvent.actor_id}</p>
-              <p className="row-detail">{selectedEvent.actor_type}</p>
+              <p className="eyebrow m-0">Actor</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedEvent.actor_id}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.actor_type}</p>
             </div>
             <div>
-              <p className="metric-label">Scope</p>
-              <p className="row-title mono">{selectedEvent.scope}</p>
-              <p className="row-detail">{selectedEvent.permission_scope}</p>
+              <p className="eyebrow m-0">Scope</p>
+              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">{selectedEvent.scope}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.permission_scope}</p>
             </div>
             <div>
-              <p className="metric-label">Source</p>
-              <p className="row-title">{selectedEvent.source}</p>
-              <p className="row-detail">{selectedEvent.domain}</p>
+              <p className="eyebrow m-0">Source</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedEvent.source}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.domain}</p>
             </div>
             <div>
-              <p className="metric-label">Occurred</p>
-              <p className="row-title">{formatAuditTime(selectedEvent.occurred_at)}</p>
-              <p className="row-detail">{selectedEvent.data_classification}</p>
+              <p className="eyebrow m-0">Occurred</p>
+              <p className="m-0 font-medium text-ink break-words">{formatAuditTime(selectedEvent.occurred_at)}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.data_classification}</p>
             </div>
           </div>
 
-          <div className="audit-columns">
+          <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
             <section>
-              <p className="section-label">Related</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Related</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {[
                   selectedEvent.related_workflow_id,
                   selectedEvent.related_approval_id,
@@ -363,17 +362,17 @@ export function AuditExplorer() {
                 ]
                   .filter(Boolean)
                   .map((item) => (
-                    <span className="tag" key={item}>
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={item}>
                       {item}
                     </span>
                   ))}
               </div>
             </section>
             <section>
-              <p className="section-label">Evidence</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Evidence</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedEvent.evidence_refs.map((item) => (
-                  <span className="tag" key={item}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={item}>
                     {item}
                   </span>
                 ))}
@@ -381,25 +380,25 @@ export function AuditExplorer() {
             </section>
           </div>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Payload Preview</p>
-                <h3 className="subsection-title">Redacted fields</h3>
+                <p className="eyebrow m-0">Payload Preview</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">Redacted fields</h3>
               </div>
               {selectedEventConnectorSnapshotHref ? (
-                <a className="row-detail" href={selectedEventConnectorSnapshotHref}>
+                <a className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" href={selectedEventConnectorSnapshotHref}>
                   Connector snapshot
                 </a>
               ) : (
                 <FileText size={18} />
               )}
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {Object.entries(selectedEvent.payload_preview).map(([key, value]) => (
-                <div className="payload-row" key={key}>
-                  <span className="metric-label">{formatAuditLabel(key)}</span>
-                  <span className="mono">{value}</span>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={key}>
+                  <span className="eyebrow m-0">{formatAuditLabel(key)}</span>
+                  <span className="font-mono text-[13px] break-words">{value}</span>
                 </div>
               ))}
             </div>
@@ -407,11 +406,11 @@ export function AuditExplorer() {
         </section>
       </div>
 
-      <section className="panel">
-        <p className="section-label">Retention Notes</p>
-        <div className="stack">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+        <p className="eyebrow m-0">Retention Notes</p>
+        <div className="grid min-w-0 gap-2.5">
           {auditData.retention_notes.map((note) => (
-            <p className="row-detail" key={note}>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
               {note}
             </p>
           ))}
@@ -419,12 +418,12 @@ export function AuditExplorer() {
       </section>
 
       {auditExport ? (
-        <section className="panel audit-detail">
-          <div className="audit-detail-header">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Export Controls</p>
-              <h2 className="panel-title">{auditExport.manifest.export_id}</h2>
-              <p className="row-detail">
+              <p className="eyebrow m-0">Export Controls</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{auditExport.manifest.export_id}</h2>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {auditExport.export_reason} / {auditExport.manifest.redaction_policy}
               </p>
             </div>
@@ -434,73 +433,73 @@ export function AuditExplorer() {
             </span>
           </div>
 
-          <div className="audit-detail-grid">
+          <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="metric-label">Records</p>
-              <p className="row-title">{auditExport.manifest.record_count}</p>
-              <p className="row-detail">{auditExport.manifest.tenant_id}</p>
+              <p className="eyebrow m-0">Records</p>
+              <p className="m-0 font-medium text-ink break-words">{auditExport.manifest.record_count}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.manifest.tenant_id}</p>
             </div>
             <div>
-              <p className="metric-label">Retention</p>
-              <p className="row-title">{auditExport.retention_policy.retention_days} days</p>
-              <p className="row-detail">{auditExport.retention_policy.policy_id}</p>
+              <p className="eyebrow m-0">Retention</p>
+              <p className="m-0 font-medium text-ink break-words">{auditExport.retention_policy.retention_days} days</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.retention_policy.policy_id}</p>
             </div>
             <div>
-              <p className="metric-label">Legal hold</p>
-              <p className="row-title">
+              <p className="eyebrow m-0">Legal hold</p>
+              <p className="m-0 font-medium text-ink break-words">
                 {auditExport.retention_policy.legal_hold ? "On" : "Off"}
               </p>
-              <p className="row-detail">{auditExport.retention_policy.disposal_action}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.retention_policy.disposal_action}</p>
             </div>
             <div>
-              <p className="metric-label">Checksum</p>
-              <p className="row-title mono">
+              <p className="eyebrow m-0">Checksum</p>
+              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
                 {auditExport.manifest.checksum_sha256.slice(0, 12)}
               </p>
-              <p className="row-detail">{auditExport.manifest.format}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.manifest.format}</p>
             </div>
             <div>
-              <p className="metric-label">Retention Enforced</p>
-              <p className="row-title">
+              <p className="eyebrow m-0">Retention Enforced</p>
+              <p className="m-0 font-medium text-ink break-words">
                 {auditExport.manifest.retention_enforced ? "Yes" : "No"}
               </p>
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {auditExport.manifest.excluded_record_count} excluded
               </p>
             </div>
             <div>
-              <p className="metric-label">Hash Chain</p>
-              <p className="row-title mono">
+              <p className="eyebrow m-0">Hash Chain</p>
+              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
                 {auditExport.manifest.integrity_chain_tip_sha256.slice(0, 12)}
               </p>
-              <p className="row-detail">{auditExport.integrity_proof.algorithm}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.integrity_proof.algorithm}</p>
             </div>
             <div>
-              <p className="metric-label">Ledger Signature</p>
-              <p className="row-title">
+              <p className="eyebrow m-0">Ledger Signature</p>
+              <p className="m-0 font-medium text-ink break-words">
                 {auditExport.ledger_signature.verification_status}
               </p>
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {auditExport.ledger_signature.key_id ?? auditExport.ledger_signature.signing_mode}
               </p>
             </div>
             <div>
-              <p className="metric-label">Signature Proof</p>
-              <p className="row-title mono">
+              <p className="eyebrow m-0">Signature Proof</p>
+              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
                 {(auditExport.ledger_signature.signature ?? "unsigned").slice(0, 12)}
               </p>
-              <p className="row-detail">{auditExport.ledger_signature.algorithm}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.ledger_signature.algorithm}</p>
             </div>
           </div>
 
-          <div className="stack">
+          <div className="grid min-w-0 gap-2.5">
             {auditExport.ledger_signature.notes.map((note) => (
-              <p className="row-detail" key={note}>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
                 {note}
               </p>
             ))}
             {auditExport.retention_notes.map((note) => (
-              <p className="row-detail" key={note}>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
                 {note}
               </p>
             ))}

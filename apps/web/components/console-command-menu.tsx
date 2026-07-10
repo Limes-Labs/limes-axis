@@ -89,17 +89,18 @@ export function ConsoleCommandMenu({
   }
 
   return (
-    <div className="command-menu-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-80 grid place-items-start justify-items-center bg-navy/40 px-4 pt-[min(12vh,96px)] pb-4 backdrop-blur-[2px]" role="presentation" onMouseDown={onClose}>
       <section
         aria-label="Console command menu"
         aria-modal="true"
-        className="command-menu"
+        className="grid w-[min(680px,100%)] gap-2.5 rounded-3xl border border-mist bg-surface p-3.5 shadow-[0_30px_90px_rgb(4_18_46/0.24)] dark:border-white/12"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <div className="command-menu-search">
+        <div className="grid min-h-[46px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] border border-line bg-ink/4 py-1 pr-2 pl-3 text-muted dark:border-white/10 dark:bg-white/5">
           <Search size={18} />
           <input
+            className="w-full border-0 bg-transparent text-ink outline-0 placeholder:text-muted/75"
             aria-label="Search console commands"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search pages, evidence, docs"
@@ -108,7 +109,7 @@ export function ConsoleCommandMenu({
           />
           <button
             aria-label="Close command menu"
-            className="ops-icon-button"
+            className="icon-button"
             onClick={onClose}
             title="Close"
             type="button"
@@ -117,13 +118,13 @@ export function ConsoleCommandMenu({
           </button>
         </div>
 
-        <div className="command-menu-status" aria-label="Current API status">
+        <div className="flex justify-between gap-3 rounded-[14px] border border-line/60 bg-ink/3 px-3 py-2.5 text-xs text-muted dark:border-white/10 dark:bg-white/4 [&>span]:font-mono [&>span]:text-[10.5px] [&>span]:font-medium [&>span]:tracking-[0.16em] [&>span]:uppercase [&>span]:text-signal [&>strong]:text-positive" aria-label="Current API status">
           <span>API status</span>
           <strong>{apiLabel}</strong>
         </div>
 
         <button
-          className="command-menu-action"
+          className={`cursor-pointer grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-line/60 bg-ink/3 p-3 text-left text-ink/80 transition-colors dark:border-white/10 dark:bg-white/4 [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink [&_small]:mt-0.5 [&_small]:block [&_small]:text-xs [&_small]:leading-snug [&_small]:text-muted hover:border-signal/45 hover:bg-signal/10`}
           onClick={() => {
             onRefresh();
             onClose();
@@ -137,7 +138,7 @@ export function ConsoleCommandMenu({
           </span>
         </button>
 
-        <div className="command-menu-results" role="list">
+        <div className="grid max-h-[min(48vh,420px)] gap-2 overflow-y-auto" role="list">
           {results.length > 0 ? (
             results.map((item) => {
               const external = isExternalHref(item.href);
@@ -153,7 +154,7 @@ export function ConsoleCommandMenu({
 
               return external ? (
                 <a
-                  className="command-menu-result"
+                  className={`grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-line/60 bg-ink/3 p-3 text-left text-ink/80 transition-colors dark:border-white/10 dark:bg-white/4 [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink [&_small]:mt-0.5 [&_small]:block [&_small]:text-xs [&_small]:leading-snug [&_small]:text-muted hover:border-signal/45 hover:bg-signal/10`}
                   href={item.href}
                   key={item.href}
                   onClick={onClose}
@@ -164,7 +165,7 @@ export function ConsoleCommandMenu({
                 </a>
               ) : (
                 <Link
-                  className="command-menu-result"
+                  className={`grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-line/60 bg-ink/3 p-3 text-left text-ink/80 transition-colors dark:border-white/10 dark:bg-white/4 [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink [&_small]:mt-0.5 [&_small]:block [&_small]:text-xs [&_small]:leading-snug [&_small]:text-muted hover:border-signal/45 hover:bg-signal/10`}
                   href={item.href}
                   key={item.href}
                   onClick={onClose}
@@ -174,7 +175,7 @@ export function ConsoleCommandMenu({
               );
             })
           ) : (
-            <p className="command-menu-empty">No matching console command.</p>
+            <p className="m-0 p-3 text-xs leading-snug text-muted">No matching console command.</p>
           )}
         </div>
       </section>

@@ -21,6 +21,8 @@ import {
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
 import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 
 const defaultFilters: TenantRegistryFilters = {
   status: allTenantFilter,
@@ -137,17 +139,17 @@ export function TenantRegistry() {
   ).length;
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
+    <div className="grid min-w-0 gap-4">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Platform Tenant Registry</p>
-          <h2 className="panel-title">Tenant lifecycle</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Platform Tenant Registry</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant lifecycle</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Cross-tenant operator surface. Requires the platform:tenant:operator scope plus a
             per-action scope; every lifecycle change appends audit evidence.
           </p>
         </div>
-        <div className="overview-meta" aria-label="Tenant source and registry status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Tenant source and registry status">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -159,46 +161,45 @@ export function TenantRegistry() {
         </div>
       </section>
 
-      <div className="metric-grid">
-        <article className="metric-card compact-card">
-          <p className="metric-label">Tenants</p>
-          <p className="metric-value">{registry.tenant_count}</p>
-          <p className="metric-detail">Tenants matching the current status filter</p>
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Tenants</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{registry.tenant_count}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenants matching the current status filter</p>
         </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Active</p>
-          <p className="metric-value">{registry.active_tenant_count}</p>
-          <p className="metric-detail">Tenants able to establish sessions</p>
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Active</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{registry.active_tenant_count}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenants able to establish sessions</p>
         </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Suspended</p>
-          <p className="metric-value">{suspendedCount}</p>
-          <p className="metric-detail">Rejected fail-closed at the OIDC principal boundary</p>
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Suspended</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{suspendedCount}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">Rejected fail-closed at the OIDC principal boundary</p>
         </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Pending Deletion</p>
-          <p className="metric-value">{pendingDeletionCount}</p>
-          <p className="metric-detail">Modeled and blocked; no deletion pipeline yet</p>
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Pending Deletion</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{pendingDeletionCount}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">Modeled and blocked; no deletion pipeline yet</p>
         </article>
       </div>
 
-      <section className="panel agent-filter-panel">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="section-label">Filters</p>
-          <h2 className="panel-title">Tenant registry</h2>
+          <p className="eyebrow m-0">Filters</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant registry</h2>
         </div>
-        <div className="agent-filters">
-          <label>
-            <span className="metric-label">Status</span>
-            <select value={filters.status} onChange={(event) => updateStatus(event.target.value)}>
+        <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
+          <Field label="Status">
+            <Select value={filters.status} onChange={(event) => updateStatus(event.target.value)}>
               <option value={allTenantFilter}>All statuses</option>
               {tenantLifecycleStatuses.map((status: TenantLifecycleStatus) => (
                 <option key={status} value={status}>
                   {tenantStatusLabel(status)}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
             <RotateCcw size={17} />
           </button>
@@ -206,8 +207,8 @@ export function TenantRegistry() {
       </section>
 
       {tenants.length > 0 ? (
-        <section className="table-panel">
-          <table className="data-table">
+        <section className="min-w-0 overflow-x-auto rounded-2xl border border-line bg-surface dark:border-white/10 dark:bg-white/5">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm text-ink [&_th]:border-b [&_th]:border-line [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-[0.16em] [&_th]:uppercase [&_th]:text-signal dark:[&_th]:border-white/10 [&_td]:border-b [&_td]:border-line/60 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top dark:[&_td]:border-white/6 [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
                 <th>Tenant</th>
@@ -221,10 +222,10 @@ export function TenantRegistry() {
               {tenants.map((tenant) => (
                 <tr key={tenant.tenant_id}>
                   <td>
-                    <Link className="text-link" href={`/tenants/${tenant.tenant_id}`}>
+                    <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${tenant.tenant_id}`}>
                       {tenant.display_name}
                     </Link>
-                    <p className="row-detail mono">{tenant.tenant_id}</p>
+                    <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenant.tenant_id}</p>
                   </td>
                   <td>
                     <span className={`status-pill ${tenantStatusClass(tenant.status)}`}>
@@ -232,36 +233,36 @@ export function TenantRegistry() {
                     </span>
                   </td>
                   <td>
-                    <p className="row-detail">{tenant.created_by}</p>
+                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{tenant.created_by}</p>
                   </td>
                   <td>
                     {tenant.status === "suspended" ? (
-                      <p className="row-detail">
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                         Suspended by {tenant.suspended_by ?? "unknown"}
                         {tenant.suspension_reason ? ` — ${tenant.suspension_reason}` : ""}
                       </p>
                     ) : tenant.reactivated_at ? (
-                      <p className="row-detail">
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                         Reactivated by {tenant.reactivated_by ?? "unknown"}
                       </p>
                     ) : (
-                      <p className="row-detail">No lifecycle changes</p>
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">No lifecycle changes</p>
                     )}
                   </td>
                   <td>
-                    <p className="row-detail">{formatOverviewTimestamp(tenant.updated_at)}</p>
+                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatOverviewTimestamp(tenant.updated_at)}</p>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {hasMore ? (
-            <div className="table-footer">
-              <p className="row-detail">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/60 px-4 py-3.5 dark:border-white/10">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 Showing {tenants.length} tenants. More match this filter.
               </p>
               <button
-                className="command-button"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
                 disabled={loadingMore}
                 onClick={() => void loadMore()}
                 type="button"
@@ -273,11 +274,11 @@ export function TenantRegistry() {
           ) : null}
         </section>
       ) : (
-        <section className="panel overview-context">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="section-label">Registry</p>
-            <h2 className="panel-title">No tenants match the current filter</h2>
-            <p className="row-detail">
+            <p className="eyebrow m-0">Registry</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">No tenants match the current filter</h2>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
               The tenant API responded without records for this status selection. Provision the
               first tenant with the form below.
             </p>
@@ -292,11 +293,11 @@ export function TenantRegistry() {
       <TenantProvisionForm />
 
       {tenantNotes.length > 0 ? (
-        <section className="panel">
-          <p className="section-label">Registry Notes</p>
-          <div className="stack">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <p className="eyebrow m-0">Registry Notes</p>
+          <div className="grid min-w-0 gap-2.5">
             {tenantNotes.map((note) => (
-              <p className="row-detail" key={note}>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
                 {note}
               </p>
             ))}

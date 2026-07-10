@@ -22,6 +22,8 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -110,16 +112,16 @@ export function ModelRoutingConsole() {
   }
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
+    <div className="grid min-w-0 gap-4">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Demo Model Router</p>
-          <h2 className="panel-title">{routing.plant_name}</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Demo Model Router</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{routing.plant_name}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {routing.scenario} / {routing.tenant_id}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Model routing source and status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Model routing source and status">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -128,34 +130,33 @@ export function ModelRoutingConsole() {
             <Gauge size={15} />
             {platformStatusLabel(routing.routing_status)}
           </span>
-          <span className="mono">{formatOverviewTimestamp(routing.as_of)}</span>
+          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(routing.as_of)}</span>
         </div>
       </section>
 
-      <div className="metric-grid">
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {routing.metrics.map((metric) => (
-          <article className="metric-card compact-card" key={metric.label}>
-            <div className="row">
-              <p className="metric-label">{metric.label}</p>
+          <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <p className="eyebrow m-0">{metric.label}</p>
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
             </div>
-            <p className="metric-value">{metric.value}</p>
-            <p className="metric-detail">{metric.detail}</p>
+            <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{metric.value}</p>
+            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
           </article>
         ))}
       </div>
 
-      <section className="panel model-filter-panel">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="section-label">Filters</p>
-          <h2 className="panel-title">Routing telemetry</h2>
+          <p className="eyebrow m-0">Filters</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Routing telemetry</h2>
         </div>
-        <div className="model-filters">
-          <label>
-            <span className="metric-label">Domain</span>
-            <select
+        <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
+          <Field label="Domain">
+            <Select
               value={filters.domain}
               onChange={(event) => updateFilter("domain", event.target.value)}
             >
@@ -165,11 +166,10 @@ export function ModelRoutingConsole() {
                   {domain}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Provider</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Provider">
+            <Select
               value={filters.provider}
               onChange={(event) => updateFilter("provider", event.target.value)}
             >
@@ -179,11 +179,10 @@ export function ModelRoutingConsole() {
                   {provider}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Decision</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Decision">
+            <Select
               value={filters.decision}
               onChange={(event) => updateFilter("decision", event.target.value)}
             >
@@ -193,44 +192,44 @@ export function ModelRoutingConsole() {
                   {formatModelRoutingLabel(decision)}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           <button className="icon-button" onClick={resetFilters} title="Reset routing filters" type="button">
             <RotateCcw size={17} />
           </button>
         </div>
       </section>
 
-      <div className="model-routing-layout">
-        <section className="panel">
-          <div className="model-list-header">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(330px,0.48fr)_minmax(0,1fr)] [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Routes</p>
-              <h2 className="panel-title">{filteredRoutes.length} visible</h2>
+              <p className="eyebrow m-0">Routes</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{filteredRoutes.length} visible</h2>
             </div>
             <span className="status-pill signal-ready">
               <Filter size={15} />
               {blockedRoutes} blocked
             </span>
           </div>
-          <div className="model-route-list">
+          <div className="grid">
             {filteredRoutes.map((route) => {
               const isSelected = route.route_id === selectedRoute.route_id;
 
               return (
                 <button
                   aria-pressed={isSelected}
-                  className={`model-route-list-item${isSelected ? " active" : ""}`}
+                  className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={route.route_id}
                   onClick={() => setSelectedRouteId(route.route_id)}
                   type="button"
                 >
                   <span>
-                    <span className="row-title">{route.agent_name}</span>
-                    <span className="row-detail">
+                    <span className="m-0 font-medium text-ink break-words">{route.agent_name}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {route.domain} / {route.provider_id}
                     </span>
-                    <span className="row-detail">{route.model}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{route.model}</span>
                   </span>
                   <span className={`status-pill ${routeDecisionClass(route)}`}>
                     {formatModelRoutingLabel(route.egress_decision)}
@@ -241,14 +240,14 @@ export function ModelRoutingConsole() {
           </div>
         </section>
 
-        <section className="panel model-route-detail">
-          <div className="model-route-detail-header">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">{selectedRoute.domain}</p>
-              <h2 className="panel-title">{selectedRoute.agent_name}</h2>
-              <p className="row-detail">{selectedRoute.decision_reason}</p>
+              <p className="eyebrow m-0">{selectedRoute.domain}</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{selectedRoute.agent_name}</h2>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.decision_reason}</p>
             </div>
-            <div className="status-stack">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <span className={`status-pill ${routeDecisionClass(selectedRoute)}`}>
                 {formatModelRoutingLabel(selectedRoute.egress_decision)}
               </span>
@@ -258,48 +257,48 @@ export function ModelRoutingConsole() {
             </div>
           </div>
 
-          <div className="model-route-detail-grid">
+          <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="metric-label">Provider</p>
-              <p className="row-title">{selectedRoute.provider_name}</p>
-              <p className="row-detail">{selectedRoute.provider_id}</p>
+              <p className="eyebrow m-0">Provider</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedRoute.provider_name}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.provider_id}</p>
             </div>
             <div>
-              <p className="metric-label">Model</p>
-              <p className="row-title">{selectedRoute.model}</p>
-              <p className="row-detail">{selectedRoute.prompt_classification}</p>
+              <p className="eyebrow m-0">Model</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedRoute.model}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.prompt_classification}</p>
             </div>
             <div>
-              <p className="metric-label">Estimated Cost</p>
-              <p className="row-title">{formatEuroCost(selectedRoute.estimated_cost_eur)}</p>
-              <p className="row-detail">{selectedRoute.cost_center}</p>
+              <p className="eyebrow m-0">Estimated Cost</p>
+              <p className="m-0 font-medium text-ink break-words">{formatEuroCost(selectedRoute.estimated_cost_eur)}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.cost_center}</p>
             </div>
             <div>
-              <p className="metric-label">Latency</p>
-              <p className="row-title">{selectedRoute.latency_ms} ms</p>
-              <p className="row-detail">
+              <p className="eyebrow m-0">Latency</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedRoute.latency_ms} ms</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {selectedRoute.input_tokens + selectedRoute.output_tokens} tokens
               </p>
             </div>
           </div>
 
-          <div className="model-policy-band">
+          <div className="grid gap-4 border-y border-line/60 py-3.5 dark:border-white/10 lg:grid-cols-[minmax(0,0.7fr)_minmax(260px,1fr)] [&>*]:min-w-0">
             <div>
-              <p className="section-label">Policy</p>
-              <h3 className="subsection-title">{selectedRoute.model_policy}</h3>
-              <p className="row-detail">
+              <p className="eyebrow m-0">Policy</p>
+              <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedRoute.model_policy}</h3>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 Requested external egress: {selectedRoute.external_egress_requested ? "yes" : "no"}
               </p>
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 Allowed external egress: {selectedRoute.external_egress_allowed ? "yes" : "no"}
               </p>
-              <p className="row-detail">Boundary: {selectedRoute.data_boundary}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Boundary: {selectedRoute.data_boundary}</p>
             </div>
             <div>
-              <p className="section-label">Required Permissions</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Required Permissions</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedRoute.required_permissions.map((permission) => (
-                  <span className="tag" key={permission}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={permission}>
                     {permission}
                   </span>
                 ))}
@@ -307,85 +306,85 @@ export function ModelRoutingConsole() {
             </div>
           </div>
 
-          <div className="model-columns">
+          <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <div>
-              <p className="section-label">Observability Events</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Observability Events</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedRoute.observability_events.map((event) => (
                   <li key={event}>{event}</li>
                 ))}
               </ul>
             </div>
             <div>
-              <p className="section-label">Evidence</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Evidence</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedRoute.evidence_refs.map((evidence) => (
                   <li key={evidence}>{evidence}</li>
                 ))}
               </ul>
             </div>
             <div>
-              <p className="section-label">Audit</p>
-              <p className="row-title">{selectedRoute.audit_event_id}</p>
-              <p className="row-detail">
+              <p className="eyebrow m-0">Audit</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedRoute.audit_event_id}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 Input {selectedRoute.input_tokens} / output {selectedRoute.output_tokens}
               </p>
             </div>
           </div>
 
-          <div className="model-provider-panel">
-            <div className="model-provider-header">
+          <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Provider Boundary</p>
-                <h3 className="subsection-title">{selectedProvider.display_name}</h3>
+                <p className="eyebrow m-0">Provider Boundary</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedProvider.display_name}</h3>
               </div>
               <span className={`status-pill ${routeDecisionClass(selectedRoute)}`}>
                 {formatModelRoutingLabel(selectedProvider.status)}
               </span>
             </div>
-            <div className="payload-grid">
-              <div className="payload-row">
-                <p className="metric-label">Type</p>
-                <p className="row-detail">{selectedProvider.provider_type}</p>
+            <div className="grid min-w-0 gap-2">
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                <p className="eyebrow m-0">Type</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedProvider.provider_type}</p>
               </div>
-              <div className="payload-row">
-                <p className="metric-label">Hosting</p>
-                <p className="row-detail">{selectedProvider.hosting_boundary}</p>
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                <p className="eyebrow m-0">Hosting</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedProvider.hosting_boundary}</p>
               </div>
-              <div className="payload-row">
-                <p className="metric-label">Cost Basis</p>
-                <p className="row-detail">{selectedProvider.cost_basis}</p>
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                <p className="eyebrow m-0">Cost Basis</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedProvider.cost_basis}</p>
               </div>
             </div>
           </div>
         </section>
       </div>
 
-      <div className="model-note-grid">
-        <section className="panel">
-          <div className="row">
+      <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
             <div>
-              <p className="section-label">Budget Notes</p>
-              <h2 className="panel-title">{formatEuroCost(estimatedCost)} estimated</h2>
+              <p className="eyebrow m-0">Budget Notes</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatEuroCost(estimatedCost)} estimated</h2>
             </div>
             <FileText size={18} />
           </div>
-          <ul className="clean-list">
+          <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
             {routing.budget_notes.map((note) => (
               <li key={note}>{note}</li>
             ))}
           </ul>
         </section>
 
-        <section className="panel">
-          <div className="row">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
             <div>
-              <p className="section-label">Observability Notes</p>
-              <h2 className="panel-title">OpenTelemetry-first</h2>
+              <p className="eyebrow m-0">Observability Notes</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">OpenTelemetry-first</h2>
             </div>
             <ShieldCheck size={18} />
           </div>
-          <ul className="clean-list">
+          <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
             {routing.observability_notes.map((note) => (
               <li key={note}>{note}</li>
             ))}

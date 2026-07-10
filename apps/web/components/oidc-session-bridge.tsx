@@ -43,12 +43,12 @@ export function OidcSessionBridge() {
   if (!session) {
     if (isEditing) {
       return (
-        <form className="session-bridge-form" onSubmit={connectSession} aria-label="OIDC session">
+        <form className="inline-flex max-w-[min(100%,440px)] min-w-0 items-center gap-1.5" onSubmit={connectSession} aria-label="OIDC session">
           <KeyRound size={16} aria-hidden="true" />
           <input
             aria-invalid={Boolean(error)}
             aria-label="OIDC bearer token"
-            className="session-token-input"
+            className="min-h-[38px] w-[min(34vw,180px)] min-w-[132px] rounded-xl border border-line bg-surface px-2.5 text-sm text-ink focus:border-signal focus:ring-2 focus:ring-signal/25 focus:outline-none aria-[invalid=true]:border-danger dark:border-white/15 dark:bg-white/5"
             onChange={(event) => {
               setAccessToken(event.target.value);
               setError(null);
@@ -58,15 +58,15 @@ export function OidcSessionBridge() {
             value={accessToken}
           />
           {error ? (
-            <span className="session-bridge-error" role="status">
+            <span className="text-xs font-semibold whitespace-nowrap text-danger" role="status">
               {error}
             </span>
           ) : null}
-          <button className="ops-icon-button" type="submit" aria-label="Connect OIDC session">
+          <button className="icon-button" type="submit" aria-label="Connect OIDC session">
             <Check size={16} />
           </button>
           <button
-            className="ops-icon-button"
+            className="icon-button"
             type="button"
             onClick={cancelEdit}
             aria-label="Cancel OIDC session entry"
@@ -79,7 +79,7 @@ export function OidcSessionBridge() {
 
     return (
       <button
-        className="ops-icon-button"
+        className="icon-button"
         type="button"
         onClick={() => setIsEditing(true)}
         title="Connect OIDC bearer token"
@@ -91,13 +91,13 @@ export function OidcSessionBridge() {
   }
 
   return (
-    <div className="session-bridge" aria-label="OIDC session">
-      <span className="status-pill signal-ready session-bridge-pill" title={session.actorId}>
+    <div className="inline-flex min-w-0 items-center gap-2" aria-label="OIDC session">
+      <span className="status-pill signal-ready max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap" title={session.actorId}>
         <UserRound size={15} />
         {compactActorLabel(session.actorId)}
       </span>
       <button
-        className="ops-icon-button"
+        className="icon-button"
         type="button"
         onClick={clearSession}
         aria-label="Clear OIDC session"

@@ -18,6 +18,8 @@ import {
 } from "@/lib/platform-tenants";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 type QuotaSource = "loading" | "api" | "unavailable" | "missing";
 
@@ -158,36 +160,35 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
   const quotaNotes = quotaSet?.quota_notes ?? [];
 
   return (
-    <section className="panel">
-      <div className="row">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="section-label">Per-Tenant Quotas</p>
-          <h2 className="panel-title">Quota overrides</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Per-Tenant Quotas</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Quota overrides</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Reads GET and writes PUT /platform/tenants/{tenantId}/quotas. Requires the{" "}
             {platformTenantQuotaScope} scope. Leaving a field blank clears the override and falls
             back to the global configuration.
           </p>
-          <p className="row-detail mono">{buildPlatformTenantQuotasPath(tenantId)}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{buildPlatformTenantQuotasPath(tenantId)}</p>
         </div>
         <Gauge size={18} />
       </div>
 
       {!quotaSet && source !== "api" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           {sourceLabel(source)}
         </p>
       ) : (
         <form
           aria-label="Tenant quota update"
-          className="policy-authoring-form"
+          className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={requestConfirmation}
         >
           {tenantQuotaFields.map((descriptor) => (
-            <label key={descriptor.field}>
-              <span className="metric-label">{descriptor.label}</span>
-              <input
+            <Field key={descriptor.field} label={descriptor.label}>
+              <Input
                 aria-label={descriptor.label}
                 inputMode="numeric"
                 max={descriptor.max}
@@ -197,23 +198,23 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                 type="number"
                 value={form[descriptor.field]}
               />
-              <span className="row-detail">{descriptor.detail}</span>
+              <span className="m-0 text-xs leading-snug text-muted break-words">{descriptor.detail}</span>
               {fieldErrors[descriptor.field] ? (
-                <span className="row-detail" role="alert">
+                <span className="m-0 text-sm leading-snug text-danger break-words" role="alert">
                   {fieldErrors[descriptor.field]}
                 </span>
               ) : null}
-            </label>
+            </Field>
           ))}
 
           {save.phase === "confirming" ? (
-            <div className="field-wide stack">
-              <p className="row-detail" role="status">
+            <div className="col-span-full grid min-w-0 gap-2.5">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
                 Confirm the quota update: blank fields clear the override.
               </p>
-              <div className="agent-filters">
+              <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
                 <button
-                  className="command-button"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
                   onClick={() => void confirmSave()}
                   type="button"
                 >
@@ -221,7 +222,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                   Confirm quota update
                 </button>
                 <button
-                  className="icon-button"
+                  className="inline-flex items-center justify-center rounded-full px-3 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:text-signal"
                   onClick={() => setSave({ phase: "idle" })}
                   type="button"
                 >
@@ -230,7 +231,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
               </div>
             </div>
           ) : (
-            <button className="command-button" disabled={save.phase === "saving"} type="submit">
+            <button className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none" disabled={save.phase === "saving"} type="submit">
               <Gauge size={15} />
               {save.phase === "saving" ? "Saving" : "Review quota update"}
             </button>
@@ -239,21 +240,21 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
       )}
 
       {save.phase === "failed" ? (
-        <p className="row-detail" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
           Quota update failed: {save.message}
         </p>
       ) : null}
       {save.phase === "done" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Quota update applied with {save.changeCount}{" "}
           {save.changeCount === 1 ? "change" : "changes"}. Unchanged keys write no audit event.
         </p>
       ) : null}
 
       {quotaNotes.length > 0 ? (
-        <div className="stack">
+        <div className="grid min-w-0 gap-2.5">
           {quotaNotes.map((note) => (
-            <p className="row-detail" key={note}>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
               {note}
             </p>
           ))}

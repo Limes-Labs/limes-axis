@@ -58,12 +58,12 @@ function SettingsStatusPill({ status }: { status: "ready" | "action_required" })
 
 function CheckList({ checks }: { checks: SettingsCheck[] }) {
   return (
-    <div className="stack settings-check-list">
+    <div className="grid min-w-0 gap-2.5 border-t border-line/60 pt-2 dark:border-white/10">
       {checks.map((check) => (
-        <div className="row" key={check.check_id}>
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10" key={check.check_id}>
           <div>
-            <p className="row-title">{compactId(check.check_id)}</p>
-            <p className="row-detail">{check.detail}</p>
+            <p className="m-0 font-medium text-ink break-words">{compactId(check.check_id)}</p>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{check.detail}</p>
           </div>
           <SettingsStatusPill status={check.status} />
         </div>
@@ -164,35 +164,42 @@ export function PlatformSettingsConsole() {
       subtitle="Identity, deployment, support and runtime posture from Axis API contracts."
       title="Platform settings"
     >
-      <div className="settings-kpi-grid" aria-label="Platform readiness metrics">
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label="Platform readiness metrics">
         {cards.map((card) => {
           const Icon = card.icon;
 
           return (
-            <article className="ops-kpi-card" key={card.label}>
-              <Icon size={30} strokeWidth={1.5} />
-              <div>
-                <p className="section-label">{card.label}</p>
-                <p className={`ops-kpi-value ${settingsStatusClass(card.status)}`}>
-                  {card.value}
-                </p>
-                <p className="row-detail">{card.detail}</p>
-              </div>
+            <article
+              className="grid min-w-0 content-start gap-2 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5"
+              data-kpi-card
+              key={card.label}
+            >
+              <Icon className="text-signal" size={22} strokeWidth={1.6} />
+              <p className="eyebrow m-0">{card.label}</p>
+              <p
+                className={`font-display m-0 text-xl break-words ${
+                  card.status === "ready" ? "text-positive" : "text-danger"
+                }`}
+              >
+                {card.value}
+              </p>
+              <div aria-hidden="true" className="rule-dotted" />
+              <p className="m-0 text-xs leading-snug text-muted break-words">{card.detail}</p>
             </article>
           );
         })}
       </div>
 
-      <div className="settings-layout">
-        <section className="panel">
-          <div className="section-heading-row">
+      <div className="grid items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Identity and SSO</p>
-              <h2 className="panel-title">OIDC readiness</h2>
+              <p className="eyebrow m-0">Identity and SSO</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">OIDC readiness</h2>
             </div>
             <SettingsStatusPill status={oidcReport.status} />
           </div>
-          <div className="settings-summary-grid">
+          <div className="mb-3.5 grid gap-2.5 sm:grid-cols-2 [&>span]:grid [&>span]:min-w-0 [&>span]:gap-1 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:text-[11px] [&_small]:font-medium [&_small]:tracking-wide [&_small]:uppercase [&_small]:text-muted [&_strong]:min-w-0 [&_strong]:break-words [&_strong]:text-[13px] [&_strong]:leading-tight [&_strong]:text-ink">
             <span>
               <small>Issuer</small>
               <strong>{oidcReport.issuer}</strong>
@@ -213,15 +220,15 @@ export function PlatformSettingsConsole() {
           <CheckList checks={oidcReport.checks} />
         </section>
 
-        <section className="panel">
-          <div className="section-heading-row">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Deployment posture</p>
-              <h2 className="panel-title">{deploymentReport.profile}</h2>
+              <p className="eyebrow m-0">Deployment posture</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{deploymentReport.profile}</h2>
             </div>
             <SettingsStatusPill status={deploymentReport.status} />
           </div>
-          <div className="settings-summary-grid">
+          <div className="mb-3.5 grid gap-2.5 sm:grid-cols-2 [&>span]:grid [&>span]:min-w-0 [&>span]:gap-1 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:text-[11px] [&_small]:font-medium [&_small]:tracking-wide [&_small]:uppercase [&_small]:text-muted [&_strong]:min-w-0 [&_strong]:break-words [&_strong]:text-[13px] [&_strong]:leading-tight [&_strong]:text-ink">
             <span>
               <small>Environment</small>
               <strong>{deploymentReport.environment}</strong>
@@ -261,16 +268,16 @@ export function PlatformSettingsConsole() {
         </section>
       </div>
 
-      <div className="settings-layout">
-        <section className="panel">
-          <div className="section-heading-row">
+      <div className="grid items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Runtime dependencies</p>
-              <h2 className="panel-title">Axis API boundary</h2>
+              <p className="eyebrow m-0">Runtime dependencies</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Axis API boundary</h2>
             </div>
             <SettingsStatusPill status={readyReport.status} />
           </div>
-          <div className="settings-dependency-grid">
+          <div className="mb-3.5 grid gap-2.5 sm:grid-cols-2 [&>span]:grid [&>span]:min-w-0 [&>span]:gap-1 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:text-[11px] [&_small]:font-medium [&_small]:tracking-wide [&_small]:uppercase [&_small]:text-muted [&_strong]:min-w-0 [&_strong]:break-words [&_strong]:text-[13px] [&_strong]:leading-tight [&_strong]:text-ink [&>span]:grid-cols-[auto_minmax(0,1fr)] [&>span]:items-center [&_small]:col-start-2 [&_small]:normal-case [&_small]:tracking-normal">
             {Object.entries(readyReport.dependencies).map(([dependency, reachable]) => (
               <span key={dependency}>
                 <Database size={16} />
@@ -281,10 +288,10 @@ export function PlatformSettingsConsole() {
               </span>
             ))}
           </div>
-          <div className="row">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
             <div>
-              <p className="row-title">External model egress</p>
-              <p className="row-detail">
+              <p className="m-0 font-medium text-ink break-words">External model egress</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 Axis reports this from `/ready`; no browser-local policy is synthesized.
               </p>
             </div>
@@ -300,15 +307,15 @@ export function PlatformSettingsConsole() {
           </div>
         </section>
 
-        <section className="panel">
-          <div className="section-heading-row">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Support diagnostics</p>
-              <h2 className="panel-title">Public-safe support bundle</h2>
+              <p className="eyebrow m-0">Support diagnostics</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Public-safe support bundle</h2>
             </div>
             <SettingsStatusPill status={supportReport.status} />
           </div>
-          <div className="settings-summary-grid">
+          <div className="mb-3.5 grid gap-2.5 sm:grid-cols-2 [&>span]:grid [&>span]:min-w-0 [&>span]:gap-1 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:text-[11px] [&_small]:font-medium [&_small]:tracking-wide [&_small]:uppercase [&_small]:text-muted [&_strong]:min-w-0 [&_strong]:break-words [&_strong]:text-[13px] [&_strong]:leading-tight [&_strong]:text-ink">
             <span>
               <small>Safe to share</small>
               <strong>{boolLabel(supportReport.safe_to_share)}</strong>
@@ -336,9 +343,9 @@ export function PlatformSettingsConsole() {
               </strong>
             </span>
           </div>
-          <div className="tag-list">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {supportReport.redaction_policy.map((policy) => (
-              <span className="tag" key={policy}>
+              <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={policy}>
                 {compactId(policy)}
               </span>
             ))}

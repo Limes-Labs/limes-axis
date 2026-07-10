@@ -135,17 +135,17 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
     }
 
     return (
-      <div className="console-stack">
-        <section className="panel overview-context">
+      <div className="grid min-w-0 gap-4">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="section-label">Platform Tenant</p>
-            <h2 className="panel-title">Tenant not found</h2>
-            <p className="row-detail mono">{tenantId}</p>
-            <p className="row-detail">
+            <p className="eyebrow m-0">Platform Tenant</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant not found</h2>
+            <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenantId}</p>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
               The tenant read route returned 404: no tenant with this id is provisioned.
             </p>
           </div>
-          <Link className="command-button" href="/tenants">
+          <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/tenants">
             <ArrowLeft size={17} />
             Tenants
           </Link>
@@ -158,15 +158,15 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
   const notes = tenant.notes ?? [];
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
+    <div className="grid min-w-0 gap-4">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Platform Tenant</p>
-          <h2 className="panel-title">{tenant.display_name}</h2>
-          <p className="row-detail">{tenant.description || "No description recorded."}</p>
-          <p className="row-detail mono">{tenant.tenant_id}</p>
+          <p className="eyebrow m-0">Platform Tenant</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{tenant.display_name}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{tenant.description || "No description recorded."}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenant.tenant_id}</p>
         </div>
-        <div className="overview-meta" aria-label="Tenant source and status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Tenant source and status">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -175,69 +175,69 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
             <ShieldCheck size={15} />
             {tenantStatusLabel(tenant.status)}
           </span>
-          <Link className="command-button" href="/tenants">
+          <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/tenants">
             <ArrowLeft size={17} />
             Tenants
           </Link>
         </div>
       </section>
 
-      <div className="metric-grid">
-        <article className="metric-card compact-card">
-          <p className="metric-label">Status</p>
-          <p className="metric-value">{tenantStatusLabel(tenant.status)}</p>
-          <p className="metric-detail">Only active tenants can establish sessions</p>
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Status</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{tenantStatusLabel(tenant.status)}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">Only active tenants can establish sessions</p>
         </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Created By</p>
-          <p className="metric-value">{tenant.created_by}</p>
-          <p className="metric-detail">{formatOverviewTimestamp(tenant.created_at)}</p>
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Created By</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{tenant.created_by}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatOverviewTimestamp(tenant.created_at)}</p>
         </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Bootstrap Admin</p>
-          <p className="metric-value mono">{tenant.bootstrap_admin_actor_id ?? "None"}</p>
-          <p className="metric-detail">Optional actor created at provisioning time</p>
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Bootstrap Admin</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink font-mono text-[13px] break-words">{tenant.bootstrap_admin_actor_id ?? "None"}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">Optional actor created at provisioning time</p>
         </article>
-        <article className="metric-card compact-card">
-          <p className="metric-label">Last Audit Event</p>
-          <p className="metric-value">{tenant.audit_event_type}</p>
-          <p className="metric-detail mono">{tenant.audit_event_id ?? "No audit id"}</p>
+        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+          <p className="eyebrow m-0">Last Audit Event</p>
+          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{tenant.audit_event_type}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words font-mono text-[13px]">{tenant.audit_event_id ?? "No audit id"}</p>
         </article>
       </div>
 
-      <section className="panel">
-        <div className="row">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
           <div>
-            <p className="section-label">Lifecycle Timeline</p>
-            <h2 className="panel-title">Provisioning and lifecycle transitions</h2>
-            <p className="row-detail">
+            <p className="eyebrow m-0">Lifecycle Timeline</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Provisioning and lifecycle transitions</h2>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
               Every transition records the operator actor, an optional reason and append-only
               audit evidence.
             </p>
           </div>
           <History size={18} />
         </div>
-        <div className="stack">
+        <div className="grid min-w-0 gap-2.5">
           {timeline.map((entry) => (
-            <div className="approval-detail-grid" key={entry.key}>
+            <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={entry.key}>
               <div>
-                <p className="metric-label">Event</p>
-                <p className="row-title">{entry.label}</p>
-                <p className="row-detail">
+                <p className="eyebrow m-0">Event</p>
+                <p className="m-0 font-medium text-ink break-words">{entry.label}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {entry.timestamp ? formatOverviewTimestamp(entry.timestamp) : "Unknown time"}
                 </p>
               </div>
               <div>
-                <p className="metric-label">Actor</p>
-                <p className="row-detail">{entry.actor ?? "Unknown actor"}</p>
+                <p className="eyebrow m-0">Actor</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.actor ?? "Unknown actor"}</p>
               </div>
               <div>
-                <p className="metric-label">Reason</p>
-                <p className="row-detail">{entry.reason ?? "No reason recorded"}</p>
+                <p className="eyebrow m-0">Reason</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.reason ?? "No reason recorded"}</p>
               </div>
               <div>
-                <p className="metric-label">Audit Event ID</p>
-                <p className="row-detail mono">{entry.auditEventId ?? "Superseded by later event"}</p>
+                <p className="eyebrow m-0">Audit Event ID</p>
+                <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{entry.auditEventId ?? "Superseded by later event"}</p>
               </div>
             </div>
           ))}
@@ -251,11 +251,11 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <TenantQuotaEditor tenantId={tenant.tenant_id} />
 
       {notes.length > 0 ? (
-        <section className="panel">
-          <p className="section-label">Tenant Notes</p>
-          <div className="stack">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <p className="eyebrow m-0">Tenant Notes</p>
+          <div className="grid min-w-0 gap-2.5">
             {notes.map((note) => (
-              <p className="row-detail" key={note}>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
                 {note}
               </p>
             ))}
