@@ -375,6 +375,12 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Supply Risk Agent/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Request supplier expedite/ })).toHaveCount(0);
 
+    // The live agent-runs surface reports its own API-required state instead
+    // of fabricated run timelines.
+    await expect(page.getByRole("heading", { name: "Agent runs API unavailable" })).toBeVisible();
+    await expect(page.getByText("Run timelines are never fabricated.")).toBeVisible();
+    await expect(page.getByText("No runs recorded — execution flag-gated")).toHaveCount(0);
+
     await expectNoHorizontalOverflow(page);
   });
 
@@ -406,6 +412,20 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Local fallback routing records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback routing seed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Quality Risk Agent/ })).toHaveCount(0);
+
+    // The live model-router surfaces render their own API-required states
+    // instead of fabricated invocation rows or endpoint cards.
+    await expect(page.getByText("Live executed", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Model invocation API unavailable" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Model endpoint API unavailable" }),
+    ).toBeVisible();
+    await expect(page.getByText("/platform/models/invocations", { exact: true })).toBeVisible();
+    await expect(page.getByText("/platform/models/endpoints", { exact: true })).toBeVisible();
+    await expect(page.locator("[data-testid='live-invocations-table']")).toHaveCount(0);
+    await expect(page.getByText("Execution disabled — flag-gated")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
   });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Bot, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Activity, Bot, Filter, History, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
 import {
@@ -14,13 +14,38 @@ import {
   type ManufacturingAgentRegistry,
 } from "@/lib/agent-demo";
 import {
+  AGENT_RUN_EXECUTION_FLAG,
+  agentRunStatusClass,
+  agentRunStatusLabel,
+  agentRunsPath,
+  buildAgentRunRail,
+  buildApprovalActionRunHref,
+  isDeferredAgentRunStatus,
+  modelInvocationDetailPath,
+  parseAgentRunList,
+  type AgentRunRailState,
+  type AgentRunRecord,
+} from "@/lib/agent-runs-live";
+import { buildAuditEventHref } from "@/lib/audit-demo";
+import { axisFetchJson } from "@/lib/axis-api";
+import { cn } from "@/lib/cn";
+import { formatModelRoutingLabel } from "@/lib/model-routing-demo";
+import {
+  formatLiveEuroCost,
+  formatLiveTimestamp,
+  parseModelInvocation,
+  type LiveModelInvocation,
+} from "@/lib/model-routing-live";
+import {
   formatOverviewTimestamp,
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const defaultFilters: AgentFilters = {
   domain: allAgentFilter,
@@ -74,11 +99,18 @@ export function AgentRegistry() {
 
   if (!registry) {
     return (
-      <ApiRequiredState
-        detail="Axis did not receive API-backed agent records. Local fallback agent records are disabled."
-        endpoint="/demo/manufacturing/agents"
-        title={source === "loading" ? "Loading agent API" : "Agent API unavailable"}
-      />
+      <div className="grid min-w-0 gap-4">
+        <ApiRequiredState
+          detail="Axis did not receive API-backed agent records. Local fallback agent records are disabled."
+          endpoint="/demo/manufacturing/agents"
+          title={source === "loading" ? "Loading agent API" : "Agent API unavailable"}
+        />
+        <ApiRequiredState
+          detail="Live agent run records need the agent registry API first. Run timelines are never fabricated."
+          endpoint="/demo/manufacturing/agents/{agent_id}/runs"
+          title="Agent runs API unavailable"
+        />
+      </div>
     );
   }
 
@@ -375,6 +407,8 @@ export function AgentRegistry() {
               ))}
             </div>
           </section>
+
+          <AgentRunsPanel agentId={selectedAgent.agent_id} agentName={selectedAgent.name} />
         </section>
       </div>
 
@@ -389,5 +423,372 @@ export function AgentRegistry() {
         </div>
       </section>
     </div>
+  );
+}
+
+function RunRailMarker({ state }: { state: AgentRunRailState }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-block size-2.5 shrink-0 rotate-45",
+        state === "done" && "bg-signal",
+        state === "current" && "border-2 border-signal bg-transparent",
+        state === "failed" && "border-2 border-[rgb(var(--signal-action-required,220_38_38))] bg-transparent",
+        state === "pending" && "border border-mist bg-transparent dark:border-white/25",
+      )}
+      style={
+        state === "current"
+          ? { animation: "tick-pulse 1.6s ease-in-out infinite" }
+          : undefined
+      }
+    />
+  );
+}
+
+/**
+ * Step timeline projected from the persisted agent_run_steps records onto
+ * the fixed context_read → model call → proposal rail, mirroring the
+ * approval inbox decision rail treatment.
+ */
+function AgentRunRail({ run }: { run: AgentRunRecord }) {
+  const stages = buildAgentRunRail(run);
+
+  return (
+    <div className="grid gap-2" aria-label="Agent run step timeline">
+      <div className="flex items-center gap-2">
+        {stages.map((stage, index) => (
+          <div
+            className={cn("flex items-center gap-2", index > 0 && "min-w-0 flex-1")}
+            key={stage.step_type}
+          >
+            {index > 0 ? <div className="rule-dotted relative h-px min-w-6 flex-1" /> : null}
+            <RunRailMarker state={stage.state} />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {stages.map((stage) => (
+          <div className="grid min-w-0 gap-0.5" key={stage.step_type}>
+            <p
+              className={cn(
+                "m-0 font-mono text-[10.5px] tracking-[0.14em] uppercase",
+                stage.state === "pending" ? "text-muted" : "text-signal",
+              )}
+            >
+              {stage.label}
+            </p>
+            <p className="m-0 truncate text-xs text-muted" title={stage.detail}>
+              {stage.detail}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type LinkedInvocationsState = {
+  invocations: LiveModelInvocation[];
+  failedIds: string[];
+  isLoading: boolean;
+};
+
+type LinkedInvocationsResult = {
+  /** The id-list key the result was resolved for; stale results are ignored. */
+  key: string;
+  invocations: LiveModelInvocation[];
+  failedIds: string[];
+};
+
+/** Resolve the run's linked model invocation records from the platform
+ * router; failures are reported per id instead of being masked. */
+function useLinkedModelInvocations(invocationIds: string[]): LinkedInvocationsState {
+  const { session } = useOidcConsoleSession();
+  const [result, setResult] = useState<LinkedInvocationsResult | null>(null);
+  const idsKey = invocationIds.join(",");
+
+  useEffect(() => {
+    if (idsKey === "") {
+      return;
+    }
+
+    const controller = new AbortController();
+    const ids = idsKey.split(",");
+
+    async function load() {
+      const invocations: LiveModelInvocation[] = [];
+      const failedIds: string[] = [];
+
+      await Promise.all(
+        ids.map(async (invocationId) => {
+          try {
+            const payload = await axisFetchJson<unknown>(
+              modelInvocationDetailPath(invocationId),
+              { session, signal: controller.signal },
+            );
+            invocations.push(parseModelInvocation(payload));
+          } catch {
+            failedIds.push(invocationId);
+          }
+        }),
+      );
+
+      if (!controller.signal.aborted) {
+        setResult({ key: idsKey, invocations, failedIds });
+      }
+    }
+
+    void load();
+
+    return () => controller.abort();
+  }, [idsKey, session]);
+
+  const resolved = result !== null && result.key === idsKey ? result : null;
+
+  return {
+    invocations: resolved?.invocations ?? [],
+    failedIds: resolved?.failedIds ?? [],
+    isLoading: idsKey !== "" && resolved === null,
+  };
+}
+
+function AgentRunDetail({ run }: { run: AgentRunRecord }) {
+  const linked = useLinkedModelInvocations(run.model_invocation_ids);
+
+  return (
+    <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3 dark:border-white/10" data-run-detail={run.run_id}>
+      <AgentRunRail run={run} />
+
+      {run.error_reason ? (
+        <p className="m-0 font-mono text-xs break-words text-muted">
+          Error reason: {run.error_reason}
+        </p>
+      ) : null}
+
+      <div>
+        <p className="eyebrow m-0">Linked Model Invocations</p>
+        {run.model_invocation_ids.length === 0 ? (
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted">
+            No model invocations are linked to this run.
+          </p>
+        ) : linked.isLoading ? (
+          <Skeleton className="mt-2 h-9 w-full" />
+        ) : (
+          <div className="mt-1 grid min-w-0 gap-2">
+            {linked.invocations.map((invocation) => (
+              <div
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-line/60 py-2 first:border-t-0 dark:border-white/10"
+                key={invocation.invocation_id}
+              >
+                <div>
+                  <p className="m-0 font-mono text-[13px] text-ink break-words">
+                    {invocation.model_id ?? "unrouted"} / {invocation.endpoint_id ?? "unrouted"}
+                  </p>
+                  <p className="mx-0 mt-0.5 mb-0 text-xs leading-snug text-muted break-words">
+                    {invocation.input_tokens} in / {invocation.output_tokens} out tokens /{" "}
+                    {formatLiveEuroCost(invocation.estimated_cost_eur)} / {invocation.latency_ms} ms /{" "}
+                    {formatModelRoutingLabel(invocation.egress_decision)}
+                  </p>
+                </div>
+                {invocation.audit_event_id ? (
+                  <a
+                    className="font-mono text-xs text-signal underline-offset-2 hover:underline"
+                    href={buildAuditEventHref(invocation.audit_event_id)}
+                  >
+                    Open audit
+                  </a>
+                ) : (
+                  <span className="font-mono text-xs text-muted">audit pending</span>
+                )}
+              </div>
+            ))}
+            {linked.failedIds.map((invocationId) => (
+              <p className="m-0 font-mono text-xs break-words text-muted" key={invocationId}>
+                Invocation {invocationId} detail unavailable (/platform/models/invocations).
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        {run.proposed_action_run_id ? (
+          <a
+            className="font-mono text-xs text-signal underline-offset-2 hover:underline"
+            href={buildApprovalActionRunHref(run.proposed_action_run_id)}
+          >
+            Open proposed action run in approvals
+          </a>
+        ) : (
+          <span className="font-mono text-xs text-muted">
+            No action run was created by this run.
+          </span>
+        )}
+        {run.audit_event_id ? (
+          <a
+            className="font-mono text-xs text-signal underline-offset-2 hover:underline"
+            href={buildAuditEventHref(run.audit_event_id)}
+          >
+            Open run audit event
+          </a>
+        ) : null}
+      </div>
+
+      {run.notes.length > 0 ? (
+        <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
+          {run.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Per-agent expandable panel over the persisted agent run records. The run
+ * list loads only when expanded and renders exclusively API-backed rows —
+ * empty and unavailable states stay honest.
+ */
+function AgentRunsPanel({ agentId, agentName }: { agentId: string; agentName: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState("");
+  const runsQuery = useAxisQuery<unknown>(agentRunsPath(agentId), { enabled: expanded });
+
+  const runList = useMemo(() => {
+    if (!expanded || runsQuery.data === null || runsQuery.data === undefined) {
+      return null;
+    }
+    try {
+      return parseAgentRunList(runsQuery.data);
+    } catch {
+      return null;
+    }
+  }, [expanded, runsQuery.data]);
+
+  const selectedRun =
+    runList?.runs.find((run) => run.run_id === selectedRunId) ?? runList?.runs[0] ?? null;
+  const deferredCount = runList
+    ? runList.runs.filter((run) => isDeferredAgentRunStatus(run.status)).length
+    : 0;
+
+  return (
+    <section
+      className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10"
+      data-agent-runs-panel={agentId}
+    >
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow m-0">Runs</p>
+          <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
+            Live executed runs
+          </h3>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+            Persisted run records for {agentName}; steps, model links and proposals are recorded
+            values.
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <span className="status-pill signal-ready" data-source-badge="live">
+            <Activity size={15} />
+            Live executed
+          </span>
+          <button
+            className="icon-button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+            title={expanded ? "Hide agent runs" : "Show agent runs"}
+            type="button"
+          >
+            <History size={17} />
+          </button>
+        </div>
+      </div>
+
+      {!expanded ? null : runsQuery.isLoading ? (
+        <div className="grid gap-2.5" aria-label="Loading agent runs">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-2/3" />
+        </div>
+      ) : !runList ? (
+        <ApiRequiredState
+          detail="Axis did not receive persisted run records for this agent. Run timelines are never fabricated."
+          endpoint={`/demo/manufacturing/agents/${agentId}/runs`}
+          title="Agent runs API unavailable"
+        />
+      ) : runList.runs.length === 0 ? (
+        <section
+          className="min-w-0 rounded-2xl border border-dashed border-slate/45 bg-surface/55 p-4.5 dark:border-white/20 dark:bg-white/4"
+          data-agent-runs-empty
+        >
+          <p className="eyebrow m-0">Flag-Gated</p>
+          <h4 className="font-display mx-0 mt-2 mb-1.5 text-xl text-ink">
+            No runs recorded — execution flag-gated
+          </h4>
+          <p className="m-0 max-w-2xl text-sm leading-snug text-muted">
+            No runs are recorded for this agent. Agent run execution is deferred by default until{" "}
+            {AGENT_RUN_EXECUTION_FLAG} is enabled on the API; Axis never fabricates run rows.
+          </p>
+        </section>
+      ) : (
+        <div className="grid min-w-0 gap-3">
+          {deferredCount > 0 ? (
+            <p className="m-0 font-mono text-xs text-muted">
+              {deferredCount} deferred run{deferredCount === 1 ? "" : "s"} — model routing
+              execution is flag-gated; deferred runs end honestly without a proposal.
+            </p>
+          ) : null}
+          <div className="grid min-w-0">
+            {runList.runs.map((run) => {
+              const isSelected = selectedRun !== null && run.run_id === selectedRun.run_id;
+
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={cn(
+                    "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6",
+                    isSelected
+                      && "bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15",
+                  )}
+                  data-run-id={run.run_id}
+                  key={run.run_id}
+                  onClick={() => setSelectedRunId(run.run_id)}
+                  type="button"
+                >
+                  <span>
+                    <span className="m-0 font-mono text-[13px] text-ink break-words">
+                      {run.run_id}
+                    </span>
+                    <span className="mx-0 mt-1 mb-0 block text-sm leading-snug text-muted break-words">
+                      {run.autonomy_level} / started {formatLiveTimestamp(run.created_at)} by{" "}
+                      {run.requested_by}
+                    </span>
+                  </span>
+                  <span className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                    {run.mode === "dry_run" ? (
+                      <span className="status-pill signal-watch">Dry run</span>
+                    ) : null}
+                    <span className={`status-pill ${agentRunStatusClass(run.status)}`}>
+                      {agentRunStatusLabel(run.status)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedRun ? <AgentRunDetail run={selectedRun} /> : null}
+
+          {runList.run_notes.length > 0 ? (
+            <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
+              {runList.run_notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      )}
+    </section>
   );
 }
