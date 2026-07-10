@@ -16,6 +16,7 @@ from axis_api.persistence import (
 class PlatformPolicyScope(StrEnum):
     ACTION_EXECUTION = "action_execution"
     APPROVAL_REQUIREMENT = "approval_requirement"
+    MODEL_INVOCATION = "model_invocation"
 
 
 class PlatformPolicyEffect(StrEnum):

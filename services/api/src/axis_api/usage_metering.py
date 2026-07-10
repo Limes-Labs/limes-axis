@@ -60,6 +60,9 @@ class TenantUsageMetric(StrEnum):
     API_REQUEST = "api_request"
     CONNECTOR_SYNC_ROWS = "connector_sync_rows"
     SESSION_CREATED = "session_created"
+    MODEL_INVOCATIONS = "model_invocations"
+    MODEL_INPUT_TOKENS = "model_input_tokens"
+    MODEL_OUTPUT_TOKENS = "model_output_tokens"
 
 
 def usage_period_start(

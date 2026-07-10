@@ -13150,6 +13150,917 @@
         "title": "ManufacturingWorkflowSnapshot",
         "type": "object"
       },
+      "ModelEndpointCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "base_url": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "cost_input_per_1k": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Cost Input Per 1K"
+          },
+          "cost_output_per_1k": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Cost Output Per 1K"
+          },
+          "created_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "credential_handle_id": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Handle Id"
+          },
+          "default_model": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Default Model",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "egress_policy_id": {
+            "anyOf": [
+              {
+                "maxLength": 180,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Egress Policy Id"
+          },
+          "endpoint_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Endpoint Id",
+            "type": "string"
+          },
+          "hosting_boundary": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Hosting Boundary",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "provider_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Type",
+            "type": "string"
+          },
+          "status": {
+            "default": "enabled",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "task_types": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Task Types",
+            "type": "array"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint_id",
+          "display_name",
+          "provider_type",
+          "hosting_boundary",
+          "base_url",
+          "default_model",
+          "task_types",
+          "created_by"
+        ],
+        "title": "ModelEndpointCreateRequest",
+        "type": "object"
+      },
+      "ModelEndpointRecord": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "base_url": {
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "cost_input_per_1k": {
+            "minimum": 0.0,
+            "title": "Cost Input Per 1K",
+            "type": "number"
+          },
+          "cost_output_per_1k": {
+            "minimum": 0.0,
+            "title": "Cost Output Per 1K",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "credential_handle_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Handle Id"
+          },
+          "default_model": {
+            "minLength": 1,
+            "title": "Default Model",
+            "type": "string"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "egress_policy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Egress Policy Id"
+          },
+          "endpoint_id": {
+            "minLength": 1,
+            "title": "Endpoint Id",
+            "type": "string"
+          },
+          "hosting_boundary": {
+            "minLength": 1,
+            "title": "Hosting Boundary",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "provider_type": {
+            "minLength": 1,
+            "title": "Provider Type",
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "task_types": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Task Types",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "endpoint_id",
+          "display_name",
+          "provider_type",
+          "hosting_boundary",
+          "base_url",
+          "default_model",
+          "task_types",
+          "status",
+          "cost_input_per_1k",
+          "cost_output_per_1k",
+          "created_by",
+          "audit_event_type",
+          "created_at"
+        ],
+        "title": "ModelEndpointRecord",
+        "type": "object"
+      },
+      "ModelEndpointRegistry": {
+        "properties": {
+          "enabled_endpoint_count": {
+            "minimum": 0.0,
+            "title": "Enabled Endpoint Count",
+            "type": "integer"
+          },
+          "endpoint_count": {
+            "minimum": 0.0,
+            "title": "Endpoint Count",
+            "type": "integer"
+          },
+          "endpoint_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Endpoint Notes",
+            "type": "array"
+          },
+          "endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/ModelEndpointRecord"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "endpoint_count",
+          "enabled_endpoint_count"
+        ],
+        "title": "ModelEndpointRegistry",
+        "type": "object"
+      },
+      "ModelInvocationList": {
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "invocation_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invocation Notes",
+            "type": "array"
+          },
+          "invocations": {
+            "items": {
+              "$ref": "#/components/schemas/ModelInvocationResult"
+            },
+            "title": "Invocations",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id"
+        ],
+        "title": "ModelInvocationList",
+        "type": "object"
+      },
+      "ModelInvocationPreview": {
+        "properties": {
+          "actor_id": {
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Type"
+          },
+          "cost_basis": {
+            "default": "estimated_from_endpoint_rates",
+            "minLength": 1,
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "egress_decision": {
+            "minLength": 1,
+            "title": "Egress Decision",
+            "type": "string"
+          },
+          "estimated_cost_eur": {
+            "minimum": 0.0,
+            "title": "Estimated Cost Eur",
+            "type": "number"
+          },
+          "estimated_input_tokens": {
+            "minimum": 0.0,
+            "title": "Estimated Input Tokens",
+            "type": "integer"
+          },
+          "estimated_output_tokens": {
+            "minimum": 0.0,
+            "title": "Estimated Output Tokens",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "platform_policy_decision": {
+            "$ref": "#/components/schemas/PlatformPolicyDecision"
+          },
+          "prompt_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Prompt Sha256",
+            "type": "string"
+          },
+          "route_decision": {
+            "$ref": "#/components/schemas/ModelRouteDecision"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "task_type": {
+            "minLength": 1,
+            "title": "Task Type",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "actor_id",
+          "status",
+          "task_type",
+          "egress_decision",
+          "estimated_input_tokens",
+          "estimated_output_tokens",
+          "estimated_cost_eur",
+          "prompt_sha256",
+          "route_decision",
+          "permission_decision",
+          "platform_policy_decision"
+        ],
+        "title": "ModelInvocationPreview",
+        "type": "object"
+      },
+      "ModelInvocationPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "egress_policy_evidence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Egress Policy Evidence",
+            "type": "object"
+          },
+          "endpoint_id": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Id"
+          },
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "maximum": 32768.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens"
+          },
+          "prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "requested_model": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Model"
+          },
+          "task_type": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Task Type",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_id",
+          "task_type",
+          "prompt"
+        ],
+        "title": "ModelInvocationPreviewRequest",
+        "type": "object"
+      },
+      "ModelInvocationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "egress_policy_evidence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Egress Policy Evidence",
+            "type": "object"
+          },
+          "endpoint_id": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Id"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "maximum": 32768.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens"
+          },
+          "prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "requested_model": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Model"
+          },
+          "task_type": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Task Type",
+            "type": "string"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_id",
+          "idempotency_key",
+          "task_type",
+          "prompt"
+        ],
+        "title": "ModelInvocationRequest",
+        "type": "object"
+      },
+      "ModelInvocationResult": {
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "audit_event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Type"
+          },
+          "cost_basis": {
+            "default": "estimated_from_endpoint_rates",
+            "minLength": 1,
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "egress_decision": {
+            "minLength": 1,
+            "title": "Egress Decision",
+            "type": "string"
+          },
+          "endpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "estimated_cost_eur": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Estimated Cost Eur",
+            "type": "number"
+          },
+          "hosting_boundary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosting Boundary"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "input_tokens": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "invocation_id": {
+            "format": "uuid",
+            "title": "Invocation Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "output_text": {
+            "default": "",
+            "title": "Output Text",
+            "type": "string"
+          },
+          "output_tokens": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "permission_decision": {
+            "$ref": "#/components/schemas/PermissionDecision"
+          },
+          "persisted": {
+            "default": true,
+            "title": "Persisted",
+            "type": "boolean"
+          },
+          "platform_policy_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlatformPolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Prompt Sha256",
+            "type": "string"
+          },
+          "provider_request_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Request Ref"
+          },
+          "provider_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Type"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "response_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Sha256"
+          },
+          "route_decision": {
+            "$ref": "#/components/schemas/ModelRouteDecision"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "task_type": {
+            "minLength": 1,
+            "title": "Task Type",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "invocation_id",
+          "idempotency_key",
+          "status",
+          "task_type",
+          "requested_by",
+          "egress_decision",
+          "prompt_sha256",
+          "route_decision",
+          "permission_decision",
+          "created_at"
+        ],
+        "title": "ModelInvocationResult",
+        "type": "object"
+      },
       "ModelProviderOption": {
         "properties": {
           "allowed_policies": {
@@ -13216,6 +14127,111 @@
           "notes"
         ],
         "title": "ModelProviderOption",
+        "type": "object"
+      },
+      "ModelRouteDecision": {
+        "properties": {
+          "candidate_endpoint_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Candidate Endpoint Ids",
+            "type": "array"
+          },
+          "endpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Id"
+          },
+          "evaluated_endpoint_count": {
+            "minimum": 0.0,
+            "title": "Evaluated Endpoint Count",
+            "type": "integer"
+          },
+          "hosting_boundary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosting Boundary"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "provider_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Type"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "requested_endpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Endpoint Id"
+          },
+          "requested_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Model"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "task_type": {
+            "minLength": 1,
+            "title": "Task Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "task_type",
+          "evaluated_endpoint_count"
+        ],
+        "title": "ModelRouteDecision",
         "type": "object"
       },
       "ModelRouteTelemetry": {
@@ -13426,6 +14442,40 @@
           "statuses"
         ],
         "title": "ModelRoutingFilterOptions",
+        "type": "object"
+      },
+      "ModelRoutingTelemetryProjection": {
+        "properties": {
+          "route_count": {
+            "minimum": 0.0,
+            "title": "Route Count",
+            "type": "integer"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRouteTelemetry"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "telemetry_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Telemetry Notes",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "route_count"
+        ],
+        "title": "ModelRoutingTelemetryProjection",
         "type": "object"
       },
       "OidcClaimOnboarding": {
@@ -14700,7 +15750,8 @@
       "PlatformPolicyScope": {
         "enum": [
           "action_execution",
-          "approval_requirement"
+          "approval_requirement",
+          "model_invocation"
         ],
         "title": "PlatformPolicyScope",
         "type": "string"
@@ -23122,6 +24173,529 @@
         "summary": "Identity Session Revoke",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/platform/models/endpoints": {
+      "get": {
+        "operationId": "platform_model_endpoint_registry_platform_models_endpoints_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelEndpointRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model endpoint read permission denied"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Model Endpoint Registry",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_model_endpoint_create_platform_models_endpoints_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelEndpointCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelEndpointRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model endpoint admin permission denied"
+          },
+          "409": {
+            "description": "Model endpoint already exists"
+          },
+          "422": {
+            "description": "Model endpoint validation failed"
+          }
+        },
+        "summary": "Platform Model Endpoint Create",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/models/invocations": {
+      "get": {
+        "operationId": "platform_model_invocation_list_platform_models_invocations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 600,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInvocationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model invocation read permission denied"
+          },
+          "422": {
+            "description": "Model invocation listing cursor is invalid"
+          }
+        },
+        "summary": "Platform Model Invocation List",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_model_invocation_create_platform_models_invocations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelInvocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInvocationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model invocation permission denied or egress blocked"
+          },
+          "409": {
+            "description": "Model invocation idempotency conflict"
+          },
+          "422": {
+            "description": "Model invocation validation failed"
+          }
+        },
+        "summary": "Platform Model Invocation Create",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/models/invocations/preview": {
+      "post": {
+        "operationId": "platform_model_invocation_preview_platform_models_invocations_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelInvocationPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInvocationPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model invocation permission denied"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Model Invocation Preview",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/models/invocations/{invocation_id}": {
+      "get": {
+        "operationId": "platform_model_invocation_detail_platform_models_invocations__invocation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invocation_id",
+            "required": true,
+            "schema": {
+              "title": "Invocation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInvocationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model invocation read permission denied"
+          },
+          "404": {
+            "description": "Model invocation not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Model Invocation Detail",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/platform/models/routing/telemetry": {
+      "get": {
+        "operationId": "platform_model_routing_telemetry_platform_models_routing_telemetry_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelRoutingTelemetryProjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Model routing telemetry read permission denied"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Model Routing Telemetry",
+        "tags": [
+          "platform"
         ]
       }
     },

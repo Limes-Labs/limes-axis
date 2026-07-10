@@ -238,6 +238,22 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_EXTERNAL_MODEL_EGRESS_ENABLED",
     )
+    model_routing_execution_enabled: bool = Field(
+        default=False,
+        alias="AXIS_MODEL_ROUTING_EXECUTION_ENABLED",
+    )
+    model_invocation_timeout_seconds: float = Field(
+        default=30.0,
+        ge=0.1,
+        le=600.0,
+        alias="AXIS_MODEL_INVOCATION_TIMEOUT_SECONDS",
+    )
+    model_invocation_prompt_excerpt_chars: int = Field(
+        default=0,
+        ge=0,
+        le=2000,
+        alias="AXIS_MODEL_INVOCATION_PROMPT_EXCERPT_CHARS",
+    )
     deployment_network_policy_enabled: bool = Field(
         default=False,
         alias="AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED",
