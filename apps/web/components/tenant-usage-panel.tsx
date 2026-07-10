@@ -77,36 +77,36 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
   const usageNotes = summary?.usage_notes ?? [];
 
   return (
-    <section className="panel">
-      <div className="row">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="section-label">Usage Metering</p>
-          <h2 className="panel-title">Consumption over the last {defaultUsageWindowDays} days</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Usage Metering</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Consumption over the last {defaultUsageWindowDays} days</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Reads GET /platform/tenants/{tenantId}/usage. Requires the{" "}
             {platformTenantUsageScope} scope. Metering is cumulative consumption
             accounting; quotas remain the enforcement ceilings.
           </p>
-          <p className="row-detail mono">{buildPlatformTenantUsagePath(tenantId)}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{buildPlatformTenantUsagePath(tenantId)}</p>
         </div>
         <Activity size={18} />
       </div>
 
       {source !== "api" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           {sourceLabel(source)}
         </p>
       ) : rows.length === 0 ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           No metered consumption in this window.
         </p>
       ) : (
-        <div className="metric-grid" aria-label="Per-metric consumption">
+        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label="Per-metric consumption">
           {rows.map((row) => (
-            <article className="metric-card compact-card" key={row.metricKey}>
-              <p className="metric-label">{row.label}</p>
-              <p className="metric-value">{row.total.toLocaleString()}</p>
-              <p className="metric-detail">
+            <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={row.metricKey}>
+              <p className="eyebrow m-0">{row.label}</p>
+              <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{row.total.toLocaleString()}</p>
+              <p className="m-0 text-xs leading-relaxed text-muted break-words">
                 {row.periodCount} {row.periodCount === 1 ? "period" : "periods"} in window
               </p>
             </article>
@@ -115,9 +115,9 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
       )}
 
       {usageNotes.length > 0 ? (
-        <div className="stack">
+        <div className="grid min-w-0 gap-2.5">
           {usageNotes.map((note) => (
-            <p className="row-detail" key={note}>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
               {note}
             </p>
           ))}

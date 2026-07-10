@@ -31,31 +31,35 @@ export function ConsolePage({
   const { lead, rest } = splitTitle(title);
 
   return (
-    <div className="ops-console">
+    <div className="ops-console grid min-h-screen content-start gap-3 px-4 pb-5 sm:px-6">
       <ConsoleTopbar sourceLabel={sourceLabel} />
-      <section className="ops-page-header">
+      <section className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <div>
-          {eyebrow ? <Eyebrow className="section-label">{eyebrow}</Eyebrow> : null}
-          <h1 className="ops-page-title font-display">
+          {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+          <h1 className="font-display m-0 text-[26px] text-ink">
             {rest ? (
               <>
-                <span className="ops-page-title-lead">{lead} </span>
+                <span className="text-signal">{lead} </span>
                 {rest}
               </>
             ) : (
               lead
             )}
           </h1>
-          {subtitle ? <p className="ops-page-subtitle">{subtitle}</p> : null}
+          {subtitle ? (
+            <p className="ops-page-subtitle mx-0 mt-1.5 mb-0 max-w-3xl text-[13px] leading-snug text-muted">
+              {subtitle}
+            </p>
+          ) : null}
         </div>
         {controls ? (
-          <div className="ops-controls" aria-label="Page controls">
+          <div className="flex flex-wrap items-center justify-end gap-2" aria-label="Page controls">
             {controls}
           </div>
         ) : null}
       </section>
-      <div aria-hidden="true" className="rule-dotted ops-page-rule" />
-      <div className="ops-page-content">{children}</div>
+      <div aria-hidden="true" className="rule-dotted mt-0.5" />
+      <div className="grid min-w-0 gap-3.5">{children}</div>
     </div>
   );
 }

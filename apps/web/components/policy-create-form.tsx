@@ -26,6 +26,9 @@ import {
 } from "@/lib/platform-policies";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
+import { Field } from "@/components/ui/field";
+import { Input, Textarea } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type SubmissionState =
   | { phase: "idle" }
@@ -113,12 +116,12 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
   const hasDraftConditions = Object.keys(draftConditions).length > 0;
 
   return (
-    <section className="panel">
-      <div className="row">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="section-label">Author Policy</p>
-          <h2 className="panel-title">New policy</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Author Policy</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">New policy</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Creates revision 1 through POST /platform/policies. The API enforces the{" "}
             {platformPolicyAuthorScope} scope and records authoring audit evidence.
           </p>
@@ -128,13 +131,12 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
 
       <form
         aria-label="Platform policy authoring"
-        className="policy-authoring-form"
+        className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
         noValidate
         onSubmit={(event) => void submitPolicy(event)}
       >
-        <label>
-          <span className="metric-label">Policy ID</span>
-          <input
+        <Field label="Policy ID">
+          <Input
             aria-label="New policy id"
             onChange={(event) => updateDraft({ policyId: event.target.value })}
             pattern={platformPolicyIdPattern}
@@ -143,20 +145,18 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
             type="text"
             value={draft.policyId}
           />
-        </label>
-        <label>
-          <span className="metric-label">Policy Version</span>
-          <input
+        </Field>
+        <Field label="Policy Version">
+          <Input
             aria-label="New policy version"
             onChange={(event) => updateDraft({ policyVersion: event.target.value })}
             required
             type="text"
             value={draft.policyVersion}
           />
-        </label>
-        <label>
-          <span className="metric-label">Scope</span>
-          <select
+        </Field>
+        <Field label="Scope">
+          <Select
             aria-label="New policy scope"
             onChange={(event) =>
               updateDraft({ scope: event.target.value as PlatformPolicyScope })
@@ -168,11 +168,10 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
                 {policyScopeLabel(scope)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          <span className="metric-label">Effect</span>
-          <select
+          </Select>
+        </Field>
+        <Field label="Effect">
+          <Select
             aria-label="New policy effect"
             onChange={(event) =>
               updateDraft({ effect: event.target.value as PolicyDraftFormState["effect"] })
@@ -184,11 +183,10 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
                 {policyEffectLabel(effect)}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="field-wide">
-          <span className="metric-label">Display Name</span>
-          <input
+          </Select>
+        </Field>
+        <Field className="col-span-full" label="Display Name">
+          <Input
             aria-label="New policy display name"
             onChange={(event) => updateDraft({ displayName: event.target.value })}
             placeholder="Deny critical actions"
@@ -196,10 +194,9 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
             type="text"
             value={draft.displayName}
           />
-        </label>
-        <label className="field-wide">
-          <span className="metric-label">Description</span>
-          <input
+        </Field>
+        <Field className="col-span-full" label="Description">
+          <Input
             aria-label="New policy description"
             onChange={(event) => updateDraft({ description: event.target.value })}
             placeholder="What this policy gates and why"
@@ -207,24 +204,24 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
             type="text"
             value={draft.description}
           />
-        </label>
+        </Field>
         {fieldErrors.policyId ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.policyId}
           </p>
         ) : null}
         {fieldErrors.policyVersion ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.policyVersion}
           </p>
         ) : null}
         {fieldErrors.displayName ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.displayName}
           </p>
         ) : null}
         {fieldErrors.description ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.description}
           </p>
         ) : null}
@@ -234,18 +231,17 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
           labelPrefix="New policy"
           onChange={updateConditions}
         />
-        <label className="field-wide">
-          <span className="metric-label">Notes (one per line)</span>
-          <textarea
+        <Field className="col-span-full" label="Notes (one per line)">
+          <Textarea
             aria-label="New policy notes"
             onChange={(event) => updateDraft({ notesText: event.target.value })}
             placeholder="Optional reviewer notes"
             rows={2}
             value={draft.notesText}
           />
-        </label>
+        </Field>
         <button
-          className="command-button"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
           disabled={submission.phase === "saving"}
           type="submit"
         >
@@ -255,25 +251,25 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
       </form>
 
       {submission.phase === "failed" ? (
-        <p className="row-detail" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
           Policy authoring failed: {submission.message}
         </p>
       ) : null}
       {submission.phase === "created" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Policy created as r{submission.record.revision_number} /{" "}
           {submission.record.policy_version}.{" "}
-          <Link className="text-link" href={`/policies/${submission.record.policy_id}`}>
+          <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${submission.record.policy_id}`}>
             Open {submission.record.policy_id}
           </Link>
         </p>
       ) : null}
 
-      <div className="row">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="section-label">Preview Evaluation</p>
-          <h3 className="subsection-title">Advisory dry run for the drafted scope</h3>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Preview Evaluation</p>
+          <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">Advisory dry run for the drafted scope</h3>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Runs POST /platform/policies/evaluate against the policies already persisted for
             this tenant, plus a client-side check of whether the drafted conditions would match
             the sample context. Advisory only: the draft is not evaluated by the API until it

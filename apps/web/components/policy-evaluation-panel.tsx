@@ -19,6 +19,9 @@ import {
   type PlatformPolicyScope,
 } from "@/lib/platform-policies";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type EvaluationFormFields = {
   scope: PlatformPolicyScope;
@@ -47,17 +50,17 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
   const evidenceEntries = Object.entries(decision.evidence ?? {});
 
   return (
-    <div className="stack">
-      <div className="row">
+    <div className="grid min-w-0 gap-2.5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="metric-label">Decision</p>
-          <p className="row-title">{policyEffectLabel(decision.effect)}</p>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Decision</p>
+          <p className="m-0 font-medium text-ink break-words">{policyEffectLabel(decision.effect)}</p>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {decision.matched && decision.matched_policy_id
               ? `Matched ${decision.matched_policy_id} r${decision.matched_revision_number} / ${decision.matched_policy_version}`
               : "No active policy matched this context"}
           </p>
-          <p className="row-detail">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {decision.evaluated_policy_count} active policies evaluated
             {decision.precedence_rule ? ` / ${decision.precedence_rule}` : ""}
           </p>
@@ -69,17 +72,17 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
 
       {matchedPolicies.length > 0 ? (
         <div>
-          <p className="metric-label">Matched Policies</p>
-          <div className="payload-grid">
+          <p className="eyebrow m-0">Matched Policies</p>
+          <div className="grid min-w-0 gap-2">
             {matchedPolicies.map((match) => (
-              <div className="payload-row" key={`${match.policy_id}-${match.revision_number}`}>
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={`${match.policy_id}-${match.revision_number}`}>
                 <span>
-                  <span className="metric-label">{match.policy_id}</span>
-                  <span className="row-detail">
+                  <span className="eyebrow m-0">{match.policy_id}</span>
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     r{match.revision_number} / {match.policy_version}
                   </span>
                 </span>
-                <span className="mono">{match.effect}</span>
+                <span className="font-mono text-[13px] break-words">{match.effect}</span>
               </div>
             ))}
           </div>
@@ -88,12 +91,12 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
 
       {evidenceEntries.length > 0 ? (
         <div>
-          <p className="metric-label">Evidence Payload</p>
-          <div className="payload-grid">
+          <p className="eyebrow m-0">Evidence Payload</p>
+          <div className="grid min-w-0 gap-2">
             {evidenceEntries.map(([key, value]) => (
-              <div className="payload-row" key={key}>
-                <span className="metric-label">{key}</span>
-                <span className="mono">{JSON.stringify(value)}</span>
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={key}>
+                <span className="eyebrow m-0">{key}</span>
+                <span className="font-mono text-[13px] break-words">{JSON.stringify(value)}</span>
               </div>
             ))}
           </div>
@@ -177,12 +180,11 @@ export function PolicyEvaluationPanel({
     <>
       <form
         aria-label={formLabel}
-        className="policy-authoring-form"
+        className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
         onSubmit={(event) => void runEvaluation(event)}
       >
-        <label>
-          <span className="metric-label">Scope</span>
-          <select
+        <Field label="Scope">
+          <Select
             aria-label="Evaluation scope"
             disabled={scopeLocked}
             onChange={(event) => updateField("scope", event.target.value)}
@@ -193,21 +195,19 @@ export function PolicyEvaluationPanel({
                 {policyScopeLabel(scopeOption)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          <span className="metric-label">Action Domain</span>
-          <input
+          </Select>
+        </Field>
+        <Field label="Action Domain">
+          <Input
             aria-label="Action domain"
             onChange={(event) => updateField("actionDomain", event.target.value)}
             placeholder="Operations"
             type="text"
             value={form.actionDomain}
           />
-        </label>
-        <label>
-          <span className="metric-label">Risk Level</span>
-          <select
+        </Field>
+        <Field label="Risk Level">
+          <Select
             aria-label="Risk level"
             onChange={(event) => updateField("riskLevel", event.target.value)}
             value={form.riskLevel}
@@ -218,11 +218,10 @@ export function PolicyEvaluationPanel({
                 {level}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          <span className="metric-label">Autonomy Level</span>
-          <select
+          </Select>
+        </Field>
+        <Field label="Autonomy Level">
+          <Select
             aria-label="Autonomy level"
             onChange={(event) => updateField("autonomyLevel", event.target.value)}
             value={form.autonomyLevel}
@@ -233,11 +232,10 @@ export function PolicyEvaluationPanel({
                 {level}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          <span className="metric-label">Requested Amount</span>
-          <input
+          </Select>
+        </Field>
+        <Field label="Requested Amount">
+          <Input
             aria-label="Requested amount"
             min="0"
             onChange={(event) => updateField("requestedAmount", event.target.value)}
@@ -246,9 +244,9 @@ export function PolicyEvaluationPanel({
             type="number"
             value={form.requestedAmount}
           />
-        </label>
+        </Field>
         <button
-          className="command-button"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
           disabled={evaluation.phase === "evaluating"}
           type="submit"
         >
@@ -258,14 +256,14 @@ export function PolicyEvaluationPanel({
       </form>
 
       {evaluation.phase === "failed" ? (
-        <p className="row-detail" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
           Dry-run evaluation failed: {evaluation.message}
         </p>
       ) : null}
       {evaluation.phase === "decided" ? (
         <>
           {evaluation.draftMatch !== null ? (
-            <p className="row-detail">
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
               Advisory draft check: the drafted conditions{" "}
               {evaluation.draftMatch ? "would match" : "would not match"} this sample context.
               The decision below only evaluates policies already persisted for the tenant.

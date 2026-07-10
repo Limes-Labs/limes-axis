@@ -21,6 +21,9 @@ import {
 import { safeRandomUuid } from "@/lib/ids";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
+import { Field } from "@/components/ui/field";
+import { Input, Textarea } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type SubmissionState =
   | { phase: "idle" }
@@ -125,41 +128,39 @@ export function PolicyReviseForm({
   }
 
   return (
-    <section className="panel">
-      <div className="row">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="section-label">Revise Policy</p>
-          <h2 className="panel-title">Append a revision to r{current.revision_number}</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Revise Policy</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Append a revision to r{current.revision_number}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Pre-filled from the current revision. Appends through POST
             /platform/policies/{current.policy_id}/revisions with an idempotency key; the API
             enforces the {platformPolicyReviseScope} scope. Scope stays{" "}
             {policyScopeLabel(current.scope)} — the policy scope is fixed at authoring time.
           </p>
-          <p className="row-detail mono">Idempotency key {idempotencyKey}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">Idempotency key {idempotencyKey}</p>
         </div>
         <GitBranchPlus size={18} />
       </div>
 
       <form
         aria-label="Platform policy revision"
-        className="policy-authoring-form"
+        className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
         noValidate
         onSubmit={(event) => void submitRevision(event)}
       >
-        <label>
-          <span className="metric-label">Policy Version</span>
-          <input
+        <Field label="Policy Version">
+          <Input
             aria-label="Revision policy version"
             onChange={(event) => updateDraft({ policyVersion: event.target.value })}
             required
             type="text"
             value={draft.policyVersion}
           />
-        </label>
-        <label>
-          <span className="metric-label">Effect</span>
-          <select
+        </Field>
+        <Field label="Effect">
+          <Select
             aria-label="Revision effect"
             onChange={(event) =>
               updateDraft({ effect: event.target.value as PolicyDraftFormState["effect"] })
@@ -171,40 +172,38 @@ export function PolicyReviseForm({
                 {policyEffectLabel(effect)}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="field-wide">
-          <span className="metric-label">Display Name</span>
-          <input
+          </Select>
+        </Field>
+        <Field className="col-span-full" label="Display Name">
+          <Input
             aria-label="Revision display name"
             onChange={(event) => updateDraft({ displayName: event.target.value })}
             required
             type="text"
             value={draft.displayName}
           />
-        </label>
-        <label className="field-wide">
-          <span className="metric-label">Description</span>
-          <input
+        </Field>
+        <Field className="col-span-full" label="Description">
+          <Input
             aria-label="Revision description"
             onChange={(event) => updateDraft({ description: event.target.value })}
             required
             type="text"
             value={draft.description}
           />
-        </label>
+        </Field>
         {fieldErrors.policyVersion ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.policyVersion}
           </p>
         ) : null}
         {fieldErrors.displayName ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.displayName}
           </p>
         ) : null}
         {fieldErrors.description ? (
-          <p className="row-detail field-wide" role="alert">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
             {fieldErrors.description}
           </p>
         ) : null}
@@ -214,18 +213,17 @@ export function PolicyReviseForm({
           labelPrefix="Revision"
           onChange={updateConditions}
         />
-        <label className="field-wide">
-          <span className="metric-label">Notes (one per line)</span>
-          <textarea
+        <Field className="col-span-full" label="Notes (one per line)">
+          <Textarea
             aria-label="Revision notes"
             onChange={(event) => updateDraft({ notesText: event.target.value })}
             placeholder="Optional reviewer notes"
             rows={2}
             value={draft.notesText}
           />
-        </label>
+        </Field>
         <button
-          className="command-button"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
           disabled={submission.phase === "saving"}
           type="submit"
         >
@@ -235,25 +233,25 @@ export function PolicyReviseForm({
       </form>
 
       {submission.phase === "created" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Revision created: r{submission.record.revision_number} /{" "}
           {submission.record.policy_version} is now the active revision.
         </p>
       ) : null}
       {submission.phase === "replayed" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Revision already applied: the API replayed r{submission.record.revision_number} /{" "}
           {submission.record.policy_version} for this idempotency key without writing a new
           revision.
         </p>
       ) : null}
       {submission.phase === "conflict" ? (
-        <p className="row-detail" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
           Revision conflict: {submission.message}
         </p>
       ) : null}
       {submission.phase === "failed" ? (
-        <p className="row-detail" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
           Policy revision failed: {submission.message}
         </p>
       ) : null}

@@ -6,6 +6,8 @@ import {
   type PolicyConditionsFormState,
   type PolicyDraftFieldErrors,
 } from "@/lib/platform-policies";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 type PolicyConditionFieldsProps = {
   conditions: PolicyConditionsFormState;
@@ -32,13 +34,13 @@ function ConditionToggleGroup({
   onToggle: (value: string) => void;
 }) {
   return (
-    <div aria-label={label} className="condition-group" role="group">
-      <span className="metric-label">{label}</span>
-      <div className="tag-list">
+    <div aria-label={label} className="col-span-full grid min-w-0 content-start gap-1.5" role="group">
+      <span className="eyebrow m-0">{label}</span>
+      <div className="flex min-w-0 flex-wrap gap-2">
         {options.map((option) => (
           <button
             aria-pressed={selected.includes(option)}
-            className="tag"
+            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5"
             key={option}
             onClick={() => onToggle(option)}
             type="button"
@@ -63,16 +65,15 @@ export function PolicyConditionFields({
 
   return (
     <>
-      <label className="field-wide">
-        <span className="metric-label">Action Domains</span>
-        <input
+      <Field className="col-span-full" label="Action Domains">
+        <Input
           aria-label={`${labelPrefix} action domains`}
           onChange={(event) => update({ actionDomainsText: event.target.value })}
           placeholder="Operations, Finance (comma separated)"
           type="text"
           value={conditions.actionDomainsText}
         />
-      </label>
+      </Field>
       <ConditionToggleGroup
         label={`${labelPrefix} risk levels`}
         onToggle={(value) => update({ riskLevels: toggleValue(conditions.riskLevels, value) })}
@@ -87,9 +88,8 @@ export function PolicyConditionFields({
         options={platformPolicyAutonomyLevels}
         selected={conditions.autonomyLevels}
       />
-      <label>
-        <span className="metric-label">Amount Threshold</span>
-        <input
+      <Field label="Amount Threshold">
+        <Input
           aria-label={`${labelPrefix} amount threshold`}
           min="0"
           onChange={(event) => update({ requestedAmount: event.target.value })}
@@ -98,14 +98,14 @@ export function PolicyConditionFields({
           type="number"
           value={conditions.requestedAmount}
         />
-      </label>
+      </Field>
       {errors.requestedAmount ? (
-        <p className="row-detail field-wide" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
           {errors.requestedAmount}
         </p>
       ) : null}
       {errors.conditions ? (
-        <p className="row-detail field-wide" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words col-span-full" role="alert">
           {errors.conditions}
         </p>
       ) : null}

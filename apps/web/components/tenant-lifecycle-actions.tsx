@@ -14,6 +14,8 @@ import {
 } from "@/lib/platform-tenants";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 type ActionState =
   | { phase: "idle" }
@@ -140,14 +142,14 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
   }
 
   return (
-    <section className="panel">
-      <div className="row">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="section-label">Lifecycle Actions</p>
-          <h2 className="panel-title">
+          <p className="eyebrow m-0">Lifecycle Actions</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
             {isActive ? "Suspend tenant" : isSuspended ? "Reactivate tenant" : "No actions available"}
           </h2>
-          <p className="row-detail">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Lifecycle transitions require the {platformTenantSuspendScope} scope and append audit
             evidence. Operators without the scope receive an inline 403.
           </p>
@@ -158,13 +160,12 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
       {isActive ? (
         <form
           aria-label="Suspend tenant"
-          className="policy-authoring-form"
+          className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={(event) => void submitSuspend(event)}
         >
-          <label className="field-wide">
-            <span className="metric-label">Suspension Reason</span>
-            <input
+          <Field className="col-span-full" label="Suspension Reason">
+            <Input
               aria-label="Suspension reason"
               onChange={(event) => setReason(event.target.value)}
               placeholder="Why this tenant is being suspended"
@@ -172,9 +173,9 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
               type="text"
               value={reason}
             />
-          </label>
+          </Field>
           <button
-            className="command-button"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
             disabled={action.phase === "saving"}
             type="submit"
           >
@@ -185,22 +186,21 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
       ) : isSuspended ? (
         <form
           aria-label="Reactivate tenant"
-          className="policy-authoring-form"
+          className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={(event) => void submitReactivate(event)}
         >
-          <label className="field-wide">
-            <span className="metric-label">Reactivation Reason (optional)</span>
-            <input
+          <Field className="col-span-full" label="Reactivation Reason (optional)">
+            <Input
               aria-label="Reactivation reason"
               onChange={(event) => setReactivateReason(event.target.value)}
               placeholder="Optional reason for reactivating"
               type="text"
               value={reactivateReason}
             />
-          </label>
+          </Field>
           <button
-            className="command-button"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
             disabled={action.phase === "saving"}
             type="submit"
           >
@@ -209,19 +209,19 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
           </button>
         </form>
       ) : (
-        <p className="row-detail">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
           This tenant is {tenantStatusLabel(tenant.status)}. Lifecycle actions are unavailable
           {isTerminal ? "; pending-deletion tenants have no reactivation path in this slice." : "."}
         </p>
       )}
 
       {action.phase === "failed" ? (
-        <p className="row-detail" role="alert">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
           Lifecycle action failed: {action.message}
         </p>
       ) : null}
       {action.phase === "done" ? (
-        <p className="row-detail" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           {action.message}
         </p>
       ) : null}

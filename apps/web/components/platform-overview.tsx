@@ -1307,7 +1307,7 @@ export function PlatformOverview() {
 
   if (!overview || !operationsSnapshot || !demoReadiness || !modelRouting) {
     return (
-      <div className="ops-console">
+      <div className="ops-console grid min-h-screen content-start gap-3 px-4 pb-5 sm:px-6">
         <ConsoleTopbar
           evidenceLabel={source === "api" ? "Evidence present" : "Evidence required"}
           sourceLabel={sourceLabel(source)}
@@ -1328,7 +1328,7 @@ export function PlatformOverview() {
   }
 
   return (
-    <div className="ops-console">
+    <div className="ops-console grid min-h-screen content-start gap-3 px-4 pb-5 sm:px-6">
       <ConsoleTopbar
         evidenceLabel={source === "api" ? "Evidence present" : "Evidence required"}
         sourceLabel={sourceLabel(source)}

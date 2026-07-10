@@ -47,18 +47,18 @@ export function ApiStatusPanel() {
   const Icon = status.state === "unavailable" ? ServerCrash : Activity;
 
   return (
-    <section className="panel api-status-panel">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-3">
       <div>
-        <p className="section-label">API Status</p>
-        <h2 className="panel-title">Control API</h2>
+        <p className="eyebrow m-0">API Status</p>
+        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Control API</h2>
       </div>
-      <div className="api-status-body">
+      <div className="grid gap-2">
         <span className={`status-pill status-${status.state}`}>
           <Icon size={15} />
           {status.label}
         </span>
-        <p className="row-detail">{status.detail}</p>
-        <p className="mono api-url">{apiBaseUrl}</p>
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{status.detail}</p>
+        <p className="font-mono text-[13px] break-words text-muted">{apiBaseUrl}</p>
       </div>
     </section>
   );

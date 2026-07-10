@@ -64,6 +64,9 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type ConnectorSource = "loading" | "api" | "unavailable";
 type PolicyAuthoringStatus = "idle" | "saving" | "api_created" | "error";
@@ -1035,16 +1038,16 @@ export function ConnectorConsole() {
 
   if (!selectedConnector) {
     return (
-      <div className="console-stack">
-        <section className="panel overview-context">
+      <div className="grid min-w-0 gap-4">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="section-label">Connector Foundation</p>
-            <h2 className="panel-title">{registry.plant_name}</h2>
-            <p className="row-detail">
+            <p className="eyebrow m-0">Connector Foundation</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.plant_name}</h2>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
               {registry.scenario} / {registry.tenant_id}
             </p>
           </div>
-          <div className="overview-meta" aria-label="Connector source and status">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Connector source and status">
             <span className={`status-pill ${sourcePillClass(source)}`}>
               <Cable size={15} />
               {sourceLabel(source)}
@@ -1053,35 +1056,35 @@ export function ConnectorConsole() {
               <ShieldCheck size={15} />
               {platformStatusLabel(registry.registry_status)}
             </span>
-            <span className="mono">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
+            <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
           </div>
         </section>
 
         {connectorMetrics.length > 0 ? (
-          <div className="metric-grid">
+          <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
             {connectorMetrics.map((metric) => (
-              <article className="metric-card compact-card" key={`${metric.label}-${metric.detail}`}>
-                <div className="row">
-                  <p className="metric-label">{metric.label}</p>
+              <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={`${metric.label}-${metric.detail}`}>
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+                  <p className="eyebrow m-0">{metric.label}</p>
                   <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                     {platformStatusLabel(metric.status)}
                   </span>
                 </div>
-                <p className="metric-value">{metric.value}</p>
-                <p className="metric-detail">{metric.detail}</p>
+                <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{metric.value}</p>
+                <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
               </article>
             ))}
           </div>
         ) : null}
 
-        <section className="panel">
-          <div className="audit-list-header">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Manifests</p>
-              <h2 className="panel-title">
+              <p className="eyebrow m-0">Manifests</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
                 {source === "loading" ? "Loading connector API" : "Connector API unavailable"}
               </h2>
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 Connector data is loaded from the Axis API. Local fallback connector records are
                 disabled.
               </p>
@@ -1113,16 +1116,16 @@ export function ConnectorConsole() {
       : "no stored credentials";
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
+    <div className="grid min-w-0 gap-4">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Connector Foundation</p>
-          <h2 className="panel-title">{registry.plant_name}</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Connector Foundation</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.plant_name}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {registry.scenario} / {registry.tenant_id}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Connector source and status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Connector source and status">
           <span className={`status-pill ${sourcePillClass(source)}`}>
             <Cable size={15} />
             {sourceLabel(source)}
@@ -1131,34 +1134,34 @@ export function ConnectorConsole() {
             <ShieldCheck size={15} />
             {platformStatusLabel(registry.registry_status)}
           </span>
-          <span className="mono">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
+          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp("2026-06-22T09:30:00+02:00")}</span>
         </div>
       </section>
 
-      <div className="metric-grid">
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {connectorMetrics.map((metric) => (
           <article
-            className="metric-card compact-card"
+            className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]"
             key={`${metric.label}-${metric.detail}`}
           >
-            <div className="row">
-              <p className="metric-label">{metric.label}</p>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <p className="eyebrow m-0">{metric.label}</p>
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
             </div>
-            <p className="metric-value">{metric.value}</p>
-            <p className="metric-detail">{metric.detail}</p>
+            <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{metric.value}</p>
+            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
           </article>
         ))}
       </div>
 
-      <div className="simulation-layout">
-        <section className="panel">
-          <div className="audit-list-header">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(300px,0.42fr)_minmax(0,1fr)] [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Manifests</p>
-              <h2 className="panel-title">{registry.connectors.length} connector</h2>
+              <p className="eyebrow m-0">Manifests</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.connectors.length} connector</h2>
             </div>
             <span className="status-pill signal-watch">
               <Database size={15} />
@@ -1166,22 +1169,22 @@ export function ConnectorConsole() {
             </span>
           </div>
 
-          <div className="workflow-list">
+          <div className="grid">
             {registry.connectors.map((connector) => {
               const isSelected = connector.manifest.connector_id === manifest.connector_id;
 
               return (
                 <button
                   aria-pressed={isSelected}
-                  className={`workflow-list-item${isSelected ? " active" : ""}`}
+                  className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={connector.manifest.connector_id}
                   onClick={() => setSelectedConnectorId(connector.manifest.connector_id)}
                   type="button"
                 >
                   <span>
-                    <span className="row-title">{connector.manifest.display_name}</span>
-                    <span className="row-detail mono">{connector.manifest.connector_id}</span>
-                    <span className="row-detail">
+                    <span className="m-0 font-medium text-ink break-words">{connector.manifest.display_name}</span>
+                    <span className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{connector.manifest.connector_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {connector.preview_sample.record_count} sample rows /{" "}
                       {formatConnectorLabel(connector.manifest.connector_type)}
                     </span>
@@ -1195,58 +1198,58 @@ export function ConnectorConsole() {
           </div>
         </section>
 
-        <section className="panel audit-detail">
-          <div className="workflow-detail-header">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">{manifest.connector_type}</p>
-              <h2 className="panel-title">{manifest.display_name}</h2>
-              <p className="row-detail mono">{manifest.connector_id}</p>
+              <p className="eyebrow m-0">{manifest.connector_type}</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{manifest.display_name}</h2>
+              <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{manifest.connector_id}</p>
             </div>
-            <div className="status-stack">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <span className="status-pill signal-watch">{manifest.runtime_boundary}</span>
               <span className="status-pill status-checking">{manifest.version}</span>
             </div>
           </div>
 
-          <div className="audit-detail-grid">
+          <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="metric-label">Sync Mode</p>
-              <p className="row-title">{formatConnectorLabel(selectedPreviewMode)}</p>
-              <p className="row-detail">{manifest.sync_modes.join(", ")}</p>
+              <p className="eyebrow m-0">Sync Mode</p>
+              <p className="m-0 font-medium text-ink break-words">{formatConnectorLabel(selectedPreviewMode)}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manifest.sync_modes.join(", ")}</p>
             </div>
             <div>
-              <p className="metric-label">Rows</p>
-              <p className="row-title">{selectedRecordCount}</p>
-              <p className="row-detail">{selectedRecordDetail}</p>
+              <p className="eyebrow m-0">Rows</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedRecordCount}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRecordDetail}</p>
             </div>
             <div>
-              <p className="metric-label">Credentials</p>
-              <p className="row-title">{manifest.credential_requirements.storage}</p>
-              <p className="row-detail">{credentialDetail}</p>
+              <p className="eyebrow m-0">Credentials</p>
+              <p className="m-0 font-medium text-ink break-words">{manifest.credential_requirements.storage}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{credentialDetail}</p>
             </div>
             <div>
-              <p className="metric-label">Payload</p>
-              <p className="row-title">{selectedConnector.runtime_policy.payload_policy}</p>
-              <p className="row-detail">{selectedConnector.runtime_policy.egress_policy}</p>
+              <p className="eyebrow m-0">Payload</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedConnector.runtime_policy.payload_policy}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedConnector.runtime_policy.egress_policy}</p>
             </div>
           </div>
 
-          <div className="workflow-columns">
+          <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="section-label">Required Permissions</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Required Permissions</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {manifest.required_permissions.map((permission) => (
-                  <span className="tag" key={permission}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={permission}>
                     {permission}
                   </span>
                 ))}
               </div>
             </section>
             <section>
-              <p className="section-label">Blocked Operations</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Blocked Operations</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedConnector.runtime_policy.blocked_operations.map((operation) => (
-                  <span className="tag" key={operation}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={operation}>
                     {operation}
                   </span>
                 ))}
@@ -1255,42 +1258,42 @@ export function ConnectorConsole() {
           </div>
 
           {selectedConfiguration ? (
-            <section className="audit-payload">
-              <div className="audit-payload-header">
+            <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="section-label">Tenant Configuration</p>
-                  <h3 className="subsection-title">{selectedConfiguration.display_name}</h3>
-                  <p className="row-detail mono">{selectedConfiguration.status}</p>
+                  <p className="eyebrow m-0">Tenant Configuration</p>
+                  <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedConfiguration.display_name}</h3>
+                  <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{selectedConfiguration.status}</p>
                 </div>
                 <Database size={18} />
               </div>
-              <div className="audit-detail-grid">
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
                 <div>
-                  <p className="metric-label">Sync</p>
-                  <p className="row-title">{selectedConfiguration.sync_mode}</p>
-                  <p className="row-detail">{selectedConfiguration.runtime_boundary}</p>
+                  <p className="eyebrow m-0">Sync</p>
+                  <p className="m-0 font-medium text-ink break-words">{selectedConfiguration.sync_mode}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedConfiguration.runtime_boundary}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Created By</p>
-                  <p className="row-title">{selectedConfiguration.created_by}</p>
-                  <p className="row-detail">tenant-scoped configuration</p>
+                  <p className="eyebrow m-0">Created By</p>
+                  <p className="m-0 font-medium text-ink break-words">{selectedConfiguration.created_by}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">tenant-scoped configuration</p>
                 </div>
                 <div>
-                  <p className="metric-label">Credential Handles</p>
-                  <p className="row-title">{selectedConfiguration.credential_ref_ids.length}</p>
-                  <p className="row-detail">no raw credential values</p>
+                  <p className="eyebrow m-0">Credential Handles</p>
+                  <p className="m-0 font-medium text-ink break-words">{selectedConfiguration.credential_ref_ids.length}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">no raw credential values</p>
                 </div>
                 <div>
-                  <p className="metric-label">Mode</p>
-                  <p className="row-title">Preview only</p>
-                  <p className="row-detail">no scheduled sync</p>
+                  <p className="eyebrow m-0">Mode</p>
+                  <p className="m-0 font-medium text-ink break-words">Preview only</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">no scheduled sync</p>
                 </div>
               </div>
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {Object.entries(selectedConfiguration.configuration_payload).map(([key, value]) => (
-                  <div className="payload-row" key={key}>
-                    <span className="metric-label">{key}</span>
-                    <span className="mono">{value}</span>
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={key}>
+                    <span className="eyebrow m-0">{key}</span>
+                    <span className="font-mono text-[13px] break-words">{value}</span>
                   </div>
                 ))}
               </div>
@@ -1298,130 +1301,130 @@ export function ConnectorConsole() {
           ) : null}
 
           {selectedManifestRecord ? (
-            <section className="audit-payload">
-              <div className="audit-payload-header">
+            <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="section-label">Persisted Manifest</p>
-                  <h3 className="subsection-title">{selectedManifestRecord.status}</h3>
-                  <p className="row-detail mono">{selectedManifestRecord.manifest_id}</p>
+                  <p className="eyebrow m-0">Persisted Manifest</p>
+                  <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedManifestRecord.status}</h3>
+                  <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{selectedManifestRecord.manifest_id}</p>
                 </div>
                 <ScrollText size={18} />
               </div>
-              <div className="audit-detail-grid">
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
                 <div>
-                  <p className="metric-label">Registered By</p>
-                  <p className="row-title">{selectedManifestRecord.registered_by}</p>
-                  <p className="row-detail">{selectedManifestRecord.audit_event_type}</p>
+                  <p className="eyebrow m-0">Registered By</p>
+                  <p className="m-0 font-medium text-ink break-words">{selectedManifestRecord.registered_by}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedManifestRecord.audit_event_type}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Manifest Type</p>
-                  <p className="row-title">{formatConnectorLabel(selectedManifestRecord.connector_type)}</p>
-                  <p className="row-detail">{selectedManifestRecord.source_type}</p>
+                  <p className="eyebrow m-0">Manifest Type</p>
+                  <p className="m-0 font-medium text-ink break-words">{formatConnectorLabel(selectedManifestRecord.connector_type)}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedManifestRecord.source_type}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Runtime</p>
-                  <p className="row-title">{selectedManifestRecord.runtime_boundary}</p>
-                  <p className="row-detail">{selectedManifestRecord.version}</p>
+                  <p className="eyebrow m-0">Runtime</p>
+                  <p className="m-0 font-medium text-ink break-words">{selectedManifestRecord.runtime_boundary}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedManifestRecord.version}</p>
                 </div>
               </div>
             </section>
           ) : null}
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Evidence Invariant Report</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Evidence Invariant Report</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {evidenceInvariantReport.invariants.length} aggregate finding
                 </h3>
-                <p className="row-detail">{evidenceInvariantReport.registry_status}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{evidenceInvariantReport.registry_status}</p>
               </div>
               <ShieldCheck size={18} />
             </div>
-            <div className="audit-detail-grid">
+            <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
               {evidenceInvariantCounts.map((count) => (
                 <div key={count.label}>
-                  <p className="metric-label">{count.label}</p>
-                  <p className="row-title">{count.value}</p>
-                  <p className="row-detail">append-only audit invariant</p>
+                  <p className="eyebrow m-0">{count.label}</p>
+                  <p className="m-0 font-medium text-ink break-words">{count.value}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">append-only audit invariant</p>
                 </div>
               ))}
             </div>
             {evidenceInvariantReport.invariants.length > 0 ? (
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {evidenceInvariantReport.invariants.slice(0, 8).map((invariant) => (
                   <div
-                    className="payload-row"
+                    className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5"
                     key={`${invariant.evidence_type}-${invariant.subject_id}-${invariant.reason}`}
                   >
                     <span>
-                      <span className="metric-label">
+                      <span className="eyebrow m-0">
                         {formatConnectorLabel(invariant.evidence_type)}
                       </span>
-                      <span className="row-detail">{invariant.subject_id}</span>
+                      <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{invariant.subject_id}</span>
                     </span>
-                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                    <span className="font-mono text-[13px] break-words">{invariant.audit_event_id ?? "no audit"}</span>
                   </div>
                 ))}
               </div>
             ) : null}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Snapshot History</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Snapshot History</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {evidenceSnapshotHistorySummary.snapshotCount} audit artifact
                 </h3>
-                <p className="row-detail">
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   latest {evidenceSnapshotHistorySummary.latestSnapshotId}
                 </p>
               </div>
               <ScrollText size={18} />
             </div>
-            <div className="audit-detail-grid">
+            <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
               <div>
-                <p className="metric-label">Total Invariants</p>
-                <p className="row-title">{evidenceSnapshotHistorySummary.totalInvariantCount}</p>
-                <p className="row-detail">{evidenceSnapshotHistory.history_status}</p>
+                <p className="eyebrow m-0">Total Invariants</p>
+                <p className="m-0 font-medium text-ink break-words">{evidenceSnapshotHistorySummary.totalInvariantCount}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{evidenceSnapshotHistory.history_status}</p>
               </div>
               <div>
-                <p className="metric-label">Evidence Surfaces</p>
-                <p className="row-title">
+                <p className="eyebrow m-0">Evidence Surfaces</p>
+                <p className="m-0 font-medium text-ink break-words">
                   {evidenceSnapshotHistorySummary.evidenceSurfaceCount}
                 </p>
-                <p className="row-detail">append-only snapshot history</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">append-only snapshot history</p>
               </div>
               <div>
-                <p className="metric-label">Selected Connector</p>
-                <p className="row-title">{selectedEvidenceSnapshots.length}</p>
-                <p className="row-detail">matching snapshot artifact</p>
+                <p className="eyebrow m-0">Selected Connector</p>
+                <p className="m-0 font-medium text-ink break-words">{selectedEvidenceSnapshots.length}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">matching snapshot artifact</p>
               </div>
               {evidenceSnapshotExport ? (
                 <div>
-                  <p className="metric-label">Signed Export</p>
-                  <p className="row-title">{evidenceSnapshotExport.manifest.record_count}</p>
-                  <p className="row-detail">
+                  <p className="eyebrow m-0">Signed Export</p>
+                  <p className="m-0 font-medium text-ink break-words">{evidenceSnapshotExport.manifest.record_count}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExport.ledger_signature.verification_status}
                   </p>
                 </div>
               ) : null}
             </div>
             {evidenceSnapshotExport ? (
-              <div className="payload-row">
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
                 <span>
-                  <span className="metric-label">{evidenceSnapshotExport.manifest.export_id}</span>
-                  <span className="row-detail">
+                  <span className="eyebrow m-0">{evidenceSnapshotExport.manifest.export_id}</span>
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExport.manifest.redaction_policy} /{" "}
                     {evidenceSnapshotExport.integrity_proof.algorithm}
                   </span>
                 </span>
                 <span>
-                  <span className="mono">
+                  <span className="font-mono text-[13px] break-words">
                     {evidenceSnapshotExport.manifest.checksum_sha256.slice(0, 12)}
                   </span>
-                  <span className="row-detail">
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExport.ledger_signature.key_id ??
                       evidenceSnapshotExport.ledger_signature.signing_mode}
                   </span>
@@ -1429,12 +1432,12 @@ export function ConnectorConsole() {
               </div>
             ) : null}
             {selectedEvidenceSnapshots.length > 0 ? (
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {selectedEvidenceSnapshots.slice(0, 5).map((snapshot) => (
-                  <div className="payload-row" key={snapshot.snapshot_id}>
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={snapshot.snapshot_id}>
                     <span>
-                      <span className="metric-label">{snapshot.snapshot_id}</span>
-                      <span className="row-detail">
+                      <span className="eyebrow m-0">{snapshot.snapshot_id}</span>
+                      <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                         {snapshot.connector_id ?? "tenant-wide"} / {snapshot.status}
                       </span>
                       {requestedSnapshotId === snapshot.snapshot_id ? (
@@ -1442,28 +1445,28 @@ export function ConnectorConsole() {
                       ) : null}
                     </span>
                     <span>
-                      <span className="mono">{snapshot.report_digest_sha256.slice(0, 12)}</span>
+                      <span className="font-mono text-[13px] break-words">{snapshot.report_digest_sha256.slice(0, 12)}</span>
                       {snapshot.audit_event_id ? (
-                        <a className="row-detail" href={buildAuditEventHref(snapshot.audit_event_id)}>
+                        <a className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" href={buildAuditEventHref(snapshot.audit_event_id)}>
                           Audit event
                         </a>
                       ) : (
-                        <span className="row-detail">no audit event</span>
+                        <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">no audit event</span>
                       )}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="row-detail">No matching snapshot artifacts recorded.</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">No matching snapshot artifacts recorded.</p>
             )}
             <form
               aria-label="Evidence snapshot creation"
-              className="policy-authoring-form"
+              className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
               onSubmit={createEvidenceSnapshot}
             >
               <button
-                className="command-button"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
                 disabled={evidenceSnapshotStatus === "saving" || !selectedConnectorId}
                 type="submit"
               >
@@ -1471,7 +1474,7 @@ export function ConnectorConsole() {
               </button>
             </form>
             {evidenceSnapshotStatus !== "idle" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {evidenceSnapshotStatus === "api_created"
                   ? "Snapshot persisted in the audit ledger."
                   : evidenceSnapshotStatus === "saving"
@@ -1481,11 +1484,11 @@ export function ConnectorConsole() {
             ) : null}
             <form
               aria-label="Evidence snapshot export request"
-              className="policy-authoring-form"
+              className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
               onSubmit={requestEvidenceSnapshotExport}
             >
               <button
-                className="command-button"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
                 disabled={
                   evidenceSnapshotExportRequestStatus === "saving" || !selectedConnectorId
                 }
@@ -1497,7 +1500,7 @@ export function ConnectorConsole() {
               </button>
             </form>
             {evidenceSnapshotExportRequestStatus !== "idle" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {evidenceSnapshotExportRequestStatus === "api_created"
                   ? "Export request recorded for approval."
                   : evidenceSnapshotExportRequestStatus === "saving"
@@ -1506,31 +1509,31 @@ export function ConnectorConsole() {
               </p>
             ) : null}
             {evidenceSnapshotExportRequest ? (
-              <div className="payload-row">
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
                 <span>
-                  <span className="metric-label">
+                  <span className="eyebrow m-0">
                     {evidenceSnapshotExportRequest.export_request_id}
                   </span>
-                  <span className="row-detail">
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExportRequest.status} /{" "}
                     {evidenceSnapshotExportRequest.workflow_signal_status}
                   </span>
                 </span>
                 <span>
-                  <span className="mono">
+                  <span className="font-mono text-[13px] break-words">
                     {evidenceSnapshotExportRequest.snapshot_checksum_sha256.slice(0, 12)}
                   </span>
-                  <span className="row-detail">
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExportRequest.approval_id} /{" "}
                     {evidenceSnapshotExportRequest.storage_status}
                   </span>
                 </span>
                 {evidenceSnapshotExportRequest.decision ? (
                   <span>
-                    <span className="metric-label">
+                    <span className="eyebrow m-0">
                       {evidenceSnapshotExportRequest.decision}
                     </span>
-                    <span className="row-detail">
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {evidenceSnapshotExportRequest.export_status}
                     </span>
                   </span>
@@ -1540,11 +1543,11 @@ export function ConnectorConsole() {
             {evidenceSnapshotExportRequest ? (
               <form
                 aria-label="Evidence snapshot export decision"
-                className="policy-authoring-form"
+                className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
                 onSubmit={approveEvidenceSnapshotExportRequest}
               >
                 <button
-                  className="command-button"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
                   disabled={
                     evidenceSnapshotExportDecisionStatus === "saving" ||
                     evidenceSnapshotExportRequest.decision !== null
@@ -1558,7 +1561,7 @@ export function ConnectorConsole() {
               </form>
             ) : null}
             {evidenceSnapshotExportDecisionStatus !== "idle" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {evidenceSnapshotExportDecisionStatus === "api_decided"
                   ? "Export request decision recorded."
                   : evidenceSnapshotExportDecisionStatus === "saving"
@@ -1569,11 +1572,11 @@ export function ConnectorConsole() {
             {evidenceSnapshotExportRequest?.decision === "approve" ? (
               <form
                 aria-label="Evidence snapshot export materialization"
-                className="policy-authoring-form"
+                className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
                 onSubmit={materializeEvidenceSnapshotExportRequest}
               >
                 <button
-                  className="command-button"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
                   disabled={
                     evidenceSnapshotExportMaterializationStatus === "saving" ||
                     evidenceSnapshotExportRequest.storage_status !== "not_written"
@@ -1587,7 +1590,7 @@ export function ConnectorConsole() {
               </form>
             ) : null}
             {evidenceSnapshotExportMaterializationStatus !== "idle" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {evidenceSnapshotExportMaterializationStatus === "api_materialized"
                   ? "Approved export artifact written to the configured object-store adapter."
                   : evidenceSnapshotExportMaterializationStatus === "saving"
@@ -1596,241 +1599,241 @@ export function ConnectorConsole() {
               </p>
             ) : null}
             {evidenceSnapshotExportRequest?.storage_uri ? (
-              <div className="payload-row">
+              <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
                 <span>
-                  <span className="metric-label">Artifact</span>
-                  <span className="row-detail">
+                  <span className="eyebrow m-0">Artifact</span>
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExportRequest.storage_adapter} /{" "}
                     {evidenceSnapshotExportRequest.artifact_content_type}
                   </span>
                 </span>
                 <span>
-                  <span className="mono">
+                  <span className="font-mono text-[13px] break-words">
                     {evidenceSnapshotExportRequest.artifact_checksum_sha256?.slice(0, 12)}
                   </span>
-                  <span className="row-detail">
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {evidenceSnapshotExportRequest.artifact_size_bytes ?? 0} bytes
                   </span>
                 </span>
                 <span>
-                  <span className="metric-label">
+                  <span className="eyebrow m-0">
                     {evidenceSnapshotExportRequest.storage_status}
                   </span>
-                  <span className="row-detail">{evidenceSnapshotExportRequest.storage_uri}</span>
+                  <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{evidenceSnapshotExportRequest.storage_uri}</span>
                 </span>
               </div>
             ) : null}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Credential Handles</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Credential Handles</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedCredentialHandles.length} metadata reference
                 </h3>
-                <p className="row-detail">external secret refs only</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">external secret refs only</p>
               </div>
               <KeyRound size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedCredentialHandles.map((handle) => (
-                <div className="payload-row" key={handle.handle_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={handle.handle_id}>
                   <span>
-                    <span className="metric-label">{handle.handle_id}</span>
-                    <span className="row-detail">{handle.secret_provider}</span>
+                    <span className="eyebrow m-0">{handle.handle_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{handle.secret_provider}</span>
                   </span>
-                  <span className="mono">{formatConnectorLabel(handle.rotation_status)}</span>
+                  <span className="font-mono text-[13px] break-words">{formatConnectorLabel(handle.rotation_status)}</span>
                 </div>
               ))}
             </div>
             {selectedCredentialHandles.map((handle) => (
-              <div className="audit-detail-grid" key={`${handle.handle_id}-rotation`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${handle.handle_id}-rotation`}>
                 <div>
-                  <p className="metric-label">Reference</p>
-                  <p className="row-title">{handle.secret_ref}</p>
-                  <p className="row-detail">{handle.purpose}</p>
+                  <p className="eyebrow m-0">Reference</p>
+                  <p className="m-0 font-medium text-ink break-words">{handle.secret_ref}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{handle.purpose}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Rotation</p>
-                  <p className="row-title">{handle.rotation_interval_days} days</p>
-                  <p className="row-detail">{handle.next_rotation_due_at ?? "not scheduled"}</p>
+                  <p className="eyebrow m-0">Rotation</p>
+                  <p className="m-0 font-medium text-ink break-words">{handle.rotation_interval_days} days</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{handle.next_rotation_due_at ?? "not scheduled"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Last Evidence</p>
-                  <p className="row-title">{handle.last_rotation?.evidence_ref ?? "none"}</p>
-                  <p className="row-detail">{handle.last_rotation?.rotated_by ?? handle.created_by}</p>
+                  <p className="eyebrow m-0">Last Evidence</p>
+                  <p className="m-0 font-medium text-ink break-words">{handle.last_rotation?.evidence_ref ?? "none"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{handle.last_rotation?.rotated_by ?? handle.created_by}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Raw Value</p>
-                  <p className="row-title">Never Stored</p>
-                  <p className="row-detail">{handle.rotation_count} rotation records</p>
+                  <p className="eyebrow m-0">Raw Value</p>
+                  <p className="m-0 font-medium text-ink break-words">Never Stored</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{handle.rotation_count} rotation records</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Checkpoint Claims</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Checkpoint Claims</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedSyncCheckpointClaims.length} worker claim
                 </h3>
-                <p className="row-detail">
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {selectedSyncCheckpointClaimInvariants.length} claim invariant
                 </p>
               </div>
               <ShieldCheck size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedSyncCheckpointClaims.map((claim) => (
-                <div className="payload-row" key={claim.claim_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={claim.claim_id}>
                   <span>
-                    <span className="metric-label">{claim.claim_id}</span>
-                    <span className="row-detail">{claim.checkpoint_id}</span>
+                    <span className="eyebrow m-0">{claim.claim_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{claim.checkpoint_id}</span>
                   </span>
-                  <span className="mono">{formatConnectorLabel(claim.status)}</span>
+                  <span className="font-mono text-[13px] break-words">{formatConnectorLabel(claim.status)}</span>
                 </div>
               ))}
             </div>
             {selectedSyncCheckpointClaimInvariants.length > 0 ? (
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {selectedSyncCheckpointClaimInvariants.map((invariant) => (
-                  <div className="payload-row" key={`${invariant.claim_id}-${invariant.reason}`}>
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={`${invariant.claim_id}-${invariant.reason}`}>
                     <span>
-                      <span className="metric-label">{invariant.reason}</span>
-                      <span className="row-detail">{invariant.claim_id}</span>
+                      <span className="eyebrow m-0">{invariant.reason}</span>
+                      <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{invariant.claim_id}</span>
                     </span>
-                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                    <span className="font-mono text-[13px] break-words">{invariant.audit_event_id ?? "no audit"}</span>
                   </div>
                 ))}
               </div>
             ) : null}
             {selectedSyncCheckpointClaims.map((claim) => (
-              <div className="audit-detail-grid" key={`${claim.claim_id}-claim`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${claim.claim_id}-claim`}>
                 <div>
-                  <p className="metric-label">Worker</p>
-                  <p className="row-title">{claim.claimed_by}</p>
-                  <p className="row-detail">{claim.audit_event_type}</p>
+                  <p className="eyebrow m-0">Worker</p>
+                  <p className="m-0 font-medium text-ink break-words">{claim.claimed_by}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{claim.audit_event_type}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Lease Window</p>
-                  <p className="row-title">{claim.lease_expires_at}</p>
-                  <p className="row-detail">{claim.lease_duration_seconds} seconds</p>
+                  <p className="eyebrow m-0">Lease Window</p>
+                  <p className="m-0 font-medium text-ink break-words">{claim.lease_expires_at}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{claim.lease_duration_seconds} seconds</p>
                 </div>
                 <div>
-                  <p className="metric-label">Renewal</p>
-                  <p className="row-title">{claim.renewal_count} renewals</p>
-                  <p className="row-detail">{claim.renewed_by ?? "not renewed"}</p>
+                  <p className="eyebrow m-0">Renewal</p>
+                  <p className="m-0 font-medium text-ink break-words">{claim.renewal_count} renewals</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{claim.renewed_by ?? "not renewed"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Release</p>
-                  <p className="row-title">{claim.released_by ?? "not released"}</p>
-                  <p className="row-detail">{claim.release_reason ?? claim.status}</p>
+                  <p className="eyebrow m-0">Release</p>
+                  <p className="m-0 font-medium text-ink break-words">{claim.released_by ?? "not released"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{claim.release_reason ?? claim.status}</p>
                 </div>
                 <div>
-                  <p className="metric-label">External Sync</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">External Sync</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {formatCheckpointScalar(claim.claim_result.external_sync_started)}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {formatCheckpointScalar(claim.claim_result.worker_claim_only)}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Secret Material</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Secret Material</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {formatCheckpointScalar(claim.claim_result.secret_material_returned)}
                   </p>
-                  <p className="row-detail">{claim.audit_event_id ?? "pending audit"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{claim.audit_event_id ?? "pending audit"}</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Sync Checkpoints</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Sync Checkpoints</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedSyncCheckpoints.length} checkpoint record
                 </h3>
-                <p className="row-detail">
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {selectedSyncCheckpointInvariants.length} evidence invariant
                 </p>
               </div>
               <ScrollText size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedSyncCheckpoints.map((checkpoint) => (
-                <div className="payload-row" key={checkpoint.checkpoint_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={checkpoint.checkpoint_id}>
                   <span>
-                    <span className="metric-label">{checkpoint.checkpoint_id}</span>
-                    <span className="row-detail">{checkpoint.audit_event_type}</span>
+                    <span className="eyebrow m-0">{checkpoint.checkpoint_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{checkpoint.audit_event_type}</span>
                   </span>
-                  <span className="mono">{checkpoint.status}</span>
+                  <span className="font-mono text-[13px] break-words">{checkpoint.status}</span>
                 </div>
               ))}
             </div>
             {selectedSyncCheckpointInvariants.length > 0 ? (
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {selectedSyncCheckpointInvariants.map((invariant) => (
-                  <div className="payload-row" key={`${invariant.checkpoint_id}-${invariant.reason}`}>
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={`${invariant.checkpoint_id}-${invariant.reason}`}>
                     <span>
-                      <span className="metric-label">{invariant.reason}</span>
-                      <span className="row-detail">{invariant.checkpoint_id}</span>
+                      <span className="eyebrow m-0">{invariant.reason}</span>
+                      <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{invariant.checkpoint_id}</span>
                     </span>
-                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                    <span className="font-mono text-[13px] break-words">{invariant.audit_event_id ?? "no audit"}</span>
                   </div>
                 ))}
               </div>
             ) : null}
             {selectedSyncCheckpoints.map((checkpoint) => (
-              <div className="audit-detail-grid" key={`${checkpoint.checkpoint_id}-summary`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${checkpoint.checkpoint_id}-summary`}>
                 <div>
-                  <p className="metric-label">Sequence</p>
-                  <p className="row-title">{checkpoint.sequence}</p>
-                  <p className="row-detail">{checkpoint.checkpoint_type}</p>
+                  <p className="eyebrow m-0">Sequence</p>
+                  <p className="m-0 font-medium text-ink break-words">{checkpoint.sequence}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{checkpoint.checkpoint_type}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Adapter</p>
-                  <p className="row-title">{checkpoint.adapter}</p>
-                  <p className="row-detail">{checkpoint.runtime_boundary}</p>
+                  <p className="eyebrow m-0">Adapter</p>
+                  <p className="m-0 font-medium text-ink break-words">{checkpoint.adapter}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{checkpoint.runtime_boundary}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Run</p>
-                  <p className="row-title">{checkpoint.run_id}</p>
-                  <p className="row-detail">{checkpoint.created_at}</p>
+                  <p className="eyebrow m-0">Run</p>
+                  <p className="m-0 font-medium text-ink break-words">{checkpoint.run_id}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{checkpoint.created_at}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Cursor</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Cursor</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {formatCheckpointScalar(checkpoint.cursor.high_watermark_kind)}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {formatCheckpointScalar(checkpoint.cursor.high_watermark_value)}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">External Query</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">External Query</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {formatCheckpointScalar(checkpoint.result_summary.external_query_started)}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {formatCheckpointScalar(
                       checkpoint.result_summary.live_query_preflight_status,
                     )}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Secret Material</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Secret Material</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {formatCheckpointScalar(
                       checkpoint.result_summary.credential_material_returned,
                     )}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {checkpoint.evidence_refs.length} evidence ref
                   </p>
                 </div>
@@ -1838,202 +1841,202 @@ export function ConnectorConsole() {
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Credential Leases</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Credential Leases</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedCredentialLeases.length} vault/kms lease
                 </h3>
-                <p className="row-detail">
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {selectedCredentialLeaseInvariants.length} lease invariant
                 </p>
               </div>
               <KeyRound size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedCredentialLeases.map((lease) => (
-                <div className="payload-row" key={lease.lease_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={lease.lease_id}>
                   <span>
-                    <span className="metric-label">{lease.lease_id}</span>
-                    <span className="row-detail">{lease.lease_mode}</span>
+                    <span className="eyebrow m-0">{lease.lease_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{lease.lease_mode}</span>
                   </span>
-                  <span className="mono">{formatConnectorLabel(lease.status)}</span>
+                  <span className="font-mono text-[13px] break-words">{formatConnectorLabel(lease.status)}</span>
                 </div>
               ))}
             </div>
             {selectedCredentialLeaseInvariants.length > 0 ? (
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {selectedCredentialLeaseInvariants.map((invariant) => (
                   <div
-                    className="payload-row"
+                    className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5"
                     key={`${invariant.lease_id}-${invariant.reason}`}
                   >
                     <span>
-                      <span className="metric-label">{invariant.reason}</span>
-                      <span className="row-detail">{invariant.lease_id}</span>
+                      <span className="eyebrow m-0">{invariant.reason}</span>
+                      <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{invariant.lease_id}</span>
                     </span>
-                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                    <span className="font-mono text-[13px] break-words">{invariant.audit_event_id ?? "no audit"}</span>
                   </div>
                 ))}
               </div>
             ) : null}
             {selectedCredentialLeases.map((lease) => (
-              <div className="audit-detail-grid" key={`${lease.lease_id}-evidence`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${lease.lease_id}-evidence`}>
                 <div>
-                  <p className="metric-label">Adapter</p>
-                  <p className="row-title">{lease.lease_result.adapter}</p>
-                  <p className="row-detail">{lease.lease_result.provider_mode}</p>
+                  <p className="eyebrow m-0">Adapter</p>
+                  <p className="m-0 font-medium text-ink break-words">{lease.lease_result.adapter}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{lease.lease_result.provider_mode}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Lease Window</p>
-                  <p className="row-title">{lease.expires_at}</p>
-                  <p className="row-detail">{lease.renewal_due_at}</p>
+                  <p className="eyebrow m-0">Lease Window</p>
+                  <p className="m-0 font-medium text-ink break-words">{lease.expires_at}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{lease.renewal_due_at}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Evidence</p>
-                  <p className="row-title">{lease.audit_event_type}</p>
-                  <p className="row-detail">{lease.lease_result.provider_lease_ref}</p>
+                  <p className="eyebrow m-0">Evidence</p>
+                  <p className="m-0 font-medium text-ink break-words">{lease.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{lease.lease_result.provider_lease_ref}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Secret Material</p>
-                  <p className="row-title">{lease.lease_result.secret_material_returned}</p>
-                  <p className="row-detail">{lease.renewal_count} renewals</p>
+                  <p className="eyebrow m-0">Secret Material</p>
+                  <p className="m-0 font-medium text-ink break-words">{lease.lease_result.secret_material_returned}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{lease.renewal_count} renewals</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Egress Policies</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Egress Policies</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedEgressPolicies.length} persisted policy
                 </h3>
-                <p className="row-detail">
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {selectedEgressPolicyInvariants.length} policy invariant
                 </p>
               </div>
               <ShieldCheck size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedEgressPolicies.map((policy) => (
-                <div className="payload-row" key={policy.policy_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={policy.policy_id}>
                   <span>
-                    <span className="metric-label">{policy.policy_id}</span>
-                    <span className="row-detail">{policy.audit_event_type}</span>
+                    <span className="eyebrow m-0">{policy.policy_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.audit_event_type}</span>
                   </span>
-                  <span className="mono">{policy.status}</span>
+                  <span className="font-mono text-[13px] break-words">{policy.status}</span>
                 </div>
               ))}
             </div>
             {selectedEgressPolicyInvariants.length > 0 ? (
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {selectedEgressPolicyInvariants.map((invariant) => (
                   <div
-                    className="payload-row"
+                    className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5"
                     key={`${invariant.policy_id}-${invariant.reason}`}
                   >
                     <span>
-                      <span className="metric-label">{invariant.reason}</span>
-                      <span className="row-detail">{invariant.policy_id}</span>
+                      <span className="eyebrow m-0">{invariant.reason}</span>
+                      <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{invariant.policy_id}</span>
                     </span>
-                    <span className="mono">{invariant.audit_event_id ?? "no audit"}</span>
+                    <span className="font-mono text-[13px] break-words">{invariant.audit_event_id ?? "no audit"}</span>
                   </div>
                 ))}
               </div>
             ) : null}
             {selectedEgressPolicies.map((policy) => (
-              <div className="audit-detail-grid" key={`${policy.policy_id}-egress`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${policy.policy_id}-egress`}>
                 <div>
-                  <p className="metric-label">Profile</p>
-                  <p className="row-title">{policy.connection_profile_id}</p>
-                  <p className="row-detail">{policy.display_name}</p>
+                  <p className="eyebrow m-0">Profile</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.connection_profile_id}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.display_name}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Boundary</p>
-                  <p className="row-title">{policy.egress_boundary}</p>
-                  <p className="row-detail">{policy.policy_mode}</p>
+                  <p className="eyebrow m-0">Boundary</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.egress_boundary}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.policy_mode}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Runtime</p>
-                  <p className="row-title">{policy.runtime_boundary}</p>
-                  <p className="row-detail">{policy.private_endpoint_ref}</p>
+                  <p className="eyebrow m-0">Runtime</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.runtime_boundary}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.private_endpoint_ref}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Audit Event</p>
-                  <p className="row-title">{policy.audit_event_type}</p>
-                  <p className="row-detail">{policy.audit_event_id ?? "pending"}</p>
+                  <p className="eyebrow m-0">Audit Event</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.audit_event_id ?? "pending"}</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Policy Sets</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Policy Sets</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedPromotionPolicySets.length} versioned policy set
                 </h3>
-                <p className="row-detail">required gate selection and transition evidence</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">required gate selection and transition evidence</p>
               </div>
               <ShieldCheck size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedPromotionPolicySets.map((policySet) => (
-                <div className="payload-row" key={policySet.policy_set_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={policySet.policy_set_id}>
                   <span>
-                    <span className="metric-label">{policySet.policy_set_id}</span>
-                    <span className="row-detail">{policySet.audit_event_type}</span>
+                    <span className="eyebrow m-0">{policySet.policy_set_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policySet.audit_event_type}</span>
                   </span>
-                  <span className="mono">{policySet.status}</span>
+                  <span className="font-mono text-[13px] break-words">{policySet.status}</span>
                 </div>
               ))}
             </div>
             {selectedPromotionPolicySets.map((policySet) => (
-              <div className="audit-detail-grid" key={`${policySet.policy_set_id}-summary`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${policySet.policy_set_id}-summary`}>
                 <div>
-                  <p className="metric-label">Version</p>
-                  <p className="row-title">{policySet.policy_set_version}</p>
-                  <p className="row-detail">{policySet.activation_scope}</p>
+                  <p className="eyebrow m-0">Version</p>
+                  <p className="m-0 font-medium text-ink break-words">{policySet.policy_set_version}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policySet.activation_scope}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Policies</p>
-                  <p className="row-title">{policySet.policy_ids.length} required</p>
-                  <p className="row-detail">{policySet.policy_ids.join(", ")}</p>
+                  <p className="eyebrow m-0">Policies</p>
+                  <p className="m-0 font-medium text-ink break-words">{policySet.policy_ids.length} required</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policySet.policy_ids.join(", ")}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Activated By</p>
-                  <p className="row-title">{policySet.activated_by}</p>
-                  <p className="row-detail">{policySet.permission_decision.reason}</p>
+                  <p className="eyebrow m-0">Activated By</p>
+                  <p className="m-0 font-medium text-ink break-words">{policySet.activated_by}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policySet.permission_decision.reason}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Audit Event</p>
-                  <p className="row-title">{policySet.audit_event_type}</p>
-                  <p className="row-detail">{policySet.audit_event_id ?? "pending"}</p>
+                  <p className="eyebrow m-0">Audit Event</p>
+                  <p className="m-0 font-medium text-ink break-words">{policySet.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policySet.audit_event_id ?? "pending"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Transition</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Transition</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {policySet.rollback_to_policy_set_id ??
                       policySet.replaces_policy_set_id ??
                       policySet.replaced_by_policy_set_id ??
                       "none"}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {policySet.rollback_workflow_signal_status ??
                       policySet.replacement_workflow_signal_status ??
                       "no transition signal"}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Revision Adoptions</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Revision Adoptions</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {policySet.policy_revision_adoptions.length} adopted
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {policySet.policy_revision_adoptions
                       .map(
                         (adoption) =>
@@ -2046,111 +2049,111 @@ export function ConnectorConsole() {
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Connector Runs</p>
-                <h3 className="subsection-title">{selectedRuns.length} audit-backed record</h3>
-                <p className="row-detail">metadata-only evidence</p>
+                <p className="eyebrow m-0">Connector Runs</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedRuns.length} audit-backed record</h3>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">metadata-only evidence</p>
               </div>
               <Cable size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedRuns.map((run) => (
-                <div className="payload-row" key={run.run_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={run.run_id}>
                   <span>
-                    <span className="metric-label">{run.run_id}</span>
-                    <span className="row-detail">{run.audit_event_type}</span>
+                    <span className="eyebrow m-0">{run.run_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{run.audit_event_type}</span>
                   </span>
-                  <span className="mono">{run.status}</span>
+                  <span className="font-mono text-[13px] break-words">{run.status}</span>
                 </div>
               ))}
             </div>
             {selectedRuns.map((run) => (
-              <div className="audit-detail-grid" key={`${run.run_id}-summary`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${run.run_id}-summary`}>
                 <div>
-                  <p className="metric-label">Execution</p>
-                  <p className="row-title">{formatConnectorLabel(run.execution_mode)}</p>
-                  <p className="row-detail">{run.runtime_boundary}</p>
+                  <p className="eyebrow m-0">Execution</p>
+                  <p className="m-0 font-medium text-ink break-words">{formatConnectorLabel(run.execution_mode)}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{run.runtime_boundary}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Runtime Adapter</p>
-                  <p className="row-title">{connectorRunRuntimeAdapter(run)}</p>
-                  <p className="row-detail">{connectorRunRuntimeStatus(run)}</p>
+                  <p className="eyebrow m-0">Runtime Adapter</p>
+                  <p className="m-0 font-medium text-ink break-words">{connectorRunRuntimeAdapter(run)}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{connectorRunRuntimeStatus(run)}</p>
                 </div>
                 <div>
-                  <p className="metric-label">External Sync</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">External Sync</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {connectorRunExternalSyncStarted(run) ? "started" : "not started"}
                   </p>
-                  <p className="row-detail">{connectorRunRuntimeEvidence(run)}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{connectorRunRuntimeEvidence(run)}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Requested By</p>
-                  <p className="row-title">{run.requested_by}</p>
-                  <p className="row-detail">{run.created_at}</p>
+                  <p className="eyebrow m-0">Requested By</p>
+                  <p className="m-0 font-medium text-ink break-words">{run.requested_by}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{run.created_at}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Audit Event</p>
-                  <p className="row-title">{run.audit_event_type}</p>
-                  <p className="row-detail">{run.audit_event_id ?? "pending"}</p>
+                  <p className="eyebrow m-0">Audit Event</p>
+                  <p className="m-0 font-medium text-ink break-words">{run.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{run.audit_event_id ?? "pending"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Credential Handles</p>
-                  <p className="row-title">{run.credential_handle_ids.length}</p>
-                  <p className="row-detail">referenced by id only</p>
+                  <p className="eyebrow m-0">Credential Handles</p>
+                  <p className="m-0 font-medium text-ink break-words">{run.credential_handle_ids.length}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">referenced by id only</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Ontology Proposals</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Ontology Proposals</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedOntologyProposals.length} review-only proposal
                 </h3>
-                <p className="row-detail">no graph mutation applied</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">no graph mutation applied</p>
               </div>
               <Database size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedOntologyProposals.map((proposal) => (
-                <div className="payload-row" key={proposal.proposal_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={proposal.proposal_id}>
                   <span>
-                    <span className="metric-label">{proposal.proposal_id}</span>
-                    <span className="row-detail">{proposal.audit_event_type}</span>
+                    <span className="eyebrow m-0">{proposal.proposal_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{proposal.audit_event_type}</span>
                   </span>
-                  <span className="mono">{proposal.graph_mutation_status}</span>
+                  <span className="font-mono text-[13px] break-words">{proposal.graph_mutation_status}</span>
                 </div>
               ))}
             </div>
             {selectedOntologyProposals.map((proposal) => (
-              <div className="audit-detail-grid" key={`${proposal.proposal_id}-summary`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${proposal.proposal_id}-summary`}>
                 <div>
-                  <p className="metric-label">Node</p>
-                  <p className="row-title">{proposal.node_id}</p>
-                  <p className="row-detail">{proposal.ontology_type}</p>
+                  <p className="eyebrow m-0">Node</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.node_id}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{proposal.ontology_type}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Write Mode</p>
-                  <p className="row-title">{proposal.write_mode}</p>
-                  <p className="row-detail">{proposal.status}</p>
+                  <p className="eyebrow m-0">Write Mode</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.write_mode}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{proposal.status}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Promotion</p>
-                  <p className="row-title">{proposal.promotion_id ?? "pending"}</p>
-                  <p className="row-detail">
+                  <p className="eyebrow m-0">Promotion</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.promotion_id ?? "pending"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {proposal.ontology_mutation?.status ?? proposal.graph_mutation_status}
                   </p>
                   {proposal.status === "promoted_to_graph" ? (
-                    <p className="row-detail">graph mutation applied</p>
+                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">graph mutation applied</p>
                   ) : (
                     <>
                       <button
                         type="button"
-                        className="command-button"
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
                         onClick={() => void promoteOntologyProposal(proposal)}
                         disabled={
                           proposalPromotionStatuses[proposal.proposal_id] === "promoting"
@@ -2161,7 +2164,7 @@ export function ConnectorConsole() {
                       {proposalPromotionStatuses[proposal.proposal_id] &&
                       proposalPromotionStatuses[proposal.proposal_id] !== "idle" ? (
                         <p
-                          className="row-detail"
+                          className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words"
                           data-testid={`promotion-status-${proposal.proposal_id}`}
                         >
                           {
@@ -2175,132 +2178,131 @@ export function ConnectorConsole() {
                   )}
                 </div>
                 <div>
-                  <p className="metric-label">Policy</p>
-                  <p className="row-title">{proposal.policy_id ?? "not requested"}</p>
-                  <p className="row-detail">
+                  <p className="eyebrow m-0">Policy</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.policy_id ?? "not requested"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {proposal.policy_decision?.status ?? "policy_not_requested"}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Policy Result</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Policy Result</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {proposal.policy_decision?.reason ?? "no policy evidence"}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {proposal.policy_decision?.matched_constraints.selection_mode
                       ? `${proposal.policy_decision.enforcement_mode} / ${proposal.policy_decision.matched_constraints.selection_mode}`
                       : (proposal.policy_decision?.enforcement_mode ?? "not enforced")}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Promoted By</p>
-                  <p className="row-title">{proposal.promoted_by ?? "unassigned"}</p>
-                  <p className="row-detail">
+                  <p className="eyebrow m-0">Promoted By</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.promoted_by ?? "unassigned"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {proposal.ontology_mutation?.mutation_ref ?? "no graph mutation"}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Audit Event</p>
-                  <p className="row-title">{proposal.audit_event_type}</p>
-                  <p className="row-detail">{proposal.audit_event_id ?? "pending"}</p>
+                  <p className="eyebrow m-0">Audit Event</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{proposal.audit_event_id ?? "pending"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Source</p>
-                  <p className="row-title">{proposal.source_file_name}</p>
-                  <p className="row-detail">{proposal.source_run_id ?? "preview only"}</p>
+                  <p className="eyebrow m-0">Source</p>
+                  <p className="m-0 font-medium text-ink break-words">{proposal.source_file_name}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{proposal.source_run_id ?? "preview only"}</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Manual Imports</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Manual Imports</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedManualImports.length} approval-gated request
                 </h3>
-                <p className="row-detail">workflow and idempotency controls recorded</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">workflow and idempotency controls recorded</p>
               </div>
               <ShieldCheck size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedManualImports.map((manualImport) => (
-                <div className="payload-row" key={manualImport.import_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={manualImport.import_id}>
                   <span>
-                    <span className="metric-label">{manualImport.import_id}</span>
-                    <span className="row-detail">{manualImport.audit_event_type}</span>
+                    <span className="eyebrow m-0">{manualImport.import_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manualImport.audit_event_type}</span>
                   </span>
-                  <span className="mono">{manualImport.status}</span>
+                  <span className="font-mono text-[13px] break-words">{manualImport.status}</span>
                 </div>
               ))}
             </div>
             {selectedManualImports.map((manualImport) => (
-              <div className="audit-detail-grid" key={`${manualImport.import_id}-summary`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${manualImport.import_id}-summary`}>
                 <div>
-                  <p className="metric-label">Approval</p>
-                  <p className="row-title">{manualImport.approval_id}</p>
-                  <p className="row-detail">{manualImport.owner_role}</p>
+                  <p className="eyebrow m-0">Approval</p>
+                  <p className="m-0 font-medium text-ink break-words">{manualImport.approval_id}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manualImport.owner_role}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Workflow</p>
-                  <p className="row-title">{manualImport.workflow_id}</p>
-                  <p className="row-detail">{manualImport.workflow_signal_status}</p>
+                  <p className="eyebrow m-0">Workflow</p>
+                  <p className="m-0 font-medium text-ink break-words">{manualImport.workflow_id}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manualImport.workflow_signal_status}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Decision</p>
-                  <p className="row-title">{manualImport.decision ?? "pending"}</p>
-                  <p className="row-detail">{manualImport.decision_actor_id ?? "unassigned"}</p>
+                  <p className="eyebrow m-0">Decision</p>
+                  <p className="m-0 font-medium text-ink break-words">{manualImport.decision ?? "pending"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manualImport.decision_actor_id ?? "unassigned"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Signal</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Signal</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {manualImport.workflow_signal?.signal_name ?? "pending"}
                   </p>
-                  <p className="row-detail">
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {manualImport.workflow_signal?.adapter ?? "runtime not signaled"}
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Idempotency</p>
-                  <p className="row-title">{manualImport.idempotency_key}</p>
-                  <p className="row-detail">{manualImport.import_mode}</p>
+                  <p className="eyebrow m-0">Idempotency</p>
+                  <p className="m-0 font-medium text-ink break-words">{manualImport.idempotency_key}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manualImport.import_mode}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Graph</p>
-                  <p className="row-title">{manualImport.graph_mutation_status}</p>
-                  <p className="row-detail">
+                  <p className="eyebrow m-0">Graph</p>
+                  <p className="m-0 font-medium text-ink break-words">{manualImport.graph_mutation_status}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {manualImport.proposal_ids.length} linked proposal
                   </p>
                 </div>
                 <div>
-                  <p className="metric-label">Audit Event</p>
-                  <p className="row-title">{manualImport.audit_event_type}</p>
-                  <p className="row-detail">{manualImport.audit_event_id ?? "pending"}</p>
+                  <p className="eyebrow m-0">Audit Event</p>
+                  <p className="m-0 font-medium text-ink break-words">{manualImport.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{manualImport.audit_event_id ?? "pending"}</p>
                 </div>
               </div>
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Promotion Policies</p>
-                <h3 className="subsection-title">
+                <p className="eyebrow m-0">Promotion Policies</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                   {selectedPromotionPolicies.length} promotion policy
                 </h3>
-                <p className="row-detail">authoring and enforcement evidence recorded</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">authoring and enforcement evidence recorded</p>
               </div>
               <ScrollText size={18} />
             </div>
             <form
               aria-label="Promotion policy authoring"
-              className="policy-authoring-form"
+              className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
               onSubmit={authorPromotionPolicy}
             >
-              <label>
-                <span className="metric-label">Policy ID</span>
-                <input
+              <Field label="Policy ID">
+                <Input
                   aria-label="Policy ID"
                   onChange={(event) =>
                     setPolicyForm((currentForm) => ({
@@ -2313,10 +2315,9 @@ export function ConnectorConsole() {
                   type="text"
                   value={policyForm.policy_id}
                 />
-              </label>
-              <label>
-                <span className="metric-label">Status</span>
-                <select
+              </Field>
+              <Field label="Status">
+                <Select
                   aria-label="Status"
                   onChange={(event) =>
                     setPolicyForm((currentForm) => ({
@@ -2327,11 +2328,10 @@ export function ConnectorConsole() {
                   value={policyForm.status}
                 >
                   <option value="draft">draft</option>
-                </select>
-              </label>
-              <label>
-                <span className="metric-label">Enforcement</span>
-                <select
+                </Select>
+              </Field>
+              <Field label="Enforcement">
+                <Select
                   aria-label="Enforcement"
                   onChange={(event) =>
                     setPolicyForm((currentForm) => ({
@@ -2343,10 +2343,10 @@ export function ConnectorConsole() {
                 >
                   <option value="advisory">advisory</option>
                   <option value="required">required</option>
-                </select>
-              </label>
+                </Select>
+              </Field>
               <button
-                className="command-button"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
                 disabled={policyAuthoringStatus === "saving"}
                 type="submit"
               >
@@ -2355,7 +2355,7 @@ export function ConnectorConsole() {
               </button>
             </form>
             {policyAuthoringStatus !== "idle" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {policyAuthoringStatus === "api_created"
                   ? "API policy authored"
                   : policyAuthoringStatus === "saving"
@@ -2365,12 +2365,11 @@ export function ConnectorConsole() {
             ) : null}
             <form
               aria-label="Promotion policy enablement"
-              className="policy-authoring-form"
+              className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
               onSubmit={enablePromotionPolicy}
             >
-              <label>
-                <span className="metric-label">Enable Policy ID</span>
-                <input
+              <Field label="Enable Policy ID">
+                <Input
                   aria-label="Enable Policy ID"
                   onChange={(event) =>
                     setPolicyEnableForm((currentForm) => ({
@@ -2383,10 +2382,9 @@ export function ConnectorConsole() {
                   type="text"
                   value={policyEnableForm.policy_id}
                 />
-              </label>
-              <label>
-                <span className="metric-label">Approval ID</span>
-                <input
+              </Field>
+              <Field label="Approval ID">
+                <Input
                   aria-label="Approval ID"
                   onChange={(event) =>
                     setPolicyEnableForm((currentForm) => ({
@@ -2398,9 +2396,9 @@ export function ConnectorConsole() {
                   type="text"
                   value={policyEnableForm.approval_id}
                 />
-              </label>
+              </Field>
               <button
-                className="command-button"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
                 disabled={policyEnableStatus === "saving"}
                 type="submit"
               >
@@ -2409,7 +2407,7 @@ export function ConnectorConsole() {
               </button>
             </form>
             {policyEnableStatus !== "idle" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {policyEnableStatus === "api_enabled"
                   ? "API policy enabled"
                   : policyEnableStatus === "saving"
@@ -2417,60 +2415,60 @@ export function ConnectorConsole() {
                     : "Policy enable rejected"}
               </p>
             ) : null}
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {selectedPromotionPolicies.map((policy) => (
-                <div className="payload-row" key={policy.policy_id}>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={policy.policy_id}>
                   <span>
-                    <span className="metric-label">{policy.policy_id}</span>
-                    <span className="row-detail">{policy.audit_event_type}</span>
+                    <span className="eyebrow m-0">{policy.policy_id}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.audit_event_type}</span>
                   </span>
-                  <span className="mono">{policy.status}</span>
+                  <span className="font-mono text-[13px] break-words">{policy.status}</span>
                 </div>
               ))}
             </div>
             {selectedPromotionPolicies.map((policy) => (
-              <div className="audit-detail-grid" key={`${policy.policy_id}-summary`}>
+              <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${policy.policy_id}-summary`}>
                 <div>
-                  <p className="metric-label">Authoring</p>
-                  <p className="row-title">{policy.created_by}</p>
-                  <p className="row-detail">{policy.required_authoring_scope}</p>
+                  <p className="eyebrow m-0">Authoring</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.created_by}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.required_authoring_scope}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Promotion Scope</p>
-                  <p className="row-title">{policy.required_scopes.join(", ")}</p>
-                  <p className="row-detail">{policy.enforcement_mode}</p>
+                  <p className="eyebrow m-0">Promotion Scope</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.required_scopes.join(", ")}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.enforcement_mode}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Manual Import</p>
-                  <p className="row-title">{policy.required_manual_import_status}</p>
-                  <p className="row-detail">{policy.required_workflow_signal_status}</p>
+                  <p className="eyebrow m-0">Manual Import</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.required_manual_import_status}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.required_workflow_signal_status}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Risk</p>
-                  <p className="row-title">{policy.allowed_risk_levels.join(", ")}</p>
-                  <p className="row-detail">{policy.allowed_ontology_types.join(", ")}</p>
+                  <p className="eyebrow m-0">Risk</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.allowed_risk_levels.join(", ")}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.allowed_ontology_types.join(", ")}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Review Window</p>
-                  <p className="row-title">{policy.review_window_hours}h</p>
-                  <p className="row-detail">{policy.permission_decision.reason}</p>
+                  <p className="eyebrow m-0">Review Window</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.review_window_hours}h</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.permission_decision.reason}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Audit Event</p>
-                  <p className="row-title">{policy.audit_event_type}</p>
-                  <p className="row-detail">{policy.audit_event_id ?? "pending"}</p>
+                  <p className="eyebrow m-0">Audit Event</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.audit_event_type}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.audit_event_id ?? "pending"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Revision Lineage</p>
-                  <p className="row-title">
+                  <p className="eyebrow m-0">Revision Lineage</p>
+                  <p className="m-0 font-medium text-ink break-words">
                     {policy.revises_policy_id ?? policy.replaced_by_policy_id ?? "none"}
                   </p>
-                  <p className="row-detail">{policy.revision_idempotency_key ?? "not replayed"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.revision_idempotency_key ?? "not replayed"}</p>
                 </div>
                 <div>
-                  <p className="metric-label">Revision Evidence</p>
-                  <p className="row-title">{policy.revision_workflow_signal_status ?? "none"}</p>
-                  <p className="row-detail">
+                  <p className="eyebrow m-0">Revision Evidence</p>
+                  <p className="m-0 font-medium text-ink break-words">{policy.revision_workflow_signal_status ?? "none"}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                     {policy.revision_approval_id ?? policy.revision_decision ?? "not required"}
                   </p>
                 </div>
@@ -2478,45 +2476,45 @@ export function ConnectorConsole() {
             ))}
           </section>
 
-          <section className="audit-payload">
-            <div className="audit-payload-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Schema Mapping</p>
-                <h3 className="subsection-title">{selectedConnector.preview_sample.file_name}</h3>
+                <p className="eyebrow m-0">Schema Mapping</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedConnector.preview_sample.file_name}</h3>
               </div>
               <FileText size={18} />
             </div>
-            <div className="payload-grid">
+            <div className="grid min-w-0 gap-2">
               {manifest.schema_fields.map((field) => (
-                <div className="payload-row" key={field.source_column}>
-                  <span className="metric-label">{field.source_column}</span>
-                  <span className="mono">{field.target_field}</span>
+                <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={field.source_column}>
+                  <span className="eyebrow m-0">{field.source_column}</span>
+                  <span className="font-mono text-[13px] break-words">{field.target_field}</span>
                 </div>
               ))}
             </div>
           </section>
 
           {csvPreviewApplies ? (
-            <section className="simulation-policy-band">
+            <section className="grid items-start gap-4 border-b border-line/60 pb-4 dark:border-white/10 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.48fr)] [&>*]:min-w-0">
               <div>
-                <p className="section-label">CSV Preview</p>
-                <h3 className="subsection-title">{preview.audit_event_preview.event_type}</h3>
-                <p className="row-detail">
+                <p className="eyebrow m-0">CSV Preview</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{preview.audit_event_preview.event_type}</h3>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {preview.audit_event_preview.result} / {preview.audit_event_preview.scope}
                 </p>
               </div>
-              <div className="payload-grid">
+              <div className="grid min-w-0 gap-2">
                 {preview.proposed_entities.map((entity) => (
-                  <div className="payload-row" key={entity.node_id}>
-                    <span className="metric-label">{entity.node_id}</span>
-                    <span className="mono">{entity.ontology_type}</span>
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={entity.node_id}>
+                    <span className="eyebrow m-0">{entity.node_id}</span>
+                    <span className="font-mono text-[13px] break-words">{entity.ontology_type}</span>
                   </div>
                 ))}
               </div>
             </section>
           ) : null}
 
-          <div className="stack">
+          <div className="grid min-w-0 gap-2.5">
             {registry.connector_notes
               .concat(manifestRegistry.manifest_notes)
               .concat(configurationRegistry.configuration_notes)
@@ -2546,7 +2544,7 @@ export function ConnectorConsole() {
               .concat(selectedPromotionPolicySets.flatMap((policySet) => policySet.notes))
               .concat(csvPreviewApplies ? preview.preview_notes : [])
               .map((note, index) => (
-              <p className="row-detail" key={`${note}-${index}`}>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={`${note}-${index}`}>
                 {note}
               </p>
               ))}

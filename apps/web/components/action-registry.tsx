@@ -26,6 +26,8 @@ import {
 } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 type ActionRunSource = "api";
 
 type LocalActionRunResult = {
@@ -68,11 +70,11 @@ function approvalClass(action: ActionRegistryEntry): string {
 
 function PayloadRows({ payload }: { payload: Record<string, string> }) {
   return (
-    <div className="payload-grid">
+    <div className="grid min-w-0 gap-2">
       {Object.entries(payload).map(([key, value]) => (
-        <div className="payload-row" key={key}>
-          <p className="metric-label">{formatActionLabel(key)}</p>
-          <p className="row-detail">{value}</p>
+        <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={key}>
+          <p className="eyebrow m-0">{formatActionLabel(key)}</p>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{value}</p>
         </div>
       ))}
     </div>
@@ -205,16 +207,16 @@ export function ActionRegistry() {
   }
 
   return (
-    <div className="console-stack">
-      <section className="panel overview-context">
+    <div className="grid min-w-0 gap-4">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Demo Action Registry</p>
-          <h2 className="panel-title">{registry.plant_name}</h2>
-          <p className="row-detail">
+          <p className="eyebrow m-0">Demo Action Registry</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{registry.plant_name}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {registry.scenario} / schema {registry.schema_version}
           </p>
         </div>
-        <div className="overview-meta" aria-label="Action source and registry status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Action source and registry status">
           <span className="status-pill signal-ready">
             <RadioTower size={15} />
             {sourceLabel(source)}
@@ -223,34 +225,33 @@ export function ActionRegistry() {
             <FileText size={15} />
             {platformStatusLabel(registry.registry_status)}
           </span>
-          <span className="mono">{formatOverviewTimestamp(registry.as_of)}</span>
+          <span className="font-mono text-[13px] break-words">{formatOverviewTimestamp(registry.as_of)}</span>
         </div>
       </section>
 
-      <div className="metric-grid">
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {registry.metrics.map((metric) => (
-          <article className="metric-card compact-card" key={metric.label}>
-            <div className="row">
-              <p className="metric-label">{metric.label}</p>
+          <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <p className="eyebrow m-0">{metric.label}</p>
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
             </div>
-            <p className="metric-value">{metric.value}</p>
-            <p className="metric-detail">{metric.detail}</p>
+            <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{metric.value}</p>
+            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
           </article>
         ))}
       </div>
 
-      <section className="panel action-filter-panel">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="section-label">Filters</p>
-          <h2 className="panel-title">Action registry</h2>
+          <p className="eyebrow m-0">Filters</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Action registry</h2>
         </div>
-        <div className="action-filters">
-          <label>
-            <span className="metric-label">Domain</span>
-            <select
+        <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
+          <Field label="Domain">
+            <Select
               value={filters.domain}
               onChange={(event) => updateFilter("domain", event.target.value)}
             >
@@ -260,11 +261,10 @@ export function ActionRegistry() {
                   {domain}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Risk</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Risk">
+            <Select
               value={filters.riskLevel}
               onChange={(event) => updateFilter("riskLevel", event.target.value)}
             >
@@ -274,11 +274,10 @@ export function ActionRegistry() {
                   {formatActionLabel(risk)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Approval</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Approval">
+            <Select
               value={filters.approvalMode}
               onChange={(event) => updateFilter("approvalMode", event.target.value)}
             >
@@ -288,11 +287,10 @@ export function ActionRegistry() {
                   {formatActionLabel(mode)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label">Status</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Status">
+            <Select
               value={filters.status}
               onChange={(event) => updateFilter("status", event.target.value)}
             >
@@ -302,27 +300,27 @@ export function ActionRegistry() {
                   {formatActionLabel(status)}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           <button className="icon-button" onClick={resetFilters} title="Reset action filters" type="button">
             <RotateCcw size={17} />
           </button>
         </div>
       </section>
 
-      <div className="action-layout">
-        <section className="panel">
-          <div className="action-list-header">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(310px,0.46fr)_minmax(0,1fr)] [&>*]:min-w-0">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">Actions</p>
-              <h2 className="panel-title">{filteredActions.length} visible</h2>
+              <p className="eyebrow m-0">Actions</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{filteredActions.length} visible</h2>
             </div>
             <span className="status-pill signal-watch">
               <Filter size={15} />
               {gatedActions} gated
             </span>
           </div>
-          <div className="action-list">
+          <div className="grid">
             {filteredActions.map((action) => {
               const isSelected =
                 action.definition.action_id === selectedAction.definition.action_id;
@@ -330,17 +328,17 @@ export function ActionRegistry() {
               return (
                 <button
                   aria-pressed={isSelected}
-                  className={`action-list-item${isSelected ? " active" : ""}`}
+                  className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={action.definition.action_id}
                   onClick={() => setSelectedActionId(action.definition.action_id)}
                   type="button"
                 >
                   <span>
-                    <span className="row-title">{action.definition.display_name}</span>
-                    <span className="row-detail">
+                    <span className="m-0 font-medium text-ink break-words">{action.definition.display_name}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {action.definition.domain} / {action.owner_role}
                     </span>
-                    <span className="row-detail">{formatActionLabel(action.status)}</span>
+                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(action.status)}</span>
                   </span>
                   <span className={`status-pill ${riskClass(action)}`}>
                     {formatActionLabel(action.definition.risk_level)}
@@ -351,14 +349,14 @@ export function ActionRegistry() {
           </div>
         </section>
 
-        <section className="panel action-detail">
-          <div className="action-detail-header">
+        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="section-label">{selectedAction.definition.domain}</p>
-              <h2 className="panel-title">{selectedAction.definition.display_name}</h2>
-              <p className="row-detail">{selectedAction.description}</p>
+              <p className="eyebrow m-0">{selectedAction.definition.domain}</p>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{selectedAction.definition.display_name}</h2>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedAction.description}</p>
             </div>
-            <div className="status-stack">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <span className={`status-pill ${riskClass(selectedAction)}`}>
                 {formatActionLabel(selectedAction.definition.risk_level)}
               </span>
@@ -368,48 +366,48 @@ export function ActionRegistry() {
             </div>
           </div>
 
-          <div className="action-detail-grid">
+          <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="metric-label">Action ID</p>
-              <p className="row-title mono">{selectedAction.definition.action_id}</p>
-              <p className="row-detail">{formatActionLabel(selectedAction.status)}</p>
+              <p className="eyebrow m-0">Action ID</p>
+              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">{selectedAction.definition.action_id}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(selectedAction.status)}</p>
             </div>
             <div>
-              <p className="metric-label">Owner</p>
-              <p className="row-title">{selectedAction.owner_role}</p>
-              <p className="row-detail">Approval role {selectedAction.policy.approval_role}</p>
+              <p className="eyebrow m-0">Owner</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedAction.owner_role}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Approval role {selectedAction.policy.approval_role}</p>
             </div>
             <div>
-              <p className="metric-label">Runtime</p>
-              <p className="row-title">{selectedAction.policy.runtime_adapter}</p>
-              <p className="row-detail">{formatActionLabel(selectedAction.policy.execution_mode)}</p>
+              <p className="eyebrow m-0">Runtime</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedAction.policy.runtime_adapter}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(selectedAction.policy.execution_mode)}</p>
             </div>
             <div>
-              <p className="metric-label">Autonomy</p>
-              <p className="row-title">{selectedAction.policy.autonomy_ceiling}</p>
-              <p className="row-detail">Ceiling for agent draft/execution</p>
+              <p className="eyebrow m-0">Autonomy</p>
+              <p className="m-0 font-medium text-ink break-words">{selectedAction.policy.autonomy_ceiling}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Ceiling for agent draft/execution</p>
             </div>
           </div>
 
-          <div className="action-policy-band">
+          <div className="grid gap-4 border-y border-line/60 py-3.5 dark:border-white/10 lg:grid-cols-[minmax(0,0.65fr)_minmax(260px,1fr)] [&>*]:min-w-0">
             <section>
-              <p className="section-label">Policy</p>
-              <div className="tag-list">
-                <span className="tag">{selectedAction.policy.model_egress_policy}</span>
-                <span className="tag">{selectedAction.policy.audit_event_type}</span>
-                <span className="tag">
+              <p className="eyebrow m-0">Policy</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{selectedAction.policy.model_egress_policy}</span>
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{selectedAction.policy.audit_event_type}</span>
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">
                   idempotency {selectedAction.policy.idempotency_required ? "required" : "optional"}
                 </span>
-                <span className="tag">
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">
                   dry-run {selectedAction.policy.dry_run_supported ? "supported" : "blocked"}
                 </span>
               </div>
             </section>
             <section>
-              <p className="section-label">Required Permissions</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Required Permissions</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.definition.required_permissions.map((permission) => (
-                  <span className="tag" key={permission}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={permission}>
                     {permission}
                   </span>
                 ))}
@@ -417,86 +415,86 @@ export function ActionRegistry() {
             </section>
           </div>
 
-          <div className="action-columns">
+          <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="section-label">Connected Agents</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Connected Agents</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.connected_agents.map((agent) => (
-                  <span className="tag" key={agent}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={agent}>
                     {agent}
                   </span>
                 ))}
               </div>
             </section>
             <section>
-              <p className="section-label">Workflow Bindings</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Workflow Bindings</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.workflow_bindings.map((workflow) => (
-                  <span className="tag" key={workflow}>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={workflow}>
                     {workflow}
                   </span>
                 ))}
               </div>
             </section>
             <section>
-              <p className="section-label">Approval Refs</p>
-              <div className="tag-list">
+              <p className="eyebrow m-0">Approval Refs</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.approval_refs.length > 0 ? (
                   selectedAction.approval_refs.map((approval) => (
-                    <span className="tag" key={approval}>
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={approval}>
                       {approval}
                     </span>
                   ))
                 ) : (
-                  <span className="tag">not_required</span>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">not_required</span>
                 )}
               </div>
             </section>
           </div>
 
-          <div className="action-columns">
+          <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="section-label">Input Schema</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Input Schema</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {formatSchemaFields(selectedAction.definition.input_schema).map((field) => (
                   <li key={field}>{field}</li>
                 ))}
               </ul>
             </section>
             <section>
-              <p className="section-label">Output Schema</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Output Schema</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {formatSchemaFields(selectedAction.definition.output_schema).map((field) => (
                   <li key={field}>{field}</li>
                 ))}
               </ul>
             </section>
             <section>
-              <p className="section-label">Side Effects</p>
-              <p className="row-detail">{selectedAction.side_effects}</p>
+              <p className="eyebrow m-0">Side Effects</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedAction.side_effects}</p>
             </section>
           </div>
 
-          <div className="action-columns">
+          <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="section-label">Guardrails</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Guardrails</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedAction.guardrails.map((guardrail) => (
                   <li key={guardrail}>{guardrail}</li>
                 ))}
               </ul>
             </section>
             <section>
-              <p className="section-label">Validation Checks</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Validation Checks</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedAction.validation_checks.map((check) => (
                   <li key={check}>{check}</li>
                 ))}
               </ul>
             </section>
             <section>
-              <p className="section-label">Blocked Conditions</p>
-              <ul className="clean-list">
+              <p className="eyebrow m-0">Blocked Conditions</p>
+              <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedAction.blocked_conditions.map((condition) => (
                   <li key={condition}>{condition}</li>
                 ))}
@@ -504,15 +502,15 @@ export function ActionRegistry() {
             </section>
           </div>
 
-          <section className="action-schema-panel">
-            <div className="action-schema-header">
+          <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Payload Preview</p>
-                <h3 className="subsection-title">API dry-run payload</h3>
+                <p className="eyebrow m-0">Payload Preview</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">API dry-run payload</h3>
               </div>
-              <div className="toolbar-actions">
+              <div className="inline-flex flex-wrap items-center justify-end gap-2.5">
                 <button
-                  className="command-button"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
                   disabled={submittingActionId === selectedAction.definition.action_id}
                   onClick={() => void requestActionRun(selectedAction)}
                   type="button"
@@ -525,61 +523,61 @@ export function ActionRegistry() {
                 <ShieldCheck size={18} />
               </div>
             </div>
-            <div className="action-sample-grid">
+            <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
               <section>
-                <p className="section-label">Sample Input</p>
+                <p className="eyebrow m-0">Sample Input</p>
                 <PayloadRows payload={selectedAction.sample_input} />
               </section>
               <section>
-                <p className="section-label">Sample Output</p>
+                <p className="eyebrow m-0">Sample Output</p>
                 <PayloadRows payload={selectedAction.sample_output} />
               </section>
             </div>
             {selectedRunResult ? (
-              <section className="action-run-result" aria-label="Action run result">
+              <section className="grid gap-4 border-t border-line/60 pt-3.5 dark:border-white/10 lg:grid-cols-[minmax(220px,0.4fr)_minmax(0,1fr)] [&>*]:min-w-0" aria-label="Action run result">
                 <div>
-                  <p className="section-label">Persisted Action Run</p>
-                  <h3 className="subsection-title">
+                  <p className="eyebrow m-0">Persisted Action Run</p>
+                  <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                     {formatActionLabel(selectedRunResult.status)}
                   </h3>
-                  <p className="row-detail">{selectedRunResult.detail}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.detail}</p>
                 </div>
-                <div className="payload-grid">
-                  <div className="payload-row">
-                    <p className="metric-label">Run ID</p>
-                    <p className="row-detail mono">{selectedRunResult.actionRunId}</p>
+                <div className="grid min-w-0 gap-2">
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                    <p className="eyebrow m-0">Run ID</p>
+                    <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{selectedRunResult.actionRunId}</p>
                   </div>
-                  <div className="payload-row">
-                    <p className="metric-label">Idempotency</p>
-                    <p className="row-detail mono">{selectedRunResult.idempotencyKey}</p>
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                    <p className="eyebrow m-0">Idempotency</p>
+                    <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{selectedRunResult.idempotencyKey}</p>
                   </div>
                   {selectedRunResult.auditEventType ? (
-                    <div className="payload-row">
-                      <p className="metric-label">Audit</p>
-                      <p className="row-detail">{selectedRunResult.auditEventType}</p>
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                      <p className="eyebrow m-0">Audit</p>
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.auditEventType}</p>
                     </div>
                   ) : null}
                   {selectedRunResult.permissionDetail ? (
-                    <div className="payload-row">
-                      <p className="metric-label">Permission</p>
-                      <p className="row-detail">{selectedRunResult.permissionDetail}</p>
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                      <p className="eyebrow m-0">Permission</p>
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.permissionDetail}</p>
                     </div>
                   ) : null}
                   {selectedRunResult.workflowSignalDetail ? (
-                    <div className="payload-row">
-                      <p className="metric-label">Workflow Signal</p>
-                      <p className="row-detail">{selectedRunResult.workflowSignalDetail}</p>
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
+                      <p className="eyebrow m-0">Workflow Signal</p>
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.workflowSignalDetail}</p>
                     </div>
                   ) : null}
                 </div>
               </section>
             ) : null}
             {selectedRunError ? (
-              <section className="action-run-result" aria-label="Action run persistence error">
+              <section className="grid gap-4 border-t border-line/60 pt-3.5 dark:border-white/10 lg:grid-cols-[minmax(220px,0.4fr)_minmax(0,1fr)] [&>*]:min-w-0" aria-label="Action run persistence error">
                 <div>
-                  <p className="section-label">Action Run Error</p>
-                  <h3 className="subsection-title">Persistence unavailable</h3>
-                  <p className="row-detail">{selectedRunError}</p>
+                  <p className="eyebrow m-0">Action Run Error</p>
+                  <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">Persistence unavailable</h3>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunError}</p>
                 </div>
               </section>
             ) : null}
@@ -587,11 +585,11 @@ export function ActionRegistry() {
         </section>
       </div>
 
-      <section className="panel">
-        <p className="section-label">Registry Notes</p>
-        <div className="stack">
+      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+        <p className="eyebrow m-0">Registry Notes</p>
+        <div className="grid min-w-0 gap-2.5">
           {registry.registry_notes.map((note) => (
-            <p className="row-detail" key={note}>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
               {note}
             </p>
           ))}

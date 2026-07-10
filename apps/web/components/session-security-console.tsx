@@ -54,32 +54,32 @@ function SessionRow({
   const revocable = isRevocableSessionStatus(record.status);
 
   return (
-    <div className="row" aria-label={`Browser session ${record.session_ref}`}>
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10" aria-label={`Browser session ${record.session_ref}`}>
       <div>
-        <p className="row-title">
+        <p className="m-0 font-medium text-ink break-words">
           {showActor ? record.actor_id : `Session ${record.session_ref.slice(0, 8)}`}
           {record.current ? " (this browser)" : ""}
         </p>
-        <p className="row-detail">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
           Created {formatSessionInstant(record.created_at)} · Last seen{" "}
           {formatSessionInstant(record.last_seen_at)} · Expires{" "}
           {formatSessionInstant(record.expires_at)} · Refreshes {record.refresh_count}
         </p>
         {record.revoked_at ? (
-          <p className="row-detail">
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Revoked {formatSessionInstant(record.revoked_at)}
             {record.revocation_reason ? ` (${record.revocation_reason.replaceAll("_", " ")})` : ""}
           </p>
         ) : null}
       </div>
-      <div className="ops-controls">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <span className={`status-pill ${sessionStatusClass(record.status)}`}>
           {record.current ? "Current" : sessionStatusLabel(record.status)}
         </span>
         {revocable ? (
           record.current ? (
             <a
-              className="command-button"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
               href={logoutUrl}
               title="Revoking this browser's session signs you out through the identity provider"
             >
@@ -88,7 +88,7 @@ function SessionRow({
             </a>
           ) : (
             <button
-              className="command-button"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
               disabled={pending}
               onClick={() => onRevoke(record)}
               type="button"
@@ -104,17 +104,17 @@ function SessionRow({
 
 function SignedOutPanel({ signInUrl }: { signInUrl: string }) {
   return (
-    <section className="panel overview-context">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p className="section-label">Signed out</p>
-        <h2 className="panel-title">No authenticated operator session</h2>
-        <p className="row-detail">
+        <p className="eyebrow m-0">Signed out</p>
+        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">No authenticated operator session</h2>
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
           Session management lists only API-verified sessions. Sign in with the API-owned OIDC
           browser session, or attach a bearer token from the account panel, before managing
           sessions.
         </p>
       </div>
-      <a className="command-button" href={signInUrl}>
+      <a className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={signInUrl}>
         <ShieldCheck size={16} />
         Sign in with SSO
       </a>
@@ -166,18 +166,18 @@ function SessionListPanel({
   const list = sessions.data;
 
   return (
-    <section className="panel">
-      <div className="section-heading-row">
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="section-label">Browser sessions</p>
-          <h2 className="panel-title">
+          <p className="eyebrow m-0">Browser sessions</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
             {listTenantWide ? "Tenant-wide sessions" : "Your sessions"}
           </h2>
         </div>
-        <div className="ops-controls">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {adminCapable ? (
             <button
-              className="command-button"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
               onClick={() => setTenantWide((value) => !value)}
               type="button"
             >
@@ -191,7 +191,7 @@ function SessionListPanel({
       </div>
 
       {list ? (
-        <div className="stack">
+        <div className="grid min-w-0 gap-2.5">
           {list.sessions.length > 0 ? (
             list.sessions.map((record) => (
               <SessionRow
@@ -204,10 +204,10 @@ function SessionListPanel({
               />
             ))
           ) : (
-            <div className="row">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
               <div>
-                <p className="row-title">No browser sessions recorded</p>
-                <p className="row-detail">
+                <p className="m-0 font-medium text-ink break-words">No browser sessions recorded</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   Axis has no persisted OIDC browser sessions for this actor. Bearer-token
                   bridges do not create cookie sessions; sign in with SSO to start one.
                 </p>
@@ -217,19 +217,19 @@ function SessionListPanel({
           )}
         </div>
       ) : (
-        <p className="row-detail">Loading persisted session records from the Axis API.</p>
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Loading persisted session records from the Axis API.</p>
       )}
 
       {revokeError ? (
-        <p className="row-detail signal-action-required" role="status">
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words signal-action-required" role="status">
           {revokeError}
         </p>
       ) : null}
 
       {list?.notes.length ? (
-        <div className="tag-list">
+        <div className="flex min-w-0 flex-wrap gap-2">
           {list.notes.map((note) => (
-            <span className="tag" key={note}>
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={note}>
               {note}
             </span>
           ))}
@@ -255,7 +255,7 @@ export function SessionSecurityConsole() {
     <ConsolePage
       controls={
         identitySession?.authenticated && identitySession.mode === "secure_oidc_cookie" ? (
-          <a className="command-button" href={logoutUrl}>
+          <a className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={logoutUrl}>
             <LogOut size={16} />
             Sign out
           </a>
@@ -276,18 +276,18 @@ export function SessionSecurityConsole() {
         <SignedOutPanel signInUrl={signInUrl} />
       ) : (
         <>
-          <section className="panel">
-            <div className="section-heading-row">
+          <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Operator session</p>
-                <h2 className="panel-title">API-verified identity</h2>
+                <p className="eyebrow m-0">Operator session</p>
+                <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">API-verified identity</h2>
               </div>
               <span className="status-pill signal-ready">
                 <MonitorSmartphone size={15} />
                 {identitySession.mode === "secure_oidc_cookie" ? "Cookie session" : "Bearer session"}
               </span>
             </div>
-            <div className="settings-summary-grid">
+            <div className="mb-3.5 grid gap-2.5 sm:grid-cols-2 [&>span]:grid [&>span]:min-w-0 [&>span]:gap-1 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:text-[11px] [&_small]:font-medium [&_small]:tracking-wide [&_small]:uppercase [&_small]:text-muted [&_strong]:min-w-0 [&_strong]:break-words [&_strong]:text-[13px] [&_strong]:leading-tight [&_strong]:text-ink">
               <span>
                 <small>Actor</small>
                 <strong>{identitySession.actor_id ?? "Unknown"}</strong>
@@ -306,7 +306,7 @@ export function SessionSecurityConsole() {
               </span>
             </div>
             {identitySession.mode !== "secure_oidc_cookie" ? (
-              <p className="row-detail">
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 This console is attached through the developer bearer bridge. Revocation below
                 applies to persisted browser cookie sessions; clear the bearer bridge from the
                 account panel to detach this console.

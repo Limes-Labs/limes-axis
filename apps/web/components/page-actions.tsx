@@ -8,7 +8,7 @@ export function PageActions() {
   const { triggerRefresh } = useConsole();
 
   return (
-    <div className="toolbar" aria-label="Page actions">
+    <div className="flex flex-wrap justify-end gap-2" aria-label="Page actions">
       <button
         className="icon-button"
         type="button"
