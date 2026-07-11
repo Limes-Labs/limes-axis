@@ -98,6 +98,14 @@ test.describe("Axis live overview demo", () => {
 
     await page.goto("/");
 
+    // Wait for the strip to resolve (items or the all-clear state) before
+    // deciding whether there is an approval to exercise.
+    await expect(
+      page
+        .getByText("Needs attention")
+        .or(page.getByRole("heading", { name: "All clear — nothing waiting on you" }))
+        .first(),
+    ).toBeVisible();
     const reviewButtons = page.getByRole("button", { name: "Review & decide" });
     if ((await reviewButtons.count()) === 0) {
       test.skip(true, "No pending approvals in the live tenant right now.");
