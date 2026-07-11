@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { ArtifactPanel } from "@/components/overview/artifact-panel";
 import { EvidenceFeed } from "@/components/overview/evidence-feed";
 import { NeedsAttention } from "@/components/overview/needs-attention";
@@ -125,7 +127,10 @@ export function PlatformOverview() {
       <div className="ops-dashboard-grid grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[minmax(0,1fr)_320px]">
         <main aria-label="Operations evidence" className="ops-dashboard-main grid min-w-0 content-start gap-4">
           <EvidenceFeed auditEvents={auditEventsQuery} />
-          <ArtifactPanel onArtifactCommitted={triggerRefresh} snapshot={snapshotQuery} />
+          {/* Suspense boundary for useSearchParams inside the artifact panel. */}
+          <Suspense fallback={<LoadingPanel layout="detail" />}>
+            <ArtifactPanel onArtifactCommitted={triggerRefresh} snapshot={snapshotQuery} />
+          </Suspense>
         </main>
         <aside
           aria-label="Operations side rail"
