@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildReplaySimulationPath,
+  countArtifactPolicyDecisions,
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
   findReplayArtifactById,
@@ -178,5 +180,58 @@ describe("replay simulation helpers", () => {
 
   it("formats simulation labels", () => {
     expect(formatSimulationLabel("changed_outcome_detected")).toBe("Changed Outcome Detected");
+  });
+});
+
+describe("buildReplaySimulationPath", () => {
+  it("always scopes to the tenant and omits unset params", () => {
+    expect(buildReplaySimulationPath({ tenantId: "tenant_fixture" })).toBe(
+      "/demo/manufacturing/simulation/replay?tenant_id=tenant_fixture",
+    );
+  });
+
+  it("serializes every replay parameter the API accepts", () => {
+    const path = buildReplaySimulationPath({
+      tenantId: "tenant_fixture",
+      workflowId: "wf_supply_fixture",
+      limit: 50,
+      retentionDays: 90,
+      legalHold: true,
+      baselinePolicySetId: "policy_set_baseline_v1",
+      candidatePolicySetId: "policy_set_candidate_v2",
+      connectorId: "connector_csv_assets",
+    });
+    const query = new URLSearchParams(path.split("?")[1]);
+
+    expect(path.startsWith("/demo/manufacturing/simulation/replay?")).toBe(true);
+    expect(Object.fromEntries(query.entries())).toEqual({
+      tenant_id: "tenant_fixture",
+      workflow_id: "wf_supply_fixture",
+      limit: "50",
+      retention_days: "90",
+      legal_hold: "true",
+      baseline_policy_set_id: "policy_set_baseline_v1",
+      candidate_policy_set_id: "policy_set_candidate_v2",
+      connector_id: "connector_csv_assets",
+    });
+  });
+
+  it("ignores whitespace-only optional ids and false legal hold", () => {
+    const path = buildReplaySimulationPath({
+      tenantId: "tenant_fixture",
+      workflowId: "  ",
+      legalHold: false,
+      baselinePolicySetId: "",
+      candidatePolicySetId: "  ",
+      connectorId: "",
+    });
+    expect(path).toBe("/demo/manufacturing/simulation/replay?tenant_id=tenant_fixture");
+  });
+
+  it("counts total and changed policy decisions across artifacts", () => {
+    expect(countArtifactPolicyDecisions([replayArtifactFixture])).toEqual({
+      total: replayArtifactFixture.policy_results.length,
+      changed: replayArtifactFixture.policy_results.filter((r) => r.changed_outcome).length,
+    });
   });
 });

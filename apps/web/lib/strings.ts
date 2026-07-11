@@ -705,6 +705,58 @@ const audit = {
   },
 } as const;
 
+/** Simulation console copy: run-replay form and baseline-vs-simulated result. */
+const simulation = {
+  run: {
+    eyebrow: "Run replay",
+    title: "Compare policy outcomes over recorded history",
+    description:
+      "Re-run recorded decisions against a policy set and see what would change. Nothing in production changes during a replay.",
+    fields: {
+      workflow: "Workflow id (optional)",
+      workflowPlaceholder: "All recorded workflows",
+      limit: "History window (events)",
+      retentionDays: "Retention window (days)",
+      legalHold: "Apply legal hold",
+      baselineSet: "Baseline policy set (optional)",
+      candidateSet: "Candidate policy set (optional)",
+      connector: "Connector id (optional)",
+      comparisonHint:
+        "Leave the policy-set fields empty to replay against the recorded policy history.",
+    },
+    submit: "Run replay",
+    running: "Running replay…",
+    error: {
+      title: "Replay run failed",
+      detail: "The replay API rejected this run. Adjust the parameters and try again.",
+    },
+    result: {
+      eyebrow: "Replay result",
+      baseline: "Baseline",
+      simulated: "Simulated",
+      changed: "Changed",
+      unchanged: "Unchanged",
+      decisionsTitle: "Decision comparison",
+      policySetTitle: "Policy-set comparison",
+      inspect: "Inspect raw result",
+      empty: {
+        title: "No decisions to compare",
+        detail:
+          "The replay window returned no policy decisions. Widen the history window or clear the workflow filter.",
+      },
+    },
+  },
+  error: {
+    title: "Replay API unavailable",
+    detail:
+      "Axis did not receive API-backed replay artifacts. Local fallback replay records are disabled.",
+  },
+  noArtifacts: {
+    title: "Replay API returned no artifacts",
+    detail: "The replay API responded without simulation artifacts for this tenant.",
+  },
+} as const;
+
 const ontology = {
   legend: {
     label: "Ontology graph legend",
@@ -744,6 +796,7 @@ export const strings = {
   connectors,
   ontology,
   overview,
+  simulation,
   workflows,
   states: {
     loading: "Loading…",
