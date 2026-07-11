@@ -115,10 +115,13 @@ test.describe("Axis live overview demo", () => {
     await page.getByRole("button", { name: "Confirm decision" }).click();
 
     await expect(page.getByText("Recorded as evidence")).toBeVisible();
-    await expect(page.getByRole("link", { name: "View audit event" })).toHaveAttribute(
-      "href",
-      /\/audit\?event_id=/,
-    );
+    // Scope to the decision card — the confirmation toast links to the same
+    // audit event under the same label.
+    await expect(
+      page
+        .locator("section[aria-label='Decision']")
+        .getByRole("link", { name: "View audit event" }),
+    ).toHaveAttribute("href", /\/audit\?event_id=/);
 
     expect(pageErrors).toEqual([]);
   });
@@ -165,7 +168,9 @@ test.describe("Axis live overview demo", () => {
       "href",
       /\/identity\/oidc\/onboarding/,
     );
-    await expect(accountPanel.getByRole("button", { name: "Connect bearer token" })).toBeVisible();
+    // The bearer-token form is demoted behind the "Developer access" collapsible.
+    await accountPanel.getByRole("button", { name: "Developer access" }).click();
+    await expect(accountPanel.getByRole("button", { name: "Attach bearer bridge" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 
