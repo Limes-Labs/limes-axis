@@ -363,6 +363,225 @@ const workflows = {
   },
 } as const;
 
+/** Connector console copy: list, detail tabs, wizard, and preview-sync runs. */
+const connectors = {
+  list: {
+    eyebrow: "Registry",
+  },
+  header: {
+    addConnector: "Add connector",
+    updated: "Updated",
+  },
+  metrics: {
+    connectors: { label: "Connectors", detail: "Registered data sources" },
+    runs: { label: "Runs", detail: "Governed sync runs recorded" },
+    pendingProposals: {
+      label: "Pending proposals",
+      detail: "Ontology proposals awaiting promotion",
+    },
+    egressPolicies: {
+      label: "Egress policies",
+      detail: "Approved outbound data boundaries",
+    },
+    evidenceIssues: {
+      label: "Evidence issues",
+      detail: "Open audit-evidence findings",
+    },
+    unavailable: "—",
+  },
+  tabs: {
+    overview: "Overview",
+    dataSchema: "Data & Schema",
+    runs: "Runs",
+    governance: "Governance & Evidence",
+  },
+  overview: {
+    type: "Type",
+    version: "Version",
+    source: "Source",
+    syncModes: "Sync modes",
+    boundary: "Runtime boundary",
+    credentials: "Credentials",
+    payloadPolicy: "Payload policy",
+    egressPolicy: "Egress boundary",
+    permissions: "Required permissions",
+    blocked: "Blocked operations",
+    manifest: "Registered manifest",
+    manifestMissing: "No manifest registered yet — registering one records audit evidence.",
+    manifestRegisteredBy: "Registered by",
+  },
+  schema: {
+    mappingTitle: "Field mapping",
+    mappingDetail: "How source columns map to the shared ontology.",
+    columns: {
+      source: "Source column",
+      target: "Target field",
+      ontology: "Ontology target",
+      type: "Type",
+      required: "Required",
+    },
+    requiredYes: "Required",
+    requiredNo: "Optional",
+    sampleTitle: "Sample rows",
+    sampleDetail: "Reference sample used for preview and validation.",
+    sampleEmpty: "No sample rows are recorded for this connector.",
+  },
+  governance: {
+    handles: {
+      title: "Credential handles",
+      detail: "References to secrets held in the vault — never raw values.",
+      empty: "No credential handles are registered for this connector.",
+      error: "Credential handle records could not be loaded.",
+    },
+    leases: {
+      title: "Credential leases",
+      detail: "Time-boxed grants that let a governed run use a credential handle.",
+      empty: "No credential leases are recorded for this connector.",
+      error: "Credential lease records could not be loaded.",
+    },
+    egress: {
+      title: "Egress policies",
+      detail: "Outbound data boundaries approved for this connector.",
+      empty: "No egress policies are recorded for this connector.",
+      error: "Egress policy records could not be loaded.",
+    },
+    invariants: {
+      title: "Evidence invariants",
+      detail: "Findings where governed records are missing audit evidence.",
+      allClear: "All evidence invariants hold — every governed record has audit evidence.",
+      error: "Evidence invariant findings could not be loaded.",
+    },
+  },
+  runs: {
+    title: "Governed runs",
+    detail: "Recorded sync runs for this connector; every stage writes audit evidence.",
+    empty: "No runs are recorded for this connector yet.",
+    error: "Connector run records could not be loaded.",
+    columns: {
+      run: "Run",
+      status: "Status",
+      mode: "Mode",
+      when: "When",
+      evidence: "Evidence",
+    },
+    openAudit: "Open audit",
+    auditPending: "audit pending",
+    validate: {
+      action: "Validate",
+      running: "Validating…",
+      readyTitle: "Validation passed",
+      blockedTitle: "Validation found issues",
+      rows: "rows checked",
+      accepted: "accepted",
+      rejected: "rejected",
+      columnsChecked: "columns checked",
+      error: "The preview endpoint could not validate this connector.",
+    },
+    sync: {
+      action: "Run sync (preview)",
+      running: "Running…",
+      ssoGate: "Sign in with SSO to run governed syncs.",
+      leaseMissing:
+        "Preview sync needs an active credential lease for this connector before it can run.",
+      manifestMissing:
+        "Preview sync needs a registered manifest in the active preview state before it can run.",
+      stages: {
+        create: {
+          title: "Create run record",
+          detail: "Records the governed run and its schedule evidence.",
+        },
+        dispatch: {
+          title: "Dispatch sync",
+          detail: "Hands the scheduled run to the sync dispatcher.",
+        },
+        execute: {
+          title: "Execute sync",
+          detail: "Runs the governed sync within the preview boundary.",
+        },
+      },
+      pending: "Waiting",
+      success: "Completed",
+      failure: "Failed",
+      auditTrail: "Audit evidence",
+    },
+  },
+  wizard: {
+    title: "Add connector",
+    description: "Register a governed data source. Registration records audit evidence and never starts a live sync.",
+    back: "Back",
+    next: "Next",
+    cancel: "Cancel",
+    submit: "Register connector",
+    submitting: "Registering…",
+    ssoGate: "Sign in with SSO to register connectors.",
+    typeStep: {
+      title: "What are you connecting?",
+      csvTitle: "CSV file",
+      csvDetail: "Upload a file, preview its rows, and map columns to the ontology.",
+      dbTitle: "External database",
+      dbDetail: "Register a read-only database source by connection profile — metadata only.",
+    },
+    csvStep: {
+      template: "Mapping template",
+      templateDetail: "Previews validate your file against this connector's field mapping.",
+      file: "CSV file",
+      preview: "Preview file",
+      previewing: "Previewing…",
+      noTemplates:
+        "No CSV mapping templates are available from the connector registry, so the file cannot be previewed.",
+      readyTitle: "Preview ready",
+      blockedTitle: "Preview blocked",
+      issuesTitle: "Validation issues",
+      rows: "rows",
+      accepted: "accepted",
+      rejected: "rejected",
+      entitiesTitle: "Proposed entities",
+      previewError: "The CSV preview endpoint is unavailable.",
+      fileReadError: "The selected file could not be read.",
+    },
+    dbStep: {
+      profile: "Connection profile",
+      profileDetail: "Named, pre-approved profile — never a raw connection string.",
+      schema: "Schema",
+      table: "Table",
+      credentialHandle: "Credential handle",
+      template: "Connector template",
+      preview: "Preview metadata",
+      previewing: "Previewing…",
+      noTemplates:
+        "No external database connector templates are available from the connector registry.",
+      readyTitle: "Metadata preview ready",
+      blockedTitle: "Metadata preview blocked",
+      columnsTitle: "Mapped columns",
+      previewError: "The external database preview endpoint is unavailable.",
+    },
+    reviewStep: {
+      title: "Review and register",
+      connectorId: "Connector id",
+      displayName: "Display name",
+      type: "Type",
+      records: "Sample records",
+      conflict: "A connector with this id already exists. Choose a different connector id.",
+      forbidden: "Your session is not allowed to register connectors for this tenant.",
+      validationFailed: "The manifest was rejected by the API.",
+      genericError: "The connector manifest could not be registered.",
+      toastTitle: "Connector registered",
+      toastDetail: "The manifest was recorded with audit evidence.",
+    },
+  },
+  error: {
+    title: "Connector API unavailable",
+    detail:
+      "Axis did not receive API-backed connector records. Local fallback connector records are disabled.",
+  },
+  empty: {
+    title: "No connectors yet",
+    detail:
+      "Connect a file or an external system and its governed syncs will appear here.",
+    action: "Add your first connector",
+  },
+} as const;
+
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
   hero: {
@@ -443,6 +662,7 @@ export const strings = {
   commandMenu,
   agents,
   approvals,
+  connectors,
   overview,
   workflows,
   states: {
