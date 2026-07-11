@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, History, RadioTower, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
-import { LoadingPanel } from "@/components/ui/states";
+import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { TenantLifecycleActions } from "@/components/tenant-lifecycle-actions";
 import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
 import { TenantUsagePanel } from "@/components/tenant-usage-panel";
@@ -131,7 +130,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
 
     if (source !== "missing") {
       return (
-        <ApiRequiredState
+        <ErrorPanel
           detail="Axis did not receive an API-backed platform tenant. Local fallback tenant records are disabled."
           endpoint={buildPlatformTenantDetailPath(tenantId)}
           title="Tenant API unavailable"

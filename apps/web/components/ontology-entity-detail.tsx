@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ArrowLeft, RadioTower } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
 import { EntityDetailContent } from "@/components/ontology/entity-detail-content";
 import {
   useOntologyEntity,
@@ -13,7 +12,7 @@ import { PlatformStatusPill } from "@/components/status-pill";
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
 
 function sourceLabel(source: OntologyEntitySource): string {
@@ -49,7 +48,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
 
     if (source !== "missing") {
       return (
-        <ApiRequiredState
+        <ErrorPanel
           detail="Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled."
           endpoint={`/demo/manufacturing/ontology/entities/${nodeId}`}
           title="Entity API unavailable"

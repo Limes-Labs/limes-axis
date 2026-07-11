@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RadioTower, RotateCcw, Send, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
 import { axisFetchJson } from "@/lib/axis-api";
 import {
   actionRunWorkflowSignalLabel,
@@ -28,7 +27,7 @@ import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import { EmptyPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
 type ActionRunSource = "api";
 
@@ -194,7 +193,7 @@ export function ActionRegistry() {
     }
 
     return (
-      <ApiRequiredState
+      <ErrorPanel
         detail="Axis did not receive API-backed action records. Local fallback action records are disabled."
         endpoint="/demo/manufacturing/actions"
         title="Action API unavailable"
@@ -204,7 +203,7 @@ export function ActionRegistry() {
 
   if (!selectedAction) {
     return (
-      <ApiRequiredState
+      <ErrorPanel
         detail="The action API responded without registry records for this tenant."
         endpoint="/demo/manufacturing/actions"
         title="Action API returned no records"

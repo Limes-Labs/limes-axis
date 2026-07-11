@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Database, List, Network, Share2, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
+import { ErrorPanel } from "@/components/ui/states";
 import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
 import { OntologyGraph } from "@/components/ontology-graph";
 import { Reveal } from "@/components/reveal";
@@ -64,7 +64,7 @@ export function OntologyExplorer() {
     }
 
     return (
-      <ApiRequiredState
+      <ErrorPanel
         detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
         endpoint="/demo/manufacturing/ontology"
         title="Ontology API unavailable"
