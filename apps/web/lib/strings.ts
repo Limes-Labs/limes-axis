@@ -815,6 +815,176 @@ const simulation = {
   },
 } as const;
 
+/**
+ * System status (settings) copy: tabs, per-panel state copy, and the
+ * plain-English what-to-do line behind every "Action required" pill.
+ */
+const settingsPanelUnavailable = "Local fallback settings records are disabled.";
+
+const settings = {
+  pageTitle: "System status",
+  source: {
+    live: "Live system status",
+    loading: "Loading system status",
+    required: "API required",
+  },
+  tabs: {
+    readiness: "Readiness",
+    identity: "Identity",
+    deployment: "Deployment",
+    support: "Support",
+  },
+  inspect: "Inspect raw report",
+  ready: {
+    eyebrow: "Runtime dependencies",
+    title: "Axis API boundary",
+    dependencyReachable: "reachable",
+    dependencyNotConfigured: "not configured",
+    egressTitle: "External model egress",
+    egressDetail:
+      "Reported live by the platform API; egress stays blocked unless a policy opens it.",
+    error: {
+      title: "Readiness API unavailable",
+      detail: `Axis did not receive the API readiness report. ${settingsPanelUnavailable}`,
+    },
+  },
+  gates: {
+    eyebrow: "Deployment readiness",
+    title: "Production gates",
+    demoSafe: "Demo safe",
+    productionReady: "Production ready",
+    blockersTitle: "Production blockers",
+    noBlockers: "All production gates are clear.",
+  },
+  oidc: {
+    eyebrow: "Identity and SSO",
+    title: "OIDC readiness",
+    issuer: "Issuer",
+    audience: "Audience",
+    authRequired: "Auth required",
+    actorClaim: "Actor claim",
+    error: {
+      title: "Identity readiness API unavailable",
+      detail: `Axis did not receive the OIDC readiness report. ${settingsPanelUnavailable}`,
+    },
+  },
+  session: {
+    eyebrow: "Browser session",
+    title: "Your session",
+    actor: "Actor",
+    tenant: "Tenant",
+    mode: "Mode",
+    authenticated: "Authenticated",
+    publicActor: "Public evaluation",
+    manageSessions: "Manage browser sessions",
+    error: {
+      title: "Session API unavailable",
+      detail: `Axis did not receive the identity session read model. ${settingsPanelUnavailable}`,
+    },
+  },
+  deployment: {
+    eyebrow: "Deployment posture",
+    environment: "Environment",
+    demoSafe: "Demo safe",
+    productionReady: "Production ready",
+    objectStore: "Object store",
+    wormRetention: "WORM retention",
+    retentionMode: "Retention mode",
+    retentionDays: "Retention days",
+    error: {
+      title: "Deployment readiness API unavailable",
+      detail: `Axis did not receive the deployment readiness report. ${settingsPanelUnavailable}`,
+    },
+  },
+  support: {
+    eyebrow: "Support diagnostics",
+    title: "Public-safe support bundle",
+    safeToShare: "Safe to share",
+    demoSupport: "Demo support",
+    productionSupport: "Production support",
+    objectRetention: "Object retention",
+    retentionActionRequired: "Action required",
+    error: {
+      title: "Support diagnostics API unavailable",
+      detail: `Axis did not receive the support diagnostics report. ${settingsPanelUnavailable}`,
+    },
+  },
+  /**
+   * One-line plain-English guidance per readiness check id, shown next to
+   * every "Action required" pill. The raw API detail stays as secondary mono
+   * text. Keys mirror the check ids emitted by the platform API.
+   */
+  guidance: {
+    // OIDC readiness checks (/identity/oidc/readiness)
+    auth_required:
+      "Turn on required OIDC verification for the API before moving past local demos.",
+    https_issuer: "Use an HTTPS issuer URL from your enterprise IdP before production.",
+    explicit_jwks_url:
+      "Configure the JWKS URL explicitly from your IdP instead of deriving it from the issuer.",
+    asymmetric_algorithms:
+      "Allow only asymmetric signing algorithms (for example RS256) for token verification.",
+    openid_scope:
+      "Add the openid scope to the OIDC client configuration so ID tokens can be issued.",
+    tenant_claim: "Set the token claim that carries the tenant so sessions bind to the right tenant.",
+    actor_claim: "Set the token claim that identifies the acting user.",
+    authorization_code_client:
+      "Register a browser SSO client with your IdP and configure its client id.",
+    authorization_endpoint: "Point the authorization endpoint at an HTTPS URL from your IdP.",
+    token_endpoint: "Point the token endpoint at an HTTPS URL from your IdP.",
+    end_session_endpoint:
+      "Configure an HTTPS end-session endpoint so signing out also ends the IdP session.",
+    post_logout_redirect:
+      "Set an HTTPS post-logout redirect so sign-out returns people to the console.",
+    session_cookie_signing:
+      "Provide an operator-managed signing secret for browser session cookies.",
+    secure_session_cookie:
+      "Enable the Secure attribute so session cookies only travel over HTTPS.",
+    host_prefixed_session_cookie:
+      "Enable Secure cookies with the __Host- prefix so sessions bind to this host.",
+    refresh_credential_encryption:
+      "Provide a refresh-credential encryption key of at least 32 characters.",
+    session_idle_timeout: "Set an idle timeout above zero so unattended sessions expire.",
+    session_absolute_timeout:
+      "Set an absolute session lifetime above zero so sessions always expire.",
+    // Deployment readiness checks (/deployment/readiness)
+    oidc_enterprise_sso:
+      "Resolve the identity checks on the Identity tab to make SSO enterprise-ready.",
+    oidc_secure_cookie_session:
+      "Serve the API and console over HTTPS with Secure, signed, time-boxed session cookies.",
+    external_model_egress_disabled:
+      "Keep external model egress off, or govern it with tenant policy and audit controls.",
+    api_rate_limiting:
+      "Enable API rate limiting before exposing the platform to production traffic.",
+    network_egress_restricted:
+      "Restrict outbound network traffic with a network policy and an explicit allowlist.",
+    deployment_tenancy_profile:
+      "Declare the tenancy mode plus isolation, data-residency, and operator-access evidence.",
+    live_connector_execution_disabled:
+      "Keep live connector execution off until provider policies and runbooks are in place.",
+    ontology_graph_mutation_posture:
+      "Configure a TypeDB address and enable ontology reads before promoting graph nodes.",
+    audit_ledger_signing_configured:
+      "Configure an audit ledger signing key so evidence exports are signed.",
+    production_object_store_adapter:
+      "Configure S3-compatible object storage with credentials, TLS, and WORM retention.",
+    observability_instrumentation:
+      "Enable OpenTelemetry and point the exporter at your collector to emit traces.",
+    production_dr_procedures:
+      "Document backup and disaster-recovery runbooks with RPO/RTO targets and rehearsal evidence.",
+    // Support diagnostics checks (/support/diagnostics)
+    demo_support_ready:
+      "Resolve the deployment posture issues so a demo walkthrough is safe to run.",
+    production_support_model:
+      "Define a 24x7 support model with response targets, escalation paths, and a status page.",
+    production_support_commitments:
+      "Put signed support commitments, a staffing model, and legal SLA terms in place.",
+    support_slo_targets: "Set S1-S4 response targets ordered from shortest to longest.",
+    support_escalation_channels:
+      "Configure at least two escalation channel classes for production support.",
+  } satisfies Record<string, string>,
+  guidanceFallback: "Review the technical detail below and update the platform configuration.",
+} as const;
+
 const ontology = {
   legend: {
     label: "Ontology graph legend",
@@ -856,6 +1026,7 @@ export const strings = {
   ontology,
   overview,
   policyDetail,
+  settings,
   simulation,
   workflows,
   states: {

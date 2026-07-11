@@ -1,3 +1,5 @@
+import { strings } from "./strings";
+
 export type SettingsReadinessStatus = "ready" | "action_required";
 
 export type SettingsCheck = {
@@ -94,4 +96,14 @@ export function settingsStatusClass(status: SettingsReadinessStatus): string {
 
 export function countActionRequiredChecks(checks: SettingsCheck[]): number {
   return checks.filter((check) => check.status === "action_required").length;
+}
+
+/**
+ * One-line plain-English guidance for an "Action required" readiness check,
+ * keyed by the check id the API emits. Unknown ids get generic guidance so a
+ * new API check never renders a pill without a what-to-do line.
+ */
+export function settingsCheckGuidance(checkId: string): string {
+  const guidance: Record<string, string> = strings.settings.guidance;
+  return guidance[checkId] ?? strings.settings.guidanceFallback;
 }
