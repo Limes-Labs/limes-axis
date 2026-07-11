@@ -299,6 +299,69 @@ const agents = {
   },
 } as const;
 
+/** Workflow console copy: list, blocker banner, timeline, and state panels. */
+const workflows = {
+  list: {
+    eyebrow: "Runs",
+  },
+  filters: {
+    state: "State",
+    allStates: "All states",
+    domain: "Domain",
+    allDomains: "All domains",
+  },
+  blocker: {
+    title: "Waiting on a human decision",
+    linkNamed: "Review blocking approval",
+    linkGeneric: "Open approvals",
+  },
+  timeline: {
+    eyebrow: "Timeline",
+    title: "Runtime timeline",
+    waiting: "waiting",
+    columns: {
+      step: "Step",
+      result: "Result",
+      when: "When",
+      summary: "Summary",
+    },
+  },
+  sections: {
+    inputs: "Inputs",
+    outputs: "Proposed outputs",
+    context: "Related context",
+  },
+  detail: {
+    runtime: "Runtime",
+    owner: "Owner",
+    autonomy: "Autonomy",
+    started: "Started",
+    expected: "Expected",
+    auditScope: "Audit scope",
+    replayReady: "Ready to replay",
+    replayNotReady: "Not replay-ready yet",
+    signals: "Pending signals",
+    noSignals: "Nothing is waiting on this workflow.",
+    controls: "Controls",
+  },
+  inspect: "Inspect raw record",
+  error: {
+    title: "Workflow API unavailable",
+    detail:
+      "Axis did not receive API-backed workflow records. Local fallback workflow records are disabled.",
+  },
+  empty: {
+    title: "No workflow runs yet",
+    detail:
+      "When a governed workflow starts, its run will appear here with a step-by-step timeline.",
+  },
+  noMatch: {
+    title: "No workflows match the current filters",
+    detail: "Adjust or reset the state and domain filters to see workflow runs.",
+    reset: "Reset filters",
+  },
+} as const;
+
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
   hero: {
@@ -380,6 +443,7 @@ export const strings = {
   agents,
   approvals,
   overview,
+  workflows,
   states: {
     loading: "Loading…",
     error: {
