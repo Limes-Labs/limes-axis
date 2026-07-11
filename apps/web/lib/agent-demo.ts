@@ -102,3 +102,40 @@ export function formatAgentLabel(value: string): string {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+
+/**
+ * Turn an IAM scope string into a short plain sentence: the last segment is
+ * the verb, the remaining segments (least-specific first) become the object.
+ * `approvals:supply:decide` → "May decide supply approvals". The raw scope
+ * stays available as secondary mono text next to the sentence.
+ */
+export function describeAgentPermission(scope: string): string {
+  const segments = scope.split(":").filter((segment) => segment.length > 0);
+  if (segments.length < 2) {
+    return `May use ${scope}`;
+  }
+
+  const verb = segments[segments.length - 1].replaceAll("_", " ");
+  const objectWords = segments
+    .slice(0, -1)
+    .reverse()
+    .map((segment) => segment.replaceAll("_", " "));
+
+  return `May ${verb} ${objectWords.join(" ")}`;
+}
+
+/** Plain-language summary of an agent's policy boundary for the Overview tab. */
+export function summarizeAgentBoundary(boundary: AgentPolicyBoundary): string {
+  const egress = boundary.external_egress_allowed
+    ? "It may send data to approved external systems."
+    : "Its data never leaves the platform.";
+  const actionCeiling =
+    boundary.max_action_level === boundary.autonomy_level
+      ? ""
+      : ` The strongest action it may take is capped at ${boundary.max_action_level}.`;
+
+  return (
+    `This agent operates at ${boundary.autonomy_level}, under the ` +
+    `${formatAgentLabel(boundary.model_policy)} model policy. ${egress}${actionCeiling}`
+  );
+}

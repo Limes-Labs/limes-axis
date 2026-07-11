@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   allAgentFilter,
   countPendingAgentProposals,
+  describeAgentPermission,
   filterAgents,
   findAgentById,
   formatAgentLabel,
+  summarizeAgentBoundary,
   type ManufacturingAgentRegistry,
 } from "./agent-demo";
 
@@ -120,5 +122,31 @@ describe("agent registry helpers", () => {
     expect(countPendingAgentProposals(agentRegistryFixture)).toBe(1);
     expect(formatAgentLabel("waiting_for_approval")).toBe("Waiting For Approval");
     expect(formatAgentLabel("approvals:supply:request")).toBe("Approvals Supply Request");
+  });
+
+  it("describes IAM scopes as plain sentences", () => {
+    expect(describeAgentPermission("agents:read")).toBe("May read agents");
+    expect(describeAgentPermission("approvals:supply:decide")).toBe(
+      "May decide supply approvals",
+    );
+    expect(describeAgentPermission("audit")).toBe("May use audit");
+  });
+
+  it("summarizes the policy boundary in plain language", () => {
+    const boundary = agentRegistryFixture.agents[0].policy_boundary;
+    const summary = summarizeAgentBoundary(boundary);
+
+    expect(summary).toContain("L2");
+    expect(summary).toMatch(/data never leaves the platform/i);
+    expect(summary).toMatch(/Local Only/);
+    expect(summary).not.toContain("model_policy");
+
+    const egressSummary = summarizeAgentBoundary({
+      ...boundary,
+      external_egress_allowed: true,
+      max_action_level: "L3",
+    });
+    expect(egressSummary).toMatch(/may send data to approved external systems/i);
+    expect(egressSummary).toContain("L3");
   });
 });

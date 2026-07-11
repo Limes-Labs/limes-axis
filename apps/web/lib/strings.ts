@@ -217,6 +217,88 @@ const approvals = {
   },
 } as const;
 
+/** Agent registry copy: list, detail tabs, runs, and state panels. */
+const agents = {
+  list: {
+    eyebrow: "Registry",
+    title: "Agents",
+  },
+  tabs: {
+    overview: "Overview",
+    permissions: "Permissions & Guardrails",
+    runs: "Runs",
+    evidence: "Evidence",
+  },
+  overview: {
+    owner: "Owner",
+    boundary: "Operating boundary",
+    modelPolicy: "Model policy",
+    connectedSystems: "Connected systems",
+    dataAccess: "Data access",
+  },
+  permissions: {
+    required: "Required permissions",
+    guardrails: "Guardrails",
+    allowed: "Allowed actions",
+    blocked: "Blocked actions",
+  },
+  evidence: {
+    proposals: "Action proposals",
+    proposalsDetail: "Read-only proposals recorded by this agent; execution needs approval.",
+    workflows: "Workflow links",
+    approvals: "Approval references",
+    audit: "Audit links",
+    lastAudit: "Last audit event",
+    approvalRequired: "Needs approval",
+    noApproval: "No approval needed",
+    empty: "No proposals, workflow links, or approval references are recorded for this agent.",
+  },
+  runs: {
+    title: "Live executed runs",
+    detail: "Persisted run records; steps, model links and proposals are recorded values.",
+    liveBadge: "Live executed",
+    dryRun: "Dry run",
+    linkedInvocations: "Linked model invocations",
+    noInvocations: "No model invocations are linked to this run.",
+    openActionRun: "Open proposed action run in approvals",
+    noActionRun: "No action run was created by this run.",
+    openRunAudit: "Open run audit event",
+    openAudit: "Open audit",
+    auditPending: "audit pending",
+    empty: {
+      title: "No runs recorded yet",
+      detail:
+        "No runs are recorded for this agent. Agent run execution is deferred by default until the execution flag is enabled on the API; run rows are never fabricated.",
+    },
+    error: {
+      title: "Agent runs API unavailable",
+      detail:
+        "Axis did not receive persisted run records for this agent. Run timelines are never fabricated.",
+    },
+    detailError: {
+      title: "Agent run detail unavailable",
+      detail:
+        "Axis did not receive the persisted step records for this run. Step timelines are never fabricated.",
+    },
+  },
+  inspect: "Inspect raw record",
+  error: {
+    title: "Agent API unavailable",
+    detail:
+      "Axis did not receive API-backed agent records. Local fallback agent records are disabled.",
+  },
+  empty: {
+    title: "No agents registered yet",
+    detail:
+      "Register an agent through the platform API and it will appear here with its policy boundary and run history.",
+  },
+  noMatch: {
+    title: "No agents match the current filters",
+    detail: "Adjust or reset the domain, autonomy and status filters to see registered agents.",
+    reset: "Reset filters",
+  },
+} as const;
+
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
   hero: {
@@ -295,6 +377,7 @@ const overview = {
 export const strings = {
   nav,
   commandMenu,
+  agents,
   approvals,
   overview,
   states: {
