@@ -105,6 +105,68 @@ export type ManufacturingReplaySimulation = {
   simulation_notes: string[];
 };
 
+/**
+ * Parameters of GET /demo/manufacturing/simulation/replay, verified against
+ * `ReplaySimulationQuery` in services/api/src/axis_api/replay_simulation.py.
+ */
+export type ReplayRunParams = {
+  tenantId: string;
+  workflowId?: string;
+  limit?: number;
+  retentionDays?: number;
+  legalHold?: boolean;
+  baselinePolicySetId?: string;
+  candidatePolicySetId?: string;
+  connectorId?: string;
+};
+
+export function buildReplaySimulationPath(params: ReplayRunParams): string {
+  const query = new URLSearchParams({ tenant_id: params.tenantId });
+  const workflowId = params.workflowId?.trim();
+  if (workflowId) {
+    query.set("workflow_id", workflowId);
+  }
+  if (params.limit !== undefined) {
+    query.set("limit", String(params.limit));
+  }
+  if (params.retentionDays !== undefined) {
+    query.set("retention_days", String(params.retentionDays));
+  }
+  if (params.legalHold) {
+    query.set("legal_hold", "true");
+  }
+  const baseline = params.baselinePolicySetId?.trim();
+  if (baseline) {
+    query.set("baseline_policy_set_id", baseline);
+  }
+  const candidate = params.candidatePolicySetId?.trim();
+  if (candidate) {
+    query.set("candidate_policy_set_id", candidate);
+  }
+  const connector = params.connectorId?.trim();
+  if (connector) {
+    query.set("connector_id", connector);
+  }
+  return `/demo/manufacturing/simulation/replay?${query.toString()}`;
+}
+
+export function countArtifactPolicyDecisions(artifacts: ReplayArtifact[]): {
+  total: number;
+  changed: number;
+} {
+  let total = 0;
+  let changed = 0;
+  for (const artifact of artifacts) {
+    for (const result of artifact.policy_results) {
+      total += 1;
+      if (result.changed_outcome) {
+        changed += 1;
+      }
+    }
+  }
+  return { total, changed };
+}
+
 export function shouldUsePersistedReplayData(data: ManufacturingReplaySimulation): boolean {
   return data.simulation_status === "ready" && data.artifacts.length > 0;
 }

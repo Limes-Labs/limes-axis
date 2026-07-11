@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
+import { Download, FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
 import { axisFetchJson } from "@/lib/axis-api";
 import {
   allAuditFilter,
+  buildAuditExportFileName,
+  buildAuditExportSummary,
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
@@ -15,6 +16,7 @@ import {
   type AuditExportBundle,
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
+import { strings } from "@/lib/strings";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
 import {
   formatOverviewTimestamp,
@@ -22,9 +24,11 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useConsole } from "@/providers/console-provider";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { Select } from "@/components/ui/select";
-import { EmptyPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
 type AuditSource = "loading" | "persisted" | "api" | "unavailable";
 
@@ -44,6 +48,90 @@ function sourceLabel(source: AuditSource): string {
   }
 
   return source === "loading" ? "Loading audit API" : "Audit API unavailable";
+}
+
+/** Serialize the already-fetched export bundle and trigger a client download. */
+function downloadAuditExportBundle(bundle: AuditExportBundle) {
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = buildAuditExportFileName(bundle);
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Plain-first integrity/export panel: verification, retention and signature
+ * proofs as tone-dotted sentences, raw hashes behind the Inspect drawer, and
+ * a real client-side download of the fetched export bundle.
+ */
+function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExportBundle }) {
+  const copy = strings.audit.integrity;
+  const summary = buildAuditExportSummary(exportBundle);
+  const inspectRecord: Record<string, unknown> = {
+    manifest: exportBundle.manifest,
+    retention_policy: exportBundle.retention_policy,
+    integrity_proof: exportBundle.integrity_proof,
+    ledger_signature: exportBundle.ledger_signature,
+    filters: exportBundle.filters,
+    retention_notes: exportBundle.retention_notes,
+  };
+
+  return (
+    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow m-0">{copy.eyebrow}</p>
+          <h2 className="font-display mx-0 mt-1 mb-1 text-xl text-ink">{copy.title}</h2>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+            {exportBundle.manifest.record_count} records, ready to download as{" "}
+            {exportBundle.format.toUpperCase()}.
+          </p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
+            {exportBundle.manifest.export_id}
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
+          <Button
+            className="px-4 py-2 text-sm"
+            onClick={() => downloadAuditExportBundle(exportBundle)}
+          >
+            <Download aria-hidden="true" size={15} />
+            {copy.download}
+          </Button>
+          <InspectDrawer record={inspectRecord} title={copy.inspect} />
+        </div>
+      </div>
+
+      <ul className="m-0 grid list-none gap-2.5 border-t border-line/60 p-0 pt-3.5 dark:border-white/10">
+        {summary.map((line) => (
+          <li className="flex min-w-0 items-start gap-2.5" key={line.id}>
+            <span
+              aria-hidden="true"
+              className={`status-dot mt-1.5 ${platformStatusClass(line.tone)}`}
+            />
+            <span className="grid min-w-0 gap-0.5">
+              <span className="text-sm font-medium text-ink break-words">{line.text}</span>
+              <span className="text-sm leading-snug text-muted break-words">{line.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {exportBundle.ledger_signature.notes.length > 0 || exportBundle.retention_notes.length > 0 ? (
+        <div className="grid min-w-0 gap-1.5 border-t border-line/60 pt-3.5 dark:border-white/10">
+          {[...exportBundle.ledger_signature.notes, ...exportBundle.retention_notes].map((note) => (
+            <p className="m-0 text-xs leading-relaxed text-muted break-words" key={note}>
+              {note}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function formatAuditTime(value: string): string {
@@ -169,20 +257,20 @@ export function AuditExplorer() {
     }
 
     return (
-      <ApiRequiredState
-        detail="Axis did not receive API-backed audit records. Local fallback audit records are disabled."
+      <ErrorPanel
+        detail={strings.audit.error.detail}
         endpoint="/demo/manufacturing/audit/events"
-        title="Audit API unavailable"
+        title={strings.audit.error.title}
       />
     );
   }
 
   if (!selectedEvent) {
     return (
-      <ApiRequiredState
-        detail="The audit API responded without ledger records for this tenant."
+      <ErrorPanel
+        detail={strings.audit.noRecords.detail}
         endpoint="/demo/manufacturing/audit/events"
-        title="Audit API returned no records"
+        title={strings.audit.noRecords.title}
       />
     );
   }
@@ -429,98 +517,12 @@ export function AuditExplorer() {
       </section>
 
       {auditExport ? (
-        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
-          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="eyebrow m-0">Export Controls</p>
-              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{auditExport.manifest.export_id}</h2>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                {auditExport.export_reason} / {auditExport.manifest.redaction_policy}
-              </p>
-            </div>
-            <span className="status-pill signal-ready">
-              <FileText size={15} />
-              {auditExport.format.toUpperCase()} export
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
-            <div>
-              <p className="eyebrow m-0">Records</p>
-              <p className="m-0 font-medium text-ink break-words">{auditExport.manifest.record_count}</p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.manifest.tenant_id}</p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Retention</p>
-              <p className="m-0 font-medium text-ink break-words">{auditExport.retention_policy.retention_days} days</p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.retention_policy.policy_id}</p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Legal hold</p>
-              <p className="m-0 font-medium text-ink break-words">
-                {auditExport.retention_policy.legal_hold ? "On" : "Off"}
-              </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.retention_policy.disposal_action}</p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Checksum</p>
-              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
-                {auditExport.manifest.checksum_sha256.slice(0, 12)}
-              </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.manifest.format}</p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Retention Enforced</p>
-              <p className="m-0 font-medium text-ink break-words">
-                {auditExport.manifest.retention_enforced ? "Yes" : "No"}
-              </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                {auditExport.manifest.excluded_record_count} excluded
-              </p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Hash Chain</p>
-              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
-                {auditExport.manifest.integrity_chain_tip_sha256.slice(0, 12)}
-              </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.integrity_proof.algorithm}</p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Ledger Signature</p>
-              <p className="m-0 font-medium text-ink break-words">
-                {auditExport.ledger_signature.verification_status}
-              </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                {auditExport.ledger_signature.key_id ?? auditExport.ledger_signature.signing_mode}
-              </p>
-            </div>
-            <div>
-              <p className="eyebrow m-0">Signature Proof</p>
-              <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
-                {(auditExport.ledger_signature.signature ?? "unsigned").slice(0, 12)}
-              </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{auditExport.ledger_signature.algorithm}</p>
-            </div>
-          </div>
-
-          <div className="grid min-w-0 gap-2.5">
-            {auditExport.ledger_signature.notes.map((note) => (
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
-                {note}
-              </p>
-            ))}
-            {auditExport.retention_notes.map((note) => (
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
-                {note}
-              </p>
-            ))}
-          </div>
-        </section>
+        <AuditIntegrityExportPanel exportBundle={auditExport} />
       ) : (
-        <ApiRequiredState
-          detail="Axis did not receive an API-backed audit export manifest. Local export manifests are disabled."
+        <ErrorPanel
+          detail={strings.audit.integrity.error.detail}
           endpoint="/demo/manufacturing/audit/export"
-          title="Audit export API unavailable"
+          title={strings.audit.integrity.error.title}
         />
       )}
     </div>

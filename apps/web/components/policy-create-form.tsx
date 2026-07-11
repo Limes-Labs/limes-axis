@@ -24,6 +24,7 @@ import {
   type PolicyDraftFieldErrors,
   type PolicyDraftFormState,
 } from "@/lib/platform-policies";
+import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
@@ -122,8 +123,11 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
           <p className="eyebrow m-0">Author Policy</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">New policy</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Creates revision 1 through POST /platform/policies. The API enforces the{" "}
-            {platformPolicyAuthorScope} scope and records authoring audit evidence.
+            {strings.policyDetail.authorAccess.summary}{" "}
+            {strings.policyDetail.authorAccess.detail}
+          </p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
+            POST /platform/policies — {platformPolicyAuthorScope}
           </p>
         </div>
         <FilePlus2 size={18} />

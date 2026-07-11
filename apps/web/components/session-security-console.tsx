@@ -3,7 +3,7 @@
 import { LogOut, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
+import { ErrorPanel } from "@/components/ui/states";
 import { ConsolePage } from "@/components/console-page";
 import { AxisApiError } from "@/lib/axis-api";
 import {
@@ -155,7 +155,7 @@ function SessionListPanel({
 
   if (sessions.isUnavailable) {
     return (
-      <ApiRequiredState
+      <ErrorPanel
         detail="Live session data requires the Axis identity session APIs. Local fallback session records are disabled."
         endpoint={identitySessionsPath(listTenantWide)}
         title="Sessions API unavailable"
@@ -267,7 +267,7 @@ export function SessionSecurityConsole() {
       title="Session security"
     >
       {identity.isUnavailable || !identitySession ? (
-        <ApiRequiredState
+        <ErrorPanel
           detail="Live session management requires the Axis identity APIs. Local fallback session records are disabled."
           endpoint={SESSION_ENDPOINTS}
           title="Session API unavailable"

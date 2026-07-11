@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, FlaskConical, GitCompareArrows, RadioTower, ScrollText, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
-import { LoadingPanel } from "@/components/ui/states";
+import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
 import { PolicyReviseForm } from "@/components/policy-revise-form";
 import { PolicyRevisionCompare } from "@/components/policy-revision-compare";
@@ -23,6 +23,7 @@ import {
   type PlatformPolicyRecord,
 } from "@/lib/platform-policies";
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
@@ -161,10 +162,10 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
     if (source !== "missing") {
       return (
-        <ApiRequiredState
-          detail="Axis did not receive an API-backed platform policy. Local fallback policy records are disabled."
+        <ErrorPanel
+          detail={strings.policyDetail.error.detailDetail}
           endpoint={buildPlatformPolicyDetailPath(policyId)}
-          title="Policy API unavailable"
+          title={strings.policyDetail.error.title}
         />
       );
     }
@@ -245,6 +246,14 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </article>
       </div>
 
+      <Tabs className="grid min-w-0 gap-3" defaultValue="conditions">
+        <TabsList>
+          <TabsTrigger value="conditions">{strings.policyDetail.tabs.conditions}</TabsTrigger>
+          <TabsTrigger value="revisions">{strings.policyDetail.tabs.revisions}</TabsTrigger>
+          <TabsTrigger value="evaluate">{strings.policyDetail.tabs.evaluate}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent className="grid min-w-0 gap-4" value="conditions">
       <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <p className="eyebrow m-0">Rule Conditions</p>
         <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{summarizePolicyConditions(current.conditions)}</h2>
@@ -296,7 +305,9 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           ))}
         </div>
       </section>
+        </TabsContent>
 
+        <TabsContent className="grid min-w-0 gap-4" value="revisions">
       <PolicyReviseForm
         current={current}
         key={`revise-${current.revision_number}`}
@@ -354,7 +365,9 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           <PolicyRevisionCompare base={compareRevision} target={current} />
         ) : null}
       </section>
+        </TabsContent>
 
+        <TabsContent className="grid min-w-0 gap-4" value="evaluate">
       <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
           <div>
@@ -373,6 +386,8 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           tenantId={detail.tenant_id}
         />
       </section>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

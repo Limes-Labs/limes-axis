@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, GitBranch, History, RadioTower, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
-import { LoadingPanel } from "@/components/ui/states";
+import { RunReplayForm } from "@/components/simulation/run-replay-form";
+import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { axisFetchJson } from "@/lib/axis-api";
+import { strings } from "@/lib/strings";
 import {
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
@@ -90,20 +91,20 @@ export function SimulationConsole() {
     }
 
     return (
-      <ApiRequiredState
-        detail="Axis did not receive API-backed replay artifacts. Local fallback replay records are disabled."
+      <ErrorPanel
+        detail={strings.simulation.error.detail}
         endpoint="/demo/manufacturing/simulation/replay"
-        title="Replay API unavailable"
+        title={strings.simulation.error.title}
       />
     );
   }
 
   if (!selectedArtifact) {
     return (
-      <ApiRequiredState
-        detail="The replay API responded without simulation artifacts for this tenant."
+      <ErrorPanel
+        detail={strings.simulation.noArtifacts.detail}
         endpoint="/demo/manufacturing/simulation/replay"
-        title="Replay API returned no artifacts"
+        title={strings.simulation.noArtifacts.title}
       />
     );
   }
@@ -153,6 +154,8 @@ export function SimulationConsole() {
           </article>
         ))}
       </div>
+
+      <RunReplayForm tenantId={simulationData.tenant_id} />
 
       <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">

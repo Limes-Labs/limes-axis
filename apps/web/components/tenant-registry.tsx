@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Building2, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
 import {
   allTenantFilter,
@@ -23,7 +22,7 @@ import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import { LoadingPanel } from "@/components/ui/states";
+import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: TenantRegistryFilters = {
   status: allTenantFilter,
@@ -127,7 +126,7 @@ export function TenantRegistry() {
     }
 
     return (
-      <ApiRequiredState
+      <ErrorPanel
         detail="Axis did not receive API-backed platform tenant records. Local fallback tenant records are disabled."
         endpoint={platformTenantsPath}
         title="Tenant API unavailable"

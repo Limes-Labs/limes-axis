@@ -9,7 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
+import { ErrorPanel } from "@/components/ui/states";
 import { ConsolePage } from "@/components/console-page";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import {
@@ -74,7 +74,7 @@ function CheckList({ checks }: { checks: SettingsCheck[] }) {
 
 function SettingsApiRequired() {
   return (
-    <ApiRequiredState
+    <ErrorPanel
       detail="Live Settings data requires the Axis readiness, identity, deployment and support APIs. Local fallback settings records are disabled."
       endpoint={SETTINGS_ENDPOINTS.join(" ")}
       title="Settings API unavailable"

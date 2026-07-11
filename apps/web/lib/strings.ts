@@ -663,6 +663,158 @@ const overview = {
   },
 } as const;
 
+/** Audit explorer copy: plain-first integrity summary and export action. */
+const audit = {
+  integrity: {
+    eyebrow: "Integrity & Export",
+    title: "Export bundle",
+    download: "Download export bundle",
+    inspect: "Inspect raw proofs",
+    ledger: {
+      verified: "Ledger verified — hash chain intact",
+      unverified: "Ledger verification failed — hash chain not confirmed",
+      detail: "Every event is hashed and chained; tampering breaks the chain.",
+    },
+    retention: {
+      enforced: "Retention enforced",
+      notEnforced: "Retention not enforced for this export",
+      legalHold: "Retention paused — legal hold active",
+      legalHoldDetail: "Records are excluded from disposal while the legal hold stands.",
+    },
+    signature: {
+      verified: "Ledger signature verified",
+      verifiedDetail: "The export manifest and hash chain are signed.",
+      notConfigured: "Signature: not configured",
+      notConfiguredDetail:
+        "The hash-chain proof is present, but no signing key is configured.",
+    },
+    error: {
+      title: "Audit export API unavailable",
+      detail:
+        "Axis did not receive an API-backed audit export manifest. Local export manifests are disabled.",
+    },
+  },
+  error: {
+    title: "Audit API unavailable",
+    detail:
+      "Axis did not receive API-backed audit records. Local fallback audit records are disabled.",
+  },
+  noRecords: {
+    title: "Audit API returned no records",
+    detail: "The audit API responded without ledger records for this tenant.",
+  },
+} as const;
+
+/** Models page copy: the reference-vs-live distinction and tab labels. */
+const models = {
+  explainer:
+    "Reference routing shows the governed routing design; live invocations are the calls the platform actually executed.",
+  tabs: {
+    reference: "Reference routing",
+    live: "Live invocations",
+  },
+  reference: {
+    error: {
+      title: "Routing API unavailable",
+      detail:
+        "Axis did not receive API-backed model routing records. Local fallback routing records are disabled.",
+    },
+    noRecords: {
+      title: "Routing API returned no records",
+      detail: "The model routing API responded without route records for this tenant.",
+    },
+  },
+  live: {
+    invocationsError: {
+      title: "Model invocation API unavailable",
+      detail:
+        "Axis did not receive persisted model invocation records. Live invocation rows are never fabricated.",
+    },
+    endpointsError: {
+      title: "Model endpoint API unavailable",
+      detail:
+        "Axis did not receive the model endpoint registry. Endpoint cards are never fabricated.",
+    },
+  },
+} as const;
+
+/** Policy pages copy: detail tabs and plain-first authoring-scope lines. */
+const policyDetail = {
+  tabs: {
+    conditions: "Conditions",
+    revisions: "Revisions",
+    evaluate: "Evaluate",
+  },
+  authorAccess: {
+    summary: "You need policy author access to create policies.",
+    detail: "Authoring creates revision 1 and records audit evidence.",
+  },
+  reviseAccess: {
+    summary: "You need policy author access to append revisions.",
+    detail:
+      "Revisions are append-only and safe to retry; the policy scope is fixed at authoring time.",
+  },
+  error: {
+    title: "Policy API unavailable",
+    registryDetail:
+      "Axis did not receive API-backed platform policy records. Local fallback policy records are disabled.",
+    detailDetail:
+      "Axis did not receive an API-backed platform policy. Local fallback policy records are disabled.",
+  },
+} as const;
+
+/** Simulation console copy: run-replay form and baseline-vs-simulated result. */
+const simulation = {
+  run: {
+    eyebrow: "Run replay",
+    title: "Compare policy outcomes over recorded history",
+    description:
+      "Re-run recorded decisions against a policy set and see what would change. Nothing in production changes during a replay.",
+    fields: {
+      workflow: "Workflow id (optional)",
+      workflowPlaceholder: "All recorded workflows",
+      limit: "History window (events)",
+      retentionDays: "Retention window (days)",
+      legalHold: "Apply legal hold",
+      baselineSet: "Baseline policy set (optional)",
+      candidateSet: "Candidate policy set (optional)",
+      connector: "Connector id (optional)",
+      comparisonHint:
+        "Leave the policy-set fields empty to replay against the recorded policy history.",
+    },
+    submit: "Run replay",
+    running: "Running replay…",
+    error: {
+      title: "Replay run failed",
+      detail: "The replay API rejected this run. Adjust the parameters and try again.",
+    },
+    result: {
+      eyebrow: "Replay result",
+      baseline: "Baseline",
+      simulated: "Simulated",
+      changed: "Changed",
+      unchanged: "Unchanged",
+      decisionsTitle: "Decision comparison",
+      policySetTitle: "Policy-set comparison",
+      inspect: "Inspect raw result",
+      empty: {
+        title: "No decisions to compare",
+        detail:
+          "The replay window returned no policy decisions. Widen the history window or clear the workflow filter.",
+      },
+    },
+  },
+  error: {
+    title: "Replay API unavailable",
+    detail:
+      "Axis did not receive API-backed replay artifacts. Local fallback replay records are disabled.",
+  },
+  noArtifacts: {
+    title: "Replay API returned no artifacts",
+    detail: "The replay API responded without simulation artifacts for this tenant.",
+  },
+} as const;
+
 const ontology = {
   legend: {
     label: "Ontology graph legend",
@@ -698,9 +850,13 @@ export const strings = {
   commandMenu,
   agents,
   approvals,
+  audit,
   connectors,
+  models,
   ontology,
   overview,
+  policyDetail,
+  simulation,
   workflows,
   states: {
     loading: "Loading…",

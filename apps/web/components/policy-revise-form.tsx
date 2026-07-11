@@ -19,6 +19,7 @@ import {
   type PolicyDraftFormState,
 } from "@/lib/platform-policies";
 import { safeRandomUuid } from "@/lib/ids";
+import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
@@ -134,10 +135,12 @@ export function PolicyReviseForm({
           <p className="eyebrow m-0">Revise Policy</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Append a revision to r{current.revision_number}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Pre-filled from the current revision. Appends through POST
-            /platform/policies/{current.policy_id}/revisions with an idempotency key; the API
-            enforces the {platformPolicyReviseScope} scope. Scope stays{" "}
-            {policyScopeLabel(current.scope)} — the policy scope is fixed at authoring time.
+            {strings.policyDetail.reviseAccess.summary} Pre-filled from the current revision;
+            scope stays {policyScopeLabel(current.scope)}.{" "}
+            {strings.policyDetail.reviseAccess.detail}
+          </p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
+            POST /platform/policies/{current.policy_id}/revisions — {platformPolicyReviseScope}
           </p>
           <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">Idempotency key {idempotencyKey}</p>
         </div>
