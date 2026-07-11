@@ -738,6 +738,31 @@ const models = {
   },
 } as const;
 
+/** Policy pages copy: detail tabs and plain-first authoring-scope lines. */
+const policyDetail = {
+  tabs: {
+    conditions: "Conditions",
+    revisions: "Revisions",
+    evaluate: "Evaluate",
+  },
+  authorAccess: {
+    summary: "You need policy author access to create policies.",
+    detail: "Authoring creates revision 1 and records audit evidence.",
+  },
+  reviseAccess: {
+    summary: "You need policy author access to append revisions.",
+    detail:
+      "Revisions are append-only and safe to retry; the policy scope is fixed at authoring time.",
+  },
+  error: {
+    title: "Policy API unavailable",
+    registryDetail:
+      "Axis did not receive API-backed platform policy records. Local fallback policy records are disabled.",
+    detailDetail:
+      "Axis did not receive an API-backed platform policy. Local fallback policy records are disabled.",
+  },
+} as const;
+
 /** Simulation console copy: run-replay form and baseline-vs-simulated result. */
 const simulation = {
   run: {
@@ -830,6 +855,7 @@ export const strings = {
   models,
   ontology,
   overview,
+  policyDetail,
   simulation,
   workflows,
   states: {

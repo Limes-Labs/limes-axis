@@ -901,6 +901,10 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Deny critical actions" })).toBeVisible();
 
+    // Revising, history and compare live together under the Revisions tab.
+    await expect(page.getByRole("tab", { name: "Conditions" })).toBeVisible();
+    await page.getByRole("tab", { name: "Revisions" }).click();
+
     // Revise form is pre-filled from the current revision with a
     // client-generated idempotency key.
     const reviseForm = page.getByRole("form", { name: "Platform policy revision" });

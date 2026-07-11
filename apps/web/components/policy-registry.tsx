@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { RadioTower, RotateCcw, ScrollText, ShieldCheck } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
 import { PolicyCreateForm } from "@/components/policy-create-form";
 import {
   allPolicyFilter,
@@ -24,10 +23,11 @@ import {
   type PlatformPolicyRegistryFilters,
 } from "@/lib/platform-policies";
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import { LoadingPanel } from "@/components/ui/states";
+import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: PlatformPolicyRegistryFilters = {
   scope: allPolicyFilter,
@@ -65,10 +65,10 @@ export function PolicyRegistry() {
     }
 
     return (
-      <ApiRequiredState
-        detail="Axis did not receive API-backed platform policy records. Local fallback policy records are disabled."
+      <ErrorPanel
+        detail={strings.policyDetail.error.registryDetail}
         endpoint={platformPoliciesPath}
-        title="Policy API unavailable"
+        title={strings.policyDetail.error.title}
       />
     );
   }
