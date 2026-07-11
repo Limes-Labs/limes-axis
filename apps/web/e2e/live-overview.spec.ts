@@ -48,6 +48,8 @@ test.describe("Axis live overview demo", () => {
     await expect(page.locator(".ops-page-subtitle")).toContainText("Ravenna Works");
 
     // The hero audit count and the evidence feed read the same registry.
+    // "—" is the placeholder while the audit events query is still loading.
+    await expect(page.getByTestId("hero-audit-count")).not.toHaveText("—");
     const heroAuditCount = await page.getByTestId("hero-audit-count").innerText();
     await expect(page.getByText(`${heroAuditCount.trim()} recent events`)).toBeVisible();
 
