@@ -1,0 +1,382 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ConnectorRunRecord } from "@/lib/connectors-demo";
+import type { ConnectorRegistries } from "@/lib/use-connector-registries";
+
+import {
+  connectorEndpointFixtures,
+  csvConnectorFixture,
+  runRegistryFixture,
+} from "./connector-fixtures";
+
+const mocks = vi.hoisted(() => ({
+  axisFetch: vi.fn(),
+  useAxisQuery: vi.fn(),
+  triggerRefresh: vi.fn(),
+}));
+
+vi.mock("@/lib/axis-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/axis-api")>()),
+  axisFetch: mocks.axisFetch,
+}));
+
+vi.mock("@/lib/use-axis-query", () => ({
+  useAxisQuery: mocks.useAxisQuery,
+}));
+
+vi.mock("@/lib/use-oidc-session", () => ({
+  useOidcConsoleSession: () => ({ session: null }),
+}));
+
+vi.mock("@/providers/console-provider", () => ({
+  useConsole: () => ({
+    refreshNonce: 0,
+    triggerRefresh: mocks.triggerRefresh,
+    apiBaseUrl: "http://localhost:8000",
+    apiStatus: { state: "ok", label: "Ready", detail: "" },
+  }),
+}));
+
+vi.mock("@/lib/ids", () => ({
+  safeRandomUuid: () => "TOKEN-1234",
+}));
+
+import { ConnectorRuns } from "./runs";
+
+type Source = "loading" | "api" | "unavailable";
+
+function queryResult(data: unknown, source: Source) {
+  return {
+    data,
+    source,
+    error: source === "unavailable" ? "Axis API request failed." : null,
+    isRefreshing: false,
+    isLoading: source === "loading",
+    isUnavailable: source === "unavailable",
+  };
+}
+
+function buildRegistries(
+  overrides: Partial<Record<keyof ConnectorRegistries, { data: unknown; source: Source }>> = {},
+): ConnectorRegistries {
+  const paths: Record<keyof ConnectorRegistries, string> = {
+    registry: "/demo/manufacturing/connectors",
+    manifests: "/demo/manufacturing/connectors/manifests",
+    credentialHandles: "/demo/manufacturing/connectors/credential-handles",
+    credentialLeases: "/demo/manufacturing/connectors/credential-leases",
+    egressPolicies: "/demo/manufacturing/connectors/egress-policies",
+    runs: "/demo/manufacturing/connectors/runs",
+    evidenceInvariants:
+      "/demo/manufacturing/connectors/evidence-invariants?tenant_id=tenant_demo_manufacturing",
+    ontologyProposals: "/demo/manufacturing/connectors/ontology-proposals",
+  };
+
+  return Object.fromEntries(
+    Object.entries(paths).map(([key, path]) => {
+      const override = overrides[key as keyof ConnectorRegistries];
+      return [
+        key,
+        override
+          ? queryResult(override.data, override.source)
+          : queryResult(connectorEndpointFixtures[path], "api"),
+      ];
+    }),
+  ) as unknown as ConnectorRegistries;
+}
+
+function mockIdentity(identity: { authenticated: boolean; actor_id: string | null } | null) {
+  mocks.useAxisQuery.mockImplementation(() => queryResult(identity, identity ? "api" : "loading"));
+}
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function runRecord(overrides: Partial<ConnectorRunRecord>): ConnectorRunRecord {
+  return { ...runRegistryFixture.runs[0], ...overrides };
+}
+
+function renderRuns(registries: ConnectorRegistries = buildRegistries()) {
+  return render(<ConnectorRuns connector={csvConnectorFixture} registries={registries} />);
+}
+
+beforeEach(() => {
+  mocks.axisFetch.mockReset();
+  mocks.useAxisQuery.mockReset();
+  mocks.triggerRefresh.mockReset();
+  mockIdentity({ authenticated: true, actor_id: "plant-operations-owner-role" });
+});
+
+describe("ConnectorRuns list states", () => {
+  it("lists recorded runs with audit links", () => {
+    renderRuns();
+
+    const table = screen.getByRole("table", { name: "Governed runs" });
+    expect(within(table).getByText("run_seeded_1")).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "Open audit" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("audit-run-1"),
+    );
+  });
+
+  it("shows an explicit empty state when no runs exist for the connector", () => {
+    renderRuns(
+      buildRegistries({
+        runs: { data: { ...runRegistryFixture, runs: [] }, source: "api" },
+      }),
+    );
+
+    expect(
+      screen.getByText("No runs are recorded for this connector yet."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an ErrorPanel when the runs registry is unavailable", () => {
+    renderRuns(buildRegistries({ runs: { data: null, source: "unavailable" } }));
+
+    expect(
+      screen.getByRole("heading", { name: "Connector run records could not be loaded." }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("ConnectorRuns validate action", () => {
+  it("re-runs the CSV preview with the recorded sample and reports the result inline", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch.mockResolvedValueOnce(
+      jsonResponse({
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        file_name: "assets.csv",
+        preview_status: "ready",
+        sync_mode: "preview_only",
+        record_count: 2,
+        accepted_record_count: 2,
+        rejected_record_count: 0,
+        validation_issues: [],
+        proposed_entities: [],
+        audit_event_preview: {
+          event_type: "connector.preview.generated",
+          scope: "file_csv_manufacturing_assets",
+          actor_id: "connector-preview-service",
+          result: "ready",
+          evidence_refs: [],
+          payload_preview: {},
+        },
+        preview_notes: [],
+      }),
+    );
+    renderRuns();
+
+    await user.click(screen.getByRole("button", { name: "Validate" }));
+
+    expect(await screen.findByText("Validation passed")).toBeInTheDocument();
+    expect(screen.getByText(/2 rows checked \/ 2 accepted \/ 0 rejected/)).toBeInTheDocument();
+
+    const [path, options] = mocks.axisFetch.mock.calls[0];
+    expect(path).toBe("/demo/manufacturing/connectors/file-csv/preview");
+    expect(options.body).toEqual({
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      file_name: "assets.csv",
+      csv_content: "asset_id,asset_name\nast-1,CNC Mill\nast-2,Press",
+    });
+  });
+
+  it("surfaces validation issues when the preview is blocked", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch.mockResolvedValueOnce(
+      jsonResponse({
+        tenant_id: "tenant_demo_manufacturing",
+        connector_id: "file_csv_manufacturing_assets",
+        file_name: "assets.csv",
+        preview_status: "blocked",
+        sync_mode: "preview_only",
+        record_count: 2,
+        accepted_record_count: 0,
+        rejected_record_count: 2,
+        validation_issues: ["Missing required column: asset_id"],
+        proposed_entities: [],
+        audit_event_preview: {
+          event_type: "connector.preview.generated",
+          scope: "file_csv_manufacturing_assets",
+          actor_id: "connector-preview-service",
+          result: "blocked",
+          evidence_refs: [],
+          payload_preview: {},
+        },
+        preview_notes: [],
+      }),
+    );
+    renderRuns();
+
+    await user.click(screen.getByRole("button", { name: "Validate" }));
+
+    expect(await screen.findByText("Validation found issues")).toBeInTheDocument();
+    expect(screen.getByText("Missing required column: asset_id")).toBeInTheDocument();
+  });
+});
+
+describe("ConnectorRuns preview-sync stepper", () => {
+  it("runs create -> dispatch -> execute with idempotent payloads and links audit evidence", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch
+      .mockResolvedValueOnce(
+        jsonResponse(
+          runRecord({
+            run_id: "run_console_token1234",
+            status: "sync_schedule_deferred",
+            audit_event_id: "audit-create",
+          }),
+          201,
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          runRecord({
+            run_id: "run_console_token1234",
+            status: "sync_dispatch_deferred",
+            dispatch_result: {
+              adapter: "deferred-sync-dispatch",
+              status: "sync_dispatch_deferred",
+              dispatch_ref: "dispatch://deferred",
+              external_sync_started: false,
+              idempotency_key: "idem_dispatch_console_token1234",
+              result_summary: {},
+              notes: [],
+            },
+            audit_event_id: "audit-dispatch",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          runRecord({
+            run_id: "run_console_token1234",
+            status: "sync_execution_deferred",
+            sync_execution_result: {
+              adapter: "deferred-sync-execution",
+              status: "sync_execution_deferred",
+              sync_ref: "sync://deferred",
+              external_sync_started: false,
+              idempotency_key: "idem_exec_console_token1234",
+              result_summary: {},
+              notes: [],
+            },
+            audit_event_id: "audit-execute",
+          }),
+        ),
+      );
+    renderRuns();
+
+    await user.click(screen.getByRole("button", { name: "Run sync (preview)" }));
+
+    await waitFor(() => expect(screen.getAllByText("Completed")).toHaveLength(3));
+
+    const [createPath, createOptions] = mocks.axisFetch.mock.calls[0];
+    expect(createPath).toBe("/demo/manufacturing/connectors/runs");
+    expect(createOptions.body).toMatchObject({
+      tenant_id: "tenant_demo_manufacturing",
+      connector_id: "file_csv_manufacturing_assets",
+      run_id: "run_console_token1234",
+      execution_mode: "scheduled_sync_plan",
+      requested_by: "plant-operations-owner-role",
+      credential_handle_ids: ["handle_csv_readonly"],
+      credential_lease_id: "lease_csv_active",
+      schedule_timezone: "UTC",
+    });
+
+    const [dispatchPath, dispatchOptions] = mocks.axisFetch.mock.calls[1];
+    expect(dispatchPath).toBe(
+      "/demo/manufacturing/connectors/runs/run_console_token1234/dispatch",
+    );
+    expect(dispatchOptions.body).toMatchObject({
+      dispatch_id: "dispatch_console_token1234",
+      actor_scopes: ["connectors:sync:dispatch"],
+      credential_lease_id: "lease_csv_active",
+      idempotency_key: "idem_dispatch_console_token1234",
+    });
+
+    const [executePath, executeOptions] = mocks.axisFetch.mock.calls[2];
+    expect(executePath).toBe(
+      "/demo/manufacturing/connectors/runs/run_console_token1234/execute-sync",
+    );
+    expect(executeOptions.body).toMatchObject({
+      execution_id: "exec_console_token1234",
+      actor_scopes: ["connectors:sync:execute"],
+      idempotency_key: "idem_exec_console_token1234",
+    });
+
+    const auditLinks = screen.getAllByRole("link", { name: "Open audit" });
+    expect(
+      auditLinks.some((link) => link.getAttribute("href")?.includes("audit-execute")),
+    ).toBe(true);
+    expect(mocks.triggerRefresh).toHaveBeenCalled();
+  });
+
+  it("shows a stage-scoped error and stops when dispatch fails", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch
+      .mockResolvedValueOnce(
+        jsonResponse(runRecord({ status: "sync_schedule_deferred" }), 201),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            detail: {
+              message: "The actor cannot dispatch scheduled connector sync.",
+              required_permission: "connectors:sync:dispatch",
+            },
+          },
+          403,
+        ),
+      );
+    renderRuns();
+
+    await user.click(screen.getByRole("button", { name: "Run sync (preview)" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Dispatch sync failed" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The actor cannot dispatch scheduled connector sync."),
+    ).toBeInTheDocument();
+    // The execute stage never fires after a dispatch failure.
+    expect(mocks.axisFetch).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+  });
+
+  it("disables the sync action with the SSO message when unauthenticated", () => {
+    mockIdentity({ authenticated: false, actor_id: null });
+    renderRuns();
+
+    expect(screen.getByRole("button", { name: "Run sync (preview)" })).toBeDisabled();
+    expect(
+      screen.getByText("Sign in with SSO to run governed syncs."),
+    ).toBeInTheDocument();
+  });
+
+  it("disables the sync action when no active credential lease exists", () => {
+    renderRuns(
+      buildRegistries({
+        credentialLeases: {
+          data: {
+            ...connectorEndpointFixtures[
+              "/demo/manufacturing/connectors/credential-leases"
+            ] as object,
+            leases: [],
+          },
+          source: "api",
+        },
+      }),
+    );
+
+    expect(screen.getByRole("button", { name: "Run sync (preview)" })).toBeDisabled();
+    expect(screen.getByText(/needs an active credential lease/)).toBeInTheDocument();
+  });
+});
