@@ -438,11 +438,42 @@ const overview = {
   },
 } as const;
 
+const ontology = {
+  legend: {
+    label: "Ontology graph legend",
+    entity: "Entity",
+    selected: "Selected",
+    relation: "Relation",
+    hint: "Click or press Enter on a node to open its entity detail",
+  },
+  graph: {
+    controlsLabel: "Ontology graph controls",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    resetView: "Reset view",
+  },
+  sheet: {
+    eyebrow: "Ontology entity",
+    openFullPage: "Open full page",
+    error: {
+      title: "Entity API unavailable",
+      detail:
+        "Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled.",
+    },
+    notFound: {
+      title: "Entity not found",
+      detail:
+        "No ontology entity exists with this id. It may have been renamed or removed from the graph.",
+    },
+  },
+} as const;
+
 export const strings = {
   nav,
   commandMenu,
   agents,
   approvals,
+  ontology,
   overview,
   workflows,
   states: {
