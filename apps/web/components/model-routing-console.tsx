@@ -13,7 +13,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import {
   allModelRoutingFilter,
@@ -48,12 +47,14 @@ import {
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { DataTable } from "@/components/ui/data-table";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -79,10 +80,26 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 
 export function ModelRoutingConsole() {
   return (
-    <div className="grid min-w-0 gap-4">
-      <ReferenceModelRouting />
-      <LiveModelRouterSection />
-    </div>
+    <Tabs className="grid min-w-0 gap-4" defaultValue="reference">
+      <div
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+        data-models-header-strip
+      >
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
+          {strings.models.explainer}
+        </p>
+        <TabsList>
+          <TabsTrigger value="reference">{strings.models.tabs.reference}</TabsTrigger>
+          <TabsTrigger value="live">{strings.models.tabs.live}</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="reference">
+        <ReferenceModelRouting />
+      </TabsContent>
+      <TabsContent value="live">
+        <LiveModelRouterSection />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -136,20 +153,20 @@ function ReferenceModelRouting() {
     }
 
     return (
-      <ApiRequiredState
-        detail="Axis did not receive API-backed model routing records. Local fallback routing records are disabled."
+      <ErrorPanel
+        detail={strings.models.reference.error.detail}
         endpoint="/demo/manufacturing/model-routing"
-        title="Routing API unavailable"
+        title={strings.models.reference.error.title}
       />
     );
   }
 
   if (!selectedRoute || !selectedProvider) {
     return (
-      <ApiRequiredState
-        detail="The model routing API responded without route records for this tenant."
+      <ErrorPanel
+        detail={strings.models.reference.noRecords.detail}
         endpoint="/demo/manufacturing/model-routing"
-        title="Routing API returned no records"
+        title={strings.models.reference.noRecords.title}
       />
     );
   }
@@ -555,10 +572,10 @@ function LiveModelRouterSection() {
         {invocations.isLoading ? (
           <LivePanelSkeleton />
         ) : !invocations.data ? (
-          <ApiRequiredState
-            detail="Axis did not receive persisted model invocation records. Live invocation rows are never fabricated."
+          <ErrorPanel
+            detail={strings.models.live.invocationsError.detail}
             endpoint="/platform/models/invocations"
-            title="Model invocation API unavailable"
+            title={strings.models.live.invocationsError.title}
           />
         ) : invocations.data.invocations.length === 0 ? (
           <EmptyPanel
@@ -655,10 +672,10 @@ function LiveModelRouterSection() {
         {endpoints.isLoading ? (
           <LivePanelSkeleton />
         ) : !endpoints.data ? (
-          <ApiRequiredState
-            detail="Axis did not receive the model endpoint registry. Endpoint cards are never fabricated."
+          <ErrorPanel
+            detail={strings.models.live.endpointsError.detail}
             endpoint="/platform/models/endpoints"
-            title="Model endpoint API unavailable"
+            title={strings.models.live.endpointsError.title}
           />
         ) : endpoints.data.endpoints.length === 0 ? (
           <EmptyPanel

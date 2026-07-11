@@ -597,13 +597,27 @@ test.describe("Axis console smoke", () => {
     await page.goto("/model-routing");
 
     await expect(page.getByRole("heading", { name: "Models", exact: true })).toBeVisible();
+
+    // One header strip explains the reference-vs-live split and hosts the tabs.
+    await expect(
+      page.getByText(
+        "Reference routing shows the governed routing design; live invocations are the calls the platform actually executed.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Reference routing" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Live invocations" })).toBeVisible();
+
+    // Reference tab (default): API-required state, never fabricated routes.
     await expect(page.getByRole("heading", { name: "Routing API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback routing records are disabled.")).toBeVisible();
     await expect(page.getByText("Fallback routing seed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Quality Risk Agent/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Technical details" }).click();
+    await expect(page.getByText("/demo/manufacturing/model-routing", { exact: true })).toBeVisible();
 
-    // The live model-router surfaces render their own API-required states
-    // instead of fabricated invocation rows or endpoint cards.
+    // Live tab: its own API-required states instead of fabricated invocation
+    // rows or endpoint cards.
+    await page.getByRole("tab", { name: "Live invocations" }).click();
     await expect(page.getByText("Live executed", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Model invocation API unavailable" }),
@@ -612,10 +626,10 @@ test.describe("Axis console smoke", () => {
       page.getByRole("heading", { name: "Model endpoint API unavailable" }),
     ).toBeVisible();
     // Endpoint paths sit behind the per-panel "Technical details" expanders.
-    const routingDetailToggles = page.getByRole("button", { name: "Technical details" });
-    await expect(routingDetailToggles).toHaveCount(3);
-    for (let index = 0; index < 3; index += 1) {
-      await routingDetailToggles.nth(index).click();
+    const liveDetailToggles = page.getByRole("button", { name: "Technical details" });
+    await expect(liveDetailToggles).toHaveCount(2);
+    for (let index = 0; index < 2; index += 1) {
+      await liveDetailToggles.nth(index).click();
     }
     await expect(page.getByText("/platform/models/invocations", { exact: true })).toBeVisible();
     await expect(page.getByText("/platform/models/endpoints", { exact: true })).toBeVisible();

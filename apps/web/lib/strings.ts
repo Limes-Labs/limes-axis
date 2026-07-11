@@ -705,6 +705,39 @@ const audit = {
   },
 } as const;
 
+/** Models page copy: the reference-vs-live distinction and tab labels. */
+const models = {
+  explainer:
+    "Reference routing shows the governed routing design; live invocations are the calls the platform actually executed.",
+  tabs: {
+    reference: "Reference routing",
+    live: "Live invocations",
+  },
+  reference: {
+    error: {
+      title: "Routing API unavailable",
+      detail:
+        "Axis did not receive API-backed model routing records. Local fallback routing records are disabled.",
+    },
+    noRecords: {
+      title: "Routing API returned no records",
+      detail: "The model routing API responded without route records for this tenant.",
+    },
+  },
+  live: {
+    invocationsError: {
+      title: "Model invocation API unavailable",
+      detail:
+        "Axis did not receive persisted model invocation records. Live invocation rows are never fabricated.",
+    },
+    endpointsError: {
+      title: "Model endpoint API unavailable",
+      detail:
+        "Axis did not receive the model endpoint registry. Endpoint cards are never fabricated.",
+    },
+  },
+} as const;
+
 /** Simulation console copy: run-replay form and baseline-vs-simulated result. */
 const simulation = {
   run: {
@@ -794,6 +827,7 @@ export const strings = {
   approvals,
   audit,
   connectors,
+  models,
   ontology,
   overview,
   simulation,
