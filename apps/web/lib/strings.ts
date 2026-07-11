@@ -338,6 +338,7 @@ const workflows = {
     started: "Started",
     expected: "Expected",
     auditScope: "Audit scope",
+    replay: "Replay",
     replayReady: "Ready to replay",
     replayNotReady: "Not replay-ready yet",
     signals: "Pending signals",
