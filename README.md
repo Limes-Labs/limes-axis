@@ -208,7 +208,11 @@ off by default behind explicit flags:
 - Replay comparison: arbitrary policy-set diffs over historical replay
   windows are available behind `AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED`.
 - Console: the core pages are rebuilt on shared brand primitives with
-  light/dark theming and an ontology graph view.
+  light/dark theming and an ontology graph view. The governance console has
+  been redesigned around an action-first control room with guided onboarding,
+  an Add Connector wizard, governed preview syncs, replay-from-UI and a
+  tenant-scoped demo bootstrap endpoint
+  (`POST /demo/manufacturing/bootstrap`).
 - Contracts and docs: [`packages/schemas`](./packages/schemas) publishes JSON
   Schema (draft 2020-12) contracts for action definitions, tenants, audit
   ledger events, connector manifests, model endpoints and agent runs,

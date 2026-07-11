@@ -68,7 +68,7 @@ main console becomes compressed. This keeps SME and enterprise feedback
 sessions usable on ordinary meeting-room displays without changing the
 API-required data contract.
 
-The overview also composes:
+The API also exposes:
 
 ```text
 GET /demo/manufacturing/demo-readiness
@@ -78,7 +78,34 @@ The readiness report is computed from the persisted manufacturing operations
 snapshot. It exposes SME feedback and enterprise evaluation tracks, evidence
 checks, explicit production-readiness limitations and next actions. It does not
 generate artifacts, query source systems, run connectors or rely on
-browser-local mock data.
+browser-local mock data. The redesigned overview no longer renders this report
+as a first-screen panel; the endpoint remains an API surface for readiness
+checks.
+
+## Redesigned Control Room
+
+The console redesign rebuilds the overview page as an action-first control
+room: a slim hero with live counts, a needs-attention strip with inline
+approval decisions, five posture cards, one audit evidence feed, the governed
+artifact panel and a system-health side rail. Each section reads its own
+endpoint, so a failing endpoint degrades only the section that reads from it.
+
+On a tenant whose overview answers 404 (never bootstrapped) while the API is
+otherwise healthy, the page renders a guided onboarding checklist instead of an
+error: five steps (connect a system, import ontology entities, define a
+policy, register an agent, run a governed workflow) whose done-state derives
+from the live registry counts. Its "Explore with demo data" CTA calls:
+
+```text
+POST /demo/manufacturing/bootstrap
+```
+
+The endpoint copies the canonical demo scenario records into the target tenant
+behind the `demo:scenario:bootstrap` scope, answers 201 on first bootstrap and
+200 with `idempotent_replay: true` on replays, never overwrites existing tenant
+surface records, and writes a `demo.scenario.bootstrapped` audit event. When a
+tenant's overview identifies the demo scenario, the console topbar shows a
+"Demo" badge.
 
 The console shell notification panel also uses:
 

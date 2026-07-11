@@ -1091,6 +1091,20 @@ scheduler/dispatch/execution evidence. The self-hosted sync executor is opt-in
 for local/demo execution and does not represent provider-specific production
 egress.
 
+### Redesigned Console Surfaces
+
+The console redesign restructures `/connectors` as a master–detail registry
+with per-connector tabs (Overview, Data & Schema, Runs, Governance &
+Evidence). An Add Connector wizard registers new governed sources: step one
+chooses the source type (CSV file or external database), the following steps
+preview the file rows or connection-profile metadata through the existing
+preview endpoints, and the review step registers the manifest through
+`POST /demo/manufacturing/connectors/manifests`. Registration records audit
+evidence and never starts a live sync. The Runs tab can start a governed
+preview sync from the UI, driving the existing three-stage run path
+(create, dispatch, execute-sync) with idempotent request tokens and rendering
+each stage's API result and audit reference.
+
 ## Scheduled Live Sync Last Mile
 
 Three flag-gated legs close the connector execution path from lease evidence

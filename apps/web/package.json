@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:e2e": "export NEXT_PUBLIC_AXIS_API_BASE_URL=http://127.0.0.1:65534; next build && playwright test",
     "test:e2e:live": "export NEXT_PUBLIC_AXIS_API_BASE_URL=http://127.0.0.1:8000 AXIS_E2E_LIVE_API=1; next build && playwright test e2e/live-overview.spec.ts",
+    "test:e2e:stories": "export NEXT_PUBLIC_AXIS_API_BASE_URL=http://127.0.0.1:8000 AXIS_E2E_LIVE_API=1; next build && playwright test e2e/control-room.spec.ts e2e/connectors-flow.spec.ts e2e/onboarding.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

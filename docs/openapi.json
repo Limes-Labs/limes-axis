@@ -10038,6 +10038,139 @@
         "title": "DailyPlantBriefRequest",
         "type": "object"
       },
+      "DemoBootstrapRecordView": {
+        "properties": {
+          "audit_event_id": {
+            "format": "uuid",
+            "title": "Audit Event Id",
+            "type": "string"
+          },
+          "audit_event_type": {
+            "minLength": 1,
+            "title": "Audit Event Type",
+            "type": "string"
+          },
+          "bootstrapped": {
+            "title": "Bootstrapped",
+            "type": "boolean"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "plant_name": {
+            "minLength": 1,
+            "title": "Plant Name",
+            "type": "string"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "scenario": {
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "source_tenant_id": {
+            "minLength": 1,
+            "title": "Source Tenant Id",
+            "type": "string"
+          },
+          "surfaces": {
+            "items": {
+              "$ref": "#/components/schemas/DemoBootstrapSurfaceView"
+            },
+            "minItems": 1,
+            "title": "Surfaces",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "scenario",
+          "plant_name",
+          "bootstrapped",
+          "source_tenant_id",
+          "requested_by",
+          "surfaces",
+          "audit_event_id",
+          "audit_event_type"
+        ],
+        "title": "DemoBootstrapRecordView",
+        "type": "object"
+      },
+      "DemoBootstrapRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actor Scopes",
+            "type": "array"
+          },
+          "requested_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "tenant_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "requested_by"
+        ],
+        "title": "DemoBootstrapRequest",
+        "type": "object"
+      },
+      "DemoBootstrapSurfaceView": {
+        "properties": {
+          "reference_id": {
+            "minLength": 1,
+            "title": "Reference Id",
+            "type": "string"
+          },
+          "state": {
+            "pattern": "^(created|existing)$",
+            "title": "State",
+            "type": "string"
+          },
+          "surface": {
+            "minLength": 1,
+            "title": "Surface",
+            "type": "string"
+          }
+        },
+        "required": [
+          "surface",
+          "reference_id",
+          "state"
+        ],
+        "title": "DemoBootstrapSurfaceView",
+        "type": "object"
+      },
       "DeploymentReadinessCapabilities": {
         "properties": {
           "api_base_url_https": {
@@ -19831,6 +19964,61 @@
           }
         },
         "summary": "Manufacturing Audit Retention Delete",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/bootstrap": {
+      "post": {
+        "operationId": "manufacturing_demo_bootstrap_demo_manufacturing_bootstrap_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoBootstrapRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoBootstrapRecordView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Demo scenario bootstrap permission denied"
+          },
+          "422": {
+            "description": "Demo scenario bootstrap validation failed"
+          }
+        },
+        "summary": "Manufacturing Demo Bootstrap",
         "tags": [
           "demo"
         ]

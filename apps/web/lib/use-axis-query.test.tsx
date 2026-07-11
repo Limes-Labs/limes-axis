@@ -6,7 +6,8 @@ const mocks = vi.hoisted(() => ({
   refreshNonce: 0,
 }));
 
-vi.mock("@/lib/axis-api", () => ({
+vi.mock("@/lib/axis-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./axis-api")>()),
   axisFetchJson: mocks.axisFetchJson,
 }));
 
@@ -23,6 +24,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
   useOidcConsoleSession: () => ({ session: null }),
 }));
 
+import { AxisApiError } from "./axis-api";
 import { useAxisQuery } from "./use-axis-query";
 
 type Registry = { items: string[] };
@@ -94,6 +96,31 @@ describe("useAxisQuery", () => {
     expect(result.current.data).toEqual({ items: ["a"] });
     expect(result.current.error).toBe("Axis API request failed with 503");
     expect(result.current.isRefreshing).toBe(false);
+  });
+
+  it("exposes the HTTP status of a failed request as errorStatus", async () => {
+    mocks.axisFetchJson.mockRejectedValueOnce(new AxisApiError("/demo/registry", 404));
+
+    const { result } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    expect(result.current.errorStatus).toBe(404);
+    expect(result.current.data).toBeNull();
+  });
+
+  it("keeps errorStatus null for non-HTTP failures and clears it on success", async () => {
+    mocks.axisFetchJson.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const { result, rerender } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    expect(result.current.errorStatus).toBeNull();
+
+    mocks.axisFetchJson.mockResolvedValueOnce({ items: ["a"] });
+    mocks.refreshNonce = 1;
+    rerender();
+
+    await waitFor(() => expect(result.current.source).toBe("api"));
+    expect(result.current.errorStatus).toBeNull();
   });
 
   it("resets to loading and drops data when the path changes", async () => {

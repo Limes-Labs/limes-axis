@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 
+import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { ArtifactPanel } from "@/components/overview/artifact-panel";
 import { EvidenceFeed } from "@/components/overview/evidence-feed";
 import { NeedsAttention } from "@/components/overview/needs-attention";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { useDemoBootstrap } from "@/lib/use-demo-bootstrap";
 import { useConsole } from "@/providers/console-provider";
 
 /*
@@ -106,14 +108,42 @@ function OverviewHero({
 }
 
 export function PlatformOverview() {
-  const { triggerRefresh } = useConsole();
+  const { apiStatus, triggerRefresh } = useConsole();
+  const demoBootstrap = useDemoBootstrap();
   const overviewQuery = useAxisQuery<ManufacturingOverview>(OVERVIEW_ENDPOINT);
   const snapshotQuery = useAxisQuery<ManufacturingOperationsSnapshot>(SNAPSHOT_ENDPOINT);
   const routingQuery = useAxisQuery<ManufacturingModelRouting>(MODEL_ROUTING_ENDPOINT);
   const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(AUDIT_EVENTS_ENDPOINT);
 
+  // An overview 404 on an otherwise healthy API means the tenant has never
+  // been bootstrapped — that is the guided-setup story (spec §6), not an
+  // error. A genuinely unreachable API (network failure, /ready probe down)
+  // keeps the section-level error wall below.
+  const tenantEmpty =
+    !overviewQuery.data
+    && overviewQuery.source === "unavailable"
+    && overviewQuery.errorStatus === 404
+    && apiStatus.state !== "unavailable";
+
+  if (tenantEmpty) {
+    return (
+      <div className="grid gap-4">
+        <OnboardingChecklist
+          demoAvailable
+          demoError={demoBootstrap.error}
+          demoPending={demoBootstrap.pending}
+          onExploreDemo={demoBootstrap.bootstrapDemo}
+          variant="full"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4">
+      {/* Partially onboarded tenants keep a compact progress strip on top;
+          it renders nothing at 0 of 5 or 5 of 5. */}
+      <OnboardingChecklist variant="compact" />
       <OverviewHero
         auditEvents={auditEventsQuery}
         overview={overviewQuery}

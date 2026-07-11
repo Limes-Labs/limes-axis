@@ -1343,19 +1343,48 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("requires the settings readiness APIs instead of local settings data", async ({ page }) => {
+  test("requires the settings readiness APIs per panel instead of local settings data", async ({
+    page,
+  }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/settings");
 
-    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Settings API unavailable" })).toBeVisible();
-    await expect(page.getByText("Local fallback settings records are disabled.")).toBeVisible();
+    // The page header is "System status"; the nav label stays Settings.
+    await expect(page.getByRole("heading", { name: "System status", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Settings API unavailable" })).toHaveCount(0);
+
+    // Readiness tab (default): each panel degrades on its own instead of one
+    // page-wide gate.
+    await expect(
+      page.getByRole("heading", { name: "Readiness API unavailable", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Deployment readiness API unavailable", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Local fallback settings records are disabled.").first(),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Technical details" }).first().click();
-    await expect(page.getByText("/ready")).toBeVisible();
-    await expect(page.getByText("/deployment/readiness")).toBeVisible();
-    await expect(page.getByText("/support/diagnostics")).toBeVisible();
+    await expect(page.getByText("/ready", { exact: true })).toBeVisible();
+
+    // Identity tab: OIDC readiness and the session read model degrade apart.
+    await page.getByRole("tab", { name: "Identity" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Identity readiness API unavailable" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Session API unavailable" })).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).first().click();
+    await expect(page.getByText("/identity/oidc/readiness", { exact: true })).toBeVisible();
+
+    // Support tab: its own panel-scoped error.
+    await page.getByRole("tab", { name: "Support" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Support diagnostics API unavailable" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Technical details" }).click();
+    await expect(page.getByText("/support/diagnostics", { exact: true })).toBeVisible();
     await expect(page.getByText("Fallback settings seed")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);

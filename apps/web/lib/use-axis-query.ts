@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { axisFetchJson } from "@/lib/axis-api";
+import { AxisApiError, axisFetchJson } from "@/lib/axis-api";
 import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
@@ -27,6 +27,8 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
   const [data, setData] = useState<T | null>(null);
   const [source, setSource] = useState<AxisQuerySource>("loading");
   const [error, setError] = useState<string | null>(null);
+  /** HTTP status of the last failed request; null for non-HTTP failures. */
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const enabled = options.enabled ?? true;
 
@@ -55,6 +57,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
         setData(null);
         setSource("loading");
         setError(null);
+        setErrorStatus(null);
         setIsRefreshing(false);
       }
 
@@ -69,6 +72,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
           setData(payload);
           setSource("api");
           setError(null);
+          setErrorStatus(null);
           setIsRefreshing(false);
         }
       } catch (caught) {
@@ -78,6 +82,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
           }
           setSource("unavailable");
           setError(caught instanceof Error ? caught.message : "Axis API request failed.");
+          setErrorStatus(caught instanceof AxisApiError ? caught.status : null);
           setIsRefreshing(false);
         }
       }
@@ -92,6 +97,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
     data,
     source,
     error,
+    errorStatus,
     isRefreshing,
     isLoading: source === "loading",
     isUnavailable: source === "unavailable",

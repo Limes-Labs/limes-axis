@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   countActionRequiredChecks,
+  settingsCheckGuidance,
   settingsStatusClass,
   settingsStatusLabel,
 } from "./platform-settings";
+import { strings } from "./strings";
 
 describe("platform settings helpers", () => {
   it("formats readiness status labels for enterprise operators", () => {
@@ -24,5 +26,21 @@ describe("platform settings helpers", () => {
         { check_id: "egress", status: "ready", detail: "External egress is disabled." },
       ]),
     ).toBe(1);
+  });
+
+  it("returns a plain-English what-to-do line for known check ids", () => {
+    expect(settingsCheckGuidance("https_issuer")).toBe(
+      "Use an HTTPS issuer URL from your enterprise IdP before production.",
+    );
+    expect(settingsCheckGuidance("api_rate_limiting")).toBe(
+      strings.settings.guidance.api_rate_limiting,
+    );
+    expect(settingsCheckGuidance("production_support_model")).toBe(
+      strings.settings.guidance.production_support_model,
+    );
+  });
+
+  it("falls back to generic guidance for unknown check ids", () => {
+    expect(settingsCheckGuidance("brand_new_check")).toBe(strings.settings.guidanceFallback);
   });
 });
