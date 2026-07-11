@@ -322,6 +322,13 @@ from axis_api.demo import (
     ManufacturingOverview,
     ManufacturingWorkflowConsole,
 )
+from axis_api.demo_bootstrap import (
+    DemoBootstrapPermissionDenied,
+    DemoBootstrapRecordView,
+    DemoBootstrapRequest,
+    DemoBootstrapValidationError,
+    bootstrap_demo_scenario,
+)
 from axis_api.demo_reference import (
     DemoReferenceRecordInvalid,
     DemoReferenceRecordNotFound,
@@ -3391,6 +3398,59 @@ def create_app(
                     "surface": "overview",
                 },
             ) from exc
+
+    @app.post(
+        "/demo/manufacturing/bootstrap",
+        response_model=DemoBootstrapRecordView,
+        responses={
+            403: {"description": "Demo scenario bootstrap permission denied"},
+            422: {"description": "Demo scenario bootstrap validation failed"},
+        },
+        status_code=status.HTTP_201_CREATED,
+        tags=["demo"],
+    )
+    def manufacturing_demo_bootstrap(
+        bootstrap_request: DemoBootstrapRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        response: Response,
+    ) -> DemoBootstrapRecordView:
+        bound_request = _bind_connector_run_actor(
+            bootstrap_request,
+            principal,
+            actor_field="requested_by",
+        )
+        try:
+            result = bootstrap_demo_scenario(repository, bound_request)
+        except DemoBootstrapPermissionDenied as exc:
+            reason = (
+                "missing_required_scope"
+                if exc.decision.reason.startswith("missing_scope:")
+                else exc.decision.reason
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot bootstrap the demo scenario.",
+                    "required_permission": exc.required_permission,
+                    "reason": reason,
+                    "permission_reason": exc.decision.reason,
+                },
+            ) from exc
+        except DemoBootstrapValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                },
+            ) from exc
+
+        if result.idempotent_replay:
+            response.status_code = status.HTTP_200_OK
+        return result
 
     @app.get(
         "/demo/manufacturing/workflows",
