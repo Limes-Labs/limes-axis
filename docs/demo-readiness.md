@@ -308,8 +308,9 @@ make demo-stack-down
 - [ ] The overview page loads from `/demo/manufacturing/overview`.
 - [x] The overview page composes `/demo/manufacturing/operations/snapshot` into
       the first-screen operational cockpit.
-- [x] The overview page composes `/demo/manufacturing/demo-readiness` into the
-      first-screen feedback readiness panel.
+- [x] `/demo/manufacturing/demo-readiness` serves the readiness report as an
+      API surface; the redesigned overview no longer renders it as a
+      first-screen panel.
 - [ ] The ontology page loads from `/demo/manufacturing/ontology`.
 - [ ] The workflow page loads from `/demo/manufacturing/workflows`.
 - [ ] The approval inbox loads from `/demo/manufacturing/approvals`.
