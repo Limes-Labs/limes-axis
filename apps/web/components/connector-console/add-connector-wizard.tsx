@@ -165,9 +165,11 @@ export function AddConnectorWizard({
     ?? templates[0]
     ?? null;
 
-  // Only a confirmed-unauthenticated identity session gates submission; the
-  // demo API accepts unauthenticated writes when SSO enforcement is off.
-  const ssoBlocked = identitySession !== null && identitySession !== undefined
+  // Submission is gated only when the API confirms it enforces OIDC and the
+  // browser session is unauthenticated; in public-evaluation deployments
+  // (api_auth_required=false) unauthenticated demo writes are accepted.
+  const ssoBlocked = identitySession != null
+    && identitySession.api_auth_required
     && !identitySession.authenticated;
 
   const sourceReady =

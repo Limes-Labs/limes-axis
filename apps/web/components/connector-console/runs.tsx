@@ -145,7 +145,10 @@ export function ConnectorRuns({
     ? manifestRecordForConnector(registries.manifests.data.manifests, connectorId)
     : null;
   const runsAllowed = manifestAllowsRuns(manifestRecord);
-  const ssoBlocked = identitySession != null && !identitySession.authenticated;
+  // Gate only when the API enforces OIDC (see the wizard's identical rule).
+  const ssoBlocked = identitySession != null
+    && identitySession.api_auth_required
+    && !identitySession.authenticated;
   const actorId = identitySession?.actor_id ?? CONNECTOR_CONSOLE_ACTOR;
   const syncBlockedReason = ssoBlocked
     ? copy.sync.ssoGate

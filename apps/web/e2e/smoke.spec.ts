@@ -789,11 +789,18 @@ test.describe("Axis console smoke", () => {
     await page.goto("/connectors");
 
     await expect(page.getByRole("heading", { name: "Connectors", exact: true })).toBeVisible();
+    // An unreachable API renders the unified ErrorPanel — never the empty
+    // state and never local fallback records.
     await expect(page.getByRole("heading", { name: "Connector API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback connector records are disabled.")).toBeVisible();
-    await expect(page.getByText("API required")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No connectors yet" })).toHaveCount(0);
     await expect(page.getByText("Fallback connector seed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toHaveCount(0);
+
+    // The registry endpoint stays demoted behind the technical-details expander.
+    await expect(page.getByText("/demo/manufacturing/connectors", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Technical details" }).click();
+    await expect(page.getByText("/demo/manufacturing/connectors", { exact: true })).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

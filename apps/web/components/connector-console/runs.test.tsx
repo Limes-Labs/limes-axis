@@ -86,7 +86,9 @@ function buildRegistries(
   ) as unknown as ConnectorRegistries;
 }
 
-function mockIdentity(identity: { authenticated: boolean; actor_id: string | null } | null) {
+function mockIdentity(
+  identity: { authenticated: boolean; actor_id: string | null; api_auth_required?: boolean } | null,
+) {
   mocks.useAxisQuery.mockImplementation(() => queryResult(identity, identity ? "api" : "loading"));
 }
 
@@ -352,7 +354,7 @@ describe("ConnectorRuns preview-sync stepper", () => {
   });
 
   it("disables the sync action with the SSO message when unauthenticated", () => {
-    mockIdentity({ authenticated: false, actor_id: null });
+    mockIdentity({ authenticated: false, actor_id: null, api_auth_required: true });
     renderRuns();
 
     expect(screen.getByRole("button", { name: "Run sync (preview)" })).toBeDisabled();

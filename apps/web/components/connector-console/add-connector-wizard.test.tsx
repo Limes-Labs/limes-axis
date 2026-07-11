@@ -64,7 +64,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function mockIdentity(identity: { authenticated: boolean; actor_id: string | null } | null) {
+function mockIdentity(
+  identity: { authenticated: boolean; actor_id: string | null; api_auth_required?: boolean } | null,
+) {
   mocks.useAxisQuery.mockImplementation(() => ({
     data: identity,
     source: identity ? "api" : "loading",
@@ -304,7 +306,7 @@ describe("AddConnectorWizard external DB flow", () => {
 describe("AddConnectorWizard SSO gate", () => {
   it("disables submission with the sign-in message when the session is confirmed unauthenticated", async () => {
     const user = userEvent.setup();
-    mockIdentity({ authenticated: false, actor_id: null });
+    mockIdentity({ authenticated: false, actor_id: null, api_auth_required: true });
     mocks.axisFetch.mockResolvedValueOnce(jsonResponse(csvPreviewReady));
     renderWizard();
 
