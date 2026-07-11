@@ -84,3 +84,98 @@ export function shouldUsePersistedWorkflowData(
 ): boolean {
   return console.workflow_runs.length > 0;
 }
+
+export type WorkflowFilters = {
+  state: string;
+  domain: string;
+};
+
+export const allWorkflowFilter = "all";
+
+/**
+ * Filter option lists derived from the registry payload itself — the
+ * workflows endpoint does not ship a `filter_options` block, so states keep
+ * their runtime ordering and domains are sorted for a stable select list.
+ */
+export function workflowFilterOptions(console: ManufacturingWorkflowConsole): {
+  states: string[];
+  domains: string[];
+} {
+  return {
+    states: [...new Set(console.workflow_runs.map((run) => run.state))],
+    domains: [...new Set(console.workflow_runs.map((run) => run.domain))].sort(),
+  };
+}
+
+export function filterWorkflows(
+  console: ManufacturingWorkflowConsole,
+  filters: WorkflowFilters,
+): WorkflowRun[] {
+  return console.workflow_runs.filter((run) => {
+    const stateMatches = filters.state === allWorkflowFilter || run.state === filters.state;
+    const domainMatches = filters.domain === allWorkflowFilter || run.domain === filters.domain;
+
+    return stateMatches && domainMatches;
+  });
+}
+
+/** The approval a blocked workflow is waiting on, when the record carries one. */
+export function workflowBlockingApprovalId(run: WorkflowRun): string | null {
+  return run.pending_signals.find((signal) => signal.approval_id)?.approval_id ?? null;
+}
+
+/** One plain-language sentence describing where the run stands right now. */
+export function workflowStatusLine(run: WorkflowRun): string {
+  if (run.blocker) {
+    return `Paused at "${run.current_step}" — ${run.blocker.replace(/\.$/, "")}.`;
+  }
+
+  return `Now at "${run.current_step}" (${formatWorkflowState(run.state)}), expected ${run.eta}.`;
+}
+
+/** Traffic-light tone for a timeline step, derived from its recorded result. */
+export function workflowTimelineTone(event: WorkflowTimelineEvent): PlatformStatus {
+  const result = event.result.toLowerCase();
+
+  if (/(fail|denied|rejected|error|blocked|timeout|cancel)/.test(result)) {
+    return "action_required";
+  }
+
+  if (/(waiting|pending|paused|hold|escalat)/.test(result)) {
+    return "watch";
+  }
+
+  return "ready";
+}
+
+/** Compact relative timestamp ("15m ago"); falls back to a short date past 30 days. */
+export function formatWorkflowRelativeTime(value: string, now: Date = new Date()): string {
+  const elapsedMs = now.getTime() - new Date(value).getTime();
+  const minutes = Math.round(elapsedMs / 60_000);
+
+  if (Math.abs(minutes) < 1) {
+    return "just now";
+  }
+
+  const suffix = minutes >= 0 ? " ago" : "";
+  const prefix = minutes < 0 ? "in " : "";
+  const absMinutes = Math.abs(minutes);
+
+  if (absMinutes < 60) {
+    return `${prefix}${absMinutes}m${suffix}`;
+  }
+
+  const hours = Math.round(absMinutes / 60);
+  if (hours < 24) {
+    return `${prefix}${hours}h${suffix}`;
+  }
+
+  const days = Math.round(hours / 24);
+  if (days <= 30) {
+    return `${prefix}${days}d${suffix}`;
+  }
+
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
+    new Date(value),
+  );
+}
