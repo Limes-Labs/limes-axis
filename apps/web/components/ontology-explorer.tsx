@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Database, List, Network, Share2, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
 import { OntologyGraph } from "@/components/ontology-graph";
 import { Reveal } from "@/components/reveal";
 import { PlatformStatusPill } from "@/components/status-pill";
@@ -47,6 +47,7 @@ export function OntologyExplorer() {
     "/demo/manufacturing/ontology",
   );
   const [view, setView] = useState<OntologyView>("graph");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const nodeLabels = useMemo(
     () => (ontology ? nodeLabelById(ontology) : new Map<string, string>()),
@@ -123,7 +124,12 @@ export function OntologyExplorer() {
 
         {view === "graph" ? (
           <div className="grid gap-3">
-            <OntologyGraph nodes={ontology.nodes} relationships={ontology.relationships} />
+            <OntologyGraph
+              nodes={ontology.nodes}
+              relationships={ontology.relationships}
+              selectedNodeId={selectedNodeId ?? undefined}
+              onNodeActivate={setSelectedNodeId}
+            />
             <div
               className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] tracking-[0.14em] text-muted uppercase"
               aria-label={strings.ontology.legend.label}
@@ -162,12 +168,13 @@ export function OntologyExplorer() {
                 {ontology.nodes.map((node) => (
                   <tr key={node.node_id}>
                     <td>
-                      <Link
-                        className="font-medium text-signal hover:underline"
-                        href={`/ontology/${node.node_id}`}
+                      <button
+                        className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-signal hover:underline"
+                        onClick={() => setSelectedNodeId(node.node_id)}
+                        type="button"
                       >
                         {node.label}
-                      </Link>
+                      </button>
                       <p className="m-0 mt-1 text-xs text-muted">{node.summary}</p>
                     </td>
                     <td>{formatNodeType(node.node_type)}</td>
@@ -276,6 +283,16 @@ export function OntologyExplorer() {
           </Card>
         </div>
       </Reveal>
+
+      <OntologyEntitySheet
+        nodeId={selectedNodeId}
+        onNavigateToNode={setSelectedNodeId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedNodeId(null);
+          }
+        }}
+      />
     </div>
   );
 }

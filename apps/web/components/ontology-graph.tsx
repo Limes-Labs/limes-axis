@@ -97,8 +97,8 @@ export function OntologyGraph({
   );
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const boundsRef = useRef(bounds);
   const [viewBox, setViewBox] = useState<GraphViewBox>(bounds);
+  const [lastBounds, setLastBounds] = useState<GraphViewBox>(bounds);
   const [isPanning, setIsPanning] = useState(false);
   const panStateRef = useRef<{
     pointerId: number;
@@ -110,10 +110,12 @@ export function OntologyGraph({
   } | null>(null);
   const suppressActivateRef = useRef(false);
 
-  useEffect(() => {
-    boundsRef.current = bounds;
+  // Reset the view when the layout (and thus its bounds) changes —
+  // state adjustment during render, per the React docs, not an effect.
+  if (lastBounds !== bounds) {
+    setLastBounds(bounds);
     setViewBox(bounds);
-  }, [bounds]);
+  }
 
   useEffect(() => {
     // Flip after mount so the stroke draw-in transition runs.
@@ -138,13 +140,13 @@ export function OntologyGraph({
       setViewBox((current) => {
         const cx = current.x + ((event.clientX - rect.left) / rect.width) * current.width;
         const cy = current.y + ((event.clientY - rect.top) / rect.height) * current.height;
-        return zoomViewBox(current, factor, cx, cy, boundsRef.current);
+        return zoomViewBox(current, factor, cx, cy, bounds);
       });
     };
 
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [bounds]);
 
   const focusId = activeId ?? selectedNodeId ?? null;
   const focusNeighbors = focusId ? (layout.neighbors.get(focusId) ?? new Set<string>()) : null;
@@ -181,7 +183,7 @@ export function OntologyGraph({
         factor,
         current.x + current.width / 2,
         current.y + current.height / 2,
-        boundsRef.current,
+        bounds,
       ),
     );
   }
@@ -230,7 +232,7 @@ export function OntologyGraph({
     const dy = ((state.lastY - event.clientY) * viewBox.height) / rect.height;
     state.lastX = event.clientX;
     state.lastY = event.clientY;
-    setViewBox((current) => panViewBox(current, dx, dy, boundsRef.current));
+    setViewBox((current) => panViewBox(current, dx, dy, bounds));
   }
 
   function onPointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
@@ -375,7 +377,7 @@ export function OntologyGraph({
           </GraphControlButton>
           <GraphControlButton
             label={strings.ontology.graph.resetView}
-            onClick={() => setViewBox(boundsRef.current)}
+            onClick={() => setViewBox(bounds)}
           >
             <Maximize2 aria-hidden="true" size={15} />
           </GraphControlButton>
