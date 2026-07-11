@@ -1,13 +1,19 @@
 "use client";
 
+import { FileClock } from "lucide-react";
+
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
+import { EmptyPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatConnectorLabel, type ConnectorRegistryItem } from "@/lib/connectors-demo";
-import { manifestRecordForConnector } from "@/lib/connectors-console";
+import {
+  manifestRecordForConnector,
+  type ConnectorListEntry,
+} from "@/lib/connectors-console";
 import { strings } from "@/lib/strings";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 
@@ -187,15 +193,31 @@ function DataSchemaTab({ connector }: { connector: ConnectorRegistryItem }) {
   );
 }
 
+/** Placeholder for sync surfaces of a just-registered, not-yet-activated manifest. */
+function PendingActivationPanel() {
+  return (
+    <EmptyPanel
+      detail={strings.connectors.pendingActivation.detail}
+      icon={FileClock}
+      title={strings.connectors.pendingActivation.title}
+    />
+  );
+}
+
 export function ConnectorDetail({
-  connector,
+  entry,
   registries,
 }: {
-  connector: ConnectorRegistryItem;
+  entry: ConnectorListEntry;
   registries: ConnectorRegistries;
 }) {
   const tabs = strings.connectors.tabs;
+  const { connector } = entry;
   const { manifest } = connector;
+  // Manifest-only entries (wizard registrations the reference registry does
+  // not know yet) cannot preview or run syncs, so those tabs explain the
+  // pending activation instead of offering actions that would 404/422.
+  const activationPending = entry.source === "manifest";
 
   return (
     <Card className="grid content-start gap-4">
@@ -221,10 +243,14 @@ export function ConnectorDetail({
           <OverviewTab connector={connector} registries={registries} />
         </TabsContent>
         <TabsContent value="schema">
-          <DataSchemaTab connector={connector} />
+          {activationPending ? <PendingActivationPanel /> : <DataSchemaTab connector={connector} />}
         </TabsContent>
         <TabsContent value="runs">
-          <ConnectorRuns connector={connector} registries={registries} />
+          {activationPending ? (
+            <PendingActivationPanel />
+          ) : (
+            <ConnectorRuns connector={connector} registries={registries} />
+          )}
         </TabsContent>
         <TabsContent value="governance">
           <ConnectorGovernance connectorId={manifest.connector_id} registries={registries} />

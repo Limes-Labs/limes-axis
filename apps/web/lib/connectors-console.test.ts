@@ -15,6 +15,7 @@ import {
   deriveConnectorId,
   findActiveLeaseForConnector,
   manifestRecordForConnector,
+  mergeConnectorListEntries,
   parseCsvText,
   pendingProposalCount,
 } from "./connectors-console";
@@ -274,5 +275,70 @@ describe("registry summaries", () => {
 
     expect(manifestRecordForConnector(manifests, "b")?.status).toBe("active_preview");
     expect(manifestRecordForConnector(manifests, "missing")).toBeNull();
+  });
+});
+
+describe("mergeConnectorListEntries", () => {
+  function manifestRecord(
+    connectorId: string,
+    overrides: Partial<ConnectorManifestRecord> = {},
+  ): ConnectorManifestRecord {
+    return {
+      tenant_id: "tenant_demo_manufacturing",
+      manifest_id: `manifest_${connectorId}`,
+      connector_id: connectorId,
+      display_name: `Manifest ${connectorId}`,
+      connector_type: "file_csv",
+      source_type: "csv_upload",
+      version: "1.0.0",
+      status: "registered_preview_only",
+      runtime_boundary: "self_hosted",
+      registered_by: "connector-console-operator",
+      manifest: {
+        ...templateConnector.manifest,
+        connector_id: connectorId,
+        display_name: `Manifest ${connectorId}`,
+      },
+      runtime_policy: templateConnector.runtime_policy,
+      preview_sample: previewSample,
+      audit_event_id: null,
+      audit_event_type: "connector.manifest.registered",
+      notes: [],
+      created_at: "2026-07-11T00:00:00Z",
+      ...overrides,
+    };
+  }
+
+  it("appends manifest-only records as synthetic entries after reference connectors", () => {
+    const entries = mergeConnectorListEntries(
+      [templateConnector],
+      [manifestRecord("file_csv_new_upload")],
+    );
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0].source).toBe("reference");
+    expect(entries[0].connector).toBe(templateConnector);
+    expect(entries[1].source).toBe("manifest");
+    expect(entries[1].connector.manifest.connector_id).toBe("file_csv_new_upload");
+    expect(entries[1].connector.preview_sample).toEqual(previewSample);
+    expect(entries[1].manifestRecord?.status).toBe("registered_preview_only");
+  });
+
+  it("dedupes by connector_id: the reference connector wins and keeps its manifest record", () => {
+    const record = manifestRecord("file_csv_manufacturing_assets", {
+      status: "active_preview",
+    });
+    const entries = mergeConnectorListEntries([templateConnector], [record]);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source).toBe("reference");
+    expect(entries[0].manifestRecord).toBe(record);
+  });
+
+  it("returns only manifest entries when the reference registry is empty", () => {
+    const entries = mergeConnectorListEntries([], [manifestRecord("file_csv_only")]);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source).toBe("manifest");
   });
 });

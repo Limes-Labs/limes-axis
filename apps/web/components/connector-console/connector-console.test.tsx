@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   connectorEndpointFixtures,
   connectorRegistryFixture,
+  manifestRegistryFixture,
 } from "./connector-fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -113,6 +114,12 @@ describe("ConnectorConsole states", () => {
     mockQueries({
       "/demo/manufacturing/connectors": {
         data: { ...connectorRegistryFixture, connectors: [] },
+        source: "api",
+      },
+      // A truly empty tenant has no persisted manifests either; a manifest
+      // record alone would legitimately render as a connector entry.
+      "/demo/manufacturing/connectors/manifests": {
+        data: { ...manifestRegistryFixture, manifests: [] },
         source: "api",
       },
     });
@@ -248,5 +255,80 @@ describe("ConnectorConsole list and detail", () => {
 
     await user.click(screen.getByRole("button", { name: "Add connector" }));
     expect(screen.getByRole("dialog", { name: "Add connector" })).toBeInTheDocument();
+  });
+});
+
+describe("ConnectorConsole merged manifest entries", () => {
+  const wizardManifest = {
+    ...manifestRegistryFixture.manifests[0],
+    manifest_id: "manifest-wizard",
+    connector_id: "file_csv_press_shop_assets",
+    display_name: "Press shop assets",
+    status: "registered_preview_only",
+    manifest: {
+      ...manifestRegistryFixture.manifests[0].manifest,
+      connector_id: "file_csv_press_shop_assets",
+      display_name: "Press shop assets",
+    },
+  };
+
+  function mockWithWizardManifest() {
+    mockQueries({
+      "/demo/manufacturing/connectors/manifests": {
+        data: {
+          ...manifestRegistryFixture,
+          manifests: [...manifestRegistryFixture.manifests, wizardManifest],
+        },
+        source: "api",
+      },
+    });
+  }
+
+  it("shows a wizard-registered manifest in the list with a Registered pill", () => {
+    mockWithWizardManifest();
+    renderConsole();
+
+    const item = screen.getByRole("button", { name: /Press shop assets/ });
+    expect(within(item).getByText("Registered")).toBeInTheDocument();
+  });
+
+  it("counts reference plus persisted-unique connectors in the Connectors metric", () => {
+    mockWithWizardManifest();
+    renderConsole();
+
+    // 2 reference connectors + 1 manifest-only record; the fixture manifest
+    // for file_csv_manufacturing_assets dedupes against its reference entry.
+    const metrics = screen.getAllByRole("listitem");
+    expect(within(metrics[0]).getByText("3")).toBeInTheDocument();
+  });
+
+  it("dedupes manifests that match a reference connector by connector_id", () => {
+    mockQueries();
+    renderConsole();
+
+    const metrics = screen.getAllByRole("listitem");
+    expect(within(metrics[0]).getByText("2")).toBeInTheDocument();
+    expect(screen.queryByText("Registered")).not.toBeInTheDocument();
+  });
+
+  it("renders the simplified detail for a manifest-only entry", async () => {
+    const user = userEvent.setup();
+    mockWithWizardManifest();
+    renderConsole();
+
+    await user.click(screen.getByRole("button", { name: /Press shop assets/ }));
+    expect(screen.getByRole("heading", { name: "Press shop assets" })).toBeInTheDocument();
+    // Overview renders from the manifest record's own fields.
+    expect(screen.getByText("Registered Preview Only")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Runs" }));
+    expect(
+      screen.getByRole("heading", { name: "Sync activation pending" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Data & Schema" }));
+    expect(
+      screen.getByRole("heading", { name: "Sync activation pending" }),
+    ).toBeInTheDocument();
   });
 });

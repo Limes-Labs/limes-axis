@@ -332,6 +332,61 @@ export function buildPreviewSyncPlan(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Connector list entries (reference registry + persisted manifests)
+
+/**
+ * A row in the connector list. `reference` entries come from the seeded
+ * registry and support previews and runs; `manifest` entries are persisted
+ * manifest records (e.g. wizard registrations) that the reference registry
+ * does not know yet, so their sync surfaces are still pending activation.
+ */
+export type ConnectorListEntry = {
+  connector: ConnectorRegistryItem;
+  source: "reference" | "manifest";
+  manifestRecord: ConnectorManifestRecord | null;
+};
+
+/**
+ * Merge persisted manifest records into the reference connector list so a
+ * connector registered through the wizard appears immediately. Deduped by
+ * connector_id: a reference connector wins over its own manifest record;
+ * manifest-only records are appended as synthetic entries built from the
+ * manifest's own payloads.
+ */
+export function mergeConnectorListEntries(
+  referenceConnectors: ConnectorRegistryItem[],
+  manifestRecords: ConnectorManifestRecord[],
+): ConnectorListEntry[] {
+  const referenceIds = new Set(
+    referenceConnectors.map((connector) => connector.manifest.connector_id),
+  );
+
+  const referenceEntries: ConnectorListEntry[] = referenceConnectors.map((connector) => ({
+    connector,
+    source: "reference",
+    manifestRecord: manifestRecordForConnector(
+      manifestRecords,
+      connector.manifest.connector_id,
+    ),
+  }));
+
+  const manifestOnlyEntries: ConnectorListEntry[] = manifestRecords
+    .filter((record) => !referenceIds.has(record.connector_id))
+    .map((record) => ({
+      connector: {
+        manifest: record.manifest,
+        runtime_policy: record.runtime_policy,
+        preview_sample: record.preview_sample,
+        connector_status: "watch",
+      },
+      source: "manifest",
+      manifestRecord: record,
+    }));
+
+  return [...referenceEntries, ...manifestOnlyEntries];
+}
+
+// ---------------------------------------------------------------------------
 // Registry summaries
 
 /** Proposals still waiting for promotion into the ontology graph. */

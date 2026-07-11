@@ -4,16 +4,21 @@ import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { PlatformStatusPill } from "@/components/status-pill";
 import { cn } from "@/lib/cn";
-import { formatConnectorLabel, type ConnectorRegistryItem } from "@/lib/connectors-demo";
+import type { ConnectorListEntry } from "@/lib/connectors-console";
+import { formatConnectorLabel } from "@/lib/connectors-demo";
 import { strings } from "@/lib/strings";
 
-/** Connector list rail: display name, source type, record count, status. */
+/**
+ * Connector list rail: reference connectors plus persisted manifest records
+ * merged in (so a wizard registration appears immediately). Manifest-only
+ * entries carry a "Registered" pill instead of a runtime status.
+ */
 export function ConnectorList({
-  connectors,
+  entries,
   selectedConnectorId,
   onSelect,
 }: {
-  connectors: ConnectorRegistryItem[];
+  entries: ConnectorListEntry[];
   selectedConnectorId: string;
   onSelect: (connectorId: string) => void;
 }) {
@@ -22,11 +27,12 @@ export function ConnectorList({
       <div className="grid gap-1">
         <Eyebrow>{strings.connectors.list.eyebrow}</Eyebrow>
         <h2 className="font-display m-0 text-xl text-ink">
-          {connectors.length} {connectors.length === 1 ? "connector" : "connectors"}
+          {entries.length} {entries.length === 1 ? "connector" : "connectors"}
         </h2>
       </div>
       <div className="grid gap-2">
-        {connectors.map((connector) => {
+        {entries.map((entry) => {
+          const { connector } = entry;
           const isSelected = connector.manifest.connector_id === selectedConnectorId;
 
           return (
@@ -53,7 +59,13 @@ export function ConnectorList({
                   {connector.preview_sample.record_count} sample rows
                 </span>
               </span>
-              <PlatformStatusPill status={connector.connector_status} />
+              {entry.source === "manifest" ? (
+                <span className="status-pill status-checking">
+                  {strings.connectors.list.registeredPill}
+                </span>
+              ) : (
+                <PlatformStatusPill status={connector.connector_status} />
+              )}
             </button>
           );
         })}

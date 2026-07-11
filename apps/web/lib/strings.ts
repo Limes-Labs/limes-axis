@@ -367,10 +367,16 @@ const workflows = {
 const connectors = {
   list: {
     eyebrow: "Registry",
+    registeredPill: "Registered",
   },
   header: {
     addConnector: "Add connector",
     updated: "Updated",
+  },
+  pendingActivation: {
+    title: "Sync activation pending",
+    detail:
+      "This connector was just registered. Its data previews and governed sync runs become available once the platform activates the manifest.",
   },
   metrics: {
     connectors: { label: "Connectors", detail: "Registered data sources" },

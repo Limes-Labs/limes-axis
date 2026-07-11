@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import { pendingProposalCount } from "@/lib/connectors-console";
+import {
+  mergeConnectorListEntries,
+  pendingProposalCount,
+  type ConnectorListEntry,
+} from "@/lib/connectors-console";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 import {
@@ -32,14 +36,19 @@ function countOrPlaceholder(count: number | undefined): string | number {
   return count ?? strings.connectors.metrics.unavailable;
 }
 
-function buildMetrics(registries: ConnectorRegistries): Metric[] {
+function buildMetrics(
+  registries: ConnectorRegistries,
+  entries: ConnectorListEntry[],
+): Metric[] {
   const copy = strings.connectors.metrics;
   const invariantCount = registries.evidenceInvariants.data?.invariants.length;
 
   return [
     {
       label: copy.connectors.label,
-      value: countOrPlaceholder(registries.registry.data?.connectors.length),
+      // Reference connectors plus persisted-manifest-only connectors,
+      // deduped by connector_id (the merged list length).
+      value: countOrPlaceholder(registries.registry.data ? entries.length : undefined),
       detail: copy.connectors.detail,
     },
     {
@@ -100,13 +109,20 @@ export function ConnectorConsole() {
   const updatedAt = fetchStamp?.at ?? null;
 
   const connectors = useMemo(() => registry.data?.connectors ?? [], [registry.data]);
-  const selectedConnector = useMemo(
+  // Merge persisted manifests into the list so wizard registrations appear
+  // immediately, deduped against the reference registry by connector_id.
+  const entries = useMemo(
+    () => mergeConnectorListEntries(connectors, registries.manifests.data?.manifests ?? []),
+    [connectors, registries.manifests.data],
+  );
+  const selectedEntry = useMemo(
     () =>
-      connectors.find(
-        (connector) =>
-          connector.manifest.connector_id === (selectedConnectorId || requestedConnectorId),
-      ) ?? connectors[0],
-    [connectors, selectedConnectorId, requestedConnectorId],
+      entries.find(
+        (entry) =>
+          entry.connector.manifest.connector_id
+          === (selectedConnectorId || requestedConnectorId),
+      ) ?? entries[0],
+    [entries, selectedConnectorId, requestedConnectorId],
   );
 
   if (!registry.data) {
@@ -167,9 +183,9 @@ export function ConnectorConsole() {
         </div>
       </div>
 
-      <MetricStrip metrics={buildMetrics(registries)} />
+      <MetricStrip metrics={buildMetrics(registries, entries)} />
 
-      {connectors.length === 0 || !selectedConnector ? (
+      {entries.length === 0 || !selectedEntry ? (
         <EmptyPanel
           action={{
             label: strings.connectors.empty.action,
@@ -181,11 +197,11 @@ export function ConnectorConsole() {
         />
       ) : (
         <MasterDetail
-          detail={<ConnectorDetail connector={selectedConnector} registries={registries} />}
+          detail={<ConnectorDetail entry={selectedEntry} registries={registries} />}
           list={
             <ConnectorList
-              connectors={connectors}
-              selectedConnectorId={selectedConnector.manifest.connector_id}
+              entries={entries}
+              selectedConnectorId={selectedEntry.connector.manifest.connector_id}
               onSelect={setSelectedConnectorId}
             />
           }
