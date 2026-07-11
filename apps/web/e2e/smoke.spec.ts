@@ -429,6 +429,170 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("zooms the mocked ontology graph and opens the entity slide-over in place", async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    const relationshipMetadata = {
+      owner_role: "quality-owner",
+      source_adapter: "typedb",
+      confidence: 0.92,
+      evidence_refs: ["audit_evt_e2e"],
+      valid_from: "2026-01-01",
+      valid_to: null,
+      last_verified_at: "2026-07-01",
+      verification_status: "verified",
+    };
+    const nodes = [
+      {
+        node_id: "org_e2e_plant",
+        label: "E2E Plant",
+        node_type: "organization",
+        domain: "Operations",
+        status: "ready",
+        source_system: "ERP",
+        summary: "Mocked organization node.",
+      },
+      {
+        node_id: "asset_line_2",
+        label: "Line 2 Packaging",
+        node_type: "asset",
+        domain: "Packaging",
+        status: "ready",
+        source_system: "MES",
+        summary: "Mocked packaging line node.",
+      },
+      {
+        node_id: "asset_line_1",
+        label: "Line 1 Filling",
+        node_type: "asset",
+        domain: "Filling",
+        status: "ready",
+        source_system: "MES",
+        summary: "Mocked filling line node.",
+      },
+    ];
+    const relationships = [
+      {
+        relationship_id: "rel_plant_line_2",
+        source_id: "org_e2e_plant",
+        target_id: "asset_line_2",
+        relation_type: "operates",
+        summary: "Mocked relationship.",
+        permission_scope: "ontology:read",
+        metadata: relationshipMetadata,
+      },
+    ];
+
+    await page.route(
+      (url) => url.href.startsWith("http://127.0.0.1:65534/demo/manufacturing/ontology"),
+      async (route) => {
+        if (route.request().url().includes("/entities/")) {
+          await route.fulfill({
+            contentType: "application/json",
+            json: {
+              tenant_id: "tenant_e2e",
+              plant_name: "E2E Plant",
+              scenario: "E2E mocked scenario",
+              as_of: "2026-07-10T09:00:00+02:00",
+              node: nodes[1],
+              connected_relationships: [
+                {
+                  direction: "inbound",
+                  relationship: relationships[0],
+                  peer_node: nodes[0],
+                },
+              ],
+              inbound_count: 1,
+              outbound_count: 0,
+              required_permissions: ["ontology:read"],
+              evidence_refs: ["audit_evt_e2e"],
+              data_access: ["MES summary"],
+              governed_by: [],
+              related_workflows: [],
+              related_approvals: [],
+              related_agents: [],
+              detail_notes: ["This entity detail is read-only."],
+            },
+            status: 200,
+          });
+          return;
+        }
+
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            tenant_id: "tenant_e2e",
+            plant_name: "E2E Plant",
+            scenario: "E2E mocked scenario",
+            as_of: "2026-07-10T09:00:00+02:00",
+            nodes,
+            relationships,
+            source_systems: ["MES", "ERP"],
+            permission_notes: ["Mocked ontology for the smoke suite."],
+            graph_query: {
+              adapter: "typedb",
+              source: "e2e",
+              query_mode: "read_only",
+              tenant_id: "tenant_e2e",
+              actor_id: "actor_e2e",
+              permission_decision: { allowed: true, reason: "read_scope_present" },
+              requested_scopes: ["ontology:read"],
+              applied_relationship_scopes: ["ontology:read"],
+              denied_relationship_count: 0,
+              returned_node_count: 3,
+              returned_relationship_count: 1,
+              typeql: null,
+              notes: [],
+            },
+          },
+          status: 200,
+        });
+      },
+    );
+
+    await page.goto("/ontology");
+
+    const graph = page.getByTestId("ontology-graph");
+    await expect(graph).toBeVisible();
+
+    // Node-type counts live in the legend; the old metric cards are gone.
+    const legend = page.getByLabel("Ontology graph legend");
+    await expect(legend.getByText("Organization ×1")).toBeVisible();
+    await expect(legend.getByText("Asset ×2")).toBeVisible();
+    await expect(page.getByText("Mapped demo ontology nodes")).toHaveCount(0);
+
+    // Zoom controls drive the svg viewBox; reset restores the full view.
+    const initialViewBox = await graph.getAttribute("viewBox");
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect(graph).not.toHaveAttribute("viewBox", initialViewBox ?? "");
+    await page.getByRole("button", { name: "Reset view" }).click();
+    await expect(graph).toHaveAttribute("viewBox", initialViewBox ?? "");
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    const zoomedViewBox = await graph.getAttribute("viewBox");
+
+    // Activating a node opens the slide-over without navigating.
+    await graph.getByRole("link", { name: /Line 2 Packaging/ }).click();
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByRole("heading", { name: "Line 2 Packaging" })).toBeVisible();
+    await expect(sheet.getByRole("link", { name: "Open full page" })).toHaveAttribute(
+      "href",
+      "/ontology/asset_line_2",
+    );
+    await expect(sheet.getByText("Read-only entity context")).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/ontology");
+
+    // Closing the sheet keeps the zoomed graph state — no reload, no navigation.
+    await sheet.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(graph).toHaveAttribute("viewBox", zoomedViewBox ?? "");
+    expect(new URL(page.url()).pathname).toBe("/ontology");
+
+    expect(pageErrors).toEqual([]);
+  });
+
   test("requires the model routing API instead of local routing data", async ({ page }) => {
     await page.goto("/model-routing");
 

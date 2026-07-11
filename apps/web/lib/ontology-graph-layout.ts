@@ -46,6 +46,75 @@ export type OntologyGraphLayoutOptions = {
   height?: number;
 };
 
+/** SVG viewBox rectangle in user (layout) coordinates. */
+export type GraphViewBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** Maximum zoom-in factor relative to the full layout bounds. */
+export const ONTOLOGY_GRAPH_MAX_ZOOM = 8;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+/** Keep `view` (already sized <= bounds) positioned fully inside `bounds`. */
+function clampToBounds(view: GraphViewBox, bounds: GraphViewBox): GraphViewBox {
+  return {
+    x: round(clamp(view.x, bounds.x, bounds.x + bounds.width - view.width)),
+    y: round(clamp(view.y, bounds.y, bounds.y + bounds.height - view.height)),
+    width: round(view.width),
+    height: round(view.height),
+  };
+}
+
+/**
+ * Zoom the viewBox around the point (cx, cy) in user coordinates.
+ * `factor > 1` zooms in. The zoom level is clamped between the full bounds
+ * (1x) and `ONTOLOGY_GRAPH_MAX_ZOOM`, preserving the bounds aspect ratio,
+ * and the resulting view never leaves the bounds.
+ */
+export function zoomViewBox(
+  viewBox: GraphViewBox,
+  factor: number,
+  cx: number,
+  cy: number,
+  bounds: GraphViewBox,
+): GraphViewBox {
+  const width = clamp(viewBox.width / factor, bounds.width / ONTOLOGY_GRAPH_MAX_ZOOM, bounds.width);
+  const height = width * (bounds.height / bounds.width);
+  const scale = width / viewBox.width;
+
+  return clampToBounds(
+    {
+      x: cx - (cx - viewBox.x) * scale,
+      y: cy - (cy - viewBox.y) * scale,
+      width,
+      height,
+    },
+    bounds,
+  );
+}
+
+/**
+ * Pan the viewBox by (dx, dy) in user coordinates, clamped so the view
+ * stays inside the bounds. At full view this is a no-op.
+ */
+export function panViewBox(
+  viewBox: GraphViewBox,
+  dx: number,
+  dy: number,
+  bounds: GraphViewBox,
+): GraphViewBox {
+  return clampToBounds(
+    { x: viewBox.x + dx, y: viewBox.y + dy, width: viewBox.width, height: viewBox.height },
+    bounds,
+  );
+}
+
 /** Tier per node type — lower tiers render closer to the center. */
 export const ONTOLOGY_NODE_TIERS: Record<OntologyNodeType, number> = {
   organization: 0,

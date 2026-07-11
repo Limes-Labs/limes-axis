@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Database, List, Network, Share2, ShieldCheck } from "lucide-react";
 
 import { ApiRequiredState } from "@/components/api-required-state";
+import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
 import { OntologyGraph } from "@/components/ontology-graph";
 import { Reveal } from "@/components/reveal";
 import { PlatformStatusPill } from "@/components/status-pill";
@@ -20,6 +20,7 @@ import {
   type ManufacturingOntology,
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
+import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 type OntologyView = "graph" | "list";
@@ -36,12 +37,6 @@ function OntologyExplorerSkeleton() {
   return (
     <div className="grid gap-5" aria-busy="true" aria-label="Loading ontology API">
       <Skeleton className="h-28" />
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-      </div>
       <Skeleton className="h-[420px]" />
     </div>
   );
@@ -52,6 +47,7 @@ export function OntologyExplorer() {
     "/demo/manufacturing/ontology",
   );
   const [view, setView] = useState<OntologyView>("graph");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const nodeLabels = useMemo(
     () => (ontology ? nodeLabelById(ontology) : new Map<string, string>()),
@@ -97,19 +93,6 @@ export function OntologyExplorer() {
         </div>
       </div>
 
-      <Reveal>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from(nodeTypeCounts.entries()).map(([type, count]) => (
-            <Card className="grid content-start gap-2 p-5" key={type}>
-              <Eyebrow>{formatNodeType(type)}</Eyebrow>
-              <p className="font-display m-0 text-3xl text-ink">{count}</p>
-              <div aria-hidden="true" className="rule-dotted" />
-              <p className="m-0 text-xs text-muted">Mapped demo ontology nodes</p>
-            </Card>
-          ))}
-        </div>
-      </Reveal>
-
       <Card className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="grid gap-1">
@@ -141,24 +124,32 @@ export function OntologyExplorer() {
 
         {view === "graph" ? (
           <div className="grid gap-3">
-            <OntologyGraph nodes={ontology.nodes} relationships={ontology.relationships} />
+            <OntologyGraph
+              nodes={ontology.nodes}
+              relationships={ontology.relationships}
+              selectedNodeId={selectedNodeId ?? undefined}
+              onNodeActivate={setSelectedNodeId}
+            />
             <div
-              className="flex flex-wrap items-center gap-4 font-mono text-[11px] tracking-[0.14em] text-muted uppercase"
-              aria-label="Ontology graph legend"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] tracking-[0.14em] text-muted uppercase"
+              aria-label={strings.ontology.legend.label}
             >
               <span className="inline-flex items-center gap-2">
                 <span aria-hidden="true" className="inline-block size-2 rotate-45 bg-ink" />
-                Entity
+                {strings.ontology.legend.entity}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span aria-hidden="true" className="inline-block size-2 rotate-45 bg-signal" />
-                Selected
+                {strings.ontology.legend.selected}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span aria-hidden="true" className="inline-block h-px w-5 bg-signal/60" />
-                Relation
+                {strings.ontology.legend.relation}
               </span>
-              <span>Click or press Enter on a node to open its entity detail</span>
+              {Array.from(nodeTypeCounts.entries()).map(([type, count]) => (
+                <span key={type}>{`${formatNodeType(type)} ×${count}`}</span>
+              ))}
+              <span className="normal-case">{strings.ontology.legend.hint}</span>
             </div>
           </div>
         ) : (
@@ -177,12 +168,13 @@ export function OntologyExplorer() {
                 {ontology.nodes.map((node) => (
                   <tr key={node.node_id}>
                     <td>
-                      <Link
-                        className="font-medium text-signal hover:underline"
-                        href={`/ontology/${node.node_id}`}
+                      <button
+                        className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-signal hover:underline"
+                        onClick={() => setSelectedNodeId(node.node_id)}
+                        type="button"
                       >
                         {node.label}
-                      </Link>
+                      </button>
                       <p className="m-0 mt-1 text-xs text-muted">{node.summary}</p>
                     </td>
                     <td>{formatNodeType(node.node_type)}</td>
@@ -291,6 +283,16 @@ export function OntologyExplorer() {
           </Card>
         </div>
       </Reveal>
+
+      <OntologyEntitySheet
+        nodeId={selectedNodeId}
+        onNavigateToNode={setSelectedNodeId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedNodeId(null);
+          }
+        }}
+      />
     </div>
   );
 }

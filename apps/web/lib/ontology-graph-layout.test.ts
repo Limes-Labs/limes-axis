@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { OntologyNode, OntologyRelationship } from "./ontology-demo";
 import {
   buildOntologyGraphLayout,
+  ONTOLOGY_GRAPH_MAX_ZOOM,
   ONTOLOGY_NODE_TIERS,
+  panViewBox,
+  zoomViewBox,
+  type GraphViewBox,
 } from "./ontology-graph-layout";
 
 function node(overrides: Partial<OntologyNode> & Pick<OntologyNode, "node_id" | "node_type">): OntologyNode {
@@ -136,5 +140,79 @@ describe("buildOntologyGraphLayout", () => {
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
     expect(layout.neighbors.size).toBe(0);
+  });
+});
+
+const bounds: GraphViewBox = { x: 0, y: 0, width: 720, height: 560 };
+
+describe("zoomViewBox", () => {
+  it("zooms in around the given point, keeping it at the same viewport fraction", () => {
+    const zoomed = zoomViewBox(bounds, 2, 180, 140, bounds);
+
+    expect(zoomed.width).toBeCloseTo(360);
+    expect(zoomed.height).toBeCloseTo(280);
+    // (180, 140) sat at 25% of the old view; it stays at 25% of the new one.
+    expect((180 - zoomed.x) / zoomed.width).toBeCloseTo(0.25);
+    expect((140 - zoomed.y) / zoomed.height).toBeCloseTo(0.25);
+  });
+
+  it("preserves the bounds aspect ratio", () => {
+    const zoomed = zoomViewBox(bounds, 3, 100, 100, bounds);
+
+    expect(zoomed.width / zoomed.height).toBeCloseTo(bounds.width / bounds.height);
+  });
+
+  it("clamps zoom-out at the full bounds", () => {
+    const zoomedIn = zoomViewBox(bounds, 2, 360, 280, bounds);
+    const zoomedOut = zoomViewBox(zoomedIn, 0.1, 360, 280, bounds);
+
+    expect(zoomedOut).toEqual(bounds);
+  });
+
+  it("clamps zoom-in at the maximum zoom factor", () => {
+    const zoomed = zoomViewBox(bounds, 1000, 360, 280, bounds);
+
+    expect(zoomed.width).toBeCloseTo(bounds.width / ONTOLOGY_GRAPH_MAX_ZOOM);
+    expect(zoomed.height).toBeCloseTo(bounds.height / ONTOLOGY_GRAPH_MAX_ZOOM);
+  });
+
+  it("keeps the view inside the bounds when zooming near an edge", () => {
+    const zoomedIn = zoomViewBox(bounds, 4, 700, 550, bounds);
+    const zoomedOut = zoomViewBox(zoomedIn, 0.5, 700, 550, bounds);
+
+    for (const view of [zoomedIn, zoomedOut]) {
+      expect(view.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(view.y).toBeGreaterThanOrEqual(bounds.y);
+      expect(view.x + view.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+      expect(view.y + view.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+    }
+  });
+});
+
+describe("panViewBox", () => {
+  it("shifts the view by the given delta", () => {
+    const zoomed = zoomViewBox(bounds, 2, 360, 280, bounds);
+    const panned = panViewBox(zoomed, 40, -30, bounds);
+
+    expect(panned.x).toBeCloseTo(zoomed.x + 40);
+    expect(panned.y).toBeCloseTo(zoomed.y - 30);
+    expect(panned.width).toBe(zoomed.width);
+    expect(panned.height).toBe(zoomed.height);
+  });
+
+  it("clamps panning at the bounds edges", () => {
+    const zoomed = zoomViewBox(bounds, 2, 360, 280, bounds);
+    const pannedFar = panViewBox(zoomed, 10_000, 10_000, bounds);
+
+    expect(pannedFar.x).toBeCloseTo(bounds.x + bounds.width - zoomed.width);
+    expect(pannedFar.y).toBeCloseTo(bounds.y + bounds.height - zoomed.height);
+
+    const pannedBack = panViewBox(pannedFar, -10_000, -10_000, bounds);
+    expect(pannedBack.x).toBe(bounds.x);
+    expect(pannedBack.y).toBe(bounds.y);
+  });
+
+  it("is a no-op at full view", () => {
+    expect(panViewBox(bounds, 50, 50, bounds)).toEqual(bounds);
   });
 });
