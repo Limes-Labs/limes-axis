@@ -663,6 +663,48 @@ const overview = {
   },
 } as const;
 
+/** Audit explorer copy: plain-first integrity summary and export action. */
+const audit = {
+  integrity: {
+    eyebrow: "Integrity & Export",
+    title: "Export bundle",
+    download: "Download export bundle",
+    inspect: "Inspect raw proofs",
+    ledger: {
+      verified: "Ledger verified — hash chain intact",
+      unverified: "Ledger verification failed — hash chain not confirmed",
+      detail: "Every event is hashed and chained; tampering breaks the chain.",
+    },
+    retention: {
+      enforced: "Retention enforced",
+      notEnforced: "Retention not enforced for this export",
+      legalHold: "Retention paused — legal hold active",
+      legalHoldDetail: "Records are excluded from disposal while the legal hold stands.",
+    },
+    signature: {
+      verified: "Ledger signature verified",
+      verifiedDetail: "The export manifest and hash chain are signed.",
+      notConfigured: "Signature: not configured",
+      notConfiguredDetail:
+        "The hash-chain proof is present, but no signing key is configured.",
+    },
+    error: {
+      title: "Audit export API unavailable",
+      detail:
+        "Axis did not receive an API-backed audit export manifest. Local export manifests are disabled.",
+    },
+  },
+  error: {
+    title: "Audit API unavailable",
+    detail:
+      "Axis did not receive API-backed audit records. Local fallback audit records are disabled.",
+  },
+  noRecords: {
+    title: "Audit API returned no records",
+    detail: "The audit API responded without ledger records for this tenant.",
+  },
+} as const;
+
 const ontology = {
   legend: {
     label: "Ontology graph legend",
@@ -698,6 +740,7 @@ export const strings = {
   commandMenu,
   agents,
   approvals,
+  audit,
   connectors,
   ontology,
   overview,
