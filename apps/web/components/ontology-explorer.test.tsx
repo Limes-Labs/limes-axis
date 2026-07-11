@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ontologyFixture } from "./ontology/ontology-fixtures";
@@ -53,8 +54,28 @@ describe("OntologyExplorer", () => {
     expect(within(legend).getByText("Relation")).toBeInTheDocument();
   });
 
+  it("zooms the graph with the +/− controls and resets the view", async () => {
+    mocks.useAxisQuery.mockReturnValue({ data: ontologyFixture, source: "api" });
+
+    render(<OntologyExplorer />);
+
+    const svg = screen.getByTestId("ontology-graph");
+    const initialViewBox = svg.getAttribute("viewBox");
+    expect(initialViewBox).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(svg.getAttribute("viewBox")).not.toBe(initialViewBox);
+
+    await userEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(svg.getAttribute("viewBox")).toBe(initialViewBox);
+
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(svg.getAttribute("viewBox")).toBe(initialViewBox);
+  });
+
   it("keeps the graph and list views working", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
     mocks.useAxisQuery.mockReturnValue({ data: ontologyFixture, source: "api" });
 
     render(<OntologyExplorer />);
