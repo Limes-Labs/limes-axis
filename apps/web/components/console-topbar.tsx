@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bell, CircleHelp, RefreshCw, Search, ShieldCheck } from "lucide-react";
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
+import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountPanel } from "@/components/topbar/account-panel";
 import { HelpPanel } from "@/components/topbar/help-panel";
@@ -90,6 +91,7 @@ export function ConsoleTopbar({
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
           API {apiStatus.label}
         </span>
+        <DemoBadge />
         {sourceLabel ? (
           <span className="status-pill signal-ready">{sourceLabel}</span>
         ) : null}

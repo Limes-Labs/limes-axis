@@ -1,10 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "@/components/ui/toast";
 
 const mocks = vi.hoisted(() => ({
   axisFetchJson: vi.fn(),
+  triggerRefresh: vi.fn(),
   useAxisQuery: vi.fn(),
 }));
 
@@ -25,7 +27,7 @@ vi.mock("@/providers/console-provider", () => ({
     apiBaseUrl: "http://localhost:8000",
     apiStatus: { state: "ready", label: "ready", detail: "" },
     refreshNonce: 0,
-    triggerRefresh: vi.fn(),
+    triggerRefresh: mocks.triggerRefresh,
   }),
 }));
 
@@ -127,6 +129,7 @@ function renderOverview() {
 
 beforeEach(() => {
   mocks.axisFetchJson.mockReset();
+  mocks.triggerRefresh.mockReset();
   mocks.useAxisQuery.mockReset();
 });
 
@@ -256,6 +259,63 @@ describe("PlatformOverview onboarding checklist", () => {
     renderOverview();
 
     expect(screen.queryByText(/setup steps complete/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlatformOverview demo bootstrap CTA", () => {
+  function renderEmptyTenant() {
+    mockQueriesByPath([], {
+      notFoundPaths: ["/demo/manufacturing/overview"],
+      onboardingCount: 0,
+    });
+    return renderOverview();
+  }
+
+  it("POSTs the bootstrap request, toasts, and refreshes the console on success", async () => {
+    mocks.axisFetchJson.mockResolvedValue({
+      tenant_id: "tenant_demo_manufacturing",
+      scenario: "Plant Operations Cockpit",
+      plant_name: "Ravenna Works",
+      bootstrapped: true,
+      surfaces: [],
+      audit_event_id: "11111111-1111-4111-8111-111111111111",
+      idempotent_replay: false,
+    });
+    const user = userEvent.setup();
+    renderEmptyTenant();
+
+    const demoButton = screen.getByRole("button", { name: "Explore with demo data" });
+    expect(demoButton).toBeEnabled();
+    await user.click(demoButton);
+
+    expect(mocks.axisFetchJson).toHaveBeenCalledTimes(1);
+    const [endpoint, options] = mocks.axisFetchJson.mock.calls[0];
+    expect(endpoint).toBe("/demo/manufacturing/bootstrap");
+    expect(options).toMatchObject({
+      method: "POST",
+      body: {
+        tenant_id: "tenant_demo_manufacturing",
+        actor_scopes: ["demo:scenario:bootstrap"],
+      },
+    });
+    expect((options as { body: { requested_by: string } }).body.requested_by).toBeTruthy();
+
+    expect(await screen.findByText("Demo data loaded")).toBeInTheDocument();
+    expect(mocks.triggerRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the bootstrap failure inline on the checklist without refreshing", async () => {
+    mocks.axisFetchJson.mockRejectedValue(new Error("Axis API request failed with 403"));
+    const user = userEvent.setup();
+    renderEmptyTenant();
+
+    await user.click(screen.getByRole("button", { name: "Explore with demo data" }));
+
+    expect(await screen.findByText("Axis API request failed with 403")).toBeInTheDocument();
+    expect(mocks.triggerRefresh).not.toHaveBeenCalled();
+    expect(screen.queryByText("Demo data loaded")).not.toBeInTheDocument();
+    // The checklist stays actionable for a retry.
+    expect(screen.getByRole("button", { name: "Explore with demo data" })).toBeEnabled();
   });
 });
 

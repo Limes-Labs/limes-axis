@@ -55,6 +55,10 @@ export type OnboardingChecklistProps = {
   onExploreDemo?: () => void;
   /** Enables the "Explore with demo data" CTA once the endpoint exists. */
   demoAvailable?: boolean;
+  /** In-flight demo bootstrap: the CTA disables and shows the pending label. */
+  demoPending?: boolean;
+  /** Bootstrap failure rendered inline above the CTA; the CTA stays retryable. */
+  demoError?: string | null;
 };
 
 const STEP_ROUTES: Record<OnboardingStepId, string> = {
@@ -170,18 +174,21 @@ function StepList({ steps }: { steps: OnboardingStep[] }) {
 function ExploreDemoButton({
   onExploreDemo,
   demoAvailable,
-}: Pick<OnboardingChecklistProps, "onExploreDemo" | "demoAvailable">) {
-  const enabled = Boolean(demoAvailable && onExploreDemo);
+  demoPending,
+}: Pick<OnboardingChecklistProps, "onExploreDemo" | "demoAvailable" | "demoPending">) {
+  const enabled = Boolean(demoAvailable && onExploreDemo) && !demoPending;
 
   return (
     <Button
       className="px-5 py-2.5 text-sm"
       disabled={!enabled}
       onClick={enabled ? onExploreDemo : undefined}
-      title={enabled ? undefined : strings.onboarding.exploreDemo.comingSoon}
+      title={enabled || demoPending ? undefined : strings.onboarding.exploreDemo.comingSoon}
       variant="secondary"
     >
-      {strings.onboarding.exploreDemo.label}
+      {demoPending
+        ? strings.onboarding.exploreDemo.pending
+        : strings.onboarding.exploreDemo.label}
     </Button>
   );
 }
@@ -190,6 +197,8 @@ export function OnboardingChecklist({
   variant = "full",
   onExploreDemo,
   demoAvailable = false,
+  demoPending = false,
+  demoError = null,
 }: OnboardingChecklistProps) {
   const steps = useOnboardingSteps();
   const [stepsOpen, setStepsOpen] = useState(false);
@@ -242,8 +251,19 @@ export function OnboardingChecklist({
       </div>
       <ProgressBar complete={complete} total={total} />
       <StepList steps={steps} />
-      <div className="flex flex-wrap items-center gap-3 border-t border-line/60 pt-4 dark:border-white/10">
-        <ExploreDemoButton demoAvailable={demoAvailable} onExploreDemo={onExploreDemo} />
+      <div className="grid gap-3 border-t border-line/60 pt-4 dark:border-white/10">
+        {demoError ? (
+          <p className="m-0 text-sm leading-snug text-danger break-words" role="alert">
+            {demoError}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <ExploreDemoButton
+            demoAvailable={demoAvailable}
+            demoPending={demoPending}
+            onExploreDemo={onExploreDemo}
+          />
+        </div>
       </div>
     </Card>
   );

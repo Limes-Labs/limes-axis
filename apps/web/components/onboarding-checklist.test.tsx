@@ -126,6 +126,30 @@ describe("OnboardingChecklist (full)", () => {
     expect(onExploreDemo).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the demo bootstrap error inline above the CTA", () => {
+    mockRegistries({});
+    render(
+      <OnboardingChecklist
+        demoAvailable
+        demoError="Axis API request failed with 403"
+        onExploreDemo={() => {}}
+        variant="full"
+      />,
+    );
+
+    expect(screen.getByText("Axis API request failed with 403")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Explore with demo data" })).toBeEnabled();
+  });
+
+  it("disables the demo CTA and shows the pending label while bootstrapping", () => {
+    mockRegistries({});
+    render(
+      <OnboardingChecklist demoAvailable demoPending onExploreDemo={() => {}} variant="full" />,
+    );
+
+    expect(screen.getByRole("button", { name: "Loading demo data…" })).toBeDisabled();
+  });
+
   it("marks completed steps done and reports progress", () => {
     mockRegistries({ connectors: 2, policies: 1 });
     render(<OnboardingChecklist variant="full" />);

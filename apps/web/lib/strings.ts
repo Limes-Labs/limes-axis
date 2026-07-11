@@ -826,6 +826,9 @@ const onboarding = {
   exploreDemo: {
     label: "Explore with demo data",
     comingSoon: "Coming with demo provisioning",
+    pending: "Loading demo data…",
+    toastTitle: "Demo data loaded",
+    errorFallback: "Axis could not load the demo scenario. The bootstrap API request failed.",
   },
   compact: {
     show: "Show setup steps",
@@ -1061,9 +1064,16 @@ const ontology = {
   },
 } as const;
 
+/** Topbar pill marking a tenant that runs the bootstrapped demo scenario. */
+const demoBadge = {
+  label: "Demo",
+  tooltip: "This tenant runs the demo manufacturing scenario",
+} as const;
+
 export const strings = {
   nav,
   commandMenu,
+  demoBadge,
   agents,
   approvals,
   audit,

@@ -19,6 +19,7 @@ import {
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { useDemoBootstrap } from "@/lib/use-demo-bootstrap";
 import { useConsole } from "@/providers/console-provider";
 
 /*
@@ -108,6 +109,7 @@ function OverviewHero({
 
 export function PlatformOverview() {
   const { apiStatus, triggerRefresh } = useConsole();
+  const demoBootstrap = useDemoBootstrap();
   const overviewQuery = useAxisQuery<ManufacturingOverview>(OVERVIEW_ENDPOINT);
   const snapshotQuery = useAxisQuery<ManufacturingOperationsSnapshot>(SNAPSHOT_ENDPOINT);
   const routingQuery = useAxisQuery<ManufacturingModelRouting>(MODEL_ROUTING_ENDPOINT);
@@ -126,7 +128,13 @@ export function PlatformOverview() {
   if (tenantEmpty) {
     return (
       <div className="grid gap-4">
-        <OnboardingChecklist variant="full" />
+        <OnboardingChecklist
+          demoAvailable
+          demoError={demoBootstrap.error}
+          demoPending={demoBootstrap.pending}
+          onExploreDemo={demoBootstrap.bootstrapDemo}
+          variant="full"
+        />
       </div>
     );
   }

@@ -1,0 +1,98 @@
+"use client";
+
+import { useState } from "react";
+
+import { useToast } from "@/components/ui/toast";
+import { axisFetchJson } from "@/lib/axis-api";
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
+import { useAxisQuery } from "@/lib/use-axis-query";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { useConsole } from "@/providers/console-provider";
+
+/*
+ * Demo switch (spec §6, task 6.3): one POST provisions the manufacturing demo
+ * scenario into the console tenant. The endpoint is idempotent — a replay
+ * answers 200 with `idempotent_replay: true` — so the CTA is safe to retry.
+ */
+
+export const DEMO_BOOTSTRAP_ENDPOINT = "/demo/manufacturing/bootstrap";
+export const DEMO_BOOTSTRAP_SCOPE = "demo:scenario:bootstrap";
+export const DEMO_TENANT_ID = "tenant_demo_manufacturing";
+/** Fallback actor when no authenticated API session is attached. */
+export const DEMO_CONSOLE_ACTOR = "demo-console-operator";
+
+export type DemoBootstrapRequestPayload = {
+  tenant_id: string;
+  requested_by: string;
+  actor_scopes: string[];
+};
+
+export type DemoBootstrapSurface = {
+  surface: string;
+  reference_id: string;
+  state: "created" | "existing";
+};
+
+export type DemoBootstrapResult = {
+  tenant_id: string;
+  scenario: string;
+  plant_name: string;
+  bootstrapped: boolean;
+  surfaces: DemoBootstrapSurface[];
+  audit_event_id: string;
+  idempotent_replay: boolean;
+};
+
+export function buildDemoBootstrapPayload(actorId: string): DemoBootstrapRequestPayload {
+  return {
+    tenant_id: DEMO_TENANT_ID,
+    requested_by: actorId,
+    actor_scopes: [DEMO_BOOTSTRAP_SCOPE],
+  };
+}
+
+/**
+ * Bootstrap the demo scenario from the onboarding checklist CTA: POST the
+ * scope-gated request, toast on success, then refresh the console so the
+ * overview refetches and the control room replaces the checklist. Failures
+ * land in `error` for inline rendering on the checklist.
+ */
+export function useDemoBootstrap() {
+  const { triggerRefresh } = useConsole();
+  const { push } = useToast();
+  const { session } = useOidcConsoleSession();
+  const { data: identitySession } = useAxisQuery<IdentitySessionReadModel>("/identity/session");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function bootstrapDemo() {
+    if (pending) {
+      return;
+    }
+    setPending(true);
+    setError(null);
+
+    try {
+      const result = await axisFetchJson<DemoBootstrapResult>(DEMO_BOOTSTRAP_ENDPOINT, {
+        method: "POST",
+        session,
+        body: buildDemoBootstrapPayload(identitySession?.actor_id ?? DEMO_CONSOLE_ACTOR),
+      });
+      push({
+        title: strings.onboarding.exploreDemo.toastTitle,
+        detail: `${result.scenario} — ${result.plant_name}`,
+        tone: "positive",
+      });
+      triggerRefresh();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : strings.onboarding.exploreDemo.errorFallback,
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return { bootstrapDemo, pending, error };
+}
