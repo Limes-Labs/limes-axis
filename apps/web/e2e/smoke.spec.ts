@@ -57,26 +57,43 @@ async function expectAxisLightShell(page: Page) {
 }
 
 test.describe("Axis console smoke", () => {
-  test("requires the overview API instead of local overview data", async ({ page }) => {
+  test("requires the overview APIs section by section instead of local data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
 
+    // The page header renders once; every section shows its own ErrorPanel
+    // instead of one page-level gate.
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Operations API unavailable" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Attention items unavailable" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Audit evidence API unavailable" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Operations snapshot API unavailable" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "System health unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback overview records are disabled.")).toBeVisible();
+
+    // Posture cards degrade in place instead of disappearing.
+    await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
+    await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(5);
+
     // Endpoint paths are demoted behind the ErrorPanel "Technical details" expander.
     await expect(page.getByText("/demo/manufacturing/overview")).toHaveCount(0);
     await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(page.getByText("/demo/manufacturing/overview")).toBeVisible();
-    await expect(page.getByText("/demo/manufacturing/model-routing")).toBeVisible();
     await expect(page.getByText("Fallback demo seed")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Ravenna Works" })).toHaveCount(0);
+    await expect(page.getByText("Plant Operations Cockpit")).toHaveCount(0);
     await expect(page.getByText("Live API")).toHaveCount(0);
-    await expect(page.getByText("API unavailable", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Refresh state" }).click();
-    await expect(page.getByText("API unavailable", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operations API unavailable" })).toBeVisible();
 
     await expectAxisLightShell(page);
     await expectNoHorizontalOverflow(page);

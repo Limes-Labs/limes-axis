@@ -33,18 +33,17 @@ export const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
 
 const FEED_ROW_LIMIT = 10;
 
-/** Chronological events-per-hour buckets for the header sparkline. */
-function bucketEventsByHour(events: AuditLedgerEvent[]): { label: string; value: number }[] {
+/** Events-per-category buckets for the header sparkline. */
+function bucketEventsByCategory(events: AuditLedgerEvent[]): { label: string; value: number }[] {
   const buckets = new Map<string, number>();
 
-  for (const event of [...events].reverse()) {
-    const label = new Intl.DateTimeFormat("en", { hour: "2-digit" }).format(
-      new Date(event.occurred_at),
-    );
-    buckets.set(label, (buckets.get(label) ?? 0) + 1);
+  for (const event of events) {
+    buckets.set(event.category, (buckets.get(event.category) ?? 0) + 1);
   }
 
-  return Array.from(buckets, ([label, value]) => ({ label, value }));
+  return Array.from(buckets, ([label, value]) => ({ label, value })).sort(
+    (left, right) => right.value - left.value,
+  );
 }
 
 export function EvidenceFeed({
@@ -89,7 +88,7 @@ export function EvidenceFeed({
         <MetricSparkbar
           caption={copy.sparklineCaption}
           height={32}
-          points={bucketEventsByHour(events)}
+          points={bucketEventsByCategory(events)}
         />
       </Reveal>
       <div className="grid gap-3">

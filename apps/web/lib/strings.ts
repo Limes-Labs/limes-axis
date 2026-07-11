@@ -256,7 +256,7 @@ const overview = {
     title: "Recent audit evidence",
     openAudit: "Open audit",
     viewEvent: "View event",
-    sparklineCaption: "Recent audit events per hour",
+    sparklineCaption: "Recent audit events by category",
     error: {
       title: "Audit evidence API unavailable",
       detail:

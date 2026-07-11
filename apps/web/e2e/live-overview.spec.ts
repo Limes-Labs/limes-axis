@@ -36,31 +36,53 @@ test.describe("Axis live overview demo", () => {
     "Set AXIS_E2E_LIVE_API=1 when the local Axis API is running.",
   );
 
-  test("renders the persisted operations snapshot on the overview page", async ({ page }) => {
+  test("renders the persisted control room on the overview page", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    // Single page header + slim hero: the cockpit name renders exactly once.
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
+    await expect(page.getByText("Plant Operations Cockpit")).toHaveCount(1);
     await expect(page.locator(".ops-page-subtitle")).toContainText("Ravenna Works");
-    await expect(page.getByText("Live API", { exact: true })).toBeVisible();
-    await expect(page.getByText("Evidence present", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Domain graph" })).toBeVisible();
+
+    // The hero audit count and the evidence feed read the same registry.
+    const heroAuditCount = await page.getByTestId("hero-audit-count").innerText();
+    await expect(page.getByText(`${heroAuditCount.trim()} recent events`)).toBeVisible();
+
+    // Needs-attention strip with inline decision entry points.
+    await expect(page.getByText("Needs attention")).toBeVisible();
+    expect(await page.getByRole("button", { name: "Review & decide" }).count()).toBeGreaterThan(0);
+
+    // Five posture cards, one link each.
+    await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
+    await expect(page.getByRole("link", { name: /Manage agents/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Review policies/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /View routing/ })).toBeVisible();
+
+    // One evidence feed with deep links into the audit ledger.
+    await expect(page.getByRole("heading", { name: "Recent audit evidence" })).toBeVisible();
+    const firstEventHref = await page
+      .locator("a[href^='/audit?event_id=']")
+      .first()
+      .getAttribute("href");
+    expect(firstEventHref).toContain("/audit?event_id=");
+
+    // Governed artifact runtime stays, gated on the unauthenticated session.
     await expect(page.getByRole("heading", { name: "Generate governed evidence" })).toBeVisible();
-    await expect(page.getByText("No browser-local data is generated.")).toBeVisible();
     await expect(page.getByText("OIDC session required")).toBeVisible();
     await expect(page.getByRole("button", { name: /Generate daily brief/ })).toBeDisabled();
     await expect(page.getByRole("button", { name: /Build quality scenario/ })).toBeDisabled();
-    await expect(page.getByRole("heading", { name: "Human-gated flow" })).toBeVisible();
+
+    // Side rail: system health radar + quick actions.
     await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
-    await expect(page.getByText("Risk signals")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Persisted routing posture" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Feedback environment" })).toBeVisible();
-    await expect(page.getByText("SME feedback demo", { exact: true })).toBeVisible();
-    await expect(page.getByText("Enterprise evaluation walkthrough", { exact: true })).toBeVisible();
-    await expect(page.getByText("governed artifacts")).toBeVisible();
-    await expect(page.getByText("Approval gate")).toBeVisible();
+    await expect(page.getByText("Quick actions")).toBeVisible();
+
+    // Dropped surfaces stay dropped: domain graph, routing strip, readiness QA.
+    await expect(page.getByRole("heading", { name: "Domain graph" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Persisted routing posture" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Feedback environment" })).toHaveCount(0);
     await expect(page.getByText("Local fallback overview records are disabled.")).toHaveCount(0);
     await expect(page.getByText("Operations API unavailable")).toHaveCount(0);
 
@@ -68,9 +90,42 @@ test.describe("Axis live overview demo", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("decides a live approval from the needs-attention strip with audit evidence", async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/");
+
+    const reviewButtons = page.getByRole("button", { name: "Review & decide" });
+    if ((await reviewButtons.count()) === 0) {
+      test.skip(true, "No pending approvals in the live tenant right now.");
+    }
+
+    // The sheet reuses the approvals decision card: consequences visible,
+    // confirm dialog gating persistence.
+    await reviewButtons.first().click();
+    const optionButton = page
+      .locator("section[aria-label='Decision'] button")
+      .first();
+    await expect(optionButton).toBeVisible();
+    await optionButton.click();
+    await expect(page.getByRole("button", { name: "Confirm decision" })).toBeVisible();
+    await page.getByRole("button", { name: "Confirm decision" }).click();
+
+    await expect(page.getByText("Recorded as evidence")).toBeVisible();
+    await expect(page.getByRole("link", { name: "View audit event" })).toHaveAttribute(
+      "href",
+      /\/audit\?event_id=/,
+    );
+
+    expect(pageErrors).toEqual([]);
+  });
+
   test("opens live platform utility panels without leaving the console", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
 
     const topbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
@@ -116,7 +171,7 @@ test.describe("Axis live overview demo", () => {
 
   test("keeps the enterprise navigation stable while the live dashboard scrolls", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
@@ -162,7 +217,7 @@ test.describe("Axis live overview demo", () => {
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
     await expect(page.locator(".ops-dashboard-grid")).toBeVisible();
     await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
 
