@@ -1,51 +1,38 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  CheckCircle2,
-  CircleX,
-  FileClock,
-  MessageSquare,
-  RadioTower,
-  ShieldAlert,
-} from "lucide-react";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { ChevronDown, ChevronRight, Inbox, RadioTower, ShieldAlert } from "lucide-react";
 
-import { ApiRequiredState } from "@/components/api-required-state";
-import { Button, type ButtonVariant } from "@/components/ui/button";
+import {
+  ApprovalDecisionCard,
+  useApprovalDecisionState,
+  type ApprovalDecisionRecord,
+} from "@/components/approvals/approval-decision-card";
 import { Card } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { Skeleton } from "@/components/ui/skeleton";
-import { axisFetchJson } from "@/lib/axis-api";
+import { InspectDrawer } from "@/components/ui/inspect-drawer";
+import { MasterDetail } from "@/components/ui/master-detail";
+import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   approvalDecisionLabel,
-  approvalDecisionActorId,
   approvalRiskClass,
-  buildApprovalDecisionPayload,
   findApprovalById,
-  type ApprovalDecision,
-  type ApprovalDecisionOption,
-  type ApprovalDecisionPersistenceResult,
   type ApprovalInboxItem,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
 import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
-import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
-type LocalApprovalDecision = {
-  decision: ApprovalDecision;
-  label: string;
-  decidedAt: string;
-  auditResult: string;
-  storage: "persisting" | "persisted";
-  actorId: string;
-  auditEventId?: string;
-  workflowSignalStatus?: string;
-  persistenceDetail?: string;
-  permissionDetail?: string;
-  workflowSignalDetail?: string;
-};
+const APPROVALS_ENDPOINT = "/demo/manufacturing/approvals";
 
 type RailStageState = "done" | "current" | "pending";
 
@@ -55,43 +42,6 @@ type RailStage = {
   state: RailStageState;
 };
 
-function sourceLabel(source: "loading" | "api" | "unavailable"): string {
-  if (source === "api") {
-    return "API approval queue";
-  }
-
-  return source === "loading" ? "Loading approval API" : "Approval API unavailable";
-}
-
-function persistedAuditResult(result: ApprovalDecisionPersistenceResult): string {
-  return `${result.audit_event_type} / ${result.workflow_signal_status}`;
-}
-
-function DecisionIcon({ decision }: { decision: ApprovalDecision }) {
-  if (decision === "approve") {
-    return <CheckCircle2 size={17} />;
-  }
-
-  return decision === "reject" ? <CircleX size={17} /> : <MessageSquare size={17} />;
-}
-
-function decisionVariant(decision: ApprovalDecision): ButtonVariant {
-  if (decision === "approve") {
-    return "primary";
-  }
-
-  return decision === "reject" ? "destructive" : "secondary";
-}
-
-function countLocalDecisions(
-  inbox: ManufacturingApprovalInbox,
-  localDecisions: Record<string, LocalApprovalDecision>,
-): number {
-  const approvalIds = new Set(inbox.approvals.map((approval) => approval.approval_id));
-
-  return Object.keys(localDecisions).filter((approvalId) => approvalIds.has(approvalId)).length;
-}
-
 /**
  * Stage rail derived from the real approval record: submission metadata,
  * the attached policy controls, the human decision, and the persisted audit
@@ -99,7 +49,7 @@ function countLocalDecisions(
  */
 function buildDecisionRail(
   approval: ApprovalInboxItem,
-  decision: LocalApprovalDecision | undefined,
+  decision: ApprovalDecisionRecord | undefined,
 ): RailStage[] {
   const decided = Boolean(decision);
   const recorded = decision?.storage === "persisted";
@@ -158,13 +108,13 @@ function DecisionRail({
   decision,
 }: {
   approval: ApprovalInboxItem;
-  decision: LocalApprovalDecision | undefined;
+  decision: ApprovalDecisionRecord | undefined;
 }) {
   const stages = buildDecisionRail(approval, decision);
   const currentIndex = stages.findIndex((stage) => stage.state === "current");
 
   return (
-    <div className="grid gap-2" aria-label="Decision stage rail">
+    <div className="grid gap-1.5" aria-label="Decision stage rail">
       <div className="flex items-center gap-2">
         {stages.map((stage, index) => (
           <div
@@ -190,7 +140,7 @@ function DecisionRail({
           <div className="grid min-w-0 gap-0.5" key={stage.label}>
             <p
               className={cn(
-                "m-0 font-mono text-[10.5px] tracking-[0.14em] uppercase",
+                "m-0 font-mono text-[10px] tracking-[0.14em] uppercase",
                 stage.state === "pending" ? "text-muted" : "text-signal",
               )}
             >
@@ -206,164 +156,310 @@ function DecisionRail({
   );
 }
 
-function ApprovalMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+function CollapsibleSection({
+  label,
+  defaultOpen = false,
+  children,
+}: {
+  label: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const Chevron = open ? ChevronDown : ChevronRight;
+
   return (
-    <Card className="grid content-start gap-2 p-5">
-      <Eyebrow>{label}</Eyebrow>
-      <p className="font-display m-0 text-3xl text-ink">{value}</p>
-      <div aria-hidden="true" className="rule-dotted" />
-      <p className="m-0 text-xs text-muted">{detail}</p>
+    <Collapsible onOpenChange={setOpen} open={open}>
+      <CollapsibleTrigger className="flex cursor-pointer items-center gap-1.5 bg-transparent p-0">
+        <Chevron aria-hidden="true" className="text-muted" size={14} />
+        <span className="eyebrow">{label}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2 pl-5.5">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function BulletList({ items }: { items: string[] }) {
+  return (
+    <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function QueueList({
+  inbox,
+  selectedApproval,
+  decisions,
+  onSelect,
+}: {
+  inbox: ManufacturingApprovalInbox;
+  selectedApproval: ApprovalInboxItem;
+  decisions: Record<string, ApprovalDecisionRecord>;
+  onSelect: (approvalId: string) => void;
+}) {
+  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+      return;
+    }
+    event.preventDefault();
+
+    const index = inbox.approvals.findIndex(
+      (approval) => approval.approval_id === selectedApproval.approval_id,
+    );
+    const nextIndex =
+      event.key === "ArrowDown"
+        ? Math.min(index + 1, inbox.approvals.length - 1)
+        : Math.max(index - 1, 0);
+    const next = inbox.approvals[nextIndex];
+    if (next && next.approval_id !== selectedApproval.approval_id) {
+      onSelect(next.approval_id);
+      itemRefs.current.get(next.approval_id)?.focus();
+    }
+  }
+
+  return (
+    <Card className="grid content-start gap-4">
+      <div className="grid gap-1">
+        <Eyebrow>{strings.approvals.queue.eyebrow}</Eyebrow>
+        <h2 className="font-display m-0 text-xl text-ink">{strings.approvals.queue.title}</h2>
+      </div>
+      {/* Roving arrow-key selection across the queue buttons. */}
+      <div className="grid gap-2" onKeyDown={handleKeyDown}>
+        {inbox.approvals.map((approval) => {
+          const decision = decisions[approval.approval_id];
+          const isSelected = approval.approval_id === selectedApproval.approval_id;
+
+          return (
+            <button
+              aria-pressed={isSelected}
+              className={cn(
+                "flex w-full cursor-pointer items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
+                isSelected
+                  ? "border-signal/60 bg-tint-100 dark:bg-signal/15"
+                  : "border-line bg-transparent hover:border-signal/40 hover:bg-tint-50 dark:border-white/10 dark:hover:bg-white/5",
+              )}
+              key={approval.approval_id}
+              onClick={() => onSelect(approval.approval_id)}
+              ref={(element) => {
+                if (element) {
+                  itemRefs.current.set(approval.approval_id, element);
+                } else {
+                  itemRefs.current.delete(approval.approval_id);
+                }
+              }}
+              type="button"
+            >
+              <span className="grid min-w-0 gap-0.5">
+                <span className="text-sm font-medium text-ink">{approval.action}</span>
+                <span className="text-xs text-muted">
+                  {approval.domain} / {approval.owner_role}
+                </span>
+                <span className="font-mono text-xs text-muted">Due {approval.due}</span>
+              </span>
+              <span
+                className={`status-pill ${
+                  decision ? "signal-ready" : approvalRiskClass(approval.risk_level)
+                }`}
+              >
+                {decision ? approvalDecisionLabel(decision.decision) : approval.risk_level}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </Card>
   );
 }
 
+function ApprovalDetail({
+  approval,
+  decision,
+  error,
+  onDecisionChange,
+  onErrorChange,
+}: {
+  approval: ApprovalInboxItem;
+  decision: ApprovalDecisionRecord | undefined;
+  error: string | undefined;
+  onDecisionChange: (approvalId: string, record: ApprovalDecisionRecord | null) => void;
+  onErrorChange: (approvalId: string, message: string | null) => void;
+}) {
+  return (
+    <Card className="grid content-start gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid max-w-xl gap-1">
+          <Eyebrow>{approval.domain}</Eyebrow>
+          <h2 className="font-display m-0 text-xl text-ink">{approval.action}</h2>
+          <p className="m-0 text-sm text-muted">{approval.summary}</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>
+            {approval.risk_level}
+          </span>
+          <span className="font-mono text-xs text-muted">Due {approval.due}</span>
+        </div>
+      </div>
+
+      <ApprovalDecisionCard
+        approval={approval}
+        decision={decision}
+        error={error}
+        onDecisionChange={onDecisionChange}
+        onErrorChange={onErrorChange}
+      />
+
+      <DecisionRail approval={approval} decision={decision} />
+
+      <div aria-hidden="true" className="rule-dotted" />
+
+      <CollapsibleSection defaultOpen label={strings.approvals.sections.evidence}>
+        <div className="grid gap-3">
+          <BulletList items={approval.evidence} />
+          <div className="grid gap-1.5">
+            <p className="m-0 text-xs font-medium text-muted">
+              {strings.approvals.sections.dataAccessed}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {approval.data_accessed.map((item) => (
+                <span
+                  className="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted dark:border-white/15 dark:bg-transparent"
+                  key={item}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection label={strings.approvals.sections.risksAlternatives}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid content-start gap-1.5">
+            <p className="m-0 text-xs font-medium text-muted">Risks</p>
+            <BulletList items={approval.risks} />
+          </div>
+          <div className="grid content-start gap-1.5">
+            <p className="m-0 text-xs font-medium text-muted">Alternatives</p>
+            <BulletList items={approval.alternatives} />
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      <div aria-hidden="true" className="rule-dotted" />
+
+      <div className="grid gap-3">
+        <DetailGrid>
+          <KeyValueRow label="Workflow" mono>
+            <span className="block max-w-full truncate" title={approval.workflow_id}>
+              {approval.workflow_id}
+            </span>
+          </KeyValueRow>
+          <KeyValueRow label="Requested by">{approval.requested_by}</KeyValueRow>
+          <KeyValueRow label="Owner">{approval.owner_role}</KeyValueRow>
+          <KeyValueRow label="Cost exposure">{approval.estimated_cost}</KeyValueRow>
+        </DetailGrid>
+        <InspectDrawer
+          record={approval}
+          title={approval.action}
+          trigger={
+            <button
+              className="inline-flex w-fit cursor-pointer items-center font-mono text-xs text-muted transition-colors duration-200 hover:text-signal"
+              type="button"
+            >
+              {strings.approvals.sections.inspect}
+            </button>
+          }
+        />
+      </div>
+    </Card>
+  );
+}
+
+function sourceLabel(source: "loading" | "api" | "unavailable"): string {
+  if (source === "api") {
+    return "API approval queue";
+  }
+
+  return source === "loading" ? "Loading approval API" : "Approval API unavailable";
+}
+
 export function ApprovalInbox() {
-  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(
-    "/demo/manufacturing/approvals",
-  );
+  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT);
   const [selectedApprovalId, setSelectedApprovalId] = useState("");
-  const [localDecisions, setLocalDecisions] = useState<Record<string, LocalApprovalDecision>>({});
-  const [decisionErrors, setDecisionErrors] = useState<Record<string, string>>({});
-  const { session } = useOidcConsoleSession();
-
-  useEffect(() => {
-    if (inbox?.approvals[0]) {
-      setSelectedApprovalId(inbox.approvals[0].approval_id);
-    }
-  }, [inbox]);
-
-  const selectedApproval = useMemo(
-    () =>
-      inbox && inbox.approvals.length > 0 ? findApprovalById(inbox, selectedApprovalId) : null,
-    [inbox, selectedApprovalId],
-  );
-  const selectedDecision = selectedApproval
-    ? localDecisions[selectedApproval.approval_id]
-    : undefined;
-  const selectedDecisionError = selectedApproval
-    ? decisionErrors[selectedApproval.approval_id]
-    : undefined;
-  const localDecisionCount = inbox ? countLocalDecisions(inbox, localDecisions) : 0;
-  const pendingCount = inbox ? inbox.approvals.length - localDecisionCount : 0;
-  const highRiskCount = inbox
-    ? inbox.approvals.filter((approval) => approval.risk_level === "high").length
-    : 0;
-
-  function updateDecisionState(
-    approvalId: string,
-    decision: LocalApprovalDecision,
-  ) {
-    setLocalDecisions((current) => ({
-      ...current,
-      [approvalId]: decision,
-    }));
-  }
-
-  async function recordDecision(option: ApprovalDecisionOption) {
-    if (!selectedApproval) {
-      return;
-    }
-
-    const approvalId = selectedApproval.approval_id;
-    const decidedAt = new Intl.DateTimeFormat("en", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date());
-    const actorId = approvalDecisionActorId(selectedApproval);
-
-    updateDecisionState(approvalId, {
-      decision: option.decision,
-      label: option.label,
-      decidedAt,
-      auditResult: "persisting_decision",
-      storage: "persisting",
-      actorId,
-      persistenceDetail: "Recording decision through the API.",
-    });
-    setDecisionErrors((current) => {
-      const next = { ...current };
-      delete next[approvalId];
-      return next;
-    });
-
-    try {
-      const result = await axisFetchJson<ApprovalDecisionPersistenceResult>(
-        `/demo/manufacturing/approvals/${approvalId}/decision`,
-        {
-          session,
-          method: "POST",
-          body: buildApprovalDecisionPayload(selectedApproval, option.decision),
-        },
-      );
-      updateDecisionState(approvalId, {
-        decision: result.decision,
-        label: option.label,
-        decidedAt,
-        auditResult: persistedAuditResult(result),
-        storage: "persisted",
-        actorId: result.actor_id,
-        auditEventId: result.audit_event_id,
-        workflowSignalStatus: result.workflow_signal_status,
-        persistenceDetail: "Persisted through the approval decision API.",
-        permissionDetail: `Permission ${result.permission_decision.reason}.`,
-        workflowSignalDetail: `${result.workflow_signal.adapter} / ${result.workflow_signal.signal_name}`,
-      });
-    } catch (error) {
-      setLocalDecisions((current) => {
-        const next = { ...current };
-        delete next[approvalId];
-        return next;
-      });
-      setDecisionErrors((current) => ({
-        ...current,
-        [approvalId]:
-          error instanceof Error
-            ? error.message
-            : "Approval decision API persistence is unavailable.",
-      }));
-    }
-  }
+  const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
 
   if (!inbox) {
     if (source === "loading") {
       return (
-        <div className="grid gap-5" aria-busy="true" aria-label="Loading approval API">
-          <Skeleton className="h-28" />
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-          </div>
-          <div className="grid gap-4 xl:grid-cols-[2fr_3fr]">
-            <Skeleton className="h-96" />
-            <Skeleton className="h-96" />
-          </div>
+        <div aria-label="Loading approval API" className="grid gap-4">
+          <LoadingPanel layout="metrics" rows={3} />
+          <MasterDetail
+            detail={<LoadingPanel layout="detail" />}
+            list={<LoadingPanel rows={4} />}
+          />
         </div>
       );
     }
 
     return (
-      <ApiRequiredState
-        detail="Axis did not receive API-backed approval records. Local fallback approval records are disabled."
-        endpoint="/demo/manufacturing/approvals"
-        title="Approval API unavailable"
+      <ErrorPanel
+        detail={strings.approvals.error.detail}
+        endpoint={APPROVALS_ENDPOINT}
+        title={strings.approvals.error.title}
       />
     );
   }
 
-  if (!selectedApproval) {
+  if (inbox.approvals.length === 0) {
     return (
-      <ApiRequiredState
-        detail="The approval API responded without queue records for this tenant."
-        endpoint="/demo/manufacturing/approvals"
-        title="Approval API returned no records"
+      <EmptyPanel
+        detail={strings.approvals.empty.detail}
+        icon={Inbox}
+        title={strings.approvals.empty.title}
       />
     );
   }
+
+  // `findApprovalById` falls back to the first approval, so a stale or empty
+  // selection always resolves to a real record.
+  const selectedApproval = findApprovalById(inbox, selectedApprovalId);
+  const decidedCount = inbox.approvals.filter(
+    (approval) => decisions[approval.approval_id],
+  ).length;
+  const pendingCount = inbox.approvals.length - decidedCount;
+  const highRiskCount = inbox.approvals.filter(
+    (approval) => approval.risk_level === "high" && !decisions[approval.approval_id],
+  ).length;
+
+  const metrics: Metric[] = [
+    {
+      label: strings.approvals.metrics.pending,
+      value: pendingCount,
+      detail: strings.approvals.metrics.pendingDetail,
+      tone: pendingCount > 0 ? "watch" : "ready",
+    },
+    {
+      label: strings.approvals.metrics.highRisk,
+      value: highRiskCount,
+      detail: strings.approvals.metrics.highRiskDetail,
+      tone: highRiskCount > 0 ? "action" : "ready",
+    },
+    {
+      label: strings.approvals.metrics.decided,
+      value: decidedCount,
+      detail: strings.approvals.metrics.decidedDetail,
+      tone: "ready",
+    },
+  ];
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       <div
         aria-label="Approval source and status"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
@@ -386,239 +482,27 @@ export function ApprovalInbox() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <ApprovalMetric
-          detail="Human-gated decisions in the demo queue"
-          label="Pending"
-          value={String(pendingCount)}
-        />
-        <ApprovalMetric
-          detail="Actions that cannot execute without owner approval"
-          label="High Risk"
-          value={String(highRiskCount)}
-        />
-        <ApprovalMetric
-          detail="Persisted through the API when available"
-          label="Decisions"
-          value={String(localDecisionCount)}
-        />
-        <ApprovalMetric
-          detail="Agent proposals remain under human approval"
-          label="Policy"
-          value="L2"
-        />
-      </div>
+      <MetricStrip metrics={metrics} />
 
-      <div className="grid items-start gap-4 xl:grid-cols-[2fr_3fr]">
-        <Card className="grid content-start gap-4">
-          <div className="grid gap-1">
-            <Eyebrow>Queue</Eyebrow>
-            <h2 className="font-display m-0 text-xl text-ink">Approval inbox</h2>
-          </div>
-          <div className="grid gap-2">
-            {inbox.approvals.map((approval) => {
-              const localDecision = localDecisions[approval.approval_id];
-              const isSelected = approval.approval_id === selectedApproval.approval_id;
-
-              return (
-                <button
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
-                    isSelected
-                      ? "border-signal/60 bg-tint-100 dark:bg-signal/15"
-                      : "border-line bg-transparent hover:border-signal/40 hover:bg-tint-50 dark:border-white/10 dark:hover:bg-white/5",
-                  )}
-                  key={approval.approval_id}
-                  onClick={() => setSelectedApprovalId(approval.approval_id)}
-                  type="button"
-                >
-                  <span className="grid min-w-0 gap-0.5">
-                    <span className="text-sm font-medium text-ink">{approval.action}</span>
-                    <span className="text-xs text-muted">
-                      {approval.domain} / {approval.owner_role}
-                    </span>
-                    <span className="font-mono text-xs text-muted">Due {approval.due}</span>
-                  </span>
-                  <span
-                    className={`status-pill ${
-                      localDecision ? "signal-ready" : approvalRiskClass(approval.risk_level)
-                    }`}
-                  >
-                    {localDecision
-                      ? approvalDecisionLabel(localDecision.decision)
-                      : approval.risk_level}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-
-        <Card className="grid content-start gap-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="grid max-w-xl gap-1">
-              <Eyebrow>{selectedApproval.domain}</Eyebrow>
-              <h2 className="font-display m-0 text-xl text-ink">{selectedApproval.action}</h2>
-              <p className="m-0 text-sm text-muted">{selectedApproval.summary}</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <span className={`status-pill ${approvalRiskClass(selectedApproval.risk_level)}`}>
-                {selectedApproval.risk_level}
-              </span>
-              <span className="status-pill status-checking">{selectedApproval.status}</span>
-            </div>
-          </div>
-
-          <DecisionRail approval={selectedApproval} decision={selectedDecision} />
-
-          <div aria-hidden="true" className="rule-dotted" />
-
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <div className="grid gap-1">
-              <Eyebrow>Workflow</Eyebrow>
-              <p className="m-0 font-mono text-sm break-words text-ink">
-                {selectedApproval.workflow_id}
-              </p>
-            </div>
-            <div className="grid gap-1">
-              <Eyebrow>Requested By</Eyebrow>
-              <p className="m-0 text-sm text-ink">{selectedApproval.requested_by}</p>
-            </div>
-            <div className="grid gap-1">
-              <Eyebrow>Owner</Eyebrow>
-              <p className="m-0 text-sm text-ink">{selectedApproval.owner_role}</p>
-            </div>
-            <div className="grid gap-1">
-              <Eyebrow>Cost Exposure</Eyebrow>
-              <p className="m-0 text-sm text-ink">{selectedApproval.estimated_cost}</p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <section className="grid content-start gap-2">
-              <Eyebrow>Evidence</Eyebrow>
-              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
-                {selectedApproval.evidence.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </section>
-            <section className="grid content-start gap-2">
-              <Eyebrow>Risks</Eyebrow>
-              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
-                {selectedApproval.risks.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </section>
-            <section className="grid content-start gap-2">
-              <Eyebrow>Alternatives</Eyebrow>
-              <ul className="m-0 grid list-none gap-1.5 p-0 text-sm text-muted">
-                {selectedApproval.alternatives.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </section>
-          </div>
-
-          <div className="grid gap-4 rounded-2xl border border-line bg-tint-50 p-4 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5">
-            <div className="grid content-start gap-2">
-              <Eyebrow>Data Accessed</Eyebrow>
-              <div className="flex flex-wrap gap-2">
-                {selectedApproval.data_accessed.map((item) => (
-                  <span
-                    className="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted dark:border-white/15 dark:bg-transparent"
-                    key={item}
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="grid content-start gap-2">
-              <Eyebrow>Controls</Eyebrow>
-              <p className="m-0 font-mono text-xs break-words text-muted">
-                {selectedApproval.required_permission} / {selectedApproval.model_policy}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="grid gap-1">
-              <Eyebrow>Decision</Eyebrow>
-              <h3 className="font-display m-0 text-lg text-ink">
-                {selectedDecision
-                  ? approvalDecisionLabel(selectedDecision.decision)
-                  : "Pending review"}
-              </h3>
-              {selectedDecision ? (
-                <p className="m-0 text-xs text-muted">
-                  {selectedDecision.label} / {selectedDecision.decidedAt}
-                </p>
-              ) : null}
-              {selectedDecision ? (
-                <p className="m-0 text-xs text-muted">
-                  {selectedDecision.storage === "persisted"
-                    ? "Persisted decision"
-                    : "Recording decision"}
-                </p>
-              ) : null}
-              {selectedDecisionError ? (
-                <p className="m-0 text-xs text-danger">
-                  Decision persistence error: {selectedDecisionError}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {selectedApproval.decision_options.map((option) => (
-                <Button
-                  className="px-4 py-2 text-sm"
-                  disabled={selectedDecision?.storage === "persisting"}
-                  key={option.decision}
-                  onClick={() => void recordDecision(option)}
-                  title={option.consequence}
-                  variant={decisionVariant(option.decision)}
-                >
-                  <DecisionIcon decision={option.decision} />
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3 rounded-2xl border border-line p-4 dark:border-white/10">
-            <FileClock className="mt-0.5 shrink-0 text-signal" size={18} />
-            <div className="grid min-w-0 gap-1">
-              <p className="m-0 font-mono text-sm break-words text-ink">
-                {selectedApproval.audit_event_preview.event}
-              </p>
-              <p className="m-0 text-xs text-muted">
-                {selectedApproval.audit_event_preview.actor_role} /{" "}
-                {selectedApproval.audit_event_preview.scope} /{" "}
-                {selectedDecision?.auditResult ?? selectedApproval.audit_event_preview.result}
-              </p>
-              {selectedDecision?.auditEventId ? (
-                <p className="m-0 font-mono text-xs break-words text-muted">
-                  {selectedDecision.auditEventId}
-                </p>
-              ) : null}
-              {selectedDecision?.persistenceDetail ? (
-                <p className="m-0 text-xs text-muted">{selectedDecision.persistenceDetail}</p>
-              ) : null}
-              {selectedDecision?.permissionDetail ? (
-                <p className="m-0 text-xs text-muted">{selectedDecision.permissionDetail}</p>
-              ) : null}
-              {selectedDecision?.workflowSignalDetail ? (
-                <p className="m-0 text-xs text-muted">{selectedDecision.workflowSignalDetail}</p>
-              ) : null}
-              {selectedDecisionError ? (
-                <p className="m-0 text-xs text-danger">{selectedDecisionError}</p>
-              ) : null}
-            </div>
-          </div>
-        </Card>
-      </div>
+      <MasterDetail
+        detail={
+          <ApprovalDetail
+            approval={selectedApproval}
+            decision={decisions[selectedApproval.approval_id]}
+            error={errors[selectedApproval.approval_id]}
+            onDecisionChange={setDecision}
+            onErrorChange={setError}
+          />
+        }
+        list={
+          <QueueList
+            decisions={decisions}
+            inbox={inbox}
+            onSelect={setSelectedApprovalId}
+            selectedApproval={selectedApproval}
+          />
+        }
+      />
 
       <Card className="grid content-start gap-3">
         <Eyebrow>Policy Notes</Eyebrow>

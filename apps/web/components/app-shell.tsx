@@ -8,6 +8,7 @@ import { AxisMark } from "@/components/axis-mark";
 import { navIconMap } from "@/components/nav-icons";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
+import { ToastProvider } from "@/components/ui/toast";
 import { navGroups, navItems, type NavItem } from "@/lib/nav";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { ConsoleProvider } from "@/providers/console-provider";
@@ -111,31 +112,33 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ConsoleProvider>
-      <div className="grid min-h-screen grid-cols-1 min-[921px]:grid-cols-[190px_minmax(0,1fr)]">
-        <aside
-          className="sidebar fixed inset-y-0 left-0 z-12 hidden h-dvh min-h-0 w-[190px] flex-col overflow-hidden border-r border-line bg-surface px-2.5 py-4 min-[921px]:flex dark:border-white/10"
-          data-console-sidebar
-        >
-          <Link
-            className="mb-3.5 flex min-h-[44px] items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
-            href="/"
-            aria-label="Limes Axis home"
+      <ToastProvider>
+        <div className="grid min-h-screen grid-cols-1 min-[921px]:grid-cols-[190px_minmax(0,1fr)]">
+          <aside
+            className="sidebar fixed inset-y-0 left-0 z-12 hidden h-dvh min-h-0 w-[190px] flex-col overflow-hidden border-r border-line bg-surface px-2.5 py-4 min-[921px]:flex dark:border-white/10"
+            data-console-sidebar
           >
-            <AxisMark className="h-[30px] w-[30px] shrink-0 text-ink" />
-            <span>
-              <span className="font-display block text-base text-ink">Limes Axis</span>
-              <span className="mt-0.5 block font-mono text-[9px] font-medium tracking-[0.18em] text-muted uppercase">
-                Control plane
+            <Link
+              className="mb-3.5 flex min-h-[44px] items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
+              href="/"
+              aria-label="Limes Axis home"
+            >
+              <AxisMark className="h-[30px] w-[30px] shrink-0 text-ink" />
+              <span>
+                <span className="font-display block text-base text-ink">Limes Axis</span>
+                <span className="mt-0.5 block font-mono text-[9px] font-medium tracking-[0.18em] text-muted uppercase">
+                  Control plane
+                </span>
               </span>
-            </span>
-          </Link>
-          <Navigation pathname={pathname} />
-        </aside>
-        <main className="min-w-0 min-[921px]:col-start-2">
-          <TopNavigation pathname={pathname} />
-          {children}
-        </main>
-      </div>
+            </Link>
+            <Navigation pathname={pathname} />
+          </aside>
+          <main className="min-w-0 min-[921px]:col-start-2">
+            <TopNavigation pathname={pathname} />
+            {children}
+          </main>
+        </div>
+      </ToastProvider>
     </ConsoleProvider>
   );
 }

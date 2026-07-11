@@ -120,4 +120,16 @@ describe("approval inbox helpers", () => {
     });
     expect(JSON.stringify(payload)).not.toContain("@");
   });
+
+  it("records an operator rationale as the decision note when provided", () => {
+    const approval = findApprovalById(approvalInboxFixture, "appr_supply_fixture");
+
+    expect(
+      buildApprovalDecisionPayload(approval, "reject", "Supplier already confirmed.").note,
+    ).toBe("Supplier already confirmed.");
+    // Whitespace-only rationale falls back to the default console note.
+    expect(buildApprovalDecisionPayload(approval, "reject", "   ").note).toBe(
+      "Console decision recorded for appr_supply_fixture.",
+    );
+  });
 });

@@ -172,9 +172,131 @@ const commandMenu = {
   },
 } as const;
 
+/** Approval inbox copy: decision flow, empty queue, and API-down states. */
+const approvals = {
+  queue: {
+    eyebrow: "Queue",
+    title: "Approval inbox",
+  },
+  decision: {
+    eyebrow: "Decision",
+    pending: "Pending review",
+    confirmTitle: "Confirm decision",
+    rationaleLabel: "Rationale (optional)",
+    rationalePlaceholder: "Why you are deciding this way — recorded with the audit evidence.",
+    confirm: "Confirm decision",
+    cancel: "Cancel",
+    persisting: "Recording decision…",
+    persisted: "Recorded as evidence",
+    auditLink: "View audit event",
+    toastTitle: "Decision recorded",
+  },
+  sections: {
+    evidence: "Evidence",
+    risksAlternatives: "Risks & alternatives",
+    dataAccessed: "Data accessed",
+    inspect: "Inspect raw record",
+  },
+  metrics: {
+    pending: "Pending",
+    pendingDetail: "Waiting on a human decision",
+    highRisk: "High risk",
+    highRiskDetail: "Cannot execute without owner approval",
+    decided: "Decided",
+    decidedDetail: "Recorded as audit evidence this session",
+  },
+  error: {
+    title: "Approval API unavailable",
+    detail:
+      "Axis did not receive API-backed approval records. Local fallback approval records are disabled.",
+  },
+  empty: {
+    title: "No approvals waiting",
+    detail:
+      "When an agent proposes an action that needs a human decision, it will appear here for review.",
+  },
+} as const;
+
+/** Overview control-room copy: hero, needs-attention strip, posture, feed. */
+const overview = {
+  hero: {
+    error: {
+      title: "Operations API unavailable",
+      detail:
+        "Axis did not receive API-backed overview records. Local fallback overview records are disabled.",
+    },
+  },
+  needsAttention: {
+    eyebrow: "Needs attention",
+    review: "Review & decide",
+    openWorkflows: "Open workflows",
+    openAudit: "Open audit",
+    approvalsUnavailable: "Pending approvals could not be loaded from the approval API.",
+    overviewUnavailable: "Workflow and risk signals could not be loaded from the overview API.",
+    allClear: {
+      title: "All clear — nothing waiting on you",
+      detail: "No pending approvals, blocked workflows, or active risk signals right now.",
+    },
+    error: {
+      title: "Attention items unavailable",
+      detail:
+        "Axis did not receive API-backed approval, workflow, or risk records. Local fallback records are disabled.",
+    },
+  },
+  posture: {
+    agents: { label: "Agents", link: "Manage agents" },
+    workflows: { label: "Workflows", link: "Open workflows" },
+    connectors: { label: "Connectors", link: "Manage connectors" },
+    policies: { label: "Policies", link: "Review policies" },
+    models: { label: "Models", link: "View routing" },
+    unavailable: "Unavailable",
+  },
+  evidenceFeed: {
+    eyebrow: "Evidence feed",
+    title: "Recent audit evidence",
+    openAudit: "Open audit",
+    viewEvent: "View event",
+    sparklineCaption: "Recent audit events by category",
+    error: {
+      title: "Audit evidence API unavailable",
+      detail:
+        "Axis did not receive API-backed audit events. Local fallback audit records are disabled.",
+    },
+    empty: {
+      title: "No audit evidence yet",
+      detail: "Governed actions write append-only evidence that will appear here.",
+    },
+  },
+  sideRail: {
+    health: "System health",
+    quickActions: "Quick actions",
+    error: {
+      title: "System health unavailable",
+      detail: "Axis did not receive the API-backed records that drive the health radar.",
+    },
+  },
+  artifact: {
+    eyebrow: "Operations artifact runtime",
+    title: "Generate governed evidence",
+    description:
+      "Each action calls the live Axis API, persists a tenant-scoped artifact, and writes audit evidence.",
+    ssoTitle: "Browser SSO required for artifact generation",
+    ssoDetail:
+      "Sign in with the API-owned OIDC session before creating daily briefs or risk scenarios.",
+    signIn: "Sign in with SSO",
+    error: {
+      title: "Operations snapshot API unavailable",
+      detail:
+        "Artifact generation needs the persisted operations snapshot. Local fallback operations records are disabled.",
+    },
+  },
+} as const;
+
 export const strings = {
   nav,
   commandMenu,
+  approvals,
+  overview,
   states: {
     loading: "Loading…",
     error: {

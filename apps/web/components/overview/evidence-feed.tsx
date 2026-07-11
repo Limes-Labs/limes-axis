@@ -1,0 +1,119 @@
+"use client";
+
+import Link from "next/link";
+
+import { Reveal } from "@/components/reveal";
+import { Card } from "@/components/ui/card";
+import { MetricSparkbar } from "@/components/ui/metric-sparkbar";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import {
+  buildAuditEventHref,
+  type AuditLedgerEvent,
+  type ManufacturingAuditExplorer,
+} from "@/lib/audit-demo";
+import { strings } from "@/lib/strings";
+
+import {
+  normalizeLabel,
+  PanelHeader,
+  PanelLink,
+  shortTime,
+  StatusDot,
+  type OverviewQuery,
+} from "./overview-shared";
+
+/*
+ * The single evidence feed for the overview: one list of recent persisted
+ * audit events with tone dots and deep links into /audit. Replaces the three
+ * overlapping audit surfaces of the previous overview (connector evidence
+ * table, audit observability chart, recent activity list).
+ */
+
+export const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
+
+const FEED_ROW_LIMIT = 10;
+
+/** Events-per-category buckets for the header sparkline. */
+function bucketEventsByCategory(events: AuditLedgerEvent[]): { label: string; value: number }[] {
+  const buckets = new Map<string, number>();
+
+  for (const event of events) {
+    buckets.set(event.category, (buckets.get(event.category) ?? 0) + 1);
+  }
+
+  return Array.from(buckets, ([label, value]) => ({ label, value })).sort(
+    (left, right) => right.value - left.value,
+  );
+}
+
+export function EvidenceFeed({
+  auditEvents,
+}: {
+  auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
+}) {
+  const copy = strings.overview.evidenceFeed;
+
+  if (!auditEvents.data) {
+    if (auditEvents.source === "loading") {
+      return <LoadingPanel rows={6} />;
+    }
+
+    return (
+      <ErrorPanel
+        detail={copy.error.detail}
+        endpoint={AUDIT_EVENTS_ENDPOINT}
+        title={copy.error.title}
+      />
+    );
+  }
+
+  const events = auditEvents.data.events;
+
+  if (events.length === 0) {
+    return <EmptyPanel detail={copy.empty.detail} title={copy.empty.title} />;
+  }
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <PanelHeader
+        aside={
+          <span className="font-mono text-xs whitespace-nowrap text-muted">
+            {events.length} recent events
+          </span>
+        }
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+      />
+      <Reveal>
+        <MetricSparkbar
+          caption={copy.sparklineCaption}
+          height={32}
+          points={bucketEventsByCategory(events)}
+        />
+      </Reveal>
+      <div className="grid gap-3">
+        {events.slice(0, FEED_ROW_LIMIT).map((event) => (
+          <div className="flex items-start gap-3" key={event.audit_event_id}>
+            <span className="mt-1.5">
+              <StatusDot status={event.severity} />
+            </span>
+            <div className="grid min-w-0 flex-1 gap-0.5">
+              <Link
+                className="m-0 w-fit text-sm font-medium break-words text-ink hover:text-signal hover:underline"
+                href={buildAuditEventHref(event.audit_event_id)}
+                title={copy.viewEvent}
+              >
+                {normalizeLabel(event.event_type)}
+              </Link>
+              <p className="m-0 text-xs text-muted">{event.actor_id}</p>
+            </div>
+            <span className="font-mono text-xs whitespace-nowrap text-muted">
+              {shortTime(event.occurred_at)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <PanelLink href="/audit">{copy.openAudit}</PanelLink>
+    </Card>
+  );
+}
