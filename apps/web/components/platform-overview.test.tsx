@@ -47,20 +47,51 @@ import {
 
 type Source = "loading" | "api" | "unavailable";
 
-function queryResult(data: unknown, source: Source) {
+function queryResult(data: unknown, source: Source, errorStatus: number | null = null) {
   return {
     data,
     source,
     error: source === "unavailable" ? "Axis API request failed." : null,
+    errorStatus,
     isRefreshing: false,
     isLoading: source === "loading",
     isUnavailable: source === "unavailable",
   };
 }
 
+/** Count-bearing registry payloads that drive the onboarding checklist. */
+function onboardingRegistryFixtures(count: number): [string, unknown][] {
+  const items = (key: string) => Array.from({ length: count }, (_, i) => ({ [key]: `${key}${i}` }));
+  return [
+    ["/demo/manufacturing/connectors", { connectors: items("connector_id") }],
+    ["/demo/manufacturing/ontology", { nodes: items("node_id") }],
+    ["/demo/manufacturing/agents", { agents: items("agent_id") }],
+    ["/demo/manufacturing/workflows", { workflow_runs: items("workflow_id") }],
+  ];
+}
+
+type MockOptions = {
+  /** Endpoints answering 404 (tenant not bootstrapped) instead of failing. */
+  notFoundPaths?: string[];
+  /** Overrides every checklist registry count, including /platform/policies. */
+  onboardingCount?: number;
+};
+
 /** Route the per-path mock so each endpoint can succeed or fail independently. */
-function mockQueriesByPath(unavailablePaths: string[] = []) {
+function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions = {}) {
   const fixtures: [string, unknown][] = [
+    ...(options.onboardingCount !== undefined
+      ? ([
+          [
+            "/platform/policies",
+            {
+              ...policyRegistryFixture,
+              policy_count: options.onboardingCount,
+              active_policy_count: options.onboardingCount,
+            },
+          ],
+        ] as [string, unknown][])
+      : []),
     ["/demo/manufacturing/overview", overviewFixture],
     ["/demo/manufacturing/operations/snapshot", snapshotFixture],
     ["/demo/manufacturing/model-routing", modelRoutingFixture],
@@ -68,12 +99,16 @@ function mockQueriesByPath(unavailablePaths: string[] = []) {
     ["/demo/manufacturing/approvals", approvalInboxFixture],
     ["/platform/policies", policyRegistryFixture],
     ["/identity/session", identitySessionFixture],
+    ...onboardingRegistryFixtures(options.onboardingCount ?? 1),
   ];
 
   mocks.useAxisQuery.mockImplementation((path: string) => {
     const match = fixtures.find(([prefix]) => path.startsWith(prefix));
     if (!match) {
       throw new Error(`Unexpected overview query path: ${path}`);
+    }
+    if (options.notFoundPaths?.some((prefix) => path.startsWith(prefix))) {
+      return queryResult(null, "unavailable", 404);
     }
     if (unavailablePaths.some((prefix) => path.startsWith(prefix))) {
       return queryResult(null, "unavailable");
@@ -165,6 +200,62 @@ describe("PlatformOverview per-section degradation", () => {
     expect(
       screen.getByText("Local fallback overview records are disabled.", { exact: false }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PlatformOverview onboarding checklist", () => {
+  it("replaces the control room with the setup checklist when the overview 404s on a healthy API", () => {
+    mockQueriesByPath([], {
+      notFoundPaths: ["/demo/manufacturing/overview"],
+      onboardingCount: 0,
+    });
+    renderOverview();
+
+    expect(
+      screen.getByRole("heading", { name: "Set up your governed platform" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0 of 5 setup steps complete")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open connectors" })).toHaveAttribute(
+      "href",
+      "/connectors",
+    );
+    // No error wall: the 404 means "not bootstrapped", not "API down".
+    expect(
+      screen.queryByRole("heading", { name: "Operations API unavailable" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the error wall when the API is down instead of showing the checklist", () => {
+    mockQueriesByPath([
+      "/demo/manufacturing",
+      "/platform/policies",
+      "/identity/session",
+    ]);
+    renderOverview();
+
+    expect(
+      screen.getByRole("heading", { name: "Operations API unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Set up your governed platform" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/setup steps complete/)).not.toBeInTheDocument();
+  });
+
+  it("shows the compact setup strip on the control room when onboarding is partial", () => {
+    mockQueriesByPath(["/demo/manufacturing/ontology"]);
+    renderOverview();
+
+    expect(screen.getByText("4 of 5 setup steps complete")).toBeInTheDocument();
+    // The control room still renders around the strip.
+    expect(screen.getByText("Plant Operations Cockpit")).toBeInTheDocument();
+  });
+
+  it("hides the checklist entirely once every setup step is complete", () => {
+    mockQueriesByPath();
+    renderOverview();
+
+    expect(screen.queryByText(/setup steps complete/)).not.toBeInTheDocument();
   });
 });
 

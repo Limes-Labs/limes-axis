@@ -1357,9 +1357,11 @@ test.describe("Axis console smoke", () => {
 
     // Readiness tab (default): each panel degrades on its own instead of one
     // page-wide gate.
-    await expect(page.getByRole("heading", { name: "Readiness API unavailable" })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Deployment readiness API unavailable" }),
+      page.getByRole("heading", { name: "Readiness API unavailable", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Deployment readiness API unavailable", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText("Local fallback settings records are disabled.").first(),

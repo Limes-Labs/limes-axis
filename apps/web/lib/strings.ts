@@ -815,6 +815,52 @@ const simulation = {
   },
 } as const;
 
+/** Guided-setup checklist copy for empty and partially onboarded tenants. */
+const onboarding = {
+  eyebrow: "Guided setup",
+  title: "Set up your governed platform",
+  description:
+    "Five steps take you from an empty tenant to a governed workflow with recorded audit evidence.",
+  progressLabel: "Setup progress",
+  stepsComplete: "setup steps complete",
+  exploreDemo: {
+    label: "Explore with demo data",
+    comingSoon: "Coming with demo provisioning",
+  },
+  compact: {
+    show: "Show setup steps",
+    hide: "Hide setup steps",
+  },
+  stepDone: "Done",
+  steps: {
+    connectors: {
+      title: "Connect a system",
+      why: "Bring governed data in from a file or an external system.",
+      cta: "Open connectors",
+    },
+    ontology: {
+      title: "Import ontology entities",
+      why: "Give agents and policies a shared vocabulary for your business objects.",
+      cta: "Open ontology",
+    },
+    policies: {
+      title: "Define a policy",
+      why: "Set the rules that decide what agents may do and when a human steps in.",
+      cta: "Open policies",
+    },
+    agents: {
+      title: "Register an agent",
+      why: "Register an agent with an explicit autonomy level and permission boundary.",
+      cta: "Open agents",
+    },
+    workflows: {
+      title: "Run a governed workflow",
+      why: "See a workflow run end to end with evidence recorded at every step.",
+      cta: "Open workflows",
+    },
+  },
+} as const;
+
 /**
  * System status (settings) copy: tabs, per-panel state copy, and the
  * plain-English what-to-do line behind every "Action required" pill.
@@ -1023,6 +1069,7 @@ export const strings = {
   audit,
   connectors,
   models,
+  onboarding,
   ontology,
   overview,
   policyDetail,
