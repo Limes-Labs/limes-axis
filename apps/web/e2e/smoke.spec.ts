@@ -398,10 +398,12 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Supply Risk Agent/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Request supplier expedite/ })).toHaveCount(0);
 
-    // The live agent-runs surface reports its own API-required state instead
-    // of fabricated run timelines.
-    await expect(page.getByRole("heading", { name: "Agent runs API unavailable" })).toBeVisible();
-    await expect(page.getByText("Run timelines are never fabricated.")).toBeVisible();
+    // The endpoint path stays demoted behind the ErrorPanel expander, and no
+    // fabricated run timelines or detail tabs render without the registry API.
+    await expect(page.getByText("/demo/manufacturing/agents", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Technical details" }).first().click();
+    await expect(page.getByText("/demo/manufacturing/agents", { exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Runs" })).toHaveCount(0);
     await expect(page.getByText("No runs recorded — execution flag-gated")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);

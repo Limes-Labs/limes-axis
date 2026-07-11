@@ -83,6 +83,26 @@ describe("strings.approvals", () => {
   });
 });
 
+describe("strings.workflows", () => {
+  it("provides blocker, timeline, filter, empty and error copy for the workflow console", () => {
+    const workflows = strings.workflows;
+    expect(workflows.error.title).toBe("Workflow API unavailable");
+    expect(workflows.error.detail).toContain("Local fallback workflow records are disabled.");
+    expect(workflows.empty.title.length).toBeGreaterThan(0);
+    expect(workflows.empty.detail.length).toBeGreaterThan(0);
+    expect(workflows.noMatch.title.length).toBeGreaterThan(0);
+    expect(workflows.noMatch.reset.length).toBeGreaterThan(0);
+    expect(workflows.blocker.title.length).toBeGreaterThan(0);
+    expect(workflows.blocker.linkNamed.length).toBeGreaterThan(0);
+    expect(workflows.blocker.linkGeneric).toBe("Open approvals");
+    expect(workflows.timeline.title.length).toBeGreaterThan(0);
+    expect(workflows.sections.inputs.length).toBeGreaterThan(0);
+    expect(workflows.sections.outputs.length).toBeGreaterThan(0);
+    expect(workflows.sections.context.length).toBeGreaterThan(0);
+    expect(workflows.inspect.length).toBeGreaterThan(0);
+  });
+});
+
 describe("glossary", () => {
   it("defines every platform term", () => {
     for (const key of glossaryKeys) {
