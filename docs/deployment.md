@@ -9,6 +9,22 @@ API and web console. The repository includes local API and web image builds,
 while production operators must still supply signed, published images and the
 external services that the open core depends on.
 
+## Shared request admission control
+
+Production replicas must share one Redis-compatible rate-limit backend. Set
+`AXIS_API_RATE_LIMIT_BACKEND=redis`, `AXIS_API_RATE_LIMIT_FAILURE_MODE=closed`,
+and provide `AXIS_REDIS_URL` through the deployment Secret rather than the Helm
+ConfigMap. Startup rejects a production profile that enables rate limiting with
+an in-memory backend, an open failure mode, no Redis URL, or less than full
+route coverage (`AXIS_API_RATE_LIMIT_PATHS=["*"]`). Verified bearer and browser
+sessions share tenant quota buckets. The in-memory backend remains available
+only for local development and tests.
+
+The local Compose stack includes persistent Valkey on port `6379` for
+integration testing. Customer deployments should use a monitored, redundant
+Redis or Valkey service with authentication and TLS appropriate to their
+availability requirements.
+
 ## Scope
 
 The baseline covers:

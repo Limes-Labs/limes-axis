@@ -66,6 +66,13 @@ class TenantUsageMetric(StrEnum):
     AGENT_RUNS = "agent_runs"
 
 
+class UsageRecordResult(StrEnum):
+    ACCEPTED = "accepted"
+    DISABLED = "disabled"
+    IGNORED = "ignored"
+    OVERFLOW = "overflow"
+
+
 def usage_period_start(
     occurred_at: datetime,
     window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
@@ -120,6 +127,7 @@ class UsageAccumulator:
         default_factory=dict
     )
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    _overflow_total: int = 0
 
     def record(
         self,
@@ -128,9 +136,11 @@ class UsageAccumulator:
         quantity: int = 1,
         *,
         occurred_at: datetime | None = None,
-    ) -> None:
-        if not self.enabled or not tenant_id or quantity <= 0:
-            return
+    ) -> UsageRecordResult:
+        if not self.enabled:
+            return UsageRecordResult.DISABLED
+        if not tenant_id or quantity <= 0:
+            return UsageRecordResult.IGNORED
         moment = occurred_at or utc_now()
         period_start = usage_period_start(moment, self.window_seconds)
         key = (tenant_id, metric, period_start)
@@ -138,14 +148,25 @@ class UsageAccumulator:
             counter = self._pending.get(key)
             if counter is None:
                 if len(self._pending) >= self.max_pending_keys:
-                    # Full: existing buckets keep accumulating; only genuinely new
-                    # buckets are shed under this pathological guard.
-                    return
+                    self._overflow_total += quantity
+                    return UsageRecordResult.OVERFLOW
                 counter = _PendingCounter(quantity=0, last_occurred_at=moment)
                 self._pending[key] = counter
             counter.quantity += quantity
             if moment > counter.last_occurred_at:
                 counter.last_occurred_at = moment
+        return UsageRecordResult.ACCEPTED
+
+    def health(self) -> dict[str, int | bool]:
+        """Expose bounded, non-tenant operational state for diagnostics."""
+
+        with self._lock:
+            return {
+                "healthy": self._overflow_total == 0,
+                "pending_keys": len(self._pending),
+                "max_pending_keys": self.max_pending_keys,
+                "overflow_total": self._overflow_total,
+            }
 
     def drain(self) -> list[PendingUsage]:
         with self._lock:
@@ -265,13 +286,15 @@ class TenantUsageSummary(BaseModel):
 _USAGE_NOTES = [
     "Usage metering is cumulative consumption accounting, not an instantaneous "
     "ceiling; quotas remain the enforcement layer.",
-    "api_request counts tenant-resolved requests on rate-limited paths; "
+    "api_request counts authenticated tenant-resolved application requests; "
     "connector_sync_rows counts rows read by governed live-sync runs; "
     "session_created counts OIDC browser sessions established.",
     "Totals aggregate over epoch-aligned period buckets; the breakdown lists one "
     "point per metric and period in the window.",
     "Metering is per-tenant and isolated; billing is a future consumer of this "
     "ledger.",
+    "Hot-path API counts are buffered in process before periodic durable flushes; "
+    "this accounting path is not a billing-grade event transport.",
 ]
 
 

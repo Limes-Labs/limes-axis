@@ -9,14 +9,48 @@ import {
 export class AxisApiError extends Error {
   readonly status: number;
   readonly path: string;
+  readonly body: unknown;
+  readonly detail: unknown;
+  readonly code: string | null;
+  readonly reason: string | null;
+  readonly requiredPermission: string | null;
+  readonly validationIssues: unknown[];
+  readonly requestId: string | null;
 
-  constructor(path: string, status: number, message?: string) {
-    super(message ?? `Axis API request failed with ${status}`);
+  constructor(
+    path: string,
+    status: number,
+    options: {
+      body?: unknown;
+      requestId?: string | null;
+    } = {},
+  ) {
+    const detail = readErrorDetail(options.body);
+    super(errorMessage(detail, status));
     this.name = "AxisApiError";
     this.status = status;
     this.path = path;
+    this.body = options.body ?? null;
+    this.detail = detail;
+    this.code = readStringField(detail, "code");
+    this.reason = readStringField(detail, "reason");
+    this.requiredPermission = readStringField(detail, "required_permission");
+    this.validationIssues = Array.isArray(detail) ? detail : [];
+    this.requestId = options.requestId ?? null;
   }
 }
+
+export class AxisApiDecodeError extends Error {
+  readonly path: string;
+
+  constructor(path: string, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "AxisApiDecodeError";
+    this.path = path;
+  }
+}
+
+export type AxisJsonDecoder<T> = (value: unknown) => T;
 
 export type AxisFetchOptions = {
   session?: OidcConsoleSession | null;
@@ -171,10 +205,71 @@ export async function axisFetchJson<T>(
   options: AxisFetchOptions = {},
 ): Promise<T> {
   const response = await axisFetch(path, options);
+  const body = await readResponseBody(response);
 
   if (!response.ok) {
-    throw new AxisApiError(path, response.status);
+    throw new AxisApiError(path, response.status, {
+      body,
+      requestId:
+        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+    });
   }
 
-  return (await response.json()) as T;
+  if (body === null || typeof body === "string") {
+    throw new AxisApiDecodeError(path, "Axis API returned an invalid JSON response.");
+  }
+  return body as T;
+}
+
+export async function axisFetchParsedJson<T>(
+  path: string,
+  decoder: AxisJsonDecoder<T>,
+  options: AxisFetchOptions = {},
+): Promise<T> {
+  const body = await axisFetchJson<unknown>(path, options);
+  try {
+    return decoder(body);
+  } catch (error) {
+    throw new AxisApiDecodeError(
+      path,
+      "Axis API response did not match the expected contract.",
+      { cause: error },
+    );
+  }
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function readErrorDetail(body: unknown): unknown {
+  return isRecord(body) && "detail" in body ? body.detail : body;
+}
+
+function errorMessage(detail: unknown, status: number): string {
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+  const message = readStringField(detail, "message");
+  return message ?? `Axis API request failed with ${status}`;
+}
+
+function readStringField(value: unknown, key: string): string | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const field = value[key];
+  return typeof field === "string" && field.trim() ? field : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

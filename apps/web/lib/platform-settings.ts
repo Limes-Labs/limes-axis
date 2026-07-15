@@ -9,9 +9,16 @@ export type SettingsCheck = {
 };
 
 export type AxisReadyReport = {
-  status: "ready";
+  status: "ready" | "not_ready";
   service: string;
-  dependencies: Record<string, boolean>;
+  dependencies: Record<
+    string,
+    {
+      required: boolean;
+      status: "ready" | "disabled" | "timeout" | "unavailable";
+      latency_ms: number;
+    }
+  >;
   identity: {
     oidc_auth_required: boolean;
     enterprise_sso_ready: boolean;

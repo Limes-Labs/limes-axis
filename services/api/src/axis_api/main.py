@@ -99,7 +99,7 @@ from axis_api.audit_reference import (
     get_persisted_manufacturing_audit_explorer,
 )
 from axis_api.audit_signing import SelfHostedAuditLedgerSigner
-from axis_api.config import Settings
+from axis_api.config import Settings, validate_runtime_configuration
 from axis_api.connector_configurations import (
     ConnectorConfigurationCreateRequest,
     ConnectorConfigurationQuery,
@@ -566,7 +566,11 @@ from axis_api.platform_tenants import (
     suspend_tenant,
     update_tenant_quotas,
 )
-from axis_api.rate_limit import ApiRateLimitMiddleware
+from axis_api.rate_limit import (
+    ApiRateLimitMiddleware,
+    RateLimitBackend,
+    build_rate_limit_backend,
+)
 from axis_api.replay_simulation import (
     ManufacturingReplaySimulation,
     ReplayPolicySetDiffDisabled,
@@ -580,11 +584,16 @@ from axis_api.replay_simulation import (
     build_replay_simulation,
     persist_replay_simulation_output,
 )
+from axis_api.runtime_readiness import (
+    RuntimeReadinessService,
+    build_runtime_readiness_service,
+)
 from axis_api.session_metadata import extract_session_client_metadata
 from axis_api.support_diagnostics import (
     SupportDiagnosticsReport,
     build_support_diagnostics_report,
 )
+from axis_api.system_routes import build_system_router
 from axis_api.telemetry import (
     ATTR_ACTION_ID,
     ATTR_ACTOR_ID,
@@ -834,6 +843,11 @@ def oidc_principal(
     authorization: Annotated[str | None, Header(alias="Authorization")] = None,
 ) -> OidcPrincipal | None:
     settings: Settings = request.app.state.settings
+    cached_principal = getattr(request.state, "axis_principal", None)
+    if authorization and isinstance(cached_principal, OidcPrincipal):
+        _reject_suspended_tenant_request(request, cached_principal)
+        _annotate_request_span_with_principal(cached_principal)
+        return cached_principal
     if not authorization:
         session_cookie = request.cookies.get(session_cookie_name(settings))
         if session_cookie:
@@ -886,6 +900,7 @@ def oidc_principal(
                 if principal is not None:
                     _reject_suspended_tenant_request(request, principal)
                     _annotate_request_span_with_principal(principal)
+                    request.state.axis_principal = principal
                     return principal
             except (
                 OidcCodeFlowConfigurationError,
@@ -920,6 +935,7 @@ def oidc_principal(
                     "reason": "missing_authorization",
                 },
             )
+        request.state.axis_principal = None
         return None
 
     try:
@@ -937,6 +953,7 @@ def oidc_principal(
         ) from exc
     _reject_suspended_tenant_request(request, principal)
     _annotate_request_span_with_principal(principal)
+    request.state.axis_principal = principal
     return principal
 
 
@@ -2232,6 +2249,15 @@ def _authorize_connector_tenant_read(
     traffic (no principal) is unaffected, preserving the
     ``AXIS_OIDC_AUTH_REQUIRED`` demo-mode convention.
     """
+    _authorize_tenant_read(tenant_id, principal)
+
+
+def _authorize_tenant_read(
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+) -> None:
+    """Bind any tenant-scoped read to the verified principal when present."""
+
     if principal is not None and principal.tenant_id != tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -2359,14 +2385,18 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         runtime: TelemetryRuntime | None = getattr(app.state, "telemetry", None)
         if runtime is not None and runtime.enabled:
             shutdown_providers(runtime.tracer_provider, runtime.meter_provider)
+        await app.state.rate_limit_backend.close()
 
 
 def create_app(
     settings: Settings | None = None,
     *,
     telemetry: TelemetryRuntime | None = None,
+    readiness_service: RuntimeReadinessService | None = None,
+    rate_limit_backend: RateLimitBackend | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings()
+    validate_runtime_configuration(resolved_settings)
     app = FastAPI(
         title="Limes Axis API",
         description="Core API for the sovereign AI control plane for European operations.",
@@ -2379,7 +2409,14 @@ def create_app(
     )
     validate_refresh_token_encryption_key(resolved_settings)
     app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)
-    app.add_middleware(ApiRateLimitMiddleware, settings=resolved_settings)
+    resolved_rate_limit_backend = rate_limit_backend or build_rate_limit_backend(
+        resolved_settings
+    )
+    app.add_middleware(
+        ApiRateLimitMiddleware,
+        settings=resolved_settings,
+        backend=resolved_rate_limit_backend,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved_settings.cors_origins,
@@ -2395,6 +2432,7 @@ def create_app(
         ],
     )
     app.state.settings = resolved_settings
+    app.state.rate_limit_backend = resolved_rate_limit_backend
     telemetry = telemetry or configure_api_telemetry(resolved_settings)
     app.state.telemetry = telemetry
     instrument_fastapi_app(app, telemetry)
@@ -2416,6 +2454,12 @@ def create_app(
         )
         if resolved_settings.workflow_signals_enabled
         else DeferredWorkflowSignalRuntime()
+    )
+    app.state.runtime_readiness_service = readiness_service or build_runtime_readiness_service(
+        resolved_settings,
+        session_factory=app.state.session_factory,
+        workflow_runtime=app.state.workflow_runtime,
+        usage_accumulator=app.state.usage_accumulator,
     )
     app.state.ontology_mutation_runtime = (
         TypeDBOntologyMutationRuntime(
@@ -2475,25 +2519,12 @@ def create_app(
     )
     app.state.oidc_token_exchanger = exchange_authorization_code
 
-    @app.get("/health", tags=["system"])
-    def health() -> dict[str, str]:
-        return {"status": "ok", "service": "axis-api"}
-
-    @app.get("/ready", tags=["system"])
-    def ready() -> dict[str, object]:
-        return {
-            "status": "ready",
-            "service": "axis-api",
-            "dependencies": {
-                "postgres": bool(resolved_settings.postgres_dsn),
-                "typedb": bool(resolved_settings.typedb_address),
-                "typedb_queries": resolved_settings.ontology_queries_enabled,
-                "typedb_mutations": resolved_settings.ontology_mutations_enabled,
-                "temporal": bool(resolved_settings.temporal_address),
-            },
-            "identity": _oidc_readiness_summary(resolved_settings),
-            "external_model_egress_enabled": resolved_settings.external_model_egress_enabled,
-        }
+    app.include_router(
+        build_system_router(
+            identity_summary=lambda: _oidc_readiness_summary(resolved_settings),
+            external_model_egress_enabled=resolved_settings.external_model_egress_enabled,
+        )
+    )
 
     @app.get("/identity/oidc/readiness", tags=["system"])
     def oidc_readiness() -> dict[str, object]:
@@ -3375,8 +3406,10 @@ def create_app(
     )
     def manufacturing_overview(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingOverview:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_overview(repository, tenant_id=tenant_id)
         except DemoReferenceRecordNotFound as exc:
@@ -3464,8 +3497,10 @@ def create_app(
     )
     def manufacturing_workflow_console(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingWorkflowConsole:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_workflow_console(
                 repository,
@@ -3499,10 +3534,12 @@ def create_app(
     )
     def manufacturing_persisted_workflow_runs(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         state: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingWorkflowConsole:
+        _authorize_tenant_read(tenant_id, principal)
         return query_persisted_workflow_runs(
             repository,
             WorkflowRunQuery(tenant_id=tenant_id, state=state, limit=limit),
@@ -3665,6 +3702,7 @@ def create_app(
     )
     def manufacturing_operations_dataset(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         domain: str | None = Query(default=None, min_length=1),
         status: str | None = Query(default=None, min_length=1),
@@ -3672,6 +3710,7 @@ def create_app(
         source_system: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingOperationsDataset:
+        _authorize_tenant_read(tenant_id, principal)
         return query_manufacturing_operations_dataset(
             repository,
             ManufacturingOperationQuery(
@@ -3691,6 +3730,7 @@ def create_app(
     )
     def manufacturing_operations_snapshot(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         operation_limit: int = Query(default=100, ge=1, le=200),
         workflow_limit: int = Query(default=25, ge=1, le=100),
@@ -3698,6 +3738,7 @@ def create_app(
         artifact_limit: int = Query(default=10, ge=1, le=50),
         audit_limit: int = Query(default=25, ge=1, le=100),
     ) -> ManufacturingOperationsSnapshot:
+        _authorize_tenant_read(tenant_id, principal)
         return build_manufacturing_operations_snapshot(
             repository,
             ManufacturingOperationsSnapshotQuery(
@@ -3816,6 +3857,7 @@ def create_app(
     )
     def manufacturing_demo_readiness(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         operation_limit: int = Query(default=100, ge=1, le=200),
         workflow_limit: int = Query(default=25, ge=1, le=100),
@@ -3823,6 +3865,7 @@ def create_app(
         artifact_limit: int = Query(default=10, ge=1, le=50),
         audit_limit: int = Query(default=25, ge=1, le=100),
     ) -> ManufacturingDemoReadinessReport:
+        _authorize_tenant_read(tenant_id, principal)
         return build_manufacturing_demo_readiness_report(
             repository,
             ManufacturingOperationsSnapshotQuery(
@@ -4076,8 +4119,10 @@ def create_app(
     )
     def manufacturing_agent_registry(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingAgentRegistry:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_agent_registry(
                 repository,
@@ -4331,8 +4376,10 @@ def create_app(
     )
     def manufacturing_action_registry(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingActionRegistry:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_action_registry(
                 repository,
@@ -4370,8 +4417,10 @@ def create_app(
     )
     def manufacturing_connector_registry(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingConnectorRegistry:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_connector_registry(
                 repository,
@@ -5042,6 +5091,7 @@ def create_app(
     )
     def manufacturing_connector_evidence_invariant_snapshot_export(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
         connector_id: str | None = Query(default=None, min_length=1),
         snapshot_id: str | None = Query(default=None, min_length=1),
@@ -5056,6 +5106,9 @@ def create_app(
         ),
         format: str = Query(default="json", pattern="^json$"),
     ) -> ConnectorEvidenceInvariantSnapshotExportBundle:
+        _authorize_tenant_read(tenant_id, principal)
+        resolved_actor_id = principal.actor_id if principal is not None else actor_id
+        resolved_actor_scopes = principal.scopes if principal is not None else actor_scopes
         try:
             return export_connector_evidence_invariant_snapshots(
                 repository,
@@ -5068,8 +5121,8 @@ def create_app(
                     export_reason=export_reason,
                     format=format,
                 ),
-                actor_id=actor_id,
-                actor_scopes=actor_scopes,
+                actor_id=resolved_actor_id,
+                actor_scopes=resolved_actor_scopes,
                 ledger_signer=_audit_ledger_signer_from_settings(app.state.settings),
             )
         except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
@@ -7359,8 +7412,10 @@ def create_app(
     )
     def manufacturing_approval_inbox(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingApprovalInbox:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_approval_inbox(
                 repository,
@@ -7477,8 +7532,10 @@ def create_app(
     )
     def manufacturing_audit_explorer(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingAuditExplorer:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_audit_explorer(
                 repository,
@@ -8249,8 +8306,10 @@ def create_app(
     )
     def manufacturing_model_routing(
         repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
         tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ManufacturingModelRouting:
+        _authorize_tenant_read(tenant_id, principal)
         try:
             return get_persisted_manufacturing_model_routing(
                 repository,

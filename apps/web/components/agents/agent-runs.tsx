@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +20,7 @@ import {
   type AgentRunRecord,
 } from "@/lib/agent-runs-live";
 import { buildAuditEventHref } from "@/lib/audit-demo";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
 import { cn } from "@/lib/cn";
 import { formatModelRoutingLabel } from "@/lib/model-routing-demo";
 import {
@@ -130,11 +130,12 @@ function useLinkedModelInvocations(invocationIds: string[]): LinkedInvocationsSt
       await Promise.all(
         ids.map(async (invocationId) => {
           try {
-            const payload = await axisFetchJson<unknown>(
+            const payload = await axisFetchParsedJson(
               modelInvocationDetailPath(invocationId),
+              parseModelInvocation,
               { session, signal: controller.signal },
             );
-            invocations.push(parseModelInvocation(payload));
+            invocations.push(payload);
           } catch {
             failedIds.push(invocationId);
           }
@@ -166,17 +167,10 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
   // run DETAIL endpoint carries the persisted context_read → model call →
   // proposal steps. Fetch the detail for the selected run so the step rail
   // reflects recorded step statuses instead of always rendering "pending".
-  const detailQuery = useAxisQuery<unknown>(agentRunDetailPath(agentId, run.run_id));
-  const detailRun = useMemo(() => {
-    if (detailQuery.data === null || detailQuery.data === undefined) {
-      return null;
-    }
-    try {
-      return parseAgentRun(detailQuery.data);
-    } catch {
-      return null;
-    }
-  }, [detailQuery.data]);
+  const detailQuery = useAxisQuery(agentRunDetailPath(agentId, run.run_id), {
+    parse: parseAgentRun,
+  });
+  const detailRun = detailQuery.data;
 
   return (
     <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3 dark:border-white/10" data-run-detail={run.run_id}>
@@ -287,18 +281,8 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
  */
 export function AgentRuns({ agentId }: { agentId: string }) {
   const [selectedRunId, setSelectedRunId] = useState("");
-  const runsQuery = useAxisQuery<unknown>(agentRunsPath(agentId));
-
-  const runList = useMemo(() => {
-    if (runsQuery.data === null || runsQuery.data === undefined) {
-      return null;
-    }
-    try {
-      return parseAgentRunList(runsQuery.data);
-    } catch {
-      return null;
-    }
-  }, [runsQuery.data]);
+  const runsQuery = useAxisQuery(agentRunsPath(agentId), { parse: parseAgentRunList });
+  const runList = runsQuery.data;
 
   const selectedRun =
     runList?.runs.find((run) => run.run_id === selectedRunId) ?? runList?.runs[0] ?? null;

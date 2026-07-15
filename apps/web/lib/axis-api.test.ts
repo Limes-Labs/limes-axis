@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT,
+  AxisApiDecodeError,
   AxisApiError,
   axisFetch,
   axisFetchJson,
+  axisFetchParsedJson,
 } from "./axis-api";
 import type { OidcConsoleSession } from "./oidc-session";
 
@@ -281,5 +283,90 @@ describe("Axis API fetch layer", () => {
 
     await expect(pending).resolves.toEqual([{ ok: true }, { ok: true }]);
     expect(refreshCalls).toBe(1);
+  });
+
+  it("preserves structured API error details and request correlation", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        new Response(
+          JSON.stringify({
+            detail: {
+              code: "PERMISSION_DENIED",
+              message: "Tenant access denied.",
+              reason: "tenant_mismatch",
+              required_permission: "tenant:read",
+            },
+          }),
+          { headers: { "x-request-id": "request-123" }, status: 403 },
+        ),
+      ),
+    );
+
+    const error = await axisFetchJson("/protected").catch((value: unknown) => value);
+
+    expect(error).toBeInstanceOf(AxisApiError);
+    expect(error).toMatchObject({
+      code: "PERMISSION_DENIED",
+      message: "Tenant access denied.",
+      path: "/protected",
+      reason: "tenant_mismatch",
+      requestId: "request-123",
+      requiredPermission: "tenant:read",
+      status: 403,
+    });
+  });
+
+  it("preserves FastAPI validation issues", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    const issues = [{ loc: ["body", "tenant_id"], msg: "Field required", type: "missing" }];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        new Response(JSON.stringify({ detail: issues }), { status: 422 }),
+      ),
+    );
+
+    const error = await axisFetchJson("/invalid").catch((value: unknown) => value);
+
+    expect(error).toBeInstanceOf(AxisApiError);
+    expect(error).toMatchObject({ validationIssues: issues });
+  });
+
+  it("reports malformed and empty successful JSON responses as decode errors", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("not-json", { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(axisFetchJson("/malformed")).rejects.toBeInstanceOf(AxisApiDecodeError);
+    await expect(axisFetchJson("/empty")).rejects.toBeInstanceOf(AxisApiDecodeError);
+  });
+
+  it("applies an explicit runtime decoder to successful responses", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        new Response(JSON.stringify({ count: "wrong" }), { status: 200 }),
+      ),
+    );
+
+    await expect(
+      axisFetchParsedJson("/counts", (value) => {
+        if (
+          typeof value !== "object" ||
+          value === null ||
+          !("count" in value) ||
+          typeof value.count !== "number"
+        ) {
+          throw new TypeError("count must be a number");
+        }
+        return { count: value.count };
+      }),
+    ).rejects.toBeInstanceOf(AxisApiDecodeError);
   });
 });

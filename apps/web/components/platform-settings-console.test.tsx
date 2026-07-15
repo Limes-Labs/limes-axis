@@ -54,7 +54,11 @@ function queryResult(data: unknown, source: Source) {
 const readyFixture: AxisReadyReport = {
   status: "ready",
   service: "axis-api",
-  dependencies: { audit_ledger: true, object_store: false },
+  dependencies: {
+    postgres: { required: true, status: "ready", latency_ms: 3.2 },
+    temporal: { required: true, status: "unavailable", latency_ms: 1000 },
+    typedb: { required: false, status: "disabled", latency_ms: 0 },
+  },
   identity: {
     oidc_auth_required: false,
     enterprise_sso_ready: false,
