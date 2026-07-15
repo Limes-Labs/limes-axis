@@ -16,6 +16,7 @@ class AxisErrorCode(StrEnum):
     WORKFLOW_NOT_FOUND = "WORKFLOW_NOT_FOUND"
     REPLAY_NOT_AVAILABLE = "REPLAY_NOT_AVAILABLE"
     RATE_LIMITED = "RATE_LIMITED"
+    CONTROL_PLANE_UNAVAILABLE = "CONTROL_PLANE_UNAVAILABLE"
 
 
 def error_response(code: AxisErrorCode, message: str, request_id: str) -> dict[str, Any]:

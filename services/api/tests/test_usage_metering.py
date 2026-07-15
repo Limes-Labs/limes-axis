@@ -1,4 +1,3 @@
-import secrets
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -30,12 +29,12 @@ from axis_api.connector_runs import (
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import Base, TenantUsageRecord
-from axis_api.oidc_code_flow import session_cookie_name, sign_cookie
 from axis_api.persistence import AxisPersistenceRepository, TenantCreate, TenantUsageAdd
 from axis_api.usage_metering import (
     DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
     TenantUsageMetric,
     UsageAccumulator,
+    UsageRecordResult,
     build_tenant_usage_summary,
     record_tenant_usage_event,
     usage_period_start,
@@ -222,6 +221,28 @@ def test_accumulator_disabled_is_a_no_op() -> None:
     accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value)
     assert accumulator.flush(factory) == 0
     assert _usage_rows(factory, TENANT_ID) == []
+
+
+def test_accumulator_overflow_is_observable_and_existing_bucket_still_accumulates() -> None:
+    accumulator = UsageAccumulator(enabled=True, max_pending_keys=1)
+
+    assert accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value) == (
+        UsageRecordResult.ACCEPTED
+    )
+    assert accumulator.record(OTHER_TENANT_ID, TenantUsageMetric.API_REQUEST.value, 3) == (
+        UsageRecordResult.OVERFLOW
+    )
+    assert accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value, 2) == (
+        UsageRecordResult.ACCEPTED
+    )
+
+    assert accumulator.health() == {
+        "healthy": False,
+        "pending_keys": 1,
+        "max_pending_keys": 1,
+        "overflow_total": 3,
+    }
+    assert accumulator.drain()[0].quantity == 3
 
 
 def test_accumulator_restore_does_not_lose_counts_on_flush_failure() -> None:
@@ -462,32 +483,34 @@ def test_live_sync_resume_records_seed_reads_committed_checkpoint() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _session_cookie(settings: Settings, tenant_id: str) -> tuple[str, str]:
-    cookie_value = sign_cookie(
-        {
-            "kind": "oidc_session",
-            "session_id": secrets.token_urlsafe(48),
-            "actor_id": "acme-console-user-role",
-            "tenant_id": tenant_id,
-            "scopes": ["audit:read"],
-            "expires_at": 4102444800,
-        },
-        settings,
-    )
-    return session_cookie_name(settings), cookie_value
+class _StaticVerifier:
+    def __init__(self, principal: OidcPrincipal) -> None:
+        self.principal = principal
+
+    def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+        assert authorization == "Bearer valid-token"
+        return self.principal
 
 
-def test_api_request_metered_for_tenant_resolved_request() -> None:
-    settings = _metering_settings(
-        oidc_session_cookie_signing_secret="a-secure-cookie-signing-secret",
-        oidc_session_cookie_host_prefix=False,
+def _set_bearer_principal(client: TestClient, tenant_id: str = TENANT_ID) -> None:
+    client.app.state.identity_verifier = _StaticVerifier(
+        OidcPrincipal(
+            actor_id="acme-console-user-role",
+            tenant_id=tenant_id,
+            scopes=["audit:read"],
+        )
     )
+
+
+def test_api_request_metered_for_verified_bearer_on_non_rate_limited_path() -> None:
+    settings = _metering_settings(api_rate_limit_paths=["/deployment/readiness"])
     client, factory = _build_client(settings)
-    name, value = _session_cookie(settings, TENANT_ID)
-    client.cookies.set(name, value)
+    _set_bearer_principal(client)
 
-    # /deployment/readiness is a protected/metered path.
-    response = client.get("/deployment/readiness")
+    response = client.get(
+        "/identity/session",
+        headers={"Authorization": "Bearer valid-token"},
+    )
     assert response.status_code == 200
 
     accumulator: UsageAccumulator = client.app.state.usage_accumulator
@@ -498,11 +521,8 @@ def test_api_request_metered_for_tenant_resolved_request() -> None:
     assert rows[0].quantity == 1
 
 
-def test_api_request_not_metered_without_tenant_cookie() -> None:
-    settings = _metering_settings(
-        oidc_session_cookie_signing_secret="a-secure-cookie-signing-secret",
-        oidc_session_cookie_host_prefix=False,
-    )
+def test_api_request_not_metered_without_verified_principal() -> None:
+    settings = _metering_settings()
     client, factory = _build_client(settings)
 
     assert client.get("/deployment/readiness").status_code == 200
@@ -512,16 +532,17 @@ def test_api_request_not_metered_without_tenant_cookie() -> None:
 
 
 def test_api_request_not_metered_when_disabled() -> None:
-    settings = _metering_settings(
-        usage_metering_enabled=False,
-        oidc_session_cookie_signing_secret="a-secure-cookie-signing-secret",
-        oidc_session_cookie_host_prefix=False,
-    )
+    settings = _metering_settings(usage_metering_enabled=False)
     client, factory = _build_client(settings)
-    name, value = _session_cookie(settings, TENANT_ID)
-    client.cookies.set(name, value)
+    _set_bearer_principal(client)
 
-    assert client.get("/deployment/readiness").status_code == 200
+    assert (
+        client.get(
+            "/identity/session",
+            headers={"Authorization": "Bearer valid-token"},
+        ).status_code
+        == 200
+    )
 
     accumulator: UsageAccumulator = client.app.state.usage_accumulator
     assert accumulator.flush(factory) == 0
@@ -665,14 +686,6 @@ def test_usage_read_requires_operator_and_usage_scopes_when_authenticated() -> N
     client, factory = _build_client()
     _provision_tenant(factory)
     bearer = {"Authorization": "Bearer valid-token"}
-
-    class _StaticVerifier:
-        def __init__(self, principal: OidcPrincipal) -> None:
-            self.principal = principal
-
-        def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
-            assert authorization == "Bearer valid-token"
-            return self.principal
 
     # Missing the operator scope: denied.
     client.app.state.identity_verifier = _StaticVerifier(

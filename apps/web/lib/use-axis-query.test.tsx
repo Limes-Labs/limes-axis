@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
   refreshNonce: 0,
 }));
 
 vi.mock("@/lib/axis-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./axis-api")>()),
   axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/providers/console-provider", () => ({
@@ -41,6 +43,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   mocks.axisFetchJson.mockReset();
+  mocks.axisFetchParsedJson.mockReset();
   mocks.refreshNonce = 0;
 });
 
@@ -143,5 +146,32 @@ describe("useAxisQuery", () => {
     second.resolve({ items: ["z"] });
     await waitFor(() => expect(result.current.source).toBe("api"));
     expect(result.current.data).toEqual({ items: ["z"] });
+  });
+
+  it("uses the supplied runtime decoder and surfaces contract failures", async () => {
+    const parse = (value: unknown): Registry => {
+      if (typeof value !== "object" || value === null || !("items" in value)) {
+        throw new TypeError("items missing");
+      }
+      return value as Registry;
+    };
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(
+      new Error("Axis API response did not match the expected contract."),
+    );
+
+    const { result } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse }),
+    );
+
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
+      "/demo/registry",
+      parse,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(result.current.error).toBe(
+      "Axis API response did not match the expected contract.",
+    );
+    expect(result.current.errorStatus).toBeNull();
   });
 });

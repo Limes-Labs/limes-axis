@@ -11,6 +11,7 @@ class OntologyClientConfig:
     password: str
     database: str = "axis"
     tls_enabled: bool = False
+    request_timeout_millis: int | None = None
 
 
 class OntologyClient:
@@ -33,11 +34,26 @@ class OntologyClient:
             if self.config.tls_enabled
             else DriverTlsConfig.disabled()
         )
+        options = (
+            DriverOptions(tls_config)
+            if self.config.request_timeout_millis is None
+            else DriverOptions(
+                tls_config,
+                request_timeout_millis=self.config.request_timeout_millis,
+            )
+        )
         self._driver = TypeDB.driver(
             self.config.address,
             Credentials(self.config.username, self.config.password),
-            DriverOptions(tls_config),
+            options,
         )
+
+    def database_exists(self) -> bool:
+        """Return database reachability without creating or mutating state."""
+
+        if self._driver is None:
+            self.connect()
+        return bool(self._driver.databases.contains(self.config.database))
 
     def ensure_database(self) -> None:
         if self._driver is None:

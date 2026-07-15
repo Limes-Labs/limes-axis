@@ -28,6 +28,7 @@ from axis_api.persistence import (
     WorkflowRunCreate,
     WorkflowTimelineEventCreate,
 )
+from axis_api.runtime_readiness import static_runtime_readiness_service
 from axis_api.workflow_runtime import WorkflowSignalResult
 from fastapi import FastAPI
 from sqlalchemy import create_engine
@@ -208,7 +209,15 @@ def build_app(
     principal: OidcPrincipal | None = None,
 ) -> FastAPI:
     app = create_app(
-        Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=oidc_auth_required)
+        Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=oidc_auth_required),
+        readiness_service=static_runtime_readiness_service(
+            {
+                "postgres": (False, None),
+                "typedb": (False, None),
+                "temporal": (False, None),
+                "usage_metering": (False, None),
+            }
+        ),
     )
     app.state.session_factory = session_factory
     app.state.workflow_runtime = RecordingWorkflowRuntime()

@@ -15,6 +15,20 @@ services:
       timeout: 5s
       retries: 20
 
+  valkey:
+    image: valkey/valkey:8.1.8-alpine@sha256:94365b275456ae14621001c03556c732b1d93a0cdeacc317d1bdd52eba680885
+    command: ["valkey-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - axis-valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   typedb:
     image: typedb/typedb@sha256:b51d9131b6b4c4dd102c377b9b8941a81a90e2f982af9a0b58f1ba5e0bfcf9b7
     ports:
@@ -121,5 +135,6 @@ services:
 
 volumes:
   axis-postgres:
+  axis-valkey:
   axis-typedb:
   axis-minio:

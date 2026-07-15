@@ -5,6 +5,7 @@ from jose.utils import base64url_encode
 from axis_api.config import Settings
 from axis_api.identity import StaticJwksOidcVerifier
 from axis_api.main import create_app
+from axis_api.runtime_readiness import static_runtime_readiness_service
 
 
 def _oct_jwks(secret: str) -> dict:
@@ -30,20 +31,77 @@ def test_health_returns_ok() -> None:
     assert response.json() == {"status": "ok", "service": "axis-api"}
 
 
-def test_ready_returns_dependency_configuration_without_secrets() -> None:
-    client = TestClient(create_app())
+async def _healthy_probe() -> None:
+    return None
+
+
+async def _failing_probe() -> None:
+    raise RuntimeError("postgresql://user:secret@internal.example/axis")
+
+
+def _readiness_service(*, postgres_probe=_healthy_probe):
+    return static_runtime_readiness_service(
+        {
+            "postgres": (True, postgres_probe),
+            "typedb": (False, None),
+            "temporal": (False, None),
+        }
+    )
+
+
+def test_ready_checks_required_dependencies_without_exposing_secrets() -> None:
+    client = TestClient(create_app(readiness_service=_readiness_service()))
     response = client.get("/ready")
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ready"
+    postgres_latency_ms = body["dependencies"]["postgres"]["latency_ms"]
     assert body["dependencies"] == {
-        "postgres": True,
-        "typedb": True,
-        "typedb_queries": False,
-        "typedb_mutations": False,
-        "temporal": True,
+        "postgres": {
+            "required": True,
+            "status": "ready",
+            "latency_ms": postgres_latency_ms,
+        },
+        "typedb": {"required": False, "status": "disabled", "latency_ms": 0.0},
+        "temporal": {"required": False, "status": "disabled", "latency_ms": 0.0},
     }
     assert "password" not in str(body).lower()
+
+
+def test_ready_returns_503_and_redacts_dependency_errors() -> None:
+    client = TestClient(
+        create_app(readiness_service=_readiness_service(postgres_probe=_failing_probe))
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    assert body["dependencies"]["postgres"]["status"] == "unavailable"
+    assert "secret" not in str(body).lower()
+
+
+def test_ready_degrades_when_usage_metering_has_dropped_counts() -> None:
+    app = create_app(
+        Settings(
+            postgres_dsn="sqlite+pysqlite://",
+            usage_metering_enabled=True,
+            workflow_signals_enabled=False,
+        )
+    )
+    app.state.usage_accumulator.max_pending_keys = 0
+    app.state.usage_accumulator.record("tenant-a", "api_request")
+
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 503
+    latency_ms = response.json()["dependencies"]["usage_metering"]["latency_ms"]
+    assert response.json()["dependencies"]["usage_metering"] == {
+        "required": True,
+        "status": "unavailable",
+        "latency_ms": latency_ms,
+    }
 
 
 def test_local_console_origin_is_allowed_for_cors_preflight() -> None:
@@ -152,6 +210,7 @@ def test_api_rate_limiter_keeps_each_endpoint_bucket_separate() -> None:
                 api_rate_limit_requests=1,
                 api_rate_limit_window_seconds=60,
                 api_rate_limit_paths=["/health", "/ready"],
+                workflow_signals_enabled=False,
             )
         )
     )
@@ -186,6 +245,7 @@ def test_oidc_readiness_reports_enterprise_profile_without_secrets() -> None:
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
                 oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
+                workflow_signals_enabled=False,
             )
         )
     )
@@ -280,6 +340,7 @@ def test_oidc_onboarding_report_is_public_safe_and_computed_from_settings() -> N
                 oidc_session_cookie_signing_secret="super-secret-cookie-signing-key",
                 oidc_session_cookie_secure=True,
                 oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
+                workflow_signals_enabled=False,
             )
         )
     )
@@ -528,6 +589,7 @@ def test_ready_includes_oidc_readiness_summary() -> None:
                 oidc_session_cookie_signing_secret="axis-cookie-signing-secret",
                 oidc_session_cookie_secure=True,
                 oidc_refresh_token_encryption_key="axis-refresh-credential-encryption-key-01",
+                workflow_signals_enabled=False,
             )
         )
     )

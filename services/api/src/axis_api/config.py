@@ -39,6 +39,23 @@ class Settings(BaseSettings):
         ],
         alias="AXIS_API_RATE_LIMIT_PATHS",
     )
+    api_rate_limit_backend: str = Field(
+        default="memory",
+        pattern="^(memory|redis)$",
+        alias="AXIS_API_RATE_LIMIT_BACKEND",
+    )
+    api_rate_limit_failure_mode: str = Field(
+        default="open",
+        pattern="^(open|closed)$",
+        alias="AXIS_API_RATE_LIMIT_FAILURE_MODE",
+    )
+    redis_url: str | None = Field(default=None, alias="AXIS_REDIS_URL")
+    redis_timeout_seconds: float = Field(
+        default=0.25,
+        ge=0.05,
+        le=5.0,
+        alias="AXIS_REDIS_TIMEOUT_SECONDS",
+    )
     tenant_state_cache_ttl_seconds: float = Field(
         default=5.0,
         ge=0,
@@ -59,6 +76,12 @@ class Settings(BaseSettings):
         ge=60,
         le=86_400,
         alias="AXIS_USAGE_METERING_AGGREGATION_WINDOW_SECONDS",
+    )
+    readiness_probe_timeout_seconds: float = Field(
+        default=1.0,
+        ge=0.05,
+        le=10.0,
+        alias="AXIS_READINESS_PROBE_TIMEOUT_SECONDS",
     )
     scheduled_jobs_enabled: bool = Field(
         default=False,
@@ -561,3 +584,34 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
+
+
+class RuntimeConfigurationError(ValueError):
+    """Raised before startup side effects when a runtime profile is unsafe."""
+
+
+def validate_runtime_configuration(settings: Settings) -> None:
+    """Reject production configurations that would expose unauthenticated APIs."""
+
+    environment = settings.environment.strip().casefold()
+    if environment in {"prod", "production"} and not settings.oidc_auth_required:
+        raise RuntimeConfigurationError(
+            "AXIS_OIDC_AUTH_REQUIRED must be true when AXIS_ENV is production."
+        )
+    if environment in {"prod", "production"} and settings.api_rate_limit_enabled:
+        if "*" not in settings.api_rate_limit_paths:
+            raise RuntimeConfigurationError(
+                "AXIS_API_RATE_LIMIT_PATHS must include '*' in production."
+            )
+        if settings.api_rate_limit_backend != "redis":
+            raise RuntimeConfigurationError(
+                "AXIS_API_RATE_LIMIT_BACKEND must be redis in production."
+            )
+        if settings.api_rate_limit_failure_mode != "closed":
+            raise RuntimeConfigurationError(
+                "AXIS_API_RATE_LIMIT_FAILURE_MODE must be closed in production."
+            )
+        if not settings.redis_url:
+            raise RuntimeConfigurationError(
+                "AXIS_REDIS_URL is required for production rate limiting."
+            )

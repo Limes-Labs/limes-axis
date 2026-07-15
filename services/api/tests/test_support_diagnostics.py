@@ -2,8 +2,21 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from axis_api.config import Settings
-from axis_api.main import create_app
+from axis_api.main import create_app as create_axis_app
 from axis_api.object_storage import ObjectLockCapability
+from axis_api.rate_limit import InMemoryRateLimiter
+
+
+def create_app(settings: Settings) -> FastAPI:
+    """Build a production-shaped app without requiring Redis in unit tests."""
+
+    return create_axis_app(
+        settings,
+        rate_limit_backend=InMemoryRateLimiter(
+            limit=settings.api_rate_limit_requests,
+            window_seconds=settings.api_rate_limit_window_seconds,
+        ),
+    )
 
 
 def _checks_by_id(body: dict) -> dict[str, dict]:
@@ -49,6 +62,10 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
         "oidc_session_cookie_secure": True,
         "oidc_refresh_token_encryption_key": "axis-refresh-credential-encryption-key-01",
         "api_rate_limit_enabled": True,
+        "api_rate_limit_paths": ["*"],
+        "api_rate_limit_backend": "redis",
+        "api_rate_limit_failure_mode": "closed",
+        "redis_url": "redis://redis.example:6379/0",
         "api_rate_limit_requests": 120,
         "api_rate_limit_window_seconds": 60,
         "dr_runbook_configured": True,

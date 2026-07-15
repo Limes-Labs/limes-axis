@@ -162,16 +162,26 @@ function ReadyPanel({ query }: { query: SettingsQuery<AxisReadyReport> }) {
         <SettingsPanel
           eyebrow={copy.ready.eyebrow}
           inspect={report as unknown as Record<string, unknown>}
-          status={report.status}
+          status={report.status === "ready" ? "ready" : "action_required"}
           title={copy.ready.title}
         >
           <div className={`${factGridClass} [&>span]:grid-cols-[auto_minmax(0,1fr)] [&>span]:items-center [&_small]:col-start-2 [&_small]:normal-case [&_small]:tracking-normal`}>
-            {Object.entries(report.dependencies).map(([dependency, reachable]) => (
+            {Object.entries(report.dependencies).map(([dependency, readiness]) => (
               <span key={dependency}>
                 <Database size={16} />
                 <strong>{compactId(dependency)}</strong>
-                <small className={reachable ? "signal-ready" : "signal-action-required"}>
-                  {reachable ? copy.ready.dependencyReachable : copy.ready.dependencyNotConfigured}
+                <small
+                  className={
+                    readiness.status === "ready" || readiness.status === "disabled"
+                      ? "signal-ready"
+                      : "signal-action-required"
+                  }
+                >
+                  {readiness.status === "ready"
+                    ? copy.ready.dependencyReachable
+                    : readiness.status === "disabled"
+                      ? copy.ready.dependencyNotConfigured
+                      : compactId(readiness.status)}
                 </small>
               </span>
             ))}

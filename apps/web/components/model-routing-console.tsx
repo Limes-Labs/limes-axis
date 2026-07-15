@@ -458,30 +458,6 @@ function ReferenceModelRouting() {
   );
 }
 
-type ParsedQueryState<T> = {
-  data: T | null;
-  isLoading: boolean;
-};
-
-function useParsedAxisQuery<T>(path: string, parse: (input: unknown) => T): ParsedQueryState<T> {
-  const { data, isLoading } = useAxisQuery<unknown>(path);
-
-  const parsed = useMemo(() => {
-    if (data === null || data === undefined) {
-      return null;
-    }
-    try {
-      return parse(data);
-    } catch {
-      // A malformed payload is treated exactly like an unavailable API:
-      // the console never renders partially-fabricated records.
-      return null;
-    }
-  }, [data, parse]);
-
-  return { data: parsed, isLoading };
-}
-
 function LiveSourceBadge() {
   return (
     <span className="status-pill signal-ready" data-source-badge="live">
@@ -511,9 +487,15 @@ function endpointChip(label: string): string {
  * registry. Nothing here is seeded — every row is a recorded invocation.
  */
 function LiveModelRouterSection() {
-  const telemetry = useParsedAxisQuery(modelRoutingTelemetryPath, parseModelRoutingTelemetry);
-  const invocations = useParsedAxisQuery(modelInvocationsPath(), parseModelInvocationList);
-  const endpoints = useParsedAxisQuery(modelEndpointsPath, parseModelEndpointRegistry);
+  const telemetry = useAxisQuery(modelRoutingTelemetryPath, {
+    parse: parseModelRoutingTelemetry,
+  });
+  const invocations = useAxisQuery(modelInvocationsPath(), {
+    parse: parseModelInvocationList,
+  });
+  const endpoints = useAxisQuery(modelEndpointsPath, {
+    parse: parseModelEndpointRegistry,
+  });
 
   const deferredCount = invocations.data
     ? countDeferredModelInvocations(invocations.data.invocations)

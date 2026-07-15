@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { AxisApiError, axisFetchJson } from "@/lib/axis-api";
+import { AxisApiError, axisFetchJson, axisFetchParsedJson } from "@/lib/axis-api";
 import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 export type AxisQuerySource = "loading" | "api" | "unavailable";
 
-type UseAxisQueryOptions = {
+type UseAxisQueryOptions<T> = {
   enabled?: boolean;
+  parse?: (value: unknown) => T;
 };
 
 /**
@@ -21,7 +22,7 @@ type UseAxisQueryOptions = {
  * for display. Changing `path` is a different query, so it resets to
  * loading and drops the old data.
  */
-export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {}) {
+export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T> = {}) {
   const { refreshNonce } = useConsole();
   const { session } = useOidcConsoleSession();
   const [data, setData] = useState<T | null>(null);
@@ -31,6 +32,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const enabled = options.enabled ?? true;
+  const parse = options.parse;
 
   // The data currently held for `lastLoadedPathRef.current`; used to decide
   // whether a refetch is a background refresh (keep data) or a fresh load.
@@ -62,10 +64,10 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
       }
 
       try {
-        const payload = await axisFetchJson<T>(path, {
-          session,
-          signal: controller.signal,
-        });
+        const fetchOptions = { session, signal: controller.signal };
+        const payload = parse
+          ? await axisFetchParsedJson(path, parse, fetchOptions)
+          : await axisFetchJson<T>(path, fetchOptions);
 
         if (!controller.signal.aborted) {
           staleDataRef.current = payload;
@@ -91,7 +93,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions = {})
     void load();
 
     return () => controller.abort();
-  }, [path, session, refreshNonce, enabled]);
+  }, [path, session, refreshNonce, enabled, parse]);
 
   return {
     data,

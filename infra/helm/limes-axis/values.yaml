@@ -97,13 +97,12 @@ api:
     AXIS_API_RATE_LIMIT_ENABLED: "true"
     AXIS_API_RATE_LIMIT_REQUESTS: "120"
     AXIS_API_RATE_LIMIT_WINDOW_SECONDS: "60"
+    AXIS_API_RATE_LIMIT_BACKEND: redis
+    AXIS_API_RATE_LIMIT_FAILURE_MODE: closed
+    AXIS_REDIS_TIMEOUT_SECONDS: "0.25"
+    AXIS_READINESS_PROBE_TIMEOUT_SECONDS: "1.0"
     AXIS_API_RATE_LIMIT_PATHS:
-      - /identity/oidc/authorize
-      - /identity/oidc/callback
-      - /identity/oidc/logout
-      - /identity/session/logout
-      - /deployment/readiness
-      - /support/diagnostics
+      - "*"
     AXIS_TYPEDB_ADDRESS: typedb.axis.svc.cluster.local:1729
     AXIS_TYPEDB_DATABASE: axis
     AXIS_TEMPORAL_ADDRESS: temporal-frontend.axis.svc.cluster.local:7233
