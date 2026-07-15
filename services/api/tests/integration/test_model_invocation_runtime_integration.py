@@ -37,6 +37,7 @@ async def test_self_hosted_openai_compatible_runtime_round_trip() -> None:
     runtime = SelfHostedOpenAICompatibleRuntime(
         timeout_seconds=float(os.getenv("AXIS_INTEGRATION_MODEL_TIMEOUT_SECONDS", "60")),
         bearer_token=os.getenv("AXIS_INTEGRATION_MODEL_BEARER_TOKEN") or None,
+        allowed_base_urls=[os.environ["AXIS_INTEGRATION_MODEL_BASE_URL"]],
     )
     result = await runtime.invoke(
         ModelInvocationRuntimeRequest(

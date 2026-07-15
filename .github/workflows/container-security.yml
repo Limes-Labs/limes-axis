@@ -7,8 +7,10 @@ on:
       - ".github/vulnerability-exceptions.json"
       - ".dockerignore"
       - "services/api/Dockerfile"
+      - "services/worker/Dockerfile"
       - "apps/web/Dockerfile"
       - "services/api/uv.lock"
+      - "services/worker/uv.lock"
       - "apps/web/package.json"
       - "pnpm-lock.yaml"
   push:
@@ -19,8 +21,10 @@ on:
       - ".github/vulnerability-exceptions.json"
       - ".dockerignore"
       - "services/api/Dockerfile"
+      - "services/worker/Dockerfile"
       - "apps/web/Dockerfile"
       - "services/api/uv.lock"
+      - "services/worker/uv.lock"
       - "apps/web/package.json"
       - "pnpm-lock.yaml"
   workflow_dispatch:
@@ -41,6 +45,8 @@ jobs:
             dockerfile: services/api/Dockerfile
           - component: web
             dockerfile: apps/web/Dockerfile
+          - component: worker
+            dockerfile: services/worker/Dockerfile
 
     steps:
       - name: Checkout

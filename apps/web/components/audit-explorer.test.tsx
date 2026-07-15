@@ -6,6 +6,12 @@ import type { AuditExportBundle, ManufacturingAuditExplorer } from "@/lib/audit-
 
 const mocks = vi.hoisted(() => ({
   axisFetchJson: vi.fn(),
+  session: {
+    accessToken: "fixture-token",
+    actorId: "fixture-actor",
+    tenantId: "tenant_fixture",
+    scopes: ["audit:read"],
+  },
 }));
 
 vi.mock("@/lib/axis-api", async (importOriginal) => ({
@@ -20,6 +26,10 @@ vi.mock("@/providers/console-provider", () => ({
     apiBaseUrl: "http://localhost:8000",
     apiStatus: { state: "ok", label: "Ready", detail: "" },
   }),
+}));
+
+vi.mock("@/lib/use-oidc-session", () => ({
+  useOidcConsoleSession: () => ({ session: mocks.session }),
 }));
 
 import { AuditExplorer } from "./audit-explorer";
@@ -196,5 +206,15 @@ describe("AuditExplorer integrity and export", () => {
     expect(selected).toHaveTextContent("agent.proposal.created");
 
     window.history.replaceState(null, "", originalLocation);
+  });
+
+  it("attaches the active bearer session to audit reads and exports", async () => {
+    render(<AuditExplorer />);
+
+    await screen.findByText("Ledger verified — hash chain intact");
+    expect(mocks.axisFetchJson).toHaveBeenCalledTimes(2);
+    for (const [, options] of mocks.axisFetchJson.mock.calls) {
+      expect(options).toMatchObject({ session: mocks.session });
+    }
   });
 });

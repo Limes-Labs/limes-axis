@@ -1,3 +1,5 @@
+import json
+
 from jose import jwt
 from jose.utils import base64url_encode
 
@@ -8,20 +10,20 @@ from axis_api.identity import (
 )
 
 
-def _oct_jwks(secret: str) -> dict:
+def _oct_jwks(secret: str, kid: str = "axis-test") -> dict:
     return {
         "keys": [
             {
                 "kty": "oct",
-                "kid": "axis-test",
+                "kid": kid,
                 "k": base64url_encode(secret.encode()).decode(),
             }
         ]
     }
 
 
-def _token(secret: str, claims: dict) -> str:
-    return jwt.encode(claims, secret, algorithm="HS256", headers={"kid": "axis-test"})
+def _token(secret: str, claims: dict, kid: str = "axis-test") -> str:
+    return jwt.encode(claims, secret, algorithm="HS256", headers={"kid": kid})
 
 
 def test_static_jwks_oidc_verifier_validates_token_and_extracts_actor_context() -> None:
@@ -269,3 +271,58 @@ def test_remote_jwks_oidc_verifier_fetches_and_caches_jwks(monkeypatch) -> None:
         "https://issuer.example/realms/axis/protocol/openid-connect/certs:2"
     ]
     assert verifier.jwks == jwks
+
+
+def test_remote_jwks_oidc_verifier_refreshes_once_for_rotated_kid(monkeypatch) -> None:
+    old_secret = "axis-old-secret"
+    new_secret = "axis-new-secret"
+    payloads = [_oct_jwks(old_secret, "old-key"), _oct_jwks(new_secret, "new-key")]
+    fetches = 0
+
+    class FakeResponse:
+        def __init__(self, payload: dict) -> None:
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(self.payload).encode()
+
+    def fake_urlopen(_url: str, timeout: int):
+        nonlocal fetches
+        assert timeout == 2
+        payload = payloads[min(fetches, len(payloads) - 1)]
+        fetches += 1
+        return FakeResponse(payload)
+
+    monkeypatch.setattr("axis_api.identity.urlopen", fake_urlopen)
+    verifier = RemoteJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks_url="https://issuer.example/jwks",
+        cache_seconds=300,
+        tenant_claim="axis_tenant",
+    )
+    claims = {
+        "iss": "https://issuer.example/realms/axis",
+        "aud": "limes-axis-api",
+        "sub": "operator",
+        "axis_tenant": "tenant_demo_manufacturing",
+        "exp": 4102444800,
+    }
+
+    verifier.verify_authorization_header(
+        f"Bearer {_token(old_secret, claims, kid='old-key')}"
+    )
+    principal = verifier.verify_authorization_header(
+        f"Bearer {_token(new_secret, claims, kid='new-key')}"
+    )
+
+    assert principal.actor_id == "operator"
+    assert fetches == 2
+    assert verifier.jwks == payloads[1]

@@ -35,9 +35,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
 
 jobs:
   build-images:
@@ -53,6 +50,9 @@ jobs:
           - component: web
             image: ghcr.io/${{ github.repository_owner }}/limes-axis-web
             dockerfile: apps/web/Dockerfile
+          - component: worker
+            image: ghcr.io/${{ github.repository_owner }}/limes-axis-worker
+            dockerfile: services/worker/Dockerfile
 
     steps:
       - name: Checkout
@@ -94,6 +94,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
     needs: build-images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
 
     steps:
       - name: Validate promotion evidence
@@ -130,6 +133,11 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.push == true }}
     needs: validate-promotion-evidence
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     environment:
       name: axis-container-release
     strategy:
@@ -142,6 +150,9 @@ jobs:
           - component: web
             image: ghcr.io/${{ github.repository_owner }}/limes-axis-web
             dockerfile: apps/web/Dockerfile
+          - component: worker
+            image: ghcr.io/${{ github.repository_owner }}/limes-axis-worker
+            dockerfile: services/worker/Dockerfile
 
     steps:
       - name: Checkout

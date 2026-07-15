@@ -252,6 +252,10 @@ class Settings(BaseSettings):
         le=600.0,
         alias="AXIS_MODEL_INVOCATION_TIMEOUT_SECONDS",
     )
+    model_invocation_allowed_base_urls: list[str] = Field(
+        default_factory=list,
+        alias="AXIS_MODEL_INVOCATION_ALLOWED_BASE_URLS",
+    )
     model_invocation_prompt_excerpt_chars: int = Field(
         default=0,
         ge=0,

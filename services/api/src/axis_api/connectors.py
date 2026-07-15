@@ -225,8 +225,28 @@ def _validation_issues(
         for column in _required_columns(manifest)
         if column not in headers
     ]
+    duplicate_headers = sorted({header for header in headers if headers.count(header) > 1})
+    issues.extend(f"Duplicate CSV header: {header}" for header in duplicate_headers)
     if not rows:
         issues.append("CSV file must contain at least one data row.")
+        return issues
+
+    present_required_columns = [
+        column for column in _required_columns(manifest) if column in headers
+    ]
+    for row_number, row in enumerate(rows, start=2):
+        for column in present_required_columns:
+            if not row.get(column, ""):
+                issues.append(f"Row {row_number} has an empty required value: {column}")
+
+    node_column = _node_field(manifest.schema_fields).source_column
+    if node_column in headers:
+        seen_node_ids: set[str] = set()
+        for row_number, row in enumerate(rows, start=2):
+            node_id = row.get(node_column, "")
+            if node_id and node_id in seen_node_ids:
+                issues.append(f"Row {row_number} has a duplicate node id: {node_id}")
+            seen_node_ids.add(node_id)
     return issues
 
 

@@ -7,6 +7,7 @@ import { RunReplayForm } from "@/components/simulation/run-replay-form";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { axisFetchJson } from "@/lib/axis-api";
 import { strings } from "@/lib/strings";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import {
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
@@ -46,6 +47,7 @@ export function SimulationConsole() {
   const [source, setSource] = useState<SimulationSource>("loading");
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
   const { refreshNonce } = useConsole();
+  const { session } = useOidcConsoleSession();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,7 +58,7 @@ export function SimulationConsole() {
       try {
         const data = await axisFetchJson<ManufacturingReplaySimulation>(
           "/demo/manufacturing/simulation/replay?tenant_id=tenant_demo_manufacturing&limit=20",
-          { signal: controller.signal },
+          { session, signal: controller.signal },
         );
         setSimulationData(data);
         setSelectedArtifactId(data.artifacts[0]?.artifact_id ?? "");
@@ -73,7 +75,7 @@ export function SimulationConsole() {
     void loadReplaySimulation();
 
     return () => controller.abort();
-  }, [refreshNonce]);
+  }, [refreshNonce, session]);
 
   const selectedArtifact = useMemo(
     () =>

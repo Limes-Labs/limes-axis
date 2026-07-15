@@ -46,6 +46,8 @@ def required_workflow_terms() -> tuple[str, ...]:
         "gh issue view \"$ROLLBACK_PLAN_ISSUE\"",
         "ghcr.io/${{ github.repository_owner }}/limes-axis-api",
         "ghcr.io/${{ github.repository_owner }}/limes-axis-web",
+        "ghcr.io/${{ github.repository_owner }}/limes-axis-worker",
+        "services/worker/Dockerfile",
         "docker/setup-buildx-action@v4.1.0",
         "docker/login-action@v4.2.0",
         "docker/metadata-action@v6.1.0",
