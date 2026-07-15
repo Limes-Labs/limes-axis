@@ -17,6 +17,7 @@ import {
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
 import { strings } from "@/lib/strings";
+import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
 import {
   formatOverviewTimestamp,
@@ -153,6 +154,7 @@ export function AuditExplorer() {
   );
   const [selectedEventId, setSelectedEventId] = useState("");
   const { refreshNonce } = useConsole();
+  const { session } = useOidcConsoleSession();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -161,7 +163,7 @@ export function AuditExplorer() {
       try {
         const exportData = await axisFetchJson<AuditExportBundle>(
           "/demo/manufacturing/audit/export?tenant_id=tenant_demo_manufacturing&limit=100&export_reason=console-review",
-          { signal: controller.signal },
+          { session, signal: controller.signal },
         );
         if (!controller.signal.aborted) {
           setAuditExport(exportData);
@@ -179,7 +181,7 @@ export function AuditExplorer() {
       try {
         const persistedAuditData = await axisFetchJson<ManufacturingAuditExplorer>(
           "/demo/manufacturing/audit/events?tenant_id=tenant_demo_manufacturing&limit=100",
-          { signal: controller.signal },
+          { session, signal: controller.signal },
         );
         await loadAuditExport();
         if (persistedAuditData.events.length > 0) {
@@ -191,7 +193,7 @@ export function AuditExplorer() {
 
         const referenceAuditData = await axisFetchJson<ManufacturingAuditExplorer>(
           "/demo/manufacturing/audit",
-          { signal: controller.signal },
+          { session, signal: controller.signal },
         );
         setAuditData(referenceAuditData);
         setSelectedEventId(referenceAuditData.events[0]?.audit_event_id ?? "");
@@ -209,7 +211,7 @@ export function AuditExplorer() {
     void fetchAudit();
 
     return () => controller.abort();
-  }, [refreshNonce]);
+  }, [refreshNonce, session]);
 
   const filteredEvents = useMemo(
     () => (auditData ? filterAuditEvents(auditData, filters) : []),

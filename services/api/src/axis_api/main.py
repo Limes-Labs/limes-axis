@@ -2459,6 +2459,7 @@ def create_app(
     app.state.model_invocation_runtime = (
         SelfHostedOpenAICompatibleRuntime(
             timeout_seconds=resolved_settings.model_invocation_timeout_seconds,
+            allowed_base_urls=resolved_settings.model_invocation_allowed_base_urls,
         )
         if resolved_settings.model_routing_execution_enabled
         else DeferredModelInvocationRuntime()

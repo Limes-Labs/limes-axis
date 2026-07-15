@@ -153,6 +153,7 @@ container-scan-local: container-build
 	mkdir -p .axis/trivy-cache .axis/trivy-reports
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$$(pwd)/.axis/trivy-cache:/root/.cache/" -v "$$(pwd)/.axis/trivy-reports:/reports" aquasec/trivy:0.71.2 image --scanners vuln --pkg-types os,library --severity CRITICAL --ignore-unfixed --exit-code 1 --format json --output /reports/api-critical.json --timeout 10m limes-axis-api:local
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$$(pwd)/.axis/trivy-cache:/root/.cache/" -v "$$(pwd)/.axis/trivy-reports:/reports" aquasec/trivy:0.71.2 image --scanners vuln --pkg-types os,library --severity CRITICAL --ignore-unfixed --exit-code 1 --format json --output /reports/web-critical.json --timeout 10m limes-axis-web:local
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$$(pwd)/.axis/trivy-cache:/root/.cache/" -v "$$(pwd)/.axis/trivy-reports:/reports" aquasec/trivy:0.71.2 image --scanners vuln --pkg-types os,library --severity CRITICAL --ignore-unfixed --exit-code 1 --format json --output /reports/worker-critical.json --timeout 10m limes-axis-worker:local
 	@echo "Trivy reports saved under .axis/trivy-reports/"
 
 dev-stack-up:

@@ -13,6 +13,7 @@ import pytest
 from axis_api import model_providers
 from axis_api.model_providers import (
     ModelInvocationRuntimeRequest,
+    ModelProviderInvocationError,
     SelfHostedOpenAICompatibleRuntime,
     openai_compatible_chat_completions_url,
 )
@@ -83,7 +84,10 @@ async def test_invoke_posts_to_single_v1_path_for_both_base_url_shapes(
         )
 
     _install_mock_transport(monkeypatch, handler)
-    runtime = SelfHostedOpenAICompatibleRuntime(timeout_seconds=5.0)
+    runtime = SelfHostedOpenAICompatibleRuntime(
+        timeout_seconds=5.0,
+        allowed_base_urls=[base_url],
+    )
     result = await runtime.invoke(_runtime_request(base_url))
 
     assert seen_paths == ["/v1/chat/completions"]
@@ -100,9 +104,24 @@ async def test_invoke_surfaces_provider_http_errors_as_typed_failures(
         return httpx.Response(404, json={"error": "not found"})
 
     _install_mock_transport(monkeypatch, handler)
-    runtime = SelfHostedOpenAICompatibleRuntime(timeout_seconds=5.0)
+    runtime = SelfHostedOpenAICompatibleRuntime(
+        timeout_seconds=5.0,
+        allowed_base_urls=["http://models.local:11434/v1"],
+    )
 
     with pytest.raises(model_providers.ModelProviderInvocationError) as excinfo:
         await runtime.invoke(_runtime_request("http://models.local:11434/v1"))
 
     assert excinfo.value.error_code == "provider_http_404"
+
+
+async def test_invoke_blocks_unallowlisted_provider_before_network() -> None:
+    runtime = SelfHostedOpenAICompatibleRuntime(
+        timeout_seconds=5.0,
+        allowed_base_urls=["http://models.local:11434"],
+    )
+
+    with pytest.raises(ModelProviderInvocationError) as excinfo:
+        await runtime.invoke(_runtime_request("http://169.254.169.254"))
+
+    assert excinfo.value.error_code == "provider_endpoint_not_allowed"

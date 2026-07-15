@@ -370,6 +370,49 @@ def test_file_csv_connector_preview_blocks_missing_required_columns() -> None:
     ]
 
 
+def test_file_csv_connector_preview_blocks_empty_required_values() -> None:
+    preview = preview_file_csv_connector(
+        bootstrap_connector_registry(),
+        ConnectorCsvPreviewRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            file_name="assets.csv",
+            csv_content=(
+                "asset_id,asset_name,domain,station,risk_level\n"
+                ",Line 2 Packaging,Operations,Line 2,high\n"
+            ),
+        ),
+    )
+
+    assert preview.preview_status == "blocked"
+    assert preview.proposed_entities == []
+    assert preview.validation_issues == [
+        "Row 2 has an empty required value: asset_id",
+    ]
+
+
+def test_file_csv_connector_preview_blocks_duplicate_node_ids() -> None:
+    preview = preview_file_csv_connector(
+        bootstrap_connector_registry(),
+        ConnectorCsvPreviewRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="file_csv_manufacturing_assets",
+            file_name="assets.csv",
+            csv_content=(
+                "asset_id,asset_name,domain,station,risk_level\n"
+                "asset_line_2,Line 2 Packaging,Operations,Line 2,high\n"
+                "asset_line_2,Line 2 Packaging,Operations,Line 2,high\n"
+            ),
+        ),
+    )
+
+    assert preview.preview_status == "blocked"
+    assert preview.proposed_entities == []
+    assert preview.validation_issues == [
+        "Row 3 has a duplicate node id: asset_line_2",
+    ]
+
+
 def test_file_csv_connector_preview_blocks_unsupported_connector_ids() -> None:
     preview = preview_file_csv_connector(
         bootstrap_connector_registry(),

@@ -31,6 +31,7 @@ def required_workflow_terms() -> tuple[str, ...]:
         "workflow_dispatch:",
         "services/api/Dockerfile",
         "apps/web/Dockerfile",
+        "services/worker/Dockerfile",
         "docker build -f ${{ matrix.dockerfile }} -t limes-axis-${{ matrix.component }}:scan .",
         "ed142fd0673e97e23eac54620cfb913e5ce36c25",
         "version: v0.71.2",

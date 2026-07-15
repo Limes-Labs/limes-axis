@@ -26,6 +26,13 @@ def test_demo_environment_static_contract_passes() -> None:
     assert failures == []
 
 
+def test_example_env_allows_documented_playwright_origins() -> None:
+    env_example = (REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "http://localhost:3100" in env_example
+    assert "http://127.0.0.1:3100" in env_example
+
+
 def test_demo_environment_declares_critical_demo_routes() -> None:
     checker = load_check_module()
 

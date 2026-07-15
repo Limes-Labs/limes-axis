@@ -130,14 +130,23 @@ class SelfHostedOpenAICompatibleRuntime:
         *,
         timeout_seconds: float = 30.0,
         bearer_token: str | None = None,
+        allowed_base_urls: list[str] | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.bearer_token = bearer_token
+        self.allowed_base_urls = {
+            base_url.rstrip("/").lower() for base_url in (allowed_base_urls or [])
+        }
 
     async def invoke(
         self,
         request: ModelInvocationRuntimeRequest,
     ) -> ModelInvocationRuntimeResult:
+        if request.base_url.rstrip("/").lower() not in self.allowed_base_urls:
+            raise ModelProviderInvocationError(
+                "The model provider base URL is not in the operator allowlist.",
+                "provider_endpoint_not_allowed",
+            )
         url = openai_compatible_chat_completions_url(request.base_url)
         payload: dict = {
             "model": request.model_id,
@@ -183,6 +192,7 @@ class SelfHostedOpenAICompatibleRuntime:
             "adapter": self.adapter_name,
             "execution_mode": "self_hosted_openai_compatible",
             "timeout_seconds": str(self.timeout_seconds),
+            "allowed_base_url_count": str(len(self.allowed_base_urls)),
         }
 
     def _result_from_response(

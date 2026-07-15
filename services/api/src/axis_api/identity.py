@@ -201,10 +201,21 @@ class RemoteJwksOidcVerifier(StaticJwksOidcVerifier):
 
     def _key_for_token(self, token: str) -> dict:
         now = time.time()
-        if now >= self._cache_expires_at:
+        cache_was_valid = now < self._cache_expires_at
+        if not cache_was_valid:
             self.jwks = self._fetch_jwks()
             self._cache_expires_at = now + self.cache_seconds
-        return super()._key_for_token(token)
+        try:
+            return super()._key_for_token(token)
+        except OidcAuthenticationError as exc:
+            if exc.reason != "jwks_key_not_found" or not cache_was_valid:
+                raise
+            # Refresh once on an unknown kid so normal IdP key rotation does
+            # not cause an outage for the full cache TTL. A freshly fetched
+            # cache never triggers a second request, bounding hostile misses.
+            self.jwks = self._fetch_jwks()
+            self._cache_expires_at = now + self.cache_seconds
+            return super()._key_for_token(token)
 
     def _fetch_jwks(self) -> dict:
         try:

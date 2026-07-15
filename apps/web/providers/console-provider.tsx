@@ -22,15 +22,15 @@ type ConsoleContextValue = {
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null);
 
-async function probeApi(baseUrl: string, signal: AbortSignal) {
-  const [healthResponse, readyResponse] = await Promise.all([
+export async function probeApi(baseUrl: string, signal: AbortSignal) {
+  const [healthResult, readyResult] = await Promise.allSettled([
     fetch(`${baseUrl}/health`, { signal, cache: "no-store" }),
     fetch(`${baseUrl}/ready`, { signal, cache: "no-store" }),
   ]);
 
   return summarizeApiStatus({
-    healthOk: healthResponse.ok,
-    readyOk: readyResponse.ok,
+    healthOk: healthResult.status === "fulfilled" && healthResult.value.ok,
+    readyOk: readyResult.status === "fulfilled" && readyResult.value.ok,
   });
 }
 
@@ -59,15 +59,20 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    let latestProbe = 0;
 
     async function checkApi() {
+      const probeId = ++latestProbe;
       try {
         setApiStatus({
           state: "checking",
           label: "Checking",
           detail: "Probing Axis API health and readiness.",
         });
-        setApiStatus(await probeApi(apiBaseUrl, controller.signal));
+        const nextStatus = await probeApi(apiBaseUrl, controller.signal);
+        if (!controller.signal.aborted && probeId === latestProbe) {
+          setApiStatus(nextStatus);
+        }
       } catch {
         if (!controller.signal.aborted) {
           setApiStatus(summarizeApiStatus({ healthOk: false, readyOk: false }));

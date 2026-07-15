@@ -10,7 +10,12 @@ scope `platform:model:endpoint:admin`) and runs governed invocations through
 `POST /platform/models/invocations` (scope `models:invoke`), with routing
 telemetry at `GET /platform/models/routing/telemetry`. Execution requires
 `AXIS_MODEL_ROUTING_EXECUTION_ENABLED=true` (default `false`; disabled
-invocations record an honest deferred status). Invocation records are
+invocations record an honest deferred status) and the selected endpoint's
+exact base URL must appear in the operator-owned
+`AXIS_MODEL_INVOCATION_ALLOWED_BASE_URLS` list. The allowlist is checked again
+immediately before the provider request, so a tenant cannot register a model
+endpoint that turns the API into a generic server-side request proxy.
+Invocation records are
 metadata-only — token counts, latency, status and audit evidence; prompt text
 is excerpted only up to `AXIS_MODEL_INVOCATION_PROMPT_EXCERPT_CHARS` (default
 `0`) — and feed per-tenant usage metering. Non-self-hosted egress stays
