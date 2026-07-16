@@ -28,8 +28,14 @@ from axis_api.connector_runs import (
 )
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
-from axis_api.models import Base, TenantUsageRecord
-from axis_api.persistence import AxisPersistenceRepository, TenantCreate, TenantUsageAdd
+from axis_api.models import Base, TenantUsageEvent, TenantUsageRecord
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    TenantCreate,
+    TenantUsageAdd,
+    TenantUsageEventAppend,
+    TenantUsageIdempotencyConflict,
+)
 from axis_api.usage_metering import (
     DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
     TenantUsageMetric,
@@ -97,6 +103,8 @@ def _seed_usage(
             tenant_id,
             metric,
             quantity,
+            source_type="test_seed",
+            source_id=f"{tenant_id}:{metric}:{occurred_at.isoformat()}:{quantity}",
             occurred_at=occurred_at,
         )
         session.commit()
@@ -112,6 +120,17 @@ def _usage_rows(factory: sessionmaker[Session], tenant_id: str) -> list[TenantUs
                     TenantUsageRecord.metric_key.asc(),
                     TenantUsageRecord.period_start.asc(),
                 )
+            )
+        )
+
+
+def _usage_events(factory: sessionmaker[Session], tenant_id: str) -> list[TenantUsageEvent]:
+    with factory() as session:
+        return list(
+            session.scalars(
+                select(TenantUsageEvent)
+                .where(TenantUsageEvent.tenant_id == tenant_id)
+                .order_by(TenantUsageEvent.recorded_at.asc(), TenantUsageEvent.id.asc())
             )
         )
 
@@ -154,6 +173,7 @@ def test_add_tenant_usage_upsert_add_accumulates_same_bucket() -> None:
                     tenant_id=TENANT_ID,
                     metric_key=TenantUsageMetric.API_REQUEST.value,
                     period_start=period,
+                    period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
                     quantity=2,
                     occurred_at=moment,
                 )
@@ -182,6 +202,7 @@ def test_add_tenant_usage_composes_across_independent_sessions() -> None:
                     tenant_id=TENANT_ID,
                     metric_key=TenantUsageMetric.SESSION_CREATED.value,
                     period_start=period,
+                    period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
                     quantity=delta,
                     occurred_at=moment,
                 )
@@ -191,6 +212,154 @@ def test_add_tenant_usage_composes_across_independent_sessions() -> None:
     rows = _usage_rows(factory, TENANT_ID)
     assert len(rows) == 1
     assert rows[0].quantity == 7
+
+
+def test_usage_event_replay_is_idempotent_and_preserves_dimensions() -> None:
+    factory = _factory()
+    moment = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        first = record_tenant_usage_event(
+            repository,
+            TENANT_ID,
+            TenantUsageMetric.MODEL_INVOCATIONS,
+            1,
+            source_type="model_invocation",
+            source_id="invocation-1",
+            occurred_at=moment,
+            dimensions={"provider_id": "provider-a"},
+        )
+        replay = record_tenant_usage_event(
+            repository,
+            TENANT_ID,
+            TenantUsageMetric.MODEL_INVOCATIONS,
+            1,
+            source_type="model_invocation",
+            source_id="invocation-1",
+            occurred_at=moment,
+            dimensions={"provider_id": "provider-a"},
+        )
+        session.commit()
+
+    assert first is True
+    assert replay is False
+    assert len(_usage_events(factory, TENANT_ID)) == 1
+    assert _usage_events(factory, TENANT_ID)[0].dimensions == {
+        "provider_id": "provider-a"
+    }
+    rows = _usage_rows(factory, TENANT_ID)
+    assert rows[0].quantity == 1
+    assert rows[0].dimensions == {}
+
+
+def test_usage_event_replay_rejects_a_different_billing_payload() -> None:
+    factory = _factory()
+    moment = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        record_tenant_usage_event(
+            repository,
+            TENANT_ID,
+            TenantUsageMetric.CONNECTOR_SYNC_ROWS,
+            10,
+            source_type="connector_sync_execution",
+            source_id="run-1:execution-1",
+            occurred_at=moment,
+        )
+        with pytest.raises(TenantUsageIdempotencyConflict):
+            record_tenant_usage_event(
+                repository,
+                TENANT_ID,
+                TenantUsageMetric.CONNECTOR_SYNC_ROWS,
+                11,
+                source_type="connector_sync_execution",
+                source_id="run-1:execution-1",
+                occurred_at=moment,
+            )
+        session.commit()
+
+    assert len(_usage_events(factory, TENANT_ID)) == 1
+    assert _usage_rows(factory, TENANT_ID)[0].quantity == 10
+
+
+def test_usage_event_and_rollup_rollback_together() -> None:
+    factory = _factory()
+    with factory() as session:
+        record_tenant_usage_event(
+            AxisPersistenceRepository(session),
+            TENANT_ID,
+            TenantUsageMetric.SESSION_CREATED,
+            1,
+            source_type="oidc_browser_session",
+            source_id="session-1",
+            occurred_at=datetime(2026, 7, 10, 8, tzinfo=UTC),
+        )
+        session.rollback()
+
+    assert _usage_events(factory, TENANT_ID) == []
+    assert _usage_rows(factory, TENANT_ID) == []
+
+
+def test_usage_windows_do_not_collide_at_the_same_period_start() -> None:
+    factory = _factory()
+    midnight = datetime(2026, 7, 10, tzinfo=UTC)
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        for window_seconds, quantity in ((86_400, 3), (3_600, 5)):
+            record_tenant_usage_event(
+                repository,
+                TENANT_ID,
+                TenantUsageMetric.API_REQUEST,
+                quantity,
+                source_type="test_window",
+                source_id=str(window_seconds),
+                window_seconds=window_seconds,
+                occurred_at=midnight,
+            )
+        session.commit()
+
+    rows = _usage_rows(factory, TENANT_ID)
+    assert {(row.period_window_seconds, row.quantity) for row in rows} == {
+        (86_400, 3),
+        (3_600, 5),
+    }
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        daily = repository.aggregate_tenant_usage(
+            TENANT_ID,
+            period_window_seconds=86_400,
+        )
+        hourly = repository.aggregate_tenant_usage(
+            TENANT_ID,
+            period_window_seconds=3_600,
+        )
+    assert [row.quantity for row in daily] == [3]
+    assert [row.quantity for row in hourly] == [5]
+
+
+def test_usage_rollup_keeps_true_first_and_last_event_times() -> None:
+    factory = _factory()
+    earlier = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    later = datetime(2026, 7, 10, 18, tzinfo=UTC)
+    with factory() as session:
+        repository = AxisPersistenceRepository(session)
+        for source_id, occurred_at in (("later", later), ("earlier", earlier)):
+            record_tenant_usage_event(
+                repository,
+                TENANT_ID,
+                TenantUsageMetric.API_REQUEST,
+                1,
+                source_type="out_of_order_test",
+                source_id=source_id,
+                occurred_at=occurred_at,
+            )
+        session.commit()
+
+    row = _usage_rows(factory, TENANT_ID)[0]
+    first = row.first_recorded_at.replace(tzinfo=UTC)
+    last = row.last_recorded_at.replace(tzinfo=UTC)
+    assert first == earlier
+    assert last == later
 
 
 # --------------------------------------------------------------------------- #
@@ -301,6 +470,50 @@ def test_flush_restores_counts_when_session_factory_fails() -> None:
     assert _usage_rows(factory, TENANT_ID)[0].quantity == 4
 
 
+def test_accumulator_retry_after_ambiguous_commit_does_not_double_count() -> None:
+    factory = _factory()
+    accumulator = UsageAccumulator(enabled=True)
+    moment = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    accumulator.record(
+        TENANT_ID,
+        TenantUsageMetric.API_REQUEST.value,
+        4,
+        occurred_at=moment,
+    )
+    drained = accumulator.drain()
+    item = drained[0]
+
+    # The commit succeeds, but the caller acts as if its acknowledgement was
+    # lost and restores the original batch for retry.
+    with factory() as session:
+        AxisPersistenceRepository(session).append_tenant_usage_event(
+            TenantUsageEventAppend(
+                tenant_id=item.tenant_id,
+                metric_key=item.metric_key,
+                source_type="api_request_batch",
+                source_id=item.source_id,
+                period_start=item.period_start,
+                period_window_seconds=accumulator.window_seconds,
+                quantity=item.quantity,
+                occurred_at=item.occurred_at,
+            )
+        )
+        session.commit()
+
+    # Traffic arriving during the retry window remains a distinct journal event.
+    accumulator.record(
+        TENANT_ID,
+        TenantUsageMetric.API_REQUEST.value,
+        2,
+        occurred_at=moment,
+    )
+    accumulator.restore(drained)
+
+    assert accumulator.flush(factory) == 2
+    assert _usage_rows(factory, TENANT_ID)[0].quantity == 6
+    assert len(_usage_events(factory, TENANT_ID)) == 2
+
+
 def test_concurrent_records_and_flushes_do_not_lose_counts() -> None:
     # Simulated concurrency at the persistence seam: many recorder threads folding
     # in-memory deltas while a flusher thread drains to the ledger.
@@ -363,6 +576,8 @@ def test_connector_sync_rows_recorded_with_real_row_count() -> None:
             TENANT_ID,
             result,
             DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+            source_id="run-1:execution-1",
+            occurred_at=datetime(2026, 7, 10, 8, tzinfo=UTC),
         )
         session.commit()
 
@@ -388,6 +603,8 @@ def test_connector_sync_rows_zero_is_not_recorded() -> None:
             TENANT_ID,
             result,
             DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+            source_id="run-1:execution-1",
+            occurred_at=datetime(2026, 7, 10, 8, tzinfo=UTC),
         )
         session.commit()
     assert _usage_rows(factory, TENANT_ID) == []
@@ -415,6 +632,8 @@ def test_connector_sync_rows_meters_delta_on_resume() -> None:
             _sync_result(250),
             DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
             resume_records_seed=100,
+            source_id="run-1:execution-2",
+            occurred_at=datetime(2026, 7, 10, 9, tzinfo=UTC),
         )
         session.commit()
     rows = _usage_rows(factory, TENANT_ID)
@@ -437,6 +656,8 @@ def test_connector_sync_failed_then_retry_resume_does_not_double_count() -> None
             _sync_result(100, status="sync_execution_failed"),
             DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
             resume_records_seed=0,
+            source_id="run-1:execution-a",
+            occurred_at=datetime(2026, 7, 10, 8, tzinfo=UTC),
         )
         # Attempt B: resumes from seed 100, completes at cumulative 250.
         _record_connector_sync_rows_usage(
@@ -445,6 +666,8 @@ def test_connector_sync_failed_then_retry_resume_does_not_double_count() -> None
             _sync_result(250),
             DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
             resume_records_seed=100,
+            source_id="run-1:execution-b",
+            occurred_at=datetime(2026, 7, 10, 9, tzinfo=UTC),
         )
         session.commit()
 
@@ -784,4 +1007,39 @@ def test_tenant_usage_records_schema_has_unique_bucket_constraint() -> None:
         for constraint in table.constraints
         if constraint.__class__.__name__ == "UniqueConstraint"
     }
-    assert ("metric_key", "period_start", "tenant_id") in unique_columns
+    assert (
+        "metric_key",
+        "period_start",
+        "period_window_seconds",
+        "tenant_id",
+    ) in unique_columns
+
+
+def test_migration_0052_identifier_and_down_revision() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "0052_tenant_usage_event_journal.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0052", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    assert migration.revision == "0052_tenant_usage_event_journal"
+    assert migration.down_revision == "0051_agent_runs"
+
+
+def test_tenant_usage_event_schema_has_source_identity_constraint() -> None:
+    table = TenantUsageEvent.__table__
+    assert table.name == "tenant_usage_events"
+    unique_columns = {
+        tuple(sorted(column.name for column in constraint.columns))
+        for constraint in table.constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    }
+    assert ("metric_key", "source_id", "source_type", "tenant_id") in unique_columns

@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy import Select, and_, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -44,6 +44,7 @@ from axis_api.models import (
     ReplaySimulationOutput,
     Tenant,
     TenantQuota,
+    TenantUsageEvent,
     TenantUsageRecord,
     WorkflowRunRecord,
     WorkflowTimelineRecord,
@@ -53,6 +54,16 @@ from axis_api.models import (
 
 class PersistenceRecordNotFound(LookupError):
     pass
+
+
+class TenantUsageIdempotencyConflict(RuntimeError):
+    pass
+
+
+def _utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class ApprovalRecordCreate(BaseModel):
@@ -662,7 +673,20 @@ class TenantUsageAdd(BaseModel):
     tenant_id: str = Field(min_length=1)
     metric_key: str = Field(min_length=1)
     period_start: datetime
+    period_window_seconds: int = Field(ge=60, le=86_400)
     quantity: int = Field(ge=0)
+    occurred_at: datetime
+
+
+class TenantUsageEventAppend(BaseModel):
+    event_id: UUID = Field(default_factory=uuid4)
+    tenant_id: str = Field(min_length=1, max_length=80)
+    metric_key: str = Field(min_length=1, max_length=60)
+    source_type: str = Field(min_length=1, max_length=60)
+    source_id: str = Field(min_length=1, max_length=220)
+    period_start: datetime
+    period_window_seconds: int = Field(ge=60, le=86_400)
+    quantity: int = Field(gt=0)
     occurred_at: datetime
     dimensions: dict = Field(default_factory=dict)
 
@@ -3379,28 +3403,114 @@ class AxisPersistenceRepository:
             tenant_id=record.tenant_id,
             metric_key=record.metric_key,
             period_start=record.period_start,
+            period_window_seconds=record.period_window_seconds,
             quantity=record.quantity,
-            dimensions=record.dimensions,
+            dimensions={},
             first_recorded_at=record.occurred_at,
             last_recorded_at=record.occurred_at,
             created_at=now,
             updated_at=now,
         )
         statement = insert_stmt.on_conflict_do_update(
-            index_elements=["tenant_id", "metric_key", "period_start"],
+            index_elements=[
+                "tenant_id",
+                "metric_key",
+                "period_window_seconds",
+                "period_start",
+            ],
             set_={
                 "quantity": TenantUsageRecord.quantity + insert_stmt.excluded.quantity,
-                "last_recorded_at": insert_stmt.excluded.last_recorded_at,
+                "first_recorded_at": case(
+                    (
+                        TenantUsageRecord.first_recorded_at
+                        <= insert_stmt.excluded.first_recorded_at,
+                        TenantUsageRecord.first_recorded_at,
+                    ),
+                    else_=insert_stmt.excluded.first_recorded_at,
+                ),
+                "last_recorded_at": case(
+                    (
+                        TenantUsageRecord.last_recorded_at
+                        >= insert_stmt.excluded.last_recorded_at,
+                        TenantUsageRecord.last_recorded_at,
+                    ),
+                    else_=insert_stmt.excluded.last_recorded_at,
+                ),
+                "dimensions": insert_stmt.excluded.dimensions,
                 "updated_at": insert_stmt.excluded.updated_at,
             },
         )
         self.session.execute(statement)
         self.session.flush()
 
+    def append_tenant_usage_event(self, event: TenantUsageEventAppend) -> bool:
+        """Append and aggregate a source event exactly once in this transaction.
+
+        A retry with the same source identity is a no-op only when its billing
+        payload matches the original event. Reusing an identity for a different
+        quantity, period, window, or dimensions is an explicit invariant error.
+        """
+
+        now = utc_now()
+        insert_stmt = self._insert_with_on_conflict(TenantUsageEvent).values(
+            id=event.event_id,
+            tenant_id=event.tenant_id,
+            metric_key=event.metric_key,
+            source_type=event.source_type,
+            source_id=event.source_id,
+            period_start=event.period_start,
+            period_window_seconds=event.period_window_seconds,
+            quantity=event.quantity,
+            dimensions=event.dimensions,
+            occurred_at=event.occurred_at,
+            recorded_at=now,
+        )
+        statement = insert_stmt.on_conflict_do_nothing(
+            index_elements=["tenant_id", "metric_key", "source_type", "source_id"]
+        ).returning(TenantUsageEvent.id)
+        inserted_id = self.session.execute(statement).scalar_one_or_none()
+        if inserted_id is None:
+            existing = self.session.scalar(
+                select(TenantUsageEvent).where(
+                    TenantUsageEvent.tenant_id == event.tenant_id,
+                    TenantUsageEvent.metric_key == event.metric_key,
+                    TenantUsageEvent.source_type == event.source_type,
+                    TenantUsageEvent.source_id == event.source_id,
+                )
+            )
+            if existing is None:
+                raise RuntimeError("Usage event conflict did not resolve to an existing row.")
+            if (
+                existing.quantity != event.quantity
+                or _utc_datetime(existing.period_start)
+                != _utc_datetime(event.period_start)
+                or existing.period_window_seconds != event.period_window_seconds
+                or _utc_datetime(existing.occurred_at)
+                != _utc_datetime(event.occurred_at)
+                or existing.dimensions != event.dimensions
+            ):
+                raise TenantUsageIdempotencyConflict(
+                    "Usage event source identity was reused with a different payload."
+                )
+            return False
+
+        self.add_tenant_usage(
+            TenantUsageAdd(
+                tenant_id=event.tenant_id,
+                metric_key=event.metric_key,
+                period_start=event.period_start,
+                period_window_seconds=event.period_window_seconds,
+                quantity=event.quantity,
+                occurred_at=event.occurred_at,
+            )
+        )
+        return True
+
     def aggregate_tenant_usage(
         self,
         tenant_id: str,
         *,
+        period_window_seconds: int,
         period_start_from: datetime | None = None,
         period_start_to: datetime | None = None,
         metric_keys: list[str] | None = None,
@@ -3417,6 +3527,9 @@ class AxisPersistenceRepository:
                 func.sum(TenantUsageRecord.quantity),
             )
             .where(TenantUsageRecord.tenant_id == tenant_id)
+            .where(
+                TenantUsageRecord.period_window_seconds == period_window_seconds
+            )
             .group_by(TenantUsageRecord.metric_key, TenantUsageRecord.period_start)
             .order_by(
                 TenantUsageRecord.metric_key.asc(),

@@ -807,7 +807,10 @@ async def start_agent_run(
             request.tenant_id,
             TenantUsageMetric.AGENT_RUNS,
             1,
+            source_type="agent_run",
+            source_id=str(run.id),
             window_seconds=usage_window_seconds,
+            occurred_at=run.created_at,
             dimensions={"agent_id": agent.agent_id},
         )
     return result

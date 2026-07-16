@@ -610,7 +610,10 @@ async def invoke_model(
             request.tenant_id,
             TenantUsageMetric.MODEL_INVOCATIONS,
             1,
+            source_type="model_invocation",
+            source_id=str(invocation.id),
             window_seconds=usage_window_seconds,
+            occurred_at=invocation.updated_at,
             dimensions=dimensions,
         )
         record_tenant_usage_event(
@@ -618,7 +621,10 @@ async def invoke_model(
             request.tenant_id,
             TenantUsageMetric.MODEL_INPUT_TOKENS,
             runtime_result.input_tokens,
+            source_type="model_invocation",
+            source_id=str(invocation.id),
             window_seconds=usage_window_seconds,
+            occurred_at=invocation.updated_at,
             dimensions=dimensions,
         )
         record_tenant_usage_event(
@@ -626,7 +632,10 @@ async def invoke_model(
             request.tenant_id,
             TenantUsageMetric.MODEL_OUTPUT_TOKENS,
             runtime_result.output_tokens,
+            source_type="model_invocation",
+            source_id=str(invocation.id),
             window_seconds=usage_window_seconds,
+            occurred_at=invocation.updated_at,
             dimensions=dimensions,
         )
 

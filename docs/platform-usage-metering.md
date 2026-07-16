@@ -6,12 +6,12 @@ concurrent sessions, the most rows a sync run may read. They answer "is this one
 action allowed right now?" They keep no history. Usage metering is the missing
 **cumulative accounting layer**: a per-tenant consumption ledger that records how
 much of each metered surface a tenant actually consumed over time. Quotas gate;
-metering accounts. Billing is a future consumer of this ledger, not part of this
-slice.
+metering accounts. Billing adapters remain a downstream concern; this ledger
+supplies their auditable accounting input.
 
 ## Metrics
 
-Three typed metrics ship, each mapped to an existing enforcement choke point.
+Seven typed metrics ship, each mapped to an existing enforcement choke point.
 The metric key is an extensible, free-form column, so new metered surfaces add a
 member to `TenantUsageMetric` without a schema change.
 
@@ -20,22 +20,37 @@ member to `TenantUsageMetric` without a schema change.
 | `api_request`         | rate-limit middleware (`rate_limit.py`)  | 1 per metered request |
 | `connector_sync_rows` | governed live-sync run (`connector_runs.py`) | actual rows read  |
 | `session_created`     | OIDC callback session creation (`main.py`) | 1 per session       |
+| `model_invocations`   | governed model router (`model_invocations.py`) | 1 per completed attempt |
+| `model_input_tokens`  | governed model router (`model_invocations.py`) | provider input tokens |
+| `model_output_tokens` | governed model router (`model_invocations.py`) | provider output tokens |
+| `agent_runs`          | governed agent execution (`agent_runs.py`) | 1 per executed run |
 
 Metering only records for **tenant-resolved** activity. `api_request` reuses the
-exact verified-cookie tenant resolution the rate limiter uses (bearer requests,
-which the middleware does not resolve, are not metered). Without a tenant context
-metering is a no-op, so there is no behavior change when the feature is off or
-there is no tenant.
+same verified bearer or persisted-cookie tenant resolution the rate limiter
+uses. Without a tenant context metering is a no-op.
 
 ## Aggregation Semantics
 
 Consumption is bucketed into epoch-aligned period windows
 (`AXIS_USAGE_METERING_AGGREGATION_WINDOW_SECONDS`, default 86400 = UTC-day
-buckets). Each `(tenant_id, metric_key, period_start)` is one running-total row in
-`tenant_usage_records`; deltas fold into it with an **upsert-add**
+buckets). Each
+`(tenant_id, metric_key, period_window_seconds, period_start)` is one
+running-total row in `tenant_usage_records`; deltas fold into it with an
+**upsert-add**
 (`INSERT ... ON CONFLICT DO UPDATE SET quantity = quantity + excluded.quantity`).
-The unique constraint + composite index on `(tenant_id, metric_key, period_start)`
-back both the upsert target and the aggregation reads.
+Including the window width prevents an hourly bucket at midnight from colliding
+with a daily bucket at the same timestamp.
+
+Every committed low-volume delta and every flushed request batch also has an
+immutable row in `tenant_usage_events`. Its source identity
+`(tenant_id, metric_key, source_type, source_id)` is unique. Inserting the event
+and updating the rollup happen in one transaction: an identical retry is a
+no-op, while reusing an identity with a different billing payload is an explicit
+idempotency error.
+
+Event dimensions remain in the journal. The period rollup is intentionally
+non-dimensional; it cannot misrepresent a mixed bucket using whichever
+provider, model, connector, or agent happened to arrive first.
 
 ### Accumulate-then-flush vs per-event insert
 
@@ -47,24 +62,31 @@ paths differ deliberately:
   under a short-held lock — no I/O on the request path. A background flush loop
   in the API process drains the aggregator every
   `AXIS_USAGE_METERING_FLUSH_INTERVAL_SECONDS` and upsert-adds the batched
-  counts; a final drain runs on clean shutdown.
-- **`connector_sync_rows` and `session_created` (low volume)** record
-  synchronously and durably on the same transaction that persisted the
-  underlying event, so their consumption is never at risk across a crash window.
-
-Both paths land on the same `add_tenant_usage` upsert-add.
+  counts; a final drain runs on clean shutdown. Every drained batch receives a
+  stable source ID, so retrying after an ambiguous commit cannot count it twice.
+- **Low-volume domain metrics** record a source-keyed journal event on the same
+  transaction that persisted the session, connector execution, model
+  invocation, or agent run.
 
 ### Correctness under concurrency
 
-- **DB level.** The upsert-add is a single SQL statement under a row lock, so
+- **DB level.** Journal insert and upsert-add share one transaction. The
+  source-identity constraint prevents replay duplication; the upsert-add is a
+  single SQL statement under a row lock, so
   concurrent flushers, replicas and the synchronous recorders can all target the
-  same bucket row without losing or double-counting deltas.
+  same bucket row without losing increments. `first_recorded_at` and
+  `last_recorded_at` use minimum/maximum semantics, so out-of-order events cannot
+  move the observed time range backwards.
 - **In-process aggregator.** `record` folds under a lock. `flush` calls `drain`,
-  which atomically swaps out every pending bucket exactly once; the drained
-  deltas are committed once. On a DB error the drained deltas are **restored**
-  (added back under the lock, merged with any new increments) and re-raised, so a
-  transient failure is retried on the next flush with **no loss and no double
-  count**. When metering is disabled `record` is a no-op.
+  which atomically assigns identities to pending buckets. On a DB error the
+  exact batches are restored without merging them into newer traffic, preserving
+  retry identity. When metering is disabled `record` is a no-op.
+
+The remaining boundary is explicit: an API process can still lose request
+increments held only in memory if it suffers a hard crash before a flush.
+Exactly-once retries are covered after a batch identity exists; billing-grade
+durability for each admitted request requires a later durable admission/event
+ingress. Low-volume domain metrics do not have this volatile window.
 
 The flush loop is observable: it logs flushed volume at debug and logs (without
 losing deltas) on failure.
@@ -132,9 +154,16 @@ states — and adds no dependencies.
 
 ## Schema
 
-Migration `0049_tenant_usage_records` (down revision
-`0048_session_device_metadata`) creates `tenant_usage_records`:
+Migration `0049_tenant_usage_records` creates the original rollup. Migration
+`0052_tenant_usage_event_journal` adds `period_window_seconds` to its unique key
+and creates `tenant_usage_events`.
+
+`tenant_usage_records` contains:
 `id`, `tenant_id`, `metric_key`, `period_start`, `quantity` (bigint running
-total), `dimensions` (JSONB, no sensitive data), `first_recorded_at`,
-`last_recorded_at`, `created_at`, `updated_at`, with a unique constraint and a
-composite index on `(tenant_id, metric_key, period_start)`.
+total), `period_window_seconds`, empty compatibility `dimensions`,
+`first_recorded_at`, `last_recorded_at`, `created_at`, `updated_at`.
+
+`tenant_usage_events` contains the immutable source identity, quantity, exact
+dimensions, event and bucket timestamps, window width, and journal timestamp.
+The journal is sufficient to audit or rebuild post-migration rollups; legacy
+rollup quantities remain valid but naturally have no pre-0052 event rows.
