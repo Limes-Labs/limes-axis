@@ -5,6 +5,7 @@ from jose.utils import base64url_encode
 from axis_api.config import Settings
 from axis_api.identity import StaticJwksOidcVerifier
 from axis_api.main import create_app
+from axis_api.rate_limit import InMemoryRateLimiter
 from axis_api.runtime_readiness import static_runtime_readiness_service
 
 
@@ -155,6 +156,32 @@ def test_openapi_metadata_names_axis() -> None:
     assert "/ready" in response.json()["paths"]
 
 
+def test_production_disables_public_api_documentation() -> None:
+    settings = Settings(
+        environment="production",
+        postgres_dsn="sqlite+pysqlite://",
+        oidc_auth_required=True,
+        api_rate_limit_enabled=True,
+        api_rate_limit_paths=["*"],
+        api_rate_limit_backend="redis",
+        api_rate_limit_failure_mode="closed",
+        redis_url="redis://rate-limit.internal:6379/0",
+    )
+    client = TestClient(
+        create_app(
+            settings,
+            rate_limit_backend=InMemoryRateLimiter(
+                limit=120,
+                window_seconds=60,
+            ),
+        )
+    )
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
 def test_api_rate_limiter_is_disabled_by_default_for_local_demos() -> None:
     client = TestClient(create_app(Settings(postgres_dsn="sqlite+pysqlite://")))
 
@@ -171,14 +198,14 @@ def test_api_rate_limiter_blocks_over_limit_client_endpoint() -> None:
                 api_rate_limit_enabled=True,
                 api_rate_limit_requests=2,
                 api_rate_limit_window_seconds=60,
-                api_rate_limit_paths=["/health"],
+                api_rate_limit_paths=["/identity/oidc/readiness"],
             )
         )
     )
 
-    first = client.get("/health")
-    second = client.get("/health")
-    third = client.get("/health")
+    first = client.get("/identity/oidc/readiness")
+    second = client.get("/identity/oidc/readiness")
+    third = client.get("/identity/oidc/readiness")
 
     assert first.status_code == 200
     assert first.headers["x-ratelimit-limit"] == "2"
@@ -209,14 +236,14 @@ def test_api_rate_limiter_keeps_each_endpoint_bucket_separate() -> None:
                 api_rate_limit_enabled=True,
                 api_rate_limit_requests=1,
                 api_rate_limit_window_seconds=60,
-                api_rate_limit_paths=["/health", "/ready"],
+                api_rate_limit_paths=["/identity/oidc/readiness", "/ready"],
                 workflow_signals_enabled=False,
             )
         )
     )
 
-    assert client.get("/health").status_code == 200
-    assert client.get("/health").status_code == 429
+    assert client.get("/identity/oidc/readiness").status_code == 200
+    assert client.get("/identity/oidc/readiness").status_code == 429
     assert client.get("/ready").status_code == 200
 
 

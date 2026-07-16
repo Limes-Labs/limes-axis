@@ -128,6 +128,7 @@ class UsageAccumulator:
     )
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _overflow_total: int = 0
+    _degraded: bool = False
 
     def record(
         self,
@@ -149,6 +150,7 @@ class UsageAccumulator:
             if counter is None:
                 if len(self._pending) >= self.max_pending_keys:
                     self._overflow_total += quantity
+                    self._degraded = True
                     return UsageRecordResult.OVERFLOW
                 counter = _PendingCounter(quantity=0, last_occurred_at=moment)
                 self._pending[key] = counter
@@ -162,11 +164,18 @@ class UsageAccumulator:
 
         with self._lock:
             return {
-                "healthy": self._overflow_total == 0,
+                "healthy": not self._degraded,
                 "pending_keys": len(self._pending),
                 "max_pending_keys": self.max_pending_keys,
                 "overflow_total": self._overflow_total,
             }
+
+    def mark_flush_succeeded(self) -> None:
+        """Clear active backpressure degradation while retaining loss telemetry."""
+
+        with self._lock:
+            if len(self._pending) < self.max_pending_keys:
+                self._degraded = False
 
     def drain(self) -> list[PendingUsage]:
         with self._lock:
@@ -226,6 +235,7 @@ class UsageAccumulator:
             # restore them so the next flush retries with no loss, then re-raise.
             self.restore(items)
             raise
+        self.mark_flush_succeeded()
         return sum(item.quantity for item in items)
 
 

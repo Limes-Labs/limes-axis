@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -198,24 +199,43 @@ class RemoteJwksOidcVerifier(StaticJwksOidcVerifier):
         self.jwks_url = jwks_url
         self.cache_seconds = cache_seconds
         self._cache_expires_at = 0.0
+        self._refresh_lock = threading.Lock()
+        self._last_forced_refresh_at = 0.0
+        self._forced_refresh_cooldown_seconds = min(5.0, max(1.0, cache_seconds / 10))
 
     def _key_for_token(self, token: str) -> dict:
-        now = time.time()
-        cache_was_valid = now < self._cache_expires_at
-        if not cache_was_valid:
-            self.jwks = self._fetch_jwks()
-            self._cache_expires_at = now + self.cache_seconds
-        try:
-            return super()._key_for_token(token)
-        except OidcAuthenticationError as exc:
-            if exc.reason != "jwks_key_not_found" or not cache_was_valid:
-                raise
-            # Refresh once on an unknown kid so normal IdP key rotation does
-            # not cause an outage for the full cache TTL. A freshly fetched
-            # cache never triggers a second request, bounding hostile misses.
-            self.jwks = self._fetch_jwks()
-            self._cache_expires_at = now + self.cache_seconds
-            return super()._key_for_token(token)
+        if time.time() < self._cache_expires_at:
+            try:
+                return super()._key_for_token(token)
+            except OidcAuthenticationError as exc:
+                if exc.reason != "jwks_key_not_found":
+                    raise
+
+        # Known keys on a valid cache stay lock-free. Only cache refreshes and
+        # unknown-key misses are serialized, avoiding a global bearer-auth
+        # bottleneck while still bounding IdP requests under hostile traffic.
+        with self._refresh_lock:
+            now = time.time()
+            cache_was_valid = now < self._cache_expires_at
+            if not cache_was_valid:
+                self.jwks = self._fetch_jwks()
+                self._cache_expires_at = now + self.cache_seconds
+            try:
+                return super()._key_for_token(token)
+            except OidcAuthenticationError as exc:
+                if exc.reason != "jwks_key_not_found" or not cache_was_valid:
+                    raise
+                if (
+                    now - self._last_forced_refresh_at
+                    < self._forced_refresh_cooldown_seconds
+                ):
+                    raise
+                # Support normal IdP key rotation without allowing random-kid
+                # traffic to force one blocking network fetch per request.
+                self._last_forced_refresh_at = now
+                self.jwks = self._fetch_jwks()
+                self._cache_expires_at = now + self.cache_seconds
+                return super()._key_for_token(token)
 
     def _fetch_jwks(self) -> dict:
         try:

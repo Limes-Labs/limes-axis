@@ -58,6 +58,8 @@ class RuntimeReadinessService:
     ) -> None:
         self._probes = probes
         self._timeout_seconds = timeout_seconds
+        self._inflight: dict[str, asyncio.Task[None]] = {}
+        self._inflight_lock = asyncio.Lock()
 
     async def check(self) -> RuntimeReadinessReport:
         results = await asyncio.gather(*(self._check_probe(probe) for probe in self._probes))
@@ -76,9 +78,12 @@ class RuntimeReadinessService:
             return DependencyReadiness(required=False, status="disabled", latency_ms=0)
 
         started_at = time.monotonic()
+        task = await self._probe_task(definition)
         try:
-            async with asyncio.timeout(self._timeout_seconds):
-                await definition.probe()
+            await asyncio.wait_for(
+                asyncio.shield(task),
+                timeout=self._timeout_seconds,
+            )
         except TimeoutError:
             status: DependencyStatus = "timeout"
             _LOGGER.warning("Readiness probe timed out", extra={"dependency": definition.name})
@@ -91,12 +96,34 @@ class RuntimeReadinessService:
             )
         else:
             status = "ready"
+        finally:
+            if task.done():
+                async with self._inflight_lock:
+                    if self._inflight.get(definition.name) is task:
+                        self._inflight.pop(definition.name, None)
         latency_ms = round((time.monotonic() - started_at) * 1000, 2)
         return DependencyReadiness(
             required=definition.required,
             status=status,
             latency_ms=latency_ms,
         )
+
+    async def _probe_task(self, definition: _ProbeDefinition) -> asyncio.Task[None]:
+        assert definition.probe is not None
+        async with self._inflight_lock:
+            task = self._inflight.get(definition.name)
+            if task is None or task.done():
+                task = asyncio.create_task(definition.probe())
+                task.add_done_callback(_consume_probe_exception)
+                self._inflight[definition.name] = task
+            return task
+
+
+def _consume_probe_exception(task: asyncio.Task[None]) -> None:
+    """Retrieve background probe failures after a timed-out public request."""
+
+    if not task.cancelled():
+        task.exception()
 
 
 def build_runtime_readiness_service(

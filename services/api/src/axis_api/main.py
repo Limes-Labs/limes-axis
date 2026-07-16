@@ -588,6 +588,10 @@ from axis_api.runtime_readiness import (
     RuntimeReadinessService,
     build_runtime_readiness_service,
 )
+from axis_api.session_lifecycle import (
+    browser_session_lifecycle_failure,
+    ensure_aware_datetime,
+)
 from axis_api.session_metadata import extract_session_client_metadata
 from axis_api.support_diagnostics import (
     SupportDiagnosticsReport,
@@ -862,7 +866,7 @@ def oidc_principal(
                     if stored_session is None:
                         cookie_failure_reason = "invalid_session_cookie"
                     else:
-                        failure = _stored_session_lifecycle_failure(stored_session, settings)
+                        failure = browser_session_lifecycle_failure(stored_session, settings)
                         if failure is not None:
                             public_reason, revocation_reason = failure
                             if revocation_reason and stored_session.status in {
@@ -889,7 +893,7 @@ def oidc_principal(
                                 tenant_id=stored_session.tenant_id,
                                 scopes=list(stored_session.scopes),
                                 expires_at=int(
-                                    _ensure_aware_datetime(
+                                    ensure_aware_datetime(
                                         stored_session.expires_at
                                     ).timestamp()
                                 ),
@@ -1051,16 +1055,6 @@ def _fresh_blocked_tenant_reason(
     return blocked_tenant_reason(tenant.status if tenant is not None else None)
 
 
-def _ensure_aware_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value
-
-
-def _datetime_is_expired(value: datetime) -> bool:
-    return _ensure_aware_datetime(value) <= datetime.now(UTC)
-
-
 OIDC_SESSION_BOUNDARY = "http_only_cookie_verified_by_axis_api"
 OIDC_SESSION_LIFECYCLE_ACTOR = "axis-session-lifecycle"
 IDENTITY_SESSION_ADMIN_SCOPE = "identity:sessions:admin"
@@ -1135,7 +1129,7 @@ def _claim_session_refresh(
                 message="The tenant for this session is not active.",
                 error_code=AxisErrorCode.PERMISSION_DENIED,
             )
-        lifecycle_failure = _stored_session_lifecycle_failure(stored_session, settings)
+        lifecycle_failure = browser_session_lifecycle_failure(stored_session, settings)
         if lifecycle_failure is not None:
             public_reason, revocation_reason = lifecycle_failure
             if revocation_reason and stored_session.status in {"active", "refreshing"}:
@@ -1192,41 +1186,6 @@ def _claim_session_refresh(
                 message="The OIDC session cookie could not be verified.",
             )
         return claim
-
-
-def _stored_session_lifecycle_failure(
-    stored_session: OidcBrowserSession,
-    settings: Settings,
-) -> tuple[str, str] | None:
-    if stored_session.status == "refreshing":
-        # A refresh claim is normally resolved (rotated or revoked) within one
-        # IdP exchange. A claim older than the staleness window means the
-        # refreshing process crashed between claim and completion; recover the
-        # orphaned row by revoking it with distinct audit evidence instead of
-        # leaving it ambiguous forever.
-        claim_deadline = _ensure_aware_datetime(stored_session.updated_at) + timedelta(
-            seconds=settings.oidc_refresh_claim_staleness_seconds
-        )
-        if claim_deadline <= datetime.now(UTC):
-            return ("revoked_session_cookie", "refresh_claim_orphaned")
-        return ("revoked_session_cookie", "")
-    if stored_session.status != "active":
-        return ("revoked_session_cookie", "")
-    if _datetime_is_expired(stored_session.expires_at):
-        return ("expired_session_cookie", "session_expired")
-    if stored_session.absolute_expires_at is not None and _datetime_is_expired(
-        stored_session.absolute_expires_at
-    ):
-        return ("expired_session_cookie", "absolute_timeout")
-    idle_timeout_seconds = settings.oidc_session_idle_timeout_seconds
-    if idle_timeout_seconds > 0:
-        last_activity = stored_session.last_seen_at or stored_session.created_at
-        idle_deadline = _ensure_aware_datetime(last_activity) + timedelta(
-            seconds=idle_timeout_seconds
-        )
-        if idle_deadline <= datetime.now(UTC):
-            return ("idle_session_timeout", "idle_timeout")
-    return None
 
 
 def _expire_stored_session(
@@ -2397,6 +2356,10 @@ def create_app(
 ) -> FastAPI:
     resolved_settings = settings or Settings()
     validate_runtime_configuration(resolved_settings)
+    production = resolved_settings.environment.strip().casefold() in {
+        "prod",
+        "production",
+    }
     app = FastAPI(
         title="Limes Axis API",
         description="Core API for the sovereign AI control plane for European operations.",
@@ -2405,6 +2368,9 @@ def create_app(
             "name": "Apache-2.0",
             "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         },
+        docs_url=None if production else "/docs",
+        redoc_url=None if production else "/redoc",
+        openapi_url=None if production else "/openapi.json",
         lifespan=_lifespan,
     )
     validate_refresh_token_encryption_key(resolved_settings)
@@ -3012,7 +2978,7 @@ def create_app(
             if claim.absolute_expires_at is not None:
                 max_age_ceiling = int(
                     (
-                        _ensure_aware_datetime(claim.absolute_expires_at)
+                        ensure_aware_datetime(claim.absolute_expires_at)
                         - datetime.now(UTC)
                     ).total_seconds()
                 )
@@ -3110,7 +3076,7 @@ def create_app(
                             "session_boundary": OIDC_SESSION_BOUNDARY,
                             "expires_at": expires_at.isoformat(),
                             "absolute_expires_at": (
-                                _ensure_aware_datetime(claim.absolute_expires_at).isoformat()
+                                ensure_aware_datetime(claim.absolute_expires_at).isoformat()
                                 if claim.absolute_expires_at is not None
                                 else None
                             ),
@@ -7128,9 +7094,9 @@ def create_app(
         _authorize_platform_tenant_usage_read(principal, resource="platform_tenant_usage")
         # Normalize mixed naive/aware inputs to UTC so a naive from/to compared
         # against an aware now() yields a clean 422, not a TypeError-driven 500.
-        window_end = _ensure_aware_datetime(to) if to is not None else datetime.now(UTC)
+        window_end = ensure_aware_datetime(to) if to is not None else datetime.now(UTC)
         window_start = (
-            _ensure_aware_datetime(from_)
+            ensure_aware_datetime(from_)
             if from_ is not None
             else window_end - timedelta(days=last_days)
         )

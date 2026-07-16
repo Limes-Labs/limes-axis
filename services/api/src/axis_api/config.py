@@ -598,7 +598,11 @@ def validate_runtime_configuration(settings: Settings) -> None:
         raise RuntimeConfigurationError(
             "AXIS_OIDC_AUTH_REQUIRED must be true when AXIS_ENV is production."
         )
-    if environment in {"prod", "production"} and settings.api_rate_limit_enabled:
+    if environment in {"prod", "production"} and not settings.api_rate_limit_enabled:
+        raise RuntimeConfigurationError(
+            "AXIS_API_RATE_LIMIT_ENABLED must be true when AXIS_ENV is production."
+        )
+    if environment in {"prod", "production"}:
         if "*" not in settings.api_rate_limit_paths:
             raise RuntimeConfigurationError(
                 "AXIS_API_RATE_LIMIT_PATHS must include '*' in production."

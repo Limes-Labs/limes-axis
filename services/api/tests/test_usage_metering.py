@@ -242,7 +242,17 @@ def test_accumulator_overflow_is_observable_and_existing_bucket_still_accumulate
         "max_pending_keys": 1,
         "overflow_total": 3,
     }
-    assert accumulator.drain()[0].quantity == 3
+    drained = accumulator.drain()
+    assert drained[0].quantity == 3
+    accumulator.restore(drained)
+    factory = _factory()
+    assert accumulator.flush(factory) == 3
+    assert accumulator.health() == {
+        "healthy": True,
+        "pending_keys": 0,
+        "max_pending_keys": 1,
+        "overflow_total": 3,
+    }
 
 
 def test_accumulator_restore_does_not_lose_counts_on_flush_failure() -> None:

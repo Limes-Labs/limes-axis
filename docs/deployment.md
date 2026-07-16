@@ -20,6 +20,11 @@ route coverage (`AXIS_API_RATE_LIMIT_PATHS=["*"]`). Verified bearer and browser
 sessions share tenant quota buckets. The in-memory backend remains available
 only for local development and tests.
 
+Production startup also rejects a disabled API limiter. `/health` remains a
+process-local liveness signal and is never gated by Redis or request quotas;
+`/ready` remains the dependency-aware traffic admission signal. The chart maps
+the Redis URL through `secrets.existingSecret` or the optional ExternalSecret.
+
 The local Compose stack includes persistent Valkey on port `6379` for
 integration testing. Customer deployments should use a monitored, redundant
 Redis or Valkey service with authentication and TLS appropriate to their

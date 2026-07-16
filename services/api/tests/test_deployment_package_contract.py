@@ -28,6 +28,36 @@ def test_deployment_package_static_contract_passes() -> None:
     assert failures == []
 
 
+def test_default_chart_renders_complete_production_admission_configuration() -> None:
+    chart = REPO_ROOT / "infra" / "helm" / "limes-axis"
+    completed = subprocess.run(
+        [
+            "helm",
+            "template",
+            "axis",
+            str(chart),
+            "--set",
+            "secrets.externalSecret.enabled=true",
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    rendered = completed.stdout
+    for expected in (
+        'AXIS_API_RATE_LIMIT_ENABLED: "true"',
+        'AXIS_API_RATE_LIMIT_BACKEND: "redis"',
+        'AXIS_API_RATE_LIMIT_FAILURE_MODE: "closed"',
+        'AXIS_API_RATE_LIMIT_PATHS: "[\\"*\\"]"',
+        'AXIS_REDIS_TIMEOUT_SECONDS: "0.25"',
+        'AXIS_READINESS_PROBE_TIMEOUT_SECONDS: "1.0"',
+        'secretKey: "AXIS_REDIS_URL"',
+    ):
+        assert expected in rendered
+
+
 def test_deployment_package_declares_critical_chart_files() -> None:
     checker = load_check_module()
 

@@ -57,6 +57,30 @@ async def test_probe_timeout_is_bounded_and_probes_run_concurrently() -> None:
     assert {item.status for item in report.dependencies.values()} == {"timeout"}
 
 
+@pytest.mark.asyncio
+async def test_timed_out_probe_is_shared_until_background_work_finishes() -> None:
+    started = 0
+    release = asyncio.Event()
+
+    async def blocked() -> None:
+        nonlocal started
+        started += 1
+        await release.wait()
+
+    service = static_runtime_readiness_service(
+        {"postgres": (True, blocked)},
+        timeout_seconds=0.01,
+    )
+
+    first, second = await asyncio.gather(service.check(), service.check())
+
+    assert first.dependencies["postgres"].status == "timeout"
+    assert second.dependencies["postgres"].status == "timeout"
+    assert started == 1
+    release.set()
+    await asyncio.sleep(0)
+
+
 @pytest.mark.parametrize("environment", ["production", "prod", " PRODUCTION "])
 def test_production_requires_oidc_auth(environment: str) -> None:
     with pytest.raises(RuntimeConfigurationError, match="AXIS_OIDC_AUTH_REQUIRED"):
@@ -66,5 +90,15 @@ def test_production_requires_oidc_auth(environment: str) -> None:
 
 
 def test_production_with_auth_and_development_without_auth_are_valid() -> None:
-    validate_runtime_configuration(Settings(environment="production", oidc_auth_required=True))
+    validate_runtime_configuration(
+        Settings(
+            environment="production",
+            oidc_auth_required=True,
+            api_rate_limit_enabled=True,
+            api_rate_limit_paths=["*"],
+            api_rate_limit_backend="redis",
+            api_rate_limit_failure_mode="closed",
+            redis_url="redis://rate-limit.internal:6379/0",
+        )
+    )
     validate_runtime_configuration(Settings(environment="development", oidc_auth_required=False))
