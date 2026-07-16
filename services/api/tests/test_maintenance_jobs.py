@@ -365,14 +365,14 @@ def test_session_sweep_no_op_records_completed(session_factory) -> None:
 
 def test_session_sweep_boundary_matches_request_path(session_factory) -> None:
     """A session exactly at the staleness threshold is treated by the sweep
-    identically to the request path (_stored_session_lifecycle_failure).
+    identically to the request path (browser_session_lifecycle_failure).
 
     Both use inclusive ``<= now`` comparisons at the boundary. A refreshing row
     whose updated_at equals now-staleness (the claim deadline) is swept and is
     classified by the request-path helper as an orphaned revocation; a row one
     second fresher is preserved by the sweep.
     """
-    from axis_api.main import _stored_session_lifecycle_failure
+    from axis_api.session_lifecycle import browser_session_lifecycle_failure
 
     settings = _settings()
     now = datetime.now(UTC)
@@ -398,7 +398,7 @@ def test_session_sweep_boundary_matches_request_path(session_factory) -> None:
         at_boundary_row = repo.get_oidc_browser_session_by_row_id(at_boundary_id)
         fresher_row = repo.get_oidc_browser_session_by_row_id(fresher_id)
         # Request-path verdict for the boundary row: orphaned revocation.
-        boundary_failure = _stored_session_lifecycle_failure(at_boundary_row, settings)
+        boundary_failure = browser_session_lifecycle_failure(at_boundary_row, settings)
         assert at_boundary_row.status == "refreshing"
         assert fresher_row.status == "refreshing"
 

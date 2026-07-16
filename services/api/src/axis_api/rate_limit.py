@@ -43,6 +43,7 @@ _METERING_EXCLUDED_PATHS = {
     "/identity/oidc/authorize",
     "/identity/oidc/callback",
 }
+_RATE_LIMIT_EXCLUDED_PATHS = {"/health"}
 
 
 @dataclass
@@ -231,9 +232,9 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
             self._record_verified_request_usage(request)
             return response
 
-        tenant_id = self._verified_tenant(request)
+        tenant_id = await self._verified_tenant(request)
 
-        tenant_limit = self._tenant_request_limit(request, tenant_id)
+        tenant_limit = await self._tenant_request_limit(request, tenant_id)
         if tenant_id is not None and tenant_limit is not None:
             # A per-tenant quota shares one bucket across the tenant's clients.
             key = f"tenant:{tenant_id}:{request.method}:{request.url.path}"
@@ -290,6 +291,7 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         return (
             self.enabled
             and request.method != "OPTIONS"
+            and request.url.path not in _RATE_LIMIT_EXCLUDED_PATHS
             and (
                 "*" in self.protected_paths
                 or request.url.path in self.protected_paths
@@ -322,7 +324,7 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
                 extra={"metric": TenantUsageMetric.API_REQUEST.value},
             )
 
-    def _verified_tenant(self, request: Request) -> str | None:
+    async def _verified_tenant(self, request: Request) -> str | None:
         """Resolve a tenant only from a verified browser session or bearer token."""
 
         authorization = request.headers.get("Authorization")
@@ -331,7 +333,10 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
             if verifier is None:
                 return None
             try:
-                principal = verifier.verify_authorization_header(authorization)
+                principal = await asyncio.to_thread(
+                    verifier.verify_authorization_header,
+                    authorization,
+                )
             except OidcAuthenticationError:
                 # The route dependency returns the canonical structured 401.
                 return None
@@ -342,11 +347,53 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         if not session_cookie:
             return None
         try:
-            return read_session_cookie(session_cookie, self.settings).tenant_id
+            oidc_session = read_session_cookie(session_cookie, self.settings)
         except (OidcCodeFlowConfigurationError, OidcCookieValidationError):
             return None
+        return await asyncio.to_thread(
+            self._persisted_session_tenant,
+            request,
+            oidc_session.session_id,
+            oidc_session.tenant_id,
+            oidc_session.actor_id,
+        )
 
-    def _tenant_request_limit(self, request: Request, tenant_id: str | None) -> int | None:
+    def _persisted_session_tenant(
+        self,
+        request: Request,
+        session_id: str,
+        tenant_id: str,
+        actor_id: str,
+    ) -> str | None:
+        """Reject revoked, rotated, expired, or mismatched browser sessions."""
+
+        from axis_api.db import session_scope
+        from axis_api.oidc_code_flow import session_id_hash
+        from axis_api.persistence import AxisPersistenceRepository
+        from axis_api.session_lifecycle import browser_session_is_active
+
+        session_factory = getattr(request.app.state, "session_factory", None)
+        if session_factory is None:
+            return None
+        session_hash = session_id_hash(session_id, self.settings)
+        with session_scope(session_factory) as session:
+            stored = AxisPersistenceRepository(
+                session
+            ).get_oidc_browser_session_by_hash(session_hash)
+            if (
+                stored is None
+                or stored.tenant_id != tenant_id
+                or stored.actor_id != actor_id
+                or not browser_session_is_active(stored, self.settings)
+            ):
+                return None
+        return tenant_id
+
+    async def _tenant_request_limit(
+        self,
+        request: Request,
+        tenant_id: str | None,
+    ) -> int | None:
         if tenant_id is None:
             return None
         cache: TenantStateCache | None = getattr(
@@ -356,7 +403,11 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         if cache is None or session_factory is None:
             return None
         try:
-            snapshot = cache.snapshot(session_factory, tenant_id)
+            snapshot = await asyncio.to_thread(
+                cache.snapshot,
+                session_factory,
+                tenant_id,
+            )
         except SQLAlchemyError:
             # A failed quota lookup falls back to the global limit; the request
             # itself will surface the database failure at the route layer.

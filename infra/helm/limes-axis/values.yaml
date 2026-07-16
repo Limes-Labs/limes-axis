@@ -15,6 +15,7 @@ secrets:
   createExample: false
   exampleData:
     AXIS_POSTGRES_DSN: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
+    AXIS_REDIS_URL: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_EXTERNAL_DB_LIVE_QUERY_DSN: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_TYPEDB_USERNAME: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
     AXIS_TYPEDB_PASSWORD: REPLACE_WITH_EXTERNAL_SECRET_MANAGER_VALUE
@@ -37,6 +38,9 @@ secrets:
       AXIS_POSTGRES_DSN:
         remoteKey: limes-axis/production/postgres
         property: dsn
+      AXIS_REDIS_URL:
+        remoteKey: limes-axis/production/redis
+        property: url
       AXIS_EXTERNAL_DB_LIVE_QUERY_DSN:
         remoteKey: limes-axis/production/external-db-live-query
         property: dsn

@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from jose import jwt
 from jose.utils import base64url_encode
 
@@ -326,3 +327,51 @@ def test_remote_jwks_oidc_verifier_refreshes_once_for_rotated_kid(monkeypatch) -
     assert principal.actor_id == "operator"
     assert fetches == 2
     assert verifier.jwks == payloads[1]
+
+
+def test_remote_jwks_unknown_kids_share_refresh_cooldown(monkeypatch) -> None:
+    secret = "axis-known-secret"
+    fetches = 0
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(_oct_jwks(secret, "known-key")).encode()
+
+    def fake_urlopen(_url: str, timeout: int):
+        nonlocal fetches
+        assert timeout == 2
+        fetches += 1
+        return FakeResponse()
+
+    monkeypatch.setattr("axis_api.identity.urlopen", fake_urlopen)
+    verifier = RemoteJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks_url="https://issuer.example/jwks",
+        cache_seconds=300,
+        tenant_claim="axis_tenant",
+    )
+    claims = {
+        "iss": "https://issuer.example/realms/axis",
+        "aud": "limes-axis-api",
+        "sub": "operator",
+        "axis_tenant": "tenant_demo_manufacturing",
+        "exp": 4102444800,
+    }
+
+    for kid in ("unknown-one", "unknown-two", "unknown-three"):
+        with pytest.raises(OidcAuthenticationError, match="jwks_key_not_found"):
+            verifier.verify_authorization_header(
+                f"Bearer {_token('attacker-secret', claims, kid=kid)}"
+            )
+
+    # Initial cache fill plus one rotation refresh; other random kids are
+    # rejected during the shared cooldown without another outbound fetch.
+    assert fetches == 2

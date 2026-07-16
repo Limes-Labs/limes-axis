@@ -1,4 +1,5 @@
 import secrets
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -10,9 +11,16 @@ from axis_api.db import session_scope
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
 from axis_api.models import Actor, AuditEvent, Base, Tenant, TenantQuota
-from axis_api.oidc_code_flow import session_cookie_name, sign_cookie
+from axis_api.oidc_code_flow import (
+    read_session_cookie,
+    session_cookie_name,
+    session_id_hash,
+    sign_cookie,
+)
 from axis_api.persistence import (
     AxisPersistenceRepository,
+    OidcBrowserSessionCreate,
+    OidcBrowserSessionRevocation,
     TenantCreate,
     TenantQuotaUpsert,
 )
@@ -27,6 +35,7 @@ OPERATOR_SCOPES = [
     "platform:tenant:quota",
 ]
 TENANT_ID = "tenant_acme_manufacturing"
+RATE_LIMIT_TEST_PATH = "/identity/oidc/readiness"
 
 
 class StaticIdentityVerifier:
@@ -130,13 +139,15 @@ def audit_events(
 def session_cookie_for(
     settings: Settings,
     *,
+    factory: sessionmaker[Session] | None = None,
     tenant_id: str,
     actor_id: str = "acme-console-user-role",
 ) -> tuple[str, str]:
+    session_id = secrets.token_urlsafe(48)
     cookie_value = sign_cookie(
         {
             "kind": "oidc_session",
-            "session_id": secrets.token_urlsafe(48),
+            "session_id": session_id,
             "actor_id": actor_id,
             "tenant_id": tenant_id,
             "scopes": ["audit:read"],
@@ -144,6 +155,17 @@ def session_cookie_for(
         },
         settings,
     )
+    if factory is not None:
+        with session_scope(factory) as session:
+            AxisPersistenceRepository(session).create_oidc_browser_session(
+                OidcBrowserSessionCreate(
+                    session_id_hash=session_id_hash(session_id, settings),
+                    tenant_id=tenant_id,
+                    actor_id=actor_id,
+                    scopes=["audit:read"],
+                    expires_at=datetime(2100, 1, 1, tzinfo=UTC),
+                )
+            )
     return session_cookie_name(settings), cookie_value
 
 
@@ -810,7 +832,7 @@ def rate_limited_settings() -> Settings:
         api_rate_limit_enabled=True,
         api_rate_limit_requests=5,
         api_rate_limit_window_seconds=60,
-        api_rate_limit_paths=["/health"],
+        api_rate_limit_paths=[RATE_LIMIT_TEST_PATH],
         oidc_session_cookie_signing_secret="a-secure-cookie-signing-secret",
         tenant_state_cache_ttl_seconds=0,
     )
@@ -845,12 +867,16 @@ def test_rate_limit_enforces_tenant_quota_before_global_limit() -> None:
     settings = rate_limited_settings()
     client, factory = build_test_client(settings)
     seed_tenant_with_request_quota(factory, quota_value=2)
-    cookie_name, cookie_value = session_cookie_for(settings, tenant_id=TENANT_ID)
+    cookie_name, cookie_value = session_cookie_for(
+        settings,
+        factory=factory,
+        tenant_id=TENANT_ID,
+    )
     client.cookies.set(cookie_name, cookie_value)
 
-    assert client.get("/health").status_code == 200
-    assert client.get("/health").status_code == 200
-    limited = client.get("/health")
+    assert client.get(RATE_LIMIT_TEST_PATH).status_code == 200
+    assert client.get(RATE_LIMIT_TEST_PATH).status_code == 200
+    limited = client.get(RATE_LIMIT_TEST_PATH)
 
     assert limited.status_code == 429
     detail = limited.json()["detail"]
@@ -863,12 +889,16 @@ def test_rate_limit_falls_back_to_global_limit_without_tenant_quota() -> None:
     settings = rate_limited_settings()
     client, factory = build_test_client(settings)
     seed_tenant_with_request_quota(factory, quota_value=None)
-    cookie_name, cookie_value = session_cookie_for(settings, tenant_id=TENANT_ID)
+    cookie_name, cookie_value = session_cookie_for(
+        settings,
+        factory=factory,
+        tenant_id=TENANT_ID,
+    )
     client.cookies.set(cookie_name, cookie_value)
 
     for _ in range(5):
-        assert client.get("/health").status_code == 200
-    limited = client.get("/health")
+        assert client.get(RATE_LIMIT_TEST_PATH).status_code == 200
+    limited = client.get(RATE_LIMIT_TEST_PATH)
 
     assert limited.status_code == 429
     assert limited.json()["detail"]["scope"] == "client_endpoint"
@@ -888,24 +918,64 @@ def test_rate_limit_verified_bearer_token_selects_tenant_quota() -> None:
     )
     bearer = {"Authorization": "Bearer valid-token"}
 
-    assert client.get("/health", headers=bearer).status_code == 200
-    limited = client.get("/health", headers=bearer)
+    assert client.get(RATE_LIMIT_TEST_PATH, headers=bearer).status_code == 200
+    limited = client.get(RATE_LIMIT_TEST_PATH, headers=bearer)
 
     assert limited.status_code == 429
     assert limited.json()["detail"]["scope"] == "tenant_quota"
     assert limited.json()["detail"]["limit"] == 1
 
 
+def test_revoked_session_cookie_cannot_consume_tenant_quota() -> None:
+    settings = rate_limited_settings()
+    client, factory = build_test_client(settings)
+    seed_tenant_with_request_quota(factory, quota_value=1)
+    cookie_name, cookie_value = session_cookie_for(
+        settings,
+        factory=factory,
+        tenant_id=TENANT_ID,
+    )
+    client.cookies.set(cookie_name, cookie_value)
+    session_id = read_session_cookie(cookie_value, settings).session_id
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).revoke_oidc_browser_session(
+            OidcBrowserSessionRevocation(
+                session_id_hash=session_id_hash(session_id, settings),
+                revoked_by="security-operator",
+                revocation_reason="test_revocation",
+            )
+        )
+
+    # Revoked credentials may hit the client bucket, but never the shared
+    # tenant quota. A fresh verified bearer still receives the tenant's one slot.
+    assert client.get(RATE_LIMIT_TEST_PATH).status_code == 200
+    client.cookies.clear()
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="acme-console-user-role",
+            tenant_id=TENANT_ID,
+            scopes=[],
+        )
+    )
+    bearer = {"Authorization": "Bearer valid-token"}
+    assert client.get(RATE_LIMIT_TEST_PATH, headers=bearer).status_code == 200
+    assert client.get(RATE_LIMIT_TEST_PATH, headers=bearer).status_code == 429
+
+
 def test_rate_limit_ignores_unverifiable_session_cookies() -> None:
     settings = rate_limited_settings()
     client, factory = build_test_client(settings)
     seed_tenant_with_request_quota(factory, quota_value=1)
-    cookie_name, _cookie_value = session_cookie_for(settings, tenant_id=TENANT_ID)
+    cookie_name, _cookie_value = session_cookie_for(
+        settings,
+        factory=factory,
+        tenant_id=TENANT_ID,
+    )
     client.cookies.set(cookie_name, "tampered-cookie-value")
 
     # A cookie that fails HMAC verification must never select a tenant limit.
-    assert client.get("/health").status_code == 200
-    assert client.get("/health").status_code == 200
+    assert client.get(RATE_LIMIT_TEST_PATH).status_code == 200
+    assert client.get(RATE_LIMIT_TEST_PATH).status_code == 200
 
 
 def test_tenant_state_cache_serves_stale_status_within_ttl() -> None:

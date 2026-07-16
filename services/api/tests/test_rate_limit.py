@@ -65,13 +65,13 @@ def test_rate_limit_backend_failure_is_closed_when_configured() -> None:
                 postgres_dsn="sqlite+pysqlite://",
                 api_rate_limit_enabled=True,
                 api_rate_limit_failure_mode="closed",
-                api_rate_limit_paths=["/health"],
+                api_rate_limit_paths=["/identity/oidc/readiness"],
             ),
             rate_limit_backend=_UnavailableBackend(),
         )
     )
 
-    response = client.get("/health")
+    response = client.get("/identity/oidc/readiness")
 
     assert response.status_code == 503
     assert response.json()["detail"]["reason"] == "rate_limit_backend_unavailable"
@@ -84,7 +84,23 @@ def test_rate_limit_backend_failure_can_be_open_only_when_explicit() -> None:
                 postgres_dsn="sqlite+pysqlite://",
                 api_rate_limit_enabled=True,
                 api_rate_limit_failure_mode="open",
-                api_rate_limit_paths=["/health"],
+                api_rate_limit_paths=["/identity/oidc/readiness"],
+            ),
+            rate_limit_backend=_UnavailableBackend(),
+        )
+    )
+
+    assert client.get("/identity/oidc/readiness").status_code == 200
+
+
+def test_health_is_never_rate_limited_or_redis_dependent() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                postgres_dsn="sqlite+pysqlite://",
+                api_rate_limit_enabled=True,
+                api_rate_limit_failure_mode="closed",
+                api_rate_limit_paths=["*"],
             ),
             rate_limit_backend=_UnavailableBackend(),
         )
@@ -96,6 +112,10 @@ def test_rate_limit_backend_failure_can_be_open_only_when_explicit() -> None:
 @pytest.mark.parametrize(
     ("overrides", "expected_setting"),
     [
+        (
+            {"api_rate_limit_enabled": False},
+            "AXIS_API_RATE_LIMIT_ENABLED",
+        ),
         (
             {"api_rate_limit_paths": ["/health"]},
             "AXIS_API_RATE_LIMIT_PATHS",
