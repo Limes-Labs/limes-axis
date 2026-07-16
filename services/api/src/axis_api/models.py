@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     JSON,
     BigInteger,
+    CheckConstraint,
     DateTime,
     Index,
     Integer,
@@ -112,6 +113,12 @@ class TenantUsageRecord(Base):
     period_start: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
+    period_window_seconds: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=86_400,
+        server_default=text("86400"),
+    )
     # Cumulative consumption for (tenant, metric, period). Incremented in place via
     # upsert-add, so it is a running total rather than a single event.
     quantity: Mapped[int] = mapped_column(
@@ -134,16 +141,79 @@ class TenantUsageRecord(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "period_window_seconds BETWEEN 60 AND 86400",
+            name="ck_tenant_usage_records_period_window_range",
+        ),
         UniqueConstraint(
             "tenant_id",
             "metric_key",
+            "period_window_seconds",
             "period_start",
-            name="uq_tenant_usage_records_tenant_metric_period",
+            name="uq_tenant_usage_records_tenant_metric_window_period",
         ),
         Index(
-            "ix_tenant_usage_records_tenant_metric_period",
+            "ix_tenant_usage_records_tenant_metric_window_period",
             "tenant_id",
             "metric_key",
+            "period_window_seconds",
+            "period_start",
+        ),
+    )
+
+
+class TenantUsageEvent(Base):
+    """Immutable source event for exactly-once usage aggregation retries."""
+
+    __tablename__ = "tenant_usage_events"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    metric_key: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(String(220), nullable=False)
+    period_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    period_window_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    quantity: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    dimensions: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict, server_default="{}"
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "quantity > 0",
+            name="ck_tenant_usage_events_quantity_positive",
+        ),
+        CheckConstraint(
+            "period_window_seconds BETWEEN 60 AND 86400",
+            name="ck_tenant_usage_events_period_window_range",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "metric_key",
+            "source_type",
+            "source_id",
+            name="uq_tenant_usage_events_source",
+        ),
+        Index(
+            "ix_tenant_usage_events_tenant_occurred",
+            "tenant_id",
+            "occurred_at",
+            "id",
+        ),
+        Index(
+            "ix_tenant_usage_events_tenant_metric_window_period",
+            "tenant_id",
+            "metric_key",
+            "period_window_seconds",
             "period_start",
         ),
     )

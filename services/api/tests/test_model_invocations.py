@@ -37,7 +37,13 @@ from axis_api.model_providers import (
     ModelInvocationRuntimeResult,
     ModelProviderInvocationError,
 )
-from axis_api.models import AuditEvent, Base, ModelInvocation, TenantUsageRecord
+from axis_api.models import (
+    AuditEvent,
+    Base,
+    ModelInvocation,
+    TenantUsageEvent,
+    TenantUsageRecord,
+)
 from axis_api.persistence import AxisPersistenceRepository, PlatformPolicyCreate
 from axis_api.platform_policies import PlatformPolicyEnforcementDenied
 
@@ -323,7 +329,12 @@ async def test_invoke_model_records_result_audit_and_metering(
         assert usage_rows["model_invocations"].quantity == 1
         assert usage_rows["model_input_tokens"].quantity == 120
         assert usage_rows["model_output_tokens"].quantity == 45
-        assert usage_rows["model_invocations"].dimensions == {
+        assert usage_rows["model_invocations"].dimensions == {}
+        usage_events = {
+            event.metric_key: event
+            for event in session.scalars(select(TenantUsageEvent))
+        }
+        assert usage_events["model_invocations"].dimensions == {
             "provider_id": "vllm_plant_local",
             "model_id": "mistral-7b-instruct",
         }

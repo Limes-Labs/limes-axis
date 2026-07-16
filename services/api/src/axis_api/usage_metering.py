@@ -7,16 +7,14 @@ cumulative accounting layer. This module owns:
 * the epoch-aligned period bucketing used to aggregate consumption,
 * a bounded in-process aggregator (:class:`UsageAccumulator`) that batches
   hot-path ``api_request`` counts and periodically flushes them to per-period
-  ledger rows via an upsert-add, and
+  ledger rows through source-keyed journal events, and
 * the read model + aggregation used by the operator-scoped usage read route.
 
-Accumulate-then-flush vs per-event insert: at API-request volume a row insert
-per request is far too heavy, so the hot path only does an in-memory increment
-under a short-held lock. Low-volume choke points (connector sync rows, session
-creation) record synchronously and durably via :func:`record_tenant_usage_event`
-so their consumption is never at risk across a crash window. Both paths land on
-the same :meth:`AxisPersistenceRepository.add_tenant_usage` upsert-add, which is
-correct under concurrency at the row level.
+Low-volume domain events append synchronously in their source transaction.
+Request-volume counts remain in memory until flush, but every drained batch has
+a stable source identity: retrying an ambiguous commit is exactly-once. A hard
+process crash before the batch is assigned and flushed remains a documented
+best-effort boundary for ``api_request`` accounting.
 """
 
 from __future__ import annotations
@@ -25,6 +23,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
@@ -33,7 +32,7 @@ from axis_api.db import session_scope
 from axis_api.models import utc_now
 from axis_api.persistence import (
     AxisPersistenceRepository,
-    TenantUsageAdd,
+    TenantUsageEventAppend,
     TenantUsagePeriodTotal,
 )
 
@@ -101,6 +100,7 @@ class _PendingCounter:
 
 @dataclass
 class PendingUsage:
+    source_id: str
     tenant_id: str
     metric_key: str
     period_start: datetime
@@ -112,12 +112,11 @@ class PendingUsage:
 class UsageAccumulator:
     """Bounded, thread-safe in-process aggregator for hot-path usage counts.
 
-    ``record`` folds a delta into an in-memory per-bucket counter under a lock (a
-    dict increment, no I/O). ``flush`` atomically drains every pending bucket and
-    upsert-adds it to the ledger; on a DB error the drained deltas are restored
-    so nothing is lost, and because ``drain`` removes them exactly once nothing
-    is double-counted. When metering is disabled ``record`` is a no-op, so there
-    is no behavior change when the feature is off or there is no tenant context.
+    ``record`` folds a delta into an in-memory per-bucket counter under a lock.
+    ``flush`` assigns a source identity to each drained batch and appends it to
+    the journal before updating the rollup in the same transaction. Failed
+    batches retain their identities across retry and remain separate from new
+    traffic, preventing ambiguous commits from double-counting either batch.
     """
 
     window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS
@@ -126,6 +125,7 @@ class UsageAccumulator:
     _pending: dict[tuple[str, str, datetime], _PendingCounter] = field(
         default_factory=dict
     )
+    _retry_pending: list[PendingUsage] = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _overflow_total: int = 0
     _degraded: bool = False
@@ -148,7 +148,7 @@ class UsageAccumulator:
         with self._lock:
             counter = self._pending.get(key)
             if counter is None:
-                if len(self._pending) >= self.max_pending_keys:
+                if len(self._pending) + len(self._retry_pending) >= self.max_pending_keys:
                     self._overflow_total += quantity
                     self._degraded = True
                     return UsageRecordResult.OVERFLOW
@@ -165,7 +165,7 @@ class UsageAccumulator:
         with self._lock:
             return {
                 "healthy": not self._degraded,
-                "pending_keys": len(self._pending),
+                "pending_keys": len(self._pending) + len(self._retry_pending),
                 "max_pending_keys": self.max_pending_keys,
                 "overflow_total": self._overflow_total,
             }
@@ -174,13 +174,14 @@ class UsageAccumulator:
         """Clear active backpressure degradation while retaining loss telemetry."""
 
         with self._lock:
-            if len(self._pending) < self.max_pending_keys:
+            if len(self._pending) + len(self._retry_pending) < self.max_pending_keys:
                 self._degraded = False
 
     def drain(self) -> list[PendingUsage]:
         with self._lock:
             drained = [
                 PendingUsage(
+                    source_id=str(uuid4()),
                     tenant_id=tenant_id,
                     metric_key=metric_key,
                     period_start=period_start,
@@ -189,22 +190,14 @@ class UsageAccumulator:
                 )
                 for (tenant_id, metric_key, period_start), counter in self._pending.items()
             ]
+            drained = [*self._retry_pending, *drained]
+            self._retry_pending.clear()
             self._pending.clear()
         return drained
 
     def restore(self, items: list[PendingUsage]) -> None:
         with self._lock:
-            for item in items:
-                key = (item.tenant_id, item.metric_key, item.period_start)
-                counter = self._pending.get(key)
-                if counter is None:
-                    counter = _PendingCounter(
-                        quantity=0, last_occurred_at=item.occurred_at
-                    )
-                    self._pending[key] = counter
-                counter.quantity += item.quantity
-                if item.occurred_at > counter.last_occurred_at:
-                    counter.last_occurred_at = item.occurred_at
+            self._retry_pending = [*items, *self._retry_pending]
 
     def flush(self, session_factory: sessionmaker[Session]) -> int:
         """Drain pending buckets and durably upsert-add them to the ledger.
@@ -216,19 +209,25 @@ class UsageAccumulator:
         items = self.drain()
         if not items:
             return 0
+        flushed_quantity = 0
         try:
             with session_scope(session_factory) as session:
                 repository = AxisPersistenceRepository(session)
                 for item in items:
-                    repository.add_tenant_usage(
-                        TenantUsageAdd(
+                    inserted = repository.append_tenant_usage_event(
+                        TenantUsageEventAppend(
+                            source_type="api_request_batch",
+                            source_id=item.source_id,
                             tenant_id=item.tenant_id,
                             metric_key=item.metric_key,
                             period_start=item.period_start,
+                            period_window_seconds=self.window_seconds,
                             quantity=item.quantity,
                             occurred_at=item.occurred_at,
                         )
                     )
+                    if inserted:
+                        flushed_quantity += item.quantity
         except Exception:
             # Any flush failure (a wrapped or unwrapped driver/pool error, or a
             # failure constructing the session) must not drop the drained deltas:
@@ -236,7 +235,7 @@ class UsageAccumulator:
             self.restore(items)
             raise
         self.mark_flush_succeeded()
-        return sum(item.quantity for item in items)
+        return flushed_quantity
 
 
 def record_tenant_usage_event(
@@ -245,11 +244,13 @@ def record_tenant_usage_event(
     metric: str,
     quantity: int,
     *,
+    source_type: str,
+    source_id: str,
     window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
     occurred_at: datetime | None = None,
     dimensions: dict | None = None,
-) -> None:
-    """Durably record a low-volume consumption event via upsert-add.
+) -> bool:
+    """Durably append and aggregate a low-volume source event exactly once.
 
     Used by the connector-sync-rows and session-created choke points, which
     already hold a repository/transaction and are low enough volume that a direct
@@ -258,13 +259,16 @@ def record_tenant_usage_event(
     without tenant context.
     """
     if not tenant_id or quantity <= 0:
-        return
+        return False
     moment = occurred_at or utc_now()
-    repository.add_tenant_usage(
-        TenantUsageAdd(
+    return repository.append_tenant_usage_event(
+        TenantUsageEventAppend(
             tenant_id=tenant_id,
             metric_key=metric,
+            source_type=source_type,
+            source_id=source_id,
             period_start=usage_period_start(moment, window_seconds),
+            period_window_seconds=window_seconds,
             quantity=quantity,
             occurred_at=moment,
             dimensions=dimensions or {},
@@ -330,6 +334,7 @@ def build_tenant_usage_summary(
     period_from = usage_period_start(window_start, window_seconds)
     totals: list[TenantUsagePeriodTotal] = repository.aggregate_tenant_usage(
         tenant_id,
+        period_window_seconds=window_seconds,
         period_start_from=period_from,
         period_start_to=window_end,
     )

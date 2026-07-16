@@ -2750,7 +2750,7 @@ def create_app(
                         },
                     )
                 )
-                repository.create_oidc_browser_session(
+                stored_browser_session = repository.create_oidc_browser_session(
                     OidcBrowserSessionCreate(
                         session_id_hash=session_hash,
                         tenant_id=principal.tenant_id,
@@ -2773,9 +2773,12 @@ def create_app(
                         principal.tenant_id,
                         TenantUsageMetric.SESSION_CREATED.value,
                         1,
+                        source_type="oidc_browser_session",
+                        source_id=str(stored_browser_session.id),
                         window_seconds=(
                             resolved_settings.usage_metering_aggregation_window_seconds
                         ),
+                        occurred_at=stored_browser_session.created_at,
                     )
                 max_concurrent = resolved_settings.oidc_session_max_concurrent
                 concurrent_session_quota = repository.get_tenant_quota(

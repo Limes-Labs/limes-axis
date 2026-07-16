@@ -45,6 +45,7 @@ from axis_api.models import (
     AuditEvent,
     Base,
     ModelInvocation,
+    TenantUsageEvent,
     TenantUsageRecord,
 )
 from axis_api.persistence import (
@@ -976,7 +977,13 @@ async def test_agent_run_records_usage_metering(
         agent_usage = usage["agent_runs"]
         assert agent_usage.tenant_id == TENANT_ID
         assert agent_usage.quantity == 1
-        assert agent_usage.dimensions == {"agent_id": "agent_daily_brief"}
+        assert agent_usage.dimensions == {}
+        agent_event = session.scalars(
+            select(TenantUsageEvent).where(
+                TenantUsageEvent.metric_key == "agent_runs"
+            )
+        ).one()
+        assert agent_event.dimensions == {"agent_id": "agent_daily_brief"}
         # Model consumption is metered by the router, not duplicated here.
         assert usage["model_invocations"].quantity == 1
 

@@ -1442,6 +1442,13 @@ def _persist_sync_execution_outcome(
             sync_execution_result,
             usage_window_seconds,
             resume_records_seed=resume_records_seed,
+            source_id=f"{run.run_id}:{request.execution_id}",
+            occurred_at=audit_event.created_at,
+            dimensions={
+                "connector_id": run.connector_id,
+                "run_id": run.run_id,
+                "execution_id": request.execution_id,
+            },
         )
     return _run_from_record(updated)
 
@@ -1453,6 +1460,9 @@ def _record_connector_sync_rows_usage(
     usage_window_seconds: int,
     *,
     resume_records_seed: int = 0,
+    source_id: str,
+    occurred_at: datetime,
+    dimensions: dict | None = None,
 ) -> None:
     raw_rows = sync_execution_result.result_summary.get("records_read", "0")
     try:
@@ -1469,7 +1479,11 @@ def _record_connector_sync_rows_usage(
         tenant_id,
         TenantUsageMetric.CONNECTOR_SYNC_ROWS.value,
         rows_this_execution,
+        source_type="connector_sync_execution",
+        source_id=source_id,
         window_seconds=usage_window_seconds,
+        occurred_at=occurred_at,
+        dimensions=dimensions,
     )
 
 
