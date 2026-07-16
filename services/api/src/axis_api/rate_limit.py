@@ -18,7 +18,7 @@ from starlette.types import ASGIApp
 
 from axis_api.config import Settings
 from axis_api.errors import AxisErrorCode
-from axis_api.identity import OidcAuthenticationError, OidcPrincipal
+from axis_api.identity import OidcAuthenticationError
 from axis_api.oidc_code_flow import (
     OidcCodeFlowConfigurationError,
     OidcCookieValidationError,
@@ -26,23 +26,9 @@ from axis_api.oidc_code_flow import (
     session_cookie_name,
 )
 from axis_api.platform_tenants import TenantQuotaKey, TenantStateCache
-from axis_api.usage_metering import (
-    TenantUsageMetric,
-    UsageAccumulator,
-    UsageRecordResult,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
-_METERING_EXCLUDED_PATHS = {
-    "/health",
-    "/ready",
-    "/docs",
-    "/redoc",
-    "/openapi.json",
-    "/identity/oidc/authorize",
-    "/identity/oidc/callback",
-}
 _RATE_LIMIT_EXCLUDED_PATHS = {"/health"}
 
 
@@ -214,23 +200,14 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         self.enabled = settings.api_rate_limit_enabled
         self.protected_paths = set(settings.api_rate_limit_paths)
         self.window_seconds = max(1, settings.api_rate_limit_window_seconds)
-        # Metering is independent from the limiter path allowlist. It observes
-        # authenticated application traffic after the shared principal dependency
-        # has verified cookie or bearer credentials.
-        self.metering_enabled = settings.usage_metering_enabled
         self.failure_mode = settings.api_rate_limit_failure_mode
         self.limiter = backend
 
     async def dispatch(self, request: Request, call_next) -> Response:
         should_limit = self._should_limit(request)
-        should_meter = self._should_meter(request)
-        if not should_limit and not should_meter:
-            return await call_next(request)
-
         if not should_limit:
-            response = await call_next(request)
-            self._record_verified_request_usage(request)
-            return response
+            request.state.axis_rate_limit_admitted = True
+            return await call_next(request)
 
         tenant_id = await self._verified_tenant(request)
 
@@ -249,10 +226,8 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         except RateLimitBackendError:
             _LOGGER.error("Rate limit backend unavailable", exc_info=True)
             if self.failure_mode == "open":
-                response = await call_next(request)
-                if should_meter:
-                    self._record_verified_request_usage(request)
-                return response
+                request.state.axis_rate_limit_admitted = True
+                return await call_next(request)
             return JSONResponse(
                 status_code=503,
                 content={
@@ -280,9 +255,8 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
                 headers=headers,
             )
 
+        request.state.axis_rate_limit_admitted = True
         response = await call_next(request)
-        if should_meter:
-            self._record_verified_request_usage(request)
         for header, value in headers.items():
             response.headers[header] = value
         return response
@@ -297,32 +271,6 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
                 or request.url.path in self.protected_paths
             )
         )
-
-    def _should_meter(self, request: Request) -> bool:
-        return (
-            self.metering_enabled
-            and request.method != "OPTIONS"
-            and request.url.path not in _METERING_EXCLUDED_PATHS
-        )
-
-    def _record_verified_request_usage(self, request: Request) -> None:
-        principal = getattr(request.state, "axis_principal", None)
-        if not isinstance(principal, OidcPrincipal):
-            return
-        accumulator: UsageAccumulator | None = getattr(
-            request.app.state, "usage_accumulator", None
-        )
-        if accumulator is None:
-            return
-        result = accumulator.record(
-            principal.tenant_id,
-            TenantUsageMetric.API_REQUEST.value,
-        )
-        if result is UsageRecordResult.OVERFLOW:
-            _LOGGER.error(
-                "Usage metering accumulator overflowed",
-                extra={"metric": TenantUsageMetric.API_REQUEST.value},
-            )
 
     async def _verified_tenant(self, request: Request) -> str | None:
         """Resolve a tenant only from a verified browser session or bearer token."""

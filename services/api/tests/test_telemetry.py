@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from axis_api.config import Settings
 from axis_api.identity import StaticJwksOidcVerifier
 from axis_api.main import create_app
+from axis_api.platform_tenants import TenantStateSnapshot
 from axis_api.telemetry import (
     SENSITIVE_ATTRIBUTE_FORBIDDEN_SUBSTRINGS,
     configure_api_telemetry,
@@ -51,6 +52,11 @@ def _token(secret: str, claims: dict) -> str:
     return jwt.encode(claims, secret, algorithm="HS256", headers={"kid": "axis-test"})
 
 
+class _ActiveTenantStateCache:
+    def snapshot(self, _session_factory, _tenant_id: str) -> TenantStateSnapshot:
+        return TenantStateSnapshot(status="active", quotas={})
+
+
 def _app_with_in_memory_telemetry(
     settings: Settings,
 ) -> tuple[TestClient, InMemorySpanExporter, InMemoryMetricReader]:
@@ -58,6 +64,7 @@ def _app_with_in_memory_telemetry(
     reader = InMemoryMetricReader()
     runtime = configure_api_telemetry(settings, span_exporter=exporter, metric_reader=reader)
     app = create_app(settings, telemetry=runtime)
+    app.state.tenant_state_cache = _ActiveTenantStateCache()
     return TestClient(app), exporter, reader
 
 
@@ -120,6 +127,7 @@ def test_request_span_carries_tenant_and_actor_but_no_sensitive_attributes() -> 
         settings, span_exporter=exporter, metric_reader=InMemoryMetricReader()
     )
     app = create_app(settings, telemetry=runtime)
+    app.state.tenant_state_cache = _ActiveTenantStateCache()
     app.state.identity_verifier = StaticJwksOidcVerifier(
         issuer=settings.oidc_issuer,
         audience=settings.oidc_audience,

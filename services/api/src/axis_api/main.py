@@ -1,8 +1,8 @@
-import asyncio
 import logging
 from collections.abc import AsyncIterator, Generator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from threading import Event, Thread
 from typing import Annotated, NamedTuple
 from uuid import UUID
 
@@ -623,9 +623,10 @@ from axis_api.usage_metering import (
     REQUIRED_USAGE_READ_SCOPE as PLATFORM_TENANT_USAGE_SCOPE,
 )
 from axis_api.usage_metering import (
+    RequestUsageAdmissionRecorder,
     TenantUsageMetric,
     TenantUsageSummary,
-    UsageAccumulator,
+    UsageEventProjector,
     build_tenant_usage_summary,
     record_tenant_usage_event,
 )
@@ -842,6 +843,37 @@ ModelInvocationRuntimeDependency = Annotated[
 ]
 
 
+def _record_request_usage_admission(
+    request: Request,
+    principal: OidcPrincipal,
+) -> None:
+    recorder: RequestUsageAdmissionRecorder | None = getattr(
+        request.app.state,
+        "request_usage_admission_recorder",
+        None,
+    )
+    if recorder is None:
+        return
+    try:
+        recorder.record(request, principal)
+    except Exception as exc:  # noqa: BLE001 - policy decides fail-open/closed
+        _LOGGER.error(
+            "Request usage admission persistence failed.",
+            extra={"metric": TenantUsageMetric.API_REQUEST.value},
+            exc_info=True,
+        )
+        settings: Settings = request.app.state.settings
+        if settings.usage_metering_failure_mode == "closed":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": AxisErrorCode.CONTROL_PLANE_UNAVAILABLE.value,
+                    "message": "Request usage admission is temporarily unavailable.",
+                    "reason": "usage_metering_unavailable",
+                },
+            ) from exc
+
+
 def oidc_principal(
     request: Request,
     authorization: Annotated[str | None, Header(alias="Authorization")] = None,
@@ -851,6 +883,7 @@ def oidc_principal(
     if authorization and isinstance(cached_principal, OidcPrincipal):
         _reject_suspended_tenant_request(request, cached_principal)
         _annotate_request_span_with_principal(cached_principal)
+        _record_request_usage_admission(request, cached_principal)
         return cached_principal
     if not authorization:
         session_cookie = request.cookies.get(session_cookie_name(settings))
@@ -905,6 +938,7 @@ def oidc_principal(
                     _reject_suspended_tenant_request(request, principal)
                     _annotate_request_span_with_principal(principal)
                     request.state.axis_principal = principal
+                    _record_request_usage_admission(request, principal)
                     return principal
             except (
                 OidcCodeFlowConfigurationError,
@@ -958,6 +992,7 @@ def oidc_principal(
     _reject_suspended_tenant_request(request, principal)
     _annotate_request_span_with_principal(principal)
     request.state.axis_principal = principal
+    _record_request_usage_admission(request, principal)
     return principal
 
 
@@ -1006,10 +1041,15 @@ def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal)
         return
     try:
         snapshot = cache.snapshot(session_factory, principal.tenant_id)
-    except SQLAlchemyError:
-        # A failed status lookup defers to the route layer, which surfaces the
-        # same persistence failure on its own database access.
-        return
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": AxisErrorCode.CONTROL_PLANE_UNAVAILABLE.value,
+                "message": "Tenant admission state is temporarily unavailable.",
+                "reason": "tenant_state_unavailable",
+            },
+        ) from exc
     reason = blocked_tenant_reason(snapshot.status)
     if reason is None:
         return
@@ -2291,55 +2331,63 @@ def _bind_connector_run_actor(
     return request_model.model_copy(update=update)
 
 
-async def _usage_metering_flush_loop(app: FastAPI) -> None:
-    """Periodically drain the usage accumulator into the ledger.
+def _usage_metering_projection_loop(
+    app: FastAPI,
+    stop: Event,
+) -> None:
+    """Continuously project durable usage events into the rollup read model."""
 
-    Runs in the API process (the accumulator is in-process) rather than the
-    worker. A flush failure is logged and retried on the next tick; the deltas
-    are restored by :meth:`UsageAccumulator.flush`, so a transient DB error never
-    loses consumption. The loop exits cleanly on cancellation.
-    """
     settings = app.state.settings
-    interval = settings.usage_metering_flush_interval_seconds
-    accumulator: UsageAccumulator = app.state.usage_accumulator
+    projector: UsageEventProjector = app.state.usage_event_projector
     session_factory = app.state.session_factory
-    while True:
+    while not stop.is_set():
         try:
-            await asyncio.sleep(interval)
-            flushed = await asyncio.to_thread(accumulator.flush, session_factory)
-            if flushed:
-                _LOGGER.debug("Usage metering flush wrote %s units.", flushed)
-        except asyncio.CancelledError:
-            raise
+            result = projector.project_available(
+                session_factory,
+                batch_size=settings.usage_metering_projection_batch_size,
+                max_batches=settings.usage_metering_projection_max_batches_per_tick,
+            )
+            if result.events_projected:
+                _LOGGER.debug(
+                    "Usage projector folded %s events.",
+                    result.events_projected,
+                )
         except Exception:  # noqa: BLE001 - a flush error must not kill the loop
             _LOGGER.warning(
-                "Usage metering flush failed; deltas retained for retry.",
+                "Usage event projection failed; journal rows remain pending.",
                 exc_info=True,
             )
+        delay = projector.retry_delay_seconds(
+            settings.usage_metering_flush_interval_seconds
+        )
+        stop.wait(timeout=delay)
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _warm_audit_export_object_lock_capability(app)
-    flush_task: asyncio.Task[None] | None = None
+    projection_thread: Thread | None = None
+    projection_stop = Event()
     if app.state.settings.usage_metering_enabled:
-        flush_task = asyncio.create_task(_usage_metering_flush_loop(app))
+        projection_thread = Thread(
+            target=_usage_metering_projection_loop,
+            args=(app, projection_stop),
+            name="axis-usage-projector",
+            daemon=True,
+        )
+        projection_thread.start()
     try:
         yield
     finally:
-        if flush_task is not None:
-            flush_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await flush_task
-        # Final drain so in-flight counts are not lost on a clean shutdown.
-        if app.state.settings.usage_metering_enabled:
-            try:
-                await asyncio.to_thread(
-                    app.state.usage_accumulator.flush, app.state.session_factory
-                )
-            except Exception:  # noqa: BLE001 - shutdown flush is best-effort
+        if projection_thread is not None:
+            projection_stop.set()
+            projection_thread.join(
+                timeout=app.state.settings.usage_metering_shutdown_timeout_seconds
+            )
+            if projection_thread.is_alive():
                 _LOGGER.warning(
-                    "Final usage metering flush failed at shutdown.", exc_info=True
+                    "Usage event projector exceeded its shutdown deadline; "
+                    "journal rows remain durable for another replica or restart."
                 )
         runtime: TelemetryRuntime | None = getattr(app.state, "telemetry", None)
         if runtime is not None and runtime.enabled:
@@ -2406,9 +2454,20 @@ def create_app(
     app.state.tenant_state_cache = TenantStateCache(
         ttl_seconds=resolved_settings.tenant_state_cache_ttl_seconds,
     )
-    app.state.usage_accumulator = UsageAccumulator(
-        window_seconds=resolved_settings.usage_metering_aggregation_window_seconds,
+    app.state.request_usage_admission_recorder = RequestUsageAdmissionRecorder(
         enabled=resolved_settings.usage_metering_enabled,
+        window_seconds=resolved_settings.usage_metering_aggregation_window_seconds,
+        statement_timeout_ms=(
+            resolved_settings.usage_metering_admission_statement_timeout_ms
+        ),
+    )
+    app.state.usage_event_projector = UsageEventProjector(
+        failure_threshold=(
+            resolved_settings.usage_metering_projection_failure_threshold
+        ),
+        max_backlog_age_seconds=(
+            resolved_settings.usage_metering_projection_max_backlog_age_seconds
+        ),
     )
     app.state.workflow_runtime = (
         TemporalWorkflowSignalRuntime(
@@ -2425,7 +2484,7 @@ def create_app(
         resolved_settings,
         session_factory=app.state.session_factory,
         workflow_runtime=app.state.workflow_runtime,
-        usage_accumulator=app.state.usage_accumulator,
+        usage_event_projector=app.state.usage_event_projector,
     )
     app.state.ontology_mutation_runtime = (
         TypeDBOntologyMutationRuntime(

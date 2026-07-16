@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from axis_api.config import Settings
 from axis_api.ontology.client import OntologyClient, OntologyClientConfig
-from axis_api.usage_metering import UsageAccumulator
+from axis_api.usage_metering import UsageEventProjector
 from axis_api.workflow_runtime import TemporalWorkflowSignalRuntime
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ def build_runtime_readiness_service(
     *,
     session_factory: sessionmaker[Session],
     workflow_runtime: object,
-    usage_accumulator: UsageAccumulator,
+    usage_event_projector: UsageEventProjector,
 ) -> RuntimeReadinessService:
     async def postgres_probe() -> None:
         await asyncio.to_thread(_probe_postgres, session_factory)
@@ -149,7 +149,7 @@ def build_runtime_readiness_service(
         )
 
     async def usage_metering_probe() -> None:
-        if not bool(usage_accumulator.health()["healthy"]):
+        if not bool(usage_event_projector.health()["healthy"]):
             raise RuntimeError("usage_metering_degraded")
 
     typedb_required = settings.ontology_queries_enabled or settings.ontology_mutations_enabled

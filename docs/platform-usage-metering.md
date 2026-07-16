@@ -41,55 +41,63 @@ running-total row in `tenant_usage_records`; deltas fold into it with an
 Including the window width prevents an hourly bucket at midnight from colliding
 with a daily bucket at the same timestamp.
 
-Every committed low-volume delta and every flushed request batch also has an
-immutable row in `tenant_usage_events`. Its source identity
+Every committed low-volume delta and every admitted request also has a row in
+`tenant_usage_events` with immutable accounting payload and a mutable projection
+marker. Its source identity
 `(tenant_id, metric_key, source_type, source_id)` is unique. Inserting the event
-and updating the rollup happen in one transaction: an identical retry is a
-no-op, while reusing an identity with a different billing payload is an explicit
-idempotency error.
+and updating the rollup happen in one transaction for low-volume events. Request
+events are journaled first and projected later; claiming the event and updating
+the rollup still share one transaction. An identical retry is a no-op, while
+reusing an identity with a different billing payload is an explicit idempotency
+error.
 
 Event dimensions remain in the journal. The period rollup is intentionally
 non-dimensional; it cannot misrepresent a mixed bucket using whichever
 provider, model, connector, or agent happened to arrive first.
 
-### Accumulate-then-flush vs per-event insert
+### Durable admission and asynchronous projection
 
-At API-request volume a row insert per request is far too heavy, so the two
-paths differ deliberately:
+- **`api_request` (hot path)** writes one source-keyed journal event after
+  authentication, tenant suspension checks and rate-limit admission, but before
+  the application handler executes. A server-generated UUID is used as the
+  source identity; client request IDs are never trusted for accounting. Handler
+  4xx/5xx responses and crashes are still counted because the admitted request
+  consumed platform capacity.
+- **The projector** runs on every API replica. It atomically claims pending
+  events in bounded batches, groups events by rollup key and applies one
+  upsert-add per bucket. PostgreSQL replicas use `FOR UPDATE SKIP LOCKED`, so
+  workers claim disjoint batches without a leader or duplicate projection.
+- **Low-volume domain metrics** remain immediate: they write a source-keyed
+  journal event and rollup in the same transaction that persists the session,
+  connector execution, model invocation or agent run.
 
-- **`api_request` (hot path)** accumulates in a bounded, thread-safe in-process
-  aggregator (`UsageAccumulator`). `record()` is an in-memory dict increment
-  under a short-held lock — no I/O on the request path. A background flush loop
-  in the API process drains the aggregator every
-  `AXIS_USAGE_METERING_FLUSH_INTERVAL_SECONDS` and upsert-adds the batched
-  counts; a final drain runs on clean shutdown. Every drained batch receives a
-  stable source ID, so retrying after an ambiguous commit cannot count it twice.
-- **Low-volume domain metrics** record a source-keyed journal event on the same
-  transaction that persisted the session, connector execution, model
-  invocation, or agent run.
+Requests are deliberately not metered when they are unauthenticated, belong to
+a suspended tenant, fail rate-limit admission (`429`), fail a closed rate-limit
+backend (`503`), use `OPTIONS`, or target health/OIDC session-control endpoints
+(including refresh and logout).
 
 ### Correctness under concurrency
 
-- **DB level.** Journal insert and upsert-add share one transaction. The
-  source-identity constraint prevents replay duplication; the upsert-add is a
-  single SQL statement under a row lock, so
-  concurrent flushers, replicas and the synchronous recorders can all target the
-  same bucket row without losing increments. `first_recorded_at` and
-  `last_recorded_at` use minimum/maximum semantics, so out-of-order events cannot
-  move the observed time range backwards.
-- **In-process aggregator.** `record` folds under a lock. `flush` calls `drain`,
-  which atomically assigns identities to pending buckets. On a DB error the
-  exact batches are restored without merging them into newer traffic, preserving
-  retry identity. When metering is disabled `record` is a no-op.
+- **DB level.** The source-identity constraint prevents replay duplication. A
+  projector transaction first marks only still-pending rows and receives their
+  payloads through `UPDATE ... RETURNING`, then applies atomic upsert-adds. A
+  rollback restores both the pending markers and the rollups. `first_recorded_at`
+  and `last_recorded_at` use minimum/maximum semantics, so out-of-order events do
+  not corrupt the observed range.
+- **Admission retry.** The recorder reuses its server-generated event identity
+  for an ambiguous-commit reconciliation read. It does not perform an internal
+  write retry, avoiding retry storms; the client may retry the whole rejected
+  request. PostgreSQL connect, pool, statement and lock waits are bounded. In
+  `closed` mode, inability to establish a committed event returns a structured
+  `503` before the handler runs. `open` mode is intended only for local or
+  evaluation environments.
+- **Rollout safety.** Migration `0053` marks every pre-existing journal event as
+  projected because those events were already synchronously folded by older
+  code. This prevents historical double counting during an upgrade.
 
-The remaining boundary is explicit: an API process can still lose request
-increments held only in memory if it suffers a hard crash before a flush.
-Exactly-once retries are covered after a batch identity exists; billing-grade
-durability for each admitted request requires a later durable admission/event
-ingress. Low-volume domain metrics do not have this volatile window.
-
-The flush loop is observable: it logs flushed volume at debug and logs (without
-losing deltas) on failure.
+Readiness exposes persistent projector failures and excessive oldest-event age.
+Projection retries use bounded exponential backoff; committed journal events
+remain recoverable across process crashes and restarts.
 
 ## Read API
 
@@ -146,17 +154,26 @@ states — and adds no dependencies.
 
 ## Configuration
 
-| Setting                                          | Default | Meaning                                  |
-| ------------------------------------------------ | ------- | ---------------------------------------- |
-| `AXIS_USAGE_METERING_ENABLED`                    | `false` | Master switch; off records nothing.      |
-| `AXIS_USAGE_METERING_FLUSH_INTERVAL_SECONDS`     | `5.0`   | Aggregator drain cadence (API process).  |
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `AXIS_USAGE_METERING_ENABLED` | `false` | Master switch; off records nothing. |
+| `AXIS_USAGE_METERING_FAILURE_MODE` | `open` | Admission DB failure policy; production requires `closed` when enabled. |
+| `AXIS_USAGE_METERING_ADMISSION_STATEMENT_TIMEOUT_MS` | `1500` | PostgreSQL statement and lock budget for the admission transaction. |
+| `AXIS_USAGE_METERING_FLUSH_INTERVAL_SECONDS` | `5.0` | Projector polling cadence. |
 | `AXIS_USAGE_METERING_AGGREGATION_WINDOW_SECONDS` | `86400` | Period bucket width (60..86400 seconds). |
+| `AXIS_USAGE_METERING_PROJECTION_BATCH_SIZE` | `500` | Maximum events claimed per transaction. |
+| `AXIS_USAGE_METERING_PROJECTION_MAX_BATCHES_PER_TICK` | `10` | Work bound for one projector pass. |
+| `AXIS_USAGE_METERING_PROJECTION_FAILURE_THRESHOLD` | `3` | Consecutive failures before readiness fails. |
+| `AXIS_USAGE_METERING_PROJECTION_MAX_BACKLOG_AGE_SECONDS` | `60.0` | Oldest pending event age allowed by readiness. |
+| `AXIS_USAGE_METERING_SHUTDOWN_TIMEOUT_SECONDS` | `10.0` | Maximum wait for an in-flight projector pass during shutdown. |
 
 ## Schema
 
 Migration `0049_tenant_usage_records` creates the original rollup. Migration
 `0052_tenant_usage_event_journal` adds `period_window_seconds` to its unique key
-and creates `tenant_usage_events`.
+and creates `tenant_usage_events`. Migration `0053_usage_event_projection` adds
+the nullable projection marker, safely backfills existing rows and creates a
+partial pending-event index.
 
 `tenant_usage_records` contains:
 `id`, `tenant_id`, `metric_key`, `period_start`, `quantity` (bigint running
@@ -164,6 +181,11 @@ total), `period_window_seconds`, empty compatibility `dimensions`,
 `first_recorded_at`, `last_recorded_at`, `created_at`, `updated_at`.
 
 `tenant_usage_events` contains the immutable source identity, quantity, exact
-dimensions, event and bucket timestamps, window width, and journal timestamp.
-The journal is sufficient to audit or rebuild post-migration rollups; legacy
-rollup quantities remain valid but naturally have no pre-0052 event rows.
+dimensions, event and bucket timestamps, window width, journal timestamp and
+nullable `projected_at` marker. The journal is sufficient to audit or rebuild
+post-migration rollups; legacy rollup quantities remain valid but naturally have
+no pre-0052 event rows.
+
+High-volume deployments should define journal retention or time partitioning as
+part of their capacity plan. Deleting projected rows is safe only after the
+organization's billing audit and dispute-retention requirements are satisfied.
