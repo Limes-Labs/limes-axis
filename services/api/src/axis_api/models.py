@@ -186,6 +186,9 @@ class TenantUsageEvent(Base):
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+    projected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, server_default=text("CURRENT_TIMESTAMP")
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -215,6 +218,13 @@ class TenantUsageEvent(Base):
             "metric_key",
             "period_window_seconds",
             "period_start",
+        ),
+        Index(
+            "ix_tenant_usage_events_unprojected",
+            "recorded_at",
+            "id",
+            postgresql_where=text("projected_at IS NULL"),
+            sqlite_where=text("projected_at IS NULL"),
         ),
     )
 

@@ -675,7 +675,8 @@ class TenantUsageAdd(BaseModel):
     period_start: datetime
     period_window_seconds: int = Field(ge=60, le=86_400)
     quantity: int = Field(ge=0)
-    occurred_at: datetime
+    first_occurred_at: datetime
+    last_occurred_at: datetime
 
 
 class TenantUsageEventAppend(BaseModel):
@@ -695,6 +696,11 @@ class TenantUsagePeriodTotal(BaseModel):
     metric_key: str
     period_start: datetime
     quantity: int
+
+
+class TenantUsageProjectionResult(BaseModel):
+    events_projected: int = Field(ge=0)
+    quantity_projected: int = Field(ge=0)
 
 
 class ModelEndpointCreate(BaseModel):
@@ -3406,8 +3412,8 @@ class AxisPersistenceRepository:
             period_window_seconds=record.period_window_seconds,
             quantity=record.quantity,
             dimensions={},
-            first_recorded_at=record.occurred_at,
-            last_recorded_at=record.occurred_at,
+            first_recorded_at=record.first_occurred_at,
+            last_recorded_at=record.last_occurred_at,
             created_at=now,
             updated_at=now,
         )
@@ -3443,7 +3449,28 @@ class AxisPersistenceRepository:
         self.session.execute(statement)
         self.session.flush()
 
-    def append_tenant_usage_event(self, event: TenantUsageEventAppend) -> bool:
+    def get_tenant_usage_event_by_source(
+        self,
+        tenant_id: str,
+        metric_key: str,
+        source_type: str,
+        source_id: str,
+    ) -> TenantUsageEvent | None:
+        return self.session.scalar(
+            select(TenantUsageEvent).where(
+                TenantUsageEvent.tenant_id == tenant_id,
+                TenantUsageEvent.metric_key == metric_key,
+                TenantUsageEvent.source_type == source_type,
+                TenantUsageEvent.source_id == source_id,
+            )
+        )
+
+    def append_tenant_usage_event(
+        self,
+        event: TenantUsageEventAppend,
+        *,
+        project_immediately: bool = True,
+    ) -> bool:
         """Append and aggregate a source event exactly once in this transaction.
 
         A retry with the same source identity is a no-op only when its billing
@@ -3464,19 +3491,18 @@ class AxisPersistenceRepository:
             dimensions=event.dimensions,
             occurred_at=event.occurred_at,
             recorded_at=now,
+            projected_at=now if project_immediately else None,
         )
         statement = insert_stmt.on_conflict_do_nothing(
             index_elements=["tenant_id", "metric_key", "source_type", "source_id"]
         ).returning(TenantUsageEvent.id)
         inserted_id = self.session.execute(statement).scalar_one_or_none()
         if inserted_id is None:
-            existing = self.session.scalar(
-                select(TenantUsageEvent).where(
-                    TenantUsageEvent.tenant_id == event.tenant_id,
-                    TenantUsageEvent.metric_key == event.metric_key,
-                    TenantUsageEvent.source_type == event.source_type,
-                    TenantUsageEvent.source_id == event.source_id,
-                )
+            existing = self.get_tenant_usage_event_by_source(
+                event.tenant_id,
+                event.metric_key,
+                event.source_type,
+                event.source_id,
             )
             if existing is None:
                 raise RuntimeError("Usage event conflict did not resolve to an existing row.")
@@ -3494,17 +3520,114 @@ class AxisPersistenceRepository:
                 )
             return False
 
-        self.add_tenant_usage(
-            TenantUsageAdd(
-                tenant_id=event.tenant_id,
-                metric_key=event.metric_key,
-                period_start=event.period_start,
-                period_window_seconds=event.period_window_seconds,
-                quantity=event.quantity,
-                occurred_at=event.occurred_at,
+        if project_immediately:
+            self.add_tenant_usage(
+                TenantUsageAdd(
+                    tenant_id=event.tenant_id,
+                    metric_key=event.metric_key,
+                    period_start=event.period_start,
+                    period_window_seconds=event.period_window_seconds,
+                    quantity=event.quantity,
+                    first_occurred_at=event.occurred_at,
+                    last_occurred_at=event.occurred_at,
+                )
+            )
+        return True
+
+    def project_pending_tenant_usage_events(
+        self,
+        *,
+        batch_size: int,
+    ) -> TenantUsageProjectionResult:
+        """Claim and fold one pending event batch in the current transaction."""
+
+        candidate_ids = (
+            select(TenantUsageEvent.id)
+            .where(TenantUsageEvent.projected_at.is_(None))
+            .order_by(TenantUsageEvent.recorded_at.asc(), TenantUsageEvent.id.asc())
+            .limit(batch_size)
+        )
+        if self.session.get_bind().dialect.name == "postgresql":
+            candidate_ids = candidate_ids.with_for_update(skip_locked=True)
+        projected_at = utc_now()
+        claim = (
+            update(TenantUsageEvent)
+            .where(
+                TenantUsageEvent.id.in_(candidate_ids),
+                TenantUsageEvent.projected_at.is_(None),
+            )
+            .values(projected_at=projected_at)
+            .returning(
+                TenantUsageEvent.tenant_id,
+                TenantUsageEvent.metric_key,
+                TenantUsageEvent.period_window_seconds,
+                TenantUsageEvent.period_start,
+                TenantUsageEvent.quantity,
+                TenantUsageEvent.occurred_at,
             )
         )
-        return True
+        rows = list(self.session.execute(claim))
+        buckets: dict[
+            tuple[str, str, int, datetime],
+            tuple[int, datetime, datetime],
+        ] = {}
+        for (
+            tenant_id,
+            metric_key,
+            period_window_seconds,
+            period_start,
+            quantity,
+            occurred_at,
+        ) in rows:
+            key = (
+                tenant_id,
+                metric_key,
+                period_window_seconds,
+                period_start,
+            )
+            current = buckets.get(key)
+            if current is None:
+                buckets[key] = (quantity, occurred_at, occurred_at)
+                continue
+            current_quantity, first_occurred_at, last_occurred_at = current
+            buckets[key] = (
+                current_quantity + quantity,
+                min(first_occurred_at, occurred_at),
+                max(last_occurred_at, occurred_at),
+            )
+        for (
+            tenant_id,
+            metric_key,
+            period_window_seconds,
+            period_start,
+        ), (
+            quantity,
+            first_occurred_at,
+            last_occurred_at,
+        ) in sorted(buckets.items()):
+            self.add_tenant_usage(
+                TenantUsageAdd(
+                    tenant_id=tenant_id,
+                    metric_key=metric_key,
+                    period_start=period_start,
+                    period_window_seconds=period_window_seconds,
+                    quantity=quantity,
+                    first_occurred_at=first_occurred_at,
+                    last_occurred_at=last_occurred_at,
+                )
+            )
+        return TenantUsageProjectionResult(
+            events_projected=len(rows),
+            quantity_projected=sum(int(row.quantity) for row in rows),
+        )
+
+    def oldest_pending_tenant_usage_event_at(self) -> datetime | None:
+        return self.session.scalar(
+            select(TenantUsageEvent.recorded_at)
+            .where(TenantUsageEvent.projected_at.is_(None))
+            .order_by(TenantUsageEvent.recorded_at.asc(), TenantUsageEvent.id.asc())
+            .limit(1)
+        )
 
     def aggregate_tenant_usage(
         self,

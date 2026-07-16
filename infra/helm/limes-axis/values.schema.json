@@ -17,6 +17,54 @@
         "env": {
           "type": "object",
           "properties": {
+            "AXIS_POSTGRES_CONNECT_TIMEOUT_SECONDS": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "AXIS_POSTGRES_POOL_TIMEOUT_SECONDS": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?$"
+            },
+            "AXIS_USAGE_METERING_ENABLED": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "AXIS_USAGE_METERING_FAILURE_MODE": {
+              "type": "string",
+              "enum": ["open", "closed"]
+            },
+            "AXIS_USAGE_METERING_ADMISSION_STATEMENT_TIMEOUT_MS": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "AXIS_USAGE_METERING_FLUSH_INTERVAL_SECONDS": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?$"
+            },
+            "AXIS_USAGE_METERING_AGGREGATION_WINDOW_SECONDS": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "AXIS_USAGE_METERING_PROJECTION_BATCH_SIZE": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "AXIS_USAGE_METERING_PROJECTION_MAX_BATCHES_PER_TICK": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "AXIS_USAGE_METERING_PROJECTION_FAILURE_THRESHOLD": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "AXIS_USAGE_METERING_PROJECTION_MAX_BACKLOG_AGE_SECONDS": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?$"
+            },
+            "AXIS_USAGE_METERING_SHUTDOWN_TIMEOUT_SECONDS": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?$"
+            },
             "AXIS_DEPLOYMENT_TENANCY_MODE": {
               "type": "string",
               "enum": [

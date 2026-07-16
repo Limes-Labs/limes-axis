@@ -1,10 +1,11 @@
-import threading
-import time
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -27,7 +28,7 @@ from axis_api.connector_runs import (
     _record_connector_sync_rows_usage,
 )
 from axis_api.identity import OidcPrincipal
-from axis_api.main import create_app
+from axis_api.main import create_app, oidc_principal
 from axis_api.models import Base, TenantUsageEvent, TenantUsageRecord
 from axis_api.persistence import (
     AxisPersistenceRepository,
@@ -39,8 +40,7 @@ from axis_api.persistence import (
 from axis_api.usage_metering import (
     DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
     TenantUsageMetric,
-    UsageAccumulator,
-    UsageRecordResult,
+    UsageEventProjector,
     build_tenant_usage_summary,
     record_tenant_usage_event,
     usage_period_start,
@@ -175,7 +175,8 @@ def test_add_tenant_usage_upsert_add_accumulates_same_bucket() -> None:
                     period_start=period,
                     period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
                     quantity=2,
-                    occurred_at=moment,
+                    first_occurred_at=moment,
+                    last_occurred_at=moment,
                 )
             )
         session.commit()
@@ -204,7 +205,8 @@ def test_add_tenant_usage_composes_across_independent_sessions() -> None:
                     period_start=period,
                     period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
                     quantity=delta,
-                    occurred_at=moment,
+                    first_occurred_at=moment,
+                    last_occurred_at=moment,
                 )
             )
             session.commit()
@@ -363,196 +365,168 @@ def test_usage_rollup_keeps_true_first_and_last_event_times() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Accumulator + flush                                                          #
+# Deferred event projection                                                    #
 # --------------------------------------------------------------------------- #
 
 
-def test_accumulator_flush_aggregates_to_period_totals() -> None:
+def test_deferred_usage_event_projects_exactly_once() -> None:
     factory = _factory()
-    accumulator = UsageAccumulator(enabled=True)
     moment = datetime(2026, 7, 10, 8, 0, 0, tzinfo=UTC)
-    for _ in range(5):
-        accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value, occurred_at=moment)
-
-    flushed = accumulator.flush(factory)
-
-    assert flushed == 5
-    rows = _usage_rows(factory, TENANT_ID)
-    assert len(rows) == 1
-    assert rows[0].quantity == 5
-    # Drained: a second flush with nothing pending is a no-op.
-    assert accumulator.flush(factory) == 0
-
-
-def test_accumulator_disabled_is_a_no_op() -> None:
-    factory = _factory()
-    accumulator = UsageAccumulator(enabled=False)
-    accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value)
-    assert accumulator.flush(factory) == 0
-    assert _usage_rows(factory, TENANT_ID) == []
-
-
-def test_accumulator_overflow_is_observable_and_existing_bucket_still_accumulates() -> None:
-    accumulator = UsageAccumulator(enabled=True, max_pending_keys=1)
-
-    assert accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value) == (
-        UsageRecordResult.ACCEPTED
-    )
-    assert accumulator.record(OTHER_TENANT_ID, TenantUsageMetric.API_REQUEST.value, 3) == (
-        UsageRecordResult.OVERFLOW
-    )
-    assert accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value, 2) == (
-        UsageRecordResult.ACCEPTED
-    )
-
-    assert accumulator.health() == {
-        "healthy": False,
-        "pending_keys": 1,
-        "max_pending_keys": 1,
-        "overflow_total": 3,
-    }
-    drained = accumulator.drain()
-    assert drained[0].quantity == 3
-    accumulator.restore(drained)
-    factory = _factory()
-    assert accumulator.flush(factory) == 3
-    assert accumulator.health() == {
-        "healthy": True,
-        "pending_keys": 0,
-        "max_pending_keys": 1,
-        "overflow_total": 3,
-    }
-
-
-def test_accumulator_restore_does_not_lose_counts_on_flush_failure() -> None:
-    accumulator = UsageAccumulator(enabled=True)
-    moment = datetime(2026, 7, 10, 8, 0, 0, tzinfo=UTC)
-    accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value, 4, occurred_at=moment)
-
-    class _BrokenFactory:
-        def __call__(self):
-            raise RuntimeError("db down")
-
-    # session_scope will raise a non-SQLAlchemyError; but a SQLAlchemyError path
-    # restores. Emulate the restore contract directly with drain/restore.
-    drained = accumulator.drain()
-    assert sum(item.quantity for item in drained) == 4
-    accumulator.restore(drained)
-    # A subsequent successful flush recovers every restored delta.
-    factory = _factory()
-    assert accumulator.flush(factory) == 4
-    assert _usage_rows(factory, TENANT_ID)[0].quantity == 4
-
-
-def test_flush_restores_counts_when_session_factory_fails() -> None:
-    # A non-SQLAlchemy failure (e.g. session construction) must not drop the
-    # drained counts: they are restored and recovered by the next flush.
-    accumulator = UsageAccumulator(enabled=True)
-    moment = datetime(2026, 7, 10, 8, 0, 0, tzinfo=UTC)
-    accumulator.record(TENANT_ID, TenantUsageMetric.API_REQUEST.value, 4, occurred_at=moment)
-
-    class _FailingFactory:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        def __call__(self):
-            self.calls += 1
-            raise RuntimeError("session construction failed")
-
-    failing = _FailingFactory()
-    with pytest.raises(RuntimeError):
-        accumulator.flush(failing)
-    assert failing.calls == 1
-
-    # The drained deltas were restored, so a later healthy flush recovers them.
-    factory = _factory()
-    assert accumulator.flush(factory) == 4
-    assert _usage_rows(factory, TENANT_ID)[0].quantity == 4
-
-
-def test_accumulator_retry_after_ambiguous_commit_does_not_double_count() -> None:
-    factory = _factory()
-    accumulator = UsageAccumulator(enabled=True)
-    moment = datetime(2026, 7, 10, 8, tzinfo=UTC)
-    accumulator.record(
-        TENANT_ID,
-        TenantUsageMetric.API_REQUEST.value,
-        4,
-        occurred_at=moment,
-    )
-    drained = accumulator.drain()
-    item = drained[0]
-
-    # The commit succeeds, but the caller acts as if its acknowledgement was
-    # lost and restores the original batch for retry.
     with factory() as session:
         AxisPersistenceRepository(session).append_tenant_usage_event(
             TenantUsageEventAppend(
-                tenant_id=item.tenant_id,
-                metric_key=item.metric_key,
-                source_type="api_request_batch",
-                source_id=item.source_id,
-                period_start=item.period_start,
-                period_window_seconds=accumulator.window_seconds,
-                quantity=item.quantity,
-                occurred_at=item.occurred_at,
-            )
+                tenant_id=TENANT_ID,
+                metric_key=TenantUsageMetric.API_REQUEST,
+                source_type="api_request_admission",
+                source_id="admission-1",
+                period_start=usage_period_start(moment),
+                period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+                quantity=1,
+                occurred_at=moment,
+            ),
+            project_immediately=False,
         )
         session.commit()
 
-    # Traffic arriving during the retry window remains a distinct journal event.
-    accumulator.record(
-        TENANT_ID,
-        TenantUsageMetric.API_REQUEST.value,
-        2,
-        occurred_at=moment,
+    assert _usage_rows(factory, TENANT_ID) == []
+    assert _usage_events(factory, TENANT_ID)[0].projected_at is None
+
+    projector = UsageEventProjector(
+        failure_threshold=3,
+        max_backlog_age_seconds=60,
     )
-    accumulator.restore(drained)
+    first = projector.project_available(factory, batch_size=10, max_batches=2)
+    second = projector.project_available(factory, batch_size=10, max_batches=2)
 
-    assert accumulator.flush(factory) == 2
-    assert _usage_rows(factory, TENANT_ID)[0].quantity == 6
-    assert len(_usage_events(factory, TENANT_ID)) == 2
+    assert first.events_projected == 1
+    assert first.quantity_projected == 1
+    assert second.events_projected == 0
+    assert _usage_rows(factory, TENANT_ID)[0].quantity == 1
+    assert _usage_events(factory, TENANT_ID)[0].projected_at is not None
+    assert projector.health()["healthy"] is True
 
 
-def test_concurrent_records_and_flushes_do_not_lose_counts() -> None:
-    # Simulated concurrency at the persistence seam: many recorder threads folding
-    # in-memory deltas while a flusher thread drains to the ledger.
+def test_projector_groups_events_and_preserves_time_extremes() -> None:
     factory = _factory()
-    accumulator = UsageAccumulator(enabled=True)
-    moment = datetime(2026, 7, 10, 8, 0, 0, tzinfo=UTC)
-    thread_count = 8
-    per_thread = 500
-    stop = threading.Event()
-
-    def recorder() -> None:
-        for _ in range(per_thread):
-            accumulator.record(
-                TENANT_ID, TenantUsageMetric.API_REQUEST.value, occurred_at=moment
-            )
-
-    def flusher() -> None:
-        while not stop.is_set():
-            accumulator.flush(factory)
-            time.sleep(0.001)
-
-    flush_thread = threading.Thread(target=flusher)
-    flush_thread.start()
-    recorders = [threading.Thread(target=recorder) for _ in range(thread_count)]
-    for thread in recorders:
-        thread.start()
-    for thread in recorders:
-        thread.join()
-    stop.set()
-    flush_thread.join()
-    accumulator.flush(factory)  # drain any final pending
-
+    earlier = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    later = datetime(2026, 7, 10, 18, tzinfo=UTC)
     with factory() as session:
-        total = session.scalar(
-            select(func.sum(TenantUsageRecord.quantity)).where(
-                TenantUsageRecord.tenant_id == TENANT_ID
+        repository = AxisPersistenceRepository(session)
+        for source_id, occurred_at, quantity in (
+            ("later", later, 3),
+            ("earlier", earlier, 2),
+        ):
+            repository.append_tenant_usage_event(
+                TenantUsageEventAppend(
+                    tenant_id=TENANT_ID,
+                    metric_key=TenantUsageMetric.API_REQUEST,
+                    source_type="api_request_admission",
+                    source_id=source_id,
+                    period_start=usage_period_start(occurred_at),
+                    period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+                    quantity=quantity,
+                    occurred_at=occurred_at,
+                ),
+                project_immediately=False,
             )
+        session.commit()
+
+    projector = UsageEventProjector(
+        failure_threshold=3,
+        max_backlog_age_seconds=60,
+    )
+    result = projector.project_available(factory, batch_size=10, max_batches=1)
+
+    assert result.events_projected == 2
+    assert result.quantity_projected == 5
+    row = _usage_rows(factory, TENANT_ID)[0]
+    assert row.quantity == 5
+    assert row.first_recorded_at.replace(tzinfo=UTC) == earlier
+    assert row.last_recorded_at.replace(tzinfo=UTC) == later
+
+
+def test_projector_failure_rolls_back_claim_and_rollup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory()
+    moment = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    with factory() as session:
+        AxisPersistenceRepository(session).append_tenant_usage_event(
+            TenantUsageEventAppend(
+                tenant_id=TENANT_ID,
+                metric_key=TenantUsageMetric.API_REQUEST,
+                source_type="api_request_admission",
+                source_id="admission-rollback",
+                period_start=usage_period_start(moment),
+                period_window_seconds=DEFAULT_USAGE_PERIOD_WINDOW_SECONDS,
+                quantity=1,
+                occurred_at=moment,
+            ),
+            project_immediately=False,
         )
-    assert total == thread_count * per_thread
+        session.commit()
+
+    def fail_rollup(*_args, **_kwargs) -> None:
+        raise RuntimeError("simulated rollup failure")
+
+    monkeypatch.setattr(AxisPersistenceRepository, "add_tenant_usage", fail_rollup)
+    projector = UsageEventProjector(
+        failure_threshold=3,
+        max_backlog_age_seconds=60,
+    )
+
+    with pytest.raises(RuntimeError, match="simulated rollup failure"):
+        projector.project_available(factory, batch_size=10, max_batches=1)
+
+    assert _usage_rows(factory, TENANT_ID) == []
+    assert _usage_events(factory, TENANT_ID)[0].projected_at is None
+    assert projector.health()["consecutive_failures"] == 1
+
+
+def test_projector_health_fails_when_heartbeat_is_stale() -> None:
+    factory = _factory()
+    projector = UsageEventProjector(
+        failure_threshold=3,
+        max_backlog_age_seconds=1,
+    )
+    projector.project_available(factory, batch_size=10, max_batches=1)
+    assert projector.health()["healthy"] is True
+
+    with projector._lock:
+        projector._last_success_at = datetime.now(UTC) - timedelta(seconds=2)
+
+    health = projector.health()
+    assert health["healthy"] is False
+    assert float(health["heartbeat_age_seconds"] or 0) >= 1
+
+
+def test_projector_shutdown_wait_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from threading import Event
+    from time import monotonic
+
+    app = create_app(
+        _metering_settings(usage_metering_shutdown_timeout_seconds=0.1)
+    )
+    started = Event()
+    release = Event()
+
+    def blocked_projection(*_args, **_kwargs) -> None:
+        started.set()
+        release.wait(timeout=2)
+
+    monkeypatch.setattr(
+        app.state.usage_event_projector,
+        "project_available",
+        blocked_projection,
+    )
+    began = monotonic()
+    try:
+        with TestClient(app):
+            assert started.wait(timeout=1)
+    finally:
+        release.set()
+
+    assert monotonic() - began < 1
 
 
 # --------------------------------------------------------------------------- #
@@ -746,12 +720,136 @@ def test_api_request_metered_for_verified_bearer_on_non_rate_limited_path() -> N
     )
     assert response.status_code == 200
 
-    accumulator: UsageAccumulator = client.app.state.usage_accumulator
-    assert accumulator.flush(factory) == 1
+    events = _usage_events(factory, TENANT_ID)
+    assert len(events) == 1
+    assert events[0].source_type == "api_request_admission"
+    assert events[0].projected_at is None
+    assert events[0].dimensions["method"] == "GET"
+    client.app.state.usage_event_projector.project_available(
+        factory,
+        batch_size=10,
+        max_batches=1,
+    )
     rows = _usage_rows(factory, TENANT_ID)
     assert len(rows) == 1
     assert rows[0].metric_key == TenantUsageMetric.API_REQUEST.value
     assert rows[0].quantity == 1
+
+
+def test_api_request_admission_is_committed_before_handler_and_survives_500() -> None:
+    client, factory = _build_client()
+    _set_bearer_principal(client)
+    observed: dict[str, int] = {}
+
+    @client.app.get("/test/usage-handler-failure")
+    def failing_handler(
+        _principal: Annotated[OidcPrincipal | None, Depends(oidc_principal)],
+    ) -> None:
+        observed["event_count"] = len(_usage_events(factory, TENANT_ID))
+        raise RuntimeError("simulated handler failure")
+
+    response = TestClient(client.app, raise_server_exceptions=False).get(
+        "/test/usage-handler-failure",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == 500
+    assert observed == {"event_count": 1}
+    assert len(_usage_events(factory, TENANT_ID)) == 1
+
+
+def test_api_request_rejected_by_auth_is_not_metered() -> None:
+    client, factory = _build_client(_metering_settings(oidc_auth_required=True))
+
+    response = client.get("/identity/session")
+
+    assert response.status_code == 401
+    assert _usage_events(factory, TENANT_ID) == []
+
+
+def test_api_request_fails_closed_when_tenant_state_cannot_be_loaded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, factory = _build_client()
+    _set_bearer_principal(client)
+
+    def fail_snapshot(*_args, **_kwargs) -> None:
+        raise SQLAlchemyError("simulated tenant-state outage")
+
+    monkeypatch.setattr(client.app.state.tenant_state_cache, "snapshot", fail_snapshot)
+
+    response = client.get(
+        "/identity/session",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["reason"] == "tenant_state_unavailable"
+    assert _usage_events(factory, TENANT_ID) == []
+
+
+def test_api_request_rejected_by_rate_limit_is_not_metered() -> None:
+    client, factory = _build_client(
+        _metering_settings(
+            api_rate_limit_enabled=True,
+            api_rate_limit_requests=1,
+            api_rate_limit_paths=["/identity/session"],
+        )
+    )
+    _set_bearer_principal(client)
+    headers = {"Authorization": "Bearer valid-token"}
+
+    assert client.get("/identity/session", headers=headers).status_code == 200
+    rejected = client.get("/identity/session", headers=headers)
+
+    assert rejected.status_code == 429
+    assert len(_usage_events(factory, TENANT_ID)) == 1
+
+
+@pytest.mark.parametrize(
+    ("failure_mode", "expected_status", "handler_called"),
+    [
+        ("closed", 503, False),
+        ("open", 200, True),
+    ],
+)
+def test_usage_admission_failure_mode_controls_handler_execution(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_mode: str,
+    expected_status: int,
+    handler_called: bool,
+) -> None:
+    client, factory = _build_client(
+        _metering_settings(usage_metering_failure_mode=failure_mode)
+    )
+    _set_bearer_principal(client)
+    called = False
+
+    def fail_admission(*_args, **_kwargs) -> None:
+        raise RuntimeError("simulated metering database outage")
+
+    monkeypatch.setattr(
+        client.app.state.request_usage_admission_recorder,
+        "record",
+        fail_admission,
+    )
+
+    @client.app.get("/test/usage-admission-failure")
+    def handler(
+        _principal: Annotated[OidcPrincipal | None, Depends(oidc_principal)],
+    ) -> dict[str, bool]:
+        nonlocal called
+        called = True
+        return {"ok": True}
+
+    response = client.get(
+        "/test/usage-admission-failure",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+    assert response.status_code == expected_status
+    assert called is handler_called
+    assert _usage_events(factory, TENANT_ID) == []
 
 
 def test_api_request_not_metered_without_verified_principal() -> None:
@@ -760,8 +858,7 @@ def test_api_request_not_metered_without_verified_principal() -> None:
 
     assert client.get("/deployment/readiness").status_code == 200
 
-    accumulator: UsageAccumulator = client.app.state.usage_accumulator
-    assert accumulator.flush(factory) == 0
+    assert _usage_events(factory, TENANT_ID) == []
 
 
 def test_api_request_not_metered_when_disabled() -> None:
@@ -777,8 +874,7 @@ def test_api_request_not_metered_when_disabled() -> None:
         == 200
     )
 
-    accumulator: UsageAccumulator = client.app.state.usage_accumulator
-    assert accumulator.flush(factory) == 0
+    assert _usage_events(factory, TENANT_ID) == []
     assert _usage_rows(factory, TENANT_ID) == []
 
 
@@ -805,6 +901,32 @@ def test_session_created_metered_on_oidc_callback() -> None:
     assert len(rows) == 1
     assert rows[0].metric_key == TenantUsageMetric.SESSION_CREATED.value
     assert rows[0].quantity == 1
+
+
+def test_api_request_metering_has_persisted_cookie_parity() -> None:
+    settings = _oidc_settings(
+        oidc_session_cookie_secure=False,
+        usage_metering_enabled=True,
+    )
+    client, factory, _token_requests, id_token_context = _app_with_static_oidc(
+        settings,
+        token_secret="axis-test-secret",
+    )
+    state = _start_oidc_login(client, id_token_context, return_to="/settings")
+    assert client.get(
+        f"/identity/oidc/callback?code=valid-code&state={state}"
+    ).status_code == 307
+
+    response = client.get("/identity/session")
+
+    assert response.status_code == 200
+    request_events = [
+        event
+        for event in _usage_events(factory, "tenant_demo_manufacturing")
+        if event.metric_key == TenantUsageMetric.API_REQUEST.value
+    ]
+    assert len(request_events) == 1
+    assert request_events[0].dimensions["session_source"] == "secure_cookie"
 
 
 def test_session_created_not_metered_when_disabled() -> None:
@@ -1034,6 +1156,112 @@ def test_migration_0052_identifier_and_down_revision() -> None:
     assert migration.down_revision == "0051_agent_runs"
 
 
+def test_migration_0053_identifier_and_down_revision() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "0053_usage_event_projection.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0053", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    assert migration.revision == "0053_usage_event_projection"
+    assert migration.down_revision == "0052_tenant_usage_event_journal"
+
+
+def test_migration_0053_backfills_legacy_events_and_guards_downgrade(tmp_path) -> None:
+    from pathlib import Path
+
+    from alembic.command import downgrade, stamp, upgrade
+    from alembic.config import Config
+    from sqlalchemy import text
+
+    database_path = tmp_path / "usage-projection.sqlite"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    engine = create_engine(database_url)
+    old_schema = """
+        CREATE TABLE tenant_usage_events (
+            id VARCHAR(36) PRIMARY KEY,
+            tenant_id VARCHAR(80) NOT NULL,
+            metric_key VARCHAR(80) NOT NULL,
+            source_type VARCHAR(80) NOT NULL,
+            source_id VARCHAR(200) NOT NULL,
+            period_start DATETIME NOT NULL,
+            period_window_seconds INTEGER NOT NULL,
+            quantity BIGINT NOT NULL,
+            dimensions JSON NOT NULL,
+            occurred_at DATETIME NOT NULL,
+            recorded_at DATETIME NOT NULL
+        )
+    """
+    with engine.begin() as connection:
+        connection.execute(text(old_schema))
+
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    stamp(config, "0052_tenant_usage_event_journal")
+    moment = datetime(2026, 7, 10, 8, tzinfo=UTC)
+    insert_event = text(
+        "INSERT INTO tenant_usage_events "
+        "(id, tenant_id, metric_key, source_type, source_id, period_start, "
+        "period_window_seconds, quantity, dimensions, occurred_at, recorded_at) "
+        "VALUES (:id, :tenant_id, 'api_request', :source_type, :source_id, "
+        ":moment, 86400, 1, '{}', :moment, :moment)"
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            insert_event,
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "tenant_id": TENANT_ID,
+                "source_type": "legacy_synchronous",
+                "source_id": "legacy-1",
+                "moment": moment,
+            },
+        )
+
+    upgrade(config, "0053_usage_event_projection")
+    with engine.begin() as connection:
+        projected_at, recorded_at = connection.execute(
+            text("SELECT projected_at, recorded_at FROM tenant_usage_events")
+        ).one()
+        assert projected_at == recorded_at
+        connection.execute(
+            insert_event,
+            {
+                "id": "00000000-0000-0000-0000-000000000002",
+                "tenant_id": TENANT_ID,
+                "source_type": "api_request_admission",
+                "source_id": "pending-1",
+                "moment": moment,
+            },
+        )
+        connection.execute(
+            text(
+                "UPDATE tenant_usage_events SET projected_at = NULL "
+                "WHERE source_id = 'pending-1'"
+            )
+        )
+
+    with pytest.raises(RuntimeError, match="awaiting projection"):
+        downgrade(config, "0052_tenant_usage_event_journal")
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE tenant_usage_events SET projected_at = recorded_at "
+                "WHERE projected_at IS NULL"
+            )
+        )
+    downgrade(config, "0052_tenant_usage_event_journal")
+
+
 def test_tenant_usage_event_schema_has_source_identity_constraint() -> None:
     table = TenantUsageEvent.__table__
     assert table.name == "tenant_usage_events"
@@ -1043,3 +1271,7 @@ def test_tenant_usage_event_schema_has_source_identity_constraint() -> None:
         if constraint.__class__.__name__ == "UniqueConstraint"
     }
     assert ("metric_key", "source_id", "source_type", "tenant_id") in unique_columns
+    assert "projected_at" in table.columns
+    assert "ix_tenant_usage_events_unprojected" in {
+        index.name for index in table.indexes
+    }

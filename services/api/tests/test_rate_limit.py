@@ -161,3 +161,20 @@ def test_production_rate_limiting_accepts_complete_redis_configuration() -> None
             redis_url="redis://rate-limit.internal:6379/0",
         )
     )
+
+
+def test_production_usage_metering_requires_fail_closed_admission() -> None:
+    with pytest.raises(RuntimeConfigurationError, match="AXIS_USAGE_METERING_FAILURE_MODE"):
+        validate_runtime_configuration(
+            Settings(
+                environment="production",
+                oidc_auth_required=True,
+                api_rate_limit_enabled=True,
+                api_rate_limit_paths=["*"],
+                api_rate_limit_backend="redis",
+                api_rate_limit_failure_mode="closed",
+                redis_url="redis://rate-limit.internal:6379/0",
+                usage_metering_enabled=True,
+                usage_metering_failure_mode="open",
+            )
+        )

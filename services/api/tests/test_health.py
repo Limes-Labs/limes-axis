@@ -5,6 +5,7 @@ from jose.utils import base64url_encode
 from axis_api.config import Settings
 from axis_api.identity import StaticJwksOidcVerifier
 from axis_api.main import create_app
+from axis_api.platform_tenants import TenantStateSnapshot
 from axis_api.rate_limit import InMemoryRateLimiter
 from axis_api.runtime_readiness import static_runtime_readiness_service
 
@@ -23,6 +24,11 @@ def _oct_jwks(secret: str) -> dict:
 
 def _token(secret: str, claims: dict) -> str:
     return jwt.encode(claims, secret, algorithm="HS256", headers={"kid": "axis-test"})
+
+
+class _ActiveTenantStateCache:
+    def snapshot(self, _session_factory, _tenant_id: str) -> TenantStateSnapshot:
+        return TenantStateSnapshot(status="active", quotas={})
 
 
 def test_health_returns_ok() -> None:
@@ -83,7 +89,7 @@ def test_ready_returns_503_and_redacts_dependency_errors() -> None:
     assert "secret" not in str(body).lower()
 
 
-def test_ready_degrades_when_usage_metering_has_dropped_counts() -> None:
+def test_ready_degrades_after_persistent_usage_projection_failures() -> None:
     app = create_app(
         Settings(
             postgres_dsn="sqlite+pysqlite://",
@@ -91,8 +97,10 @@ def test_ready_degrades_when_usage_metering_has_dropped_counts() -> None:
             workflow_signals_enabled=False,
         )
     )
-    app.state.usage_accumulator.max_pending_keys = 0
-    app.state.usage_accumulator.record("tenant-a", "api_request")
+    projector = app.state.usage_event_projector
+    with projector._lock:
+        projector._initialized = True
+        projector._consecutive_failures = projector.failure_threshold
 
     response = TestClient(app).get("/ready")
 
@@ -542,6 +550,7 @@ def test_identity_session_returns_validated_oidc_context_without_token_material(
         oidc_algorithms=["HS256"],
     )
     app = create_app(settings)
+    app.state.tenant_state_cache = _ActiveTenantStateCache()
     app.state.identity_verifier = StaticJwksOidcVerifier(
         issuer=settings.oidc_issuer,
         audience=settings.oidc_audience,

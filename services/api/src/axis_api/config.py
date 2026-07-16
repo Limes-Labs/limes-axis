@@ -61,9 +61,32 @@ class Settings(BaseSettings):
         ge=0,
         alias="AXIS_TENANT_STATE_CACHE_TTL_SECONDS",
     )
+    postgres_connect_timeout_seconds: int = Field(
+        default=3,
+        ge=1,
+        le=30,
+        alias="AXIS_POSTGRES_CONNECT_TIMEOUT_SECONDS",
+    )
+    postgres_pool_timeout_seconds: float = Field(
+        default=3.0,
+        ge=0.1,
+        le=30.0,
+        alias="AXIS_POSTGRES_POOL_TIMEOUT_SECONDS",
+    )
     usage_metering_enabled: bool = Field(
         default=False,
         alias="AXIS_USAGE_METERING_ENABLED",
+    )
+    usage_metering_failure_mode: str = Field(
+        default="open",
+        pattern="^(open|closed)$",
+        alias="AXIS_USAGE_METERING_FAILURE_MODE",
+    )
+    usage_metering_admission_statement_timeout_ms: int = Field(
+        default=1_500,
+        ge=100,
+        le=10_000,
+        alias="AXIS_USAGE_METERING_ADMISSION_STATEMENT_TIMEOUT_MS",
     )
     usage_metering_flush_interval_seconds: float = Field(
         default=5.0,
@@ -76,6 +99,36 @@ class Settings(BaseSettings):
         ge=60,
         le=86_400,
         alias="AXIS_USAGE_METERING_AGGREGATION_WINDOW_SECONDS",
+    )
+    usage_metering_projection_batch_size: int = Field(
+        default=500,
+        ge=1,
+        le=10_000,
+        alias="AXIS_USAGE_METERING_PROJECTION_BATCH_SIZE",
+    )
+    usage_metering_projection_max_batches_per_tick: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        alias="AXIS_USAGE_METERING_PROJECTION_MAX_BATCHES_PER_TICK",
+    )
+    usage_metering_projection_failure_threshold: int = Field(
+        default=3,
+        ge=1,
+        le=100,
+        alias="AXIS_USAGE_METERING_PROJECTION_FAILURE_THRESHOLD",
+    )
+    usage_metering_projection_max_backlog_age_seconds: float = Field(
+        default=60.0,
+        ge=1.0,
+        le=86_400.0,
+        alias="AXIS_USAGE_METERING_PROJECTION_MAX_BACKLOG_AGE_SECONDS",
+    )
+    usage_metering_shutdown_timeout_seconds: float = Field(
+        default=10.0,
+        ge=0.1,
+        le=60.0,
+        alias="AXIS_USAGE_METERING_SHUTDOWN_TIMEOUT_SECONDS",
     )
     readiness_probe_timeout_seconds: float = Field(
         default=1.0,
@@ -618,4 +671,12 @@ def validate_runtime_configuration(settings: Settings) -> None:
         if not settings.redis_url:
             raise RuntimeConfigurationError(
                 "AXIS_REDIS_URL is required for production rate limiting."
+            )
+        if (
+            settings.usage_metering_enabled
+            and settings.usage_metering_failure_mode != "closed"
+        ):
+            raise RuntimeConfigurationError(
+                "AXIS_USAGE_METERING_FAILURE_MODE must be closed in production "
+                "when usage metering is enabled."
             )

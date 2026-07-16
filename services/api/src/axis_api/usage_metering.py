@@ -5,35 +5,39 @@ cumulative accounting layer. This module owns:
 
 * the typed metric keys that map to the existing enforcement choke points,
 * the epoch-aligned period bucketing used to aggregate consumption,
-* a bounded in-process aggregator (:class:`UsageAccumulator`) that batches
-  hot-path ``api_request`` counts and periodically flushes them to per-period
-  ledger rows through source-keyed journal events, and
+* durable request-admission journaling before application handlers execute,
+* asynchronous, transactionally claimed projection into period rollups, and
 * the read model + aggregation used by the operator-scoped usage read route.
 
 Low-volume domain events append synchronously in their source transaction.
-Request-volume counts remain in memory until flush, but every drained batch has
-a stable source identity: retrying an ambiguous commit is exactly-once. A hard
-process crash before the batch is assigned and flushed remains a documented
-best-effort boundary for ``api_request`` accounting.
+Authenticated request admissions append one event before handler execution and
+never contend on the hot rollup row. Projectors running on every API replica
+claim disjoint batches and update rollups atomically.
 """
 
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+from fastapi import Request
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from axis_api.db import session_scope
+from axis_api.identity import OidcPrincipal
 from axis_api.models import utc_now
 from axis_api.persistence import (
     AxisPersistenceRepository,
     TenantUsageEventAppend,
+    TenantUsageIdempotencyConflict,
     TenantUsagePeriodTotal,
+    TenantUsageProjectionResult,
 )
 
 # A dedicated read scope keeps billing-adjacent consumption reads separable from
@@ -42,11 +46,15 @@ REQUIRED_USAGE_READ_SCOPE = "platform:tenant:usage"
 
 DEFAULT_USAGE_PERIOD_WINDOW_SECONDS = 86_400
 
-# Soft bound on distinct (tenant, metric, period) keys held between flushes. In
-# practice the key space is tiny (tenants x 3 metrics x a couple of periods) and
-# the aggregator is drained every few seconds, so this only guards against a
-# pathological unbounded-growth scenario.
-_MAX_PENDING_KEYS = 200_000
+_METERING_EXCLUDED_PATHS = {
+    "/health",
+    "/ready",
+    "/identity/oidc/readiness",
+    "/identity/oidc/authorize",
+    "/identity/oidc/callback",
+    "/identity/session/logout",
+    "/identity/session/refresh",
+}
 
 
 class TenantUsageMetric(StrEnum):
@@ -63,13 +71,6 @@ class TenantUsageMetric(StrEnum):
     MODEL_INPUT_TOKENS = "model_input_tokens"
     MODEL_OUTPUT_TOKENS = "model_output_tokens"
     AGENT_RUNS = "agent_runs"
-
-
-class UsageRecordResult(StrEnum):
-    ACCEPTED = "accepted"
-    DISABLED = "disabled"
-    IGNORED = "ignored"
-    OVERFLOW = "overflow"
 
 
 def usage_period_start(
@@ -92,150 +93,202 @@ def usage_period_start(
     return datetime.fromtimestamp(floored, tz=UTC)
 
 
-@dataclass
-class _PendingCounter:
-    quantity: int
-    last_occurred_at: datetime
+class UsageAdmissionUnavailable(RuntimeError):
+    pass
 
 
 @dataclass
-class PendingUsage:
-    source_id: str
-    tenant_id: str
-    metric_key: str
-    period_start: datetime
-    quantity: int
-    occurred_at: datetime
+class RequestUsageAdmissionRecorder:
+    """Persist authenticated request admission before application execution."""
 
+    enabled: bool
+    window_seconds: int
+    statement_timeout_ms: int
+    id_factory: Callable[[], UUID] = uuid4
 
-@dataclass
-class UsageAccumulator:
-    """Bounded, thread-safe in-process aggregator for hot-path usage counts.
+    def record(self, request: Request, principal: OidcPrincipal) -> bool:
+        if (
+            not self.enabled
+            or request.method == "OPTIONS"
+            or request.url.path in _METERING_EXCLUDED_PATHS
+            or not bool(getattr(request.state, "axis_rate_limit_admitted", False))
+        ):
+            return False
+        if bool(getattr(request.state, "axis_usage_admission_recorded", False)):
+            return False
+        session_factory: sessionmaker[Session] = request.app.state.session_factory
 
-    ``record`` folds a delta into an in-memory per-bucket counter under a lock.
-    ``flush`` assigns a source identity to each drained batch and appends it to
-    the journal before updating the rollup in the same transaction. Failed
-    batches retain their identities across retry and remain separate from new
-    traffic, preventing ambiguous commits from double-counting either batch.
-    """
+        event = getattr(request.state, "axis_usage_admission_event", None)
+        if not isinstance(event, TenantUsageEventAppend):
+            occurred_at = utc_now()
+            route = request.scope.get("route")
+            route_template = getattr(route, "path", "unmatched")
+            event = TenantUsageEventAppend(
+                tenant_id=principal.tenant_id,
+                metric_key=TenantUsageMetric.API_REQUEST.value,
+                source_type="api_request_admission",
+                source_id=str(self.id_factory()),
+                period_start=usage_period_start(occurred_at, self.window_seconds),
+                period_window_seconds=self.window_seconds,
+                quantity=1,
+                occurred_at=occurred_at,
+                dimensions={
+                    "method": request.method,
+                    "route": route_template,
+                    "session_source": principal.session_source,
+                },
+            )
+            request.state.axis_usage_admission_event = event
 
-    window_seconds: int = DEFAULT_USAGE_PERIOD_WINDOW_SECONDS
-    enabled: bool = True
-    max_pending_keys: int = _MAX_PENDING_KEYS
-    _pending: dict[tuple[str, str, datetime], _PendingCounter] = field(
-        default_factory=dict
-    )
-    _retry_pending: list[PendingUsage] = field(default_factory=list)
-    _lock: threading.Lock = field(default_factory=threading.Lock)
-    _overflow_total: int = 0
-    _degraded: bool = False
-
-    def record(
-        self,
-        tenant_id: str | None,
-        metric: str,
-        quantity: int = 1,
-        *,
-        occurred_at: datetime | None = None,
-    ) -> UsageRecordResult:
-        if not self.enabled:
-            return UsageRecordResult.DISABLED
-        if not tenant_id or quantity <= 0:
-            return UsageRecordResult.IGNORED
-        moment = occurred_at or utc_now()
-        period_start = usage_period_start(moment, self.window_seconds)
-        key = (tenant_id, metric, period_start)
-        with self._lock:
-            counter = self._pending.get(key)
-            if counter is None:
-                if len(self._pending) + len(self._retry_pending) >= self.max_pending_keys:
-                    self._overflow_total += quantity
-                    self._degraded = True
-                    return UsageRecordResult.OVERFLOW
-                counter = _PendingCounter(quantity=0, last_occurred_at=moment)
-                self._pending[key] = counter
-            counter.quantity += quantity
-            if moment > counter.last_occurred_at:
-                counter.last_occurred_at = moment
-        return UsageRecordResult.ACCEPTED
-
-    def health(self) -> dict[str, int | bool]:
-        """Expose bounded, non-tenant operational state for diagnostics."""
-
-        with self._lock:
-            return {
-                "healthy": not self._degraded,
-                "pending_keys": len(self._pending) + len(self._retry_pending),
-                "max_pending_keys": self.max_pending_keys,
-                "overflow_total": self._overflow_total,
-            }
-
-    def mark_flush_succeeded(self) -> None:
-        """Clear active backpressure degradation while retaining loss telemetry."""
-
-        with self._lock:
-            if len(self._pending) + len(self._retry_pending) < self.max_pending_keys:
-                self._degraded = False
-
-    def drain(self) -> list[PendingUsage]:
-        with self._lock:
-            drained = [
-                PendingUsage(
-                    source_id=str(uuid4()),
-                    tenant_id=tenant_id,
-                    metric_key=metric_key,
-                    period_start=period_start,
-                    quantity=counter.quantity,
-                    occurred_at=counter.last_occurred_at,
-                )
-                for (tenant_id, metric_key, period_start), counter in self._pending.items()
-            ]
-            drained = [*self._retry_pending, *drained]
-            self._retry_pending.clear()
-            self._pending.clear()
-        return drained
-
-    def restore(self, items: list[PendingUsage]) -> None:
-        with self._lock:
-            self._retry_pending = [*items, *self._retry_pending]
-
-    def flush(self, session_factory: sessionmaker[Session]) -> int:
-        """Drain pending buckets and durably upsert-add them to the ledger.
-
-        Returns the total quantity flushed. On a DB error the drained deltas are
-        restored and the error is re-raised so the caller can observe the
-        failure; the next flush retries them.
-        """
-        items = self.drain()
-        if not items:
-            return 0
-        flushed_quantity = 0
         try:
             with session_scope(session_factory) as session:
-                repository = AxisPersistenceRepository(session)
-                for item in items:
-                    inserted = repository.append_tenant_usage_event(
-                        TenantUsageEventAppend(
-                            source_type="api_request_batch",
-                            source_id=item.source_id,
-                            tenant_id=item.tenant_id,
-                            metric_key=item.metric_key,
-                            period_start=item.period_start,
-                            period_window_seconds=self.window_seconds,
-                            quantity=item.quantity,
-                            occurred_at=item.occurred_at,
-                        )
+                if session.get_bind().dialect.name == "postgresql":
+                    timeout = f"{self.statement_timeout_ms}ms"
+                    session.execute(
+                        text(
+                            "SELECT "
+                            "set_config('statement_timeout', :timeout, true), "
+                            "set_config('lock_timeout', :timeout, true)"
+                        ),
+                        {"timeout": timeout},
                     )
-                    if inserted:
-                        flushed_quantity += item.quantity
-        except Exception:
-            # Any flush failure (a wrapped or unwrapped driver/pool error, or a
-            # failure constructing the session) must not drop the drained deltas:
-            # restore them so the next flush retries with no loss, then re-raise.
-            self.restore(items)
+                AxisPersistenceRepository(session).append_tenant_usage_event(
+                    event,
+                    project_immediately=False,
+                )
+            request.state.axis_usage_admission_recorded = True
+            return True
+        except TenantUsageIdempotencyConflict:
             raise
-        self.mark_flush_succeeded()
-        return flushed_quantity
+        except Exception as exc:  # noqa: BLE001 - reconcile ambiguous commits
+            if self._event_exists_with_same_payload(session_factory, event):
+                request.state.axis_usage_admission_recorded = True
+                return True
+            raise UsageAdmissionUnavailable(
+                "Request usage admission could not be persisted."
+            ) from exc
+
+    def _event_exists_with_same_payload(
+        self,
+        session_factory: sessionmaker[Session],
+        event: TenantUsageEventAppend,
+    ) -> bool:
+        try:
+            with session_factory() as session:
+                existing = AxisPersistenceRepository(
+                    session
+                ).get_tenant_usage_event_by_source(
+                    event.tenant_id,
+                    event.metric_key,
+                    event.source_type,
+                    event.source_id,
+                )
+                if existing is None:
+                    return False
+                return (
+                    existing.quantity == event.quantity
+                    and _aware(existing.period_start) == _aware(event.period_start)
+                    and existing.period_window_seconds == event.period_window_seconds
+                    and _aware(existing.occurred_at) == _aware(event.occurred_at)
+                    and existing.dimensions == event.dimensions
+                )
+        except Exception:  # noqa: BLE001 - reconciliation is best-effort
+            return False
+
+
+@dataclass
+class UsageEventProjector:
+    """Project pending journal events while exposing non-tenant health state."""
+
+    failure_threshold: int
+    max_backlog_age_seconds: float
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+    _initialized: bool = False
+    _consecutive_failures: int = 0
+    _oldest_pending_at: datetime | None = None
+    _last_success_at: datetime | None = None
+
+    def project_available(
+        self,
+        session_factory: sessionmaker[Session],
+        *,
+        batch_size: int,
+        max_batches: int,
+    ) -> TenantUsageProjectionResult:
+        events_projected = 0
+        quantity_projected = 0
+        try:
+            for _ in range(max_batches):
+                with session_scope(session_factory) as session:
+                    result = AxisPersistenceRepository(
+                        session
+                    ).project_pending_tenant_usage_events(batch_size=batch_size)
+                events_projected += result.events_projected
+                quantity_projected += result.quantity_projected
+                if result.events_projected < batch_size:
+                    break
+            with session_factory() as session:
+                oldest_pending_at = AxisPersistenceRepository(
+                    session
+                ).oldest_pending_tenant_usage_event_at()
+        except Exception:
+            with self._lock:
+                self._initialized = True
+                self._consecutive_failures += 1
+            raise
+        with self._lock:
+            self._initialized = True
+            self._consecutive_failures = 0
+            self._oldest_pending_at = oldest_pending_at
+            self._last_success_at = utc_now()
+        return TenantUsageProjectionResult(
+            events_projected=events_projected,
+            quantity_projected=quantity_projected,
+        )
+
+    def health(self) -> dict[str, bool | int | float | None]:
+        with self._lock:
+            oldest = self._oldest_pending_at
+            backlog_age_seconds = (
+                max(0.0, (utc_now() - _aware(oldest)).total_seconds())
+                if oldest is not None
+                else 0.0
+            )
+            heartbeat_age_seconds = (
+                max(0.0, (utc_now() - _aware(self._last_success_at)).total_seconds())
+                if self._last_success_at is not None
+                else None
+            )
+            healthy = (
+                self._initialized
+                and self._consecutive_failures < self.failure_threshold
+                and backlog_age_seconds <= self.max_backlog_age_seconds
+                and heartbeat_age_seconds is not None
+                and heartbeat_age_seconds <= self.max_backlog_age_seconds
+            )
+            return {
+                "healthy": healthy,
+                "initialized": self._initialized,
+                "consecutive_failures": self._consecutive_failures,
+                "backlog_age_seconds": backlog_age_seconds,
+                "heartbeat_age_seconds": heartbeat_age_seconds,
+                "last_success_at": (
+                    self._last_success_at.timestamp()
+                    if self._last_success_at is not None
+                    else None
+                ),
+            }
+
+    def retry_delay_seconds(self, base_interval_seconds: float) -> float:
+        with self._lock:
+            failures = self._consecutive_failures
+        return min(30.0, base_interval_seconds * (2 ** min(failures, 5)))
+
+
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def record_tenant_usage_event(
@@ -307,8 +360,8 @@ _USAGE_NOTES = [
     "point per metric and period in the window.",
     "Metering is per-tenant and isolated; billing is a future consumer of this "
     "ledger.",
-    "Hot-path API counts are buffered in process before periodic durable flushes; "
-    "this accounting path is not a billing-grade event transport.",
+    "api_request events are committed before handler execution and projected "
+    "asynchronously into the period rollup.",
 ]
 
 
