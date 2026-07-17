@@ -1042,6 +1042,40 @@ class AxisPersistenceRepository:
         self.session.flush()
         return audit_event
 
+    def acquire_oidc_session_admission_lock(
+        self,
+        *,
+        tenant_id: str,
+        actor_id: str,
+    ) -> None:
+        """Serialize browser-session admission for one tenant principal.
+
+        PostgreSQL advisory transaction locks coordinate across API processes
+        and replicas without persisting lock rows. The length-prefixed key keeps
+        tenant and actor boundaries unambiguous. SQLite serializes writes at the
+        database level and is used only by local/test profiles, so it needs no
+        additional lock primitive here.
+        """
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "sqlite":
+            return
+        if dialect_name != "postgresql":
+            raise NotImplementedError(
+                "OIDC session admission locking is not supported for "
+                f"dialect {dialect_name!r}."
+            )
+        lock_key = (
+            "axis:oidc-session-admission:"
+            f"{len(tenant_id)}:{tenant_id}{len(actor_id)}:{actor_id}"
+        )
+        self.session.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    func.hashtextextended(lock_key, 0)
+                )
+            )
+        )
+
     def get_audit_event(self, tenant_id: str, audit_event_id: UUID) -> AuditEvent | None:
         statement: Select[tuple[AuditEvent]] = select(AuditEvent).where(
             AuditEvent.tenant_id == tenant_id,
