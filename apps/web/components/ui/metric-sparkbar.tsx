@@ -47,7 +47,7 @@ export function MetricSparkbar({
           />
         ))}
       </div>
-      <div aria-hidden="true" className="rule-dotted" />
+      <div aria-hidden="true" className="rule-hairline" />
     </div>
   );
 }

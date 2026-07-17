@@ -69,7 +69,7 @@ function AgentRunRail({ run }: { run: AgentRunRecord }) {
             className={cn("flex items-center gap-2", index > 0 && "min-w-0 flex-1")}
             key={stage.step_type}
           >
-            {index > 0 ? <div className="rule-dotted relative h-px min-w-6 flex-1" /> : null}
+            {index > 0 ? <div className="rule-hairline relative h-px min-w-6 flex-1" /> : null}
             <RunRailMarker state={stage.state} />
           </div>
         ))}

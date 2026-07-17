@@ -53,7 +53,7 @@ function EntityMetric({ label, value, detail }: { label: string; value: string; 
     <Card className="grid content-start gap-2 p-5">
       <Eyebrow>{label}</Eyebrow>
       <p className="font-display m-0 text-2xl break-words text-ink">{value}</p>
-      <div aria-hidden="true" className="rule-dotted" />
+      <div aria-hidden="true" className="rule-hairline" />
       <p className="m-0 font-mono text-xs break-words text-muted">{detail}</p>
     </Card>
   );
@@ -143,7 +143,7 @@ export function EntityDetailContent({
                   className="grid gap-3 py-4 first:pt-0 last:pb-0"
                   key={item.relationship.relationship_id}
                 >
-                  {index > 0 ? <div aria-hidden="true" className="rule-dotted -mt-4 mb-1" /> : null}
+                  {index > 0 ? <div aria-hidden="true" className="rule-hairline -mt-4 mb-1" /> : null}
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="grid min-w-0 gap-1">
                       <p className="m-0 inline-flex items-center gap-2 text-sm font-medium text-ink">
@@ -188,7 +188,7 @@ export function EntityDetailContent({
                 <TagList items={detail.evidence_refs} emptyLabel="node summary only" />
               </section>
             </div>
-            <div aria-hidden="true" className="rule-dotted" />
+            <div aria-hidden="true" className="rule-hairline" />
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="grid content-start gap-2">
                 <Eyebrow>Workflows</Eyebrow>
@@ -199,7 +199,7 @@ export function EntityDetailContent({
                 <TagList items={detail.related_approvals} emptyLabel="no approval relation" />
               </section>
             </div>
-            <div aria-hidden="true" className="rule-dotted" />
+            <div aria-hidden="true" className="rule-hairline" />
             <section className="grid content-start gap-2">
               <Eyebrow>Agents</Eyebrow>
               <TagList items={detail.related_agents} emptyLabel="no agent relation" />

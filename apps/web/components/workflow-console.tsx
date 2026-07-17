@@ -336,7 +336,7 @@ function WorkflowDetail({ workflow }: { workflow: WorkflowRun }) {
         </CollapsibleSection>
       </div>
 
-      <div aria-hidden="true" className="rule-dotted" />
+      <div aria-hidden="true" className="rule-hairline" />
 
       <DetailGrid>
         <KeyValueRow label={copy.detail.runtime}>
