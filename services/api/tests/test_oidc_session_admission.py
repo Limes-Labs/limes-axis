@@ -34,6 +34,19 @@ def test_postgres_oidc_session_admission_uses_transaction_advisory_lock() -> Non
     assert any("operator@example.com" in str(value) for value in compiled.params.values())
 
 
+def test_postgres_approval_decision_uses_transaction_advisory_lock() -> None:
+    repository, session = _repository_for_dialect("postgresql")
+    repository.acquire_approval_decision_lock("tenant_acme", "approval_42")
+
+    statement = session.execute.call_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())
+    sql = str(compiled)
+    assert "pg_advisory_xact_lock" in sql
+    assert "hashtextextended" in sql
+    assert any("tenant_acme" in str(value) for value in compiled.params.values())
+    assert any("approval_42" in str(value) for value in compiled.params.values())
+
+
 def test_sqlite_oidc_session_admission_relies_on_database_write_serialization() -> None:
     repository, session = _repository_for_dialect("sqlite")
 
@@ -42,6 +55,14 @@ def test_sqlite_oidc_session_admission_relies_on_database_write_serialization() 
         actor_id="plant-operations-owner-role",
     )
 
+    session.execute.assert_not_called()
+
+
+def test_sqlite_approval_decision_relies_on_database_write_serialization() -> None:
+    repository, session = _repository_for_dialect("sqlite")
+    repository.acquire_approval_decision_lock(
+        "tenant_demo_manufacturing", "appr_expedite_supplier_batch"
+    )
     session.execute.assert_not_called()
 
 

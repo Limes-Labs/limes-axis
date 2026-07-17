@@ -1442,6 +1442,11 @@
           "decision": {
             "$ref": "#/components/schemas/ApprovalDecision"
           },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
           "permission_decision": {
             "$ref": "#/components/schemas/PermissionDecision"
           },
@@ -19352,6 +19357,9 @@
           },
           "403": {
             "description": "Approval decision permission denied"
+          },
+          "409": {
+            "description": "Approval terminal decision conflict or replay unavailable"
           },
           "422": {
             "content": {

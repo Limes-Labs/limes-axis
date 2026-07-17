@@ -57,6 +57,7 @@ const approvalDecisionResult = z.object({
   audit_event_id: z.string(),
   audit_event_type: z.string(),
   persisted: z.boolean(),
+  idempotent_replay: z.boolean(),
   permission_decision: z.object({ allowed: z.boolean(),
     reason: z.string() }),
   workflow_signal: z.object({

@@ -59,6 +59,7 @@ export type ApprovalDecisionPersistenceResult = {
   audit_event_id: string;
   audit_event_type: string;
   persisted: boolean;
+  idempotent_replay: boolean;
   permission_decision: {
     allowed: boolean;
     reason: string;

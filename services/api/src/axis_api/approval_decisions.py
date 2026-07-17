@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from axis_api.action_reference import (
     ActionReferenceRecordInvalid,
@@ -48,6 +48,13 @@ class ApprovalPermissionDenied(PermissionError):
         self.decision = decision
 
 
+class ApprovalDecisionConflict(RuntimeError):
+    def __init__(self, approval_id: str, reason: str = "approval_decision_conflict") -> None:
+        super().__init__("Approval already has a terminal decision")
+        self.approval_id = approval_id
+        self.reason = reason
+
+
 class ApprovalDecisionRequest(BaseModel):
     decision: ApprovalDecision
     actor_id: str = Field(min_length=1)
@@ -66,6 +73,7 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     audit_event_id: UUID
     audit_event_type: str = Field(min_length=1)
     persisted: bool
+    idempotent_replay: bool = False
     permission_decision: PermissionDecision
     workflow_signal: WorkflowSignalResult
     workflow_signal_status: str = Field(min_length=1)
@@ -413,6 +421,30 @@ async def record_demo_approval_decision(
     tenant_id, approval = _find_approval(repository, approval_id, tenant_id)
     action_id = _approval_action_id(repository, tenant_id, approval.approval_id)
     permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
+    runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
+    repository.acquire_approval_decision_lock(tenant_id, approval.approval_id)
+    existing = repository.get_approval_record(tenant_id, approval.approval_id)
+    if existing is not None and existing.decision is not None:
+        same_request = (
+            existing.decision == request.decision.value
+            and existing.decision_actor_id == request.actor_id
+            and existing.decision_note == request.note
+        )
+        snapshot = existing.payload.get("decision_result")
+        if same_request and isinstance(snapshot, dict):
+            try:
+                result = ApprovalDecisionPersistenceResult.model_validate(snapshot)
+            except ValidationError as exc:
+                raise ApprovalDecisionConflict(
+                    approval.approval_id, "approval_replay_unavailable"
+                ) from exc
+            return result.model_copy(update={"idempotent_replay": True})
+        if same_request:
+            raise ApprovalDecisionConflict(
+                approval.approval_id, "approval_replay_unavailable"
+            )
+        raise ApprovalDecisionConflict(approval.approval_id)
+
     platform_policy_decision = _enforce_approval_platform_policies(
         repository,
         tenant_id,
@@ -420,8 +452,8 @@ async def record_demo_approval_decision(
         action_id,
         request,
     )
-    runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
-    _ensure_approval_record(repository, tenant_id, approval, action_id)
+    if existing is None:
+        _ensure_approval_record(repository, tenant_id, approval, action_id)
 
     approval_record = repository.record_approval_decision(
         ApprovalDecisionRecord(
@@ -494,7 +526,7 @@ async def record_demo_approval_decision(
         )
     )
 
-    return ApprovalDecisionPersistenceResult(
+    result = ApprovalDecisionPersistenceResult(
         tenant_id=tenant_id,
         approval_id=approval.approval_id,
         workflow_id=approval.workflow_id,
@@ -518,3 +550,9 @@ async def record_demo_approval_decision(
         action_run_idempotent_replay=action_transition.idempotent_replay,
         platform_policy_decision=platform_policy_decision,
     )
+    approval_record.payload = {
+        **approval_record.payload,
+        "decision_result": result.model_dump(mode="json"),
+    }
+    repository.session.flush()
+    return result

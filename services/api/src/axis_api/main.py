@@ -54,6 +54,7 @@ from axis_api.agent_runs import (
     start_agent_run,
 )
 from axis_api.approval_decisions import (
+    ApprovalDecisionConflict,
     ApprovalDecisionPersistenceResult,
     ApprovalDecisionRequest,
     ApprovalPermissionDenied,
@@ -7516,13 +7517,17 @@ def create_app(
     @app.post(
         "/demo/manufacturing/approvals/{approval_id}/decision",
         response_model=ApprovalDecisionPersistenceResult,
-        responses={403: {"description": "Approval decision permission denied"}},
+        responses={
+            403: {"description": "Approval decision permission denied"},
+            409: {"description": "Approval terminal decision conflict or replay unavailable"},
+        },
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
     async def manufacturing_approval_decision(
         approval_id: str,
         decision: ApprovalDecisionRequest,
+        response: Response,
         repository: PersistenceRepository,
         runtime: WorkflowRuntime,
         principal: OidcPrincipalDependency,
@@ -7550,6 +7555,8 @@ def create_app(
                     resolved_settings.workflow_history_persistence_enabled
                 ),
             )
+            if result.idempotent_replay:
+                response.status_code = status.HTTP_200_OK
             telemetry.approval_decision_counter.add(
                 1, {"decision": getattr(decision.decision, "value", "unknown")}
             )
@@ -7582,6 +7589,16 @@ def create_app(
                     "message": "The actor cannot decide this approval.",
                     "required_permission": exc.required_permission,
                     "reason": exc.decision.reason,
+                },
+            ) from exc
+        except ApprovalDecisionConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": "The approval already has a terminal decision.",
+                    "approval_id": exc.approval_id,
+                    "reason": exc.reason,
                 },
             ) from exc
         except PlatformPolicyEnforcementDenied as exc:
