@@ -1,15 +1,19 @@
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, inspect, pool, text
 from sqlalchemy.engine import Connection
 
+from axis_api.migration_config import apply_runtime_database_url
 from axis_api.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+apply_runtime_database_url(config, os.environ)
 
 target_metadata = Base.metadata
 
