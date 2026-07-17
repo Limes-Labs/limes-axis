@@ -211,8 +211,9 @@ reconciles the Temporal Schedules for periodic maintenance (see
 - **Images**: `make container-build-worker` builds `limes-axis-worker:local`.
 
 Scheduled maintenance jobs are opt-in (`AXIS_SCHEDULED_JOBS_ENABLED=false` by
-default): the worker always reconciles the schedules but leaves them paused until
-the flag is enabled, so existing deployments are unaffected.
+default): the worker always reconciles the schedules and forces them paused while
+the flag is disabled. Enabling the flag does not reactivate schedules that an
+operator has explicitly paused.
 
 ## Ingress And TLS
 

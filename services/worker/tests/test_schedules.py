@@ -131,7 +131,7 @@ async def test_schedules_paused_when_disabled_and_active_when_enabled() -> None:
     )
 
 
-async def test_update_preserves_operator_unpaused_state_across_restarts() -> None:
+async def test_disabled_master_switch_repauses_manually_unpaused_schedule() -> None:
     # First worker start with jobs disabled: schedules are created paused.
     client = FakeScheduleClient()
     disabled = _settings(AXIS_SCHEDULED_JOBS_ENABLED="false")
@@ -142,13 +142,23 @@ async def test_update_preserves_operator_unpaused_state_across_restarts() -> Non
     unpaused = client.schedules[SESSION_SWEEP_SCHEDULE_ID]
     unpaused.state.paused = False
 
-    # A worker restart (still flag-disabled) reconciles the schedules; the update
-    # path must PRESERVE the operator's unpause instead of re-pausing it.
+    # A worker restart with the master switch disabled must fail closed even if
+    # the schedule was manually unpaused out of band.
     second = await register_maintenance_schedules(client, disabled, task_queue="axis-foundation")
     assert all(outcome == "updated" for outcome in second.values())
-    assert client.schedules[SESSION_SWEEP_SCHEDULE_ID].state.paused is False
-    # Schedules the operator did not touch stay paused.
-    assert client.schedules[AUDIT_RETENTION_SCHEDULE_ID].state.paused is True
+    assert all(schedule.state.paused for schedule in client.schedules.values())
+
+
+async def test_disabling_master_switch_pauses_existing_active_schedules() -> None:
+    client = FakeScheduleClient()
+    enabled = _settings(AXIS_SCHEDULED_JOBS_ENABLED="true")
+    await register_maintenance_schedules(client, enabled, task_queue="axis-foundation")
+    assert all(not schedule.state.paused for schedule in client.schedules.values())
+
+    disabled = _settings(AXIS_SCHEDULED_JOBS_ENABLED="false")
+    await register_maintenance_schedules(client, disabled, task_queue="axis-foundation")
+
+    assert all(schedule.state.paused for schedule in client.schedules.values())
 
 
 async def test_update_preserves_operator_paused_state_when_flag_enabled() -> None:
