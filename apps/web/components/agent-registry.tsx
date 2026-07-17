@@ -27,6 +27,7 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 const AGENTS_ENDPOINT = "/demo/manufacturing/agents";
@@ -104,7 +105,9 @@ const filterIdToKey: Record<string, keyof AgentFilters> = {
 };
 
 export function AgentRegistry() {
-  const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(AGENTS_ENDPOINT);
+  const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(AGENTS_ENDPOINT, {
+    parse: parseManufacturingAgentRegistry,
+  });
   const [filters, setFilters] = useState<AgentFilters>(defaultFilters);
   const [selectedAgentId, setSelectedAgentId] = useState("");
 

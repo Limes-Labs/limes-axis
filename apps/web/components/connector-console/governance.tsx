@@ -66,11 +66,21 @@ function SectionState({
   if (source === "loading") {
     return <LoadingPanel rows={2} />;
   }
-  if (source === "unavailable") {
+  if (source === "unavailable" && isEmpty) {
     return <ErrorPanel title={errorTitle} />;
   }
   if (isEmpty) {
     return <p className="m-0 text-sm text-muted">{emptyLabel}</p>;
+  }
+  if (source === "unavailable") {
+    return (
+      <>
+        <p className="m-0 text-sm text-warning" role="status">
+          Live refresh failed. Showing the last validated data.
+        </p>
+        {children}
+      </>
+    );
   }
   return <>{children}</>;
 }

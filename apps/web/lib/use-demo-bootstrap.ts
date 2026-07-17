@@ -3,9 +3,11 @@
 import { useState } from "react";
 
 import { useToast } from "@/components/ui/toast";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseDemoBootstrapResult } from "@/lib/runtime-contracts/bootstrap";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -62,7 +64,9 @@ export function useDemoBootstrap() {
   const { triggerRefresh } = useConsole();
   const { push } = useToast();
   const { session } = useOidcConsoleSession();
-  const { data: identitySession } = useAxisQuery<IdentitySessionReadModel>("/identity/session");
+  const { data: identitySession } = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+    parse: parseIdentitySessionReadModel,
+  });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,11 +78,15 @@ export function useDemoBootstrap() {
     setError(null);
 
     try {
-      const result = await axisFetchJson<DemoBootstrapResult>(DEMO_BOOTSTRAP_ENDPOINT, {
-        method: "POST",
-        session,
-        body: buildDemoBootstrapPayload(identitySession?.actor_id ?? DEMO_CONSOLE_ACTOR),
-      });
+      const result = await axisFetchParsedJson<DemoBootstrapResult>(
+        DEMO_BOOTSTRAP_ENDPOINT,
+        parseDemoBootstrapResult,
+        {
+          method: "POST",
+          session,
+          body: buildDemoBootstrapPayload(identitySession?.actor_id ?? DEMO_CONSOLE_ACTOR),
+        },
+      );
       push({
         title: strings.onboarding.exploreDemo.toastTitle,
         detail: `${result.scenario} — ${result.plant_name}`,

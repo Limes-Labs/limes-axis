@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { useToast } from "@/components/ui/toast";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
 import {
   approvalDecisionActorId,
   approvalDecisionLabel,
@@ -27,6 +27,7 @@ import {
 } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
 import { strings } from "@/lib/strings";
+import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/approvals";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /*
@@ -160,8 +161,9 @@ export function ApprovalDecisionCard({
     onErrorChange?.(approvalId, null);
 
     try {
-      const result = await axisFetchJson<ApprovalDecisionPersistenceResult>(
+      const result = await axisFetchParsedJson<ApprovalDecisionPersistenceResult>(
         `/demo/manufacturing/approvals/${approvalId}/decision`,
+        parseApprovalDecisionPersistenceResult,
         {
           session,
           method: "POST",

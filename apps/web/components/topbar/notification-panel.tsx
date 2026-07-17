@@ -9,7 +9,7 @@ import {
   popoverLinkClass,
   popoverRowClass,
 } from "@/components/topbar/panel-chrome";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
 import { cn } from "@/lib/cn";
 import { notificationTone } from "@/lib/identity-format";
 import type {
@@ -19,6 +19,9 @@ import type {
   ManufacturingPlatformNotification,
 } from "@/lib/platform-overview";
 import type { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import {
+  parseManufacturingNotificationAcknowledgementResult,
+} from "@/lib/runtime-contracts/overview";
 
 export function NotificationPanel({
   center,
@@ -71,8 +74,9 @@ export function NotificationPanel({
     setPendingNotificationId(item.notification_id);
     setAcknowledgementError(null);
     try {
-      await axisFetchJson<ManufacturingNotificationAcknowledgementResult>(
+      await axisFetchParsedJson<ManufacturingNotificationAcknowledgementResult>(
         `/demo/manufacturing/notifications/${item.notification_id}/acknowledgement`,
+        parseManufacturingNotificationAcknowledgementResult,
         {
           method: "POST",
           session,

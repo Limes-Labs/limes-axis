@@ -1,5 +1,6 @@
-import { AxisApiError, axisFetch, type AxisFetchOptions } from "./axis-api";
+import { AxisApiError, axisFetch, decodeAxisJson, type AxisFetchOptions } from "./axis-api";
 import { buildPlatformTenantDetailPath } from "./platform-tenants";
+import { parseTenantUsageSummary } from "./runtime-contracts/tenants";
 
 export type TenantUsageMetricTotal = {
   metric_key: string;
@@ -73,7 +74,12 @@ export async function fetchTenantUsage(
     throw new AxisApiError(path, response.status);
   }
 
-  return (await response.json()) as TenantUsageSummary;
+  return decodeAxisJson(
+    path,
+    await response.json(),
+    parseTenantUsageSummary,
+    response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+  );
 }
 
 export type UsageMetricSummaryRow = {

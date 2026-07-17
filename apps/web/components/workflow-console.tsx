@@ -15,11 +15,7 @@ import {
 
 import { PlatformStatusPill } from "@/components/status-pill";
 import { Card } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -37,6 +33,7 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import {
   allWorkflowFilter,
@@ -386,13 +383,16 @@ function WorkflowDetail({ workflow }: { workflow: WorkflowRun }) {
 }
 
 export function WorkflowConsole() {
-  const persisted = useAxisQuery<ManufacturingWorkflowConsole>(WORKFLOW_RUNS_ENDPOINT);
+  const persisted = useAxisQuery<ManufacturingWorkflowConsole>(WORKFLOW_RUNS_ENDPOINT, {
+    parse: parseManufacturingWorkflowConsole,
+  });
   const usePersisted = persisted.data !== null && shouldUsePersistedWorkflowData(persisted.data);
   // The persisted-runs endpoint wins whenever it has records; the reference
   // registry is only consulted when the API answered with zero persisted runs.
   const referenceEnabled = persisted.source === "api" && persisted.data !== null && !usePersisted;
   const reference = useAxisQuery<ManufacturingWorkflowConsole>(WORKFLOW_REFERENCE_ENDPOINT, {
     enabled: referenceEnabled,
+    parse: parseManufacturingWorkflowConsole,
   });
 
   const [filters, setFilters] = useState<WorkflowFilters>(defaultFilters);

@@ -19,6 +19,8 @@ import {
 } from "@/lib/identity-sessions";
 import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { parseIdentityBrowserSessionList } from "@/lib/runtime-contracts/identity";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -136,6 +138,7 @@ function SessionListPanel({
   const listTenantWide = adminCapable && tenantWide;
   const sessions = useAxisQuery<IdentityBrowserSessionList>(
     identitySessionsPath(listTenantWide),
+    { parse: parseIdentityBrowserSessionList },
   );
   const [pendingSessionRef, setPendingSessionRef] = useState<string | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
@@ -153,7 +156,7 @@ function SessionListPanel({
     }
   }
 
-  if (sessions.isUnavailable) {
+  if (sessions.isUnavailable && !sessions.data) {
     return (
       <ErrorPanel
         detail="Live session data requires the Axis identity session APIs. Local fallback session records are disabled."
@@ -189,6 +192,12 @@ function SessionListPanel({
           </span>
         </div>
       </div>
+
+      {sessions.isUnavailable && list ? (
+        <p className="m-0 text-sm text-warning" role="status">
+          Live refresh failed. Showing the last validated session data.
+        </p>
+      ) : null}
 
       {list ? (
         <div className="grid min-w-0 gap-2.5">
@@ -241,7 +250,9 @@ function SessionListPanel({
 
 export function SessionSecurityConsole() {
   const { apiBaseUrl } = useConsole();
-  const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session");
+  const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+    parse: parseIdentitySessionReadModel,
+  });
   const identitySession = identity.data;
   const signInUrl = buildOidcAuthorizeUrl(apiBaseUrl, SESSIONS_ROUTE);
   const logoutUrl = buildOidcLogoutUrl(apiBaseUrl, SESSIONS_ROUTE);
@@ -266,7 +277,7 @@ export function SessionSecurityConsole() {
       subtitle="API-owned OIDC browser sessions with rotation, revocation and logout evidence."
       title="Session security"
     >
-      {identity.isUnavailable || !identitySession ? (
+      {!identitySession ? (
         <ErrorPanel
           detail="Live session management requires the Axis identity APIs. Local fallback session records are disabled."
           endpoint={SESSION_ENDPOINTS}

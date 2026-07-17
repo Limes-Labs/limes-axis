@@ -15,12 +15,16 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
 import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
 import { navGroups } from "@/lib/nav";
 import type { OidcConsoleSession } from "@/lib/oidc-session";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
+import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
+import { parseManufacturingConnectorRegistry } from "@/lib/runtime-contracts/connectors";
+import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
+import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import type { ManufacturingWorkflowConsole } from "@/lib/workflow-demo";
 import { useTheme } from "@/providers/theme-provider";
@@ -49,16 +53,26 @@ async function loadEntityCommands(
   session: OidcConsoleSession | null,
 ): Promise<EntityCommand[]> {
   const [workflows, agents, policies, connectors] = await Promise.all([
-    axisFetchJson<ManufacturingWorkflowConsole>("/demo/manufacturing/workflows", {
-      session,
-    }).catch(() => null),
-    axisFetchJson<ManufacturingAgentRegistry>("/demo/manufacturing/agents", { session }).catch(
-      () => null,
-    ),
-    axisFetchJson<PlatformPolicyRegistry>("/platform/policies", { session }).catch(() => null),
-    axisFetchJson<ManufacturingConnectorRegistry>("/demo/manufacturing/connectors", {
-      session,
-    }).catch(() => null),
+    axisFetchParsedJson<ManufacturingWorkflowConsole>(
+      "/demo/manufacturing/workflows",
+      parseManufacturingWorkflowConsole,
+      { session },
+    ).catch(() => null),
+    axisFetchParsedJson<ManufacturingAgentRegistry>(
+      "/demo/manufacturing/agents",
+      parseManufacturingAgentRegistry,
+      { session },
+    ).catch(() => null),
+    axisFetchParsedJson<PlatformPolicyRegistry>(
+      "/platform/policies",
+      parsePlatformPolicyRegistry,
+      { session },
+    ).catch(() => null),
+    axisFetchParsedJson<ManufacturingConnectorRegistry>(
+      "/demo/manufacturing/connectors",
+      parseManufacturingConnectorRegistry,
+      { session },
+    ).catch(() => null),
   ]);
 
   return [

@@ -41,7 +41,10 @@ describe("DemoBadge", () => {
     render(<DemoBadge />);
 
     expect(screen.getByText("Demo")).toBeInTheDocument();
-    expect(mocks.useAxisQuery).toHaveBeenCalledWith(DEMO_BADGE_OVERVIEW_ENDPOINT);
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      DEMO_BADGE_OVERVIEW_ENDPOINT,
+      expect.objectContaining({ parse: expect.any(Function) }),
+    );
   });
 
   it("explains the badge in a tooltip on keyboard focus", async () => {

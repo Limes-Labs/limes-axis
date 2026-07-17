@@ -8,7 +8,8 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
-import { axisFetch } from "@/lib/axis-api";
+import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
+import { parseManufacturingReplaySimulation } from "@/lib/runtime-contracts/simulation";
 import {
   buildReplaySimulationPath,
   countArtifactPolicyDecisions,
@@ -238,7 +239,12 @@ export function RunReplayForm({ tenantId }: { tenantId: string }) {
         setErrorDetail(await readReplayErrorDetail(response));
         return;
       }
-      setResult((await response.json()) as ManufacturingReplaySimulation);
+      setResult(decodeAxisJson(
+        path,
+        await response.json(),
+        parseManufacturingReplaySimulation,
+        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+      ));
     } catch {
       setResult(null);
       setErrorDetail(copy.error.detail);

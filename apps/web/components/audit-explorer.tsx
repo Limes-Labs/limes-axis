@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Filter, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
 
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
+import {
+  parseAuditExportBundle,
+  parseManufacturingAuditExplorer,
+} from "@/lib/runtime-contracts/audit";
 import {
   allAuditFilter,
   buildAuditExportFileName,
@@ -161,8 +165,9 @@ export function AuditExplorer() {
 
     async function loadAuditExport() {
       try {
-        const exportData = await axisFetchJson<AuditExportBundle>(
+        const exportData = await axisFetchParsedJson<AuditExportBundle>(
           "/demo/manufacturing/audit/export?tenant_id=tenant_demo_manufacturing&limit=100&export_reason=console-review",
+          parseAuditExportBundle,
           { session, signal: controller.signal },
         );
         if (!controller.signal.aborted) {
@@ -179,8 +184,9 @@ export function AuditExplorer() {
       setSource("loading");
 
       try {
-        const persistedAuditData = await axisFetchJson<ManufacturingAuditExplorer>(
+        const persistedAuditData = await axisFetchParsedJson<ManufacturingAuditExplorer>(
           "/demo/manufacturing/audit/events?tenant_id=tenant_demo_manufacturing&limit=100",
+          parseManufacturingAuditExplorer,
           { session, signal: controller.signal },
         );
         await loadAuditExport();
@@ -191,8 +197,9 @@ export function AuditExplorer() {
           return;
         }
 
-        const referenceAuditData = await axisFetchJson<ManufacturingAuditExplorer>(
+        const referenceAuditData = await axisFetchParsedJson<ManufacturingAuditExplorer>(
           "/demo/manufacturing/audit",
+          parseManufacturingAuditExplorer,
           { session, signal: controller.signal },
         );
         setAuditData(referenceAuditData);

@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Filter, RadioTower, RotateCcw, Send, ShieldCheck } from "lucide-react";
 
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
+import {
+  parseActionRunPersistenceResult,
+  parseManufacturingActionRegistry,
+} from "@/lib/runtime-contracts/actions";
 import {
   actionRunWorkflowSignalLabel,
   allActionFilter,
@@ -85,6 +89,7 @@ function PayloadRows({ payload }: { payload: Record<string, string> }) {
 export function ActionRegistry() {
   const { data: registry, source } = useAxisQuery<ManufacturingActionRegistry>(
     "/demo/manufacturing/actions",
+    { parse: parseManufacturingActionRegistry },
   );
   const [filters, setFilters] = useState<ActionFilters>(defaultFilters);
   const [selectedActionId, setSelectedActionId] = useState("");
@@ -151,8 +156,9 @@ export function ActionRegistry() {
     });
 
     try {
-      const result = await axisFetchJson<ActionRunPersistenceResult>(
+      const result = await axisFetchParsedJson<ActionRunPersistenceResult>(
         `/demo/manufacturing/actions/${action.definition.action_id}/runs`,
+        parseActionRunPersistenceResult,
         {
           session,
           method: "POST",

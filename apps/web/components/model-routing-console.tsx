@@ -48,6 +48,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { DataTable } from "@/components/ui/data-table";
 import { Field } from "@/components/ui/field";
@@ -106,6 +107,7 @@ export function ModelRoutingConsole() {
 function ReferenceModelRouting() {
   const { data: routing, source } = useAxisQuery<ManufacturingModelRouting>(
     "/demo/manufacturing/model-routing",
+    { parse: parseManufacturingModelRouting },
   );
   const [filters, setFilters] = useState<ModelRoutingFilters>(defaultFilters);
   const [selectedRouteId, setSelectedRouteId] = useState("");

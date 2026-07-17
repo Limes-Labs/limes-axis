@@ -7,12 +7,7 @@ import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
 import { agentRegistryFixture } from "./agents-fixtures";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
   useAxisQuery: vi.fn(),
-}));
-
-vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -52,7 +47,6 @@ function mockRegistry(result: {
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
   mocks.useAxisQuery.mockReset();
 });
 

@@ -7,12 +7,12 @@ import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import type { ManufacturingOverview } from "@/lib/platform-overview";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
   useAxisQuery: vi.fn(),
 }));
 
 vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -54,7 +54,7 @@ function renderStrip(overview: {
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
+  mocks.axisFetchParsedJson.mockReset();
   mocks.useAxisQuery.mockReset();
 });
 
@@ -152,7 +152,7 @@ describe("NeedsAttention inline decision flow", () => {
   it("gates persistence behind the same confirm dialog as the approvals page", async () => {
     const user = userEvent.setup();
     mockApprovalsQuery({ data: approvalInboxFixture, source: "api" });
-    mocks.axisFetchJson.mockResolvedValue({
+    mocks.axisFetchParsedJson.mockResolvedValue({
       tenant_id: "tenant_fixture",
       approval_id: "appr_fixture_expedite",
       workflow_id: "wf_supplier_delay_review",
@@ -184,14 +184,15 @@ describe("NeedsAttention inline decision flow", () => {
     // Choosing an option opens the confirm dialog without persisting yet.
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
     expect(await screen.findByRole("button", { name: "Confirm decision" })).toBeVisible();
-    expect(mocks.axisFetchJson).not.toHaveBeenCalled();
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Confirm decision" }));
     await waitFor(() => {
-      expect(mocks.axisFetchJson).toHaveBeenCalledTimes(1);
+      expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
-    expect(mocks.axisFetchJson).toHaveBeenCalledWith(
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
       "/demo/manufacturing/approvals/appr_fixture_expedite/decision",
+      expect.any(Function),
       expect.objectContaining({ method: "POST" }),
     );
   });

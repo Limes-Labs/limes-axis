@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { ToastProvider } from "@/components/ui/toast";
 import { navGroups, navItems, type NavItem } from "@/lib/nav";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { ConsoleProvider } from "@/providers/console-provider";
 
 const navItemClass =
@@ -31,7 +32,9 @@ function isNavActive(pathname: string, href: string): boolean {
  * while loading or when the API is unavailable it renders nothing.
  */
 function ApprovalsBadge() {
-  const { data } = useAxisQuery<ManufacturingApprovalInbox>("/demo/manufacturing/approvals");
+  const { data } = useAxisQuery<ManufacturingApprovalInbox>("/demo/manufacturing/approvals", {
+    parse: parseManufacturingApprovalInbox,
+  });
   const pendingCount =
     data?.approvals?.filter((approval) => approval.status === "pending").length ?? 0;
 

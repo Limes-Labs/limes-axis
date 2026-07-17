@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/cn";
 import type { ManufacturingOverview, RiskSignal, WorkflowSummary } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 import { normalizeLabel, PanelHeader, StatusDot, type OverviewQuery } from "./overview-shared";
@@ -146,7 +147,9 @@ export function NeedsAttention({
 }: {
   overview: OverviewQuery<ManufacturingOverview>;
 }) {
-  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT);
+  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT, {
+    parse: parseManufacturingApprovalInbox,
+  });
   const copy = strings.overview.needsAttention;
 
   if (!overview.data && !approvalsQuery.data) {

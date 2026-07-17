@@ -24,6 +24,7 @@ import {
 } from "@/lib/platform-policies";
 import { formatOverviewTimestamp } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
@@ -46,6 +47,7 @@ export function PolicyRegistry() {
   const [filters, setFilters] = useState<PlatformPolicyRegistryFilters>(defaultFilters);
   const { data: registry, source } = useAxisQuery<PlatformPolicyRegistry>(
     buildPlatformPoliciesPath(filters),
+    { parse: parsePlatformPolicyRegistry },
   );
 
   function updateFilter(filterName: keyof PlatformPolicyRegistryFilters, value: string) {

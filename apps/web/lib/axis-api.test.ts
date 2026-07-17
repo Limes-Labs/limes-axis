@@ -5,7 +5,6 @@ import {
   AxisApiDecodeError,
   AxisApiError,
   axisFetch,
-  axisFetchJson,
   axisFetchParsedJson,
 } from "./axis-api";
 import type { OidcConsoleSession } from "./oidc-session";
@@ -15,6 +14,20 @@ const BEARER_SESSION: OidcConsoleSession = {
   actorId: "actor-1",
   tenantId: "tenant-1",
   scopes: [],
+};
+
+function parseOk(value: unknown): { ok: boolean } {
+  if (typeof value !== "object" || value === null || !("ok" in value) || typeof value.ok !== "boolean") {
+    throw new TypeError("ok must be a boolean");
+  }
+  return { ok: value.ok };
+}
+
+const parseUnknownObject = (value: unknown): object => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("response must be an object");
+  }
+  return value;
 };
 
 function stubBrowserDocument(cookie: string) {
@@ -61,7 +74,7 @@ describe("Axis API fetch layer", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await axisFetchJson<{ ok: boolean }>("/demo/manufacturing/operations/daily-brief", {
+    await axisFetchParsedJson("/demo/manufacturing/operations/daily-brief", parseOk, {
       method: "POST",
       body: { tenant_id: "tenant_demo_manufacturing" },
     });
@@ -143,7 +156,7 @@ describe("Axis API fetch layer", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const payload = await axisFetchJson<{ ok: boolean }>("/identity/sessions", {
+    const payload = await axisFetchParsedJson("/identity/sessions", parseOk, {
       method: "POST",
       body: {},
     });
@@ -185,7 +198,7 @@ describe("Axis API fetch layer", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(axisFetchJson("/identity/sessions")).rejects.toBeInstanceOf(AxisApiError);
+    await expect(axisFetchParsedJson("/identity/sessions", parseUnknownObject)).rejects.toBeInstanceOf(AxisApiError);
 
     const urls = fetchMock.mock.calls.map(([input]) => String(input));
     expect(urls).toEqual([
@@ -214,7 +227,7 @@ describe("Axis API fetch layer", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(axisFetchJson("/identity/sessions")).rejects.toBeInstanceOf(AxisApiError);
+    await expect(axisFetchParsedJson("/identity/sessions", parseUnknownObject)).rejects.toBeInstanceOf(AxisApiError);
 
     const urls = fetchMock.mock.calls.map(([input]) => String(input));
     expect(urls).toEqual([
@@ -272,8 +285,8 @@ describe("Axis API fetch layer", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const pending = Promise.all([
-      axisFetchJson<{ ok: boolean }>("/identity/sessions"),
-      axisFetchJson<{ ok: boolean }>("/identity/session"),
+      axisFetchParsedJson("/identity/sessions", parseOk),
+      axisFetchParsedJson("/identity/session", parseOk),
     ]);
     await vi.waitFor(() => {
       expect(firstAttempts.size).toBe(2);
@@ -304,7 +317,7 @@ describe("Axis API fetch layer", () => {
       ),
     );
 
-    const error = await axisFetchJson("/protected").catch((value: unknown) => value);
+    const error = await axisFetchParsedJson("/protected", parseUnknownObject).catch((value: unknown) => value);
 
     expect(error).toBeInstanceOf(AxisApiError);
     expect(error).toMatchObject({
@@ -328,7 +341,7 @@ describe("Axis API fetch layer", () => {
       ),
     );
 
-    const error = await axisFetchJson("/invalid").catch((value: unknown) => value);
+    const error = await axisFetchParsedJson("/invalid", parseUnknownObject).catch((value: unknown) => value);
 
     expect(error).toBeInstanceOf(AxisApiError);
     expect(error).toMatchObject({ validationIssues: issues });
@@ -342,8 +355,8 @@ describe("Axis API fetch layer", () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(axisFetchJson("/malformed")).rejects.toBeInstanceOf(AxisApiDecodeError);
-    await expect(axisFetchJson("/empty")).rejects.toBeInstanceOf(AxisApiDecodeError);
+    await expect(axisFetchParsedJson("/malformed", parseUnknownObject)).rejects.toBeInstanceOf(AxisApiDecodeError);
+    await expect(axisFetchParsedJson("/empty", parseUnknownObject)).rejects.toBeInstanceOf(AxisApiDecodeError);
   });
 
   it("applies an explicit runtime decoder to successful responses", async () => {
@@ -368,5 +381,36 @@ describe("Axis API fetch layer", () => {
         return { count: value.count };
       }),
     ).rejects.toBeInstanceOf(AxisApiDecodeError);
+  });
+
+  it("preserves request correlation and sanitized decoder issues", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        new Response(JSON.stringify({ count: "wrong" }), {
+          headers: { "x-correlation-id": "correlation-456" },
+          status: 200,
+        }),
+      ),
+    );
+
+    const error = await axisFetchParsedJson("/counts", () => {
+      throw {
+        issues: [
+          { code: "invalid_type", message: "Expected number", path: ["count"] },
+        ],
+        payload: "must not leak",
+      };
+    }).catch((value: unknown) => value);
+
+    expect(error).toBeInstanceOf(AxisApiDecodeError);
+    expect(error).toMatchObject({
+      requestId: "correlation-456",
+      validationIssues: [
+        { code: "invalid_type", message: "Expected number", path: "count" },
+      ],
+    });
+    expect(JSON.stringify(error)).not.toContain("must not leak");
   });
 });

@@ -1,13 +1,9 @@
 "use client";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ManufacturingOverview } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingOverview } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 export const DEMO_BADGE_OVERVIEW_ENDPOINT = "/demo/manufacturing/overview";
@@ -19,7 +15,9 @@ export const DEMO_BADGE_OVERVIEW_ENDPOINT = "/demo/manufacturing/overview";
  * annotation, never a state surface.
  */
 export function DemoBadge() {
-  const overview = useAxisQuery<ManufacturingOverview>(DEMO_BADGE_OVERVIEW_ENDPOINT);
+  const overview = useAxisQuery<ManufacturingOverview>(DEMO_BADGE_OVERVIEW_ENDPOINT, {
+    parse: parseManufacturingOverview,
+  });
 
   if (!overview.data?.scenario) {
     return null;

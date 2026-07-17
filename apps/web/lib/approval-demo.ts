@@ -1,4 +1,5 @@
 import type { PlatformStatus } from "./platform-overview";
+import type { PlatformPolicyDecision } from "./platform-policies";
 
 export type ApprovalDecision = "approve" | "reject" | "request_changes";
 
@@ -67,7 +68,7 @@ export type ApprovalDecisionPersistenceResult = {
     status: string;
     adapter: string;
     signal_name: string;
-    payload: {
+    payload: Record<string, unknown> & {
       approval_id?: string;
       approved?: boolean;
       decision?: ApprovalDecision;
@@ -75,6 +76,16 @@ export type ApprovalDecisionPersistenceResult = {
     };
   };
   workflow_signal_status: string;
+  /** Additive workflow/action evidence returned by the enterprise API. */
+  workflow_state_updated?: boolean;
+  workflow_state?: string | null;
+  workflow_status?: string | null;
+  action_run_recorded?: boolean;
+  action_run_id?: string | null;
+  action_run_status?: string | null;
+  action_run_idempotency_key?: string | null;
+  action_run_idempotent_replay?: boolean;
+  platform_policy_decision?: PlatformPolicyDecision | null;
 };
 
 export type ApprovalDecisionRequestPayload = {

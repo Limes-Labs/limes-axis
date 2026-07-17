@@ -21,6 +21,7 @@ import {
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
 import { strings } from "@/lib/strings";
+import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 type OntologyView = "graph" | "list";
@@ -45,6 +46,7 @@ function OntologyExplorerSkeleton() {
 export function OntologyExplorer() {
   const { data: ontology, source } = useAxisQuery<ManufacturingOntology>(
     "/demo/manufacturing/ontology",
+    { parse: parseManufacturingOntology },
   );
   const [view, setView] = useState<OntologyView>("graph");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);

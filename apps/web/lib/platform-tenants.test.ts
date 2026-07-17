@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AxisApiError } from "./axis-api";
+import { AxisApiDecodeError, AxisApiError } from "./axis-api";
 import {
   allTenantFilter,
   buildPlatformTenantDetailPath,
@@ -311,6 +311,15 @@ describe("tenant API bindings", () => {
     ).resolves.toEqual({ kind: "replayed", record });
   });
 
+  it("rejects a malformed successful provision response", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubFetch(201, { tenant_id: "tenant_acme", status: "active" });
+
+    await expect(
+      provisionTenant(buildTenantProvisionPayload(buildProvisionForm(), "idem-key-1")),
+    ).rejects.toBeInstanceOf(AxisApiDecodeError);
+  });
+
   it("returns a conflict result for a 409 duplicate tenant", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     stubFetch(409, {
@@ -423,6 +432,18 @@ describe("tenant API bindings", () => {
       max_concurrent_sessions: null,
       max_connector_sync_rows_per_run: null,
     });
+  });
+
+  it("rejects a malformed successful quota update response", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubFetch(200, { quotas: { api_requests_per_window: "many" } });
+
+    await expect(
+      updateTenantQuotas(
+        "tenant_acme",
+        buildTenantQuotaUpdatePayload(buildQuotaForm({ api_requests_per_window: "2000" })),
+      ),
+    ).rejects.toBeInstanceOf(AxisApiDecodeError);
   });
 
   it("returns null for a 404 quota lookup", async () => {

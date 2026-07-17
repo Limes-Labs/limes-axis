@@ -67,7 +67,7 @@ export function OntologyEntitySheet({
 
         {source === "loading" ? (
           <LoadingPanel layout="detail" />
-        ) : source === "unavailable" ? (
+        ) : source === "unavailable" && !detail ? (
           <ErrorPanel
             detail={strings.ontology.sheet.error.detail}
             endpoint={`/demo/manufacturing/ontology/entities/${nodeId}`}
@@ -79,7 +79,14 @@ export function OntologyEntitySheet({
             title={strings.ontology.sheet.notFound.title}
           />
         ) : (
-          <EntityDetailContent detail={detail} layout="sheet" onNavigateToNode={onNavigateToNode} />
+          <>
+            {source === "unavailable" ? (
+              <p className="m-0 text-sm text-warning" role="status">
+                Live refresh failed. Showing the last validated entity data.
+              </p>
+            ) : null}
+            <EntityDetailContent detail={detail} layout="sheet" onNavigateToNode={onNavigateToNode} />
+          </>
         )}
       </SheetContent>
     </Sheet>

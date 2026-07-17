@@ -20,6 +20,13 @@ import {
   type SupportDiagnosticsReport,
 } from "@/lib/platform-settings";
 import { strings } from "@/lib/strings";
+import {
+  parseAxisReadyReport,
+  parseDeploymentReadinessReport,
+  parseOidcReadinessReport,
+  parseSupportDiagnosticsReport,
+} from "@/lib/runtime-contracts/identity";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 /*
@@ -372,11 +379,19 @@ function SupportPanel({ query }: { query: SettingsQuery<SupportDiagnosticsReport
 }
 
 export function PlatformSettingsConsole() {
-  const ready = useAxisQuery<AxisReadyReport>(READY_ENDPOINT);
-  const oidc = useAxisQuery<OidcReadinessReport>(OIDC_READINESS_ENDPOINT);
-  const identity = useAxisQuery<IdentitySessionReadModel>(IDENTITY_SESSION_ENDPOINT);
-  const deployment = useAxisQuery<DeploymentReadinessReport>(DEPLOYMENT_READINESS_ENDPOINT);
-  const support = useAxisQuery<SupportDiagnosticsReport>(SUPPORT_DIAGNOSTICS_ENDPOINT);
+  const ready = useAxisQuery<AxisReadyReport>(READY_ENDPOINT, { parse: parseAxisReadyReport });
+  const oidc = useAxisQuery<OidcReadinessReport>(OIDC_READINESS_ENDPOINT, {
+    parse: parseOidcReadinessReport,
+  });
+  const identity = useAxisQuery<IdentitySessionReadModel>(IDENTITY_SESSION_ENDPOINT, {
+    parse: parseIdentitySessionReadModel,
+  });
+  const deployment = useAxisQuery<DeploymentReadinessReport>(DEPLOYMENT_READINESS_ENDPOINT, {
+    parse: parseDeploymentReadinessReport,
+  });
+  const support = useAxisQuery<SupportDiagnosticsReport>(SUPPORT_DIAGNOSTICS_ENDPOINT, {
+    parse: parseSupportDiagnosticsReport,
+  });
 
   const queries = [ready, oidc, identity, deployment, support];
   const sourceLabel = queries.every((query) => query.data)
