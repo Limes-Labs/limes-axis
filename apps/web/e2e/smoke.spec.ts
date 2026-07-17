@@ -61,6 +61,34 @@ test.describe("Axis console smoke", () => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
+    // Explicitly model an unauthenticated browser session. The overview may
+    // use the demo tenant only after the identity API confirms this state;
+    // transport failures must remain fail-closed instead.
+    await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          authenticated: false,
+          mode: "public_demo",
+          actor_id: null,
+          tenant_id: null,
+          scopes: [],
+          expires_at: null,
+          api_auth_required: true,
+          enterprise_sso_ready: true,
+          readiness_status: "watch",
+          issuer: "https://idp.example/realms/axis",
+          audience: "limes-axis-api",
+          jwks_source: "configured",
+          session_boundary: "http_only_cookie_verified_by_axis_api",
+          capabilities: [],
+          limitations: [],
+          notes: [],
+        },
+        status: 200,
+      });
+    });
+
     await page.goto("/");
 
     // The page header renders once; every section shows its own ErrorPanel

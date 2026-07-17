@@ -3,6 +3,7 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ManufacturingOverview } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { parseManufacturingOverview } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
@@ -14,10 +15,17 @@ export const DEMO_BADGE_OVERVIEW_ENDPOINT = "/demo/manufacturing/overview";
  * 404 (never bootstrapped), and errors all render nothing; the badge is an
  * annotation, never a state surface.
  */
-export function DemoBadge() {
-  const overview = useAxisQuery<ManufacturingOverview>(DEMO_BADGE_OVERVIEW_ENDPOINT, {
-    parse: parseManufacturingOverview,
-  });
+export function DemoBadge({
+  enabled = true,
+  tenantId = DEMO_TENANT_ID,
+}: {
+  enabled?: boolean;
+  tenantId?: string;
+}) {
+  const overview = useAxisQuery<ManufacturingOverview>(
+    buildTenantScopedPath(DEMO_BADGE_OVERVIEW_ENDPOINT, tenantId),
+    { enabled, expectedTenantId: tenantId, parse: parseManufacturingOverview },
+  );
 
   if (!overview.data?.scenario) {
     return null;

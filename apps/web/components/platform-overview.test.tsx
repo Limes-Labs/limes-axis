@@ -46,6 +46,7 @@ import {
   policyRegistryFixture,
   snapshotFixture,
 } from "./overview/overview-fixtures";
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 
 type Source = "loading" | "api" | "unavailable";
 
@@ -77,6 +78,7 @@ type MockOptions = {
   notFoundPaths?: string[];
   /** Overrides every checklist registry count, including /platform/policies. */
   onboardingCount?: number;
+  identity?: IdentitySessionReadModel;
 };
 
 /** Route the per-path mock so each endpoint can succeed or fail independently. */
@@ -100,7 +102,7 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
     ["/demo/manufacturing/audit/events", auditEventsFixture],
     ["/demo/manufacturing/approvals", approvalInboxFixture],
     ["/platform/policies", policyRegistryFixture],
-    ["/identity/session", identitySessionFixture],
+    ["/identity/session", options.identity ?? identitySessionFixture],
     ...onboardingRegistryFixtures(options.onboardingCount ?? 1),
   ];
 
@@ -152,6 +154,30 @@ describe("PlatformOverview hero", () => {
     // The static seeded "Audit" metric string never renders anywhere.
     expect(screen.queryByText(/128 events/)).not.toBeInTheDocument();
   });
+
+  it("scopes every overview request to the API-verified authenticated tenant", () => {
+    mockQueriesByPath([], {
+      identity: {
+        ...identitySessionFixture,
+        authenticated: true,
+        mode: "secure_oidc_cookie",
+        actor_id: "acme-operator",
+        tenant_id: "tenant_acme",
+      },
+    });
+    renderOverview();
+
+    const paths = mocks.useAxisQuery.mock.calls.map(([path]) => path);
+    expect(paths).toContain("/demo/manufacturing/overview?tenant_id=tenant_acme");
+    expect(paths).toContain(
+      "/demo/manufacturing/operations/snapshot?tenant_id=tenant_acme",
+    );
+    expect(paths).toContain("/demo/manufacturing/model-routing?tenant_id=tenant_acme");
+    expect(paths).toContain(
+      "/demo/manufacturing/audit/events?tenant_id=tenant_acme&limit=25",
+    );
+    expect(paths.filter((path) => path.includes("tenant_demo_manufacturing"))).toHaveLength(0);
+  });
 });
 
 describe("PlatformOverview per-section degradation", () => {
@@ -183,7 +209,7 @@ describe("PlatformOverview per-section degradation", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows section-level error panels when every endpoint fails", () => {
+  it("fails closed at identity before loading any tenant-scoped data", () => {
     mockQueriesByPath([
       "/demo/manufacturing",
       "/platform/policies",
@@ -191,17 +217,31 @@ describe("PlatformOverview per-section degradation", () => {
     ]);
     renderOverview();
 
+    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Operations API unavailable" }),
+      screen.getByText("Tenant-scoped data is not loaded until identity is available.", {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not fall back to demo data when an authenticated tenant claim is missing", () => {
+    mockQueriesByPath([], {
+      identity: {
+        ...identitySessionFixture,
+        authenticated: true,
+        mode: "secure_oidc_cookie",
+        actor_id: "acme-operator",
+        tenant_id: null,
+      },
+    });
+    renderOverview();
+
+    expect(
+      screen.getByRole("heading", { name: "Authenticated tenant missing" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Audit evidence API unavailable" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Attention items unavailable" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Local fallback overview records are disabled.", { exact: false }),
+      screen.getByText("Axis will not fall back to demo data", { exact: false }),
     ).toBeInTheDocument();
   });
 });
@@ -236,9 +276,7 @@ describe("PlatformOverview onboarding checklist", () => {
     ]);
     renderOverview();
 
-    expect(
-      screen.getByRole("heading", { name: "Operations API unavailable" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Set up your governed platform" }),
     ).not.toBeInTheDocument();

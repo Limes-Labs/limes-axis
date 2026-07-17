@@ -54,15 +54,18 @@ function mockRegistries(
   unavailable: string[] = [],
 ) {
   mocks.useAxisQuery.mockImplementation((path: string) => {
-    const entry = Object.entries(ONBOARDING_ENDPOINTS).find(([, endpoint]) => endpoint === path);
+    const endpointPath = path.split("?", 1)[0];
+    const entry = Object.entries(ONBOARDING_ENDPOINTS).find(
+      ([, endpoint]) => endpoint === endpointPath,
+    );
     if (!entry) {
       throw new Error(`Unexpected onboarding query path: ${path}`);
     }
-    if (unavailable.includes(path)) {
+    if (unavailable.includes(endpointPath)) {
       return queryResult(null, "unavailable");
     }
     const count = counts[entry[0] as keyof typeof ONBOARDING_ENDPOINTS] ?? 0;
-    return queryResult(registryFixture(path, count), "api");
+    return queryResult(registryFixture(endpointPath, count), "api");
   });
 }
 
@@ -159,6 +162,21 @@ describe("OnboardingChecklist (full)", () => {
     // Completed steps drop their CTA link.
     expect(screen.queryByRole("link", { name: "Open connectors" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open agents" })).toBeInTheDocument();
+  });
+
+  it("scopes every registry query to the supplied tenant", () => {
+    mockRegistries({});
+    render(<OnboardingChecklist tenantId="tenant_acme" variant="full" />);
+
+    const paths = mocks.useAxisQuery.mock.calls.map(([path]) => path);
+    expect(paths).toHaveLength(5);
+    expect(paths).toEqual(
+      expect.arrayContaining(
+        Object.values(ONBOARDING_ENDPOINTS).map(
+          (endpoint) => `${endpoint}?tenant_id=tenant_acme`,
+        ),
+      ),
+    );
   });
 
   it("hides entirely when every step is complete", () => {

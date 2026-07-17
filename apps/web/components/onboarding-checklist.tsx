@@ -14,6 +14,7 @@ import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
 import type { ManufacturingOntology } from "@/lib/ontology-demo";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import { parseManufacturingConnectorRegistry } from "@/lib/runtime-contracts/connectors";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
@@ -64,6 +65,8 @@ export type OnboardingChecklistProps = {
   demoPending?: boolean;
   /** Bootstrap failure rendered inline above the CTA; the CTA stays retryable. */
   demoError?: string | null;
+  /** API-verified tenant scope; defaults to the explicit public demo tenant. */
+  tenantId?: string;
 };
 
 const STEP_ROUTES: Record<OnboardingStepId, string> = {
@@ -85,20 +88,25 @@ function stepState(count: number | null): OnboardingStepState {
  * Five best-effort registry queries — one per step, nothing else. Each
  * failing or pending query yields a null count and an "unknown" step.
  */
-function useOnboardingSteps(): OnboardingStep[] {
-  const connectors = useAxisQuery<ManufacturingConnectorRegistry>(ONBOARDING_ENDPOINTS.connectors, {
+function useOnboardingSteps(tenantId: string): OnboardingStep[] {
+  const connectors = useAxisQuery<ManufacturingConnectorRegistry>(buildTenantScopedPath(ONBOARDING_ENDPOINTS.connectors, tenantId), {
+    expectedTenantId: tenantId,
     parse: parseManufacturingConnectorRegistry,
   });
-  const ontology = useAxisQuery<ManufacturingOntology>(ONBOARDING_ENDPOINTS.ontology, {
+  const ontology = useAxisQuery<ManufacturingOntology>(buildTenantScopedPath(ONBOARDING_ENDPOINTS.ontology, tenantId), {
+    expectedTenantId: tenantId,
     parse: parseManufacturingOntology,
   });
-  const policies = useAxisQuery<PlatformPolicyRegistry>(ONBOARDING_ENDPOINTS.policies, {
+  const policies = useAxisQuery<PlatformPolicyRegistry>(buildTenantScopedPath(ONBOARDING_ENDPOINTS.policies, tenantId), {
+    expectedTenantId: tenantId,
     parse: parsePlatformPolicyRegistry,
   });
-  const agents = useAxisQuery<ManufacturingAgentRegistry>(ONBOARDING_ENDPOINTS.agents, {
+  const agents = useAxisQuery<ManufacturingAgentRegistry>(buildTenantScopedPath(ONBOARDING_ENDPOINTS.agents, tenantId), {
+    expectedTenantId: tenantId,
     parse: parseManufacturingAgentRegistry,
   });
-  const workflows = useAxisQuery<ManufacturingWorkflowConsole>(ONBOARDING_ENDPOINTS.workflows, {
+  const workflows = useAxisQuery<ManufacturingWorkflowConsole>(buildTenantScopedPath(ONBOARDING_ENDPOINTS.workflows, tenantId), {
+    expectedTenantId: tenantId,
     parse: parseManufacturingWorkflowConsole,
   });
 
@@ -214,8 +222,9 @@ export function OnboardingChecklist({
   demoAvailable = false,
   demoPending = false,
   demoError = null,
+  tenantId = DEMO_TENANT_ID,
 }: OnboardingChecklistProps) {
-  const steps = useOnboardingSteps();
+  const steps = useOnboardingSteps(tenantId);
   const [stepsOpen, setStepsOpen] = useState(false);
   const total = steps.length;
   const complete = steps.filter((step) => step.state === "done").length;

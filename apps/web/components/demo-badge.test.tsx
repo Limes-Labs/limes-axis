@@ -42,8 +42,18 @@ describe("DemoBadge", () => {
 
     expect(screen.getByText("Demo")).toBeInTheDocument();
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      DEMO_BADGE_OVERVIEW_ENDPOINT,
+      `${DEMO_BADGE_OVERVIEW_ENDPOINT}?tenant_id=tenant_demo_manufacturing`,
       expect.objectContaining({ parse: expect.any(Function) }),
+    );
+  });
+
+  it("queries the current tenant instead of the demo tenant when supplied", () => {
+    mocks.useAxisQuery.mockReturnValue(queryResult(null, "unavailable", 404));
+    render(<DemoBadge tenantId="tenant_acme" />);
+
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      `${DEMO_BADGE_OVERVIEW_ENDPOINT}?tenant_id=tenant_acme`,
+      expect.objectContaining({ enabled: true }),
     );
   });
 

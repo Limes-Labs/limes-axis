@@ -31,17 +31,18 @@ function readBrowserSession(): OidcConsoleSession | null {
 
 export function useOidcConsoleSession() {
   const [session, setSession] = useState<OidcConsoleSession | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     function refreshSession() {
       setSession(readBrowserSession());
+      setHydrated(true);
     }
 
-    const refreshHandle = window.setTimeout(refreshSession, 0);
+    refreshSession();
     window.addEventListener("storage", refreshSession);
     window.addEventListener(AXIS_OIDC_SESSION_UPDATED_EVENT, refreshSession);
     return () => {
-      window.clearTimeout(refreshHandle);
       window.removeEventListener("storage", refreshSession);
       window.removeEventListener(AXIS_OIDC_SESSION_UPDATED_EVENT, refreshSession);
     };
@@ -55,6 +56,7 @@ export function useOidcConsoleSession() {
     }
 
     setSession(nextSession);
+    setHydrated(true);
     window.dispatchEvent(new Event(AXIS_OIDC_SESSION_UPDATED_EVENT));
     return nextSession;
   }, []);
@@ -66,11 +68,13 @@ export function useOidcConsoleSession() {
     }
 
     setSession(null);
+    setHydrated(true);
     window.dispatchEvent(new Event(AXIS_OIDC_SESSION_UPDATED_EVENT));
   }, []);
 
   return {
     session,
+    hydrated,
     saveAccessToken,
     clearSession,
   };
