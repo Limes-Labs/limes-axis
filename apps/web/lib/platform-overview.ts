@@ -123,7 +123,7 @@ export type ManufacturingAuditEventSummary = {
   event_type: string;
   actor_id: string;
   created_at: string;
-  payload_refs: Record<string, string>;
+  payload_refs: Record<string, string | string[]>;
 };
 
 export type ManufacturingOperationsSnapshot = {

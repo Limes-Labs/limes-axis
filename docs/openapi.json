@@ -11298,7 +11298,19 @@
             "type": "string"
           },
           "payload_refs": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
             "title": "Payload Refs",
             "type": "object"
           }

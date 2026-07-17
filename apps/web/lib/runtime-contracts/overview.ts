@@ -123,7 +123,7 @@ const operationsSnapshot = z.object({
     event_type: z.string(),
     actor_id: z.string(),
     created_at: z.string(),
-    payload_refs: z.record(z.string(), z.string()),
+    payload_refs: z.record(z.string(), z.union([z.string(), stringArraySchema])),
   })),
   generation_boundary: z.string(),
   notes: stringArraySchema,

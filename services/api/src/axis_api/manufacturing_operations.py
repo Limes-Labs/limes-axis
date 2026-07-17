@@ -215,7 +215,7 @@ class ManufacturingAuditEventSummary(BaseModel):
     event_type: str = Field(min_length=1)
     actor_id: str = Field(min_length=1)
     created_at: str = Field(min_length=1)
-    payload_refs: dict = Field(default_factory=dict)
+    payload_refs: dict[str, str | list[str]] = Field(default_factory=dict)
 
 
 class ManufacturingOperationsSnapshot(BaseModel):
@@ -674,13 +674,23 @@ def _approval_snapshot(approval) -> ManufacturingApprovalSnapshot:
     )
 
 
+def _normalize_audit_reference(value: object) -> str | list[str] | None:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return list(value)
+    return None
+
+
 def _audit_event_summary(audit_event) -> ManufacturingAuditEventSummary:
+
     payload_refs = {
-        key: value
+        key: reference
         for key, value in audit_event.payload.items()
         if key.endswith("_id")
         or key.endswith("_ids")
         or key in {"domain", "risk_level", "brief_date"}
+        if (reference := _normalize_audit_reference(value)) is not None
     }
     return ManufacturingAuditEventSummary(
         event_type=audit_event.event_type,
