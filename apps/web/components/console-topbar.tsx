@@ -85,7 +85,7 @@ export function ConsoleTopbar({
 
   return (
     <header
-      className="ops-topbar sticky top-0 isolate z-10 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-2 max-sm:py-1.5 dark:border-white/10"
+      className="ops-topbar sticky top-0 isolate z-10 -mx-4 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 px-4 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-2 max-sm:py-1.5 sm:-mx-6 sm:px-6 dark:border-white/10"
       aria-label="Console status bar"
     >
       <div className="hidden min-w-0 flex-1 sm:block">
