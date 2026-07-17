@@ -11,6 +11,7 @@ import type {
 } from "@/lib/platform-overview";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
@@ -70,14 +71,17 @@ export function PostureCards({
   overview,
   snapshot,
   routing,
+  tenantId = DEMO_TENANT_ID,
 }: {
   overview: OverviewQuery<ManufacturingOverview>;
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
   routing: OverviewQuery<ManufacturingModelRouting>;
+  tenantId?: string;
 }) {
-  const policiesQuery = useAxisQuery<PlatformPolicyRegistry>(POLICIES_ENDPOINT, {
-    parse: parsePlatformPolicyRegistry,
-  });
+  const policiesQuery = useAxisQuery<PlatformPolicyRegistry>(
+    buildTenantScopedPath(POLICIES_ENDPOINT, tenantId),
+    { expectedTenantId: tenantId, parse: parsePlatformPolicyRegistry },
+  );
   const copy = strings.overview.posture;
 
   const cards: PostureCard[] = [

@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/cn";
 import type { ManufacturingOverview, RiskSignal, WorkflowSummary } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
@@ -144,12 +145,15 @@ function SourceUnavailableNote({ message }: { message: string }) {
 
 export function NeedsAttention({
   overview,
+  tenantId = DEMO_TENANT_ID,
 }: {
   overview: OverviewQuery<ManufacturingOverview>;
+  tenantId?: string;
 }) {
-  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT, {
-    parse: parseManufacturingApprovalInbox,
-  });
+  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(
+    buildTenantScopedPath(APPROVALS_ENDPOINT, tenantId),
+    { expectedTenantId: tenantId, parse: parseManufacturingApprovalInbox },
+  );
   const copy = strings.overview.needsAttention;
 
   if (!overview.data && !approvalsQuery.data) {

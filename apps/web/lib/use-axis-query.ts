@@ -24,6 +24,7 @@ const EMPTY_FAILURE_DETAILS: AxisQueryFailureDetails = {
 
 type UseAxisQueryOptions<T> = {
   enabled?: boolean;
+  expectedTenantId?: string;
   parse: (value: unknown) => T;
 };
 
@@ -39,7 +40,8 @@ type UseAxisQueryOptions<T> = {
  */
 export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
   const { refreshNonce } = useConsole();
-  const { session } = useOidcConsoleSession();
+  const oidcSession = useOidcConsoleSession();
+  const { session } = oidcSession;
   const [data, setData] = useState<T | null>(null);
   const [source, setSource] = useState<AxisQuerySource>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,9 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
     EMPTY_FAILURE_DETAILS,
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [stateKey, setStateKey] = useState<string | null>(null);
   const enabled = options.enabled ?? true;
+  const expectedTenantId = options.expectedTenantId;
   const parse = options.parse;
 
   // The data currently held for `lastLoadedKeyRef.current`; used to decide
@@ -57,13 +61,22 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
   const staleDataRef = useRef<T | null>(null);
   const lastLoadedKeyRef = useRef<string | null>(null);
   const sessionIdentity = session ? `${session.tenantId}\u0000${session.actorId}` : "cookie-session";
+  const queryKey = `${path}\u0000${sessionIdentity}`;
+  // Older test doubles predate the hydration flag. The production hook always
+  // supplies it, while treating an omitted value as hydrated keeps those
+  // structural mocks backwards compatible.
+  const sessionHydrated = oidcSession.hydrated ?? true;
+  const queryEnabled = enabled && sessionHydrated;
 
   useEffect(() => {
-    if (!enabled) {
+    if (!queryEnabled) {
+      // Invalidating the loaded key prevents a disabled query from reusing
+      // principal-scoped data when it is enabled again.
+      lastLoadedKeyRef.current = null;
+      staleDataRef.current = null;
       return;
     }
 
-    const queryKey = `${path}\u0000${sessionIdentity}`;
     if (lastLoadedKeyRef.current !== queryKey) {
       lastLoadedKeyRef.current = queryKey;
       staleDataRef.current = null;
@@ -73,6 +86,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
     const controller = new AbortController();
 
     async function load() {
+      setStateKey(queryKey);
       if (isRefresh) {
         setIsRefreshing(true);
       } else {
@@ -87,6 +101,20 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
       try {
         const fetchOptions = { session, signal: controller.signal };
         const payload = await axisFetchParsedJson(path, parse, fetchOptions);
+        if (
+          expectedTenantId
+          && (
+            typeof payload !== "object"
+            || payload === null
+            || !("tenant_id" in payload)
+            || payload.tenant_id !== expectedTenantId
+          )
+        ) {
+          throw new AxisApiDecodeError(
+            path,
+            `Axis API response tenant does not match the requested tenant ${expectedTenantId}.`,
+          );
+        }
 
         if (!controller.signal.aborted) {
           staleDataRef.current = payload;
@@ -125,19 +153,33 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
     void load();
 
     return () => controller.abort();
-  }, [path, session, sessionIdentity, refreshNonce, enabled, parse]);
+  }, [
+    path,
+    session,
+    sessionIdentity,
+    queryKey,
+    refreshNonce,
+    queryEnabled,
+    parse,
+    expectedTenantId,
+  ]);
+
+  // Effects run after React commits. Masking by the render-time query key is
+  // therefore essential: without it, a tenant/path change can expose the
+  // previous query's data for one committed frame.
+  const isCurrentQuery = queryEnabled && stateKey === queryKey;
 
   return {
-    data,
-    source,
-    error,
-    errorStatus,
-    errorCode: errorDetails.code,
-    errorReason: errorDetails.reason,
-    errorRequestId: errorDetails.requestId,
-    validationIssues: errorDetails.validationIssues,
-    isRefreshing,
-    isLoading: source === "loading",
-    isUnavailable: source === "unavailable",
+    data: isCurrentQuery ? data : null,
+    source: isCurrentQuery ? source : "loading",
+    error: isCurrentQuery ? error : null,
+    errorStatus: isCurrentQuery ? errorStatus : null,
+    errorCode: isCurrentQuery ? errorDetails.code : null,
+    errorReason: isCurrentQuery ? errorDetails.reason : null,
+    errorRequestId: isCurrentQuery ? errorDetails.requestId : null,
+    validationIssues: isCurrentQuery ? errorDetails.validationIssues : [],
+    isRefreshing: isCurrentQuery ? isRefreshing : false,
+    isLoading: !isCurrentQuery || source === "loading",
+    isUnavailable: isCurrentQuery && source === "unavailable",
   };
 }

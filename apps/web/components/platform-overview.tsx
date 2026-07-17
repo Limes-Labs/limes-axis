@@ -14,6 +14,7 @@ import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import {
   formatOverviewTimestamp,
+  type IdentitySessionReadModel,
   type ManufacturingOperationsSnapshot,
   type ManufacturingOverview,
 } from "@/lib/platform-overview";
@@ -23,7 +24,13 @@ import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-ro
 import {
   parseManufacturingOperationsSnapshot,
   parseManufacturingOverview,
+  parseIdentitySessionReadModel,
 } from "@/lib/runtime-contracts/overview";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  resolveConsoleTenantScope,
+} from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useDemoBootstrap } from "@/lib/use-demo-bootstrap";
 import { useConsole } from "@/providers/console-provider";
@@ -35,11 +42,11 @@ import { useConsole } from "@/providers/console-provider";
  * failing endpoint degrades only the sections that read from it.
  */
 
+const IDENTITY_SESSION_ENDPOINT = "/identity/session";
 const OVERVIEW_ENDPOINT = "/demo/manufacturing/overview";
 const SNAPSHOT_ENDPOINT = "/demo/manufacturing/operations/snapshot";
 const MODEL_ROUTING_ENDPOINT = "/demo/manufacturing/model-routing";
-const AUDIT_EVENTS_ENDPOINT =
-  "/demo/manufacturing/audit/events?tenant_id=tenant_demo_manufacturing&limit=25";
+const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
 
 function OverviewHero({
   overview,
@@ -116,18 +123,73 @@ function OverviewHero({
 export function PlatformOverview() {
   const { apiStatus, triggerRefresh } = useConsole();
   const demoBootstrap = useDemoBootstrap();
-  const overviewQuery = useAxisQuery<ManufacturingOverview>(OVERVIEW_ENDPOINT, {
+  const identityQuery = useAxisQuery<IdentitySessionReadModel>(IDENTITY_SESSION_ENDPOINT, {
+    parse: parseIdentitySessionReadModel,
+  });
+  const tenantScope = resolveConsoleTenantScope(identityQuery.data);
+  const tenantId = tenantScope.tenantId;
+  const tenantQueriesEnabled = identityQuery.source === "api" && tenantId !== null;
+  const overviewPath = buildTenantScopedPath(
+    OVERVIEW_ENDPOINT,
+    tenantId ?? DEMO_TENANT_ID,
+  );
+  const snapshotPath = buildTenantScopedPath(
+    SNAPSHOT_ENDPOINT,
+    tenantId ?? DEMO_TENANT_ID,
+  );
+  const routingPath = buildTenantScopedPath(
+    MODEL_ROUTING_ENDPOINT,
+    tenantId ?? DEMO_TENANT_ID,
+  );
+  const auditEventsPath = buildTenantScopedPath(
+    AUDIT_EVENTS_ENDPOINT,
+    tenantId ?? DEMO_TENANT_ID,
+    { limit: 25 },
+  );
+  const overviewQuery = useAxisQuery<ManufacturingOverview>(overviewPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingOverview,
   });
-  const snapshotQuery = useAxisQuery<ManufacturingOperationsSnapshot>(SNAPSHOT_ENDPOINT, {
+  const snapshotQuery = useAxisQuery<ManufacturingOperationsSnapshot>(snapshotPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingOperationsSnapshot,
   });
-  const routingQuery = useAxisQuery<ManufacturingModelRouting>(MODEL_ROUTING_ENDPOINT, {
+  const routingQuery = useAxisQuery<ManufacturingModelRouting>(routingPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingModelRouting,
   });
-  const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(AUDIT_EVENTS_ENDPOINT, {
+  const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(auditEventsPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingAuditExplorer,
   });
+
+  if (identityQuery.source === "loading") {
+    return <LoadingPanel layout="detail" />;
+  }
+
+  if (identityQuery.source === "unavailable") {
+    return (
+      <ErrorPanel
+        detail="The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Identity API unavailable"
+      />
+    );
+  }
+
+  if (!tenantId) {
+    return (
+      <ErrorPanel
+        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to demo data for an authenticated actor."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Authenticated tenant missing"
+      />
+    );
+  }
 
   // An overview 404 on an otherwise healthy API means the tenant has never
   // been bootstrapped — that is the guided-setup story (spec §6), not an
@@ -143,10 +205,11 @@ export function PlatformOverview() {
     return (
       <div className="grid gap-4">
         <OnboardingChecklist
-          demoAvailable
+          demoAvailable={tenantScope.mode === "demo"}
           demoError={demoBootstrap.error}
           demoPending={demoBootstrap.pending}
           onExploreDemo={demoBootstrap.bootstrapDemo}
+          tenantId={tenantId}
           variant="full"
         />
       </div>
@@ -157,16 +220,21 @@ export function PlatformOverview() {
     <div className="grid gap-4">
       {/* Partially onboarded tenants keep a compact progress strip on top;
           it renders nothing at 0 of 5 or 5 of 5. */}
-      <OnboardingChecklist variant="compact" />
+      <OnboardingChecklist tenantId={tenantId} variant="compact" />
       <OverviewHero
         auditEvents={auditEventsQuery}
         overview={overviewQuery}
         snapshot={snapshotQuery}
       />
 
-      <NeedsAttention overview={overviewQuery} />
+      <NeedsAttention overview={overviewQuery} tenantId={tenantId} />
 
-      <PostureCards overview={overviewQuery} routing={routingQuery} snapshot={snapshotQuery} />
+      <PostureCards
+        overview={overviewQuery}
+        routing={routingQuery}
+        snapshot={snapshotQuery}
+        tenantId={tenantId}
+      />
 
       <div className="ops-dashboard-grid grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[minmax(0,1fr)_320px]">
         <main aria-label="Operations evidence" className="ops-dashboard-main grid min-w-0 content-start gap-4">

@@ -8,6 +8,7 @@ import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 import { parseDemoBootstrapResult } from "@/lib/runtime-contracts/bootstrap";
 import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
+import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -20,7 +21,7 @@ import { useConsole } from "@/providers/console-provider";
 
 export const DEMO_BOOTSTRAP_ENDPOINT = "/demo/manufacturing/bootstrap";
 export const DEMO_BOOTSTRAP_SCOPE = "demo:scenario:bootstrap";
-export const DEMO_TENANT_ID = "tenant_demo_manufacturing";
+export { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 /** Fallback actor when no authenticated API session is attached. */
 export const DEMO_CONSOLE_ACTOR = "demo-console-operator";
 

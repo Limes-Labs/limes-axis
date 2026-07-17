@@ -8,10 +8,17 @@ import { AxisMark } from "@/components/axis-mark";
 import { navIconMap } from "@/components/nav-icons";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { ToastProvider } from "@/components/ui/toast";
 import { navGroups, navItems, type NavItem } from "@/lib/nav";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  resolveConsoleTenantScope,
+} from "@/lib/tenant-scope";
 import { ConsoleProvider } from "@/providers/console-provider";
 
 const navItemClass =
@@ -32,9 +39,21 @@ function isNavActive(pathname: string, href: string): boolean {
  * while loading or when the API is unavailable it renders nothing.
  */
 function ApprovalsBadge() {
-  const { data } = useAxisQuery<ManufacturingApprovalInbox>("/demo/manufacturing/approvals", {
-    parse: parseManufacturingApprovalInbox,
+  const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+    parse: parseIdentitySessionReadModel,
   });
+  const tenantScope = resolveConsoleTenantScope(identity.data);
+  const { data } = useAxisQuery<ManufacturingApprovalInbox>(
+    buildTenantScopedPath(
+      "/demo/manufacturing/approvals",
+      tenantScope.tenantId ?? DEMO_TENANT_ID,
+    ),
+    {
+      enabled: tenantScope.tenantId !== null,
+      expectedTenantId: tenantScope.tenantId ?? undefined,
+      parse: parseManufacturingApprovalInbox,
+    },
+  );
   const pendingCount =
     data?.approvals?.filter((approval) => approval.status === "pending").length ?? 0;
 

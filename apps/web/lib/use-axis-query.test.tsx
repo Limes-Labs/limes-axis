@@ -245,8 +245,45 @@ describe("useAxisQuery", () => {
     mocks.axisFetchParsedJson.mockRejectedValueOnce(new Error("tenant-b unavailable"));
     rerender();
 
+    expect(result.current.data).toBeNull();
+    expect(result.current.source).toBe("loading");
     await waitFor(() => expect(result.current.source).toBe("unavailable"));
     expect(result.current.data).toBeNull();
     expect(result.current.error).toBe("tenant-b unavailable");
+  });
+
+  it("masks loaded data synchronously when the query is disabled", async () => {
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["tenant-secret"] });
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useAxisQuery<Registry>("/demo/registry", { enabled, parse: parseRegistry }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.source).toBe("api"));
+
+    rerender({ enabled: false });
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.source).toBe("loading");
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.isUnavailable).toBe(false);
+  });
+
+  it("rejects a response owned by a different tenant", async () => {
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({
+      items: ["tenant-a-secret"],
+      tenant_id: "tenant-a",
+    });
+
+    const { result } = renderHook(() =>
+      useAxisQuery<Registry & { tenant_id: string }>("/demo/registry?tenant_id=tenant-b", {
+        expectedTenantId: "tenant-b",
+        parse: (value) => value as Registry & { tenant_id: string },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toContain("does not match the requested tenant tenant-b");
   });
 });

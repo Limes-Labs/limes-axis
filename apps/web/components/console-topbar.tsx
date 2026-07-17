@@ -20,6 +20,11 @@ import {
   parseIdentitySessionReadModel,
   parseManufacturingNotificationCenter,
 } from "@/lib/runtime-contracts/overview";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  resolveConsoleTenantScope,
+} from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -35,15 +40,24 @@ export function ConsoleTopbar({
   const { apiStatus, triggerRefresh } = useConsole();
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
-  const { data: notificationCenter } =
-    useAxisQuery<ManufacturingNotificationCenter>("/demo/manufacturing/notifications", {
-      parse: parseManufacturingNotificationCenter,
-    });
   const { session } = useOidcConsoleSession();
   const { data: identitySession, isUnavailable: identitySessionUnavailable } =
     useAxisQuery<IdentitySessionReadModel>("/identity/session", {
       parse: parseIdentitySessionReadModel,
     });
+  const tenantScope = resolveConsoleTenantScope(identitySession);
+  const tenantId = tenantScope.tenantId;
+  const { data: notificationCenter } = useAxisQuery<ManufacturingNotificationCenter>(
+    buildTenantScopedPath(
+      "/demo/manufacturing/notifications",
+      tenantId ?? DEMO_TENANT_ID,
+    ),
+    {
+      enabled: tenantId !== null,
+      expectedTenantId: tenantId ?? undefined,
+      parse: parseManufacturingNotificationCenter,
+    },
+  );
 
   const notificationCount = useMemo(() => {
     if (!notificationCenter) {
@@ -99,7 +113,10 @@ export function ConsoleTopbar({
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
           API {apiStatus.label}
         </span>
-        <DemoBadge />
+        <DemoBadge
+          enabled={tenantScope.mode === "demo"}
+          tenantId={tenantId ?? DEMO_TENANT_ID}
+        />
         {sourceLabel ? (
           <span className="status-pill signal-ready">{sourceLabel}</span>
         ) : null}

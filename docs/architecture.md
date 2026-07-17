@@ -247,6 +247,17 @@ returning token material. When no token is attached and OIDC auth is optional,
 it returns an explicit public-evaluation state. When OIDC auth is required, the
 same endpoint requires a valid bearer token.
 
+The overview control room resolves its tenant from that read model before it
+starts any tenant-scoped request. Authenticated sessions use only the
+API-verified `tenant_id`; an authenticated response without a tenant, an
+identity transport failure, or a bearer bridge that has not finished hydrating
+all fail closed. The manufacturing demo tenant is selected only after an
+explicit unauthenticated response. Tenant-aware queries also discard retained
+data immediately when their path, principal, or enabled state changes and
+reject a response whose `tenant_id` does not match the requested tenant. This
+prevents a browser cache, delayed response, or identity transition from
+rendering another tenant's data.
+
 For browser SSO logout, `/identity/oidc/logout` revokes the local
 `oidc_browser_sessions` record, clears the HTTP-only Axis session cookie and
 redirects to the configured provider end-session endpoint with `client_id` and
