@@ -1006,7 +1006,9 @@ Axis supports an API-owned OIDC authorization-code entrypoint for browser SSO:
 - `POST /identity/sessions/{session_ref}/revoke` revokes a session by opaque
   reference. Actors revoke their own sessions; revoking another actor's
   session requires the `identity:sessions:admin` scope, and lookups are
-  tenant-isolated.
+  tenant-isolated. Active and in-flight refreshing sessions are revocable; the
+  row is locked for the transaction so a concurrent refresh cannot resurrect a
+  session after revocation.
 
 Configure non-sensitive client and endpoint values in the chart ConfigMap:
 

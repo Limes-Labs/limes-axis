@@ -686,6 +686,36 @@ def test_revoke_own_session_by_reference() -> None:
     assert client.get("/identity/session").status_code == 401
 
 
+def test_revoke_own_refreshing_session_by_reference() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    with factory() as session:
+        stored = _sessions(session)[0]
+        stored.status = "refreshing"
+        session_ref = str(stored.id)
+        session.commit()
+
+    response = client.post(
+        f"/identity/sessions/{session_ref}/revoke",
+        headers={"Authorization": f"Bearer {_access_token(settings)}"},
+    )
+
+    assert response.status_code == 204
+    with factory() as session:
+        stored = _sessions(session)[0]
+        assert stored.status == "revoked"
+        assert stored.revocation_reason == "self_revocation"
+        assert stored.revoked_by == DEFAULT_ACTOR
+        assert stored.refresh_token_ciphertext is None
+        assert _audit_event_types(session) == [
+            "identity.oidc_session.created",
+            "identity.oidc_session.revoked",
+        ]
+
+    assert client.get("/identity/session").status_code == 401
+
+
 def test_revoking_other_actor_session_requires_admin_scope() -> None:
     settings = _settings()
     client, factory, token_endpoint = _build_app(settings)
@@ -715,6 +745,35 @@ def test_revoking_other_actor_session_requires_admin_scope() -> None:
         assert stored.status == "revoked"
         assert stored.revocation_reason == "admin_revocation"
         assert stored.revoked_by == "identity-admin-role"
+
+
+def test_admin_can_revoke_refreshing_session_by_reference() -> None:
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    with factory() as session:
+        stored = _sessions(session)[0]
+        stored.status = "refreshing"
+        session_ref = str(stored.id)
+        session.commit()
+
+    admin_token = _access_token(
+        settings,
+        actor_id="identity-admin-role",
+        scope="identity:sessions:admin",
+    )
+    response = client.post(
+        f"/identity/sessions/{session_ref}/revoke",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 204
+    with factory() as session:
+        stored = _sessions(session)[0]
+        assert stored.status == "revoked"
+        assert stored.revocation_reason == "admin_revocation"
+        assert stored.revoked_by == "identity-admin-role"
+        assert stored.refresh_token_ciphertext is None
 
 
 def test_revoking_session_in_another_tenant_returns_404() -> None:
