@@ -11,12 +11,7 @@ import {
 } from "./agents-fixtures";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
   useAxisQuery: vi.fn(),
-}));
-
-vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -44,7 +39,6 @@ function queryResult(result: {
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
   mocks.useAxisQuery.mockReset();
   mocks.useAxisQuery.mockImplementation((path: string) => {
     if (path.includes("/runs?")) {

@@ -18,6 +18,12 @@ import {
   type ManufacturingOverview,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingAuditExplorer } from "@/lib/runtime-contracts/audit";
+import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
+import {
+  parseManufacturingOperationsSnapshot,
+  parseManufacturingOverview,
+} from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useDemoBootstrap } from "@/lib/use-demo-bootstrap";
 import { useConsole } from "@/providers/console-provider";
@@ -110,10 +116,18 @@ function OverviewHero({
 export function PlatformOverview() {
   const { apiStatus, triggerRefresh } = useConsole();
   const demoBootstrap = useDemoBootstrap();
-  const overviewQuery = useAxisQuery<ManufacturingOverview>(OVERVIEW_ENDPOINT);
-  const snapshotQuery = useAxisQuery<ManufacturingOperationsSnapshot>(SNAPSHOT_ENDPOINT);
-  const routingQuery = useAxisQuery<ManufacturingModelRouting>(MODEL_ROUTING_ENDPOINT);
-  const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(AUDIT_EVENTS_ENDPOINT);
+  const overviewQuery = useAxisQuery<ManufacturingOverview>(OVERVIEW_ENDPOINT, {
+    parse: parseManufacturingOverview,
+  });
+  const snapshotQuery = useAxisQuery<ManufacturingOperationsSnapshot>(SNAPSHOT_ENDPOINT, {
+    parse: parseManufacturingOperationsSnapshot,
+  });
+  const routingQuery = useAxisQuery<ManufacturingModelRouting>(MODEL_ROUTING_ENDPOINT, {
+    parse: parseManufacturingModelRouting,
+  });
+  const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(AUDIT_EVENTS_ENDPOINT, {
+    parse: parseManufacturingAuditExplorer,
+  });
 
   // An overview 404 on an otherwise healthy API means the tenant has never
   // been bootstrapped — that is the guided-setup story (spec §6), not an

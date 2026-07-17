@@ -145,6 +145,22 @@ describe("ConnectorRuns list states", () => {
       screen.getByRole("heading", { name: "Connector run records could not be loaded." }),
     ).toBeInTheDocument();
   });
+
+  it("keeps validated stale runs visible when a refresh fails", () => {
+    renderRuns(
+      buildRegistries({
+        runs: { data: runRegistryFixture, source: "unavailable" },
+      }),
+    );
+
+    expect(screen.getByRole("table", { name: "Governed runs" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Live refresh failed. Showing the last validated run data."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Connector run records could not be loaded." }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("ConnectorRuns validate action", () => {

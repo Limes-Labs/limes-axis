@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
   routerPush: vi.fn(),
   setTheme: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
@@ -28,7 +28,7 @@ vi.mock("@/providers/theme-provider", () => ({
 import { ConsoleCommandMenu } from "./console-command-menu";
 
 function mockEntityEndpoints() {
-  mocks.axisFetchJson.mockImplementation((path: string) => {
+  mocks.axisFetchParsedJson.mockImplementation((path: string) => {
     if (path === "/demo/manufacturing/workflows") {
       return Promise.resolve({
         workflow_runs: [{ workflow_id: "wf_line2_changeover", name: "Line 2 changeover" }],
@@ -71,10 +71,10 @@ function renderMenu(overrides: Partial<Parameters<typeof ConsoleCommandMenu>[0]>
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
+  mocks.axisFetchParsedJson.mockReset();
   mocks.routerPush.mockReset();
   mocks.setTheme.mockReset();
-  mocks.axisFetchJson.mockRejectedValue(new Error("unavailable"));
+  mocks.axisFetchParsedJson.mockRejectedValue(new Error("unavailable"));
 });
 
 describe("ConsoleCommandMenu", () => {
@@ -146,7 +146,7 @@ describe("ConsoleCommandMenu", () => {
   it("silently omits entities when every registry fetch fails", async () => {
     renderMenu();
 
-    await waitFor(() => expect(mocks.axisFetchJson).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(4));
     expect(screen.queryByText("Entities")).not.toBeInTheDocument();
   });
 });

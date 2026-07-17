@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, FlaskConical, GitCompareArrows, RadioTower, ScrollText, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  FlaskConical,
+  GitCompareArrows,
+  RadioTower,
+  ScrollText,
+  ShieldCheck,
+} from "lucide-react";
 
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

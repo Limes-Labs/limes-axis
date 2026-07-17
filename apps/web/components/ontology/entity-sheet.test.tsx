@@ -9,6 +9,7 @@ import { ontologyFixture } from "./ontology-fixtures";
 const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
   axisFetch: vi.fn(),
+  refreshNonce: 0,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -17,6 +18,8 @@ vi.mock("@/lib/use-axis-query", () => ({
 
 vi.mock("@/lib/axis-api", () => ({
   axisFetch: mocks.axisFetch,
+  decodeAxisJson: (_path: string, body: unknown, decoder: (value: unknown) => unknown) =>
+    decoder(body),
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
@@ -24,7 +27,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 }));
 
 vi.mock("@/providers/console-provider", () => ({
-  useConsole: () => ({ refreshNonce: 0 }),
+  useConsole: () => ({ refreshNonce: mocks.refreshNonce }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -41,6 +44,7 @@ if (!entityDetail) {
 
 function fulfillEntity() {
   mocks.axisFetch.mockResolvedValue({
+    headers: { get: () => null },
     ok: true,
     status: 200,
     json: async () => entityDetail,
@@ -49,6 +53,7 @@ function fulfillEntity() {
 
 beforeEach(() => {
   mocks.axisFetch.mockReset();
+  mocks.refreshNonce = 0;
 });
 
 describe("OntologyEntitySheet", () => {
@@ -107,6 +112,28 @@ describe("OntologyEntitySheet", () => {
     expect(
       await screen.findByRole("heading", { name: "Entity API unavailable" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps validated entity data visible when a refresh fails", async () => {
+    fulfillEntity();
+    const { rerender } = render(
+      <OntologyEntitySheet nodeId="asset_line_2" onOpenChange={vi.fn()} />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Line 2 Packaging" }),
+    ).toBeInTheDocument();
+
+    mocks.axisFetch.mockRejectedValueOnce(new Error("refresh failed"));
+    mocks.refreshNonce = 1;
+    rerender(<OntologyEntitySheet nodeId="asset_line_2" onOpenChange={vi.fn()} />);
+
+    expect(
+      await screen.findByText("Live refresh failed. Showing the last validated entity data."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Line 2 Packaging" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Entity API unavailable" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the not-found state for a 404", async () => {

@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/components/ui/toast";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
   triggerRefresh: vi.fn(),
   useAxisQuery: vi.fn(),
 }));
 
 vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -128,7 +128,7 @@ function renderOverview() {
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
+  mocks.axisFetchParsedJson.mockReset();
   mocks.triggerRefresh.mockReset();
   mocks.useAxisQuery.mockReset();
 });
@@ -272,7 +272,7 @@ describe("PlatformOverview demo bootstrap CTA", () => {
   }
 
   it("POSTs the bootstrap request, toasts, and refreshes the console on success", async () => {
-    mocks.axisFetchJson.mockResolvedValue({
+    mocks.axisFetchParsedJson.mockResolvedValue({
       tenant_id: "tenant_demo_manufacturing",
       scenario: "Plant Operations Cockpit",
       plant_name: "Ravenna Works",
@@ -288,8 +288,8 @@ describe("PlatformOverview demo bootstrap CTA", () => {
     expect(demoButton).toBeEnabled();
     await user.click(demoButton);
 
-    expect(mocks.axisFetchJson).toHaveBeenCalledTimes(1);
-    const [endpoint, options] = mocks.axisFetchJson.mock.calls[0];
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
+    const [endpoint, , options] = mocks.axisFetchParsedJson.mock.calls[0];
     expect(endpoint).toBe("/demo/manufacturing/bootstrap");
     expect(options).toMatchObject({
       method: "POST",
@@ -305,7 +305,7 @@ describe("PlatformOverview demo bootstrap CTA", () => {
   });
 
   it("renders the bootstrap failure inline on the checklist without refreshing", async () => {
-    mocks.axisFetchJson.mockRejectedValue(new Error("Axis API request failed with 403"));
+    mocks.axisFetchParsedJson.mockRejectedValue(new Error("Axis API request failed with 403"));
     const user = userEvent.setup();
     renderEmptyTenant();
 

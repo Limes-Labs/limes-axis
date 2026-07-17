@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { axisFetch } from "@/lib/axis-api";
+import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
 import type { ManufacturingOntologyEntityDetail } from "@/lib/ontology-demo";
+import { parseManufacturingOntologyEntityDetail } from "@/lib/runtime-contracts/ontology";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -54,11 +55,20 @@ export function useOntologyEntity(nodeId: string | null) {
           throw new Error(`Ontology entity request failed with ${response.status}`);
         }
 
-        const detail = (await response.json()) as ManufacturingOntologyEntityDetail;
+        const detail = decodeAxisJson(
+          `/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId!)}`,
+          await response.json(),
+          parseManufacturingOntologyEntityDetail,
+          response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+        );
         setResult({ nodeId: nodeId!, detail, source: "api" });
       } catch {
         if (!controller.signal.aborted) {
-          setResult({ nodeId: nodeId!, detail: null, source: "unavailable" });
+          setResult((current) => ({
+            nodeId: nodeId!,
+            detail: current?.nodeId === nodeId ? current.detail : null,
+            source: "unavailable",
+          }));
         }
       }
     }

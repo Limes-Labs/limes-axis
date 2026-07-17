@@ -18,7 +18,7 @@ import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
-import { axisFetch } from "@/lib/axis-api";
+import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
 import { cn } from "@/lib/cn";
 import {
   buildExternalDbPreviewRequest,
@@ -35,7 +35,12 @@ import type {
   ConnectorRegistryItem,
 } from "@/lib/connectors-demo";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import {
+  parseConnectorCsvPreviewResult,
+  parseConnectorExternalDbPreviewResult,
+} from "@/lib/runtime-contracts/connectors";
 import { strings } from "@/lib/strings";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
@@ -121,6 +126,7 @@ export function AddConnectorWizard({
   const { session } = useOidcConsoleSession();
   const { data: identitySession } = useAxisQuery<IdentitySessionReadModel>(
     "/identity/session",
+    { parse: parseIdentitySessionReadModel },
   );
 
   const [step, setStep] = useState<WizardStep>("type");
@@ -250,7 +256,12 @@ export function AddConnectorWizard({
         setPreviewFailed(true);
         return;
       }
-      setCsvPreview((await response.json()) as ConnectorCsvPreviewResult);
+      setCsvPreview(decodeAxisJson(
+        CSV_PREVIEW_ENDPOINT,
+        await response.json(),
+        parseConnectorCsvPreviewResult,
+        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+      ));
     } catch {
       setPreviewFailed(true);
     } finally {
@@ -282,7 +293,12 @@ export function AddConnectorWizard({
         setPreviewFailed(true);
         return;
       }
-      setDbPreview((await response.json()) as ConnectorExternalDbPreviewResult);
+      setDbPreview(decodeAxisJson(
+        DB_PREVIEW_ENDPOINT,
+        await response.json(),
+        parseConnectorExternalDbPreviewResult,
+        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+      ));
     } catch {
       setPreviewFailed(true);
     } finally {

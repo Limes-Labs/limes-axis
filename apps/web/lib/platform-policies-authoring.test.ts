@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AxisApiDecodeError } from "./axis-api";
+
 import {
   buildPlatformPolicyRevisionsPath,
   buildPolicyConditionsPayload,
@@ -510,6 +512,15 @@ describe("policy write bindings", () => {
     expect(JSON.parse(String(init?.body))).toEqual(payload);
   });
 
+  it("rejects a malformed successful policy create response", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubFetch(201, { tenant_id: "tenant_demo_manufacturing", policy_id: 42 });
+
+    await expect(
+      createPlatformPolicy(buildPolicyCreatePayload("tenant_demo_manufacturing", buildDraft())),
+    ).rejects.toBeInstanceOf(AxisApiDecodeError);
+  });
+
   it("returns a conflict result for a 409 duplicate policy", async () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     stubFetch(409, {
@@ -575,6 +586,23 @@ describe("policy write bindings", () => {
         ),
       ),
     ).resolves.toEqual({ kind: "replayed", record });
+  });
+
+  it("rejects a malformed successful revision replay response", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubFetch(200, { tenant_id: "tenant_demo_manufacturing", revisions: [] });
+
+    await expect(
+      revisePlatformPolicy(
+        "deny_critical_actions",
+        buildPolicyRevisePayload(
+          "tenant_demo_manufacturing",
+          "deny_critical_actions",
+          buildDraft(),
+          "idem-key-1",
+        ),
+      ),
+    ).rejects.toBeInstanceOf(AxisApiDecodeError);
   });
 
   it("returns a conflict result for a 409 idempotency key reuse", async () => {

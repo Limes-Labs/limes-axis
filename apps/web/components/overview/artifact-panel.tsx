@@ -7,7 +7,7 @@ import { AlertTriangle, FileCheck2, ShieldCheck } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
 import { buildOidcAuthorizeUrl } from "@/lib/oidc-session";
 import {
   buildOperationsArtifactRequest,
@@ -24,6 +24,10 @@ import {
   type ManufacturingOperationsSnapshot,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import {
+  parseIdentitySessionReadModel,
+  parseOperationsArtifactResponse,
+} from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -57,7 +61,9 @@ export function ArtifactPanel({
   const { apiBaseUrl } = useConsole();
   const { session } = useOidcConsoleSession();
   const { data: identitySession, isUnavailable: identitySessionUnavailable } =
-    useAxisQuery<IdentitySessionReadModel>("/identity/session");
+    useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+      parse: parseIdentitySessionReadModel,
+    });
   const [pendingKind, setPendingKind] = useState<OperationsArtifactKind | null>(null);
   const [artifact, setArtifact] = useState<{
     actionLabel: string;
@@ -99,11 +105,11 @@ export function ArtifactPanel({
         identitySession,
         snapshot: operationsSnapshot,
       });
-      const response = await axisFetchJson<OperationsArtifactResponse>(request.endpoint, {
-        method: "POST",
-        session,
-        body: request.body,
-      });
+      const response = await axisFetchParsedJson<OperationsArtifactResponse>(
+        request.endpoint,
+        parseOperationsArtifactResponse,
+        { method: "POST", session, body: request.body },
+      );
 
       setArtifact({ actionLabel: request.action.label, response });
       onArtifactCommitted();

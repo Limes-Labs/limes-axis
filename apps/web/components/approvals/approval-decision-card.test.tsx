@@ -6,21 +6,18 @@ import { ToastProvider } from "@/components/ui/toast";
 import type { ApprovalInboxItem } from "@/lib/approval-demo";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
 }));
 
 vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
   useOidcConsoleSession: () => ({ session: null }),
 }));
 
-import {
-  ApprovalDecisionCard,
-  useApprovalDecisionState,
-} from "./approval-decision-card";
+import { ApprovalDecisionCard, useApprovalDecisionState } from "./approval-decision-card";
 
 const approvalFixture: ApprovalInboxItem = {
   approval_id: "appr_supply_fixture",
@@ -99,7 +96,7 @@ function Harness({ approval = approvalFixture }: { approval?: ApprovalInboxItem 
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
+  mocks.axisFetchParsedJson.mockReset();
 });
 
 describe("ApprovalDecisionCard", () => {
@@ -123,17 +120,17 @@ describe("ApprovalDecisionCard", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("Approve & execute");
     expect(dialog).toHaveTextContent("The expedite order is dispatched to the supplier.");
-    expect(mocks.axisFetchJson).not.toHaveBeenCalled();
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
 
     // Cancelling also never calls the API.
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mocks.axisFetchJson).not.toHaveBeenCalled();
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
   });
 
   it("persists through the decision endpoint with the rationale note on confirm", async () => {
     const user = userEvent.setup();
-    mocks.axisFetchJson.mockResolvedValue(persistenceResultFixture);
+    mocks.axisFetchParsedJson.mockResolvedValue(persistenceResultFixture);
     render(<Harness />);
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
@@ -144,10 +141,11 @@ describe("ApprovalDecisionCard", () => {
     await user.click(screen.getByRole("button", { name: "Confirm decision" }));
 
     await waitFor(() => {
-      expect(mocks.axisFetchJson).toHaveBeenCalledTimes(1);
+      expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
-    expect(mocks.axisFetchJson).toHaveBeenCalledWith(
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
       "/demo/manufacturing/approvals/appr_supply_fixture/decision",
+      expect.any(Function),
       expect.objectContaining({
         method: "POST",
         session: null,
@@ -163,7 +161,7 @@ describe("ApprovalDecisionCard", () => {
 
   it("renders the audit-event link and a toast after a persisted decision", async () => {
     const user = userEvent.setup();
-    mocks.axisFetchJson.mockResolvedValue(persistenceResultFixture);
+    mocks.axisFetchParsedJson.mockResolvedValue(persistenceResultFixture);
     render(<Harness />);
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
@@ -187,7 +185,7 @@ describe("ApprovalDecisionCard", () => {
 
   it("surfaces persistence failures and keeps the options available", async () => {
     const user = userEvent.setup();
-    mocks.axisFetchJson.mockRejectedValue(new Error("Axis API request failed with 503"));
+    mocks.axisFetchParsedJson.mockRejectedValue(new Error("Axis API request failed with 503"));
     render(<Harness />);
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));

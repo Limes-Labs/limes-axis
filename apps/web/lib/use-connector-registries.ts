@@ -11,6 +11,16 @@ import type {
   ManufacturingConnectorRunRegistry,
 } from "./connectors-demo";
 import { CONNECTOR_TENANT_ID } from "./connectors-console";
+import {
+  parseManufacturingConnectorCredentialHandleRegistry,
+  parseManufacturingConnectorCredentialLeaseRegistry,
+  parseManufacturingConnectorEgressPolicyRegistry,
+  parseManufacturingConnectorEvidenceInvariantReport,
+  parseManufacturingConnectorManifestRegistry,
+  parseManufacturingConnectorOntologyProposalRegistry,
+  parseManufacturingConnectorRegistry,
+  parseManufacturingConnectorRunRegistry,
+} from "./runtime-contracts/connectors";
 import { useAxisQuery } from "./use-axis-query";
 
 /*
@@ -35,25 +45,35 @@ export const CONNECTOR_ENDPOINTS = {
 } as const;
 
 export function useConnectorRegistries() {
-  const registry = useAxisQuery<ManufacturingConnectorRegistry>(CONNECTOR_ENDPOINTS.registry);
+  const registry = useAxisQuery<ManufacturingConnectorRegistry>(CONNECTOR_ENDPOINTS.registry, {
+    parse: parseManufacturingConnectorRegistry,
+  });
   const manifests = useAxisQuery<ManufacturingConnectorManifestRegistry>(
     CONNECTOR_ENDPOINTS.manifests,
+    { parse: parseManufacturingConnectorManifestRegistry },
   );
   const credentialHandles = useAxisQuery<ManufacturingConnectorCredentialHandleRegistry>(
     CONNECTOR_ENDPOINTS.credentialHandles,
+    { parse: parseManufacturingConnectorCredentialHandleRegistry },
   );
   const credentialLeases = useAxisQuery<ManufacturingConnectorCredentialLeaseRegistry>(
     CONNECTOR_ENDPOINTS.credentialLeases,
+    { parse: parseManufacturingConnectorCredentialLeaseRegistry },
   );
   const egressPolicies = useAxisQuery<ManufacturingConnectorEgressPolicyRegistry>(
     CONNECTOR_ENDPOINTS.egressPolicies,
+    { parse: parseManufacturingConnectorEgressPolicyRegistry },
   );
-  const runs = useAxisQuery<ManufacturingConnectorRunRegistry>(CONNECTOR_ENDPOINTS.runs);
+  const runs = useAxisQuery<ManufacturingConnectorRunRegistry>(CONNECTOR_ENDPOINTS.runs, {
+    parse: parseManufacturingConnectorRunRegistry,
+  });
   const evidenceInvariants = useAxisQuery<ManufacturingConnectorEvidenceInvariantReport>(
     CONNECTOR_ENDPOINTS.evidenceInvariants,
+    { parse: parseManufacturingConnectorEvidenceInvariantReport },
   );
   const ontologyProposals = useAxisQuery<ManufacturingConnectorOntologyProposalRegistry>(
     CONNECTOR_ENDPOINTS.ontologyProposals,
+    { parse: parseManufacturingConnectorOntologyProposalRegistry },
   );
 
   return {

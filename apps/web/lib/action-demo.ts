@@ -1,15 +1,22 @@
 import type { PlatformStatus } from "./platform-overview";
+import type { PlatformPolicyDecision } from "./platform-policies";
 
 export type ActionRiskLevel = "low" | "medium" | "high" | "critical";
 export type ApprovalMode = "not_required" | "required" | "conditional";
 
 export type ActionJsonSchema = {
-  type: string;
+  type?: string;
   required?: string[];
   properties?: Record<
     string,
-    { type: string; items?: { type: string }; "x-axis-ontology-ref"?: boolean }
+    {
+      type?: string;
+      items?: { type?: string; [key: string]: unknown };
+      "x-axis-ontology-ref"?: boolean;
+      [key: string]: unknown;
+    }
   >;
+  [key: string]: unknown;
 };
 
 export type ActionDefinition = {
@@ -112,6 +119,11 @@ export type ActionRunPersistenceResult = {
   audit_event_type?: string | null;
   workflow_signal?: ActionRunWorkflowSignal | null;
   workflow_signal_status: string;
+  /** Additive workflow and policy evidence emitted by the action runtime. */
+  workflow_state_updated?: boolean;
+  workflow_state?: string | null;
+  workflow_status?: string | null;
+  platform_policy_decision?: PlatformPolicyDecision | null;
 };
 
 export function actionRunWorkflowSignalLabel(
@@ -178,8 +190,8 @@ export function formatSchemaFields(schema: ActionJsonSchema): string[] {
   return Object.entries(schema.properties ?? {}).map(([name, definition]) => {
     const type =
       definition.type === "array" && definition.items
-        ? `${definition.items.type}[]`
-        : definition.type;
+        ? `${definition.items.type ?? "unknown"}[]`
+        : (definition.type ?? "unknown");
     const required = schema.required?.includes(name) ? "required" : "optional";
 
     return `${name}: ${type} (${required})`;

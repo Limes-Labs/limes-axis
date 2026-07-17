@@ -1,4 +1,9 @@
-import { AxisApiError, axisFetch, type AxisFetchOptions } from "./axis-api";
+import { AxisApiError, axisFetch, decodeAxisJson, type AxisFetchOptions } from "./axis-api";
+import {
+  parseTenantQuotaSet,
+  parseTenantRecord,
+  parseTenantRegistry,
+} from "./runtime-contracts/tenants";
 
 export type TenantLifecycleStatus = "active" | "suspended" | "pending_deletion";
 
@@ -617,6 +622,10 @@ async function readJsonBody(response: Response): Promise<unknown> {
   }
 }
 
+function responseRequestId(response: Response): string | null {
+  return response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id");
+}
+
 export async function fetchTenantRegistry(
   filters: TenantRegistryFilters,
   options: AxisFetchOptions = {},
@@ -629,7 +638,7 @@ export async function fetchTenantRegistry(
     throw new AxisApiError(path, response.status);
   }
 
-  return (await response.json()) as TenantRegistry;
+  return decodeAxisJson(path, await response.json(), parseTenantRegistry, responseRequestId(response));
 }
 
 export type TenantDetailResult =
@@ -657,7 +666,15 @@ export async function fetchTenantDetail(
     throw new AxisApiError(path, response.status);
   }
 
-  return { kind: "found", record: (await response.json()) as TenantRecord };
+  return {
+    kind: "found",
+    record: decodeAxisJson(
+      path,
+      await response.json(),
+      parseTenantRecord,
+      responseRequestId(response),
+    ),
+  };
 }
 
 export async function fetchTenantQuotas(
@@ -675,7 +692,7 @@ export async function fetchTenantQuotas(
     throw new AxisApiError(path, response.status);
   }
 
-  return (await response.json()) as TenantQuotaSet;
+  return decodeAxisJson(path, await response.json(), parseTenantQuotaSet, responseRequestId(response));
 }
 
 export async function provisionTenant(
@@ -690,12 +707,28 @@ export async function provisionTenant(
   const body = await readJsonBody(response);
 
   if (response.status === 201) {
-    return { kind: "created", record: body as TenantRecord };
+    return {
+      kind: "created",
+      record: decodeAxisJson(
+        platformTenantsPath,
+        body,
+        parseTenantRecord,
+        responseRequestId(response),
+      ),
+    };
   }
 
   if (response.status === 200) {
     // Idempotent replay: same idempotency key + matching request.
-    return { kind: "replayed", record: body as TenantRecord };
+    return {
+      kind: "replayed",
+      record: decodeAxisJson(
+        platformTenantsPath,
+        body,
+        parseTenantRecord,
+        responseRequestId(response),
+      ),
+    };
   }
 
   return parseTenantWriteFailure(response.status, body, provisionFieldByRequestField);
@@ -714,7 +747,15 @@ export async function suspendTenant(
   const body = await readJsonBody(response);
 
   if (response.ok) {
-    return { kind: "updated", record: body as TenantRecord };
+    return {
+      kind: "updated",
+      record: decodeAxisJson(
+        buildPlatformTenantSuspendPath(tenantId),
+        body,
+        parseTenantRecord,
+        responseRequestId(response),
+      ),
+    };
   }
 
   return parseTenantWriteFailure(response.status, body);
@@ -733,7 +774,15 @@ export async function reactivateTenant(
   const body = await readJsonBody(response);
 
   if (response.ok) {
-    return { kind: "updated", record: body as TenantRecord };
+    return {
+      kind: "updated",
+      record: decodeAxisJson(
+        buildPlatformTenantReactivatePath(tenantId),
+        body,
+        parseTenantRecord,
+        responseRequestId(response),
+      ),
+    };
   }
 
   return parseTenantWriteFailure(response.status, body);
@@ -752,7 +801,15 @@ export async function updateTenantQuotas(
   const body = await readJsonBody(response);
 
   if (response.ok) {
-    return { kind: "updated", record: body as TenantQuotaSet };
+    return {
+      kind: "updated",
+      record: decodeAxisJson(
+        buildPlatformTenantQuotasPath(tenantId),
+        body,
+        parseTenantQuotaSet,
+        responseRequestId(response),
+      ),
+    };
   }
 
   return parseTenantWriteFailure(response.status, body);

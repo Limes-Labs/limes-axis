@@ -16,6 +16,10 @@ import type {
   ManufacturingNotificationCenter,
 } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import {
+  parseIdentitySessionReadModel,
+  parseManufacturingNotificationCenter,
+} from "@/lib/runtime-contracts/overview";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -32,10 +36,14 @@ export function ConsoleTopbar({
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
   const { data: notificationCenter } =
-    useAxisQuery<ManufacturingNotificationCenter>("/demo/manufacturing/notifications");
+    useAxisQuery<ManufacturingNotificationCenter>("/demo/manufacturing/notifications", {
+      parse: parseManufacturingNotificationCenter,
+    });
   const { session } = useOidcConsoleSession();
   const { data: identitySession, isUnavailable: identitySessionUnavailable } =
-    useAxisQuery<IdentitySessionReadModel>("/identity/session");
+    useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+      parse: parseIdentitySessionReadModel,
+    });
 
   const notificationCount = useMemo(() => {
     if (!notificationCenter) {

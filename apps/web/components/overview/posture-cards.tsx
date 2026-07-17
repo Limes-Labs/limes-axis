@@ -11,6 +11,7 @@ import type {
 } from "@/lib/platform-overview";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
+import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 import { PanelLink, StatusDot, type OverviewQuery } from "./overview-shared";
@@ -74,7 +75,9 @@ export function PostureCards({
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
   routing: OverviewQuery<ManufacturingModelRouting>;
 }) {
-  const policiesQuery = useAxisQuery<PlatformPolicyRegistry>(POLICIES_ENDPOINT);
+  const policiesQuery = useAxisQuery<PlatformPolicyRegistry>(POLICIES_ENDPOINT, {
+    parse: parsePlatformPolicyRegistry,
+  });
   const copy = strings.overview.posture;
 
   const cards: PostureCard[] = [

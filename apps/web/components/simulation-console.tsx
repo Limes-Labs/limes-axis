@@ -5,7 +5,8 @@ import { FileText, GitBranch, History, RadioTower, ShieldCheck } from "lucide-re
 
 import { RunReplayForm } from "@/components/simulation/run-replay-form";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import { axisFetchJson } from "@/lib/axis-api";
+import { axisFetchParsedJson } from "@/lib/axis-api";
+import { parseManufacturingReplaySimulation } from "@/lib/runtime-contracts/simulation";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import {
@@ -56,8 +57,9 @@ export function SimulationConsole() {
       setSource("loading");
 
       try {
-        const data = await axisFetchJson<ManufacturingReplaySimulation>(
+        const data = await axisFetchParsedJson<ManufacturingReplaySimulation>(
           "/demo/manufacturing/simulation/replay?tenant_id=tenant_demo_manufacturing&limit=20",
+          parseManufacturingReplaySimulation,
           { session, signal: controller.signal },
         );
         setSimulationData(data);

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuditExportBundle, ManufacturingAuditExplorer } from "@/lib/audit-demo";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
   session: {
     accessToken: "fixture-token",
     actorId: "fixture-actor",
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/axis-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/axis-api")>()),
-  axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/providers/console-provider", () => ({
@@ -131,7 +131,7 @@ const exportBundleFixture: AuditExportBundle = {
 };
 
 function mockAuditApi() {
-  mocks.axisFetchJson.mockImplementation((path: string) => {
+  mocks.axisFetchParsedJson.mockImplementation((path: string) => {
     if (path.startsWith("/demo/manufacturing/audit/export")) {
       return Promise.resolve(exportBundleFixture);
     }
@@ -144,7 +144,7 @@ function mockAuditApi() {
 
 describe("AuditExplorer integrity and export", () => {
   beforeEach(() => {
-    mocks.axisFetchJson.mockReset();
+    mocks.axisFetchParsedJson.mockReset();
     mockAuditApi();
   });
 
@@ -212,8 +212,8 @@ describe("AuditExplorer integrity and export", () => {
     render(<AuditExplorer />);
 
     await screen.findByText("Ledger verified — hash chain intact");
-    expect(mocks.axisFetchJson).toHaveBeenCalledTimes(2);
-    for (const [, options] of mocks.axisFetchJson.mock.calls) {
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(2);
+    for (const [, , options] of mocks.axisFetchParsedJson.mock.calls) {
       expect(options).toMatchObject({ session: mocks.session });
     }
   });

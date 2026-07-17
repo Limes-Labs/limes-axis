@@ -6,12 +6,12 @@ import { ToastProvider } from "@/components/ui/toast";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
+  axisFetchParsedJson: vi.fn(),
   useAxisQuery: vi.fn(),
 }));
 
 vi.mock("@/lib/axis-api", () => ({
-  axisFetchJson: mocks.axisFetchJson,
+  axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -154,7 +154,7 @@ function renderInbox() {
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
+  mocks.axisFetchParsedJson.mockReset();
   mocks.useAxisQuery.mockReset();
 });
 
@@ -239,20 +239,21 @@ describe("ApprovalInbox decision flow", () => {
 
   it("gates persistence behind the confirm dialog and posts the decision payload", async () => {
     const user = userEvent.setup();
-    mocks.axisFetchJson.mockResolvedValue(persistenceResultFixture);
+    mocks.axisFetchParsedJson.mockResolvedValue(persistenceResultFixture);
     renderInbox();
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(mocks.axisFetchJson).not.toHaveBeenCalled();
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Confirm decision" }));
 
     await waitFor(() => {
-      expect(mocks.axisFetchJson).toHaveBeenCalledTimes(1);
+      expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
-    expect(mocks.axisFetchJson).toHaveBeenCalledWith(
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
       "/demo/manufacturing/approvals/appr_supply_fixture/decision",
+      expect.any(Function),
       expect.objectContaining({
         method: "POST",
         body: {

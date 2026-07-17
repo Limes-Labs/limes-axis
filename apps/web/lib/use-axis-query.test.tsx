@@ -2,14 +2,18 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  axisFetchJson: vi.fn(),
   axisFetchParsedJson: vi.fn(),
   refreshNonce: 0,
+  session: null as null | {
+    accessToken: string;
+    actorId: string;
+    tenantId: string;
+    scopes: string[];
+  },
 }));
 
 vi.mock("@/lib/axis-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./axis-api")>()),
-  axisFetchJson: mocks.axisFetchJson,
   axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
@@ -23,13 +27,14 @@ vi.mock("@/providers/console-provider", () => ({
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
-  useOidcConsoleSession: () => ({ session: null }),
+  useOidcConsoleSession: () => ({ session: mocks.session }),
 }));
 
-import { AxisApiError } from "./axis-api";
+import { AxisApiDecodeError, AxisApiError } from "./axis-api";
 import { useAxisQuery } from "./use-axis-query";
 
 type Registry = { items: string[] };
+const parseRegistry = (value: unknown): Registry => value as Registry;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -42,16 +47,18 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
-  mocks.axisFetchJson.mockReset();
   mocks.axisFetchParsedJson.mockReset();
   mocks.refreshNonce = 0;
+  mocks.session = null;
 });
 
 describe("useAxisQuery", () => {
   it("moves from loading to api on initial success", async () => {
-    mocks.axisFetchJson.mockResolvedValue({ items: ["a"] });
+    mocks.axisFetchParsedJson.mockResolvedValue({ items: ["a"] });
 
-    const { result } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+    const { result } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
 
     expect(result.current.source).toBe("loading");
     expect(result.current.data).toBeNull();
@@ -64,13 +71,15 @@ describe("useAxisQuery", () => {
   });
 
   it("keeps previous data and toggles isRefreshing across a refresh", async () => {
-    mocks.axisFetchJson.mockResolvedValueOnce({ items: ["a"] });
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["a"] });
 
-    const { result, rerender } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+    const { result, rerender } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
     await waitFor(() => expect(result.current.source).toBe("api"));
 
     const second = deferred<Registry>();
-    mocks.axisFetchJson.mockReturnValueOnce(second.promise);
+    mocks.axisFetchParsedJson.mockReturnValueOnce(second.promise);
     mocks.refreshNonce = 1;
     rerender();
 
@@ -86,12 +95,14 @@ describe("useAxisQuery", () => {
   });
 
   it("keeps data but flips source to unavailable when a refresh fails", async () => {
-    mocks.axisFetchJson.mockResolvedValueOnce({ items: ["a"] });
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["a"] });
 
-    const { result, rerender } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+    const { result, rerender } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
     await waitFor(() => expect(result.current.source).toBe("api"));
 
-    mocks.axisFetchJson.mockRejectedValueOnce(new Error("Axis API request failed with 503"));
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(new Error("Axis API request failed with 503"));
     mocks.refreshNonce = 1;
     rerender();
 
@@ -102,9 +113,11 @@ describe("useAxisQuery", () => {
   });
 
   it("exposes the HTTP status of a failed request as errorStatus", async () => {
-    mocks.axisFetchJson.mockRejectedValueOnce(new AxisApiError("/demo/registry", 404));
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(new AxisApiError("/demo/registry", 404));
 
-    const { result } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+    const { result } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
 
     await waitFor(() => expect(result.current.source).toBe("unavailable"));
     expect(result.current.errorStatus).toBe(404);
@@ -112,13 +125,15 @@ describe("useAxisQuery", () => {
   });
 
   it("keeps errorStatus null for non-HTTP failures and clears it on success", async () => {
-    mocks.axisFetchJson.mockRejectedValueOnce(new TypeError("fetch failed"));
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(new TypeError("fetch failed"));
 
-    const { result, rerender } = renderHook(() => useAxisQuery<Registry>("/demo/registry"));
+    const { result, rerender } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
     await waitFor(() => expect(result.current.source).toBe("unavailable"));
     expect(result.current.errorStatus).toBeNull();
 
-    mocks.axisFetchJson.mockResolvedValueOnce({ items: ["a"] });
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["a"] });
     mocks.refreshNonce = 1;
     rerender();
 
@@ -127,16 +142,17 @@ describe("useAxisQuery", () => {
   });
 
   it("resets to loading and drops data when the path changes", async () => {
-    mocks.axisFetchJson.mockResolvedValueOnce({ items: ["a"] });
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["a"] });
 
     const { result, rerender } = renderHook(
-      ({ path }: { path: string }) => useAxisQuery<Registry>(path),
+      ({ path }: { path: string }) =>
+        useAxisQuery<Registry>(path, { parse: parseRegistry }),
       { initialProps: { path: "/demo/registry" } },
     );
     await waitFor(() => expect(result.current.source).toBe("api"));
 
     const second = deferred<Registry>();
-    mocks.axisFetchJson.mockReturnValueOnce(second.promise);
+    mocks.axisFetchParsedJson.mockReturnValueOnce(second.promise);
     rerender({ path: "/demo/other" });
 
     await waitFor(() => expect(result.current.source).toBe("loading"));
@@ -173,5 +189,64 @@ describe("useAxisQuery", () => {
       "Axis API response did not match the expected contract.",
     );
     expect(result.current.errorStatus).toBeNull();
+  });
+
+  it("keeps stale data after a decoder failure and clears the failure on recovery", async () => {
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["stable"] });
+    const { result, rerender } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
+    await waitFor(() => expect(result.current.source).toBe("api"));
+
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(
+      new AxisApiDecodeError("/demo/registry", "Contract mismatch", {
+        requestId: "request-stale",
+        validationIssues: [{ code: "invalid_type", path: "items.0", message: "Invalid" }],
+      }),
+    );
+    mocks.refreshNonce = 1;
+    rerender();
+
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    expect(result.current.data).toEqual({ items: ["stable"] });
+    expect(result.current.errorRequestId).toBe("request-stale");
+    expect(result.current.validationIssues).toHaveLength(1);
+
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["recovered"] });
+    mocks.refreshNonce = 2;
+    rerender();
+
+    await waitFor(() => expect(result.current.source).toBe("api"));
+    expect(result.current.data).toEqual({ items: ["recovered"] });
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorRequestId).toBeNull();
+    expect(result.current.validationIssues).toEqual([]);
+  });
+
+  it("drops stale data when the actor or tenant identity changes", async () => {
+    mocks.session = {
+      accessToken: "token-a",
+      actorId: "actor-a",
+      tenantId: "tenant-a",
+      scopes: ["tenant:read"],
+    };
+    mocks.axisFetchParsedJson.mockResolvedValueOnce({ items: ["tenant-a-secret"] });
+    const { result, rerender } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
+    await waitFor(() => expect(result.current.source).toBe("api"));
+
+    mocks.session = {
+      accessToken: "token-b",
+      actorId: "actor-b",
+      tenantId: "tenant-b",
+      scopes: ["tenant:read"],
+    };
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(new Error("tenant-b unavailable"));
+    rerender();
+
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBe("tenant-b unavailable");
   });
 });

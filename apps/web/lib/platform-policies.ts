@@ -1,4 +1,15 @@
-import { AxisApiError, axisFetch, axisFetchJson, type AxisFetchOptions } from "./axis-api";
+import {
+  AxisApiError,
+  axisFetch,
+  axisFetchParsedJson,
+  decodeAxisJson,
+  type AxisFetchOptions,
+} from "./axis-api";
+import {
+  parsePlatformPolicyDecision,
+  parsePlatformPolicyDetail,
+  parsePlatformPolicyRecord,
+} from "./runtime-contracts/policies";
 
 export type PlatformPolicyScope = "action_execution" | "approval_requirement";
 
@@ -773,6 +784,10 @@ async function readJsonBody(response: Response): Promise<unknown> {
   }
 }
 
+function responseRequestId(response: Response): string | null {
+  return response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id");
+}
+
 export async function createPlatformPolicy(
   payload: PlatformPolicyCreateRequestPayload,
   options: AxisFetchOptions = {},
@@ -785,7 +800,15 @@ export async function createPlatformPolicy(
   const body = await readJsonBody(response);
 
   if (response.status === 201) {
-    return { kind: "created", record: body as PlatformPolicyRecord };
+    return {
+      kind: "created",
+      record: decodeAxisJson(
+        platformPoliciesPath,
+        body,
+        parsePlatformPolicyRecord,
+        responseRequestId(response),
+      ),
+    };
   }
 
   return parsePolicyWriteFailure(response.status, body);
@@ -796,7 +819,8 @@ export async function revisePlatformPolicy(
   payload: PlatformPolicyReviseRequestPayload,
   options: AxisFetchOptions = {},
 ): Promise<PlatformPolicyWriteResult> {
-  const response = await axisFetch(buildPlatformPolicyRevisionsPath(policyId), {
+  const path = buildPlatformPolicyRevisionsPath(policyId);
+  const response = await axisFetch(path, {
     ...options,
     method: "POST",
     body: payload,
@@ -804,11 +828,17 @@ export async function revisePlatformPolicy(
   const body = await readJsonBody(response);
 
   if (response.status === 201) {
-    return { kind: "created", record: body as PlatformPolicyRecord };
+    return {
+      kind: "created",
+      record: decodeAxisJson(path, body, parsePlatformPolicyRecord, responseRequestId(response)),
+    };
   }
 
   if (response.status === 200) {
-    return { kind: "replayed", record: body as PlatformPolicyRecord };
+    return {
+      kind: "replayed",
+      record: decodeAxisJson(path, body, parsePlatformPolicyRecord, responseRequestId(response)),
+    };
   }
 
   return parsePolicyWriteFailure(response.status, body);
@@ -829,16 +859,25 @@ export async function fetchPlatformPolicyDetail(
     throw new AxisApiError(path, response.status);
   }
 
-  return (await response.json()) as PlatformPolicyDetail;
+  return decodeAxisJson(
+    path,
+    await response.json(),
+    parsePlatformPolicyDetail,
+    responseRequestId(response),
+  );
 }
 
 export async function evaluatePlatformPolicy(
   payload: PlatformPolicyEvaluationRequestPayload,
   options: AxisFetchOptions = {},
 ): Promise<PlatformPolicyDecision> {
-  return axisFetchJson<PlatformPolicyDecision>(platformPolicyEvaluatePath, {
-    ...options,
-    method: "POST",
-    body: payload,
-  });
+  return axisFetchParsedJson<PlatformPolicyDecision>(
+    platformPolicyEvaluatePath,
+    parsePlatformPolicyDecision,
+    {
+      ...options,
+      method: "POST",
+      body: payload,
+    },
+  );
 }

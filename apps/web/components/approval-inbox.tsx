@@ -9,11 +9,7 @@ import {
   type ApprovalDecisionRecord,
 } from "@/components/approvals/approval-decision-card";
 import { Card } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
@@ -30,6 +26,7 @@ import {
 import { cn } from "@/lib/cn";
 import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 const APPROVALS_ENDPOINT = "/demo/manufacturing/approvals";
@@ -390,7 +387,9 @@ function sourceLabel(source: "loading" | "api" | "unavailable"): string {
 }
 
 export function ApprovalInbox() {
-  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT);
+  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT, {
+    parse: parseManufacturingApprovalInbox,
+  });
   const [selectedApprovalId, setSelectedApprovalId] = useState("");
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
 

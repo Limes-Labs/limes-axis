@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import { axisFetch } from "@/lib/axis-api";
+import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import { cn } from "@/lib/cn";
 import {
@@ -29,8 +29,14 @@ import {
   type ConnectorRunRecord,
 } from "@/lib/connectors-demo";
 import { safeRandomUuid } from "@/lib/ids";
+import {
+  parseConnectorCsvPreviewResult,
+  parseConnectorExternalDbPreviewResult,
+  parseConnectorRunRecord,
+} from "@/lib/runtime-contracts/connectors";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -123,6 +129,7 @@ export function ConnectorRuns({
   const { triggerRefresh } = useConsole();
   const { data: identitySession } = useAxisQuery<IdentitySessionReadModel>(
     "/identity/session",
+    { parse: parseIdentitySessionReadModel },
   );
 
   const [validating, setValidating] = useState(false);
@@ -182,7 +189,12 @@ export function ConnectorRuns({
         }
         setValidateOutcome({
           kind: "db",
-          result: (await response.json()) as ConnectorExternalDbPreviewResult,
+          result: decodeAxisJson(
+            DB_PREVIEW_ENDPOINT,
+            await response.json(),
+            parseConnectorExternalDbPreviewResult,
+            response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+          ),
         });
         return;
       }
@@ -203,7 +215,12 @@ export function ConnectorRuns({
       }
       setValidateOutcome({
         kind: "csv",
-        result: (await response.json()) as ConnectorCsvPreviewResult,
+        result: decodeAxisJson(
+          CSV_PREVIEW_ENDPOINT,
+          await response.json(),
+          parseConnectorCsvPreviewResult,
+          response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+        ),
       });
     } catch {
       setValidateOutcome({ kind: "error" });
@@ -228,7 +245,12 @@ export function ConnectorRuns({
         }));
         return null;
       }
-      const record = (await response.json()) as ConnectorRunRecord;
+      const record = decodeAxisJson(
+        path,
+        await response.json(),
+        parseConnectorRunRecord,
+        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+      );
       const resultStatus =
         key === "create"
           ? (record.schedule_result?.status ?? record.status)
@@ -422,9 +444,15 @@ export function ConnectorRuns({
         </ol>
       ) : null}
 
+      {runsQuery.source === "unavailable" && connectorRuns.length > 0 ? (
+        <p className="m-0 text-sm text-warning" role="status">
+          Live refresh failed. Showing the last validated run data.
+        </p>
+      ) : null}
+
       {runsQuery.source === "loading" ? (
         <LoadingPanel rows={3} />
-      ) : runsQuery.source === "unavailable" ? (
+      ) : runsQuery.source === "unavailable" && connectorRuns.length === 0 ? (
         <ErrorPanel title={copy.error} />
       ) : connectorRuns.length === 0 ? (
         <p className="m-0 text-sm text-muted">{copy.empty}</p>

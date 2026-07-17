@@ -1,0 +1,210 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  connectorRegistryFixture,
+  credentialHandleRegistryFixture,
+  credentialLeaseRegistryFixture,
+  egressPolicyRegistryFixture,
+  evidenceInvariantReportFixture,
+  manifestRegistryFixture,
+  ontologyProposalRegistryFixture,
+  runRegistryFixture,
+} from "@/components/connector-console/connector-fixtures";
+import { ontologyFixture } from "@/components/ontology/ontology-fixtures";
+import {
+  approvalInboxFixture,
+  auditEventsFixture,
+  identitySessionFixture,
+  modelRoutingFixture,
+  overviewFixture,
+  policyRegistryFixture,
+  snapshotFixture,
+} from "@/components/overview/overview-fixtures";
+
+import {
+  parseActionRunPersistenceResult,
+  parseManufacturingActionRegistry,
+} from "./runtime-contracts/actions";
+import {
+  parseApprovalDecisionPersistenceResult,
+  parseManufacturingApprovalInbox,
+} from "./runtime-contracts/approvals";
+import { parseAuditExportBundle, parseManufacturingAuditExplorer } from "./runtime-contracts/audit";
+import {
+  parseAxisReadyReport,
+  parseDeploymentReadinessReport,
+  parseIdentityBrowserSessionList,
+  parseOidcReadinessReport,
+  parseSupportDiagnosticsReport,
+} from "./runtime-contracts/identity";
+import {
+  parseConnectorCsvPreviewResult,
+  parseConnectorExternalDbPreviewResult,
+  parseConnectorRunRecord,
+  parseManufacturingConnectorCredentialHandleRegistry,
+  parseManufacturingConnectorCredentialLeaseRegistry,
+  parseManufacturingConnectorEgressPolicyRegistry,
+  parseManufacturingConnectorEvidenceInvariantReport,
+  parseManufacturingConnectorManifestRegistry,
+  parseManufacturingConnectorOntologyProposalRegistry,
+  parseManufacturingConnectorRegistry,
+  parseManufacturingConnectorRunRegistry,
+} from "./runtime-contracts/connectors";
+import { parseDemoBootstrapResult } from "./runtime-contracts/bootstrap";
+import {
+  parseIdentitySessionReadModel,
+  parseManufacturingNotificationCenter,
+  parseManufacturingNotificationAcknowledgementResult,
+  parseManufacturingOperationsSnapshot,
+  parseManufacturingOverview,
+  parseOperationsArtifactResponse,
+} from "./runtime-contracts/overview";
+import { parseManufacturingAgentRegistry } from "./runtime-contracts/agents";
+import { parseManufacturingModelRouting } from "./runtime-contracts/model-routing";
+import {
+  parseManufacturingOntology,
+  parseManufacturingOntologyEntityDetail,
+} from "./runtime-contracts/ontology";
+import { parseManufacturingReplaySimulation } from "./runtime-contracts/simulation";
+import { parseManufacturingWorkflowConsole } from "./runtime-contracts/workflows";
+import {
+  parsePlatformPolicyDecision,
+  parsePlatformPolicyDetail,
+  parsePlatformPolicyRecord,
+  parsePlatformPolicyRegistry,
+} from "./runtime-contracts/policies";
+import {
+  parseTenantQuotaSet,
+  parseTenantRecord,
+  parseTenantRegistry,
+  parseTenantUsageSummary,
+} from "./runtime-contracts/tenants";
+
+const productionDecoders = [
+  parseActionRunPersistenceResult,
+  parseApprovalDecisionPersistenceResult,
+  parseAuditExportBundle,
+  parseAxisReadyReport,
+  parseConnectorCsvPreviewResult,
+  parseConnectorExternalDbPreviewResult,
+  parseConnectorRunRecord,
+  parseDemoBootstrapResult,
+  parseDeploymentReadinessReport,
+  parseIdentityBrowserSessionList,
+  parseIdentitySessionReadModel,
+  parseManufacturingActionRegistry,
+  parseManufacturingAgentRegistry,
+  parseManufacturingApprovalInbox,
+  parseManufacturingAuditExplorer,
+  parseManufacturingConnectorCredentialHandleRegistry,
+  parseManufacturingConnectorCredentialLeaseRegistry,
+  parseManufacturingConnectorEgressPolicyRegistry,
+  parseManufacturingConnectorEvidenceInvariantReport,
+  parseManufacturingConnectorManifestRegistry,
+  parseManufacturingConnectorOntologyProposalRegistry,
+  parseManufacturingConnectorRegistry,
+  parseManufacturingConnectorRunRegistry,
+  parseManufacturingModelRouting,
+  parseManufacturingNotificationCenter,
+  parseManufacturingNotificationAcknowledgementResult,
+  parseManufacturingOntology,
+  parseManufacturingOntologyEntityDetail,
+  parseManufacturingOperationsSnapshot,
+  parseManufacturingOverview,
+  parseManufacturingReplaySimulation,
+  parseManufacturingWorkflowConsole,
+  parseOidcReadinessReport,
+  parseOperationsArtifactResponse,
+  parsePlatformPolicyDecision,
+  parsePlatformPolicyDetail,
+  parsePlatformPolicyRecord,
+  parsePlatformPolicyRegistry,
+  parseSupportDiagnosticsReport,
+  parseTenantQuotaSet,
+  parseTenantRecord,
+  parseTenantRegistry,
+  parseTenantUsageSummary,
+] as const;
+
+describe("production runtime contracts", () => {
+  it.each(productionDecoders)("rejects an empty object at every API boundary", (parse) => {
+    expect(() => parse({})).toThrow();
+  });
+
+  it("accepts a valid identity session and preserves additive compatibility", () => {
+    const payload = {
+      authenticated: true,
+      mode: "secure_oidc_cookie",
+      actor_id: "operator-1",
+      tenant_id: "tenant-1",
+      scopes: ["tenant:read"],
+      expires_at: 1_800_000_000,
+      api_auth_required: true,
+      enterprise_sso_ready: true,
+      readiness_status: "ready",
+      issuer: "https://issuer.example",
+      audience: "axis-api",
+      jwks_source: "remote",
+      session_boundary: "api_owned",
+      capabilities: ["browser_session_rotation"],
+      limitations: [],
+      notes: [],
+      future_additive_field: "accepted",
+    };
+
+    const parsed = parseIdentitySessionReadModel(payload);
+    expect(parsed).toBe(payload);
+    expect(parsed).toMatchObject({
+      actor_id: "operator-1",
+      authenticated: true,
+      readiness_status: "ready",
+    });
+    expect(parsed).toHaveProperty("future_additive_field", "accepted");
+  });
+
+  it("rejects malformed nested identity fields instead of fabricating defaults", () => {
+    expect(() =>
+      parseIdentitySessionReadModel({
+        authenticated: "yes",
+        scopes: null,
+      }),
+    ).toThrow();
+  });
+
+  it.each([
+    ["overview", parseManufacturingOverview, overviewFixture],
+    ["operations snapshot", parseManufacturingOperationsSnapshot, snapshotFixture],
+    ["identity", parseIdentitySessionReadModel, identitySessionFixture],
+    ["approval inbox", parseManufacturingApprovalInbox, approvalInboxFixture],
+    ["ontology", parseManufacturingOntology, ontologyFixture],
+    ["model routing", parseManufacturingModelRouting, modelRoutingFixture],
+    ["audit explorer", parseManufacturingAuditExplorer, auditEventsFixture],
+    ["policy registry", parsePlatformPolicyRegistry, policyRegistryFixture],
+    ["connector registry", parseManufacturingConnectorRegistry, connectorRegistryFixture],
+    ["connector manifests", parseManufacturingConnectorManifestRegistry, manifestRegistryFixture],
+    [
+      "connector credential handles",
+      parseManufacturingConnectorCredentialHandleRegistry,
+      credentialHandleRegistryFixture,
+    ],
+    [
+      "connector credential leases",
+      parseManufacturingConnectorCredentialLeaseRegistry,
+      credentialLeaseRegistryFixture,
+    ],
+    ["connector egress policies", parseManufacturingConnectorEgressPolicyRegistry, egressPolicyRegistryFixture],
+    ["connector runs", parseManufacturingConnectorRunRegistry, runRegistryFixture],
+    [
+      "connector evidence invariants",
+      parseManufacturingConnectorEvidenceInvariantReport,
+      evidenceInvariantReportFixture,
+    ],
+    [
+      "connector ontology proposals",
+      parseManufacturingConnectorOntologyProposalRegistry,
+      ontologyProposalRegistryFixture,
+    ],
+  ] as const)("accepts the representative %s payload", (_name, parse, fixture) => {
+    expect(parse(fixture)).toBe(fixture);
+  });
+});

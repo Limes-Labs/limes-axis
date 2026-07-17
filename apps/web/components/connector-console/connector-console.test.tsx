@@ -10,7 +10,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   axisFetch: vi.fn(),
-  axisFetchJson: vi.fn(),
   useAxisQuery: vi.fn(),
   triggerRefresh: vi.fn(),
 }));
@@ -18,7 +17,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/axis-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/axis-api")>()),
   axisFetch: mocks.axisFetch,
-  axisFetchJson: mocks.axisFetchJson,
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -78,7 +76,6 @@ function renderConsole() {
 
 beforeEach(() => {
   mocks.axisFetch.mockReset();
-  mocks.axisFetchJson.mockReset();
   mocks.useAxisQuery.mockReset();
   mocks.triggerRefresh.mockReset();
   window.history.replaceState(null, "", "/connectors");
