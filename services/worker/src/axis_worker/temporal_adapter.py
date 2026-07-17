@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from typing import Any
 
 from temporalio.client import Client
+from temporalio.common import WorkflowIDReusePolicy
 
 from axis_worker.workflow_port import WorkflowStartRequest, WorkflowState
 from axis_worker.workflows.approval_workflow import ApprovalWorkflow
@@ -33,6 +35,7 @@ class TemporalWorkflowRuntime:
             request.payload,
             id=request.workflow_id,
             task_queue=self.config.task_queue,
+            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
         )
         return WorkflowState(
             workflow_id=handle.id,
@@ -41,6 +44,7 @@ class TemporalWorkflowRuntime:
         )
 
     async def signal_approval(self, workflow_id: str, approved: bool) -> WorkflowState:
+        """Send the legacy boolean contract during rolling upgrades."""
         client = await self.client()
         handle = client.get_workflow_handle(workflow_id)
         await handle.signal(ApprovalWorkflow.approve, approved)
@@ -48,6 +52,21 @@ class TemporalWorkflowRuntime:
             workflow_id=workflow_id,
             status="approval_signaled",
             payload={"approved": approved},
+        )
+
+    async def signal_approval_decision(
+        self,
+        workflow_id: str,
+        decision_payload: dict[str, Any],
+    ) -> WorkflowState:
+        """Send the governed approval payload understood by current workers."""
+        client = await self.client()
+        handle = client.get_workflow_handle(workflow_id)
+        await handle.signal(ApprovalWorkflow.approval_decided_v1, decision_payload)
+        return WorkflowState(
+            workflow_id=workflow_id,
+            status="approval_signaled",
+            payload=dict(decision_payload),
         )
 
     async def cancel_workflow(self, workflow_id: str, reason: str) -> WorkflowState:

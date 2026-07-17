@@ -27,19 +27,19 @@ pytestmark = [
 @workflow.defn
 class SignalTargetWorkflow:
     def __init__(self) -> None:
-        self._approved: bool | None = None
+        self._decision: dict | None = None
 
     @workflow.run
     async def run(self, payload: dict) -> dict:
-        await workflow.wait_condition(lambda: self._approved is not None)
+        await workflow.wait_condition(lambda: self._decision is not None)
         return {
-            "approved": self._approved,
+            "decision": self._decision,
             "payload": payload,
         }
 
-    @workflow.signal
-    async def approve(self, approved: bool) -> None:
-        self._approved = approved
+    @workflow.signal(name="approval_decided_v1")
+    async def approval_decided_v1(self, decision: dict) -> None:
+        self._decision = decision
 
 
 @workflow.defn
@@ -92,12 +92,19 @@ async def test_api_temporal_signal_runtime_signals_running_workflow() -> None:
     assert signal_result.status == "approval_signaled"
     assert signal_result.adapter == "axis-temporal-adapter"
     assert signal_result.payload == {
+        "schema_version": "axis.approval-decision.v1",
+        "decision_event_id": str(signal_result.payload["decision_event_id"]),
+        "tenant_id": "tenant_demo",
+        "workflow_id": workflow_id,
         "approval_id": "appr_integration_signal",
         "approved": True,
         "decision": "approve",
+        "actor_id": None,
+        "note": None,
+        "decided_at": None,
     }
     assert workflow_result == {
-        "approved": True,
+        "decision": signal_result.payload,
         "payload": {"tenant_id": "tenant_demo"},
     }
 

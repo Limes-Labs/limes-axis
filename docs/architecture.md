@@ -304,9 +304,10 @@ original persisted result without another audit,
 timeline update, action transition or workflow call; a different actor,
 decision or note receives a conflict and cannot overwrite the terminal state.
 PostgreSQL transaction advisory locks serialize first-use decisions across API
-replicas, including lazy approval projection creation. Durable outbox delivery
-remains required for crash-atomic workflow signalling: a synchronous external
-acknowledgement cannot be atomic with the database commit.
+replicas, including lazy approval projection creation. Deployments can close
+the crash-atomic workflow-signalling gap with the opt-in transactional outbox;
+the synchronous compatibility path remains the default until operators finish
+the documented worker-first rollout.
 Terminal rows created before replay receipts were introduced fail closed with
 `approval_replay_unavailable`; malformed receipts return the same stable
 conflict instead of leaking validation failures or repeating side effects.

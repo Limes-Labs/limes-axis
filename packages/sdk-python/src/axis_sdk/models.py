@@ -193,6 +193,7 @@ class ApprovalDecisionResult(AxisModel):
     action_run_status: str | None = None
     action_run_idempotency_key: str | None = None
     action_run_idempotent_replay: bool = False
+    decision_event_id: str | None = None
 
 
 # ---------------------------------------------------------------------------

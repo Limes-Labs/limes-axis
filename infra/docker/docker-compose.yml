@@ -104,6 +104,9 @@ services:
       AXIS_POSTGRES_DSN: postgresql+psycopg://axis:axis@postgres:5432/axis
       AXIS_TEMPORAL_ADDRESS: temporal:7233
       AXIS_TEMPORAL_NAMESPACE: default
+      # Approval-decision outbox dispatch is independently gated from scheduled
+      # maintenance. Keep it off unless API enqueue is being rolled out.
+      AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_ENABLED: "false"
       # Scheduled maintenance jobs are opt-in. The worker always reconciles the
       # Temporal Schedules on startup, but leaves them paused unless this is true.
       AXIS_SCHEDULED_JOBS_ENABLED: "false"

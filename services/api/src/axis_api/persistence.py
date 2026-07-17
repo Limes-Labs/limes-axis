@@ -14,6 +14,7 @@ from axis_api.models import (
     Actor,
     AgentRun,
     AgentRunStep,
+    ApprovalDecisionOutbox,
     ApprovalRecord,
     AuditEvent,
     AuditLegalHold,
@@ -84,6 +85,19 @@ class ApprovalDecisionRecord(BaseModel):
     decision: str = Field(min_length=1)
     decision_actor_id: str = Field(min_length=1)
     decision_note: str | None = None
+
+
+class ApprovalDecisionOutboxCreate(BaseModel):
+    id: UUID
+    tenant_id: str = Field(min_length=1)
+    approval_id: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
+    signal_name: str = Field(min_length=1)
+    schema_version: str = Field(min_length=1)
+    decision: str = Field(min_length=1)
+    decision_actor_id: str = Field(min_length=1)
+    payload: dict = Field(default_factory=dict)
+    available_at: datetime
 
 
 class ActionRunCreate(BaseModel):
@@ -1605,6 +1619,134 @@ class AxisPersistenceRepository:
         self.session.execute(
             select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0)))
         )
+
+    def create_approval_decision_outbox(
+        self, record: ApprovalDecisionOutboxCreate
+    ) -> ApprovalDecisionOutbox:
+        outbox = ApprovalDecisionOutbox(
+            id=record.id,
+            tenant_id=record.tenant_id,
+            approval_id=record.approval_id,
+            workflow_id=record.workflow_id,
+            signal_name=record.signal_name,
+            schema_version=record.schema_version,
+            decision=record.decision,
+            decision_actor_id=record.decision_actor_id,
+            payload=record.payload,
+            available_at=record.available_at,
+        )
+        self.session.add(outbox)
+        self.session.flush()
+        return outbox
+
+    def get_approval_decision_outbox(
+        self, tenant_id: str, approval_id: str
+    ) -> ApprovalDecisionOutbox | None:
+        return self.session.scalar(
+            select(ApprovalDecisionOutbox).where(
+                ApprovalDecisionOutbox.tenant_id == tenant_id,
+                ApprovalDecisionOutbox.approval_id == approval_id,
+            )
+        )
+
+    def claim_approval_decision_outbox(
+        self,
+        *,
+        now: datetime,
+        lease_expires_at: datetime,
+        limit: int,
+    ) -> list[ApprovalDecisionOutbox]:
+        statement = (
+            select(ApprovalDecisionOutbox)
+            .where(
+                or_(
+                    and_(
+                        ApprovalDecisionOutbox.status == "pending",
+                        ApprovalDecisionOutbox.available_at <= now,
+                    ),
+                    and_(
+                        ApprovalDecisionOutbox.status == "dispatching",
+                        ApprovalDecisionOutbox.lease_expires_at <= now,
+                    ),
+                )
+            )
+            .order_by(
+                ApprovalDecisionOutbox.available_at.asc(),
+                ApprovalDecisionOutbox.created_at.asc(),
+                ApprovalDecisionOutbox.id.asc(),
+            )
+            .limit(limit)
+        )
+        if self.session.get_bind().dialect.name == "postgresql":
+            statement = statement.with_for_update(skip_locked=True)
+        rows = list(self.session.scalars(statement))
+        for row in rows:
+            row.status = "dispatching"
+            row.attempt_count += 1
+            row.claim_token = uuid4()
+            row.claimed_at = now
+            row.lease_expires_at = lease_expires_at
+            row.last_attempt_at = now
+            row.updated_at = now
+        self.session.flush()
+        return rows
+
+    def complete_approval_decision_outbox(
+        self,
+        outbox_id: UUID,
+        claim_token: UUID,
+        *,
+        delivered_at: datetime,
+    ) -> bool:
+        result = self.session.execute(
+            update(ApprovalDecisionOutbox)
+            .where(
+                ApprovalDecisionOutbox.id == outbox_id,
+                ApprovalDecisionOutbox.claim_token == claim_token,
+                ApprovalDecisionOutbox.status == "dispatching",
+            )
+            .values(
+                status="delivered",
+                delivered_at=delivered_at,
+                dead_lettered_at=None,
+                claim_token=None,
+                claimed_at=None,
+                lease_expires_at=None,
+                last_error=None,
+                updated_at=delivered_at,
+            )
+        )
+        return result.rowcount == 1
+
+    def retry_approval_decision_outbox(
+        self,
+        outbox_id: UUID,
+        claim_token: UUID,
+        *,
+        available_at: datetime,
+        updated_at: datetime,
+        error: str,
+        dead_letter: bool,
+    ) -> bool:
+        result = self.session.execute(
+            update(ApprovalDecisionOutbox)
+            .where(
+                ApprovalDecisionOutbox.id == outbox_id,
+                ApprovalDecisionOutbox.claim_token == claim_token,
+                ApprovalDecisionOutbox.status == "dispatching",
+            )
+            .values(
+                status="dead_letter" if dead_letter else "pending",
+                dead_lettered_at=updated_at if dead_letter else None,
+                available_at=available_at,
+                claim_token=None,
+                claimed_at=None,
+                lease_expires_at=None,
+                last_error=error[:200],
+                updated_at=updated_at,
+            )
+        )
+        return result.rowcount == 1
 
     def get_approval_record(self, tenant_id: str, approval_id: str) -> ApprovalRecord | None:
         statement = select(ApprovalRecord).where(

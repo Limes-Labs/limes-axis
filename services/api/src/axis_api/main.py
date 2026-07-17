@@ -61,6 +61,10 @@ from axis_api.approval_decisions import (
     DemoApprovalNotFound,
     record_demo_approval_decision,
 )
+from axis_api.approval_outbox import (
+    ApprovalDecisionDeliveryStatus,
+    get_approval_decision_delivery_status,
+)
 from axis_api.approval_reference import (
     ApprovalReferenceRecordInvalid,
     ApprovalReferenceRecordNotFound,
@@ -7554,6 +7558,9 @@ def create_app(
                 workflow_history_persistence_enabled=(
                     resolved_settings.workflow_history_persistence_enabled
                 ),
+                workflow_signal_outbox_enabled=(
+                    resolved_settings.approval_decision_outbox_enabled
+                ),
             )
             if result.idempotent_replay:
                 response.status_code = status.HTTP_200_OK
@@ -7610,6 +7617,35 @@ def create_app(
                     "A platform policy denies approving this action.",
                 ),
             ) from exc
+
+    @app.get(
+        "/demo/manufacturing/approvals/{approval_id}/decision-delivery",
+        response_model=ApprovalDecisionDeliveryStatus,
+        responses={404: {"description": "Approval decision delivery record not found"}},
+        tags=["demo"],
+    )
+    def manufacturing_approval_decision_delivery(
+        approval_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ApprovalDecisionDeliveryStatus:
+        _authorize_tenant_read(tenant_id, principal)
+        delivery = get_approval_decision_delivery_status(
+            repository,
+            tenant_id=tenant_id,
+            approval_id=approval_id,
+        )
+        if delivery is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "Approval decision delivery record not found.",
+                    "approval_id": approval_id,
+                },
+            )
+        return delivery
 
     @app.get(
         "/demo/manufacturing/audit",

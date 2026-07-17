@@ -346,6 +346,78 @@ class ApprovalRecord(Base):
     )
 
 
+class ApprovalDecisionOutbox(Base):
+    __tablename__ = "approval_decision_outbox"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    approval_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    workflow_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    signal_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    decision: Mapped[str] = mapped_column(String(40), nullable=False)
+    decision_actor_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="pending", server_default="pending", index=True
+    )
+    attempt_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    claim_token: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, index=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dead_lettered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "approval_id", name="uq_approval_decision_outbox_tenant_approval"
+        ),
+        Index("ix_approval_decision_outbox_dispatch", "status", "available_at", "id"),
+        Index(
+            "ix_approval_decision_outbox_stale_claim",
+            "status",
+            "lease_expires_at",
+            "id",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'dispatching', 'delivered', 'dead_letter')",
+            name="ck_approval_decision_outbox_status",
+        ),
+        CheckConstraint("attempt_count >= 0", name="ck_approval_decision_outbox_attempt_count"),
+        CheckConstraint(
+            "(status = 'dispatching' AND claim_token IS NOT NULL AND claimed_at IS NOT NULL "
+            "AND lease_expires_at IS NOT NULL) OR (status <> 'dispatching' "
+            "AND claim_token IS NULL AND claimed_at IS NULL AND lease_expires_at IS NULL)",
+            name="ck_approval_decision_outbox_claim_state",
+        ),
+        CheckConstraint(
+            "(status = 'delivered' AND delivered_at IS NOT NULL AND dead_lettered_at IS NULL) "
+            "OR (status <> 'delivered' AND delivered_at IS NULL)",
+            name="ck_approval_decision_outbox_delivered_state",
+        ),
+        CheckConstraint(
+            "(status = 'dead_letter' AND dead_lettered_at IS NOT NULL AND delivered_at IS NULL) "
+            "OR (status <> 'dead_letter' AND dead_lettered_at IS NULL)",
+            name="ck_approval_decision_outbox_dead_letter_state",
+        ),
+    )
+
+
 class ActionRun(Base):
     __tablename__ = "action_runs"
 

@@ -45,10 +45,13 @@ or audit event is written. If the required `approvals:*:decide` scope is
 missing, the endpoint returns 403 and does not write the approval record or
 audit event. When allowed, it creates or reuses the matching tenant-scoped
 `approval_records` row, records the decision and appends an
-`approval.decision.recorded` audit event. It also signals the Axis workflow
-runtime adapter. When Temporal is unavailable or the workflow is not running,
-the decision still persists and the response returns an explicit degraded
-workflow signal status. If a matching tenant-scoped `workflow_runs` row exists,
+`approval.decision.recorded` audit event. By default it also signals the Axis
+workflow runtime adapter. When Temporal is unavailable or the workflow is not
+running, the decision still persists and the response returns an explicit
+degraded workflow signal status. Production deployments can instead enable the
+[transactional approval-decision outbox](approval-decision-outbox.md), which
+commits delivery intent with the decision and dispatches it asynchronously. If
+a matching tenant-scoped `workflow_runs` row exists,
 the decision also updates persisted workflow state, marks the linked pending
 signal with the decision result and appends
 `workflow.approval_decision.recorded` to the workflow timeline.

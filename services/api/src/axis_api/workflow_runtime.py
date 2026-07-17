@@ -1,15 +1,20 @@
+import asyncio
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid5
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from temporalio.client import Client
 from temporalio.exceptions import TemporalError
-from temporalio.service import RPCError
+from temporalio.service import RPCError, RPCStatusCode
 
 from axis_api.demo import ApprovalDecision
 from axis_api.telemetry import inject_trace_context
+
+_APPROVAL_DECISION_EVENT_NAMESPACE = UUID("1b8091cc-fc94-5e86-bc86-f51629b07e0a")
+APPROVAL_DECISION_SCHEMA_VERSION = "axis.approval-decision.v1"
+APPROVAL_DECISION_SIGNAL_NAME = "approval_decided_v1"
 
 
 class WorkflowSignalRequest(BaseModel):
@@ -17,11 +22,41 @@ class WorkflowSignalRequest(BaseModel):
     workflow_id: str = Field(min_length=1)
     approval_id: str = Field(min_length=1)
     decision: ApprovalDecision
-    signal_name: str = Field(default="approve", min_length=1)
+    decision_event_id: UUID | None = None
+    actor_id: str | None = Field(default=None, min_length=1)
+    note: str | None = Field(default=None, max_length=600)
+    decided_at: datetime | None = None
+    signal_name: str = Field(default=APPROVAL_DECISION_SIGNAL_NAME, min_length=1)
+
+    @model_validator(mode="after")
+    def populate_stable_decision_event_id(self) -> "WorkflowSignalRequest":
+        if self.decision_event_id is None:
+            event_key = "\x1f".join((self.tenant_id, self.workflow_id, self.approval_id))
+            self.decision_event_id = uuid5(_APPROVAL_DECISION_EVENT_NAMESPACE, event_key)
+        return self
 
     @property
     def approved(self) -> bool:
         return self.decision == ApprovalDecision.APPROVE
+
+    @property
+    def runtime_payload(self) -> dict:
+        return {
+            "schema_version": APPROVAL_DECISION_SCHEMA_VERSION,
+            "decision_event_id": str(self.decision_event_id),
+            "tenant_id": self.tenant_id,
+            "workflow_id": self.workflow_id,
+            "approval_id": self.approval_id,
+            "decision": self.decision.value,
+            "approved": self.approved,
+            "actor_id": self.actor_id,
+            "note": self.note,
+            "decided_at": self.decided_at.isoformat() if self.decided_at is not None else None,
+        }
+
+    @property
+    def audit_payload(self) -> dict:
+        return dict(self.runtime_payload)
 
 
 class WorkflowSignalResult(BaseModel):
@@ -186,7 +221,10 @@ class WorkflowSignalRuntime(Protocol):
 
 
 class WorkflowSignalError(RuntimeError):
-    pass
+    def __init__(self, reason: str, *, may_be_closed: bool = False) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.may_be_closed = may_be_closed
 
 
 def _with_trace_context(payload: dict) -> dict:
@@ -233,10 +271,16 @@ class TemporalWorkflowSignalRuntime:
             handle = client.get_workflow_handle(request.workflow_id)
             await handle.signal(
                 request.signal_name,
-                request.approved,
+                request.runtime_payload,
                 rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
-        except (OSError, RuntimeError, TemporalError, RPCError) as exc:
+        except RPCError as exc:
+            raise WorkflowSignalError(
+                exc.__class__.__name__,
+                may_be_closed=exc.status
+                in {RPCStatusCode.NOT_FOUND, RPCStatusCode.FAILED_PRECONDITION},
+            ) from exc
+        except (OSError, RuntimeError, TemporalError) as exc:
             raise WorkflowSignalError(exc.__class__.__name__) from exc
 
         return WorkflowSignalResult(
@@ -244,12 +288,27 @@ class TemporalWorkflowSignalRuntime:
             status="approval_signaled",
             adapter=self.adapter_name,
             signal_name=request.signal_name,
-            payload={
-                "approval_id": request.approval_id,
-                "approved": request.approved,
-                "decision": request.decision.value,
-            },
+            payload=request.audit_payload,
         )
+
+    async def get_approval_decision_result(self, workflow_id: str) -> dict | None:
+        """Return a completed workflow result for crash-window reconciliation.
+
+        A short local timeout prevents a racing, still-open execution from
+        turning the dispatcher into an unbounded long poll.
+        """
+        try:
+            client = await self.client()
+            handle = client.get_workflow_handle(workflow_id)
+            async with asyncio.timeout(self.config.signal_timeout_seconds):
+                result = await handle.result(
+                    rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds)
+                )
+        except TimeoutError:
+            return None
+        except (OSError, RuntimeError, TemporalError, RPCError) as exc:
+            raise WorkflowSignalError(exc.__class__.__name__) from exc
+        return result if isinstance(result, dict) else None
 
     async def signal_action_run(
         self,
@@ -333,11 +392,7 @@ class DeferredWorkflowSignalRuntime:
             status="runtime_signal_deferred",
             adapter=self.adapter_name,
             signal_name=request.signal_name,
-            payload={
-                "approval_id": request.approval_id,
-                "approved": request.approved,
-                "decision": request.decision.value,
-            },
+            payload=request.audit_payload,
         )
 
     async def signal_action_run(
@@ -387,12 +442,7 @@ def workflow_signal_failure_result(
         status="runtime_signal_unavailable",
         adapter=adapter,
         signal_name=request.signal_name,
-        payload={
-            "approval_id": request.approval_id,
-            "approved": request.approved,
-            "decision": request.decision.value,
-            "reason": reason,
-        },
+        payload={**request.audit_payload, "reason": reason},
     )
 
 

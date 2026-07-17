@@ -204,6 +204,11 @@ reconciles the Temporal Schedules for periodic maintenance (see
   flag live under `worker.scheduledJobs` in `values.yaml`. A single replica is
   used so schedule reconciliation is not duplicated; the schedule overlap policy
   guards against overlapping runs regardless of replica count.
+- **Approval delivery**: the transactional approval-decision outbox has
+  separate API enqueue and worker dispatch gates. Both are off by default. Use
+  the worker-first rollout and drain-first rollback in
+  [Approval Decision Outbox](approval-decision-outbox.md); it does not depend on
+  the scheduled-maintenance master switch.
 - **Docker Compose**: the `worker` service is built from
   `services/worker/Dockerfile` and depends on `postgres` (healthy) and
   `temporal`.
@@ -214,6 +219,12 @@ Scheduled maintenance jobs are opt-in (`AXIS_SCHEDULED_JOBS_ENABLED=false` by
 default): the worker always reconciles the schedules and forces them paused while
 the flag is disabled. Enabling the flag does not reactivate schedules that an
 operator has explicitly paused.
+
+Approval-decision dispatch is configured independently through
+`worker.approvalDecisionOutbox` in Helm. Keep
+`api.env.AXIS_APPROVAL_DECISION_OUTBOX_ENABLED=false` until the compatible
+worker is deployed and `worker.approvalDecisionOutbox.dispatchEnabled=true` is
+healthy.
 
 ## Ingress And TLS
 

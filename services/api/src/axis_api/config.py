@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -219,6 +219,51 @@ class Settings(BaseSettings):
         default=True,
         alias="AXIS_WORKFLOW_SIGNALS_ENABLED",
     )
+    approval_decision_outbox_enabled: bool = Field(
+        default=False,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_ENABLED",
+    )
+    approval_decision_outbox_dispatch_enabled: bool = Field(
+        default=False,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_ENABLED",
+    )
+    approval_decision_outbox_dispatch_interval_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=3600,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_INTERVAL_SECONDS",
+    )
+    approval_decision_outbox_batch_size: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_BATCH_SIZE",
+    )
+    approval_decision_outbox_claim_timeout_seconds: int = Field(
+        default=60,
+        ge=5,
+        le=3600,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_CLAIM_TIMEOUT_SECONDS",
+    )
+    approval_decision_outbox_max_attempts: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_MAX_ATTEMPTS",
+    )
+    approval_decision_outbox_retry_base_seconds: int = Field(
+        default=1,
+        ge=1,
+        le=3600,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_RETRY_BASE_SECONDS",
+    )
+    approval_decision_outbox_retry_max_seconds: int = Field(
+        default=300,
+        ge=1,
+        le=86_400,
+        alias="AXIS_APPROVAL_DECISION_OUTBOX_RETRY_MAX_SECONDS",
+    )
+
     workflow_history_persistence_enabled: bool = Field(
         default=False,
         alias="AXIS_WORKFLOW_HISTORY_PERSISTENCE_ENABLED",
@@ -635,6 +680,27 @@ class Settings(BaseSettings):
         default=False,
         alias="AXIS_SUPPORT_LEGAL_SLA_TERMS_CONFIGURED",
     )
+
+    @model_validator(mode="after")
+    def validate_approval_decision_outbox_retry_window(self) -> "Settings":
+        if (
+            self.approval_decision_outbox_retry_max_seconds
+            < self.approval_decision_outbox_retry_base_seconds
+        ):
+            raise ValueError(
+                "AXIS_APPROVAL_DECISION_OUTBOX_RETRY_MAX_SECONDS must be greater "
+                "than or equal to AXIS_APPROVAL_DECISION_OUTBOX_RETRY_BASE_SECONDS."
+            )
+        if (
+            self.approval_decision_outbox_dispatch_enabled
+            and self.approval_decision_outbox_claim_timeout_seconds
+            <= self.temporal_signal_timeout_seconds
+        ):
+            raise ValueError(
+                "AXIS_APPROVAL_DECISION_OUTBOX_CLAIM_TIMEOUT_SECONDS must be greater "
+                "than AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS."
+            )
+        return self
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 

@@ -6,7 +6,8 @@ This is the process that ``make`` / docker-compose runs. On startup it:
 2. connects to Temporal;
 3. idempotently creates/updates the maintenance Schedules (paused unless
    ``AXIS_SCHEDULED_JOBS_ENABLED`` is true);
-4. runs a Temporal :class:`~temporalio.worker.Worker` on the ``axis-foundation``
+4. optionally starts the process-local approval-decision outbox dispatcher;
+5. runs a Temporal :class:`~temporalio.worker.Worker` on the ``axis-foundation``
    task queue hosting the approval workflow plus the scheduled maintenance
    workflows and their DB-owning activities.
 
@@ -18,12 +19,24 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
+from typing import Protocol
 
+from axis_api.approval_outbox import ApprovalDecisionOutboxDispatcher
 from axis_api.config import Settings
+from axis_api.db import create_session_factory
 from axis_api.telemetry import shutdown_providers
+from axis_api.workflow_runtime import (
+    TemporalWorkflowSignalConfig,
+    TemporalWorkflowSignalRuntime,
+)
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from axis_worker.approval_outbox_loop import (
+    ApprovalDecisionDispatcher,
+    run_approval_decision_outbox_loop,
+)
 from axis_worker.connector_live_sync_activities import ConnectorLiveSyncActivities
 from axis_worker.maintenance_activities import MaintenanceActivities
 from axis_worker.schedules import register_maintenance_schedules
@@ -50,11 +63,77 @@ WORKFLOWS = [
 ]
 
 
+class RunnableWorker(Protocol):
+    async def run(self) -> None: ...
+
+
 def adapter_config_from_settings(settings: Settings) -> TemporalAdapterConfig:
     return TemporalAdapterConfig(
         address=settings.temporal_address,
         namespace=settings.temporal_namespace,
     )
+
+
+def build_approval_decision_outbox_dispatcher(
+    settings: Settings,
+) -> ApprovalDecisionOutboxDispatcher:
+    """Build the DB and Temporal dependencies owned by the delivery loop."""
+
+    workflow_runtime = TemporalWorkflowSignalRuntime(
+        TemporalWorkflowSignalConfig(
+            address=settings.temporal_address,
+            namespace=settings.temporal_namespace,
+            signal_timeout_seconds=settings.temporal_signal_timeout_seconds,
+        )
+    )
+    return ApprovalDecisionOutboxDispatcher(
+        settings=settings,
+        session_factory=create_session_factory(settings),
+        workflow_runtime=workflow_runtime,
+    )
+
+
+def optional_approval_decision_outbox_dispatcher(
+    settings: Settings,
+) -> ApprovalDecisionOutboxDispatcher | None:
+    """Return a dispatcher only when the dedicated worker switch is enabled."""
+
+    if not settings.approval_decision_outbox_dispatch_enabled:
+        return None
+    return build_approval_decision_outbox_dispatcher(settings)
+
+
+async def run_worker_with_optional_outbox(
+    worker: RunnableWorker,
+    *,
+    dispatcher: ApprovalDecisionDispatcher | None,
+    dispatch_interval_seconds: float,
+) -> None:
+    """Run Temporal polling while supervising the optional sibling loop.
+
+    The outbox loop catches and retries operational exceptions internally.  The
+    Temporal worker remains the lifetime owner: when it returns, fails, or is
+    cancelled, the sibling loop is cancelled and awaited before control leaves
+    this function.
+    """
+
+    if dispatcher is None:
+        await worker.run()
+        return
+
+    dispatch_task = asyncio.create_task(
+        run_approval_decision_outbox_loop(
+            dispatcher,
+            interval_seconds=dispatch_interval_seconds,
+        ),
+        name="approval-decision-outbox-dispatcher",
+    )
+    try:
+        await worker.run()
+    finally:
+        dispatch_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await dispatch_task
 
 
 async def run_worker(settings: Settings | None = None) -> None:
@@ -89,9 +168,21 @@ async def run_worker(settings: Settings | None = None) -> None:
             live_sync_activities.release_scheduled_live_sync_claim,
         ],
     )
+    dispatcher = optional_approval_decision_outbox_dispatcher(settings)
+    if dispatcher is not None:
+        logger.info(
+            "approval-decision outbox dispatcher enabled interval_seconds=%s",
+            settings.approval_decision_outbox_dispatch_interval_seconds,
+        )
+    else:
+        logger.info("approval-decision outbox dispatcher disabled")
     logger.info("axis-worker started task_queue=%s", config.task_queue)
     try:
-        await worker.run()
+        await run_worker_with_optional_outbox(
+            worker,
+            dispatcher=dispatcher,
+            dispatch_interval_seconds=settings.approval_decision_outbox_dispatch_interval_seconds,
+        )
     finally:
         if telemetry.enabled:
             shutdown_providers(telemetry.tracer_provider, telemetry.meter_provider)

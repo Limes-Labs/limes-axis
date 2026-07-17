@@ -170,6 +170,7 @@ expiring vulnerability exceptions.
 - [Architecture](./docs/architecture.md)
 - [Demo readiness](./docs/demo-readiness.md)
 - [Deployment](./docs/deployment.md)
+- [Approval delivery outbox](./docs/approval-decision-outbox.md)
 - [Security review checklist](./docs/security-review-checklist.md)
 - [Threat model](./docs/threat-model.md)
 - [Platform overview](./docs/platform-overview.md)
