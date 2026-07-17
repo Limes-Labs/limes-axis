@@ -227,7 +227,15 @@ export function PlatformOverview() {
         snapshot={snapshotQuery}
       />
 
-      <NeedsAttention overview={overviewQuery} tenantId={tenantId} />
+      <NeedsAttention
+        actor={
+          identityQuery.data?.actor_id
+            ? { actorId: identityQuery.data.actor_id, scopes: identityQuery.data.scopes }
+            : undefined
+        }
+        overview={overviewQuery}
+        tenantId={tenantId}
+      />
 
       <PostureCards
         overview={overviewQuery}

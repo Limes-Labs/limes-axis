@@ -135,13 +135,30 @@ function mockQuery(result: {
   data: ManufacturingApprovalInbox | null;
   source: "loading" | "api" | "unavailable";
 }) {
-  mocks.useAxisQuery.mockReturnValue({
-    data: result.data,
-    source: result.source,
-    error: result.source === "unavailable" ? "Axis API request failed." : null,
-    isRefreshing: false,
-    isLoading: result.source === "loading",
-    isUnavailable: result.source === "unavailable",
+  mocks.useAxisQuery.mockImplementation((path: string) => {
+    if (path === "/identity/session") {
+      return {
+        data: {
+          authenticated: true,
+          actor_id: "acme-operator",
+          tenant_id: "tenant_fixture",
+          scopes: ["approvals:supply:decide", "tenant:read"],
+        },
+        source: "api",
+        error: null,
+        isRefreshing: false,
+        isLoading: false,
+        isUnavailable: false,
+      };
+    }
+    return {
+      data: result.data,
+      source: result.source,
+      error: result.source === "unavailable" ? "Axis API request failed." : null,
+      isRefreshing: false,
+      isLoading: result.source === "loading",
+      isUnavailable: result.source === "unavailable",
+    };
   });
 }
 
@@ -199,6 +216,10 @@ describe("ApprovalInbox decision flow", () => {
   it("shows consequence text for every option without hover", () => {
     renderInbox();
 
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      "/demo/manufacturing/approvals?tenant_id=tenant_fixture",
+      expect.objectContaining({ expectedTenantId: "tenant_fixture" }),
+    );
     expect(
       screen.getByText("The expedite order is dispatched to the supplier."),
     ).toBeVisible();
@@ -252,14 +273,14 @@ describe("ApprovalInbox decision flow", () => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals/appr_supply_fixture/decision",
+      "/demo/manufacturing/approvals/appr_supply_fixture/decision?tenant_id=tenant_fixture",
       expect.any(Function),
       expect.objectContaining({
         method: "POST",
         body: {
           decision: "approve",
-          actor_id: "plant-operations-owner-role",
-          actor_scopes: ["approvals:supply:decide"],
+          actor_id: "acme-operator",
+          actor_scopes: ["approvals:supply:decide", "tenant:read"],
           note: "Console decision recorded for appr_supply_fixture.",
         },
       }),

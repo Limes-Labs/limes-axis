@@ -171,6 +171,38 @@ describe("action registry helpers", () => {
     });
   });
 
+  it("uses the verified actor and registry tenant for authenticated action runs", () => {
+    const supplyAction = findActionById(actionRegistryFixture, "expedite_fixture_batch");
+    const tenantAwareAction = {
+      ...supplyAction,
+      definition: {
+        ...supplyAction.definition,
+        input_schema: {
+          ...supplyAction.definition.input_schema,
+          properties: {
+            ...supplyAction.definition.input_schema.properties,
+            tenant_id: { type: "string" },
+          },
+        },
+      },
+      sample_input: {
+        ...supplyAction.sample_input,
+        tenant_id: "tenant_demo_manufacturing",
+      },
+    };
+
+    expect(
+      buildActionRunRequest(actionRegistryFixture, tenantAwareAction, {
+        actorId: "acme-operator",
+        scopes: ["approvals:supply:request", "tenant:read"],
+      }),
+    ).toMatchObject({
+      actor_id: "acme-operator",
+      actor_scopes: ["approvals:supply:request", "tenant:read"],
+      payload: { tenant_id: "tenant_fixture" },
+    });
+  });
+
   it("keeps action run idempotency keys stable for approval-gated actions", () => {
     const supplyAction = findActionById(actionRegistryFixture, "expedite_fixture_batch");
 

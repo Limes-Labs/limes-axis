@@ -123,13 +123,14 @@ export function buildApprovalDecisionPayload(
   approval: ApprovalInboxItem,
   decision: ApprovalDecision,
   note?: string,
+  actor?: { actorId: string; scopes: string[] },
 ): ApprovalDecisionRequestPayload {
   const trimmedNote = note?.trim();
 
   return {
     decision,
-    actor_id: approvalDecisionActorId(approval),
-    actor_scopes: approvalDecisionActorScopes(approval),
+    actor_id: actor?.actorId ?? approvalDecisionActorId(approval),
+    actor_scopes: actor?.scopes ?? approvalDecisionActorScopes(approval),
     // The API caps notes at 600 characters; the console textarea enforces it.
     note: trimmedNote || `Console decision recorded for ${approval.approval_id}.`,
   };

@@ -76,7 +76,15 @@ function rowLinkClass(): string {
   );
 }
 
-function ApprovalAttentionRow({ approval }: { approval: ApprovalInboxItem }) {
+function ApprovalAttentionRow({
+  approval,
+  actor,
+  tenantId,
+}: {
+  approval: ApprovalInboxItem;
+  actor?: { actorId: string; scopes: string[] };
+  tenantId: string;
+}) {
   const [open, setOpen] = useState(false);
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
   const decision = decisions[approval.approval_id];
@@ -116,11 +124,13 @@ function ApprovalAttentionRow({ approval }: { approval: ApprovalInboxItem }) {
             </SheetDescription>
           </div>
           <ApprovalDecisionCard
+            actor={actor}
             approval={approval}
             decision={decision}
             error={errors[approval.approval_id]}
             onDecisionChange={setDecision}
             onErrorChange={setError}
+            tenantId={tenantId}
           />
           <Link
             className="inline-flex w-fit items-center text-sm font-medium text-signal hover:underline"
@@ -144,9 +154,11 @@ function SourceUnavailableNote({ message }: { message: string }) {
 }
 
 export function NeedsAttention({
+  actor,
   overview,
   tenantId = DEMO_TENANT_ID,
 }: {
+  actor?: { actorId: string; scopes: string[] };
   overview: OverviewQuery<ManufacturingOverview>;
   tenantId?: string;
 }) {
@@ -190,7 +202,12 @@ export function NeedsAttention({
       {overviewFailed ? <SourceUnavailableNote message={copy.overviewUnavailable} /> : null}
       <Card className="grid gap-2 p-4">
         {approvals.map((approval) => (
-          <ApprovalAttentionRow approval={approval} key={approval.approval_id} />
+          <ApprovalAttentionRow
+            approval={approval}
+            actor={actor}
+            key={approval.approval_id}
+            tenantId={tenantId}
+          />
         ))}
         {blockedWorkflows.map((workflow) => (
           <AttentionRow

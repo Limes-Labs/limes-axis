@@ -336,6 +336,7 @@ def parse_agent_action_proposal(output_text: str) -> AgentActionProposalDraft:
 
 def build_agent_proposal_prompt(
     agent: AgentRegistryEntry,
+    tenant_id: str,
     context_evidence: dict[str, dict],
     allowed_actions: list[ActionRegistryEntry],
 ) -> str:
@@ -348,6 +349,7 @@ def build_agent_proposal_prompt(
     lines = [
         f"You are {agent.name} ({agent.agent_id}), a governed "
         f"{agent.policy_boundary.autonomy_level} agent in the Limes Axis control plane.",
+        f"Verified tenant context: {tenant_id}",
         f"Charter: {agent.purpose}",
         "Guardrails:",
     ]
@@ -371,7 +373,8 @@ def build_agent_proposal_prompt(
         "Respond with ONLY a JSON object (no prose, no code fence) matching: "
         '{"action_id": string, "summary": string, "payload": object, '
         '"evidence_refs": [string, ...]}. The payload must satisfy the action '
-        "input schema and evidence_refs must cite the context references above."
+        "input schema and evidence_refs must cite the context references above. "
+        f"If the payload schema includes tenant_id, set it exactly to {tenant_id}."
     )
     return "\n".join(lines)
 
@@ -877,8 +880,13 @@ async def _execute_agent_run(
     )
 
     # Step 2: the model call, always through the governed router.
-    allowed_actions = _allowed_registry_actions(repository, agent)
-    prompt = build_agent_proposal_prompt(agent, context_evidence, allowed_actions)
+    allowed_actions = _allowed_registry_actions(repository, request.tenant_id, agent)
+    prompt = build_agent_proposal_prompt(
+        agent,
+        request.tenant_id,
+        context_evidence,
+        allowed_actions,
+    )
     if max_model_calls < 1:
         execution.append_step(
             STEP_TYPE_MODEL_INVOCATION,
@@ -1038,7 +1046,7 @@ async def _execute_agent_run(
             error_reason=exc.reason,
         )
 
-    action = _registry_action(repository, agent, draft.action_id)
+    action = _registry_action(repository, request.tenant_id, agent, draft.action_id)
     if isinstance(action, str):
         execution.append_step(
             STEP_TYPE_PROPOSAL,
@@ -1132,10 +1140,11 @@ async def _execute_agent_run(
 
 def _allowed_registry_actions(
     repository: AxisPersistenceRepository,
+    tenant_id: str,
     agent: AgentRegistryEntry,
 ) -> list[ActionRegistryEntry]:
     try:
-        registry = get_persisted_manufacturing_action_registry(repository)
+        registry = get_persisted_manufacturing_action_registry(repository, tenant_id=tenant_id)
     except (ActionReferenceRecordNotFound, ActionReferenceRecordInvalid):
         return []
     return [
@@ -1147,12 +1156,13 @@ def _allowed_registry_actions(
 
 def _registry_action(
     repository: AxisPersistenceRepository,
+    tenant_id: str,
     agent: AgentRegistryEntry,
     action_id: str,
 ) -> ActionRegistryEntry | str:
     """Resolve the proposed action or return a fail-closed block reason."""
     try:
-        registry = get_persisted_manufacturing_action_registry(repository)
+        registry = get_persisted_manufacturing_action_registry(repository, tenant_id=tenant_id)
     except (ActionReferenceRecordNotFound, ActionReferenceRecordInvalid):
         return "action_registry_unavailable"
     action = next(
@@ -1182,6 +1192,7 @@ async def _submit_action_run(
                 payload=draft.payload,
             ),
             workflow_runtime,
+            tenant_id=request.tenant_id,
         )
     except ActionPayloadValidationError as exc:
         execution.append_step(

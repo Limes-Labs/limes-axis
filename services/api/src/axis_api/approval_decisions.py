@@ -2,6 +2,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from axis_api.action_reference import (
+    ActionReferenceRecordInvalid,
+    ActionReferenceRecordNotFound,
+    get_persisted_manufacturing_action_registry,
+)
 from axis_api.action_runs import payload_requested_amount, registry_action_entry
 from axis_api.approval_reference import get_persisted_manufacturing_approval_inbox
 from axis_api.audit import AuditEventCreate
@@ -91,8 +96,28 @@ _APPROVAL_ACTION_IDS = {
 }
 
 
-def _approval_action_id(approval_id: str) -> str:
-    return _APPROVAL_ACTION_IDS.get(approval_id, approval_id)
+def _approval_action_id(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    approval_id: str,
+) -> str:
+    try:
+        registry = get_persisted_manufacturing_action_registry(repository, tenant_id=tenant_id)
+    except (ActionReferenceRecordNotFound, ActionReferenceRecordInvalid) as exc:
+        if tenant_id == "tenant_demo_manufacturing":
+            return _APPROVAL_ACTION_IDS.get(approval_id, approval_id)
+        raise DemoApprovalNotFound("Approval action registry not found") from exc
+
+    matches = [
+        action.definition.action_id
+        for action in registry.actions
+        if approval_id in action.approval_refs
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if tenant_id == "tenant_demo_manufacturing":
+        return _APPROVAL_ACTION_IDS.get(approval_id, approval_id)
+    raise DemoApprovalNotFound("Approval action binding is missing or ambiguous")
 
 
 def _approval_action_status(decision: ApprovalDecision) -> str:
@@ -235,7 +260,7 @@ def _approval_platform_policy_context(
     approval: ApprovalInboxItem,
     action_id: str,
 ) -> PlatformPolicyEvaluationContext:
-    action = registry_action_entry(repository, action_id)
+    action = registry_action_entry(repository, action_id, tenant_id)
     linked_runs = repository.list_action_runs_for_approval(
         tenant_id,
         action_id,
@@ -288,11 +313,12 @@ def _enforce_approval_platform_policies(
     )
 
 
-def _find_demo_approval(
+def _find_approval(
     repository: AxisPersistenceRepository,
     approval_id: str,
+    tenant_id: str,
 ) -> tuple[str, ApprovalInboxItem]:
-    inbox = get_persisted_manufacturing_approval_inbox(repository)
+    inbox = get_persisted_manufacturing_approval_inbox(repository, tenant_id=tenant_id)
     for approval in inbox.approvals:
         if approval.approval_id == approval_id:
             return inbox.tenant_id, approval
@@ -304,6 +330,7 @@ def _ensure_approval_record(
     repository: AxisPersistenceRepository,
     tenant_id: str,
     approval: ApprovalInboxItem,
+    action_id: str,
 ) -> None:
     existing = repository.get_approval_record(tenant_id, approval.approval_id)
     if existing is not None:
@@ -314,7 +341,7 @@ def _ensure_approval_record(
             tenant_id=tenant_id,
             approval_id=approval.approval_id,
             workflow_id=approval.workflow_id,
-            action_id=_approval_action_id(approval.approval_id),
+            action_id=action_id,
             requested_by=approval.requested_by,
             owner_role=approval.owner_role,
             risk_level=approval.risk_level,
@@ -380,10 +407,11 @@ async def record_demo_approval_decision(
     request: ApprovalDecisionRequest,
     workflow_runtime: WorkflowSignalRuntime | None = None,
     *,
+    tenant_id: str = "tenant_demo_manufacturing",
     workflow_history_persistence_enabled: bool = False,
 ) -> ApprovalDecisionPersistenceResult:
-    tenant_id, approval = _find_demo_approval(repository, approval_id)
-    action_id = _approval_action_id(approval.approval_id)
+    tenant_id, approval = _find_approval(repository, approval_id, tenant_id)
+    action_id = _approval_action_id(repository, tenant_id, approval.approval_id)
     permission_decision = _evaluate_approval_decision_permission(tenant_id, approval, request)
     platform_policy_decision = _enforce_approval_platform_policies(
         repository,
@@ -393,7 +421,7 @@ async def record_demo_approval_decision(
         request,
     )
     runtime = workflow_runtime or DeferredWorkflowSignalRuntime()
-    _ensure_approval_record(repository, tenant_id, approval)
+    _ensure_approval_record(repository, tenant_id, approval, action_id)
 
     approval_record = repository.record_approval_decision(
         ApprovalDecisionRecord(

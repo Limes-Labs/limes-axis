@@ -292,7 +292,13 @@ first implementation evaluates explicit roles, action attributes and resource
 relationships before action execution or approval. The current Platform
 mutation endpoints bind approval decisions and action run requests to
 OIDC-derived actors and scopes when authenticated, then apply the existing
-permission checks before persistence. Entity detail reads and typed action
+permission checks before persistence. Governed action-run creation, action-run
+outcomes and approval decisions accept an explicit tenant scope. A verified
+principal must match it; unauthenticated writes are limited to the canonical
+local demo tenant. Registry lookup, policy evaluation, persistence, workflow
+signals and audit evidence all use that same tenant, while an action payload
+that tries to override the tenant fails validation before side effects. Entity
+detail reads and typed action
 payloads can also derive required scopes from the persisted ontology reference
 relationships attached to referenced resources, so cross-domain graph context
 cannot be read or proposed through an action without the matching relationship

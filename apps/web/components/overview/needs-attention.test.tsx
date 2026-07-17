@@ -45,10 +45,14 @@ function mockApprovalsQuery(result: QueryResult) {
 function renderStrip(overview: {
   data: ManufacturingOverview | null;
   source: "loading" | "api" | "unavailable";
-}) {
+}, tenantId?: string) {
   return render(
     <ToastProvider>
-      <NeedsAttention overview={overview} />
+      <NeedsAttention
+        actor={{ actorId: "acme-operator", scopes: ["approvals:supply:decide"] }}
+        overview={overview}
+        tenantId={tenantId}
+      />
     </ToastProvider>,
   );
 }
@@ -173,7 +177,7 @@ describe("NeedsAttention inline decision flow", () => {
       },
       workflow_signal_status: "signaled",
     });
-    renderStrip({ data: overviewFixture, source: "api" });
+    renderStrip({ data: overviewFixture, source: "api" }, "tenant_fixture");
 
     // Open the decision sheet for the first approval.
     await user.click(screen.getAllByRole("button", { name: "Review & decide" })[0]);
@@ -191,9 +195,15 @@ describe("NeedsAttention inline decision flow", () => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals/appr_fixture_expedite/decision",
+      "/demo/manufacturing/approvals/appr_fixture_expedite/decision?tenant_id=tenant_fixture",
       expect.any(Function),
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          actor_id: "acme-operator",
+          actor_scopes: ["approvals:supply:decide"],
+        }),
+      }),
     );
   });
 });

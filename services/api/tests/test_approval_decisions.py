@@ -162,18 +162,41 @@ def persisted_approval_inbox_payload() -> dict:
 def seed_approval_inbox_reference(
     factory: sessionmaker[Session],
     payload: dict | None = None,
+    tenant_id: str = "tenant_demo_manufacturing",
 ) -> None:
     inbox_payload = deepcopy(payload or approval_inbox_bootstrap_payload())
+    inbox_payload["tenant_id"] = tenant_id
     with session_scope(factory) as session:
         AxisPersistenceRepository(session).upsert_demo_reference_record(
             DemoReferenceRecordCreate(
-                tenant_id="tenant_demo_manufacturing",
+                tenant_id=tenant_id,
                 surface="approvals",
                 reference_id="manufacturing-approval-inbox",
                 status="active",
                 source="bootstrap",
                 version="2026-06-22",
                 payload=inbox_payload,
+            )
+        )
+
+
+def seed_action_registry_reference(
+    factory: sessionmaker[Session],
+    tenant_id: str,
+) -> None:
+    migration = run_path(str(MIGRATIONS_DIR / "0025_action_registry_reference.py"))
+    payload = deepcopy(migration["ACTION_REGISTRY_PAYLOAD"])
+    payload["tenant_id"] = tenant_id
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id=tenant_id,
+                surface="actions",
+                reference_id="manufacturing-action-registry",
+                status="active",
+                source="bootstrap",
+                version=payload["schema_version"],
+                payload=payload,
             )
         )
 
@@ -257,6 +280,43 @@ async def test_record_demo_approval_decision_reads_persisted_approval_inbox_refe
     assert approval.workflow_id == "wf_persisted_reference"
     assert audit_event.payload["required_permission"] == "approvals:operations:decide"
     assert workflow_runtime.requests[0].workflow_id == "wf_persisted_reference"
+
+
+async def test_record_approval_decision_uses_explicit_tenant_references_and_persistence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    tenant_id = "tenant_beta"
+    seed_approval_inbox_reference(session_factory, tenant_id=tenant_id)
+    seed_action_registry_reference(session_factory, tenant_id)
+    workflow_runtime = RecordingWorkflowRuntime()
+
+    with session_scope(session_factory) as session:
+        result = await record_demo_approval_decision(
+            AxisPersistenceRepository(session),
+            "appr_expedite_supplier_batch",
+            ApprovalDecisionRequest(
+                decision=ApprovalDecision.REJECT,
+                actor_id="plant-operations-owner-role",
+                actor_scopes=["approvals:supply:decide"],
+                note="Tenant beta rejected the proposal.",
+            ),
+            workflow_runtime,
+            tenant_id=tenant_id,
+        )
+
+    with session_factory() as session:
+        approval = session.scalars(
+            select(ApprovalRecord).where(ApprovalRecord.tenant_id == tenant_id)
+        ).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(AuditEvent.tenant_id == tenant_id)
+        ).one()
+
+    assert result.tenant_id == tenant_id
+    assert result.action_id == "request_supplier_expedite"
+    assert approval.tenant_id == tenant_id
+    assert audit_event.tenant_id == tenant_id
+    assert workflow_runtime.requests[0].tenant_id == tenant_id
 
 
 async def test_record_demo_approval_decision_updates_persisted_workflow_state(

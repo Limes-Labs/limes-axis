@@ -1490,12 +1490,25 @@ def _oidc_readiness_summary(settings: Settings) -> dict[str, object]:
     }
 
 
-def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
+def _bind_tenant_actor(
+    request_model,
+    principal: OidcPrincipal | None,
+    tenant_id: str,
+):
+    if principal is None and tenant_id != "tenant_demo_manufacturing":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": AxisErrorCode.AUTH_REQUIRED.value,
+                "message": "Authentication is required outside the demo tenant.",
+                "reason": "authentication_required",
+            },
+        )
     try:
         return bind_request_actor(
             request_model,
             principal,
-            expected_tenant_id="tenant_demo_manufacturing",
+            expected_tenant_id=tenant_id,
         )
     except ActorBindingError as exc:
         raise HTTPException(
@@ -1506,6 +1519,10 @@ def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
                 "reason": exc.reason,
             },
         ) from exc
+
+
+def _bind_demo_actor(request_model, principal: OidcPrincipal | None):
+    return _bind_tenant_actor(request_model, principal, "tenant_demo_manufacturing")
 
 
 def _bind_demo_tenant_actor(request_model, principal: OidcPrincipal | None):
@@ -7264,23 +7281,25 @@ def create_app(
         runtime: WorkflowRuntime,
         principal: OidcPrincipalDependency,
         response: Response,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ActionRunPersistenceResult:
       with telemetry.tracer.start_as_current_span("axis.action_run.create") as span:
         set_span_attributes(
             span,
             {
                 ATTR_ACTION_ID: action_id,
-                ATTR_TENANT_ID: principal.tenant_id if principal else None,
+                ATTR_TENANT_ID: tenant_id,
                 ATTR_ACTOR_ID: principal.actor_id if principal else None,
             },
         )
         try:
-            bound_action_run = _bind_demo_actor(action_run, principal)
+            bound_action_run = _bind_tenant_actor(action_run, principal, tenant_id)
             result = await record_demo_action_run(
                 repository,
                 action_id,
                 bound_action_run,
                 runtime,
+                tenant_id=tenant_id,
                 workflow_history_persistence_enabled=(
                     resolved_settings.workflow_history_persistence_enabled
                 ),
@@ -7387,13 +7406,15 @@ def create_app(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
         response: Response,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ActionRunOutcomePersistenceResult:
         try:
-            bound_outcome = _bind_demo_actor(outcome, principal)
+            bound_outcome = _bind_tenant_actor(outcome, principal, tenant_id)
             result = await record_demo_action_run_outcome(
                 repository,
                 action_run_id,
                 bound_outcome,
+                tenant_id=tenant_id,
                 workflow_history_persistence_enabled=(
                     resolved_settings.workflow_history_persistence_enabled
                 ),
@@ -7505,6 +7526,7 @@ def create_app(
         repository: PersistenceRepository,
         runtime: WorkflowRuntime,
         principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
     ) -> ApprovalDecisionPersistenceResult:
       with telemetry.tracer.start_as_current_span("axis.approval.decide") as span:
         set_span_attributes(
@@ -7512,17 +7534,18 @@ def create_app(
             {
                 ATTR_APPROVAL_ID: approval_id,
                 ATTR_DECISION: getattr(decision.decision, "value", None),
-                ATTR_TENANT_ID: principal.tenant_id if principal else None,
+                ATTR_TENANT_ID: tenant_id,
                 ATTR_ACTOR_ID: principal.actor_id if principal else None,
             },
         )
         try:
-            bound_decision = _bind_demo_actor(decision, principal)
+            bound_decision = _bind_tenant_actor(decision, principal, tenant_id)
             result = await record_demo_approval_decision(
                 repository,
                 approval_id,
                 bound_decision,
                 runtime,
+                tenant_id=tenant_id,
                 workflow_history_persistence_enabled=(
                     resolved_settings.workflow_history_persistence_enabled
                 ),

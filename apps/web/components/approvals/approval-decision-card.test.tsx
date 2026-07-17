@@ -79,12 +79,19 @@ const persistenceResultFixture = {
   workflow_signal_status: "signaled",
 };
 
-function Harness({ approval = approvalFixture }: { approval?: ApprovalInboxItem }) {
+function Harness({
+  approval = approvalFixture,
+  actor,
+}: {
+  approval?: ApprovalInboxItem;
+  actor?: { actorId: string; scopes: string[] };
+}) {
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
 
   return (
     <ToastProvider>
       <ApprovalDecisionCard
+        actor={actor}
         approval={approval}
         decision={decisions[approval.approval_id]}
         error={errors[approval.approval_id]}
@@ -144,7 +151,7 @@ describe("ApprovalDecisionCard", () => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals/appr_supply_fixture/decision",
+      "/demo/manufacturing/approvals/appr_supply_fixture/decision?tenant_id=tenant_demo_manufacturing",
       expect.any(Function),
       expect.objectContaining({
         method: "POST",
@@ -155,6 +162,32 @@ describe("ApprovalDecisionCard", () => {
           actor_scopes: ["approvals:supply:decide"],
           note: "Supplier confirmed the slot.",
         },
+      }),
+    );
+  });
+
+  it("uses the verified identity actor and scopes for authenticated decisions", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetchParsedJson.mockResolvedValue({
+      ...persistenceResultFixture,
+      actor_id: "acme-operator",
+    });
+    render(
+      <Harness actor={{ actorId: "acme-operator", scopes: ["approvals:supply:decide"] }} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
+    await user.click(await screen.findByRole("button", { name: "Confirm decision" }));
+
+    await waitFor(() => expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1));
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Function),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          actor_id: "acme-operator",
+          actor_scopes: ["approvals:supply:decide"],
+        }),
       }),
     );
   });
