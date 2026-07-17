@@ -1031,7 +1031,10 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
   this cap.
 - `AXIS_OIDC_SESSION_MAX_CONCURRENT` (default 5): the newest login revokes the
   oldest active sessions above this per-actor cap with
-  `concurrent_session_limit` audit evidence; `0` disables the cap.
+  `concurrent_session_limit` audit evidence; `0` disables the cap. PostgreSQL
+  admission is serialized per tenant and actor with a transaction-scoped
+  advisory lock, so the cap remains exact across concurrent callbacks and API
+  replicas.
 - `AXIS_IDENTITY_SESSION_TRUSTED_PROXY_ENABLED` (default `false`): controls
   the trust model for the client IP recorded as session device metadata.
   When false the API records the direct socket peer address and ignores

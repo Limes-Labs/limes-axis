@@ -2792,6 +2792,14 @@ def create_app(
             client_metadata = extract_session_client_metadata(request, resolved_settings)
             with session_scope(request.app.state.session_factory) as session:
                 repository = AxisPersistenceRepository(session)
+                # The session cap is a read-modify-write invariant. Serialize
+                # admission for this tenant principal before creating the row so
+                # concurrent callbacks cannot each observe only their own
+                # uncommitted session and both exceed the configured limit.
+                repository.acquire_oidc_session_admission_lock(
+                    tenant_id=principal.tenant_id,
+                    actor_id=principal.actor_id,
+                )
                 audit_event = repository.append_audit_event(
                     AuditEventCreate(
                         tenant_id=principal.tenant_id,
