@@ -124,7 +124,7 @@ async def _create_or_update_schedule(
     spec: ScheduledJobSpec,
     *,
     task_queue: str,
-    created_paused: bool,
+    scheduled_jobs_enabled: bool,
 ) -> str:
     """Create the schedule, or update its definition in place if it exists.
 
@@ -132,16 +132,19 @@ async def _create_or_update_schedule(
     the persisted schedule's action/interval/overlap without ever creating a
     duplicate.
 
-    On CREATE the paused state is seeded from ``created_paused`` (derived from the
-    enable flag). On UPDATE the operator's current paused state is PRESERVED: a
-    manual unpause (or pause) in the Temporal UI survives worker restarts, so the
-    reconciliation only owns the schedule definition, not the operator's runtime
-    pause intent.
+    The master enable flag is a fail-closed kill switch. Disabled schedules are
+    always reconciled to paused, including schedules that already exist. When
+    enabled, the operator's current paused state is preserved so reconciliation
+    never reactivates a schedule that an operator paused in Temporal.
     """
     try:
         await client.create_schedule(
             spec.schedule_id,
-            _build_schedule(spec, task_queue=task_queue, paused=created_paused),
+            _build_schedule(
+                spec,
+                task_queue=task_queue,
+                paused=not scheduled_jobs_enabled,
+            ),
         )
         return "created"
     except ScheduleAlreadyRunningError:
@@ -149,9 +152,10 @@ async def _create_or_update_schedule(
 
         async def _updater(schedule_input: ScheduleUpdateInput) -> ScheduleUpdate:
             existing_paused = schedule_input.description.schedule.state.paused
+            effective_paused = not scheduled_jobs_enabled or existing_paused
             return ScheduleUpdate(
                 schedule=_build_schedule(
-                    spec, task_queue=task_queue, paused=existing_paused
+                    spec, task_queue=task_queue, paused=effective_paused
                 )
             )
 
@@ -167,16 +171,17 @@ async def register_maintenance_schedules(
 ) -> dict[str, str]:
     """Create/update every maintenance schedule idempotently.
 
-    When ``AXIS_SCHEDULED_JOBS_ENABLED`` is false a newly created schedule is
-    seeded in the ``paused`` state, so existing deployments/tests are unaffected
-    by default. The flag governs only the initial (created) state: once a schedule
-    exists, an operator's pause/unpause in the Temporal UI is preserved across
-    worker restarts (the update path does not clobber it).
+    ``AXIS_SCHEDULED_JOBS_ENABLED=false`` forces every managed schedule to the
+    paused state, including existing schedules. When the flag is true,
+    reconciliation preserves the current operator pause state and never
+    automatically reactivates a paused schedule.
     """
-    created_paused = not settings.scheduled_jobs_enabled
     outcomes: dict[str, str] = {}
     for spec in build_scheduled_job_specs(settings):
         outcomes[spec.schedule_id] = await _create_or_update_schedule(
-            client, spec, task_queue=task_queue, created_paused=created_paused
+            client,
+            spec,
+            task_queue=task_queue,
+            scheduled_jobs_enabled=settings.scheduled_jobs_enabled,
         )
     return outcomes

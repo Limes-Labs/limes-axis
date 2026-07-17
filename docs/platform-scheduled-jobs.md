@@ -152,11 +152,11 @@ interval, overlap) in place without creating duplicates. The Temporal client is
 used behind a narrow `ScheduleClientPort` protocol so tests drive a thin
 in-memory fake and never require a live Temporal.
 
-The reconciliation owns the schedule **definition**, not the operator's runtime
-pause intent. The `AXIS_SCHEDULED_JOBS_ENABLED` flag governs only the paused
-state of a **newly created** schedule. On update the existing paused state is
-**preserved**, so an operator's pause or unpause in the Temporal UI survives
-worker restarts and is never clobbered by reconciliation.
+`AXIS_SCHEDULED_JOBS_ENABLED=false` is a fail-closed master switch: every
+managed schedule is reconciled to **paused**, including schedules that already
+exist or were manually unpaused in Temporal. When the master switch is enabled,
+reconciliation preserves the existing operator pause state and never
+automatically reactivates a manually paused schedule.
 
 ## Configuration
 
@@ -165,7 +165,7 @@ unaffected (`AXIS_SCHEDULED_JOBS_ENABLED=false`).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `AXIS_SCHEDULED_JOBS_ENABLED` | `false` | Master enable flag. Governs the paused state of a **newly created** schedule only; existing schedules keep the operator's paused state on update. |
+| `AXIS_SCHEDULED_JOBS_ENABLED` | `false` | Fail-closed master switch. Disabled forces all managed schedules to paused; enabled preserves any operator pause. |
 | `AXIS_SCHEDULED_AUDIT_RETENTION_INTERVAL_SECONDS` | `86400` | Audit retention sweep interval. |
 | `AXIS_SCHEDULED_AUDIT_RETENTION_DAYS` | `365` | Retention window passed to the reused deletion function. |
 | `AXIS_SCHEDULED_AUDIT_RETENTION_DRY_RUN` | `true` | Count only; set false to physically delete. |
