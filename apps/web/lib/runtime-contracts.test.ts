@@ -171,6 +171,38 @@ describe("production runtime contracts", () => {
     ).toThrow();
   });
 
+  it("requires and preserves approval decision replay evidence", () => {
+    const payload = {
+      tenant_id: "tenant-1",
+      approval_id: "approval-1",
+      workflow_id: "workflow-1",
+      action_id: "action-1",
+      decision: "approve",
+      status: "approve",
+      actor_id: "operator-1",
+      audit_event_id: "11111111-1111-4111-8111-111111111111",
+      audit_event_type: "approval.decision.recorded",
+      persisted: true,
+      idempotent_replay: true,
+      permission_decision: { allowed: true, reason: "allowed" },
+      workflow_signal: {
+        workflow_id: "workflow-1",
+        status: "approval_signaled",
+        adapter: "axis-test",
+        signal_name: "approve",
+        payload: { approval_id: "approval-1", approved: true, decision: "approve" },
+      },
+      workflow_signal_status: "approval_signaled",
+    };
+
+    expect(parseApprovalDecisionPersistenceResult(payload)).toMatchObject({
+      idempotent_replay: true,
+    });
+    expect(() =>
+      parseApprovalDecisionPersistenceResult({ ...payload, idempotent_replay: "yes" }),
+    ).toThrow();
+  });
+
   it("accepts scalar and collection audit references without accepting nulls", () => {
     const payload = structuredClone(snapshotFixture);
     payload.recent_audit_events[0].payload_refs = {

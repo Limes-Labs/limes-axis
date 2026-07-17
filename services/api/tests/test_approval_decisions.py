@@ -9,7 +9,11 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from axis_api.approval_decisions import ApprovalDecisionRequest, record_demo_approval_decision
+from axis_api.approval_decisions import (
+    ApprovalDecisionConflict,
+    ApprovalDecisionRequest,
+    record_demo_approval_decision,
+)
 from axis_api.config import Settings
 from axis_api.db import session_scope
 from axis_api.demo import ApprovalDecision
@@ -18,6 +22,8 @@ from axis_api.main import create_app
 from axis_api.models import ActionRun, ApprovalRecord, AuditEvent, Base, WorkflowRunRecord
 from axis_api.persistence import (
     ActionRunCreate,
+    ApprovalDecisionRecord,
+    ApprovalRecordCreate,
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
     WorkflowRunCreate,
@@ -479,8 +485,12 @@ async def test_record_demo_approval_decision_creates_idempotent_gate_action_run(
     assert first.action_run_recorded is True
     assert second.action_run_recorded is True
     assert first.action_run_id == second.action_run_id
+    assert first.audit_event_id == second.audit_event_id
+    assert first.idempotent_replay is False
+    assert second.idempotent_replay is True
     assert first.action_run_idempotent_replay is False
-    assert second.action_run_idempotent_replay is True
+    # The stored action transition is returned unchanged; no second transition ran.
+    assert second.action_run_idempotent_replay is False
     assert first.action_run_idempotency_key == (
         "tenant_demo_manufacturing:request_supplier_expedite:"
         "appr_expedite_supplier_batch:approval-gate"
@@ -489,8 +499,8 @@ async def test_record_demo_approval_decision_creates_idempotent_gate_action_run(
     assert action_runs[0].status == "approved_for_execution"
     assert action_runs[0].payload["source"] == "approval_decision_gate"
     assert action_runs[0].payload["approval_id"] == "appr_expedite_supplier_batch"
-    assert len(audit_events) == 2
-    assert audit_events[1].payload["action_run"]["idempotent_replay"] is True
+    assert len(audit_events) == 1
+    assert len(workflow_runtime.requests) == 1
 
 
 def test_approval_decision_endpoint_reports_missing_approval_reference_record(
@@ -566,7 +576,7 @@ async def test_record_demo_approval_decision_persists_approval_and_audit_event(
     assert workflow_runtime.requests[0].approved is True
 
 
-async def test_record_demo_approval_decision_reuses_existing_approval_record(
+async def test_record_demo_approval_decision_rejects_terminal_overwrite(
     session_factory: sessionmaker[Session],
 ) -> None:
     with session_scope(session_factory) as session:
@@ -581,24 +591,121 @@ async def test_record_demo_approval_decision_reuses_existing_approval_record(
             ),
             RecordingWorkflowRuntime(),
         )
-        await record_demo_approval_decision(
-            repository,
-            "appr_quality_hold_batch",
-            ApprovalDecisionRequest(
-                decision=ApprovalDecision.REJECT,
-                actor_id="quality-owner-role",
-                actor_scopes=["approvals:quality:decide"],
-            ),
-            RecordingWorkflowRuntime(),
-        )
+        with pytest.raises(ApprovalDecisionConflict) as exc_info:
+            await record_demo_approval_decision(
+                repository,
+                "appr_quality_hold_batch",
+                ApprovalDecisionRequest(
+                    decision=ApprovalDecision.REJECT,
+                    actor_id="quality-owner-role",
+                    actor_scopes=["approvals:quality:decide"],
+                ),
+                RecordingWorkflowRuntime(),
+            )
+        assert exc_info.value.reason == "approval_decision_conflict"
 
     with session_factory() as session:
         approvals = list(session.scalars(select(ApprovalRecord)))
         audit_events = list(session.scalars(select(AuditEvent)))
 
     assert len(approvals) == 1
-    assert approvals[0].status == "reject"
-    assert len(audit_events) == 2
+    assert approvals[0].status == "request_changes"
+    assert len(audit_events) == 1
+
+
+def test_approval_decision_endpoint_replays_exact_request_and_rejects_conflict(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    runtime = RecordingWorkflowRuntime()
+    app.state.workflow_runtime = runtime
+    client = TestClient(app)
+    payload = {
+        "decision": "approve",
+        "actor_id": "plant-operations-owner-role",
+        "actor_scopes": ["approvals:supply:decide"],
+        "note": "Approved once.",
+    }
+
+    first = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json=payload,
+    )
+    replay = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json=payload,
+    )
+    conflict = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json={**payload, "decision": "reject"},
+    )
+    changed_note = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json={**payload, "note": "Changed after terminalization."},
+    )
+    changed_actor = client.post(
+        "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+        json={
+            **payload,
+            "actor_id": "backup-plant-operations-owner",
+            "actor_scopes": ["approvals:supply:decide"],
+        },
+    )
+
+    assert first.status_code == 201
+    assert replay.status_code == 200
+    assert replay.json()["idempotent_replay"] is True
+    assert replay.json()["audit_event_id"] == first.json()["audit_event_id"]
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"]["reason"] == "approval_decision_conflict"
+    assert changed_note.status_code == 409
+    assert changed_actor.status_code == 409
+    assert len(runtime.requests) == 1
+    with session_factory() as session:
+        assert len(session.scalars(select(AuditEvent)).all()) == 1
+
+
+@pytest.mark.parametrize("payload", [{}, {"decision_result": {}}])
+async def test_legacy_or_invalid_terminal_replay_snapshot_fails_closed(
+    session_factory: sessionmaker[Session],
+    payload: dict,
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.create_approval_record(
+            ApprovalRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                approval_id="appr_quality_hold_batch",
+                workflow_id="wf_quality_hold_review",
+                action_id="place_quality_hold",
+                requested_by="quality-agent",
+                owner_role="quality-owner",
+                risk_level="high",
+                payload=payload,
+            )
+        )
+        repository.record_approval_decision(
+            ApprovalDecisionRecord(
+                tenant_id="tenant_demo_manufacturing",
+                approval_id="appr_quality_hold_batch",
+                decision="reject",
+                decision_actor_id="quality-owner-role",
+            )
+        )
+
+        with pytest.raises(ApprovalDecisionConflict) as exc_info:
+            await record_demo_approval_decision(
+                repository,
+                "appr_quality_hold_batch",
+                ApprovalDecisionRequest(
+                    decision=ApprovalDecision.REJECT,
+                    actor_id="quality-owner-role",
+                    actor_scopes=["approvals:quality:decide"],
+                ),
+                RecordingWorkflowRuntime(),
+            )
+        assert exc_info.value.reason == "approval_replay_unavailable"
 
 
 def test_approval_decision_endpoint_persists_result(

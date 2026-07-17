@@ -297,8 +297,21 @@ outcomes and approval decisions accept an explicit tenant scope. A verified
 principal must match it; unauthenticated writes are limited to the canonical
 local demo tenant. Registry lookup, policy evaluation, persistence, workflow
 signals and audit evidence all use that same tenant, while an action payload
-that tries to override the tenant fails validation before side effects. Entity
-detail reads and typed action
+that tries to override the tenant fails validation before side effects.
+Approval decisions are single-assignment per tenant and approval ID. Exact
+semantic retries of decisions recorded with a replay receipt return the
+original persisted result without another audit,
+timeline update, action transition or workflow call; a different actor,
+decision or note receives a conflict and cannot overwrite the terminal state.
+PostgreSQL transaction advisory locks serialize first-use decisions across API
+replicas, including lazy approval projection creation. Durable outbox delivery
+remains required for crash-atomic workflow signalling: a synchronous external
+acknowledgement cannot be atomic with the database commit.
+Terminal rows created before replay receipts were introduced fail closed with
+`approval_replay_unavailable`; malformed receipts return the same stable
+conflict instead of leaking validation failures or repeating side effects.
+
+Entity detail reads and typed action
 payloads can also derive required scopes from the persisted ontology reference
 relationships attached to referenced resources, so cross-domain graph context
 cannot be read or proposed through an action without the matching relationship

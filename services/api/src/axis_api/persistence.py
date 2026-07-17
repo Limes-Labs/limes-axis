@@ -1589,6 +1589,23 @@ class AxisPersistenceRepository:
         self.session.flush()
         return approval
 
+    def acquire_approval_decision_lock(self, tenant_id: str, approval_id: str) -> None:
+        """Serialize one approval's terminal decision across API replicas."""
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "sqlite":
+            return
+        if dialect_name != "postgresql":
+            raise NotImplementedError(
+                f"Approval decision locking is not supported for dialect {dialect_name!r}."
+            )
+        lock_key = (
+            "axis:approval-decision:"
+            f"{len(tenant_id)}:{tenant_id}{len(approval_id)}:{approval_id}"
+        )
+        self.session.execute(
+            select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0)))
+        )
+
     def get_approval_record(self, tenant_id: str, approval_id: str) -> ApprovalRecord | None:
         statement = select(ApprovalRecord).where(
             ApprovalRecord.tenant_id == tenant_id,
