@@ -24,9 +24,19 @@ import {
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import { formatOverviewTimestamp, platformStatusClass } from "@/lib/platform-overview";
+import {
+  formatOverviewTimestamp,
+  type IdentitySessionReadModel,
+  platformStatusClass,
+} from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  resolveConsoleTenantScope,
+} from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 const APPROVALS_ENDPOINT = "/demo/manufacturing/approvals";
@@ -275,16 +285,20 @@ function QueueList({
 
 function ApprovalDetail({
   approval,
+  actor,
   decision,
   error,
   onDecisionChange,
   onErrorChange,
+  tenantId,
 }: {
   approval: ApprovalInboxItem;
+  actor?: { actorId: string; scopes: string[] };
   decision: ApprovalDecisionRecord | undefined;
   error: string | undefined;
   onDecisionChange: (approvalId: string, record: ApprovalDecisionRecord | null) => void;
   onErrorChange: (approvalId: string, message: string | null) => void;
+  tenantId: string;
 }) {
   return (
     <Card className="grid content-start gap-5">
@@ -303,11 +317,13 @@ function ApprovalDetail({
       </div>
 
       <ApprovalDecisionCard
+        actor={actor}
         approval={approval}
         decision={decision}
         error={error}
         onDecisionChange={onDecisionChange}
         onErrorChange={onErrorChange}
+        tenantId={tenantId}
       />
 
       <DecisionRail approval={approval} decision={decision} />
@@ -387,11 +403,41 @@ function sourceLabel(source: "loading" | "api" | "unavailable"): string {
 }
 
 export function ApprovalInbox() {
-  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(APPROVALS_ENDPOINT, {
-    parse: parseManufacturingApprovalInbox,
+  const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+    parse: parseIdentitySessionReadModel,
   });
+  const tenantScope = resolveConsoleTenantScope(identity.data);
+  const tenantId = tenantScope.tenantId;
+  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(
+    buildTenantScopedPath(APPROVALS_ENDPOINT, tenantId ?? DEMO_TENANT_ID),
+    {
+      enabled: identity.source === "api" && tenantId !== null,
+      expectedTenantId: tenantId ?? undefined,
+      parse: parseManufacturingApprovalInbox,
+    },
+  );
   const [selectedApprovalId, setSelectedApprovalId] = useState("");
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
+
+  if (identity.source === "unavailable") {
+    return (
+      <ErrorPanel
+        detail="The approval queue is not loaded until the current actor and tenant are verified."
+        endpoint="/identity/session"
+        title="Identity API unavailable"
+      />
+    );
+  }
+
+  if (identity.source === "api" && !tenantId) {
+    return (
+      <ErrorPanel
+        detail="The authenticated identity response does not contain a tenant."
+        endpoint="/identity/session"
+        title="Authenticated tenant missing"
+      />
+    );
+  }
 
   if (!inbox) {
     if (source === "loading") {
@@ -486,11 +532,17 @@ export function ApprovalInbox() {
       <MasterDetail
         detail={
           <ApprovalDetail
+            actor={
+              identity.data?.actor_id
+                ? { actorId: identity.data.actor_id, scopes: identity.data.scopes }
+                : undefined
+            }
             approval={selectedApproval}
             decision={decisions[selectedApproval.approval_id]}
             error={errors[selectedApproval.approval_id]}
             onDecisionChange={setDecision}
             onErrorChange={setError}
+            tenantId={inbox.tenant_id}
           />
         }
         list={

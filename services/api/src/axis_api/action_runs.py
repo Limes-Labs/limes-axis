@@ -162,11 +162,12 @@ EXECUTION_ADVANCING_OUTCOME_STATUSES = {
 }
 
 
-def _find_demo_action(
+def _find_action(
     repository: AxisPersistenceRepository,
     action_id: str,
+    tenant_id: str,
 ) -> tuple[str, ActionRegistryEntry, str]:
-    registry = get_persisted_manufacturing_action_registry(repository)
+    registry = get_persisted_manufacturing_action_registry(repository, tenant_id=tenant_id)
     for action in registry.actions:
         if action.definition.action_id == action_id:
             return registry.tenant_id, action, registry.schema_version
@@ -333,9 +334,10 @@ def payload_requested_amount(payload: dict) -> tuple[float | None, bool]:
 def registry_action_entry(
     repository: AxisPersistenceRepository,
     action_id: str,
+    tenant_id: str = "tenant_demo_manufacturing",
 ) -> ActionRegistryEntry | None:
     try:
-        _, action, _ = _find_demo_action(repository, action_id)
+        _, action, _ = _find_action(repository, action_id, tenant_id)
     except (DemoActionNotFound, ActionReferenceRecordInvalid, ActionReferenceRecordNotFound):
         return None
     return action
@@ -379,9 +381,10 @@ def _enforce_platform_policies(
 
 def _outcome_platform_policy_context(
     repository: AxisPersistenceRepository,
+    tenant_id: str,
     action_run,
 ) -> tuple[PlatformPolicyEvaluationContext, bool]:
-    action = registry_action_entry(repository, action_run.action_id)
+    action = registry_action_entry(repository, action_run.action_id, tenant_id)
     context_degraded = action is None
 
     payload = action_run.payload if isinstance(action_run.payload, dict) else {}
@@ -409,7 +412,11 @@ def _enforce_outcome_platform_policies(
     if request.status not in EXECUTION_ADVANCING_OUTCOME_STATUSES:
         return False
 
-    context, context_degraded = _outcome_platform_policy_context(repository, action_run)
+    context, context_degraded = _outcome_platform_policy_context(
+        repository,
+        tenant_id,
+        action_run,
+    )
     enforce_platform_policy_deny(
         repository,
         tenant_id=tenant_id,
@@ -594,9 +601,9 @@ async def record_demo_action_run_outcome(
     action_run_id: UUID | str,
     request: ActionRunOutcomeRequest,
     *,
+    tenant_id: str = "tenant_demo_manufacturing",
     workflow_history_persistence_enabled: bool = False,
 ) -> ActionRunOutcomePersistenceResult:
-    tenant_id = "tenant_demo_manufacturing"
     try:
         action_run_uuid = action_run_id if isinstance(action_run_id, UUID) else UUID(action_run_id)
     except ValueError as exc:
@@ -716,9 +723,13 @@ async def record_demo_action_run(
     request: ActionRunRequest,
     workflow_runtime: WorkflowSignalRuntime | None = None,
     *,
+    tenant_id: str = "tenant_demo_manufacturing",
     workflow_history_persistence_enabled: bool = False,
 ) -> ActionRunPersistenceResult:
-    tenant_id, action, schema_version = _find_demo_action(repository, action_id)
+    tenant_id, action, schema_version = _find_action(repository, action_id, tenant_id)
+    payload_tenant_id = request.payload.get("tenant_id")
+    if payload_tenant_id is not None and payload_tenant_id != tenant_id:
+        raise ActionPayloadValidationError(["tenant_mismatch:tenant_id"])
     _validate_payload(action, request.payload)
     permission_decision, relationship_scopes = _evaluate_action_permission(
         repository,

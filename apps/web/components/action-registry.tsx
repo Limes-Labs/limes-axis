@@ -24,11 +24,18 @@ import {
 } from "@/lib/action-demo";
 import {
   formatOverviewTimestamp,
+  type IdentitySessionReadModel,
   platformStatusClass,
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  resolveConsoleTenantScope,
+} from "@/lib/tenant-scope";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
@@ -87,9 +94,21 @@ function PayloadRows({ payload }: { payload: Record<string, string> }) {
 }
 
 export function ActionRegistry() {
+  const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
+    parse: parseIdentitySessionReadModel,
+  });
+  const tenantScope = resolveConsoleTenantScope(identity.data);
+  const tenantId = tenantScope.tenantId;
   const { data: registry, source } = useAxisQuery<ManufacturingActionRegistry>(
-    "/demo/manufacturing/actions",
-    { parse: parseManufacturingActionRegistry },
+    buildTenantScopedPath(
+      "/demo/manufacturing/actions",
+      tenantId ?? DEMO_TENANT_ID,
+    ),
+    {
+      enabled: identity.source === "api" && tenantId !== null,
+      expectedTenantId: tenantId ?? undefined,
+      parse: parseManufacturingActionRegistry,
+    },
   );
   const [filters, setFilters] = useState<ActionFilters>(defaultFilters);
   const [selectedActionId, setSelectedActionId] = useState("");
@@ -147,7 +166,10 @@ export function ActionRegistry() {
       return;
     }
 
-    const request = buildActionRunRequest(registry, action);
+    const verifiedActor = identity.data?.actor_id
+      ? { actorId: identity.data.actor_id, scopes: identity.data.scopes }
+      : undefined;
+    const request = buildActionRunRequest(registry, action, verifiedActor);
     setSubmittingActionId(action.definition.action_id);
     setActionRunErrors((current) => {
       const next = { ...current };
@@ -157,7 +179,10 @@ export function ActionRegistry() {
 
     try {
       const result = await axisFetchParsedJson<ActionRunPersistenceResult>(
-        `/demo/manufacturing/actions/${action.definition.action_id}/runs`,
+        buildTenantScopedPath(
+          `/demo/manufacturing/actions/${action.definition.action_id}/runs`,
+          registry.tenant_id,
+        ),
         parseActionRunPersistenceResult,
         {
           session,
@@ -191,6 +216,26 @@ export function ActionRegistry() {
     } finally {
       setSubmittingActionId(null);
     }
+  }
+
+  if (identity.source === "unavailable") {
+    return (
+      <ErrorPanel
+        detail="The action registry is not loaded until the current actor and tenant are verified."
+        endpoint="/identity/session"
+        title="Identity API unavailable"
+      />
+    );
+  }
+
+  if (identity.source === "api" && !tenantId) {
+    return (
+      <ErrorPanel
+        detail="The authenticated identity response does not contain a tenant."
+        endpoint="/identity/session"
+        title="Authenticated tenant missing"
+      />
+    );
   }
 
   if (!registry) {

@@ -575,6 +575,11 @@ async def test_context_read_respects_agent_data_access(
         assert set(context_step.evidence["surfaces"].keys()) == {"risk_scenarios"}
         prompt = runtime.requests[0].prompt
         assert "material_lot_motors_7741" not in prompt
+        assert "Verified tenant context: tenant_demo_manufacturing" in prompt
+        assert (
+            "If the payload schema includes tenant_id, set it exactly to "
+            "tenant_demo_manufacturing."
+        ) in prompt
 
 
 async def test_start_agent_run_model_failure(

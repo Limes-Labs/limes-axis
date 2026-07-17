@@ -229,11 +229,17 @@ export function buildTypedActionPayload(action: ActionRegistryEntry): Record<str
 export function buildActionRunRequest(
   registry: ManufacturingActionRegistry,
   action: ActionRegistryEntry,
+  actor?: { actorId: string; scopes: string[] },
 ): ActionRunRequest {
+  const payload = buildTypedActionPayload(action);
+  if (action.definition.input_schema.properties?.tenant_id) {
+    payload.tenant_id = registry.tenant_id;
+  }
+
   return {
-    actor_id: action.connected_agents[0] ?? action.owner_role,
-    actor_scopes: action.definition.required_permissions,
+    actor_id: actor?.actorId ?? action.connected_agents[0] ?? action.owner_role,
+    actor_scopes: actor?.scopes ?? action.definition.required_permissions,
     idempotency_key: buildActionRunIdempotencyKey(registry, action),
-    payload: buildTypedActionPayload(action),
+    payload,
   };
 }

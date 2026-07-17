@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/cn";
 import { strings } from "@/lib/strings";
 import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/approvals";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /*
@@ -59,6 +60,8 @@ export interface ApprovalDecisionCardProps {
   decision?: ApprovalDecisionRecord;
   /** Last persistence error for this approval. */
   error?: string;
+  tenantId?: string;
+  actor?: { actorId: string; scopes: string[] };
   onDecisionChange: (approvalId: string, record: ApprovalDecisionRecord | null) => void;
   onErrorChange?: (approvalId: string, message: string | null) => void;
 }
@@ -122,10 +125,12 @@ const optionToneClasses: Record<ApprovalDecision, string> = {
 
 export function ApprovalDecisionCard({
   approval,
+  actor,
   decision,
   error,
   onDecisionChange,
   onErrorChange,
+  tenantId = DEMO_TENANT_ID,
 }: ApprovalDecisionCardProps) {
   const [pendingOption, setPendingOption] = useState<ApprovalDecisionOption | null>(null);
   const [note, setNote] = useState("");
@@ -162,12 +167,15 @@ export function ApprovalDecisionCard({
 
     try {
       const result = await axisFetchParsedJson<ApprovalDecisionPersistenceResult>(
-        `/demo/manufacturing/approvals/${approvalId}/decision`,
+        buildTenantScopedPath(
+          `/demo/manufacturing/approvals/${approvalId}/decision`,
+          tenantId,
+        ),
         parseApprovalDecisionPersistenceResult,
         {
           session,
           method: "POST",
-          body: buildApprovalDecisionPayload(approval, option.decision, note),
+          body: buildApprovalDecisionPayload(approval, option.decision, note, actor),
         },
       );
       onDecisionChange(approvalId, {

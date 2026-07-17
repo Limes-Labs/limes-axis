@@ -56,6 +56,33 @@ async function expectAxisLightShell(page: Page) {
   });
 }
 
+async function routeVerifiedDemoIdentity(page: Page) {
+  await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        authenticated: false,
+        mode: "public_demo",
+        actor_id: null,
+        tenant_id: null,
+        scopes: [],
+        expires_at: null,
+        api_auth_required: true,
+        enterprise_sso_ready: true,
+        readiness_status: "watch",
+        issuer: "https://idp.example/realms/axis",
+        audience: "limes-axis-api",
+        jwks_source: "configured",
+        session_boundary: "http_only_cookie_verified_by_axis_api",
+        capabilities: [],
+        limitations: [],
+        notes: [],
+      },
+      status: 200,
+    });
+  });
+}
+
 test.describe("Axis console smoke", () => {
   test("requires the overview APIs section by section instead of local data", async ({ page }) => {
     const pageErrors: string[] = [];
@@ -405,6 +432,7 @@ test.describe("Axis console smoke", () => {
   });
 
   test("keeps navigation and requires agent/action APIs on mobile", async ({ page }) => {
+    await routeVerifiedDemoIdentity(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
@@ -670,6 +698,7 @@ test.describe("Axis console smoke", () => {
   test("requires the approval API instead of local approval decisions", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
+    await routeVerifiedDemoIdentity(page);
 
     await page.goto("/approvals");
 

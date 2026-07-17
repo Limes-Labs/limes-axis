@@ -150,12 +150,14 @@ def persisted_only_action_registry_payload() -> dict:
 def seed_action_registry_reference(
     factory: sessionmaker[Session],
     payload: dict | None = None,
+    tenant_id: str = "tenant_demo_manufacturing",
 ) -> None:
     registry_payload = deepcopy(payload or action_registry_payload())
+    registry_payload["tenant_id"] = tenant_id
     with session_scope(factory) as session:
         AxisPersistenceRepository(session).upsert_demo_reference_record(
             DemoReferenceRecordCreate(
-                tenant_id="tenant_demo_manufacturing",
+                tenant_id=tenant_id,
                 surface="actions",
                 reference_id="manufacturing-action-registry",
                 status="active",
@@ -338,6 +340,69 @@ async def test_record_demo_action_run_reads_persisted_action_registry_reference(
     assert result.status == "preview_generated"
     assert action_run.payload["schema_version"] == "persisted-test-version"
     assert action_run.payload["input"]["evidence_refs"] == ["audit_persisted_reference"]
+
+
+async def test_record_action_run_uses_the_explicit_tenant_registry_and_persistence_scope(
+    session_factory: sessionmaker[Session],
+) -> None:
+    tenant_id = "tenant_beta"
+    seed_action_registry_reference(
+        session_factory,
+        persisted_only_action_registry_payload(),
+        tenant_id=tenant_id,
+    )
+    request = persisted_only_action_request().model_copy(
+        update={"payload": {**persisted_only_action_request().payload, "tenant_id": tenant_id}}
+    )
+
+    with session_scope(session_factory) as session:
+        result = await record_demo_action_run(
+            AxisPersistenceRepository(session),
+            "persisted_custom_daily_brief",
+            request,
+            tenant_id=tenant_id,
+        )
+
+    with session_factory() as session:
+        action_run = session.scalars(
+            select(ActionRun).where(ActionRun.tenant_id == tenant_id)
+        ).one()
+        audit_event = session.scalars(
+            select(AuditEvent).where(AuditEvent.tenant_id == tenant_id)
+        ).one()
+
+    assert result.tenant_id == tenant_id
+    assert action_run.tenant_id == tenant_id
+    assert audit_event.tenant_id == tenant_id
+
+
+async def test_record_action_run_rejects_payload_tenant_mismatch_without_side_effects(
+    session_factory: sessionmaker[Session],
+) -> None:
+    tenant_id = "tenant_beta"
+    seed_action_registry_reference(
+        session_factory,
+        persisted_only_action_registry_payload(),
+        tenant_id=tenant_id,
+    )
+
+    with session_scope(session_factory) as session:
+        with pytest.raises(ActionPayloadValidationError) as caught:
+            await record_demo_action_run(
+                AxisPersistenceRepository(session),
+                "persisted_custom_daily_brief",
+                persisted_only_action_request(),
+                tenant_id=tenant_id,
+            )
+        assert caught.value.issues == ["tenant_mismatch:tenant_id"]
+
+    with session_factory() as session:
+        assert session.scalars(
+            select(ActionRun).where(ActionRun.tenant_id == tenant_id)
+        ).all() == []
+        assert session.scalars(
+            select(AuditEvent).where(AuditEvent.tenant_id == tenant_id)
+        ).all() == []
 
 
 async def test_record_demo_action_run_requires_persisted_action_registry_reference(
@@ -901,6 +966,91 @@ def test_action_run_endpoint_binds_actor_and_scopes_from_oidc_token(
     with session_factory() as session:
         audit_event = session.scalars(select(AuditEvent)).one()
     assert audit_event.actor_id == "agent_supply_risk"
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        (
+            "/demo/manufacturing/actions/request_supplier_expedite/runs",
+            supplier_action_request().model_dump(),
+        ),
+        (
+            "/demo/manufacturing/actions/runs/00000000-0000-0000-0000-000000000001/outcome",
+            supplier_outcome_request().model_dump(),
+        ),
+        (
+            "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+            {
+                "decision": "approve",
+                "actor_id": "plant-operations-owner-role",
+                "actor_scopes": ["approvals:supply:decide"],
+            },
+        ),
+    ],
+)
+def test_governed_write_endpoints_require_authentication_for_non_demo_tenants(
+    session_factory: sessionmaker[Session],
+    path: str,
+    payload: dict,
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+
+    response = TestClient(app).post(f"{path}?tenant_id=tenant_beta", json=payload)
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "AUTH_REQUIRED"
+    with session_factory() as session:
+        assert session.scalars(select(AuditEvent)).all() == []
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        (
+            "/demo/manufacturing/actions/request_supplier_expedite/runs",
+            supplier_action_request().model_dump(),
+        ),
+        (
+            "/demo/manufacturing/actions/runs/00000000-0000-0000-0000-000000000001/outcome",
+            supplier_outcome_request().model_dump(),
+        ),
+        (
+            "/demo/manufacturing/approvals/appr_expedite_supplier_batch/decision",
+            {
+                "decision": "approve",
+                "actor_id": "agent_supply_risk",
+                "actor_scopes": ["approvals:supply:decide"],
+            },
+        ),
+    ],
+)
+def test_governed_write_endpoints_reject_cross_tenant_principals(
+    session_factory: sessionmaker[Session],
+    path: str,
+    payload: dict,
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="agent_supply_risk",
+            tenant_id="tenant_alpha",
+            scopes=["approvals:supply:decide", "actions:result:record"],
+        )
+    )
+
+    response = TestClient(app).post(
+        f"{path}?tenant_id=tenant_beta",
+        headers={"Authorization": "Bearer valid-token"},
+        json=payload,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "tenant_mismatch"
+    with session_factory() as session:
+        assert session.scalars(select(AuditEvent)).all() == []
 
 
 def test_action_run_endpoint_reports_missing_action_registry_reference(
