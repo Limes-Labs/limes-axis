@@ -45,7 +45,6 @@ export function ConsolePage({
         eyebrow={resolvedEyebrow}
         title={resolvedTitle}
       />
-      <div aria-hidden="true" className="rule-dotted mt-0.5" />
       <div className="grid min-w-0 gap-3.5">{children}</div>
     </div>
   );
