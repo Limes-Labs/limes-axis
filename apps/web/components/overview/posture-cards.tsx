@@ -163,7 +163,7 @@ export function PostureCards({
           ) : (
             <p className="font-display m-0 text-xl break-words text-ink">{card.value}</p>
           )}
-          <div aria-hidden="true" className="rule-dotted" />
+          <div aria-hidden="true" className="rule-hairline" />
           <p className="m-0 text-xs text-muted">{card.detail}</p>
           <PanelLink href={card.href}>{card.linkLabel}</PanelLink>
         </article>

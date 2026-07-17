@@ -178,7 +178,7 @@ function SystemHealth({
       </div>
       {routing.data ? (
         <>
-          <div aria-hidden="true" className="rule-dotted" />
+          <div aria-hidden="true" className="rule-hairline" />
           <p className="m-0 text-xs text-muted">
             Routing posture: {platformStatusLabel(routing.data.routing_status)} /{" "}
             {countBlockedModelRoutes(routing.data)} blocked route

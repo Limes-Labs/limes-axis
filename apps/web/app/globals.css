@@ -180,11 +180,15 @@ textarea:focus-visible {
   color: rgb(var(--signal));
 }
 
-/* Dotted hairline section separator (aside-style) */
-.rule-dotted {
-  background-image: linear-gradient(to right, rgb(var(--mist)) 33%, transparent 0%);
-  background-size: 6px 1px;
-  background-repeat: repeat-x;
+/* Quiet semantic separator that stays subordinate in both color schemes. */
+.rule-hairline {
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgb(var(--line) / 72%) 8%,
+    rgb(var(--line) / 72%) 92%,
+    transparent
+  );
   height: 1px;
 }
 

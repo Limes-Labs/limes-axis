@@ -122,7 +122,7 @@ export function OntologyExplorer() {
             </Button>
           </div>
         </div>
-        <div aria-hidden="true" className="rule-dotted" />
+        <div aria-hidden="true" className="rule-hairline" />
 
         {view === "graph" ? (
           <div className="grid gap-3">
@@ -261,7 +261,7 @@ export function OntologyExplorer() {
                 {ontology.graph_query.denied_relationship_count} denied relationships
               </span>
             </div>
-            <div aria-hidden="true" className="rule-dotted" />
+            <div aria-hidden="true" className="rule-hairline" />
             <p className="m-0 text-sm text-muted">
               {ontology.graph_query.returned_node_count} nodes /{" "}
               {ontology.graph_query.returned_relationship_count} relationships returned for{" "}

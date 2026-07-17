@@ -119,7 +119,7 @@ function DecisionRail({
             key={stage.label}
           >
             {index > 0 ? (
-              <div className="rule-dotted relative h-px min-w-6 flex-1 overflow-hidden">
+              <div className="rule-hairline relative h-px min-w-6 flex-1 overflow-hidden">
                 {index === currentIndex ? (
                   <span
                     className="absolute top-1/2 left-0 h-[3px] w-1/5 -translate-y-1/2 rounded-full bg-signal"
@@ -312,7 +312,7 @@ function ApprovalDetail({
 
       <DecisionRail approval={approval} decision={decision} />
 
-      <div aria-hidden="true" className="rule-dotted" />
+      <div aria-hidden="true" className="rule-hairline" />
 
       <CollapsibleSection defaultOpen label={strings.approvals.sections.evidence}>
         <div className="grid gap-3">
@@ -348,7 +348,7 @@ function ApprovalDetail({
         </div>
       </CollapsibleSection>
 
-      <div aria-hidden="true" className="rule-dotted" />
+      <div aria-hidden="true" className="rule-hairline" />
 
       <div className="grid gap-3">
         <DetailGrid>
