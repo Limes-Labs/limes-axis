@@ -214,7 +214,7 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         tenant_limit = await self._tenant_request_limit(request, tenant_id)
         if tenant_id is not None and tenant_limit is not None:
             # A per-tenant quota shares one bucket across the tenant's clients.
-            key = f"tenant:{tenant_id}:{request.method}:{request.url.path}"
+            key = f"tenant:{tenant_id}"
             effective_limit = tenant_limit
             scope = "tenant_quota"
         else:
@@ -245,7 +245,11 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
                 content={
                     "detail": {
                         "code": AxisErrorCode.RATE_LIMITED.value,
-                        "message": "Too many requests for this endpoint.",
+                        "message": (
+                            "Tenant request quota exceeded."
+                            if scope == "tenant_quota"
+                            else "Too many requests for this endpoint."
+                        ),
                         "limit": decision.limit,
                         "window_seconds": self.window_seconds,
                         "retry_after_seconds": decision.retry_after_seconds,

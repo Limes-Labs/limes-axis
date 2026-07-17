@@ -35,7 +35,9 @@ OPERATOR_SCOPES = [
     "platform:tenant:quota",
 ]
 TENANT_ID = "tenant_acme_manufacturing"
+SECOND_TENANT_ID = "tenant_beta_manufacturing"
 RATE_LIMIT_TEST_PATH = "/identity/oidc/readiness"
+SECOND_RATE_LIMIT_TEST_PATH = "/identity/oidc/onboarding"
 
 
 class StaticIdentityVerifier:
@@ -842,20 +844,22 @@ def seed_tenant_with_request_quota(
     factory: sessionmaker[Session],
     *,
     quota_value: int | None,
+    tenant_id: str = TENANT_ID,
+    display_name: str = "Acme Manufacturing",
 ) -> None:
     with session_scope(factory) as session:
         repository = AxisPersistenceRepository(session)
         repository.create_tenant(
             TenantCreate(
-                tenant_id=TENANT_ID,
-                display_name="Acme Manufacturing",
+                tenant_id=tenant_id,
+                display_name=display_name,
                 created_by=OPERATOR_ACTOR,
             )
         )
         if quota_value is not None:
             repository.upsert_tenant_quota(
                 TenantQuotaUpsert(
-                    tenant_id=TENANT_ID,
+                    tenant_id=tenant_id,
                     quota_key=TenantQuotaKey.API_REQUESTS_PER_WINDOW.value,
                     quota_value=quota_value,
                     updated_by=OPERATOR_ACTOR,
@@ -924,6 +928,49 @@ def test_rate_limit_verified_bearer_token_selects_tenant_quota() -> None:
     assert limited.status_code == 429
     assert limited.json()["detail"]["scope"] == "tenant_quota"
     assert limited.json()["detail"]["limit"] == 1
+
+
+def test_tenant_request_quota_is_shared_across_endpoints() -> None:
+    settings = rate_limited_settings().model_copy(
+        update={
+            "api_rate_limit_paths": [
+                RATE_LIMIT_TEST_PATH,
+                SECOND_RATE_LIMIT_TEST_PATH,
+            ]
+        }
+    )
+    client, factory = build_test_client(settings)
+    seed_tenant_with_request_quota(factory, quota_value=1)
+    seed_tenant_with_request_quota(
+        factory,
+        quota_value=1,
+        tenant_id=SECOND_TENANT_ID,
+        display_name="Beta Manufacturing",
+    )
+    bearer = {"Authorization": "Bearer valid-token"}
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="acme-console-user-role",
+            tenant_id=TENANT_ID,
+            scopes=[],
+        )
+    )
+
+    assert client.get(RATE_LIMIT_TEST_PATH, headers=bearer).status_code == 200
+    limited = client.get(SECOND_RATE_LIMIT_TEST_PATH, headers=bearer)
+
+    assert limited.status_code == 429
+    assert limited.json()["detail"]["scope"] == "tenant_quota"
+    assert limited.json()["detail"]["message"] == "Tenant request quota exceeded."
+
+    client.app.state.identity_verifier = StaticIdentityVerifier(
+        OidcPrincipal(
+            actor_id="beta-console-user-role",
+            tenant_id=SECOND_TENANT_ID,
+            scopes=[],
+        )
+    )
+    assert client.get(SECOND_RATE_LIMIT_TEST_PATH, headers=bearer).status_code == 200
 
 
 def test_revoked_session_cookie_cannot_consume_tenant_quota() -> None:
