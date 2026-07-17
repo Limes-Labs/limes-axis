@@ -37,6 +37,7 @@ from axis_api.oidc_code_flow import (
 from axis_api.persistence import (
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
+    OidcBrowserSessionRevocation,
     TenantCreate,
     TenantQuotaUpsert,
 )
@@ -305,6 +306,49 @@ def test_session_refresh_rotates_session_and_refresh_token() -> None:
     replayed = client.get("/identity/session")
     assert replayed.status_code == 401
     assert replayed.json()["detail"]["reason"] == "revoked_session_cookie"
+
+
+def test_session_refresh_cannot_resurrect_session_revoked_during_exchange() -> None:
+    settings = _settings()
+    factory = _session_factory()
+
+    class _RevokingTokenEndpoint(_FakeTokenEndpoint):
+        def __call__(self, form: dict[str, str], settings: Settings) -> dict[str, Any]:
+            response = super().__call__(form, settings)
+            if form.get("grant_type") == "refresh_token":
+                with session_scope(factory) as session:
+                    repository = AxisPersistenceRepository(session)
+                    parent = _sessions(session)[0]
+                    assert parent.status == "refreshing"
+                    repository.revoke_oidc_browser_session(
+                        OidcBrowserSessionRevocation(
+                            session_id_hash=parent.session_id_hash,
+                            revoked_by="identity-admin-role",
+                            revocation_reason="manual_security_revocation",
+                        )
+                    )
+            return response
+
+    endpoint = _RevokingTokenEndpoint(settings)
+    client, _factory, endpoint = _build_app(
+        settings,
+        factory=factory,
+        token_endpoint=endpoint,
+    )
+    _login(client, endpoint)
+
+    refresh = client.post("/identity/session/refresh", headers=_csrf_headers(client))
+
+    assert refresh.status_code == 401
+    assert refresh.json()["detail"]["reason"] == "invalid_session_cookie"
+    assert "Max-Age=0" in refresh.headers["set-cookie"]
+    with factory() as session:
+        stored = _sessions(session)
+        assert len(stored) == 1
+        assert stored[0].status == "revoked"
+        assert stored[0].revocation_reason == "manual_security_revocation"
+        assert stored[0].rotated_to_session_id_hash is None
+        assert "identity.oidc_session.refreshed" not in _audit_event_types(session)
 
 
 def test_session_refresh_requires_matching_csrf_token() -> None:

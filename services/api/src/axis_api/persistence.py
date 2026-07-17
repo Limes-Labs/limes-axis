@@ -1201,22 +1201,36 @@ class AxisPersistenceRepository:
         self.session.flush()
         return browser_session
 
-    def mark_oidc_browser_session_rotated(
+    def finalize_oidc_browser_session_refresh(
         self,
         *,
         session_id_hash: str,
         rotated_to_session_id_hash: str,
-    ) -> OidcBrowserSession | None:
-        browser_session = self.get_oidc_browser_session_by_hash(session_id_hash)
-        if browser_session is None:
-            return None
+    ) -> bool:
+        """Atomically rotate a session only while its refresh claim is live.
+
+        Logout, administrative revocation and the orphan sweep may revoke a
+        session while the IdP exchange is in flight. The conditional update
+        prevents that terminal decision from being overwritten and stops the
+        refresh caller from minting a replacement session after revocation.
+        """
         now = utc_now()
-        browser_session.status = "rotated"
-        browser_session.rotated_to_session_id_hash = rotated_to_session_id_hash
-        browser_session.refresh_token_ciphertext = None
-        browser_session.updated_at = now
+        statement = (
+            update(OidcBrowserSession)
+            .where(
+                OidcBrowserSession.session_id_hash == session_id_hash,
+                OidcBrowserSession.status == "refreshing",
+            )
+            .values(
+                status="rotated",
+                rotated_to_session_id_hash=rotated_to_session_id_hash,
+                refresh_token_ciphertext=None,
+                updated_at=now,
+            )
+        )
+        result = self.session.execute(statement)
         self.session.flush()
-        return browser_session
+        return bool(result.rowcount)
 
     def revoke_oidc_browser_session(
         self,
