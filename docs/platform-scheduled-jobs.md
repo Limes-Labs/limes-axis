@@ -177,6 +177,13 @@ unaffected (`AXIS_SCHEDULED_JOBS_ENABLED=false`).
 | `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_INTERVAL_SECONDS` | `3600` | Scheduled live-sync tick interval. |
 | `AXIS_CONNECTOR_SCHEDULED_LIVE_SYNC_TENANT_ID` | `tenant_demo_manufacturing` | Tenant whose dispatched live-sync runs the worker executes. |
 
+Approval-decision outbox dispatch also runs in the Temporal worker, but it is a
+delivery path rather than periodic maintenance. It is intentionally controlled
+by `AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_ENABLED`, not by
+`AXIS_SCHEDULED_JOBS_ENABLED`. See
+[Approval Decision Outbox](approval-decision-outbox.md) for its rollout and
+retry settings.
+
 The session windows are shared with the request path:
 `AXIS_OIDC_REFRESH_CLAIM_STALENESS_SECONDS`,
 `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` and `absolute`/sliding session expiry.

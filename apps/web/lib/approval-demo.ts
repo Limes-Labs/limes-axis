@@ -87,6 +87,7 @@ export type ApprovalDecisionPersistenceResult = {
   action_run_idempotency_key?: string | null;
   action_run_idempotent_replay?: boolean;
   platform_policy_decision?: PlatformPolicyDecision | null;
+  decision_event_id?: string | null;
 };
 
 export type ApprovalDecisionRequestPayload = {

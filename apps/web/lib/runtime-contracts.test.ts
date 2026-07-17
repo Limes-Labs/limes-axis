@@ -193,10 +193,12 @@ describe("production runtime contracts", () => {
         payload: { approval_id: "approval-1", approved: true, decision: "approve" },
       },
       workflow_signal_status: "approval_signaled",
+      decision_event_id: "22222222-2222-4222-8222-222222222222",
     };
 
     expect(parseApprovalDecisionPersistenceResult(payload)).toMatchObject({
       idempotent_replay: true,
+      decision_event_id: "22222222-2222-4222-8222-222222222222",
     });
     expect(() =>
       parseApprovalDecisionPersistenceResult({ ...payload, idempotent_replay: "yes" }),

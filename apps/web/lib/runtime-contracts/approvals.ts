@@ -73,6 +73,7 @@ const approvalDecisionResult = z.object({
     }),
   }),
   workflow_signal_status: z.string(),
+  decision_event_id: z.string().uuid().nullable().optional(),
 });
 
 export function parseManufacturingApprovalInbox(value: unknown): ManufacturingApprovalInbox {

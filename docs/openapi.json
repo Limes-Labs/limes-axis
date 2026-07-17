@@ -1344,6 +1344,99 @@
         "title": "ApprovalDecision",
         "type": "string"
       },
+      "ApprovalDecisionDeliveryStatus": {
+        "properties": {
+          "approval_id": {
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "attempt_count": {
+            "minimum": 0.0,
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "available_at": {
+            "format": "date-time",
+            "title": "Available At",
+            "type": "string"
+          },
+          "dead_lettered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dead Lettered At"
+          },
+          "decision_event_id": {
+            "format": "uuid",
+            "title": "Decision Event Id",
+            "type": "string"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workflow_id": {
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "approval_id",
+          "decision_event_id",
+          "workflow_id",
+          "status",
+          "attempt_count",
+          "available_at"
+        ],
+        "title": "ApprovalDecisionDeliveryStatus",
+        "type": "object"
+      },
       "ApprovalDecisionOption": {
         "properties": {
           "consequence": {
@@ -1441,6 +1534,18 @@
           },
           "decision": {
             "$ref": "#/components/schemas/ApprovalDecision"
+          },
+          "decision_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Event Id"
           },
           "idempotent_replay": {
             "default": false,
@@ -19373,6 +19478,78 @@
           }
         },
         "summary": "Manufacturing Approval Decision",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/manufacturing/approvals/{approval_id}/decision-delivery": {
+      "get": {
+        "operationId": "manufacturing_approval_decision_delivery_demo_manufacturing_approvals__approval_id__decision_delivery_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDecisionDeliveryStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Approval decision delivery record not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Approval Decision Delivery",
         "tags": [
           "demo"
         ]

@@ -1,4 +1,5 @@
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -15,6 +16,7 @@ from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate
 from axis_api.persistence import (
     ActionRunCreate,
     ActionRunResultRecord,
+    ApprovalDecisionOutboxCreate,
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
     AxisPersistenceRepository,
@@ -28,6 +30,8 @@ from axis_api.platform_policies import (
 )
 from axis_api.workflow_history import ensure_workflow_run
 from axis_api.workflow_runtime import (
+    APPROVAL_DECISION_SCHEMA_VERSION,
+    APPROVAL_DECISION_SIGNAL_NAME,
     DeferredWorkflowSignalRuntime,
     WorkflowSignalError,
     WorkflowSignalRequest,
@@ -86,6 +90,7 @@ class ApprovalDecisionPersistenceResult(BaseModel):
     action_run_idempotency_key: str | None = None
     action_run_idempotent_replay: bool = False
     platform_policy_decision: PlatformPolicyDecision | None = None
+    decision_event_id: UUID | None = None
 
 
 class ApprovalActionTransition(BaseModel):
@@ -402,6 +407,9 @@ async def _signal_approval_workflow(
         workflow_id=approval.workflow_id,
         approval_id=approval.approval_id,
         decision=request.decision,
+        actor_id=request.actor_id,
+        note=request.note,
+        decided_at=datetime.now(UTC),
     )
     try:
         return await workflow_runtime.signal_approval_decision(signal_request)
@@ -417,6 +425,7 @@ async def record_demo_approval_decision(
     *,
     tenant_id: str = "tenant_demo_manufacturing",
     workflow_history_persistence_enabled: bool = False,
+    workflow_signal_outbox_enabled: bool = False,
 ) -> ApprovalDecisionPersistenceResult:
     tenant_id, approval = _find_approval(repository, approval_id, tenant_id)
     action_id = _approval_action_id(repository, tenant_id, approval.approval_id)
@@ -464,7 +473,49 @@ async def record_demo_approval_decision(
             decision_note=request.note,
         )
     )
-    workflow_signal = await _signal_approval_workflow(runtime, tenant_id, approval, request)
+    decision_outbox = None
+    if workflow_signal_outbox_enabled:
+        decision_event_id = uuid4()
+        decided_at = datetime.now(UTC)
+        outbox_payload = WorkflowSignalRequest(
+            tenant_id=tenant_id,
+            workflow_id=approval.workflow_id,
+            approval_id=approval.approval_id,
+            decision=request.decision,
+            decision_event_id=decision_event_id,
+            actor_id=request.actor_id,
+            note=request.note,
+            decided_at=decided_at,
+            signal_name=APPROVAL_DECISION_SIGNAL_NAME,
+        ).runtime_payload
+        decision_outbox = repository.create_approval_decision_outbox(
+            ApprovalDecisionOutboxCreate(
+                id=decision_event_id,
+                tenant_id=tenant_id,
+                approval_id=approval.approval_id,
+                workflow_id=approval.workflow_id,
+                signal_name=APPROVAL_DECISION_SIGNAL_NAME,
+                schema_version=APPROVAL_DECISION_SCHEMA_VERSION,
+                decision=request.decision.value,
+                decision_actor_id=request.actor_id,
+                payload=outbox_payload,
+                available_at=decided_at,
+            )
+        )
+        workflow_signal = WorkflowSignalResult(
+            workflow_id=approval.workflow_id,
+            status="approval_signal_queued",
+            adapter="axis-transactional-outbox",
+            signal_name=APPROVAL_DECISION_SIGNAL_NAME,
+            payload={
+                "approval_id": approval.approval_id,
+                "approved": request.decision == ApprovalDecision.APPROVE,
+                "decision": request.decision.value,
+                "decision_event_id": str(decision_outbox.id),
+            },
+        )
+    else:
+        workflow_signal = await _signal_approval_workflow(runtime, tenant_id, approval, request)
     if workflow_history_persistence_enabled:
         ensure_workflow_run(repository, tenant_id, approval.workflow_id)
     workflow_run = repository.record_workflow_approval_decision(
@@ -549,6 +600,7 @@ async def record_demo_approval_decision(
         action_run_idempotency_key=action_transition.idempotency_key,
         action_run_idempotent_replay=action_transition.idempotent_replay,
         platform_policy_decision=platform_policy_decision,
+        decision_event_id=decision_outbox.id if decision_outbox is not None else None,
     )
     approval_record.payload = {
         **approval_record.payload,
