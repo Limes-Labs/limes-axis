@@ -224,6 +224,8 @@ def seed_snapshot_records(repository: AxisPersistenceRepository) -> None:
                 "scenario_id": "supplier_delay_demo",
                 "domain": "Supply",
                 "risk_level": "high",
+                "workflow_id": None,
+                "source_record_ids": ["order_rush_4812"],
             },
         )
     )
@@ -307,6 +309,12 @@ def test_build_manufacturing_operations_snapshot_aggregates_persisted_paths(
     assert snapshot.recent_audit_events[0].event_type == (
         "manufacturing.risk_scenario.generated"
     )
+    assert snapshot.recent_audit_events[0].payload_refs == {
+        "scenario_id": "supplier_delay_demo",
+        "domain": "Supply",
+        "risk_level": "high",
+        "source_record_ids": ["order_rush_4812"],
+    }
     serialized = snapshot.model_dump_json().lower()
     assert "tenant_other" not in serialized
     assert "password" not in serialized
@@ -332,6 +340,10 @@ def test_manufacturing_operations_snapshot_endpoint_returns_persisted_compositio
     assert body["risk_scenarios"][0]["domain"] == "Supply"
     assert body["active_workflows"][0]["state"] == "awaiting_approval"
     assert body["pending_approvals"][0]["status"] == "pending"
+    payload_refs = body["recent_audit_events"][0]["payload_refs"]
+    assert payload_refs["source_record_ids"] == ["order_rush_4812"]
+    assert "workflow_id" not in payload_refs
+    assert all(value is not None for value in payload_refs.values())
 
 
 def test_build_manufacturing_notification_center_derives_from_persisted_snapshot(

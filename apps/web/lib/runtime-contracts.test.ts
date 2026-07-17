@@ -171,6 +171,19 @@ describe("production runtime contracts", () => {
     ).toThrow();
   });
 
+  it("accepts scalar and collection audit references without accepting nulls", () => {
+    const payload = structuredClone(snapshotFixture);
+    payload.recent_audit_events[0].payload_refs = {
+      scenario_id: "supplier_delay_demo",
+      source_record_ids: ["order_rush_4812"],
+    };
+
+    expect(parseManufacturingOperationsSnapshot(payload)).toBe(payload);
+
+    payload.recent_audit_events[0].payload_refs = { workflow_id: null } as never;
+    expect(() => parseManufacturingOperationsSnapshot(payload)).toThrow();
+  });
+
   it.each([
     ["overview", parseManufacturingOverview, overviewFixture],
     ["operations snapshot", parseManufacturingOperationsSnapshot, snapshotFixture],
