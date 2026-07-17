@@ -3364,7 +3364,7 @@ def create_app(
         resolved_principal = _require_identity_principal(principal)
         with session_scope(request.app.state.session_factory) as session:
             repository = AxisPersistenceRepository(session)
-            stored_session = repository.get_oidc_browser_session(
+            stored_session = repository.get_oidc_browser_session_for_update(
                 resolved_principal.tenant_id,
                 session_ref,
             )
@@ -3384,7 +3384,7 @@ def create_app(
                 revocation_reason = "admin_revocation"
             else:
                 revocation_reason = "self_revocation"
-            if stored_session.status == "active":
+            if stored_session.status in {"active", "refreshing"}:
                 _expire_stored_session(
                     repository,
                     stored_session,

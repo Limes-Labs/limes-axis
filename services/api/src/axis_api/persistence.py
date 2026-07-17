@@ -1126,6 +1126,27 @@ class AxisPersistenceRepository:
         )
         return self.session.scalar(statement)
 
+    def get_oidc_browser_session_for_update(
+        self,
+        tenant_id: str,
+        session_ref: UUID,
+    ) -> OidcBrowserSession | None:
+        """Lock a tenant-scoped session for a terminal state transition.
+
+        The lock makes reference-based revocation linearizable with refresh
+        finalization on PostgreSQL: whichever transaction obtains the row first
+        determines whether the session is revoked or already rotated.
+        """
+        statement: Select[tuple[OidcBrowserSession]] = (
+            select(OidcBrowserSession)
+            .where(
+                OidcBrowserSession.tenant_id == tenant_id,
+                OidcBrowserSession.id == session_ref,
+            )
+            .with_for_update()
+        )
+        return self.session.scalar(statement)
+
     def get_oidc_browser_session_by_row_id(
         self,
         session_row_id: UUID,

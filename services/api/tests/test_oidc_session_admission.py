@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
+from uuid import UUID
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -54,3 +55,18 @@ def test_unsupported_oidc_session_admission_dialect_fails_closed() -> None:
         )
 
     session.execute.assert_not_called()
+
+
+def test_reference_session_lookup_locks_row_for_revocation() -> None:
+    repository, session = _repository_for_dialect("postgresql")
+
+    repository.get_oidc_browser_session_for_update(
+        tenant_id="tenant_acme",
+        session_ref=UUID("11111111-1111-4111-8111-111111111111"),
+    )
+
+    statement = session.scalar.call_args.args[0]
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "FOR UPDATE" in sql
+    assert "oidc_browser_sessions.tenant_id" in sql
+    assert "oidc_browser_sessions.id" in sql
