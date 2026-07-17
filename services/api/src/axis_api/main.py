@@ -3016,6 +3016,7 @@ def create_app(
         # Phase 2: perform the external IdP refresh exchange OUTSIDE any open
         # database transaction, then re-validate the returned principal.
         refresh_failure: tuple[str, str] | None = None
+        refresh_rejected_reason: str | None = None
         rotated: _RotatedSessionCookie | None = None
         try:
             token_response = request.app.state.oidc_token_exchanger(
@@ -3127,59 +3128,72 @@ def create_app(
                 client_metadata = extract_session_client_metadata(
                     request, resolved_settings
                 )
-                audit_event = repository.append_audit_event(
-                    AuditEventCreate(
-                        tenant_id=principal.tenant_id,
-                        actor_id=principal.actor_id,
-                        event_type="identity.oidc_session.refreshed",
-                        payload={
-                            "previous_session_id_hash": session_hash,
-                            "session_id_hash": new_session_hash,
-                            "session_boundary": OIDC_SESSION_BOUNDARY,
-                            "expires_at": expires_at.isoformat(),
-                            "absolute_expires_at": (
-                                ensure_aware_datetime(claim.absolute_expires_at).isoformat()
-                                if claim.absolute_expires_at is not None
-                                else None
-                            ),
-                            "refresh_count": refresh_count,
-                            "refresh_token_rotated": bool(
-                                isinstance(rotated_refresh_token, str)
-                                and rotated_refresh_token
-                            ),
-                        },
-                    )
-                )
-                repository.create_oidc_browser_session(
-                    OidcBrowserSessionCreate(
-                        session_id_hash=new_session_hash,
-                        tenant_id=principal.tenant_id,
-                        actor_id=principal.actor_id,
-                        scopes=principal.scopes,
-                        expires_at=expires_at,
-                        absolute_expires_at=claim.absolute_expires_at,
-                        refresh_token_ciphertext=encrypt_refresh_token(
-                            next_refresh_token, resolved_settings
-                        ),
-                        refresh_count=refresh_count,
-                        user_agent=client_metadata.user_agent,
-                        client_ip=client_metadata.client_ip,
-                        device_label=client_metadata.device_label,
-                        created_audit_event_id=audit_event.id,
-                    )
-                )
-                repository.mark_oidc_browser_session_rotated(
+                refresh_finalized = repository.finalize_oidc_browser_session_refresh(
                     session_id_hash=session_hash,
                     rotated_to_session_id_hash=new_session_hash,
                 )
-                rotated = _RotatedSessionCookie(
-                    session_cookie_value=session_cookie_value,
-                    session_id=new_session_id,
-                    max_age=session_max_age,
-                )
+                if not refresh_finalized:
+                    refresh_rejected_reason = "invalid_session_cookie"
+                else:
+                    audit_event = repository.append_audit_event(
+                        AuditEventCreate(
+                            tenant_id=principal.tenant_id,
+                            actor_id=principal.actor_id,
+                            event_type="identity.oidc_session.refreshed",
+                            payload={
+                                "previous_session_id_hash": session_hash,
+                                "session_id_hash": new_session_hash,
+                                "session_boundary": OIDC_SESSION_BOUNDARY,
+                                "expires_at": expires_at.isoformat(),
+                                "absolute_expires_at": (
+                                    ensure_aware_datetime(
+                                        claim.absolute_expires_at
+                                    ).isoformat()
+                                    if claim.absolute_expires_at is not None
+                                    else None
+                                ),
+                                "refresh_count": refresh_count,
+                                "refresh_token_rotated": bool(
+                                    isinstance(rotated_refresh_token, str)
+                                    and rotated_refresh_token
+                                ),
+                            },
+                        )
+                    )
+                    repository.create_oidc_browser_session(
+                        OidcBrowserSessionCreate(
+                            session_id_hash=new_session_hash,
+                            tenant_id=principal.tenant_id,
+                            actor_id=principal.actor_id,
+                            scopes=principal.scopes,
+                            expires_at=expires_at,
+                            absolute_expires_at=claim.absolute_expires_at,
+                            refresh_token_ciphertext=encrypt_refresh_token(
+                                next_refresh_token, resolved_settings
+                            ),
+                            refresh_count=refresh_count,
+                            user_agent=client_metadata.user_agent,
+                            client_ip=client_metadata.client_ip,
+                            device_label=client_metadata.device_label,
+                            created_audit_event_id=audit_event.id,
+                        )
+                    )
+                    rotated = _RotatedSessionCookie(
+                        session_cookie_value=session_cookie_value,
+                        session_id=new_session_id,
+                        max_age=session_max_age,
+                    )
 
-        if refresh_failure is not None or rotated is None:
-            failure_reason = refresh_failure[0] if refresh_failure else "refresh_failed"
+        if (
+            refresh_failure is not None
+            or refresh_rejected_reason is not None
+            or rotated is None
+        ):
+            failure_reason = (
+                refresh_failure[0]
+                if refresh_failure
+                else refresh_rejected_reason or "refresh_failed"
+            )
             failure_response = JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={
