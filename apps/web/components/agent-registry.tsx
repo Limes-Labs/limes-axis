@@ -29,14 +29,18 @@ import {
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  OPERATIONS_API_PREFIX,
+} from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
 } from "@/lib/use-console-tenant-scope";
 
-const AGENTS_ENDPOINT = "/demo/manufacturing/agents";
+const AGENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/agents`;
 
 const defaultFilters: AgentFilters = {
   domain: allAgentFilter,

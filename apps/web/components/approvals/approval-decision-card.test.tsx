@@ -18,6 +18,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 }));
 
 import { ApprovalDecisionCard, useApprovalDecisionState } from "./approval-decision-card";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const approvalFixture: ApprovalInboxItem = {
   approval_id: "appr_supply_fixture",
@@ -151,7 +152,7 @@ describe("ApprovalDecisionCard", () => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals/appr_supply_fixture/decision?tenant_id=tenant_demo_manufacturing",
+      `${OPERATIONS_API_PREFIX}/approvals/appr_supply_fixture/decision?tenant_id=tenant_demo_manufacturing`,
       expect.any(Function),
       expect.objectContaining({
         method: "POST",

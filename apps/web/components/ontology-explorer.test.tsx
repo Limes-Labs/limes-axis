@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { ontologyFixture } from "./ontology/ontology-fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -62,7 +62,7 @@ function mockOntology(identity: IdentitySessionReadModel = publicIdentity) {
     if (path === "/identity/session") {
       return queryResult(identity);
     }
-    if (path === `/demo/manufacturing/ontology?tenant_id=${tenantId}`) {
+    if (path === `${OPERATIONS_API_PREFIX}/ontology?tenant_id=${tenantId}`) {
       return queryResult({ ...ontologyFixture, tenant_id: tenantId });
     }
     return queryResult(null, "loading");
@@ -88,7 +88,7 @@ describe("OntologyExplorer", () => {
     const { unmount } = render(<OntologyExplorer />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/demo/manufacturing/ontology?tenant_id=tenant_acme",
+      `${OPERATIONS_API_PREFIX}/ontology?tenant_id=tenant_acme`,
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
     );
 
@@ -98,7 +98,7 @@ describe("OntologyExplorer", () => {
     render(<OntologyExplorer />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      `/demo/manufacturing/ontology?tenant_id=${DEMO_TENANT_ID}`,
+      `${OPERATIONS_API_PREFIX}/ontology?tenant_id=${DEMO_TENANT_ID}`,
       expect.objectContaining({ enabled: true, expectedTenantId: DEMO_TENANT_ID }),
     );
   });

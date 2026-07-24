@@ -18,6 +18,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 }));
 
 import { SimulationConsole } from "./simulation-console";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const emptyReplay: ManufacturingReplaySimulation = {
   tenant_id: "tenant_acme",
@@ -70,7 +71,7 @@ describe("SimulationConsole tenant and empty states", () => {
     render(<SimulationConsole />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/demo/manufacturing/simulation/replay?tenant_id=tenant_acme&limit=20",
+      `${OPERATIONS_API_PREFIX}/simulation/replay?tenant_id=tenant_acme&limit=20`,
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
     );
   });

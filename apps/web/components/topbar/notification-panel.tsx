@@ -23,6 +23,7 @@ import type { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import {
   parseManufacturingNotificationAcknowledgementResult,
 } from "@/lib/runtime-contracts/overview";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 export function NotificationPanel({
   center,
@@ -51,7 +52,7 @@ export function NotificationPanel({
           <span className="status-pill signal-action-required">API required</span>
         </PopoverHeader>
         <p className="m-0 text-sm leading-snug text-muted">
-          Live notification data requires `/demo/manufacturing/notifications`.
+          Live notification data requires `{OPERATIONS_API_PREFIX}/notifications`.
         </p>
       </section>
     );
@@ -82,7 +83,7 @@ export function NotificationPanel({
     setAcknowledgementError(null);
     try {
       await axisFetchParsedJson<ManufacturingNotificationAcknowledgementResult>(
-        `/demo/manufacturing/notifications/${item.notification_id}/acknowledgement`,
+        `${OPERATIONS_API_PREFIX}/notifications/${item.notification_id}/acknowledgement`,
         parseManufacturingNotificationAcknowledgementResult,
         {
           method: "POST",

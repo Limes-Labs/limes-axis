@@ -34,6 +34,7 @@ import { useConsole } from "@/providers/console-provider";
 
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import { PanelHeader, StatusDot, type OverviewQuery } from "./overview-shared";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 /*
  * Compact governed-evidence generation panel: one card, one action row, the
@@ -42,7 +43,7 @@ import { PanelHeader, StatusDot, type OverviewQuery } from "./overview-shared";
  * endpoint just leaves the actions disabled with their scope reason.
  */
 
-export const SNAPSHOT_ENDPOINT = "/demo/manufacturing/operations/snapshot";
+export const SNAPSHOT_ENDPOINT = `${OPERATIONS_API_PREFIX}/operations/snapshot`;
 
 const ACTION_ICONS: Record<string, typeof FileCheck2> = {
   daily_brief: FileCheck2,

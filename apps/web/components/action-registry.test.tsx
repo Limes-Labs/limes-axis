@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ManufacturingActionRegistry } from "@/lib/action-demo";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
@@ -152,7 +152,7 @@ function mockActions() {
     if (path === "/identity/session") {
       return queryResult(publicIdentity);
     }
-    if (path === `/demo/manufacturing/actions?tenant_id=${DEMO_TENANT_ID}`) {
+    if (path === `${OPERATIONS_API_PREFIX}/actions?tenant_id=${DEMO_TENANT_ID}`) {
       // A fresh object identity every call, mirroring `useAxisQuery`'s real
       // behaviour: every fetch — including a background refresh that finds
       // nothing new — returns a brand-new object.

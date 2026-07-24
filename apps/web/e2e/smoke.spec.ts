@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { strings } from "@/lib/strings";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
@@ -153,9 +154,9 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(5);
 
     // Endpoint paths are demoted behind the ErrorPanel "Technical details" expander.
-    await expect(page.getByText("/demo/manufacturing/overview")).toHaveCount(0);
+    await expect(page.getByText(`${OPERATIONS_API_PREFIX}/overview`)).toHaveCount(0);
     await page.getByRole("button", { name: "Technical details" }).first().click();
-    await expect(page.getByText("/demo/manufacturing/overview")).toBeVisible();
+    await expect(page.getByText(`${OPERATIONS_API_PREFIX}/overview`)).toBeVisible();
     await expect(page.getByText("Fallback demo seed")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Ravenna Works" })).toHaveCount(0);
     await expect(page.getByText("Plant Operations Cockpit")).toHaveCount(0);
@@ -231,7 +232,7 @@ test.describe("Axis console smoke", () => {
     await expect(notificationsPanel).toBeVisible();
     await expect(notificationsPanel.getByText("API required", { exact: true })).toBeVisible();
     await expect(
-      notificationsPanel.getByText("Live notification data requires `/demo/manufacturing/notifications`."),
+      notificationsPanel.getByText(`Live notification data requires \`${OPERATIONS_API_PREFIX}/notifications\`.`),
     ).toBeVisible();
     const notificationsTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
@@ -480,11 +481,11 @@ test.describe("Axis console smoke", () => {
 
     // The endpoint path stays demoted behind the ErrorPanel expander, and no
     // fabricated run timelines or detail tabs render without the registry API.
-    await expect(page.getByText("/demo/manufacturing/agents", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(`${OPERATIONS_API_PREFIX}/agents`, { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Technical details" }).first().click();
     await expect(
       page.getByText(
-        "/demo/manufacturing/agents?tenant_id=tenant_demo_manufacturing",
+        `${OPERATIONS_API_PREFIX}/agents?tenant_id=tenant_demo_manufacturing`,
         { exact: true },
       ),
     ).toBeVisible();
@@ -574,7 +575,7 @@ test.describe("Axis console smoke", () => {
     ];
 
     await page.route(
-      (url) => url.href.startsWith("http://127.0.0.1:65534/demo/manufacturing/ontology"),
+      (url) => url.href.startsWith(`http://127.0.0.1:65534${OPERATIONS_API_PREFIX}/ontology`),
       async (route) => {
         if (route.request().url().includes("/entities/")) {
           await route.fulfill({
@@ -702,7 +703,7 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("button", { name: "Technical details" }).click();
     await expect(
       page.getByText(
-        "/demo/manufacturing/model-routing?tenant_id=tenant_demo_manufacturing",
+        `${OPERATIONS_API_PREFIX}/model-routing?tenant_id=tenant_demo_manufacturing`,
         { exact: true },
       ),
     ).toBeVisible();
@@ -1097,9 +1098,9 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Manufacturing assets CSV/ })).toHaveCount(0);
 
     // The registry endpoint stays demoted behind the technical-details expander.
-    await expect(page.getByText("/demo/manufacturing/connectors", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(`${OPERATIONS_API_PREFIX}/connectors`, { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Technical details" }).click();
-    await expect(page.getByText("/demo/manufacturing/connectors", { exact: true })).toBeVisible();
+    await expect(page.getByText(`${OPERATIONS_API_PREFIX}/connectors`, { exact: true })).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

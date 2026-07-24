@@ -32,6 +32,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 
 import { AxisApiDecodeError, AxisApiError } from "./axis-api";
 import { useAxisQuery } from "./use-axis-query";
+import { OPERATIONS_API_PREFIX } from "./tenant-scope";
 
 type Registry = { items: string[] };
 const parseRegistry = (value: unknown): Registry => value as Registry;
@@ -126,7 +127,7 @@ describe("useAxisQuery", () => {
 
   it("classifies a TENANT_NOT_FOUND response separately from transport unavailability", async () => {
     mocks.axisFetchParsedJson.mockRejectedValueOnce(
-      new AxisApiError("/demo/manufacturing/overview", 404, {
+      new AxisApiError(`${OPERATIONS_API_PREFIX}/overview`, 404, {
         body: {
           detail: {
             code: "TENANT_NOT_FOUND",
@@ -138,7 +139,7 @@ describe("useAxisQuery", () => {
     );
 
     const { result } = renderHook(() =>
-      useAxisQuery<Registry>("/demo/manufacturing/overview?tenant_id=tenant_nope", {
+      useAxisQuery<Registry>(`${OPERATIONS_API_PREFIX}/overview?tenant_id=tenant_nope`, {
         parse: parseRegistry,
       }),
     );

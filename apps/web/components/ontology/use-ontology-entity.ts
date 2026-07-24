@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
 import type { ManufacturingOntologyEntityDetail } from "@/lib/ontology-demo";
 import { parseManufacturingOntologyEntityDetail } from "@/lib/runtime-contracts/ontology";
-import { buildTenantScopedPath } from "@/lib/tenant-scope";
+import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -19,7 +19,7 @@ type OntologyEntityResult = {
 
 export function buildOntologyEntityPath(nodeId: string, tenantId: string): string {
   return buildTenantScopedPath(
-    `/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId)}`,
+    `${OPERATIONS_API_PREFIX}/ontology/entities/${encodeURIComponent(nodeId)}`,
     tenantId,
   );
 }

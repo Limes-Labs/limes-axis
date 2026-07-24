@@ -25,6 +25,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 
 import { NeedsAttention } from "./needs-attention";
 import { approvalInboxFixture, overviewFixture } from "./overview-fixtures";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 type QueryResult = {
   data: ManufacturingApprovalInbox | null;
@@ -195,7 +196,7 @@ describe("NeedsAttention inline decision flow", () => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals/appr_fixture_expedite/decision?tenant_id=tenant_fixture",
+      `${OPERATIONS_API_PREFIX}/approvals/appr_fixture_expedite/decision?tenant_id=tenant_fixture`,
       expect.any(Function),
       expect.objectContaining({
         method: "POST",

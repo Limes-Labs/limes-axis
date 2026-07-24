@@ -44,6 +44,7 @@ vi.mock("@/providers/console-provider", () => ({
 
 import { ToastProvider } from "@/components/ui/toast";
 import { ConnectorConsole } from "./index";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 type Source = "loading" | "api" | "unavailable";
 
@@ -120,7 +121,7 @@ describe("ConnectorConsole states", () => {
     renderConsole();
 
     const connectorCalls = mocks.useAxisQuery.mock.calls.filter(
-      ([path]) => typeof path === "string" && path.startsWith("/demo/manufacturing/connectors"),
+      ([path]) => typeof path === "string" && path.startsWith(`${OPERATIONS_API_PREFIX}/connectors`),
     );
     expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(9);
     connectorCalls.forEach(([path, options]) => {
@@ -150,7 +151,7 @@ describe("ConnectorConsole states", () => {
 
   it("renders loading skeletons without error copy while the registry loads", () => {
     mockQueries({
-      "/demo/manufacturing/connectors": { data: null, source: "loading" },
+      [`${OPERATIONS_API_PREFIX}/connectors`]: { data: null, source: "loading" },
     });
     renderConsole();
 
@@ -160,7 +161,7 @@ describe("ConnectorConsole states", () => {
 
   it("renders the ErrorPanel when the registry API is unreachable", () => {
     mockQueries({
-      "/demo/manufacturing/connectors": { data: null, source: "unavailable" },
+      [`${OPERATIONS_API_PREFIX}/connectors`]: { data: null, source: "unavailable" },
     });
     renderConsole();
 
@@ -175,13 +176,13 @@ describe("ConnectorConsole states", () => {
   it("renders the EmptyPanel with a wizard CTA when the registry has zero connectors", async () => {
     const user = userEvent.setup();
     mockQueries({
-      "/demo/manufacturing/connectors": {
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
         data: { ...connectorRegistryFixture, connectors: [] },
         source: "api",
       },
       // A truly empty tenant has no persisted manifests either; a manifest
       // record alone would legitimately render as a connector entry.
-      "/demo/manufacturing/connectors/manifests": {
+      [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: {
         data: { ...manifestRegistryFixture, manifests: [] },
         source: "api",
       },
@@ -220,7 +221,7 @@ describe("ConnectorConsole metrics", () => {
 
   it("shows a placeholder value for a metric whose registry is unavailable", () => {
     mockQueries({
-      "/demo/manufacturing/connectors/egress-policies": { data: null, source: "unavailable" },
+      [`${OPERATIONS_API_PREFIX}/connectors/egress-policies`]: { data: null, source: "unavailable" },
     });
     renderConsole();
 
@@ -267,7 +268,7 @@ describe("ConnectorConsole list and detail", () => {
       "/connectors?snapshot_id=snapshot_fixture&connector_id=file_csv_manufacturing_assets",
     );
     mockQueries({
-      "/demo/manufacturing/connectors/evidence-invariants/snapshots": {
+      [`${OPERATIONS_API_PREFIX}/connectors/evidence-invariants/snapshots`]: {
         source: "api",
         data: {
           tenant_id: "tenant_demo_manufacturing",
@@ -316,7 +317,7 @@ describe("ConnectorConsole list and detail", () => {
   it("does not fall back to the first connector for an unknown snapshot", () => {
     window.history.replaceState(null, "", "/connectors?snapshot_id=snapshot_unknown");
     mockQueries({
-      "/demo/manufacturing/connectors/evidence-invariants/snapshots": {
+      [`${OPERATIONS_API_PREFIX}/connectors/evidence-invariants/snapshots`]: {
         source: "api",
         data: {
           tenant_id: "tenant_demo_manufacturing",
@@ -385,7 +386,7 @@ describe("ConnectorConsole list and detail", () => {
   it("shows the evidence invariants error state when that registry is unavailable", async () => {
     const user = userEvent.setup();
     mockQueries({
-      "/demo/manufacturing/connectors/evidence-invariants": { data: null, source: "unavailable" },
+      [`${OPERATIONS_API_PREFIX}/connectors/evidence-invariants`]: { data: null, source: "unavailable" },
     });
     renderConsole();
 
@@ -486,7 +487,7 @@ describe("ConnectorConsole merged manifest entries", () => {
 
   function mockWithWizardManifest() {
     mockQueries({
-      "/demo/manufacturing/connectors/manifests": {
+      [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: {
         data: {
           ...manifestRegistryFixture,
           manifests: [...manifestRegistryFixture.manifests, wizardManifest],

@@ -23,6 +23,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 }));
 
 import { ApprovalInbox } from "./approval-inbox";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const inboxFixture: ManufacturingApprovalInbox = {
   tenant_id: "tenant_fixture",
@@ -154,7 +155,7 @@ function mockQuery(result: {
         isUnavailable: false,
       };
     }
-    if (path.startsWith("/demo/manufacturing/audit/events")) {
+    if (path.startsWith(`${OPERATIONS_API_PREFIX}/audit/events`)) {
       return {
         data: {
           tenant_id: "tenant_fixture",
@@ -220,7 +221,7 @@ describe("ApprovalInbox states", () => {
       screen.getByText(/Local fallback approval records are disabled\./),
     ).toBeInTheDocument();
     // Endpoint stays demoted behind the technical-details expander.
-    expect(screen.queryByText("/demo/manufacturing/approvals")).not.toBeInTheDocument();
+    expect(screen.queryByText(`${OPERATIONS_API_PREFIX}/approvals`)).not.toBeInTheDocument();
   });
 
   it("renders the EmptyPanel when the API responds with zero approvals", () => {
@@ -241,7 +242,7 @@ describe("ApprovalInbox decision flow", () => {
     renderInbox();
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals?tenant_id=tenant_fixture",
+      `${OPERATIONS_API_PREFIX}/approvals?tenant_id=tenant_fixture`,
       expect.objectContaining({ expectedTenantId: "tenant_fixture" }),
     );
     expect(
@@ -334,7 +335,7 @@ describe("ApprovalInbox decision flow", () => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
-      "/demo/manufacturing/approvals/appr_supply_fixture/decision?tenant_id=tenant_fixture",
+      `${OPERATIONS_API_PREFIX}/approvals/appr_supply_fixture/decision?tenant_id=tenant_fixture`,
       expect.any(Function),
       expect.objectContaining({
         method: "POST",

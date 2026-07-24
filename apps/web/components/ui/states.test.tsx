@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "./states";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -37,23 +38,23 @@ describe("ErrorPanel", () => {
       <ErrorPanel
         title="Approvals are unavailable"
         detail="The console could not reach the Axis API."
-        endpoint="/demo/manufacturing/approvals"
+        endpoint={`${OPERATIONS_API_PREFIX}/approvals`}
       />,
     );
 
     expect(screen.getByText("Approvals are unavailable")).toBeInTheDocument();
     expect(screen.getByText("The console could not reach the Axis API.")).toBeInTheDocument();
-    expect(screen.queryByText("/demo/manufacturing/approvals")).not.toBeInTheDocument();
+    expect(screen.queryByText(`${OPERATIONS_API_PREFIX}/approvals`)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Technical details" }));
 
-    expect(screen.getByText("/demo/manufacturing/approvals")).toBeInTheDocument();
+    expect(screen.getByText(`${OPERATIONS_API_PREFIX}/approvals`)).toBeInTheDocument();
   });
 
   it("explains the default base URL inside technical details when no override is set", async () => {
     vi.stubEnv("NEXT_PUBLIC_AXIS_API_BASE_URL", "");
     const user = userEvent.setup();
-    render(<ErrorPanel title="API unavailable" endpoint="/demo/manufacturing/overview" />);
+    render(<ErrorPanel title="API unavailable" endpoint={`${OPERATIONS_API_PREFIX}/overview`} />);
 
     await user.click(screen.getByRole("button", { name: "Technical details" }));
 
@@ -67,7 +68,7 @@ describe("ErrorPanel", () => {
   it("omits the default base URL note when an override is configured", async () => {
     vi.stubEnv("NEXT_PUBLIC_AXIS_API_BASE_URL", "https://axis.example.com");
     const user = userEvent.setup();
-    render(<ErrorPanel title="API unavailable" endpoint="/demo/manufacturing/overview" />);
+    render(<ErrorPanel title="API unavailable" endpoint={`${OPERATIONS_API_PREFIX}/overview`} />);
 
     await user.click(screen.getByRole("button", { name: "Technical details" }));
 

@@ -9,6 +9,7 @@ import type {
   ManufacturingConnectorRegistry,
   ManufacturingConnectorRunRegistry,
 } from "@/lib/connectors-demo";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const registryBase = {
   tenant_id: "tenant_demo_manufacturing",
@@ -304,13 +305,13 @@ export const ontologyProposalRegistryFixture: ManufacturingConnectorOntologyProp
 
 /** Path → fixture payload map matching CONNECTOR_ENDPOINTS. */
 export const connectorEndpointFixtures: Record<string, unknown> = {
-  "/demo/manufacturing/connectors": connectorRegistryFixture,
-  "/demo/manufacturing/connectors/manifests": manifestRegistryFixture,
-  "/demo/manufacturing/connectors/credential-handles": credentialHandleRegistryFixture,
-  "/demo/manufacturing/connectors/credential-leases": credentialLeaseRegistryFixture,
-  "/demo/manufacturing/connectors/egress-policies": egressPolicyRegistryFixture,
-  "/demo/manufacturing/connectors/runs": runRegistryFixture,
-  "/demo/manufacturing/connectors/evidence-invariants?tenant_id=tenant_demo_manufacturing":
+  [`${OPERATIONS_API_PREFIX}/connectors`]: connectorRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: manifestRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/credential-handles`]: credentialHandleRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/credential-leases`]: credentialLeaseRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/egress-policies`]: egressPolicyRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/runs`]: runRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/evidence-invariants?tenant_id=tenant_demo_manufacturing`]:
     evidenceInvariantReportFixture,
-  "/demo/manufacturing/connectors/ontology-proposals": ontologyProposalRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/ontology-proposals`]: ontologyProposalRegistryFixture,
 };

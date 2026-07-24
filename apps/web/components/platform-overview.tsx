@@ -35,6 +35,7 @@ import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
   resolveConsoleTenantScope,
+  OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useDemoBootstrap } from "@/lib/use-demo-bootstrap";
@@ -48,10 +49,10 @@ import { useConsole } from "@/providers/console-provider";
  */
 
 const IDENTITY_SESSION_ENDPOINT = "/identity/session";
-const OVERVIEW_ENDPOINT = "/demo/manufacturing/overview";
-const SNAPSHOT_ENDPOINT = "/demo/manufacturing/operations/snapshot";
-const MODEL_ROUTING_ENDPOINT = "/demo/manufacturing/model-routing";
-const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
+const OVERVIEW_ENDPOINT = `${OPERATIONS_API_PREFIX}/overview`;
+const SNAPSHOT_ENDPOINT = `${OPERATIONS_API_PREFIX}/operations/snapshot`;
+const MODEL_ROUTING_ENDPOINT = `${OPERATIONS_API_PREFIX}/model-routing`;
+const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 
 function OverviewHero({
   overview,

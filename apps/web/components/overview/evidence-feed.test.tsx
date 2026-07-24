@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { EvidenceFeed } from "./evidence-feed";
 import { auditEventsFixture } from "./overview-fixtures";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 describe("EvidenceFeed", () => {
   it("renders a loading skeleton without any error copy while loading", () => {
@@ -19,7 +20,7 @@ describe("EvidenceFeed", () => {
       screen.getByRole("heading", { name: "Audit evidence API unavailable" }),
     ).toBeInTheDocument();
     // Endpoint stays demoted behind the technical-details expander.
-    expect(screen.queryByText("/demo/manufacturing/audit/events")).not.toBeInTheDocument();
+    expect(screen.queryByText(`${OPERATIONS_API_PREFIX}/audit/events`)).not.toBeInTheDocument();
   });
 
   it("renders the EmptyPanel when the ledger has no events yet", () => {

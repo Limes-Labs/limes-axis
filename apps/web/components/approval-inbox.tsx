@@ -39,11 +39,12 @@ import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
   resolveConsoleTenantScope,
+  OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
-const APPROVALS_ENDPOINT = "/demo/manufacturing/approvals";
-const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
+const APPROVALS_ENDPOINT = `${OPERATIONS_API_PREFIX}/approvals`;
+const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 const approvalUrlSchema = {
   approvalId: stringUrlField("approval_id"),
   actionRunId: stringUrlField("action_run_id"),

@@ -10,6 +10,7 @@ import {
   OPERATIONS_ARTIFACT_ACTIONS,
   OperationsArtifactRequestError,
 } from "./operations-artifacts";
+import { OPERATIONS_API_PREFIX } from "./tenant-scope";
 
 const verifiedSession: IdentitySessionReadModel = {
   authenticated: true,
@@ -63,7 +64,7 @@ describe("operations artifacts", () => {
     ]);
     expect(
       OPERATIONS_ARTIFACT_ACTIONS.every(
-        (action) => action.endpoint.startsWith("/demo/manufacturing/operations/")
+        (action) => action.endpoint.startsWith(`${OPERATIONS_API_PREFIX}/operations/`)
           && action.requiredScopes.includes("audit:read")
           && action.requiredScopes.includes("workflows:read"),
       ),
@@ -77,7 +78,7 @@ describe("operations artifacts", () => {
       snapshot: operationsSnapshot,
     });
 
-    expect(request.endpoint).toBe("/demo/manufacturing/operations/daily-brief");
+    expect(request.endpoint).toBe(`${OPERATIONS_API_PREFIX}/operations/daily-brief`);
     expect(request.body).toEqual({
       tenant_id: "tenant_demo_manufacturing",
       brief_date: "2026-06-22",
@@ -96,7 +97,7 @@ describe("operations artifacts", () => {
       snapshot: operationsSnapshot,
     });
 
-    expect(request.endpoint).toBe("/demo/manufacturing/operations/risk-scenarios/quality");
+    expect(request.endpoint).toBe(`${OPERATIONS_API_PREFIX}/operations/risk-scenarios/quality`);
     expect(request.body.requested_by).toBe(verifiedSession.actor_id);
     expect(request.body.actor_scopes).toBe(verifiedSession.scopes);
     expect(request.body.idempotency_key).toBe(

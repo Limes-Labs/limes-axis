@@ -11,6 +11,7 @@ vi.mock("@/lib/use-axis-query", () => ({
 }));
 
 import { ONBOARDING_ENDPOINTS, OnboardingChecklist } from "./onboarding-checklist";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 type Source = "loading" | "api" | "unavailable";
 
@@ -187,7 +188,7 @@ describe("OnboardingChecklist (full)", () => {
   });
 
   it("treats a failing registry as not-done instead of rendering an error wall", () => {
-    mockRegistries({ policies: 1 }, ["/demo/manufacturing/connectors"]);
+    mockRegistries({ policies: 1 }, [`${OPERATIONS_API_PREFIX}/connectors`]);
     render(<OnboardingChecklist variant="full" />);
 
     expect(screen.getByText("1 of 5 setup steps complete")).toBeInTheDocument();

@@ -6,7 +6,17 @@ from threading import Event, Thread
 from typing import Annotated, NamedTuple
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.exc import SQLAlchemyError
@@ -562,15 +572,19 @@ from axis_api.platform_tenants import (
     TenantRegistry,
     TenantStateCache,
     TenantSuspendRequest,
+    TenantVocabularySet,
+    TenantVocabularyUpdateRequest,
     blocked_tenant_reason,
     build_tenant_registry,
     decode_tenant_cursor,
     get_tenant_detail,
     get_tenant_quota_set,
+    get_tenant_vocabulary,
     provision_tenant,
     reactivate_tenant,
     suspend_tenant,
     update_tenant_quotas,
+    update_tenant_vocabulary,
 )
 from axis_api.rate_limit import (
     ApiRateLimitMiddleware,
@@ -2444,6 +2458,7 @@ def create_app(
         openapi_url=None if production else "/openapi.json",
         lifespan=_lifespan,
     )
+    operations_router = APIRouter()
 
     @app.exception_handler(ManufacturingTenantNotFound)
     async def manufacturing_tenant_not_found_handler(
@@ -3485,8 +3500,8 @@ def create_app(
             deployment_readiness_report=deployment_report,
         )
 
-    @app.get(
-        "/demo/manufacturing/overview",
+    @operations_router.get(
+        "/overview",
         response_model=ManufacturingOverview,
         responses={
             404: {"description": "Manufacturing overview reference record not found"},
@@ -3523,6 +3538,7 @@ def create_app(
                 },
             ) from exc
 
+    # Bootstrap seeds demonstration data, so it has no production operations alias.
     @app.post(
         "/demo/manufacturing/bootstrap",
         response_model=DemoBootstrapRecordView,
@@ -3530,6 +3546,7 @@ def create_app(
             403: {"description": "Demo scenario bootstrap permission denied"},
             422: {"description": "Demo scenario bootstrap validation failed"},
         },
+        deprecated=True,
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
     )
@@ -3576,8 +3593,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.get(
-        "/demo/manufacturing/workflows",
+    @operations_router.get(
+        "/workflows",
         response_model=ManufacturingWorkflowConsole,
         responses={
             404: {"description": "Workflow console reference record not found"},
@@ -3617,8 +3634,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/workflows/runs",
+    @operations_router.get(
+        "/workflows/runs",
         response_model=ManufacturingWorkflowConsole,
         tags=["demo"],
     )
@@ -3635,8 +3652,8 @@ def create_app(
             WorkflowRunQuery(tenant_id=tenant_id, state=state, limit=limit),
         )
 
-    @app.get(
-        "/demo/manufacturing/simulation/replay",
+    @operations_router.get(
+        "/simulation/replay",
         response_model=ManufacturingReplaySimulation,
         responses={
             403: {"description": "Replay policy-set comparison denied or disabled"},
@@ -3700,8 +3717,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/simulation/replay/outputs",
+    @operations_router.post(
+        "/simulation/replay/outputs",
         response_model=ReplaySimulationOutputRecord,
         responses={
             403: {"description": "Replay simulation output permission denied"},
@@ -3786,8 +3803,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.get(
-        "/demo/manufacturing/operations",
+    @operations_router.get(
+        "/operations",
         response_model=ManufacturingOperationsDataset,
         tags=["demo"],
     )
@@ -3814,8 +3831,8 @@ def create_app(
             ),
         )
 
-    @app.get(
-        "/demo/manufacturing/operations/snapshot",
+    @operations_router.get(
+        "/operations/snapshot",
         response_model=ManufacturingOperationsSnapshot,
         tags=["demo"],
     )
@@ -3842,8 +3859,8 @@ def create_app(
             ),
         )
 
-    @app.get(
-        "/demo/manufacturing/notifications",
+    @operations_router.get(
+        "/notifications",
         response_model=ManufacturingNotificationCenter,
         tags=["demo"],
     )
@@ -3896,8 +3913,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/notifications/{notification_id}/acknowledgement",
+    @operations_router.post(
+        "/notifications/{notification_id}/acknowledgement",
         response_model=ManufacturingNotificationAcknowledgementResult,
         responses={
             403: {"description": "Notification acknowledgement permission denied"},
@@ -3941,8 +3958,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/demo-readiness",
+    @operations_router.get(
+        "/demo-readiness",
         response_model=ManufacturingDemoReadinessReport,
         tags=["demo"],
     )
@@ -3969,8 +3986,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/operations/daily-brief",
+    @operations_router.post(
+        "/operations/daily-brief",
         response_model=DailyPlantBriefRecord,
         responses={
             403: {"description": "Daily plant brief permission denied"},
@@ -4026,8 +4043,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.post(
-        "/demo/manufacturing/operations/risk-scenarios/quality",
+    @operations_router.post(
+        "/operations/risk-scenarios/quality",
         response_model=QualityRiskScenarioRecord,
         responses={
             403: {"description": "Quality risk scenario permission denied"},
@@ -4083,8 +4100,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.post(
-        "/demo/manufacturing/operations/risk-scenarios/maintenance",
+    @operations_router.post(
+        "/operations/risk-scenarios/maintenance",
         response_model=MaintenanceRiskScenarioRecord,
         responses={
             403: {"description": "Maintenance risk scenario permission denied"},
@@ -4142,8 +4159,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.post(
-        "/demo/manufacturing/operations/risk-scenarios/supplier-delay",
+    @operations_router.post(
+        "/operations/risk-scenarios/supplier-delay",
         response_model=SupplierDelayScenarioRecord,
         responses={
             403: {"description": "Supplier delay scenario permission denied"},
@@ -4199,8 +4216,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.get(
-        "/demo/manufacturing/agents",
+    @operations_router.get(
+        "/agents",
         response_model=ManufacturingAgentRegistry,
         responses={
             404: {"description": "Agent registry reference record not found"},
@@ -4240,8 +4257,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/agents/{agent_id}/runs",
+    @operations_router.post(
+        "/agents/{agent_id}/runs",
         response_model=AgentRunResult,
         responses={
             403: {"description": "Agent run permission denied or platform policy denied"},
@@ -4370,8 +4387,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.get(
-        "/demo/manufacturing/agents/{agent_id}/runs",
+    @operations_router.get(
+        "/agents/{agent_id}/runs",
         response_model=AgentRunList,
         responses={
             403: {"description": "Agent run read permission denied"},
@@ -4427,8 +4444,8 @@ def create_app(
             ],
         )
 
-    @app.get(
-        "/demo/manufacturing/agents/{agent_id}/runs/{run_id}",
+    @operations_router.get(
+        "/agents/{agent_id}/runs/{run_id}",
         response_model=AgentRunResult,
         responses={
             403: {"description": "Agent run read permission denied"},
@@ -4456,8 +4473,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/actions",
+    @operations_router.get(
+        "/actions",
         response_model=ManufacturingActionRegistry,
         responses={
             404: {"description": "Action registry reference record not found"},
@@ -4497,8 +4514,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors",
+    @operations_router.get(
+        "/connectors",
         response_model=ManufacturingConnectorRegistry,
         responses={
             404: {"description": "Connector registry reference record not found"},
@@ -4538,8 +4555,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/manifests",
+    @operations_router.get(
+        "/connectors/manifests",
         response_model=ManufacturingConnectorManifestRegistry,
         responses={403: {"description": "Connector manifest read permission denied"}},
         tags=["demo"],
@@ -4563,8 +4580,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/manifests",
+    @operations_router.post(
+        "/connectors/manifests",
         response_model=ConnectorManifestRecordView,
         responses={
             403: {"description": "Connector manifest actor binding permission denied"},
@@ -4606,8 +4623,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle",
+    @operations_router.post(
+        "/connectors/manifests/{connector_id}/lifecycle",
         response_model=ConnectorManifestRecordView,
         responses={
             403: {"description": "Connector manifest lifecycle permission denied"},
@@ -4651,8 +4668,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/configurations",
+    @operations_router.get(
+        "/connectors/configurations",
         response_model=ManufacturingConnectorConfigurationRegistry,
         responses={403: {"description": "Connector configuration read permission denied"}},
         tags=["demo"],
@@ -4676,8 +4693,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/configurations",
+    @operations_router.post(
+        "/connectors/configurations",
         response_model=ConnectorTenantConfiguration,
         responses={
             403: {"description": "Connector configuration actor binding permission denied"},
@@ -4727,8 +4744,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/credential-handles",
+    @operations_router.get(
+        "/connectors/credential-handles",
         response_model=ManufacturingConnectorCredentialHandleRegistry,
         responses={403: {"description": "Connector credential handle read permission denied"}},
         tags=["demo"],
@@ -4752,8 +4769,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/credential-handles",
+    @operations_router.post(
+        "/connectors/credential-handles",
         response_model=ConnectorCredentialHandleRecord,
         responses={
             403: {"description": "Connector credential handle actor binding permission denied"},
@@ -4803,8 +4820,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/credential-handles/{handle_id}/rotations",
+    @operations_router.post(
+        "/connectors/credential-handles/{handle_id}/rotations",
         response_model=ConnectorCredentialHandleRecord,
         responses={
             403: {"description": "Connector credential rotation actor binding permission denied"},
@@ -4840,8 +4857,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/credential-leases",
+    @operations_router.get(
+        "/connectors/credential-leases",
         response_model=ManufacturingConnectorCredentialLeaseRegistry,
         responses={403: {"description": "Connector credential lease read permission denied"}},
         tags=["demo"],
@@ -4869,8 +4886,8 @@ def create_app(
             actor_id=actor_id,
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/credential-leases",
+    @operations_router.post(
+        "/connectors/credential-leases",
         response_model=ConnectorCredentialLeaseRecord,
         responses={
             403: {"description": "Connector credential lease permission denied"},
@@ -4947,8 +4964,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/credential-leases/{lease_id}/renew",
+    @operations_router.post(
+        "/connectors/credential-leases/{lease_id}/renew",
         response_model=ConnectorCredentialLeaseRecord,
         responses={
             403: {"description": "Connector credential lease permission denied"},
@@ -4996,8 +5013,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/credential-leases/{lease_id}/revoke",
+    @operations_router.post(
+        "/connectors/credential-leases/{lease_id}/revoke",
         response_model=ConnectorCredentialLeaseRecord,
         responses={
             403: {"description": "Connector credential lease permission denied"},
@@ -5045,8 +5062,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/egress-policies",
+    @operations_router.get(
+        "/connectors/egress-policies",
         response_model=ManufacturingConnectorEgressPolicyRegistry,
         responses={403: {"description": "Connector egress policy read permission denied"}},
         tags=["demo"],
@@ -5072,8 +5089,8 @@ def create_app(
             actor_id=actor_id,
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/egress-policies",
+    @operations_router.post(
+        "/connectors/egress-policies",
         response_model=ConnectorEgressPolicyRecord,
         responses={
             403: {"description": "Connector egress policy actor binding permission denied"},
@@ -5104,8 +5121,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/evidence-invariants",
+    @operations_router.get(
+        "/connectors/evidence-invariants",
         response_model=ManufacturingConnectorEvidenceInvariantReport,
         responses={403: {"description": "Connector evidence invariant read permission denied"}},
         tags=["demo"],
@@ -5129,8 +5146,8 @@ def create_app(
             actor_id=actor_id,
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+    @operations_router.post(
+        "/connectors/evidence-invariants/snapshots",
         response_model=ConnectorEvidenceInvariantSnapshotRecord,
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
@@ -5172,8 +5189,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export",
+    @operations_router.get(
+        "/connectors/evidence-invariants/snapshots/export",
         response_model=ConnectorEvidenceInvariantSnapshotExportBundle,
         tags=["demo"],
         responses={
@@ -5227,8 +5244,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+    @operations_router.post(
+        "/connectors/evidence-invariants/snapshots/export-requests",
         response_model=ConnectorEvidenceInvariantSnapshotExportRequestRecord,
         status_code=status.HTTP_201_CREATED,
         tags=["demo"],
@@ -5281,8 +5298,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.post(
-        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+    @operations_router.post(
+        "/connectors/evidence-invariants/snapshots/"
         "export-requests/{export_request_id}/decision",
         response_model=ConnectorEvidenceInvariantSnapshotExportDecisionResult,
         status_code=status.HTTP_201_CREATED,
@@ -5332,8 +5349,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+    @operations_router.post(
+        "/connectors/evidence-invariants/snapshots/"
         "export-requests/{export_request_id}/materializations",
         response_model=ConnectorEvidenceInvariantSnapshotExportMaterializationResult,
         status_code=status.HTTP_201_CREATED,
@@ -5397,8 +5414,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+    @operations_router.get(
+        "/connectors/evidence-invariants/snapshots",
         response_model=ConnectorEvidenceInvariantSnapshotHistory,
         tags=["demo"],
         responses={
@@ -5441,8 +5458,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/runs",
+    @operations_router.get(
+        "/connectors/runs",
         response_model=ManufacturingConnectorRunRegistry,
         responses={403: {"description": "Connector run read permission denied"}},
         tags=["demo"],
@@ -5466,8 +5483,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/runs",
+    @operations_router.post(
+        "/connectors/runs",
         response_model=ConnectorRunRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -5525,8 +5542,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/runs/checkpoints",
+    @operations_router.get(
+        "/connectors/runs/checkpoints",
         response_model=ManufacturingConnectorSyncCheckpointRegistry,
         responses={
             403: {"description": "Connector sync checkpoint read permission denied"},
@@ -5578,8 +5595,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/runs/checkpoints/claims",
+    @operations_router.get(
+        "/connectors/runs/checkpoints/claims",
         response_model=ManufacturingConnectorSyncCheckpointClaimRegistry,
         responses={
             403: {"description": "Connector sync checkpoint claim read permission denied"},
@@ -5641,8 +5658,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims",
+    @operations_router.post(
+        "/connectors/runs/checkpoints/{checkpoint_id}/claims",
         response_model=ConnectorSyncCheckpointClaimRecord,
         status_code=status.HTTP_201_CREATED,
         responses={
@@ -5717,8 +5734,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew",
+    @operations_router.post(
+        "/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/renew",
         response_model=ConnectorSyncCheckpointClaimRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -5776,8 +5793,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release",
+    @operations_router.post(
+        "/connectors/runs/checkpoints/{checkpoint_id}/claims/{claim_id}/release",
         response_model=ConnectorSyncCheckpointClaimRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -5835,8 +5852,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/runs/{run_id}/dispatch",
+    @operations_router.post(
+        "/connectors/runs/{run_id}/dispatch",
         response_model=ConnectorRunRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -5904,8 +5921,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/runs/{run_id}/execute-sync",
+    @operations_router.post(
+        "/connectors/runs/{run_id}/execute-sync",
         response_model=ConnectorRunRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -5994,8 +6011,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/ontology-proposals",
+    @operations_router.get(
+        "/connectors/ontology-proposals",
         response_model=ManufacturingConnectorOntologyProposalRegistry,
         responses={403: {"description": "Connector ontology proposal read permission denied"}},
         tags=["demo"],
@@ -6019,8 +6036,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/ontology-proposals",
+    @operations_router.post(
+        "/connectors/ontology-proposals",
         response_model=ManufacturingConnectorOntologyProposalRegistry,
         responses={
             403: {"description": "Connector ontology proposal actor binding permission denied"},
@@ -6070,8 +6087,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/ontology-proposals/promotions",
+    @operations_router.post(
+        "/connectors/ontology-proposals/promotions",
         response_model=ConnectorOntologyPromotionResult,
         responses={
             403: {"description": "Connector ontology promotion permission denied"},
@@ -6166,8 +6183,8 @@ def create_app(
 
         return result
 
-    @app.get(
-        "/demo/manufacturing/connectors/promotion-policies",
+    @operations_router.get(
+        "/connectors/promotion-policies",
         response_model=ManufacturingConnectorPromotionPolicyRegistry,
         responses={403: {"description": "Connector promotion policy read permission denied"}},
         tags=["demo"],
@@ -6195,8 +6212,8 @@ def create_app(
             limit=query.limit,
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/promotion-policies",
+    @operations_router.post(
+        "/connectors/promotion-policies",
         response_model=ConnectorPromotionPolicyRecord,
         responses={
             403: {"description": "Connector promotion policy permission denied"},
@@ -6269,8 +6286,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/promotion-policies/{policy_id}/enable",
+    @operations_router.post(
+        "/connectors/promotion-policies/{policy_id}/enable",
         response_model=ConnectorPromotionPolicyRecord,
         responses={
             403: {"description": "Connector promotion policy enable permission denied"},
@@ -6346,8 +6363,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/promotion-policies/{policy_id}/revise",
+    @operations_router.post(
+        "/connectors/promotion-policies/{policy_id}/revise",
         response_model=ConnectorPromotionPolicyRecord,
         responses={
             403: {"description": "Connector promotion policy revision permission denied"},
@@ -6444,8 +6461,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
         return result
 
-    @app.get(
-        "/demo/manufacturing/connectors/promotion-policy-sets",
+    @operations_router.get(
+        "/connectors/promotion-policy-sets",
         response_model=ManufacturingConnectorPromotionPolicySetRegistry,
         responses={403: {"description": "Connector promotion policy set read permission denied"}},
         tags=["demo"],
@@ -6473,8 +6490,8 @@ def create_app(
             limit=query.limit,
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/promotion-policy-sets",
+    @operations_router.post(
+        "/connectors/promotion-policy-sets",
         response_model=ConnectorPromotionPolicySetRecord,
         responses={
             403: {"description": "Connector promotion policy set permission denied"},
@@ -6547,8 +6564,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/connectors/manual-imports",
+    @operations_router.get(
+        "/connectors/manual-imports",
         response_model=ManufacturingConnectorManualImportRegistry,
         responses={403: {"description": "Connector manual import read permission denied"}},
         tags=["demo"],
@@ -6572,8 +6589,8 @@ def create_app(
             ),
         )
 
-    @app.post(
-        "/demo/manufacturing/connectors/manual-imports",
+    @operations_router.post(
+        "/connectors/manual-imports",
         response_model=ConnectorManualImportRecord,
         responses={
             403: {"description": "Connector manual import actor binding permission denied"},
@@ -6640,8 +6657,8 @@ def create_app(
 
         return result
 
-    @app.post(
-        "/demo/manufacturing/connectors/manual-imports/{import_id}/decision",
+    @operations_router.post(
+        "/connectors/manual-imports/{import_id}/decision",
         response_model=ConnectorManualImportDecisionResult,
         responses={
             403: {"description": "Connector manual import decision permission denied"},
@@ -6687,8 +6704,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/file-csv/preview",
+    @operations_router.post(
+        "/connectors/file-csv/preview",
         response_model=ConnectorCsvPreviewResult,
         responses={
             403: {"description": "Connector preview tenant binding permission denied"},
@@ -6728,8 +6745,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/connectors/external-db/preview",
+    @operations_router.post(
+        "/connectors/external-db/preview",
         response_model=ConnectorExternalDbPreviewResult,
         responses={
             403: {"description": "Connector preview tenant binding permission denied"},
@@ -7198,6 +7215,30 @@ def create_app(
             raise _platform_tenant_not_found_http_exception(tenant_id) from exc
 
     @app.get(
+        "/platform/tenants/{tenant_id}/vocabulary",
+        response_model=TenantVocabularySet,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant read permission denied"},
+            404: {"description": "Tenant not found"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_vocabulary(
+        tenant_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantVocabularySet:
+        _authorize_platform_tenant_read(
+            principal,
+            resource="platform_tenant_vocabulary",
+        )
+        try:
+            return get_tenant_vocabulary(repository, tenant_id)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+
+    @app.get(
         "/platform/tenants/{tenant_id}/usage",
         response_model=TenantUsageSummary,
         responses={
@@ -7278,8 +7319,36 @@ def create_app(
         app.state.tenant_state_cache.invalidate(tenant_id)
         return result
 
-    @app.post(
-        "/demo/manufacturing/actions/{action_id}/runs",
+    @app.put(
+        "/platform/tenants/{tenant_id}/vocabulary",
+        response_model=TenantVocabularySet,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Platform tenant configure permission denied"},
+            404: {"description": "Tenant not found"},
+            422: {"description": "Tenant vocabulary validation failed"},
+        },
+        tags=["platform"],
+    )
+    def platform_tenant_vocabulary_update(
+        tenant_id: str,
+        vocabulary_request: TenantVocabularyUpdateRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> TenantVocabularySet:
+        try:
+            bound_request = _bind_platform_tenant_actor(vocabulary_request, principal)
+            return update_tenant_vocabulary(repository, tenant_id, bound_request)
+        except TenantNotFound as exc:
+            raise _platform_tenant_not_found_http_exception(tenant_id) from exc
+        except TenantPermissionDenied as exc:
+            raise _platform_tenant_denied_http_exception(
+                exc,
+                "The actor cannot update tenant vocabulary.",
+            ) from exc
+
+    @operations_router.post(
+        "/actions/{action_id}/runs",
         response_model=ActionRunPersistenceResult,
         responses={
             404: {
@@ -7412,8 +7481,8 @@ def create_app(
 
         return result
 
-    @app.post(
-        "/demo/manufacturing/actions/runs/{action_run_id}/outcome",
+    @operations_router.post(
+        "/actions/runs/{action_run_id}/outcome",
         response_model=ActionRunOutcomePersistenceResult,
         responses={
             403: {"description": "Action run outcome permission denied"},
@@ -7496,8 +7565,8 @@ def create_app(
 
         return result
 
-    @app.get(
-        "/demo/manufacturing/approvals",
+    @operations_router.get(
+        "/approvals",
         response_model=ManufacturingApprovalInbox,
         responses={
             404: {"description": "Approval inbox reference record not found"},
@@ -7537,8 +7606,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/approvals/{approval_id}/decision",
+    @operations_router.post(
+        "/approvals/{approval_id}/decision",
         response_model=ApprovalDecisionPersistenceResult,
         responses={
             403: {"description": "Approval decision permission denied"},
@@ -7637,8 +7706,8 @@ def create_app(
                 ),
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/approvals/{approval_id}/decision-delivery",
+    @operations_router.get(
+        "/approvals/{approval_id}/decision-delivery",
         response_model=ApprovalDecisionDeliveryStatus,
         responses={404: {"description": "Approval decision delivery record not found"}},
         tags=["demo"],
@@ -7666,8 +7735,8 @@ def create_app(
             )
         return delivery
 
-    @app.get(
-        "/demo/manufacturing/audit",
+    @operations_router.get(
+        "/audit",
         response_model=ManufacturingAuditExplorer,
         responses={
             404: {"description": "Audit explorer reference record not found"},
@@ -7707,8 +7776,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/audit/events",
+    @operations_router.get(
+        "/audit/events",
         response_model=ManufacturingAuditExplorer,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7743,8 +7812,8 @@ def create_app(
             ),
         )
 
-    @app.get(
-        "/demo/manufacturing/audit/export",
+    @operations_router.get(
+        "/audit/export",
         response_model=AuditExportBundle,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7820,8 +7889,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/audit/retention/delete",
+    @operations_router.post(
+        "/audit/retention/delete",
         response_model=AuditRetentionDeletionResult,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7850,8 +7919,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/audit/legal-holds",
+    @operations_router.get(
+        "/audit/legal-holds",
         response_model=list[AuditLegalHoldRecord],
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7873,8 +7942,8 @@ def create_app(
         )
         return list_audit_legal_holds(repository, tenant_id)
 
-    @app.post(
-        "/demo/manufacturing/audit/legal-holds",
+    @operations_router.post(
+        "/audit/legal-holds",
         response_model=AuditLegalHoldRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7915,8 +7984,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/audit/legal-holds/{hold_id}/release",
+    @operations_router.post(
+        "/audit/legal-holds/{hold_id}/release",
         response_model=AuditLegalHoldRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7975,8 +8044,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.post(
-        "/demo/manufacturing/audit/object-legal-holds",
+    @operations_router.post(
+        "/audit/object-legal-holds",
         response_model=AuditObjectLegalHoldRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -7999,8 +8068,8 @@ def create_app(
             _bind_audit_actor(hold_request, principal),
         )
 
-    @app.post(
-        "/demo/manufacturing/audit/object-legal-holds/release",
+    @operations_router.post(
+        "/audit/object-legal-holds/release",
         response_model=AuditObjectLegalHoldRecord,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -8440,8 +8509,8 @@ def create_app(
             limit=limit,
         )
 
-    @app.get(
-        "/demo/manufacturing/model-routing",
+    @operations_router.get(
+        "/model-routing",
         response_model=ManufacturingModelRouting,
         responses={
             404: {"description": "Tenant not found"},
@@ -8471,8 +8540,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/demo/manufacturing/ontology",
+    @operations_router.get(
+        "/ontology",
         response_model=ManufacturingOntology,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -8534,8 +8603,8 @@ def create_app(
             ontology,
         )
 
-    @app.get(
-        "/demo/manufacturing/ontology/entities/{node_id}",
+    @operations_router.get(
+        "/ontology/entities/{node_id}",
         response_model=ManufacturingOntologyEntityDetail,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -8585,6 +8654,13 @@ def create_app(
             raise HTTPException(status_code=404, detail="Ontology entity not found")
         return detail
 
+    app.include_router(operations_router, prefix="/operations")
+    # Keep the legacy prefix visible as deprecated until clients finish migrating.
+    app.include_router(
+        operations_router,
+        prefix="/demo/manufacturing",
+        deprecated=True,
+    )
     return app
 
 

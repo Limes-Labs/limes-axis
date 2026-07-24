@@ -65,6 +65,7 @@ class Tenant(Base):
         index=True,
     )
     notes: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    vocabulary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

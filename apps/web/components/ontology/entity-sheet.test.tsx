@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildOntologyEntityDetail } from "@/lib/ontology-demo";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 import { ontologyFixture } from "./ontology-fixtures";
 
@@ -69,7 +69,7 @@ function mockExplorerScope() {
     if (path === "/identity/session") {
       return { data: publicIdentity, source: "api" };
     }
-    if (path === `/demo/manufacturing/ontology?tenant_id=${DEMO_TENANT_ID}`) {
+    if (path === `${OPERATIONS_API_PREFIX}/ontology?tenant_id=${DEMO_TENANT_ID}`) {
       return { data: ontologyFixture, source: "api" };
     }
     return { data: null, source: "loading" };
@@ -128,7 +128,7 @@ describe("OntologyEntitySheet", () => {
     expect(within(dialog).getByText("Read-only entity context")).toBeInTheDocument();
     expect(within(dialog).getByText(/connected$/)).toBeInTheDocument();
     expect(mocks.axisFetch).toHaveBeenCalledWith(
-      `/demo/manufacturing/ontology/entities/asset_line_2?tenant_id=${DEMO_TENANT_ID}`,
+      `${OPERATIONS_API_PREFIX}/ontology/entities/asset_line_2?tenant_id=${DEMO_TENANT_ID}`,
       expect.anything(),
     );
   });
@@ -151,7 +151,7 @@ describe("OntologyEntitySheet", () => {
 
     expect(await screen.findByRole("heading", { name: "Line 2 Packaging" })).toBeInTheDocument();
     expect(mocks.axisFetch).toHaveBeenCalledWith(
-      "/demo/manufacturing/ontology/entities/asset_line_2?tenant_id=tenant_acme",
+      `${OPERATIONS_API_PREFIX}/ontology/entities/asset_line_2?tenant_id=tenant_acme`,
       expect.anything(),
     );
   });
@@ -277,7 +277,7 @@ describe("OntologyEntityDetail tenant scope", () => {
 
     expect(await screen.findByRole("heading", { name: "Line 2 Packaging" })).toBeInTheDocument();
     expect(mocks.axisFetch).toHaveBeenCalledWith(
-      "/demo/manufacturing/ontology/entities/asset_line_2?tenant_id=tenant_acme",
+      `${OPERATIONS_API_PREFIX}/ontology/entities/asset_line_2?tenant_id=tenant_acme`,
       expect.anything(),
     );
   });

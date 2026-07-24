@@ -25,7 +25,11 @@ import { formatContextPath, formatNumber } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  OPERATIONS_API_PREFIX,
+} from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -46,7 +50,7 @@ function OntologyExplorerSkeleton() {
 export function OntologyExplorer() {
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const ontologyPath = buildTenantScopedPath(
-    "/demo/manufacturing/ontology",
+    `${OPERATIONS_API_PREFIX}/ontology`,
     tenantId ?? DEMO_TENANT_ID,
   );
   const { data: ontology, source } = useAxisQuery<ManufacturingOntology>(ontologyPath, {

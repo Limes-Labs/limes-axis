@@ -20,7 +20,11 @@ import {
 } from "@/lib/audit-demo";
 import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { strings } from "@/lib/strings";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  OPERATIONS_API_PREFIX,
+} from "@/lib/tenant-scope";
 import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
@@ -43,8 +47,8 @@ import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
-const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
-const AUDIT_EXPORT_ENDPOINT = "/demo/manufacturing/audit/export";
+const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
+const AUDIT_EXPORT_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/export`;
 
 const defaultFilters: AuditFilters = {
   tenant: allAuditFilter,

@@ -9,6 +9,7 @@ import {
   resetBrowserSessionState,
 } from "./axis-api";
 import type { OidcConsoleSession } from "./oidc-session";
+import { OPERATIONS_API_PREFIX } from "./tenant-scope";
 
 const BEARER_SESSION: OidcConsoleSession = {
   accessToken: "bearer-token",
@@ -77,7 +78,7 @@ describe("Axis API fetch layer", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await axisFetchParsedJson("/demo/manufacturing/operations/daily-brief", parseOk, {
+    await axisFetchParsedJson(`${OPERATIONS_API_PREFIX}/operations/daily-brief`, parseOk, {
       method: "POST",
       body: { tenant_id: "tenant_demo_manufacturing" },
     });

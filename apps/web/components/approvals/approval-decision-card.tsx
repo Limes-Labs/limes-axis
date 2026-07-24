@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/cn";
 import { strings } from "@/lib/strings";
 import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/approvals";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /*
@@ -168,7 +168,7 @@ export function ApprovalDecisionCard({
     try {
       const result = await axisFetchParsedJson<ApprovalDecisionPersistenceResult>(
         buildTenantScopedPath(
-          `/demo/manufacturing/approvals/${approvalId}/decision`,
+          `${OPERATIONS_API_PREFIX}/approvals/${approvalId}/decision`,
           tenantId,
         ),
         parseApprovalDecisionPersistenceResult,

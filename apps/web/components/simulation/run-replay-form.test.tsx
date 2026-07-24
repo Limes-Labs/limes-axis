@@ -18,6 +18,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 }));
 
 import { RunReplayForm } from "./run-replay-form";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const replayResultFixture: ManufacturingReplaySimulation = {
   tenant_id: "tenant_fixture",
@@ -130,7 +131,7 @@ describe("RunReplayForm", () => {
     });
     const requestedPath = mocks.axisFetch.mock.calls[0][0] as string;
     const query = new URLSearchParams(requestedPath.split("?")[1]);
-    expect(requestedPath.startsWith("/demo/manufacturing/simulation/replay?")).toBe(true);
+    expect(requestedPath.startsWith(`${OPERATIONS_API_PREFIX}/simulation/replay?`)).toBe(true);
     expect(Object.fromEntries(query.entries())).toEqual({
       tenant_id: "tenant_fixture",
       workflow_id: "wf_supply_fixture",

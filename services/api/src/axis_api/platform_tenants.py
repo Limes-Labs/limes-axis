@@ -17,7 +17,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session, sessionmaker
 
 from axis_api.audit import AuditEventCreate
@@ -87,11 +87,15 @@ REQUIRED_PROVISION_SCOPE = "platform:tenant:provision"
 REQUIRED_SUSPEND_SCOPE = "platform:tenant:suspend"
 REQUIRED_READ_SCOPE = "platform:tenant:read"
 REQUIRED_QUOTA_SCOPE = "platform:tenant:quota"
+REQUIRED_CONFIGURE_SCOPE = "platform:tenant:configure"
 PROVISIONED_AUDIT_EVENT_TYPE = "platform.tenant.provisioned"
 SUSPENDED_AUDIT_EVENT_TYPE = "platform.tenant.suspended"
 REACTIVATED_AUDIT_EVENT_TYPE = "platform.tenant.reactivated"
 QUOTA_UPDATED_AUDIT_EVENT_TYPE = "platform.tenant.quota.updated"
+VOCABULARY_UPDATED_AUDIT_EVENT_TYPE = "platform.tenant.vocabulary.updated"
 SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE = "platform.tenant.suspended_request.denied"
+TENANT_VOCABULARY_LABEL_MAX_LENGTH = 100
+TENANT_VOCABULARY_MAX_DOMAIN_LABELS = 50
 _BLOCKED_STATUS_REASONS = {
     TenantLifecycleStatus.SUSPENDED.value: "tenant_suspended",
     TenantLifecycleStatus.PENDING_DELETION.value: "tenant_pending_deletion",
@@ -163,6 +167,68 @@ class TenantQuotaUpdateRequest(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class TenantVocabulary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    site_singular: str = Field(
+        default="Site",
+        max_length=TENANT_VOCABULARY_LABEL_MAX_LENGTH,
+    )
+    site_plural: str = Field(
+        default="Sites",
+        max_length=TENANT_VOCABULARY_LABEL_MAX_LENGTH,
+    )
+    workspace_label: str = Field(
+        default="Operations",
+        max_length=TENANT_VOCABULARY_LABEL_MAX_LENGTH,
+    )
+    domain_labels: dict[str, str] = Field(
+        default_factory=dict,
+        max_length=TENANT_VOCABULARY_MAX_DOMAIN_LABELS,
+    )
+
+    @field_validator("site_singular", "site_plural", "workspace_label")
+    @classmethod
+    def validate_label(cls, label: str) -> str:
+        stripped = label.strip()
+        if not stripped:
+            raise ValueError("Tenant vocabulary labels must not be blank.")
+        return stripped
+
+    @field_validator("domain_labels")
+    @classmethod
+    def validate_domain_labels(cls, domain_labels: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for key, value in domain_labels.items():
+            normalized_key = key.strip()
+            normalized_value = value.strip()
+            if not normalized_key or not normalized_value:
+                raise ValueError("Tenant vocabulary domain keys and labels must not be blank.")
+            if (
+                len(normalized_key) > TENANT_VOCABULARY_LABEL_MAX_LENGTH
+                or len(normalized_value) > TENANT_VOCABULARY_LABEL_MAX_LENGTH
+            ):
+                raise ValueError(
+                    "Tenant vocabulary domain keys and labels must not exceed "
+                    f"{TENANT_VOCABULARY_LABEL_MAX_LENGTH} characters."
+                )
+            if normalized_key in normalized:
+                raise ValueError(
+                    "Tenant vocabulary domain keys must be unique after trimming."
+                )
+            normalized[normalized_key] = normalized_value
+        return normalized
+
+
+class TenantVocabularyUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requested_by: str = Field(min_length=1, max_length=160)
+    actor_scopes: list[str] = Field(default_factory=list)
+    vocabulary: TenantVocabulary
+    notes: list[str] = Field(default_factory=list)
+
+
 class TenantRecord(BaseModel):
     tenant_id: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -209,12 +275,31 @@ class TenantQuotaSet(BaseModel):
     quota_notes: list[str] = Field(default_factory=list)
 
 
+class TenantVocabularyChange(BaseModel):
+    previous_value: TenantVocabulary | None = None
+    new_value: TenantVocabulary
+    audit_event_id: UUID | None = None
+    audit_event_type: str = Field(min_length=1)
+
+
+class TenantVocabularySet(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    vocabulary: TenantVocabulary
+    configured: bool
+    changes: list[TenantVocabularyChange] = Field(default_factory=list)
+    vocabulary_notes: list[str] = Field(default_factory=list)
+
+
 _QUOTA_NOTES = [
     "Tenant quotas override the global configuration for this tenant only.",
     "api_requests_per_window overrides the global API rate limit on protected paths.",
     "max_concurrent_sessions overrides the global concurrent browser-session cap.",
     "max_connector_sync_rows_per_run caps governed live-sync row limits per run.",
     "Every quota change appends platform.tenant.quota.updated audit evidence.",
+]
+_VOCABULARY_NOTES = [
+    "Industry-neutral defaults are returned until this tenant configures vocabulary.",
+    "Every vocabulary change appends platform.tenant.vocabulary.updated audit evidence.",
 ]
 
 
@@ -581,6 +666,93 @@ def update_tenant_quotas(
         quotas=quotas,
         changes=changes,
         quota_notes=_QUOTA_NOTES,
+    )
+
+
+def get_tenant_vocabulary(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+) -> TenantVocabularySet:
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
+    configured = tenant.vocabulary is not None
+    vocabulary = (
+        TenantVocabulary.model_validate(tenant.vocabulary)
+        if configured
+        else TenantVocabulary()
+    )
+    return TenantVocabularySet(
+        tenant_id=tenant_id,
+        vocabulary=vocabulary,
+        configured=configured,
+        vocabulary_notes=_VOCABULARY_NOTES,
+    )
+
+
+def update_tenant_vocabulary(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    request: TenantVocabularyUpdateRequest,
+) -> TenantVocabularySet:
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
+
+    permission_decision = _evaluate_operator_permission(
+        tenant_id=tenant_id,
+        actor_id=request.requested_by,
+        actor_scopes=request.actor_scopes,
+        action_scope=REQUIRED_CONFIGURE_SCOPE,
+        attributes={"operation": "update_tenant_vocabulary"},
+    )
+    previous_value = (
+        TenantVocabulary.model_validate(tenant.vocabulary)
+        if tenant.vocabulary is not None
+        else None
+    )
+    if previous_value == request.vocabulary:
+        return TenantVocabularySet(
+            tenant_id=tenant_id,
+            vocabulary=request.vocabulary,
+            configured=True,
+            vocabulary_notes=_VOCABULARY_NOTES,
+        )
+
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=tenant_id,
+            actor_id=request.requested_by,
+            event_type=VOCABULARY_UPDATED_AUDIT_EVENT_TYPE,
+            payload={
+                "tenant_id": tenant_id,
+                "previous_value": (
+                    previous_value.model_dump() if previous_value is not None else None
+                ),
+                "new_value": request.vocabulary.model_dump(),
+                "required_operator_scope": REQUIRED_OPERATOR_SCOPE,
+                "required_configure_scope": REQUIRED_CONFIGURE_SCOPE,
+                "permission_decision": permission_decision.model_dump(),
+            },
+        )
+    )
+    repository.update_tenant_vocabulary(
+        tenant_id,
+        request.vocabulary.model_dump(),
+    )
+    return TenantVocabularySet(
+        tenant_id=tenant_id,
+        vocabulary=request.vocabulary,
+        configured=True,
+        changes=[
+            TenantVocabularyChange(
+                previous_value=previous_value,
+                new_value=request.vocabulary,
+                audit_event_id=audit_event.id,
+                audit_event_type=audit_event.event_type,
+            )
+        ],
+        vocabulary_notes=_VOCABULARY_NOTES,
     )
 
 

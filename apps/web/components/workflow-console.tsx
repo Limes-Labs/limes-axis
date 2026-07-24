@@ -37,7 +37,11 @@ import {
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import {
+  buildTenantScopedPath,
+  DEMO_TENANT_ID,
+  OPERATIONS_API_PREFIX,
+} from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -57,7 +61,7 @@ import {
   type WorkflowRun,
 } from "@/lib/workflow-demo";
 
-export const WORKFLOW_RUNS_ENDPOINT = "/demo/manufacturing/workflows/runs";
+export const WORKFLOW_RUNS_ENDPOINT = `${OPERATIONS_API_PREFIX}/workflows/runs`;
 
 const defaultFilters: WorkflowFilters = {
   state: allWorkflowFilter,

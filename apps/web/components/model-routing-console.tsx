@@ -46,7 +46,7 @@ import {
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
-import { buildTenantScopedPath } from "@/lib/tenant-scope";
+import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -170,7 +170,7 @@ function ReferenceModelRouting({
   selectedRouteId: string;
   tenantId: string;
 }) {
-  const routingPath = buildTenantScopedPath("/demo/manufacturing/model-routing", tenantId);
+  const routingPath = buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/model-routing`, tenantId);
   const { data: routing, source } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
     enabled,
     expectedTenantId: tenantId,

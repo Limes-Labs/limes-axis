@@ -19,6 +19,7 @@ import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
   resolveConsoleTenantScope,
+  OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { ConsoleProvider } from "@/providers/console-provider";
 
@@ -48,7 +49,7 @@ function ApprovalsBadge({
 }) {
   const { data } = useAxisQuery<ManufacturingApprovalInbox>(
     buildTenantScopedPath(
-      "/demo/manufacturing/approvals",
+      `${OPERATIONS_API_PREFIX}/approvals`,
       tenantId ?? DEMO_TENANT_ID,
     ),
     {

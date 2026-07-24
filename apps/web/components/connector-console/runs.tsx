@@ -39,6 +39,7 @@ import { strings } from "@/lib/strings";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 /*
  * Runs tab: recorded governed runs plus two real actions against the live
@@ -48,9 +49,9 @@ import { useConsole } from "@/providers/console-provider";
  * links to the audit evidence it wrote.
  */
 
-const CSV_PREVIEW_ENDPOINT = "/demo/manufacturing/connectors/file-csv/preview";
-const DB_PREVIEW_ENDPOINT = "/demo/manufacturing/connectors/external-db/preview";
-const RUNS_ENDPOINT = "/demo/manufacturing/connectors/runs";
+const CSV_PREVIEW_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/file-csv/preview`;
+const DB_PREVIEW_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/external-db/preview`;
+const RUNS_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/runs`;
 
 type StageKey = "create" | "dispatch" | "execute";
 type StageStatus = "idle" | "pending" | "success" | "failure";

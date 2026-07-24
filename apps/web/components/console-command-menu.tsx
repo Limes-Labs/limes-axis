@@ -21,7 +21,7 @@ import { navGroups } from "@/lib/nav";
 import type { OidcConsoleSession } from "@/lib/oidc-session";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
-import { buildTenantScopedPath } from "@/lib/tenant-scope";
+import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import { parseManufacturingConnectorRegistry } from "@/lib/runtime-contracts/connectors";
 import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
@@ -60,12 +60,12 @@ async function loadEntityCommands(
     payload?.tenant_id === tenantId ? payload : null;
   const [workflows, agents, policies, connectors] = await Promise.all([
     axisFetchParsedJson<ManufacturingWorkflowConsole>(
-      buildTenantScopedPath("/demo/manufacturing/workflows", tenantId),
+      buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/workflows`, tenantId),
       parseManufacturingWorkflowConsole,
       { session },
     ).then(acceptTenant).catch(() => null),
     axisFetchParsedJson<ManufacturingAgentRegistry>(
-      buildTenantScopedPath("/demo/manufacturing/agents", tenantId),
+      buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/agents`, tenantId),
       parseManufacturingAgentRegistry,
       { session },
     ).then(acceptTenant).catch(() => null),
@@ -75,7 +75,7 @@ async function loadEntityCommands(
       { session },
     ).then(acceptTenant).catch(() => null),
     axisFetchParsedJson<ManufacturingConnectorRegistry>(
-      buildTenantScopedPath("/demo/manufacturing/connectors", tenantId),
+      buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/connectors`, tenantId),
       parseManufacturingConnectorRegistry,
       { session },
     ).then(acceptTenant).catch(() => null),

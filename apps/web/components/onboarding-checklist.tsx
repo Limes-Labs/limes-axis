@@ -14,7 +14,7 @@ import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
 import type { ManufacturingOntology } from "@/lib/ontology-demo";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import { parseManufacturingConnectorRegistry } from "@/lib/runtime-contracts/connectors";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
@@ -33,11 +33,11 @@ import type { ManufacturingWorkflowConsole } from "@/lib/workflow-demo";
  */
 
 export const ONBOARDING_ENDPOINTS = {
-  connectors: "/demo/manufacturing/connectors",
-  ontology: "/demo/manufacturing/ontology",
+  connectors: `${OPERATIONS_API_PREFIX}/connectors`,
+  ontology: `${OPERATIONS_API_PREFIX}/ontology`,
   policies: "/platform/policies",
-  agents: "/demo/manufacturing/agents",
-  workflows: "/demo/manufacturing/workflows",
+  agents: `${OPERATIONS_API_PREFIX}/agents`,
+  workflows: `${OPERATIONS_API_PREFIX}/workflows`,
 } as const;
 
 export type OnboardingStepId = keyof typeof ONBOARDING_ENDPOINTS;

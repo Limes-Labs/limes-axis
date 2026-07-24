@@ -22,6 +22,7 @@ vi.mock("@/lib/use-oidc-session", () => ({
 
 import { ToastProvider } from "@/components/ui/toast";
 import { AddConnectorWizard } from "./add-connector-wizard";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const csvPreviewReady: ConnectorCsvPreviewResult = {
   tenant_id: "tenant_demo_manufacturing",
@@ -140,7 +141,7 @@ describe("AddConnectorWizard CSV flow", () => {
     await waitFor(() => expect(screen.getByText("Preview ready")).toBeInTheDocument());
 
     const [previewPath, previewOptions] = mocks.axisFetch.mock.calls[0];
-    expect(previewPath).toBe("/demo/manufacturing/connectors/file-csv/preview");
+    expect(previewPath).toBe(`${OPERATIONS_API_PREFIX}/connectors/file-csv/preview`);
     expect(previewOptions.body).toEqual({
       tenant_id: "tenant_acme",
       connector_id: "file_csv_manufacturing_assets",
@@ -205,7 +206,7 @@ describe("AddConnectorWizard CSV flow", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
 
     const [manifestPath, manifestOptions] = mocks.axisFetch.mock.calls[1];
-    expect(manifestPath).toBe("/demo/manufacturing/connectors/manifests");
+    expect(manifestPath).toBe(`${OPERATIONS_API_PREFIX}/connectors/manifests`);
     expect(manifestOptions.method).toBe("POST");
     expect(manifestOptions.body).toEqual({
       tenant_id: "tenant_demo_manufacturing",
@@ -314,7 +315,7 @@ describe("AddConnectorWizard external DB flow", () => {
     );
 
     const [path, options] = mocks.axisFetch.mock.calls[0];
-    expect(path).toBe("/demo/manufacturing/connectors/external-db/preview");
+    expect(path).toBe(`${OPERATIONS_API_PREFIX}/connectors/external-db/preview`);
     expect(options.body).toMatchObject({
       tenant_id: "tenant_demo_manufacturing",
       connector_id: "external_db_operational_mirror",

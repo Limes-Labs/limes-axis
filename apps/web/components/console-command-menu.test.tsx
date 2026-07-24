@@ -26,16 +26,17 @@ vi.mock("@/providers/theme-provider", () => ({
 }));
 
 import { ConsoleCommandMenu } from "./console-command-menu";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 function mockEntityEndpoints() {
   mocks.axisFetchParsedJson.mockImplementation((path: string) => {
-    if (path === "/demo/manufacturing/workflows?tenant_id=tenant_acme") {
+    if (path === `${OPERATIONS_API_PREFIX}/workflows?tenant_id=tenant_acme`) {
       return Promise.resolve({
         tenant_id: "tenant_acme",
         workflow_runs: [{ workflow_id: "wf_line2_changeover", name: "Line 2 changeover" }],
       });
     }
-    if (path === "/demo/manufacturing/agents?tenant_id=tenant_acme") {
+    if (path === `${OPERATIONS_API_PREFIX}/agents?tenant_id=tenant_acme`) {
       return Promise.resolve({
         tenant_id: "tenant_acme",
         agents: [{ agent_id: "agent_maintenance", name: "Maintenance planner" }],
@@ -47,7 +48,7 @@ function mockEntityEndpoints() {
         policies: [{ policy_id: "policy_egress", display_name: "Egress lockdown" }],
       });
     }
-    if (path === "/demo/manufacturing/connectors?tenant_id=tenant_acme") {
+    if (path === `${OPERATIONS_API_PREFIX}/connectors?tenant_id=tenant_acme`) {
       return Promise.resolve({
         tenant_id: "tenant_acme",
         connectors: [
@@ -158,7 +159,7 @@ describe("ConsoleCommandMenu", () => {
 
   it("drops a registry payload whose tenant does not match the request", async () => {
     mocks.axisFetchParsedJson.mockImplementation((path: string) => {
-      if (path.startsWith("/demo/manufacturing/workflows")) {
+      if (path.startsWith(`${OPERATIONS_API_PREFIX}/workflows`)) {
         return Promise.resolve({
           tenant_id: "tenant_other",
           workflow_runs: [{ workflow_id: "wf_foreign", name: "Foreign workflow" }],

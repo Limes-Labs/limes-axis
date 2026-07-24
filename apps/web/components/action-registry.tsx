@@ -36,6 +36,7 @@ import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
   resolveConsoleTenantScope,
+  OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
@@ -95,7 +96,7 @@ export function ActionRegistry() {
   const tenantId = tenantScope.tenantId;
   const { data: registry, source } = useAxisQuery<ManufacturingActionRegistry>(
     buildTenantScopedPath(
-      "/demo/manufacturing/actions",
+      `${OPERATIONS_API_PREFIX}/actions`,
       tenantId ?? DEMO_TENANT_ID,
     ),
     {
@@ -168,7 +169,7 @@ export function ActionRegistry() {
     try {
       const result = await axisFetchParsedJson<ActionRunPersistenceResult>(
         buildTenantScopedPath(
-          `/demo/manufacturing/actions/${action.definition.action_id}/runs`,
+          `${OPERATIONS_API_PREFIX}/actions/${action.definition.action_id}/runs`,
           registry.tenant_id,
         ),
         parseActionRunPersistenceResult,
@@ -234,7 +235,7 @@ export function ActionRegistry() {
     return (
       <ErrorPanel
         detail="Axis did not receive API-backed action records. Local fallback action records are disabled."
-        endpoint="/demo/manufacturing/actions"
+        endpoint={`${OPERATIONS_API_PREFIX}/actions`}
         title="Action API unavailable"
       />
     );
@@ -244,7 +245,7 @@ export function ActionRegistry() {
     return (
       <ErrorPanel
         detail="The action API responded without registry records for this tenant."
-        endpoint="/demo/manufacturing/actions"
+        endpoint={`${OPERATIONS_API_PREFIX}/actions`}
         title="Action API returned no records"
       />
     );

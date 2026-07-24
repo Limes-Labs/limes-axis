@@ -24,7 +24,11 @@ from axis_api.persistence import (
     TenantCreate,
     TenantQuotaUpsert,
 )
-from axis_api.platform_tenants import TenantQuotaKey
+from axis_api.platform_tenants import (
+    TENANT_VOCABULARY_LABEL_MAX_LENGTH,
+    TENANT_VOCABULARY_MAX_DOMAIN_LABELS,
+    TenantQuotaKey,
+)
 
 OPERATOR_ACTOR = "axis-platform-operator-role"
 OPERATOR_SCOPES = [
@@ -33,6 +37,7 @@ OPERATOR_SCOPES = [
     "platform:tenant:suspend",
     "platform:tenant:read",
     "platform:tenant:quota",
+    "platform:tenant:configure",
 ]
 TENANT_ID = "tenant_acme_manufacturing"
 SECOND_TENANT_ID = "tenant_beta_manufacturing"
@@ -123,6 +128,28 @@ def quota_payload(
         else {
             "api_requests_per_window": 50,
             "max_concurrent_sessions": 2,
+        },
+    }
+
+
+def vocabulary_payload(
+    *,
+    vocabulary: dict | None = None,
+    actor_scopes: list[str] | None = None,
+) -> dict:
+    return {
+        "requested_by": OPERATOR_ACTOR,
+        "actor_scopes": actor_scopes if actor_scopes is not None else OPERATOR_SCOPES,
+        "vocabulary": vocabulary
+        if vocabulary is not None
+        else {
+            "site_singular": "Facility",
+            "site_plural": "Facilities",
+            "workspace_label": "Control room",
+            "domain_labels": {
+                "supply": "Materials",
+                "quality": "Clinical quality",
+            },
         },
     }
 
@@ -645,6 +672,219 @@ def test_quota_read_requires_operator_read_scopes_when_authenticated() -> None:
 
     assert denied.status_code == 403
     assert denied.json()["detail"]["required_permission"] == "platform:tenant:read"
+
+
+def test_vocabulary_defaults_are_returned_as_unconfigured() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.get(f"/platform/tenants/{TENANT_ID}/vocabulary")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "tenant_id": TENANT_ID,
+        "vocabulary": {
+            "site_singular": "Site",
+            "site_plural": "Sites",
+            "workspace_label": "Operations",
+            "domain_labels": {},
+        },
+        "configured": False,
+        "changes": [],
+        "vocabulary_notes": [
+            "Industry-neutral defaults are returned until this tenant configures vocabulary.",
+            "Every vocabulary change appends platform.tenant.vocabulary.updated audit evidence.",
+        ],
+    }
+
+
+def test_vocabulary_put_then_get_returns_stored_document() -> None:
+    client, factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+    expected = vocabulary_payload()["vocabulary"]
+
+    updated = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(),
+    )
+    fetched = client.get(f"/platform/tenants/{TENANT_ID}/vocabulary")
+
+    assert updated.status_code == 200
+    assert updated.json()["configured"] is True
+    assert updated.json()["vocabulary"] == expected
+    assert fetched.status_code == 200
+    assert fetched.json()["configured"] is True
+    assert fetched.json()["vocabulary"] == expected
+    with factory() as session:
+        assert session.get(Tenant, TENANT_ID).vocabulary == expected
+
+
+def test_vocabulary_rejects_blank_labels_and_domain_keys() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    blank_label = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(
+            vocabulary={
+                "site_singular": " \t",
+                "site_plural": "Sites",
+                "workspace_label": "Operations",
+                "domain_labels": {},
+            }
+        ),
+    )
+    blank_domain_key = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(
+            vocabulary={
+                "site_singular": "Site",
+                "site_plural": "Sites",
+                "workspace_label": "Operations",
+                "domain_labels": {"  ": "Supply"},
+            }
+        ),
+    )
+
+    assert blank_label.status_code == 422
+    assert blank_domain_key.status_code == 422
+
+
+def test_vocabulary_rejects_overlong_labels() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(
+            vocabulary={
+                "site_singular": "S" * (TENANT_VOCABULARY_LABEL_MAX_LENGTH + 1),
+                "site_plural": "Sites",
+                "workspace_label": "Operations",
+                "domain_labels": {},
+            }
+        ),
+    )
+
+    assert response.status_code == 422
+
+
+def test_vocabulary_rejects_too_many_domain_entries() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(
+            vocabulary={
+                "site_singular": "Site",
+                "site_plural": "Sites",
+                "workspace_label": "Operations",
+                "domain_labels": {
+                    f"domain_{index}": f"Domain {index}"
+                    for index in range(TENANT_VOCABULARY_MAX_DOMAIN_LABELS + 1)
+                },
+            }
+        ),
+    )
+
+    assert response.status_code == 422
+
+
+def test_vocabulary_rejects_unknown_fields() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+    vocabulary = vocabulary_payload()["vocabulary"]
+    vocabulary["industry"] = "Manufacturing"
+
+    response = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(vocabulary=vocabulary),
+    )
+
+    assert response.status_code == 422
+
+
+def test_vocabulary_update_requires_its_own_configure_scope() -> None:
+    """Renaming labels must not require — or grant — quota authority.
+
+    Quotas are commercial limits; vocabulary is display configuration. Sharing
+    one scope would mean anyone allowed to relabel a domain could also raise a
+    tenant's quota.
+    """
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(actor_scopes=["platform:tenant:operator"]),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permission"] == "platform:tenant:configure"
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+
+
+def test_quota_scope_alone_cannot_change_vocabulary() -> None:
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(
+            actor_scopes=["platform:tenant:operator", "platform:tenant:quota"],
+        ),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permission"] == "platform:tenant:configure"
+
+
+def test_vocabulary_update_records_audit_evidence() -> None:
+    client, factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+    expected = vocabulary_payload()["vocabulary"]
+
+    response = client.put(
+        f"/platform/tenants/{TENANT_ID}/vocabulary",
+        json=vocabulary_payload(),
+    )
+
+    assert response.status_code == 200
+    change = response.json()["changes"]
+    assert len(change) == 1
+    assert change[0]["previous_value"] is None
+    assert change[0]["new_value"] == expected
+    assert change[0]["audit_event_type"] == "platform.tenant.vocabulary.updated"
+    with factory() as session:
+        events = audit_events(
+            session,
+            TENANT_ID,
+            "platform.tenant.vocabulary.updated",
+        )
+        assert len(events) == 1
+        assert events[0].payload["previous_value"] is None
+        assert events[0].payload["new_value"] == expected
+        assert events[0].payload["required_configure_scope"] == "platform:tenant:configure"
+        assert events[0].payload["permission_decision"]["allowed"] is True
+
+
+def test_vocabulary_unknown_tenant_matches_platform_404() -> None:
+    client, _factory = build_test_client()
+
+    fetched = client.get("/platform/tenants/tenant_missing/vocabulary")
+    updated = client.put(
+        "/platform/tenants/tenant_missing/vocabulary",
+        json=vocabulary_payload(),
+    )
+
+    assert fetched.status_code == 404
+    assert updated.status_code == 404
+    assert fetched.json()["detail"] == updated.json()["detail"] == {
+        "code": "NOT_FOUND",
+        "message": "The tenant was not found.",
+        "tenant_id": "tenant_missing",
+    }
 
 
 def test_tenant_detail_endpoint_returns_record() -> None:

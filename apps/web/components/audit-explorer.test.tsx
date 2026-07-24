@@ -44,6 +44,7 @@ vi.mock("@/lib/use-console-tenant-scope", () => ({
 }));
 
 import { AuditExplorer } from "./audit-explorer";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const explorerFixture: ManufacturingAuditExplorer = {
   tenant_id: "tenant_fixture",
@@ -143,7 +144,7 @@ const exportBundleFixture: AuditExportBundle = {
 
 function mockAuditApi() {
   mocks.axisFetchParsedJson.mockImplementation((path: string) => {
-    if (path.startsWith("/demo/manufacturing/audit/export")) {
+    if (path.startsWith(`${OPERATIONS_API_PREFIX}/audit/export`)) {
       return Promise.resolve(exportBundleFixture);
     }
     return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -244,7 +245,7 @@ describe("AuditExplorer integrity and export", () => {
       session: mocks.session,
     });
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/demo/manufacturing/audit/events?tenant_id=tenant_fixture&limit=100",
+      `${OPERATIONS_API_PREFIX}/audit/events?tenant_id=tenant_fixture&limit=100`,
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_fixture" }),
     );
   });

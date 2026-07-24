@@ -22,7 +22,7 @@ import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /*
  * Run replay from the UI: a parameterized GET against
- * /demo/manufacturing/simulation/replay (workflow window, retention,
+ * /operations/simulation/replay (workflow window, retention,
  * optional policy-set comparison), rendered as a baseline-vs-simulated
  * decision diff. The raw API result stays behind the Inspect drawer.
  */

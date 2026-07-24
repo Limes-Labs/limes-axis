@@ -41,6 +41,7 @@ vi.mock("@/lib/ids", () => ({
 }));
 
 import { ConnectorRuns } from "./runs";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 type Source = "loading" | "api" | "unavailable";
 
@@ -59,17 +60,17 @@ function buildRegistries(
   overrides: Partial<Record<keyof ConnectorRegistries, { data: unknown; source: Source }>> = {},
 ): ConnectorRegistries {
   const paths: Record<keyof ConnectorRegistries, string> = {
-    registry: "/demo/manufacturing/connectors",
-    manifests: "/demo/manufacturing/connectors/manifests",
-    credentialHandles: "/demo/manufacturing/connectors/credential-handles",
-    credentialLeases: "/demo/manufacturing/connectors/credential-leases",
-    egressPolicies: "/demo/manufacturing/connectors/egress-policies",
-    runs: "/demo/manufacturing/connectors/runs",
+    registry: `${OPERATIONS_API_PREFIX}/connectors`,
+    manifests: `${OPERATIONS_API_PREFIX}/connectors/manifests`,
+    credentialHandles: `${OPERATIONS_API_PREFIX}/connectors/credential-handles`,
+    credentialLeases: `${OPERATIONS_API_PREFIX}/connectors/credential-leases`,
+    egressPolicies: `${OPERATIONS_API_PREFIX}/connectors/egress-policies`,
+    runs: `${OPERATIONS_API_PREFIX}/connectors/runs`,
     evidenceInvariants:
-      "/demo/manufacturing/connectors/evidence-invariants?tenant_id=tenant_demo_manufacturing",
+      `${OPERATIONS_API_PREFIX}/connectors/evidence-invariants?tenant_id=tenant_demo_manufacturing`,
     evidenceSnapshots:
-      "/demo/manufacturing/connectors/evidence-invariants/snapshots?tenant_id=tenant_demo_manufacturing",
-    ontologyProposals: "/demo/manufacturing/connectors/ontology-proposals",
+      `${OPERATIONS_API_PREFIX}/connectors/evidence-invariants/snapshots?tenant_id=tenant_demo_manufacturing`,
+    ontologyProposals: `${OPERATIONS_API_PREFIX}/connectors/ontology-proposals`,
   };
 
   return Object.fromEntries(
@@ -225,7 +226,7 @@ describe("ConnectorRuns validate action", () => {
     expect(screen.getByText(/2 rows checked \/ 2 accepted \/ 0 rejected/)).toBeInTheDocument();
 
     const [path, options] = mocks.axisFetch.mock.calls[0];
-    expect(path).toBe("/demo/manufacturing/connectors/file-csv/preview");
+    expect(path).toBe(`${OPERATIONS_API_PREFIX}/connectors/file-csv/preview`);
     expect(options.body).toEqual({
       tenant_id: "tenant_acme",
       connector_id: "file_csv_manufacturing_assets",
@@ -379,7 +380,7 @@ describe("ConnectorRuns preview-sync stepper", () => {
     await waitFor(() => expect(screen.getAllByText("Completed")).toHaveLength(3));
 
     const [createPath, createOptions] = mocks.axisFetch.mock.calls[0];
-    expect(createPath).toBe("/demo/manufacturing/connectors/runs");
+    expect(createPath).toBe(`${OPERATIONS_API_PREFIX}/connectors/runs`);
     expect(createOptions.body).toMatchObject({
       tenant_id: "tenant_demo_manufacturing",
       connector_id: "file_csv_manufacturing_assets",
@@ -393,7 +394,7 @@ describe("ConnectorRuns preview-sync stepper", () => {
 
     const [dispatchPath, dispatchOptions] = mocks.axisFetch.mock.calls[1];
     expect(dispatchPath).toBe(
-      "/demo/manufacturing/connectors/runs/run_console_token1234/dispatch",
+      `${OPERATIONS_API_PREFIX}/connectors/runs/run_console_token1234/dispatch`,
     );
     expect(dispatchOptions.body).toMatchObject({
       dispatch_id: "dispatch_console_token1234",
@@ -404,7 +405,7 @@ describe("ConnectorRuns preview-sync stepper", () => {
 
     const [executePath, executeOptions] = mocks.axisFetch.mock.calls[2];
     expect(executePath).toBe(
-      "/demo/manufacturing/connectors/runs/run_console_token1234/execute-sync",
+      `${OPERATIONS_API_PREFIX}/connectors/runs/run_console_token1234/execute-sync`,
     );
     expect(executeOptions.body).toMatchObject({
       execution_id: "exec_console_token1234",
@@ -467,7 +468,7 @@ describe("ConnectorRuns preview-sync stepper", () => {
         credentialLeases: {
           data: {
             ...connectorEndpointFixtures[
-              "/demo/manufacturing/connectors/credential-leases"
+              `${OPERATIONS_API_PREFIX}/connectors/credential-leases`
             ] as object,
             leases: [],
           },

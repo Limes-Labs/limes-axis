@@ -32,6 +32,7 @@ import {
 import { strings } from "@/lib/strings";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 function RunRailMarker({ state }: { state: AgentRunRailState }) {
   return (
@@ -317,7 +318,7 @@ export function AgentRuns({
     return (
       <ErrorPanel
         detail={strings.agents.runs.error.detail}
-        endpoint={`/demo/manufacturing/agents/${agentId}/runs`}
+        endpoint={`${OPERATIONS_API_PREFIX}/agents/${agentId}/runs`}
         title={strings.agents.runs.error.title}
       />
     );

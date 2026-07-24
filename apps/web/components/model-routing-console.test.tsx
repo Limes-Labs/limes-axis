@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
-import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
@@ -81,7 +81,7 @@ describe("ModelRoutingConsole tabs", () => {
     const { unmount } = render(<ModelRoutingConsole />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/demo/manufacturing/model-routing?tenant_id=tenant_acme",
+      `${OPERATIONS_API_PREFIX}/model-routing?tenant_id=tenant_acme`,
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
     );
 
@@ -106,7 +106,7 @@ describe("ModelRoutingConsole tabs", () => {
     mockIdentity();
     render(<ModelRoutingConsole />);
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      `/demo/manufacturing/model-routing?tenant_id=${DEMO_TENANT_ID}`,
+      `${OPERATIONS_API_PREFIX}/model-routing?tenant_id=${DEMO_TENANT_ID}`,
       expect.objectContaining({ enabled: true, expectedTenantId: DEMO_TENANT_ID }),
     );
   });
@@ -301,7 +301,7 @@ describe("ModelRoutingConsole no-match filter state", () => {
           isUnavailable: false,
         };
       }
-      if (path.startsWith("/demo/manufacturing/model-routing")) {
+      if (path.startsWith(`${OPERATIONS_API_PREFIX}/model-routing`)) {
         return {
           data: routingFixture,
           source: "api",

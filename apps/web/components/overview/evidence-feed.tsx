@@ -21,6 +21,7 @@ import {
   StatusDot,
   type OverviewQuery,
 } from "./overview-shared";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 /*
  * The single evidence feed for the overview: one list of recent persisted
@@ -29,7 +30,7 @@ import {
  * table, audit observability chart, recent activity list).
  */
 
-export const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
+export const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 
 const FEED_ROW_LIMIT = 10;
 

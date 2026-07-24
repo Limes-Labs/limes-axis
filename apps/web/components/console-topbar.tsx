@@ -23,6 +23,7 @@ import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
   resolveConsoleTenantScope,
+  OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -60,7 +61,7 @@ export function ConsoleTopbar({
   const tenantId = tenantScope.tenantId;
   const { data: notificationCenter } = useAxisQuery<ManufacturingNotificationCenter>(
     buildTenantScopedPath(
-      "/demo/manufacturing/notifications",
+      `${OPERATIONS_API_PREFIX}/notifications`,
       tenantId ?? DEMO_TENANT_ID,
     ),
     {

@@ -3638,6 +3638,15 @@ class AxisPersistenceRepository:
         self.session.flush()
         return True
 
+    def update_tenant_vocabulary(self, tenant_id: str, vocabulary: dict) -> Tenant:
+        tenant = self.get_tenant(tenant_id)
+        if tenant is None:
+            raise PersistenceRecordNotFound()
+        tenant.vocabulary = vocabulary
+        tenant.updated_at = utc_now()
+        self.session.flush()
+        return tenant
+
     def add_tenant_usage(self, record: TenantUsageAdd) -> None:
         """Fold a consumption delta into the (tenant, metric, period) ledger row.
 

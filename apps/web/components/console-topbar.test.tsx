@@ -5,7 +5,7 @@ import type {
   IdentitySessionReadModel,
   ManufacturingNotificationCenter,
 } from "@/lib/platform-overview";
-import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
@@ -89,7 +89,7 @@ function mockNotifications(unreadCount: number) {
     if (path === "/identity/session") {
       return queryResult(identitySession);
     }
-    if (path === `/demo/manufacturing/notifications?tenant_id=${DEMO_TENANT_ID}`) {
+    if (path === `${OPERATIONS_API_PREFIX}/notifications?tenant_id=${DEMO_TENANT_ID}`) {
       return queryResult(center);
     }
     return queryResult(null, "loading");

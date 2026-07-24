@@ -41,6 +41,7 @@ import {
 } from "@/lib/runtime-contracts/connectors";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 /*
  * Add Connector wizard. The Axis preview endpoints validate real content
@@ -54,9 +55,9 @@ type WizardStep = "type" | "source" | "review";
 type ConnectorChoice = "file_csv" | "external_db";
 type SubmitErrorKind = "conflict" | "forbidden" | "validation" | "generic";
 
-const CSV_PREVIEW_ENDPOINT = "/demo/manufacturing/connectors/file-csv/preview";
-const DB_PREVIEW_ENDPOINT = "/demo/manufacturing/connectors/external-db/preview";
-const MANIFESTS_ENDPOINT = "/demo/manufacturing/connectors/manifests";
+const CSV_PREVIEW_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/file-csv/preview`;
+const DB_PREVIEW_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/external-db/preview`;
+const MANIFESTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/manifests`;
 
 type SubmitError = {
   kind: SubmitErrorKind;

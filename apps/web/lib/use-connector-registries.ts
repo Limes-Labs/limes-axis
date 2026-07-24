@@ -23,7 +23,7 @@ import {
   parseManufacturingConnectorRunRegistry,
 } from "./runtime-contracts/connectors";
 import { useAxisQuery } from "./use-axis-query";
-import { buildTenantScopedPath, DEMO_TENANT_ID } from "./tenant-scope";
+import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "./tenant-scope";
 
 /*
  * One `useAxisQuery` per endpoint the rebuilt connector console actually
@@ -35,15 +35,15 @@ import { buildTenantScopedPath, DEMO_TENANT_ID } from "./tenant-scope";
  */
 
 export const CONNECTOR_ENDPOINTS = {
-  registry: "/demo/manufacturing/connectors",
-  manifests: "/demo/manufacturing/connectors/manifests",
-  credentialHandles: "/demo/manufacturing/connectors/credential-handles",
-  credentialLeases: "/demo/manufacturing/connectors/credential-leases",
-  egressPolicies: "/demo/manufacturing/connectors/egress-policies",
-  runs: "/demo/manufacturing/connectors/runs",
-  evidenceInvariants: "/demo/manufacturing/connectors/evidence-invariants",
-  evidenceSnapshots: "/demo/manufacturing/connectors/evidence-invariants/snapshots",
-  ontologyProposals: "/demo/manufacturing/connectors/ontology-proposals",
+  registry: `${OPERATIONS_API_PREFIX}/connectors`,
+  manifests: `${OPERATIONS_API_PREFIX}/connectors/manifests`,
+  credentialHandles: `${OPERATIONS_API_PREFIX}/connectors/credential-handles`,
+  credentialLeases: `${OPERATIONS_API_PREFIX}/connectors/credential-leases`,
+  egressPolicies: `${OPERATIONS_API_PREFIX}/connectors/egress-policies`,
+  runs: `${OPERATIONS_API_PREFIX}/connectors/runs`,
+  evidenceInvariants: `${OPERATIONS_API_PREFIX}/connectors/evidence-invariants`,
+  evidenceSnapshots: `${OPERATIONS_API_PREFIX}/connectors/evidence-invariants/snapshots`,
+  ontologyProposals: `${OPERATIONS_API_PREFIX}/connectors/ontology-proposals`,
 } as const;
 
 export function useConnectorRegistries(

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
+import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 import { agentRegistryFixture } from "./agents-fixtures";
 
@@ -64,7 +64,7 @@ function mockRegistry(result: {
     if (path === "/identity/session") {
       return queryResult({ data: identity, source: "api" });
     }
-    if (path === `/demo/manufacturing/agents?tenant_id=${tenantId}`) {
+    if (path === `${OPERATIONS_API_PREFIX}/agents?tenant_id=${tenantId}`) {
       return queryResult(result);
     }
     return queryResult({ data: null, source: "loading" });
@@ -92,7 +92,7 @@ describe("AgentRegistry states", () => {
     const { unmount } = render(<AgentRegistry />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/demo/manufacturing/agents?tenant_id=tenant_acme",
+      `${OPERATIONS_API_PREFIX}/agents?tenant_id=tenant_acme`,
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
     );
 
@@ -102,7 +102,7 @@ describe("AgentRegistry states", () => {
     render(<AgentRegistry />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      `/demo/manufacturing/agents?tenant_id=${DEMO_TENANT_ID}`,
+      `${OPERATIONS_API_PREFIX}/agents?tenant_id=${DEMO_TENANT_ID}`,
       expect.objectContaining({ enabled: true, expectedTenantId: DEMO_TENANT_ID }),
     );
   });
@@ -118,7 +118,7 @@ describe("AgentRegistry states", () => {
 
     expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      `/demo/manufacturing/agents?tenant_id=${DEMO_TENANT_ID}`,
+      `${OPERATIONS_API_PREFIX}/agents?tenant_id=${DEMO_TENANT_ID}`,
       expect.objectContaining({ enabled: false, expectedTenantId: undefined }),
     );
   });
@@ -142,7 +142,7 @@ describe("AgentRegistry states", () => {
       screen.getByText(/Local fallback agent records are disabled\./),
     ).toBeInTheDocument();
     // Endpoint stays demoted behind the technical-details expander.
-    expect(screen.queryByText("/demo/manufacturing/agents")).not.toBeInTheDocument();
+    expect(screen.queryByText(`${OPERATIONS_API_PREFIX}/agents`)).not.toBeInTheDocument();
   });
 
   it("renders the EmptyPanel when the API responds with zero agents", () => {
