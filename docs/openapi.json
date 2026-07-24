@@ -6110,6 +6110,61 @@
         "title": "ConnectorManifest",
         "type": "object"
       },
+      "ConnectorManifestBatchValidationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "manifests": {
+            "items": {},
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Manifests",
+            "type": "array"
+          },
+          "registered_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Registered By",
+            "type": "string"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registered_by",
+          "manifests"
+        ],
+        "title": "ConnectorManifestBatchValidationRequest",
+        "type": "object"
+      },
+      "ConnectorManifestBatchValidationResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorManifestValidationResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ConnectorManifestValidationSummary"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "summary"
+        ],
+        "title": "ConnectorManifestBatchValidationResponse",
+        "type": "object"
+      },
       "ConnectorManifestCreateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -6152,6 +6207,32 @@
           "registered_by"
         ],
         "title": "ConnectorManifestCreateRequest",
+        "type": "object"
+      },
+      "ConnectorManifestFieldError": {
+        "properties": {
+          "field_path": {
+            "minLength": 1,
+            "title": "Field Path",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field_path",
+          "message",
+          "reason"
+        ],
+        "title": "ConnectorManifestFieldError",
         "type": "object"
       },
       "ConnectorManifestLifecycleRequest": {
@@ -6322,6 +6403,66 @@
           "created_at"
         ],
         "title": "ConnectorManifestRecordView",
+        "type": "object"
+      },
+      "ConnectorManifestValidationResult": {
+        "properties": {
+          "connector_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorManifestFieldError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "outcome": {
+            "enum": [
+              "would_register",
+              "would_replace",
+              "invalid"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "ConnectorManifestValidationResult",
+        "type": "object"
+      },
+      "ConnectorManifestValidationSummary": {
+        "properties": {
+          "invalid": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "would_register": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Would Register",
+            "type": "integer"
+          },
+          "would_replace": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Would Replace",
+            "type": "integer"
+          }
+        },
+        "title": "ConnectorManifestValidationSummary",
         "type": "object"
       },
       "ConnectorManualImportCreateRequest": {
@@ -22897,6 +23038,62 @@
         ]
       }
     },
+    "/demo/manufacturing/connectors/manifests/validation": {
+      "post": {
+        "deprecated": true,
+        "operationId": "manufacturing_connector_manifest_validation_demo_manufacturing_connectors_manifests_validation_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorManifestBatchValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestBatchValidationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest actor binding permission denied"
+          },
+          "422": {
+            "description": "Connector manifest validation request failed"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Validation",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle": {
       "post": {
         "deprecated": true,
@@ -30182,6 +30379,61 @@
           }
         },
         "summary": "Manufacturing Connector Manifest Create",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/operations/connectors/manifests/validation": {
+      "post": {
+        "operationId": "manufacturing_connector_manifest_validation_operations_connectors_manifests_validation_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorManifestBatchValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestBatchValidationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest actor binding permission denied"
+          },
+          "422": {
+            "description": "Connector manifest validation request failed"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Validation",
         "tags": [
           "demo"
         ]

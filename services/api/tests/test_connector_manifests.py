@@ -437,7 +437,7 @@ def test_manifest_reported_valid_registers_through_real_endpoint(
         json=manifest_validation_request(registration_request),
     )
     registration = client.post(
-        "/demo/manufacturing/connectors/manifests",
+        "/operations/connectors/manifests",
         json=registration_request.model_dump(),
     )
 
