@@ -39,6 +39,7 @@ import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
 } from "@/lib/use-console-tenant-scope";
+import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 
 const AGENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/agents`;
 
@@ -74,14 +75,20 @@ function agentStatusToneClass(status: string): string {
   return "text-positive";
 }
 
-function buildFilterDefs(registry: ManufacturingAgentRegistry): FilterDef[] {
+function buildFilterDefs(
+  registry: ManufacturingAgentRegistry,
+  labelDomain: (domain: string) => string,
+): FilterDef[] {
   return [
     {
       id: "domain",
       label: "Domain",
       options: [
         { value: allAgentFilter, label: "All domains" },
-        ...registry.filter_options.domains.map((domain) => ({ value: domain, label: domain })),
+        ...registry.filter_options.domains.map((domain) => ({
+          value: domain,
+          label: labelDomain(domain),
+        })),
       ],
     },
     {
@@ -116,6 +123,7 @@ const filterIdToKey: Record<string, keyof AgentFilters> = {
 };
 
 export function AgentRegistry() {
+  const { labelDomain } = useTenantVocabulary();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const agentsPath = buildTenantScopedPath(AGENTS_ENDPOINT, tenantId ?? DEMO_TENANT_ID);
   const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(agentsPath, {
@@ -233,7 +241,7 @@ export function AgentRegistry() {
       {metrics.length > 0 ? <MetricStrip metrics={metrics} /> : null}
 
       <FilterBar
-        filters={buildFilterDefs(registry)}
+        filters={buildFilterDefs(registry, labelDomain)}
         values={{
           domain: filters.domain,
           autonomy: filters.autonomyLevel,
@@ -268,6 +276,7 @@ export function AgentRegistry() {
             <AgentDetail
               activeTab={urlState.tab}
               agent={selectedAgent}
+              domainLabel={labelDomain(selectedAgent.domain)}
               onRunSelect={(runId) => setUrlState({ runId })}
               onTabChange={(tab) => setUrlState({ tab })}
               selectedRunId={urlState.runId}
@@ -300,7 +309,7 @@ export function AgentRegistry() {
                     >
                       <span className="grid min-w-0 gap-0.5">
                         <span className="text-sm font-medium text-ink">{agent.name}</span>
-                        <span className="text-xs text-muted">{agent.domain}</span>
+                        <span className="text-xs text-muted">{labelDomain(agent.domain)}</span>
                         <span className="flex items-center gap-1.5 text-xs text-muted">
                           <span
                             aria-hidden="true"

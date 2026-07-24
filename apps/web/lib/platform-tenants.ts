@@ -3,6 +3,7 @@ import {
   parseTenantQuotaSet,
   parseTenantRecord,
   parseTenantRegistry,
+  parseTenantVocabularySet,
 } from "./runtime-contracts/tenants";
 
 export type TenantLifecycleStatus = "active" | "suspended" | "pending_deletion";
@@ -64,6 +65,35 @@ export type TenantQuotaValues = {
   max_connector_sync_rows_per_run?: number | null;
 };
 
+export type TenantVocabulary = {
+  site_singular: string;
+  site_plural: string;
+  workspace_label: string;
+  domain_labels: Record<string, string>;
+};
+
+export type TenantVocabularyChange = {
+  previous_value?: TenantVocabulary | null;
+  new_value: TenantVocabulary;
+  audit_event_id?: string | null;
+  audit_event_type: string;
+};
+
+export type TenantVocabularySet = {
+  tenant_id: string;
+  vocabulary: TenantVocabulary;
+  configured: boolean;
+  changes?: TenantVocabularyChange[];
+  vocabulary_notes?: string[];
+};
+
+export type TenantVocabularyUpdateRequestPayload = {
+  requested_by: string;
+  actor_scopes: string[];
+  vocabulary: TenantVocabulary;
+  notes: string[];
+};
+
 export type TenantBootstrapAdminPayload = {
   actor_id: string;
   display_name: string;
@@ -122,6 +152,12 @@ export const platformTenantProvisionScope = "platform:tenant:provision";
 export const platformTenantSuspendScope = "platform:tenant:suspend";
 
 export const platformTenantQuotaScope = "platform:tenant:quota";
+
+export const platformTenantConfigureScope = "platform:tenant:configure";
+
+export const tenantVocabularyLabelMaxLength = 100;
+
+export const tenantVocabularyDomainLimit = 50;
 
 export const tenantLifecycleStatuses: TenantLifecycleStatus[] = [
   "active",
@@ -229,6 +265,10 @@ export function buildPlatformTenantDetailPath(tenantId: string): string {
 
 export function buildPlatformTenantQuotasPath(tenantId: string): string {
   return `${buildPlatformTenantDetailPath(tenantId)}/quotas`;
+}
+
+export function buildPlatformTenantVocabularyPath(tenantId: string): string {
+  return `${buildPlatformTenantDetailPath(tenantId)}/vocabulary`;
 }
 
 export function buildPlatformTenantSuspendPath(tenantId: string): string {
@@ -695,6 +735,33 @@ export async function fetchTenantQuotas(
   return decodeAxisJson(path, await response.json(), parseTenantQuotaSet, responseRequestId(response));
 }
 
+export async function fetchTenantVocabulary(
+  tenantId: string,
+  options: AxisFetchOptions = {},
+): Promise<TenantVocabularySet | null> {
+  const path = buildPlatformTenantVocabularyPath(tenantId);
+  const response = await axisFetch(path, options);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const body = await readJsonBody(response);
+    throw new AxisApiError(path, response.status, {
+      body,
+      requestId: responseRequestId(response),
+    });
+  }
+
+  return decodeAxisJson(
+    path,
+    await response.json(),
+    parseTenantVocabularySet,
+    responseRequestId(response),
+  );
+}
+
 export async function provisionTenant(
   payload: TenantProvisionRequestPayload,
   options: AxisFetchOptions = {},
@@ -813,4 +880,51 @@ export async function updateTenantQuotas(
   }
 
   return parseTenantWriteFailure(response.status, body);
+}
+
+const vocabularyFieldByRequestField: Record<string, string> = {
+  site_singular: "siteSingular",
+  site_plural: "sitePlural",
+  workspace_label: "workspaceLabel",
+  domain_labels: "domainLabels",
+};
+
+export function buildTenantVocabularyUpdatePayload(
+  vocabulary: TenantVocabulary,
+  notes: string[] = [],
+): TenantVocabularyUpdateRequestPayload {
+  return {
+    requested_by: platformTenantOperatorActorId,
+    actor_scopes: [platformTenantOperatorScope, platformTenantConfigureScope],
+    vocabulary,
+    notes,
+  };
+}
+
+export async function updateTenantVocabulary(
+  tenantId: string,
+  payload: TenantVocabularyUpdateRequestPayload,
+  options: AxisFetchOptions = {},
+): Promise<TenantWriteResult<TenantVocabularySet>> {
+  const path = buildPlatformTenantVocabularyPath(tenantId);
+  const response = await axisFetch(path, {
+    ...options,
+    method: "PUT",
+    body: payload,
+  });
+  const body = await readJsonBody(response);
+
+  if (response.ok) {
+    return {
+      kind: "updated",
+      record: decodeAxisJson(
+        path,
+        body,
+        parseTenantVocabularySet,
+        responseRequestId(response),
+      ),
+    };
+  }
+
+  return parseTenantWriteFailure(response.status, body, vocabularyFieldByRequestField);
 }

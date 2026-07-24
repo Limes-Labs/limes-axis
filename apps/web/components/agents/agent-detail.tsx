@@ -229,12 +229,14 @@ type AgentDetailTab = "overview" | "permissions" | "runs" | "evidence";
 export function AgentDetail({
   activeTab,
   agent,
+  domainLabel,
   onRunSelect,
   onTabChange,
   selectedRunId,
 }: {
   activeTab?: AgentDetailTab;
   agent: AgentRegistryEntry;
+  domainLabel?: string;
   onRunSelect?: (runId: string) => void;
   onTabChange?: (tab: AgentDetailTab) => void;
   selectedRunId?: string;
@@ -246,7 +248,7 @@ export function AgentDetail({
     <Card className="grid content-start gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid max-w-xl gap-1">
-          <Eyebrow>{agent.domain}</Eyebrow>
+          <Eyebrow>{domainLabel || agent.domain}</Eyebrow>
           <h2 className="font-display m-0 text-xl text-ink">{agent.name}</h2>
           <p className="m-0 text-sm text-muted">{agent.purpose}</p>
         </div>

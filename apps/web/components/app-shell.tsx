@@ -22,6 +22,10 @@ import {
   OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { ConsoleProvider } from "@/providers/console-provider";
+import {
+  resolveVocabularyTenantId,
+  TenantVocabularyProvider,
+} from "@/providers/tenant-vocabulary-provider";
 
 const navItemClass =
   "flex min-h-[44px] items-center gap-2.5 rounded-xl px-3 text-[13px] font-medium text-muted transition-colors hover:bg-signal/8 hover:text-ink";
@@ -176,6 +180,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
     parse: parseIdentitySessionReadModel,
   });
   const tenantScope = resolveConsoleTenantScope(identity.data);
+  const vocabularyTenantId = resolveVocabularyTenantId(pathname, tenantScope.tenantId);
   const approvalsBadge = (
     <ApprovalsBadge
       identitySource={identity.source}
@@ -184,50 +189,55 @@ function ConsoleShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <>
-      <a
-        className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-surface shadow-lg transition-transform focus:translate-y-0"
-        href="#console-main"
-      >
-        Skip to main content
-      </a>
-      <div className="grid min-h-screen grid-cols-1 min-[921px]:grid-cols-[212px_minmax(0,1fr)]">
-        <aside
-          className="sidebar fixed inset-y-0 left-0 z-12 hidden h-dvh min-h-0 w-[212px] flex-col overflow-hidden border-r border-line bg-surface px-2.5 pt-4 pb-3 min-[921px]:flex dark:border-white/10"
-          data-console-sidebar
+    <TenantVocabularyProvider
+      enabled={identity.source === "api" && vocabularyTenantId !== null}
+      tenantId={vocabularyTenantId}
+    >
+      <>
+        <a
+          className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-surface shadow-lg transition-transform focus:translate-y-0"
+          href="#console-main"
         >
-          <Link
-            className="mb-3.5 flex min-h-[44px] items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
-            href="/"
-            aria-label="Limes Axis home"
+          Skip to main content
+        </a>
+        <div className="grid min-h-screen grid-cols-1 min-[921px]:grid-cols-[212px_minmax(0,1fr)]">
+          <aside
+            className="sidebar fixed inset-y-0 left-0 z-12 hidden h-dvh min-h-0 w-[212px] flex-col overflow-hidden border-r border-line bg-surface px-2.5 pt-4 pb-3 min-[921px]:flex dark:border-white/10"
+            data-console-sidebar
           >
-            <AxisMark className="h-[30px] w-[30px] shrink-0 text-ink" />
-            <span>
-              <span className="font-display block text-base text-ink">
-                Limes Axis
+            <Link
+              className="mb-3.5 flex min-h-[44px] items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
+              href="/"
+              aria-label="Limes Axis home"
+            >
+              <AxisMark className="h-[30px] w-[30px] shrink-0 text-ink" />
+              <span>
+                <span className="font-display block text-base text-ink">
+                  Limes Axis
+                </span>
+                <span className="mt-0.5 block font-mono text-[9px] font-medium tracking-[0.18em] text-muted uppercase">
+                  Control plane
+                </span>
               </span>
-              <span className="mt-0.5 block font-mono text-[9px] font-medium tracking-[0.18em] text-muted uppercase">
-                Control plane
-              </span>
-            </span>
-          </Link>
-          <Navigation badge={approvalsBadge} pathname={pathname} />
-          <SidebarAccount
-            identitySession={identity.data}
-            identitySessionUnavailable={identity.source === "unavailable"}
-            settingsActive={isNavActive(pathname, "/settings")}
-          />
-        </aside>
-        <main
-          className="min-w-0 min-[921px]:col-start-2"
-          id="console-main"
-          tabIndex={-1}
-        >
-          <TopNavigation badge={approvalsBadge} pathname={pathname} />
-          {children}
-        </main>
-      </div>
-    </>
+            </Link>
+            <Navigation badge={approvalsBadge} pathname={pathname} />
+            <SidebarAccount
+              identitySession={identity.data}
+              identitySessionUnavailable={identity.source === "unavailable"}
+              settingsActive={isNavActive(pathname, "/settings")}
+            />
+          </aside>
+          <main
+            className="min-w-0 min-[921px]:col-start-2"
+            id="console-main"
+            tabIndex={-1}
+          >
+            <TopNavigation badge={approvalsBadge} pathname={pathname} />
+            {children}
+          </main>
+        </div>
+      </>
+    </TenantVocabularyProvider>
   );
 }
 

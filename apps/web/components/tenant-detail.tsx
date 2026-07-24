@@ -9,6 +9,7 @@ import { SourcePill } from "@/components/ui/source-pill";
 import { TenantLifecycleActions } from "@/components/tenant-lifecycle-actions";
 import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
 import { TenantUsagePanel } from "@/components/tenant-usage-panel";
+import { TenantVocabularyEditor } from "@/components/tenant-vocabulary-editor";
 import {
   buildPlatformTenantDetailPath,
   fetchTenantDetail,
@@ -243,6 +244,8 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <TenantUsagePanel tenantId={tenant.tenant_id} />
 
       <TenantQuotaEditor tenantId={tenant.tenant_id} />
+
+      <TenantVocabularyEditor tenantId={tenant.tenant_id} />
 
       {notes.length > 0 ? (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">

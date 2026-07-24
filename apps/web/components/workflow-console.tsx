@@ -47,6 +47,7 @@ import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
 } from "@/lib/use-console-tenant-scope";
+import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 import {
   allWorkflowFilter,
   filterWorkflows,
@@ -93,7 +94,10 @@ function runStatusToneClass(status: PlatformStatus): string {
   return status === "watch" ? "text-warning" : "text-positive";
 }
 
-function buildFilterDefs(workflowData: ManufacturingWorkflowConsole): FilterDef[] {
+function buildFilterDefs(
+  workflowData: ManufacturingWorkflowConsole,
+  labelDomain: (domain: string) => string,
+): FilterDef[] {
   const options = workflowFilterOptions(workflowData);
   const copy = strings.workflows.filters;
 
@@ -111,7 +115,10 @@ function buildFilterDefs(workflowData: ManufacturingWorkflowConsole): FilterDef[
       label: copy.domain,
       options: [
         { value: allWorkflowFilter, label: copy.allDomains },
-        ...options.domains.map((domain) => ({ value: domain, label: domain })),
+        ...options.domains.map((domain) => ({
+          value: domain,
+          label: labelDomain(domain),
+        })),
       ],
     },
   ];
@@ -294,14 +301,20 @@ function PendingSignals({ workflow }: { workflow: WorkflowRun }) {
  * timeline as the centerpiece, collapsed record sections, and the raw record
  * behind an Inspect drawer.
  */
-function WorkflowDetail({ workflow }: { workflow: WorkflowRun }) {
+function WorkflowDetail({
+  workflow,
+  domainLabel,
+}: {
+  workflow: WorkflowRun;
+  domainLabel: string;
+}) {
   const copy = strings.workflows;
 
   return (
     <Card className="grid content-start gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid max-w-xl gap-1">
-          <Eyebrow>{workflow.domain}</Eyebrow>
+          <Eyebrow>{domainLabel || workflow.domain}</Eyebrow>
           <h2 className="font-display m-0 text-xl text-ink">{workflow.name}</h2>
           <p className="m-0 text-sm text-muted">{workflow.objective}</p>
           <p className="m-0 text-sm text-ink">{workflowStatusLine(workflow)}</p>
@@ -374,6 +387,7 @@ function WorkflowDetail({ workflow }: { workflow: WorkflowRun }) {
 }
 
 export function WorkflowConsole() {
+  const { labelDomain } = useTenantVocabulary();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const runsPath = buildTenantScopedPath(
     WORKFLOW_RUNS_ENDPOINT,
@@ -489,7 +503,7 @@ export function WorkflowConsole() {
       {metrics.length > 0 ? <MetricStrip metrics={metrics} /> : null}
 
       <FilterBar
-        filters={buildFilterDefs(workflowData)}
+        filters={buildFilterDefs(workflowData, labelDomain)}
         values={{ state: filters.state, domain: filters.domain }}
         onChange={(id, value) => {
           if (id === "state" || id === "domain") {
@@ -515,7 +529,12 @@ export function WorkflowConsole() {
         />
       ) : (
         <MasterDetail
-          detail={<WorkflowDetail workflow={selectedWorkflow} />}
+          detail={
+            <WorkflowDetail
+              domainLabel={labelDomain(selectedWorkflow.domain)}
+              workflow={selectedWorkflow}
+            />
+          }
           list={
             <Card className="grid content-start gap-4">
               <div className="grid gap-1">
@@ -543,7 +562,7 @@ export function WorkflowConsole() {
                     >
                       <span className="grid min-w-0 gap-0.5">
                         <span className="text-sm font-medium text-ink">{run.name}</span>
-                        <span className="text-xs text-muted">{run.domain}</span>
+                        <span className="text-xs text-muted">{labelDomain(run.domain)}</span>
                         <span className="flex items-center gap-1.5 text-xs text-muted">
                           <span
                             aria-hidden="true"

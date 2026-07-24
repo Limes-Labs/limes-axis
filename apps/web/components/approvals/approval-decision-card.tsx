@@ -30,6 +30,7 @@ import { strings } from "@/lib/strings";
 import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/approvals";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 
 /*
  * The decision block of the approval flow: option buttons with their
@@ -136,6 +137,7 @@ export function ApprovalDecisionCard({
   const [note, setNote] = useState("");
   const { session } = useOidcConsoleSession();
   const { push } = useToast();
+  const { labelDomain } = useTenantVocabulary();
   const copy = strings.approvals.decision;
 
   function openConfirm(option: ApprovalDecisionOption) {
@@ -291,7 +293,8 @@ export function ApprovalDecisionCard({
               <DialogDescription>{pendingOption.consequence}</DialogDescription>
             </DialogHeader>
             <p className="m-0 text-sm text-muted">
-              {approval.action} <span aria-hidden="true">·</span> {approval.domain}
+              {approval.action} <span aria-hidden="true">·</span>{" "}
+              {labelDomain(approval.domain)}
             </p>
             <label className="grid gap-1.5">
               <span className="text-xs font-medium text-muted">{copy.rationaleLabel}</span>

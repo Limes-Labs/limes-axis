@@ -5,15 +5,18 @@ import {
   allTenantFilter,
   buildPlatformTenantDetailPath,
   buildPlatformTenantQuotasPath,
+  buildPlatformTenantVocabularyPath,
   buildPlatformTenantsPath,
   buildQuotaValues,
   buildTenantProvisionPayload,
   buildTenantQuotaUpdatePayload,
   buildTenantSuspendPayload,
+  buildTenantVocabularyUpdatePayload,
   emptyTenantProvisionForm,
   fetchTenantDetail,
   fetchTenantQuotas,
   fetchTenantRegistry,
+  fetchTenantVocabulary,
   mergeTenantRegistryPage,
   parseQuotaValue,
   platformTenantOperatorActorId,
@@ -26,6 +29,7 @@ import {
   tenantStatusClass,
   tenantStatusLabel,
   updateTenantQuotas,
+  updateTenantVocabulary,
   validateQuotaForm,
   validateTenantId,
   validateTenantProvisionForm,
@@ -93,6 +97,9 @@ describe("tenant path builders", () => {
     );
     expect(buildPlatformTenantQuotasPath("tenant_acme")).toBe(
       "/platform/tenants/tenant_acme/quotas",
+    );
+    expect(buildPlatformTenantVocabularyPath("weird/../id")).toBe(
+      "/platform/tenants/weird%2F..%2Fid/vocabulary",
     );
   });
 });
@@ -431,6 +438,73 @@ describe("tenant API bindings", () => {
       api_requests_per_window: 2000,
       max_concurrent_sessions: null,
       max_connector_sync_rows_per_run: null,
+    });
+  });
+
+  it("gets and updates the vocabulary with the configure scope", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    const vocabularySet = {
+      tenant_id: "tenant_acme",
+      vocabulary: {
+        site_singular: "Store",
+        site_plural: "Stores",
+        workspace_label: "Pharmacy",
+        domain_labels: { supply: "Pharmacy supply" },
+      },
+      configured: true,
+      changes: [],
+      vocabulary_notes: [],
+    };
+    const getMock = stubFetch(200, vocabularySet);
+
+    await expect(fetchTenantVocabulary("tenant_acme")).resolves.toEqual(vocabularySet);
+    expect((getMock.mock.calls[0] as [RequestInfo | URL])[0]).toBe(
+      "http://axis-api.test/platform/tenants/tenant_acme/vocabulary",
+    );
+
+    const payload = buildTenantVocabularyUpdatePayload(vocabularySet.vocabulary);
+    expect(payload.actor_scopes).toEqual([
+      "platform:tenant:operator",
+      "platform:tenant:configure",
+    ]);
+
+    const putMock = stubFetch(200, vocabularySet);
+    await expect(updateTenantVocabulary("tenant_acme", payload)).resolves.toMatchObject({
+      kind: "updated",
+      record: vocabularySet,
+    });
+    const [, putInit] = putMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
+    expect(putInit?.method).toBe("PUT");
+    expect(JSON.parse(String(putInit?.body)).vocabulary.domain_labels).toEqual({
+      supply: "Pharmacy supply",
+    });
+  });
+
+  it("surfaces vocabulary validation details from the server", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubFetch(422, {
+      detail: [
+        {
+          loc: ["body", "vocabulary", "domain_labels"],
+          msg: "Must contain at most 50 entries.",
+        },
+      ],
+    });
+
+    const result = await updateTenantVocabulary(
+      "tenant_acme",
+      buildTenantVocabularyUpdatePayload({
+        site_singular: "Site",
+        site_plural: "Sites",
+        workspace_label: "Operations",
+        domain_labels: {},
+      }),
+    );
+
+    expect(result).toEqual({
+      kind: "invalid",
+      message: "The tenant request failed API validation.",
+      fieldErrors: { domainLabels: "Must contain at most 50 entries." },
     });
   });
 

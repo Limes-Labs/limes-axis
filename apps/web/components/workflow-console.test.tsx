@@ -7,6 +7,7 @@ import type { ManufacturingWorkflowConsole } from "@/lib/workflow-demo";
 const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
   useConsoleTenantScope: vi.fn(),
+  useTenantVocabulary: vi.fn(),
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
@@ -20,6 +21,10 @@ vi.mock("@/lib/use-oidc-session", () => ({
 vi.mock("@/lib/use-console-tenant-scope", () => ({
   IDENTITY_SESSION_ENDPOINT: "/identity/session",
   useConsoleTenantScope: mocks.useConsoleTenantScope,
+}));
+
+vi.mock("@/providers/tenant-vocabulary-provider", () => ({
+  useTenantVocabulary: mocks.useTenantVocabulary,
 }));
 
 import {
@@ -166,6 +171,9 @@ beforeEach(() => {
     tenantId: "tenant_fixture",
     tenantQueriesEnabled: true,
   });
+  mocks.useTenantVocabulary.mockReturnValue({
+    labelDomain: (domain: string) => domain,
+  });
 });
 
 describe("WorkflowConsole states", () => {
@@ -241,6 +249,22 @@ describe("WorkflowConsole list and filters", () => {
     expect(
       screen.getByRole("heading", { name: "Operations Fixture Brief" }),
     ).toBeInTheDocument();
+  });
+
+  it("uses the tenant label in workflow chips, detail and domain filters", () => {
+    mocks.useTenantVocabulary.mockReturnValue({
+      labelDomain: (domain: string) => (
+        domain === "Supply" ? "Pharmacy supply" : domain
+      ),
+    });
+
+    render(<WorkflowConsole />);
+
+    expect(screen.getByRole("button", { name: /Supply Fixture Review/ })).toHaveTextContent(
+      "Pharmacy supply",
+    );
+    expect(screen.getByText("Pharmacy supply", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Pharmacy supply" })).toHaveValue("Supply");
   });
 
   it("filters the list by state and domain", async () => {

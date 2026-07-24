@@ -8,6 +8,7 @@ import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 const mocks = vi.hoisted(() => ({
   axisFetchParsedJson: vi.fn(),
   useAxisQuery: vi.fn(),
+  useTenantVocabulary: vi.fn(),
 }));
 
 vi.mock("@/lib/axis-api", () => ({
@@ -16,6 +17,10 @@ vi.mock("@/lib/axis-api", () => ({
 
 vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
+}));
+
+vi.mock("@/providers/tenant-vocabulary-provider", () => ({
+  useTenantVocabulary: mocks.useTenantVocabulary,
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
@@ -197,6 +202,9 @@ function renderInbox() {
 beforeEach(() => {
   mocks.axisFetchParsedJson.mockReset();
   mocks.useAxisQuery.mockReset();
+  mocks.useTenantVocabulary.mockReturnValue({
+    labelDomain: (domain: string) => domain,
+  });
   window.history.replaceState(null, "", "/approvals");
 });
 
@@ -249,6 +257,26 @@ describe("ApprovalInbox decision flow", () => {
       screen.getByText("The expedite order is dispatched to the supplier."),
     ).toBeVisible();
     expect(screen.getByText("The current production plan stays unchanged.")).toBeVisible();
+  });
+
+  it("uses the tenant label in approval chips, detail and confirmation", async () => {
+    const user = userEvent.setup();
+    mocks.useTenantVocabulary.mockReturnValue({
+      labelDomain: (domain: string) => (
+        domain === "Supply" ? "Pharmacy supply" : domain
+      ),
+    });
+
+    renderInbox();
+
+    expect(
+      screen.getByRole("button", { name: /Expedite fixture batch/ }),
+    ).toHaveTextContent("Pharmacy supply");
+    expect(screen.getByText("Pharmacy supply", { selector: ".eyebrow" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
+    expect(within(await screen.findByRole("dialog")).getByText(/Pharmacy supply/))
+      .toBeInTheDocument();
   });
 
   it("selects the approval linked to an action run", () => {

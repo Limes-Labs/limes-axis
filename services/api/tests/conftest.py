@@ -4,6 +4,16 @@ from sqlalchemy.orm import Session
 from axis_api.models import DemoReferenceRecord, Tenant
 
 
+# HAZARD: this back-fill makes "the tenant exists" true in every test that
+# inserts a reference record, which is exactly the condition several production
+# bugs depended on being false. It has already masked two: the tenant-existence
+# check 404'ing an already-bootstrapped database, and bootstrap never
+# registering its tenant at all.
+#
+# A test that asserts on tenant existence must therefore assert on something
+# only the code under test can produce — the row this hook creates is named
+# after the tenant id, so a real display name is a reliable discriminator.
+# Better still, delete the back-filled row before exercising the path.
 @event.listens_for(Session, "before_flush")
 def seed_tenant_registry_for_legacy_fixtures(
     session: Session,

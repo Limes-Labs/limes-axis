@@ -42,6 +42,7 @@ import {
   OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 
 const APPROVALS_ENDPOINT = `${OPERATIONS_API_PREFIX}/approvals`;
 const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
@@ -209,11 +210,13 @@ function QueueList({
   inbox,
   selectedApproval,
   decisions,
+  labelDomain,
   onSelect,
 }: {
   inbox: ManufacturingApprovalInbox;
   selectedApproval: ApprovalInboxItem;
   decisions: Record<string, ApprovalDecisionRecord>;
+  labelDomain: (domain: string) => string;
   onSelect: (approvalId: string) => void;
 }) {
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -273,7 +276,7 @@ function QueueList({
               <span className="grid min-w-0 gap-0.5">
                 <span className="text-sm font-medium text-ink">{approval.action}</span>
                 <span className="text-xs text-muted">
-                  {approval.domain} / {approval.owner_role}
+                  {labelDomain(approval.domain)} / {approval.owner_role}
                 </span>
                 <span className="font-mono text-xs text-muted">Due {approval.due}</span>
               </span>
@@ -296,6 +299,7 @@ function ApprovalDetail({
   approval,
   actor,
   decision,
+  domainLabel,
   error,
   onDecisionChange,
   onErrorChange,
@@ -304,6 +308,7 @@ function ApprovalDetail({
   approval: ApprovalInboxItem;
   actor?: { actorId: string; scopes: string[] };
   decision: ApprovalDecisionRecord | undefined;
+  domainLabel: string;
   error: string | undefined;
   onDecisionChange: (approvalId: string, record: ApprovalDecisionRecord | null) => void;
   onErrorChange: (approvalId: string, message: string | null) => void;
@@ -313,7 +318,7 @@ function ApprovalDetail({
     <Card className="grid content-start gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid max-w-xl gap-1">
-          <Eyebrow>{approval.domain}</Eyebrow>
+          <Eyebrow>{domainLabel || approval.domain}</Eyebrow>
           <h2 className="font-display m-0 text-xl text-ink">{approval.action}</h2>
           <p className="m-0 text-sm text-muted">{approval.summary}</p>
         </div>
@@ -404,6 +409,7 @@ function ApprovalDetail({
 }
 
 export function ApprovalInbox() {
+  const { labelDomain } = useTenantVocabulary();
   const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
     parse: parseIdentitySessionReadModel,
   });
@@ -595,6 +601,7 @@ export function ApprovalInbox() {
             }
             approval={selectedApproval}
             decision={decisions[selectedApproval.approval_id]}
+            domainLabel={labelDomain(selectedApproval.domain)}
             error={errors[selectedApproval.approval_id]}
             onDecisionChange={setDecision}
             onErrorChange={setError}
@@ -605,6 +612,7 @@ export function ApprovalInbox() {
           <QueueList
             decisions={decisions}
             inbox={inbox}
+            labelDomain={labelDomain}
             onSelect={(approvalId) => setUrlState({
               actionRunId: "",
               approvalId,

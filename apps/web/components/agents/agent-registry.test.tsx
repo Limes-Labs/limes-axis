@@ -10,10 +10,15 @@ import { agentRegistryFixture } from "./agents-fixtures";
 
 const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
+  useTenantVocabulary: vi.fn(),
 }));
 
 vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
+}));
+
+vi.mock("@/providers/tenant-vocabulary-provider", () => ({
+  useTenantVocabulary: mocks.useTenantVocabulary,
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
@@ -73,6 +78,9 @@ function mockRegistry(result: {
 
 beforeEach(() => {
   mocks.useAxisQuery.mockReset();
+  mocks.useTenantVocabulary.mockReturnValue({
+    labelDomain: (domain: string) => domain,
+  });
 });
 
 describe("AgentRegistry states", () => {
@@ -175,6 +183,22 @@ describe("AgentRegistry list and filters", () => {
     expect(supplyItem).toHaveTextContent("Supply");
     expect(supplyItem).toHaveTextContent("L2");
     expect(screen.getByRole("button", { name: /Quality Hold Agent/ })).toHaveTextContent("L1");
+  });
+
+  it("uses the tenant label in agent chips, detail and domain filters", () => {
+    mocks.useTenantVocabulary.mockReturnValue({
+      labelDomain: (domain: string) => (
+        domain === "Supply" ? "Pharmacy supply" : domain
+      ),
+    });
+
+    render(<AgentRegistry />);
+
+    expect(screen.getByRole("button", { name: /Supply Risk Agent/ })).toHaveTextContent(
+      "Pharmacy supply",
+    );
+    expect(screen.getByText("Pharmacy supply", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Pharmacy supply" })).toHaveValue("Supply");
   });
 
   it("switches the detail panel when a list item is selected", async () => {

@@ -108,6 +108,20 @@ describe("strings.workflows", () => {
   });
 });
 
+describe("strings.tenantVocabulary", () => {
+  it("provides editor, validation, source and configuration-state copy", () => {
+    const vocabulary = strings.tenantVocabulary;
+    expect(vocabulary.title).toBe("Console terminology");
+    expect(vocabulary.mode.defaults.length).toBeGreaterThan(0);
+    expect(vocabulary.mode.configured.length).toBeGreaterThan(0);
+    expect(vocabulary.actions.addDomain.length).toBeGreaterThan(0);
+    expect(vocabulary.validation.labelTooLong(100)).toContain("100");
+    expect(vocabulary.errors.requiredPermission("Denied.", "tenant:configure")).toContain(
+      "tenant:configure",
+    );
+  });
+});
+
 describe("glossary", () => {
   it("defines every platform term", () => {
     for (const key of glossaryKeys) {

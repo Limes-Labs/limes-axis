@@ -1154,6 +1154,68 @@ const demoBadge = {
   tooltip: "This tenant runs the demo manufacturing scenario",
 } as const;
 
+const tenantVocabulary = {
+  eyebrow: "Tenant vocabulary",
+  title: "Console terminology",
+  description:
+    "Choose the words this tenant sees for locations, its workspace and operational domains.",
+  requiredScope: (scope: string) => `Saving requires the ${scope} scope.`,
+  endpoint: "Vocabulary API endpoint",
+  source: {
+    loading: "Loading tenant vocabulary",
+    api: "Vocabulary API",
+    missing: "Tenant not found",
+    unavailable: "Vocabulary API unavailable",
+  },
+  mode: {
+    defaults: "Using defaults",
+    defaultsDetail:
+      "This tenant has not configured vocabulary yet. Saving creates tenant-specific terminology.",
+    configured: "Tenant configured",
+    configuredDetail: "These values override the industry-neutral defaults for this tenant.",
+  },
+  fields: {
+    siteSingular: "Location singular",
+    siteSingularDetail: "The singular word used for one operational location.",
+    sitePlural: "Location plural",
+    sitePluralDetail: "The plural word used for operational locations.",
+    workspaceLabel: "Workspace label",
+    workspaceLabelDetail: "The tenant-specific name for its operational workspace.",
+    domainLabels: "Domain labels",
+    domainLabelsDetail:
+      "Map each domain key stored on operational records to the label operators should see.",
+    domainKey: "Domain key",
+    domainKeyPlaceholder: "supply",
+    domainLabel: "Display label",
+    domainLabelPlaceholder: "Pharmacy supply",
+  },
+  actions: {
+    addDomain: "Add domain label",
+    removeDomain: "Remove domain label",
+    review: "Review vocabulary update",
+    saving: "Saving",
+    confirm: "Confirm vocabulary update",
+    cancel: "Cancel",
+  },
+  validation: {
+    fix: "Fix the highlighted fields; nothing was sent.",
+    labelTooLong: (limit: number) => `Must be at most ${limit} characters.`,
+    domainLimit: (limit: number) => `This API accepts at most ${limit} domain labels.`,
+    missingDomainKey: "Enter a domain key or remove this row.",
+    duplicateDomainKey: "Each domain key can appear only once.",
+  },
+  confirmation:
+    "Confirm this tenant vocabulary update. Existing operational records keep their stored domain keys.",
+  errors: {
+    prefix: "Vocabulary update failed:",
+    unavailable: "Tenant vocabulary API is unavailable.",
+    generic: "Vocabulary update failed.",
+    requiredPermission: (message: string, permission: string) =>
+      `${message} Required permission: ${permission}.`,
+  },
+  success: "Vocabulary update applied.",
+} as const;
+
 export const strings = {
   nav,
   commandMenu,
@@ -1172,6 +1234,7 @@ export const strings = {
   policyDetail,
   settings,
   simulation,
+  tenantVocabulary,
   workflows,
   states: {
     loading: "Loading…",
