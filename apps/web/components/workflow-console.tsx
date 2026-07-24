@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -26,7 +26,8 @@ import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { cn } from "@/lib/cn";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { formatContextPath, formatDateTime, formatNumber } from "@/lib/format";
 import {
   formatOverviewTimestamp,
   platformStatusClass,
@@ -61,6 +62,11 @@ export const WORKFLOW_RUNS_ENDPOINT = "/demo/manufacturing/workflows/runs";
 const defaultFilters: WorkflowFilters = {
   state: allWorkflowFilter,
   domain: allWorkflowFilter,
+};
+const workflowUrlSchema = {
+  state: stringUrlField("state", allWorkflowFilter),
+  domain: stringUrlField("domain", allWorkflowFilter),
+  workflowId: stringUrlField("workflow_id"),
 };
 
 const metricTones: Record<PlatformStatus, Metric["tone"]> = {
@@ -376,16 +382,23 @@ export function WorkflowConsole() {
     parse: parseManufacturingWorkflowConsole,
   });
 
-  const [filters, setFilters] = useState<WorkflowFilters>(defaultFilters);
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [urlState, setUrlState] = useConsoleUrlState(workflowUrlSchema);
 
   const workflowData = persisted.data;
   const source = deriveSourceState(persisted.source, Boolean(workflowData));
+  const validFilterOptions = workflowData ? workflowFilterOptions(workflowData) : null;
+  const filters: WorkflowFilters = {
+    state: urlState.state === allWorkflowFilter
+      || validFilterOptions?.states.includes(urlState.state)
+      ? urlState.state
+      : allWorkflowFilter,
+    domain: urlState.domain === allWorkflowFilter
+      || validFilterOptions?.domains.includes(urlState.domain)
+      ? urlState.domain
+      : allWorkflowFilter,
+  };
 
-  const filteredWorkflows = useMemo(
-    () => (workflowData ? filterWorkflows(workflowData, filters) : []),
-    [workflowData, filters],
-  );
+  const filteredWorkflows = workflowData ? filterWorkflows(workflowData, filters) : [];
 
   if (identity.source === "loading") {
     return <LoadingPanel layout="detail" />;
@@ -433,9 +446,9 @@ export function WorkflowConsole() {
     );
   }
 
-  const selectedWorkflow =
-    filteredWorkflows.find((run) => run.workflow_id === selectedWorkflowId)
-    ?? filteredWorkflows[0];
+  const selectedWorkflow = urlState.workflowId
+    ? filteredWorkflows.find((run) => run.workflow_id === urlState.workflowId)
+    : filteredWorkflows[0];
 
   const metrics: Metric[] = workflowData.metrics.map((metric) => ({
     label: metric.label,
@@ -451,7 +464,11 @@ export function WorkflowConsole() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {workflowData.plant_name} / {workflowData.scenario} / {workflowData.tenant_id}
+          {formatContextPath(
+            workflowData.plant_name,
+            workflowData.scenario,
+            workflowData.tenant_id,
+          )}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="workflow runs" />
@@ -472,17 +489,22 @@ export function WorkflowConsole() {
         values={{ state: filters.state, domain: filters.domain }}
         onChange={(id, value) => {
           if (id === "state" || id === "domain") {
-            setFilters((current) => ({ ...current, [id]: value }));
+            setUrlState({ [id]: value, workflowId: "" });
           }
         }}
-        onReset={() => setFilters(defaultFilters)}
+        onReset={() => setUrlState({ ...defaultFilters, workflowId: "" })}
       />
 
-      {filteredWorkflows.length === 0 || !selectedWorkflow ? (
+      {urlState.workflowId && !selectedWorkflow ? (
+        <EmptyPanel
+          detail={strings.states.requestedRecord.detail}
+          title={strings.states.requestedRecord.title}
+        />
+      ) : filteredWorkflows.length === 0 || !selectedWorkflow ? (
         <EmptyPanel
           action={{
             label: strings.workflows.noMatch.reset,
-            onClick: () => setFilters(defaultFilters),
+            onClick: () => setUrlState({ ...defaultFilters, workflowId: "" }),
           }}
           detail={strings.workflows.noMatch.detail}
           title={strings.workflows.noMatch.title}
@@ -512,7 +534,7 @@ export function WorkflowConsole() {
                           : "border-line bg-transparent hover:border-signal/40 hover:bg-tint-50 dark:border-white/10 dark:hover:bg-white/5",
                       )}
                       key={run.workflow_id}
-                      onClick={() => setSelectedWorkflowId(run.workflow_id)}
+                      onClick={() => setUrlState({ workflowId: run.workflow_id })}
                       type="button"
                     >
                       <span className="grid min-w-0 gap-0.5">

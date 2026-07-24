@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { formatClockTime, formatDateTime, formatNumber, formatTimestamp } from "./format";
+import {
+  formatClockTime,
+  formatContextPath,
+  formatDateTime,
+  formatNumber,
+  formatTimestamp,
+} from "./format";
+
+describe("formatContextPath", () => {
+  it("joins present context segments and drops null, undefined, and blank values", () => {
+    expect(
+      formatContextPath("Northwind Press", null, undefined, " ", "tenant_northwind_press"),
+    ).toBe("Northwind Press / tenant_northwind_press");
+  });
+});
 
 // The API contracts type every timestamp as a bare `z.string()`, so a malformed
 // or empty value decodes successfully and only fails at render. `Intl.format`

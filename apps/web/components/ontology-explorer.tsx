@@ -21,7 +21,7 @@ import {
   type ManufacturingOntology,
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
-import { formatNumber } from "@/lib/format";
+import { formatContextPath, formatNumber } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
@@ -111,7 +111,7 @@ export function OntologyExplorer() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {ontology.plant_name} / {ontology.scenario} / {ontology.tenant_id}
+          {formatContextPath(ontology.plant_name, ontology.scenario, ontology.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={deriveSourceState(source, Boolean(ontology))} subject="ontology" />

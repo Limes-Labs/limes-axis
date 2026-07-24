@@ -5,6 +5,7 @@ import type {
   ManufacturingConnectorCredentialLeaseRegistry,
   ManufacturingConnectorEgressPolicyRegistry,
   ManufacturingConnectorEvidenceInvariantReport,
+  ManufacturingConnectorEvidenceInvariantSnapshotHistory,
   ManufacturingConnectorManifestRegistry,
   ManufacturingConnectorOntologyProposalRegistry,
   ManufacturingConnectorRegistry,
@@ -15,6 +16,7 @@ import {
   parseManufacturingConnectorCredentialLeaseRegistry,
   parseManufacturingConnectorEgressPolicyRegistry,
   parseManufacturingConnectorEvidenceInvariantReport,
+  parseManufacturingConnectorEvidenceInvariantSnapshotHistory,
   parseManufacturingConnectorManifestRegistry,
   parseManufacturingConnectorOntologyProposalRegistry,
   parseManufacturingConnectorRegistry,
@@ -40,10 +42,16 @@ export const CONNECTOR_ENDPOINTS = {
   egressPolicies: "/demo/manufacturing/connectors/egress-policies",
   runs: "/demo/manufacturing/connectors/runs",
   evidenceInvariants: "/demo/manufacturing/connectors/evidence-invariants",
+  evidenceSnapshots: "/demo/manufacturing/connectors/evidence-invariants/snapshots",
   ontologyProposals: "/demo/manufacturing/connectors/ontology-proposals",
 } as const;
 
-export function useConnectorRegistries(tenantId: string | null, enabled: boolean) {
+export function useConnectorRegistries(
+  tenantId: string | null,
+  enabled: boolean,
+  snapshotId = "",
+  connectorId = "",
+) {
   // Hooks must receive a stable path even while identity is unresolved. The
   // query gate guarantees the placeholder demo path is never requested until
   // the identity API has explicitly selected that tenant.
@@ -88,6 +96,21 @@ export function useConnectorRegistries(tenantId: string | null, enabled: boolean
     scopedPath(CONNECTOR_ENDPOINTS.evidenceInvariants),
     { ...queryOptions, parse: parseManufacturingConnectorEvidenceInvariantReport },
   );
+  const evidenceSnapshots = useAxisQuery<ManufacturingConnectorEvidenceInvariantSnapshotHistory>(
+    buildTenantScopedPath(
+      CONNECTOR_ENDPOINTS.evidenceSnapshots,
+      tenantId ?? DEMO_TENANT_ID,
+      {
+        ...(snapshotId ? { snapshot_id: snapshotId } : {}),
+        ...(connectorId ? { connector_id: connectorId } : {}),
+      },
+    ),
+    {
+      ...queryOptions,
+      enabled: queryOptions.enabled && Boolean(snapshotId),
+      parse: parseManufacturingConnectorEvidenceInvariantSnapshotHistory,
+    },
+  );
   const ontologyProposals = useAxisQuery<ManufacturingConnectorOntologyProposalRegistry>(
     scopedPath(CONNECTOR_ENDPOINTS.ontologyProposals),
     { ...queryOptions, parse: parseManufacturingConnectorOntologyProposalRegistry },
@@ -101,6 +124,7 @@ export function useConnectorRegistries(tenantId: string | null, enabled: boolean
     egressPolicies,
     runs,
     evidenceInvariants,
+    evidenceSnapshots,
     ontologyProposals,
   };
 }

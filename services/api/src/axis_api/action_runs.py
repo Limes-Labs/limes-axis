@@ -6,11 +6,11 @@ from pydantic import BaseModel, Field
 from axis_api.action_reference import (
     ActionReferenceRecordInvalid,
     ActionReferenceRecordNotFound,
-    get_persisted_manufacturing_action_registry,
+    require_persisted_manufacturing_action_registry,
 )
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry
-from axis_api.ontology_reference import get_persisted_manufacturing_ontology
+from axis_api.ontology_reference import require_persisted_manufacturing_ontology
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
     ActionRunCreate,
@@ -167,7 +167,9 @@ def _find_action(
     action_id: str,
     tenant_id: str,
 ) -> tuple[str, ActionRegistryEntry, str]:
-    registry = get_persisted_manufacturing_action_registry(repository, tenant_id=tenant_id)
+    registry = require_persisted_manufacturing_action_registry(
+        repository, tenant_id=tenant_id
+    )
     for action in registry.actions:
         if action.definition.action_id == action_id:
             return registry.tenant_id, action, registry.schema_version
@@ -249,7 +251,9 @@ def _relationship_scopes_for_refs(
         return []
 
     ref_ids = set(resource_refs)
-    ontology = get_persisted_manufacturing_ontology(repository, tenant_id=tenant_id)
+    ontology = require_persisted_manufacturing_ontology(
+        repository, tenant_id=tenant_id
+    )
     return sorted(
         {
             relationship.permission_scope

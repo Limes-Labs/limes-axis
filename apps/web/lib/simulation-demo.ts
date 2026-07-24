@@ -1,5 +1,5 @@
 import type { AuditLedgerEvent } from "./audit-demo";
-import type { PlatformStatus } from "./platform-overview";
+import type { ManufacturingProvenance, PlatformStatus } from "./platform-overview";
 import type { WorkflowTimelineEvent } from "./workflow-demo";
 
 export type PolicySimulationResult = {
@@ -89,8 +89,9 @@ export type ReplayRetentionWindow = {
 
 export type ManufacturingReplaySimulation = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   as_of: string;
   simulation_status: PlatformStatus;
   metrics: {

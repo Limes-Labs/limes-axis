@@ -145,6 +145,11 @@ describe("SimulationConsole artifact with no policy results", () => {
       ],
     };
     mocks.useAxisQuery.mockReturnValue(queryResult(replayWithEmptyPolicyResults, "api"));
+    window.history.replaceState(
+      null,
+      "",
+      "/simulation?artifact_id=artifact_no_policy",
+    );
 
     render(<SimulationConsole />);
 

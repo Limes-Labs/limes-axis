@@ -6,7 +6,7 @@ import { AxisApiDecodeError, AxisApiError, axisFetchParsedJson } from "@/lib/axi
 import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
-export type AxisQuerySource = "loading" | "api" | "unavailable";
+export type AxisQuerySource = "loading" | "api" | "tenant_not_found" | "unavailable";
 
 type AxisQueryFailureDetails = {
   code: string | null;
@@ -32,9 +32,9 @@ type UseAxisQueryOptions<T> = {
  * Fetch a JSON payload from the Axis API with stale-while-revalidate
  * semantics: the initial load starts at `source: "loading"`, but refetches
  * triggered by the global refresh bus keep the previous data on screen and
- * flag `isRefreshing` instead. A failed refresh flips
- * `source` to "unavailable" and sets `error` while keeping the stale data
- * for display. Changing `path` is a different query, so it resets to
+ * flag `isRefreshing` instead. A failed refresh sets a classified failure
+ * source and `error` while keeping the stale data for display. Changing
+ * `path` is a different query, so it resets to
  * loading and drops the old data. An actor or tenant change is also a new
  * query identity and can never reuse the previous principal's data.
  */
@@ -130,7 +130,11 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
           if (!isRefresh) {
             setData(null);
           }
-          setSource("unavailable");
+          const tenantNotFound =
+            caught instanceof AxisApiError
+            && caught.status === 404
+            && caught.code === "TENANT_NOT_FOUND";
+          setSource(tenantNotFound ? "tenant_not_found" : "unavailable");
           setError(caught instanceof Error ? caught.message : "Axis API request failed.");
           setErrorStatus(caught instanceof AxisApiError ? caught.status : null);
           setErrorDetails({
@@ -181,5 +185,6 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
     isRefreshing: isCurrentQuery ? isRefreshing : false,
     isLoading: !isCurrentQuery || source === "loading",
     isUnavailable: isCurrentQuery && source === "unavailable",
+    isTenantNotFound: isCurrentQuery && source === "tenant_not_found",
   };
 }

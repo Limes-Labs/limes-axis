@@ -86,6 +86,7 @@ describe("ModelRoutingConsole tabs", () => {
     );
 
     await user.click(screen.getByRole("tab", { name: "Live invocations" }));
+    expect(window.location.search).toBe("?tab=live");
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
       "/platform/models/routing/telemetry?tenant_id=tenant_acme&limit=100",
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
@@ -100,6 +101,7 @@ describe("ModelRoutingConsole tabs", () => {
     );
 
     unmount();
+    window.history.replaceState(null, "", "/model-routing");
     mocks.useAxisQuery.mockReset();
     mockIdentity();
     render(<ModelRoutingConsole />);

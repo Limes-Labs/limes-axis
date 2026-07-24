@@ -184,6 +184,7 @@ describe("AgentRegistry list and filters", () => {
     expect(screen.getByRole("heading", { name: "Supply Risk Agent" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Quality Hold Agent/ }));
+    expect(window.location.search).toContain("agent_id=agent_quality_fixture");
     expect(screen.getByRole("heading", { name: "Quality Hold Agent" })).toBeInTheDocument();
   });
 
@@ -192,6 +193,7 @@ describe("AgentRegistry list and filters", () => {
     render(<AgentRegistry />);
 
     await user.selectOptions(screen.getByLabelText("Domain"), "Quality");
+    expect(window.location.search).toContain("domain=Quality");
 
     expect(screen.queryByRole("button", { name: /Supply Risk Agent/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Quality Hold Agent/ })).toBeInTheDocument();

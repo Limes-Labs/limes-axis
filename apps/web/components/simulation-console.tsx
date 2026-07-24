@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { FileText, GitBranch, History, ShieldCheck } from "lucide-react";
 
 import { RunReplayForm } from "@/components/simulation/run-replay-form";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import { formatDateTime, formatNumber, pluralize } from "@/lib/format";
+import {
+  formatContextPath,
+  formatDateTime,
+  formatNumber,
+  pluralize,
+} from "@/lib/format";
+import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { parseManufacturingReplaySimulation } from "@/lib/runtime-contracts/simulation";
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
@@ -14,7 +19,6 @@ import {
   buildReplaySimulationPath,
   countChangedPolicySetDiffs,
   countChangedPolicyResults,
-  findReplayArtifactById,
   formatSimulationLabel,
   type ManufacturingReplaySimulation,
   type PolicySimulationResult,
@@ -31,8 +35,14 @@ import {
   useConsoleTenantScope,
 } from "@/lib/use-console-tenant-scope";
 
+// Module scope, like every other console's schema: an inline literal is a new
+// object each render, which defeats the hook's memo and makes its setter churn.
+const simulationUrlSchema = {
+  artifactId: stringUrlField("artifact_id"),
+};
+
 export function SimulationConsole() {
-  const [selectedArtifactId, setSelectedArtifactId] = useState("");
+  const [urlState, setUrlState] = useConsoleUrlState(simulationUrlSchema);
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const replayPath = buildReplaySimulationPath({
     tenantId: tenantId ?? DEMO_TENANT_ID,
@@ -46,13 +56,11 @@ export function SimulationConsole() {
   const simulationData = replayQuery.data;
   const source = deriveSourceState(replayQuery.source, Boolean(simulationData));
 
-  const selectedArtifact = useMemo(
-    () =>
-      simulationData && simulationData.artifacts.length > 0
-        ? findReplayArtifactById(simulationData, selectedArtifactId)
-        : null,
-    [simulationData, selectedArtifactId],
-  );
+  const selectedArtifact = urlState.artifactId
+    ? simulationData?.artifacts.find(
+        (artifact) => artifact.artifact_id === urlState.artifactId,
+      ) ?? null
+    : simulationData?.artifacts[0] ?? null;
   const changedPolicies = simulationData ? countChangedPolicyResults(simulationData) : 0;
   const changedPolicySetDiffs = simulationData ? countChangedPolicySetDiffs(simulationData) : 0;
 
@@ -96,10 +104,9 @@ export function SimulationConsole() {
 
   if (!selectedArtifact) {
     return (
-      <ErrorPanel
-        detail="The replay registry returned artifacts, but none could be selected. Refresh the data before reviewing evidence."
-        endpoint={replayPath}
-        title="Replay selection unavailable"
+      <EmptyPanel
+        detail={strings.states.requestedRecord.detail}
+        title={strings.states.requestedRecord.title}
       />
     );
   }
@@ -120,7 +127,11 @@ export function SimulationConsole() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {simulationData.plant_name} / {simulationData.scenario} / {simulationData.tenant_id}
+          {formatContextPath(
+            simulationData.plant_name,
+            simulationData.scenario,
+            simulationData.tenant_id,
+          )}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="replay artifacts" />
@@ -213,7 +224,7 @@ export function SimulationConsole() {
                   aria-pressed={isSelected}
                   className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={artifact.artifact_id}
-                  onClick={() => setSelectedArtifactId(artifact.artifact_id)}
+                  onClick={() => setUrlState({ artifactId: artifact.artifact_id })}
                   type="button"
                 >
                   <span>

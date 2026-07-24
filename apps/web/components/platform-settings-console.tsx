@@ -27,7 +27,7 @@ import {
   parseSupportDiagnosticsReport,
 } from "@/lib/runtime-contracts/identity";
 import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
-import { useAxisQuery } from "@/lib/use-axis-query";
+import { useAxisQuery, type AxisQuerySource } from "@/lib/use-axis-query";
 
 /*
  * System status console (spec §5.7): each readiness surface has its own
@@ -48,7 +48,7 @@ const copy = strings.settings;
 
 type SettingsQuery<T> = {
   data: T | null;
-  source: "loading" | "api" | "unavailable";
+  source: AxisQuerySource;
 };
 
 function boolLabel(value: boolean): string {

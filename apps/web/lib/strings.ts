@@ -242,6 +242,16 @@ const approvals = {
     detail:
       "When an agent proposes an action that needs a human decision, it will appear here for review.",
   },
+  requestedMissing: {
+    title: "Requested approval is not in this queue",
+    detail:
+      "The linked action run does not have an approval in the current queue. It may have already been decided or belongs to another tenant.",
+  },
+  lookupError: {
+    title: "Linked approval could not be verified",
+    detail:
+      "Axis could not resolve the action run through the audit ledger, so the console will not show a different approval.",
+  },
 } as const;
 
 /** Agent registry copy: list, detail tabs, runs, and state panels. */
@@ -404,6 +414,27 @@ const connectors = {
     title: "Sync activation pending",
     detail:
       "This connector was just registered. Its data previews and governed sync runs become available once the platform activates the manifest.",
+  },
+  requestedMissing: {
+    title: "Requested connector is not in this registry",
+    detail:
+      "The connector named in the URL is not present in the current tenant registry.",
+  },
+  snapshot: {
+    eyebrow: "Evidence snapshot",
+    title: "Requested evidence snapshot",
+    id: "Snapshot",
+    connector: "Connector",
+    findings: "Invariant findings",
+    reason: "Reason",
+    digest: "Report digest",
+    inspect: "Inspect snapshot record",
+    missingTitle: "Requested snapshot is not available",
+    missingDetail:
+      "The snapshot named in the URL is not in this tenant and connector result set. It may have been removed or the link may target another tenant.",
+    errorTitle: "Snapshot history unavailable",
+    errorDetail:
+      "Axis could not verify the evidence snapshot named in the URL, so the console will not show a different record.",
   },
   metrics: {
     connectors: { label: "Connectors", detail: "Registered data sources" },
@@ -1148,6 +1179,11 @@ export const strings = {
     empty: {
       title: "Nothing here yet",
       detail: "Records will appear here as soon as they exist.",
+    },
+    requestedRecord: {
+      title: "Requested record is not in this view",
+      detail:
+        "The record named in the URL is not present in the current result set. Clear the selection or adjust the filters.",
     },
   },
   pages,

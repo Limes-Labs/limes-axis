@@ -20,16 +20,20 @@ import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   approvalDecisionLabel,
   approvalRiskClass,
-  findApprovalById,
   type ApprovalInboxItem,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import { formatNumber, formatTimestamp } from "@/lib/format";
+import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel, platformStatusClass } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
+import {
+  parseManufacturingAuditExplorer,
+} from "@/lib/runtime-contracts/audit";
+import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
 import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
 import {
   buildTenantScopedPath,
@@ -39,6 +43,11 @@ import {
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 const APPROVALS_ENDPOINT = "/demo/manufacturing/approvals";
+const AUDIT_EVENTS_ENDPOINT = "/demo/manufacturing/audit/events";
+const approvalUrlSchema = {
+  approvalId: stringUrlField("approval_id"),
+  actionRunId: stringUrlField("action_run_id"),
+};
 
 type RailStageState = "done" | "current" | "pending";
 
@@ -407,7 +416,19 @@ export function ApprovalInbox() {
       parse: parseManufacturingApprovalInbox,
     },
   );
-  const [selectedApprovalId, setSelectedApprovalId] = useState("");
+  const [urlState, setUrlState] = useConsoleUrlState(approvalUrlSchema);
+  const actionRunAudit = useAxisQuery<ManufacturingAuditExplorer>(
+    buildTenantScopedPath(
+      AUDIT_EVENTS_ENDPOINT,
+      tenantId ?? DEMO_TENANT_ID,
+      { limit: 100 },
+    ),
+    {
+      enabled: identity.source === "api" && tenantId !== null && Boolean(urlState.actionRunId),
+      expectedTenantId: tenantId ?? undefined,
+      parse: parseManufacturingAuditExplorer,
+    },
+  );
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
 
   if (identity.source === "unavailable") {
@@ -462,9 +483,52 @@ export function ApprovalInbox() {
     );
   }
 
-  // `findApprovalById` falls back to the first approval, so a stale or empty
-  // selection always resolves to a real record.
-  const selectedApproval = findApprovalById(inbox, selectedApprovalId);
+  const directActionRunApproval = urlState.actionRunId
+    ? inbox.approvals.find((approval) => approval.action_run_id === urlState.actionRunId)
+    : undefined;
+  const linkedApprovalId = urlState.actionRunId
+    ? actionRunAudit.data?.events.find(
+        (event) => event.evidence_refs.includes(urlState.actionRunId),
+      )?.payload_preview.approval_id
+    : undefined;
+  const selectedApproval = urlState.actionRunId
+    ? directActionRunApproval
+      ?? inbox.approvals.find((approval) => approval.approval_id === linkedApprovalId)
+    : urlState.approvalId
+      ? inbox.approvals.find((approval) => approval.approval_id === urlState.approvalId)
+      : inbox.approvals[0];
+
+  if (
+    urlState.actionRunId
+    && !directActionRunApproval
+    && actionRunAudit.source === "loading"
+  ) {
+    return <LoadingPanel layout="detail" />;
+  }
+
+  if (
+    urlState.actionRunId
+    && !directActionRunApproval
+    && actionRunAudit.source === "unavailable"
+  ) {
+    return (
+      <ErrorPanel
+        detail={strings.approvals.lookupError.detail}
+        endpoint={AUDIT_EVENTS_ENDPOINT}
+        title={strings.approvals.lookupError.title}
+      />
+    );
+  }
+
+  if (!selectedApproval) {
+    return (
+      <EmptyPanel
+        detail={strings.approvals.requestedMissing.detail}
+        icon={Inbox}
+        title={strings.approvals.requestedMissing.title}
+      />
+    );
+  }
   const decidedCount = inbox.approvals.filter(
     (approval) => decisions[approval.approval_id],
   ).length;
@@ -501,7 +565,7 @@ export function ApprovalInbox() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {inbox.plant_name} / {inbox.scenario} / {inbox.tenant_id}
+          {formatContextPath(inbox.plant_name, inbox.scenario, inbox.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
@@ -540,7 +604,10 @@ export function ApprovalInbox() {
           <QueueList
             decisions={decisions}
             inbox={inbox}
-            onSelect={setSelectedApprovalId}
+            onSelect={(approvalId) => setUrlState({
+              actionRunId: "",
+              approvalId,
+            })}
             selectedApproval={selectedApproval}
           />
         }

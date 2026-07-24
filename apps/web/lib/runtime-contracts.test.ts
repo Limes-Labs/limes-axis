@@ -218,6 +218,26 @@ describe("production runtime contracts", () => {
     expect(() => parseManufacturingOperationsSnapshot(payload)).toThrow();
   });
 
+  it("accepts nullable manufacturing context and exposes optional provenance", () => {
+    const payload = {
+      ...structuredClone(overviewFixture),
+      plant_name: null,
+      scenario: null,
+      provenance: "empty" as const,
+    };
+
+    const parsed = parseManufacturingOverview(payload);
+
+    expect(parsed).toBe(payload);
+    expect(parsed.plant_name).toBeNull();
+    expect(parsed.scenario).toBeNull();
+    expect(parsed.provenance).toBe("empty");
+    expect(parseManufacturingOverview(overviewFixture).provenance).toBeUndefined();
+    expect(() =>
+      parseManufacturingOverview({ ...payload, provenance: "unverified" }),
+    ).toThrow();
+  });
+
   it.each([
     ["overview", parseManufacturingOverview, overviewFixture],
     ["operations snapshot", parseManufacturingOperationsSnapshot, snapshotFixture],

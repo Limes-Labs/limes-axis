@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import OverviewMetric, OverviewStatus
+from axis_api.manufacturing_metadata import (
+    ManufacturingResponseProvenance,
+    get_manufacturing_tenant_metadata,
+    operational_provenance,
+)
 from axis_api.models import (
     ManufacturingDailyBrief,
     ManufacturingOperationRecord,
@@ -136,8 +141,9 @@ class ManufacturingOperationRecordView(BaseModel):
 
 class ManufacturingOperationsDataset(BaseModel):
     tenant_id: str = Field(min_length=1)
-    plant_name: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
+    plant_name: str | None = Field(default=None, min_length=1)
+    scenario: str | None = Field(default=None, min_length=1)
+    provenance: ManufacturingResponseProvenance
     as_of: str = Field(min_length=1)
     metrics: list[OverviewMetric]
     domains: list[str]
@@ -220,8 +226,9 @@ class ManufacturingAuditEventSummary(BaseModel):
 
 class ManufacturingOperationsSnapshot(BaseModel):
     tenant_id: str = Field(min_length=1)
-    plant_name: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
+    plant_name: str | None = Field(default=None, min_length=1)
+    scenario: str | None = Field(default=None, min_length=1)
+    provenance: ManufacturingResponseProvenance
     as_of: str = Field(min_length=1)
     metrics: list[OverviewMetric]
     domain_snapshots: list[ManufacturingDomainSnapshot]
@@ -251,8 +258,8 @@ class ManufacturingDemoReadinessCheck(BaseModel):
 
 class ManufacturingDemoReadinessReport(BaseModel):
     tenant_id: str = Field(min_length=1)
-    plant_name: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
+    plant_name: str | None = Field(default=None, min_length=1)
+    scenario: str | None = Field(default=None, min_length=1)
     as_of: str = Field(min_length=1)
     readiness_status: OverviewStatus
     summary: str = Field(min_length=1)
@@ -291,8 +298,8 @@ class ManufacturingPlatformNotification(BaseModel):
 
 class ManufacturingNotificationCenter(BaseModel):
     tenant_id: str = Field(min_length=1)
-    plant_name: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
+    plant_name: str | None = Field(default=None, min_length=1)
+    scenario: str | None = Field(default=None, min_length=1)
     as_of: str = Field(min_length=1)
     unread_count: int = Field(ge=0)
     action_required_count: int = Field(ge=0)
@@ -531,6 +538,7 @@ def query_manufacturing_operations_dataset(
     repository: AxisPersistenceRepository,
     query: ManufacturingOperationQuery,
 ) -> ManufacturingOperationsDataset:
+    tenant_metadata = get_manufacturing_tenant_metadata(repository, query.tenant_id)
     records = [
         _operation_record_to_public(record)
         for record in repository.list_manufacturing_operation_records(
@@ -542,11 +550,23 @@ def query_manufacturing_operations_dataset(
             limit=query.limit,
         )
     ]
-    as_of = records[0].occurred_at if records else "2026-06-22T00:00:00+00:00"
+    has_persisted_records = bool(records)
+    if not has_persisted_records and any(
+        value is not None
+        for value in (query.domain, query.status, query.record_type, query.source_system)
+    ):
+        has_persisted_records = bool(
+            repository.list_manufacturing_operation_records(
+                tenant_id=query.tenant_id,
+                limit=1,
+            )
+        )
+    as_of = records[0].occurred_at if records else tenant_metadata.as_of
     return ManufacturingOperationsDataset(
         tenant_id=query.tenant_id,
-        plant_name="Ravenna Works",
-        scenario="Plant Operations Cockpit",
+        plant_name=tenant_metadata.plant_name,
+        scenario=tenant_metadata.scenario,
+        provenance=operational_provenance(has_persisted_records),
         as_of=as_of,
         metrics=_metrics(records),
         domains=sorted({record.domain for record in records}),
@@ -755,6 +775,7 @@ def build_manufacturing_operations_snapshot(
     repository: AxisPersistenceRepository,
     query: ManufacturingOperationsSnapshotQuery,
 ) -> ManufacturingOperationsSnapshot:
+    tenant_metadata = get_manufacturing_tenant_metadata(repository, query.tenant_id)
     records = [
         _operation_record_to_public(record)
         for record in repository.list_manufacturing_operation_records(
@@ -787,12 +808,16 @@ def build_manufacturing_operations_snapshot(
         *[_isoformat_utc(workflow.started_at) for workflow in workflows],
         *[_isoformat_utc(event.created_at) for event in audit_events],
     ]
-    as_of = max(as_of_candidates) if as_of_candidates else "2026-06-22T00:00:00+00:00"
+    as_of = max(as_of_candidates) if as_of_candidates else tenant_metadata.as_of
+    has_persisted_records = any(
+        (records, workflows, approvals, briefs, scenarios, audit_events)
+    )
 
     return ManufacturingOperationsSnapshot(
         tenant_id=query.tenant_id,
-        plant_name="Ravenna Works",
-        scenario="Plant Operations Cockpit",
+        plant_name=tenant_metadata.plant_name,
+        scenario=tenant_metadata.scenario,
+        provenance=operational_provenance(has_persisted_records),
         as_of=as_of,
         metrics=_snapshot_metrics(
             records=records,

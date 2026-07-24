@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Bot } from "lucide-react";
 
 import { AgentDetail } from "@/components/agents/agent-detail";
@@ -15,13 +14,13 @@ import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   allAgentFilter,
   filterAgents,
-  findAgentById,
   formatAgentLabel,
   type AgentFilters,
   type ManufacturingAgentRegistry,
 } from "@/lib/agent-demo";
 import { cn } from "@/lib/cn";
-import { formatNumber, formatTimestamp } from "@/lib/format";
+import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import {
   platformStatusClass,
   platformStatusLabel,
@@ -43,6 +42,15 @@ const defaultFilters: AgentFilters = {
   domain: allAgentFilter,
   autonomyLevel: allAgentFilter,
   status: allAgentFilter,
+};
+const agentTabs = ["overview", "permissions", "runs", "evidence"] as const;
+const agentUrlSchema = {
+  domain: stringUrlField("domain", allAgentFilter),
+  autonomyLevel: stringUrlField("autonomy", allAgentFilter),
+  status: stringUrlField("status", allAgentFilter),
+  agentId: stringUrlField("agent_id"),
+  tab: enumUrlField("tab", agentTabs, "overview"),
+  runId: stringUrlField("run_id"),
 };
 
 const metricTones: Record<PlatformStatus, Metric["tone"]> = {
@@ -111,13 +119,25 @@ export function AgentRegistry() {
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingAgentRegistry,
   });
-  const [filters, setFilters] = useState<AgentFilters>(defaultFilters);
-  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [urlState, setUrlState] = useConsoleUrlState(agentUrlSchema);
+  const filters: AgentFilters = registry
+    ? {
+        domain: urlState.domain === allAgentFilter
+          || registry.filter_options.domains.includes(urlState.domain)
+          ? urlState.domain
+          : allAgentFilter,
+        autonomyLevel: urlState.autonomyLevel === allAgentFilter
+          || registry.filter_options.autonomy_levels.includes(urlState.autonomyLevel)
+          ? urlState.autonomyLevel
+          : allAgentFilter,
+        status: urlState.status === allAgentFilter
+          || registry.filter_options.statuses.includes(urlState.status)
+          ? urlState.status
+          : allAgentFilter,
+      }
+    : defaultFilters;
 
-  const filteredAgents = useMemo(
-    () => (registry ? filterAgents(registry, filters) : []),
-    [registry, filters],
-  );
+  const filteredAgents = registry ? filterAgents(registry, filters) : [];
 
   if (identity.source === "unavailable") {
     return (
@@ -171,13 +191,9 @@ export function AgentRegistry() {
     );
   }
 
-  // `findAgentById` falls back to the first agent, so a stale selection always
-  // resolves to a real record; prefer the first *filtered* agent when the
-  // selection is filtered out.
-  const selectedAgent =
-    filteredAgents.find((agent) => agent.agent_id === selectedAgentId)
-    ?? filteredAgents[0]
-    ?? findAgentById(registry, selectedAgentId);
+  const selectedAgent = urlState.agentId
+    ? filteredAgents.find((agent) => agent.agent_id === urlState.agentId)
+    : filteredAgents[0];
 
   const metrics: Metric[] = registry.metrics.map((metric) => ({
     label: metric.label,
@@ -193,7 +209,7 @@ export function AgentRegistry() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {registry.plant_name} / {registry.scenario} / {registry.tenant_id}
+          {formatContextPath(registry.plant_name, registry.scenario, registry.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
@@ -222,24 +238,37 @@ export function AgentRegistry() {
         onChange={(id, value) => {
           const key = filterIdToKey[id];
           if (key) {
-            setFilters((current) => ({ ...current, [key]: value }));
+            setUrlState({ [key]: value, agentId: "", runId: "" });
           }
         }}
-        onReset={() => setFilters(defaultFilters)}
+        onReset={() => setUrlState({ ...defaultFilters, agentId: "", runId: "" })}
       />
 
-      {filteredAgents.length === 0 ? (
+      {urlState.agentId && !selectedAgent ? (
+        <EmptyPanel
+          detail={strings.states.requestedRecord.detail}
+          title={strings.states.requestedRecord.title}
+        />
+      ) : filteredAgents.length === 0 || !selectedAgent ? (
         <EmptyPanel
           action={{
             label: strings.agents.noMatch.reset,
-            onClick: () => setFilters(defaultFilters),
+            onClick: () => setUrlState({ ...defaultFilters, agentId: "", runId: "" }),
           }}
           detail={strings.agents.noMatch.detail}
           title={strings.agents.noMatch.title}
         />
       ) : (
         <MasterDetail
-          detail={<AgentDetail agent={selectedAgent} />}
+          detail={
+            <AgentDetail
+              activeTab={urlState.tab}
+              agent={selectedAgent}
+              onRunSelect={(runId) => setUrlState({ runId })}
+              onTabChange={(tab) => setUrlState({ tab })}
+              selectedRunId={urlState.runId}
+            />
+          }
           list={
             <Card className="grid content-start gap-4">
               <div className="grid gap-1">
@@ -262,7 +291,7 @@ export function AgentRegistry() {
                           : "border-line bg-transparent hover:border-signal/40 hover:bg-tint-50 dark:border-white/10 dark:hover:bg-white/5",
                       )}
                       key={agent.agent_id}
-                      onClick={() => setSelectedAgentId(agent.agent_id)}
+                      onClick={() => setUrlState({ agentId: agent.agent_id, runId: "" })}
                       type="button"
                     >
                       <span className="grid min-w-0 gap-0.5">

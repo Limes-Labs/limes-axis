@@ -122,13 +122,13 @@ describe("ConnectorConsole states", () => {
     const connectorCalls = mocks.useAxisQuery.mock.calls.filter(
       ([path]) => typeof path === "string" && path.startsWith("/demo/manufacturing/connectors"),
     );
-    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(8);
+    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(9);
     connectorCalls.forEach(([path, options]) => {
       expect(path).toContain("tenant_id=tenant_acme");
-      expect(options).toMatchObject({
-        enabled: true,
-        expectedTenantId: "tenant_acme",
-      });
+      expect(options).toMatchObject({ expectedTenantId: "tenant_acme" });
+      expect(options.enabled).toBe(
+        path.includes("/evidence-invariants/snapshots") ? false : true,
+      );
     });
   });
 
@@ -254,9 +254,89 @@ describe("ConnectorConsole list and detail", () => {
     renderConsole();
 
     await user.click(screen.getByRole("button", { name: /Operational mirror DB/ }));
+    expect(window.location.search).toContain("connector_id=external_db_operational_mirror");
     expect(
       screen.getByRole("heading", { name: "Operational mirror DB" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the exact snapshot requested by a deep link", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/connectors?snapshot_id=snapshot_fixture&connector_id=file_csv_manufacturing_assets",
+    );
+    mockQueries({
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots": {
+        source: "api",
+        data: {
+          tenant_id: "tenant_demo_manufacturing",
+          plant_name: "Ravenna Works",
+          scenario: "Plant Operations Cockpit",
+          history_status: "ready",
+          metrics: [],
+          snapshots: [{
+            tenant_id: "tenant_demo_manufacturing",
+            snapshot_id: "snapshot_fixture",
+            status: "persisted",
+            connector_id: "file_csv_manufacturing_assets",
+            requested_by: "fixture-operator",
+            idempotency_key: "snapshot-fixture-key",
+            reason: "Regression fixture",
+            invariant_count: 1,
+            invariant_counts: { credential_lease: 1 },
+            subject_ids: ["lease_csv_active"],
+            report_digest_sha256: "a".repeat(64),
+            report_hash_algorithm: "sha256",
+            permission_decision: { allowed: true, reason: "required_scope_present" },
+            audit_event_id: null,
+            audit_event_type: "connector.evidence_invariants.snapshot_persisted",
+            idempotent_replay: false,
+            notes: [],
+          }],
+          history_notes: [],
+        },
+      },
+    });
+    renderConsole();
+
+    expect(
+      screen.getByRole("heading", { name: "Requested evidence snapshot" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("snapshot_fixture")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Manufacturing assets CSV" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Governance & Evidence" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+  });
+
+  it("does not fall back to the first connector for an unknown snapshot", () => {
+    window.history.replaceState(null, "", "/connectors?snapshot_id=snapshot_unknown");
+    mockQueries({
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots": {
+        source: "api",
+        data: {
+          tenant_id: "tenant_demo_manufacturing",
+          plant_name: "Ravenna Works",
+          scenario: "Plant Operations Cockpit",
+          history_status: "watch",
+          metrics: [],
+          snapshots: [],
+          history_notes: [],
+        },
+      },
+    });
+    renderConsole();
+
+    expect(
+      screen.getByRole("heading", { name: "Requested snapshot is not available" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Manufacturing assets CSV" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the registered manifest state on the overview tab", () => {
@@ -271,6 +351,7 @@ describe("ConnectorConsole list and detail", () => {
     renderConsole();
 
     await user.click(screen.getByRole("tab", { name: "Data & Schema" }));
+    expect(window.location.search).toContain("tab=schema");
 
     const mapping = screen.getByRole("table", { name: "Field mapping" });
     expect(within(mapping).getByText("asset_id")).toBeInTheDocument();

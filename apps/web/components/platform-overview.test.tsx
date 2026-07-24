@@ -46,7 +46,11 @@ import {
   policyRegistryFixture,
   snapshotFixture,
 } from "./overview/overview-fixtures";
-import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import type {
+  IdentitySessionReadModel,
+  ManufacturingOverview,
+} from "@/lib/platform-overview";
+import { parseManufacturingOverview } from "@/lib/runtime-contracts/overview";
 import { strings } from "@/lib/strings";
 
 type Source = "loading" | "api" | "unavailable";
@@ -80,6 +84,7 @@ type MockOptions = {
   /** Overrides every checklist registry count, including /platform/policies. */
   onboardingCount?: number;
   identity?: IdentitySessionReadModel;
+  overview?: ManufacturingOverview;
 };
 
 /** Route the per-path mock so each endpoint can succeed or fail independently. */
@@ -97,7 +102,7 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
           ],
         ] as [string, unknown][])
       : []),
-    ["/demo/manufacturing/overview", overviewFixture],
+    ["/demo/manufacturing/overview", options.overview ?? overviewFixture],
     ["/demo/manufacturing/operations/snapshot", snapshotFixture],
     ["/demo/manufacturing/model-routing", modelRoutingFixture],
     ["/demo/manufacturing/audit/events", auditEventsFixture],
@@ -143,6 +148,22 @@ describe("PlatformOverview hero", () => {
 
     expect(screen.getAllByText("Plant Operations Cockpit")).toHaveLength(1);
     expect(screen.queryByText(/Operations Plant Operations Cockpit/)).not.toBeInTheDocument();
+  });
+
+  it("parses and renders a tenant whose scenario is null without empty path segments", () => {
+    const overview = parseManufacturingOverview({
+      ...overviewFixture,
+      plant_name: "Northwind Press",
+      scenario: null,
+      provenance: "empty",
+    });
+    mockQueriesByPath([], { overview });
+
+    renderOverview();
+
+    expect(screen.getByRole("heading", { name: "Manufacturing overview" })).toBeInTheDocument();
+    expect(screen.getByTestId("hero-audit-count")).toBeInTheDocument();
+    expect(screen.getByText(/Northwind Press/)).not.toHaveTextContent(/null|^\s*\//);
   });
 
   it("shows the same audit registry count in the hero and the evidence feed", () => {

@@ -73,6 +73,7 @@ from axis_api.persistence import (
     ConnectorCredentialHandleCreate,
     DemoReferenceRecordCreate,
     OidcBrowserSessionCreate,
+    TenantCreate,
 )
 
 TENANT_A = "tenant_demo_manufacturing"
@@ -235,6 +236,15 @@ def seed_tenant_a_configuration(factory: sessionmaker[Session]) -> None:
 def seed_tenant_a_audit_events(factory: sessionmaker[Session]) -> None:
     with session_scope(factory) as session:
         repository = AxisPersistenceRepository(session)
+        if repository.get_tenant(TENANT_A) is None:
+            repository.create_tenant(
+                TenantCreate(
+                    tenant_id=TENANT_A,
+                    display_name="Ravenna Works",
+                    description="Plant Operations Cockpit",
+                    created_by="test",
+                )
+            )
         repository.append_audit_event(
             AuditEventCreate(
                 tenant_id=TENANT_A,

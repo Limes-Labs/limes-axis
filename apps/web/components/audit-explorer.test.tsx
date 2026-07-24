@@ -289,6 +289,8 @@ describe("AuditExplorer integrity and export", () => {
     // policy.egress.blocked — the combination matches zero events.
     await user.selectOptions(screen.getByLabelText("Tenant"), "tenant_a");
     await user.selectOptions(screen.getByLabelText("Event"), "policy.egress.blocked");
+    expect(window.location.search).toContain("tenant=tenant_a");
+    expect(window.location.search).toContain("event_type=policy.egress.blocked");
 
     expect(
       screen.getByRole("heading", { name: "No matching audit evidence" }),

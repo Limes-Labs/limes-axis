@@ -22,7 +22,7 @@ import {
   type ActionRunPersistenceResult,
   type ManufacturingActionRegistry,
 } from "@/lib/action-demo";
-import { formatNumber, formatTimestamp } from "@/lib/format";
+import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import {
   type IdentitySessionReadModel,
   platformStatusClass,
@@ -257,7 +257,11 @@ export function ActionRegistry() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {registry.plant_name} / {registry.scenario} / schema {registry.schema_version}
+          {formatContextPath(
+            registry.plant_name,
+            registry.scenario,
+            `schema ${registry.schema_version}`,
+          )}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill

@@ -134,7 +134,10 @@ const persistenceResultFixture = {
 function mockQuery(result: {
   data: ManufacturingApprovalInbox | null;
   source: "loading" | "api" | "unavailable";
-}) {
+}, auditEvents: Array<{
+  evidence_refs: string[];
+  payload_preview: Record<string, string>;
+}> = []) {
   mocks.useAxisQuery.mockImplementation((path: string) => {
     if (path === "/identity/session") {
       return {
@@ -143,6 +146,26 @@ function mockQuery(result: {
           actor_id: "acme-operator",
           tenant_id: "tenant_fixture",
           scopes: ["approvals:supply:decide", "tenant:read"],
+        },
+        source: "api",
+        error: null,
+        isRefreshing: false,
+        isLoading: false,
+        isUnavailable: false,
+      };
+    }
+    if (path.startsWith("/demo/manufacturing/audit/events")) {
+      return {
+        data: {
+          tenant_id: "tenant_fixture",
+          plant_name: "Fixture Plant",
+          scenario: "Runtime contract fixture",
+          as_of: "2026-07-10T09:00:00+02:00",
+          ledger_status: "ready",
+          filter_options: { tenants: [], event_types: [], scopes: [] },
+          events: auditEvents,
+          retention_notes: [],
+          metrics: [],
         },
         source: "api",
         error: null,
@@ -173,6 +196,7 @@ function renderInbox() {
 beforeEach(() => {
   mocks.axisFetchParsedJson.mockReset();
   mocks.useAxisQuery.mockReset();
+  window.history.replaceState(null, "", "/approvals");
 });
 
 describe("ApprovalInbox states", () => {
@@ -226,6 +250,42 @@ describe("ApprovalInbox decision flow", () => {
     expect(screen.getByText("The current production plan stays unchanged.")).toBeVisible();
   });
 
+  it("selects the approval linked to an action run", () => {
+    mockQuery(
+      { data: inboxFixture, source: "api" },
+      [{
+        evidence_refs: ["action_run_quality_fixture", "appr_quality_fixture"],
+        payload_preview: { approval_id: "appr_quality_fixture" },
+      }],
+    );
+    window.history.replaceState(
+      null,
+      "",
+      "/approvals?action_run_id=action_run_quality_fixture",
+    );
+    renderInbox();
+
+    expect(
+      screen.getByRole("heading", { name: "Place fixture quality hold" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not select the first approval for an unknown action run", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/approvals?action_run_id=action_run_unknown",
+    );
+    renderInbox();
+
+    expect(
+      screen.getByRole("heading", { name: "Requested approval is not in this queue" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Expedite fixture batch" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("switches the detail panel when a queue item is selected", async () => {
     const user = userEvent.setup();
     renderInbox();
@@ -235,6 +295,7 @@ describe("ApprovalInbox decision flow", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Place fixture quality hold/ }));
+    expect(window.location.search).toBe("?approval_id=appr_quality_fixture");
     expect(
       screen.getByRole("heading", { name: "Place fixture quality hold" }),
     ).toBeInTheDocument();

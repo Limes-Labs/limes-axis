@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { RotateCcw, ScrollText, ShieldCheck } from "lucide-react";
 
 import { PolicyCreateForm } from "@/components/policy-create-form";
+import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import {
   allPolicyFilter,
   buildPlatformPoliciesPath,
@@ -20,6 +20,7 @@ import {
   summarizePolicyConditions,
   type PlatformPolicyRegistry,
   type PlatformPolicyRegistryFilters,
+  type PlatformPolicyScope,
 } from "@/lib/platform-policies";
 import { formatNumber, formatTimestamp } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
@@ -39,9 +40,25 @@ const defaultFilters: PlatformPolicyRegistryFilters = {
   scope: allPolicyFilter,
   status: allPolicyFilter,
 };
+const policyUrlSchema = {
+  scope: enumUrlField(
+    "scope",
+    [allPolicyFilter, ...platformPolicyScopes],
+    allPolicyFilter,
+  ),
+  status: enumUrlField(
+    "status",
+    [allPolicyFilter, ...platformPolicyStatuses],
+    allPolicyFilter,
+  ),
+};
+
+function isPlatformPolicyScope(value: string): value is PlatformPolicyScope {
+  return platformPolicyScopes.some((scope) => scope === value);
+}
 
 export function PolicyRegistry() {
-  const [filters, setFilters] = useState<PlatformPolicyRegistryFilters>(defaultFilters);
+  const [filters, setFilters] = useConsoleUrlState(policyUrlSchema);
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const registryPath = buildPlatformPoliciesPath(filters, tenantId ?? undefined);
   const { data: registry, source } = useAxisQuery<PlatformPolicyRegistry>(
@@ -54,10 +71,18 @@ export function PolicyRegistry() {
   );
 
   function updateFilter(filterName: keyof PlatformPolicyRegistryFilters, value: string) {
-    setFilters((current) => ({
-      ...current,
-      [filterName]: value,
-    }));
+    if (
+      filterName === "scope"
+      && (value === allPolicyFilter || isPlatformPolicyScope(value))
+    ) {
+      setFilters({ scope: value });
+    }
+    if (
+      filterName === "status"
+      && (value === allPolicyFilter || platformPolicyStatuses.some((status) => status === value))
+    ) {
+      setFilters({ status: value });
+    }
   }
 
   function resetFilters() {

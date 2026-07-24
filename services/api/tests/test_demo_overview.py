@@ -25,8 +25,12 @@ from axis_api.demo import (
 )
 from axis_api.identity import OidcPrincipal
 from axis_api.main import create_app
-from axis_api.models import Base
-from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+from axis_api.models import Base, Tenant
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    DemoReferenceRecordCreate,
+    TenantCreate,
+)
 
 REFERENCE_SURFACE_CONTRACTS = {
     "overview": {
@@ -623,6 +627,15 @@ def overview_session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).create_tenant(
+            TenantCreate(
+                tenant_id="tenant_demo_manufacturing",
+                display_name="Ravenna Works",
+                description="Plant Operations Cockpit",
+                created_by="test",
+            )
+        )
     yield factory
     engine.dispose()
 
@@ -634,6 +647,72 @@ class StaticIdentityVerifier:
     def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
         assert authorization == "Bearer valid-token"
         return self.principal
+
+
+REFERENCE_CONSOLE_PATHS = [
+    "/demo/manufacturing/overview",
+    "/demo/manufacturing/workflows",
+    "/demo/manufacturing/agents",
+    "/demo/manufacturing/actions",
+    "/demo/manufacturing/connectors",
+    "/demo/manufacturing/approvals",
+    "/demo/manufacturing/audit",
+    "/demo/manufacturing/ontology",
+]
+
+
+@pytest.mark.parametrize("path", REFERENCE_CONSOLE_PATHS)
+def test_reference_console_reports_unknown_tenant(
+    overview_session_factory: sessionmaker[Session],
+    path: str,
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    response = TestClient(app).get(path, params={"tenant_id": "tenant_unknown"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {
+        "code": "TENANT_NOT_FOUND",
+        "message": "The manufacturing tenant is unknown.",
+        "tenant_id": "tenant_unknown",
+    }
+
+
+@pytest.mark.parametrize("path", REFERENCE_CONSOLE_PATHS)
+def test_reference_console_uses_tenant_branding_for_empty_payload(
+    overview_session_factory: sessionmaker[Session],
+    path: str,
+) -> None:
+    with session_scope(overview_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        if repository.get_tenant("tenant_unseeded_customer") is None:
+            repository.create_tenant(
+                TenantCreate(
+                    tenant_id="tenant_unseeded_customer",
+                    display_name="Milan Assembly",
+                    description="",
+                    created_by="test",
+                )
+            )
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    response = TestClient(app).get(
+        path,
+        params={"tenant_id": "tenant_unseeded_customer"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tenant_id"] == "tenant_unseeded_customer"
+    assert response.json()["plant_name"] == "Milan Assembly"
+    assert response.json()["scenario"] is None
+    assert response.json()["provenance"] == "empty"
+    assert "Ravenna" not in response.text
+
+
+def test_reference_console_requires_explicit_tenant_scope() -> None:
+    response = TestClient(create_app()).get("/demo/manufacturing/overview")
+
+    assert response.status_code == 422
 
 
 def test_manufacturing_overview_reference_contract_is_valid_and_actionable() -> None:
@@ -687,11 +766,15 @@ def test_manufacturing_overview_endpoint_returns_persisted_reference_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/overview")
+    response = client.get(
+        "/demo/manufacturing/overview",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Plant Operations Cockpit"
     assert body["plant_name"] == "Persisted Ravenna Works"
     assert body["metrics"][0]["label"] == "Persisted Workflow Load"
@@ -699,16 +782,20 @@ def test_manufacturing_overview_endpoint_returns_persisted_reference_data(
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_overview_endpoint_reports_missing_reference_record(
+def test_manufacturing_overview_endpoint_returns_empty_payload_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/overview")
+    response = client.get(
+        "/demo/manufacturing/overview",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["metrics"] == []
 
 
 def test_manufacturing_overview_endpoint_rejects_invalid_reference_payload(
@@ -731,7 +818,10 @@ def test_manufacturing_overview_endpoint_rejects_invalid_reference_payload(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/overview")
+    response = client.get(
+        "/demo/manufacturing/overview",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -817,11 +907,15 @@ def test_manufacturing_workflow_console_endpoint_returns_persisted_reference_dat
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/workflows")
+    response = client.get(
+        "/demo/manufacturing/workflows",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Workflow Console"
     assert body["workflow_runs"][0]["workflow_id"] == "wf_persisted_reference"
     assert body["workflow_runs"][0]["pending_signals"][0]["approval_id"] == (
@@ -832,16 +926,20 @@ def test_manufacturing_workflow_console_endpoint_returns_persisted_reference_dat
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_workflow_console_endpoint_reports_missing_reference_record(
+def test_manufacturing_workflow_console_endpoint_returns_empty_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/workflows")
+    response = client.get(
+        "/demo/manufacturing/workflows",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["workflow_runs"] == []
 
 
 def test_manufacturing_workflow_console_endpoint_rejects_invalid_reference_payload(
@@ -864,7 +962,10 @@ def test_manufacturing_workflow_console_endpoint_rejects_invalid_reference_paylo
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/workflows")
+    response = client.get(
+        "/demo/manufacturing/workflows",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -951,27 +1052,35 @@ def test_manufacturing_agent_registry_endpoint_returns_persisted_reference_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/agents")
+    response = client.get(
+        "/demo/manufacturing/agents",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Agent Registry"
     assert body["agents"][0]["agent_id"] == "agent_persisted_daily_brief"
     assert body["agents"][0]["policy_boundary"]["external_egress_allowed"] is False
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_agent_registry_endpoint_reports_missing_reference_record(
+def test_manufacturing_agent_registry_endpoint_returns_empty_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/agents")
+    response = client.get(
+        "/demo/manufacturing/agents",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["agents"] == []
 
 
 def test_manufacturing_agent_registry_endpoint_rejects_invalid_reference_payload(
@@ -994,7 +1103,10 @@ def test_manufacturing_agent_registry_endpoint_rejects_invalid_reference_payload
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/agents")
+    response = client.get(
+        "/demo/manufacturing/agents",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -1019,11 +1131,15 @@ def test_manufacturing_agent_registry_endpoint_returns_bootstrap_public_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/agents")
+    response = client.get(
+        "/demo/manufacturing/agents",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["agents"][1]["agent_id"] == "agent_supply_risk"
     assert body["agents"][1]["pending_approvals"][0] == "appr_expedite_supplier_batch"
     assert body["agents"][1]["policy_boundary"]["external_egress_allowed"] is False
@@ -1119,27 +1235,35 @@ def test_manufacturing_action_registry_endpoint_returns_persisted_reference_data
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/actions")
+    response = client.get(
+        "/demo/manufacturing/actions",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Action Registry"
     assert body["actions"][0]["definition"]["action_id"] == "action_persisted_daily_brief"
     assert body["actions"][0]["policy"]["dry_run_supported"] is True
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_action_registry_endpoint_reports_missing_reference_record(
+def test_manufacturing_action_registry_endpoint_returns_empty_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/actions")
+    response = client.get(
+        "/demo/manufacturing/actions",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["actions"] == []
 
 
 def test_manufacturing_action_registry_endpoint_rejects_invalid_reference_payload(
@@ -1162,7 +1286,10 @@ def test_manufacturing_action_registry_endpoint_rejects_invalid_reference_payloa
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/actions")
+    response = client.get(
+        "/demo/manufacturing/actions",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -1187,11 +1314,15 @@ def test_manufacturing_action_registry_endpoint_returns_bootstrap_public_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/actions")
+    response = client.get(
+        "/demo/manufacturing/actions",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["actions"][1]["definition"]["action_id"] == "request_supplier_expedite"
     assert body["actions"][1]["definition"]["risk_level"] == "high"
     assert body["actions"][1]["definition"]["approval_mode"] == "required"
@@ -1292,11 +1423,15 @@ def test_manufacturing_approval_inbox_endpoint_returns_persisted_reference_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/approvals")
+    response = client.get(
+        "/demo/manufacturing/approvals",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Approval Inbox"
     assert body["approvals"][0]["approval_id"] == "appr_persisted_operations_review"
     assert body["approvals"][0]["required_permission"] == "approvals:operations:decide"
@@ -1305,16 +1440,20 @@ def test_manufacturing_approval_inbox_endpoint_returns_persisted_reference_data(
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_approval_inbox_endpoint_reports_missing_reference_record(
+def test_manufacturing_approval_inbox_endpoint_returns_empty_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/approvals")
+    response = client.get(
+        "/demo/manufacturing/approvals",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["approvals"] == []
 
 
 def test_manufacturing_approval_inbox_endpoint_rejects_invalid_reference_payload(
@@ -1337,7 +1476,10 @@ def test_manufacturing_approval_inbox_endpoint_rejects_invalid_reference_payload
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/approvals")
+    response = client.get(
+        "/demo/manufacturing/approvals",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -1425,11 +1567,15 @@ def test_manufacturing_audit_explorer_endpoint_returns_persisted_reference_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/audit")
+    response = client.get(
+        "/demo/manufacturing/audit",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Audit Explorer"
     assert body["events"][0]["audit_event_id"] == "audit_persisted_reference"
     assert body["events"][0]["event_type"] == "audit.reference.persisted"
@@ -1438,16 +1584,20 @@ def test_manufacturing_audit_explorer_endpoint_returns_persisted_reference_data(
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_audit_explorer_endpoint_reports_missing_reference_record(
+def test_manufacturing_audit_explorer_endpoint_returns_empty_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/audit")
+    response = client.get(
+        "/demo/manufacturing/audit",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["events"] == []
 
 
 def test_manufacturing_audit_explorer_endpoint_rejects_invalid_reference_payload(
@@ -1470,7 +1620,10 @@ def test_manufacturing_audit_explorer_endpoint_rejects_invalid_reference_payload
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/audit")
+    response = client.get(
+        "/demo/manufacturing/audit",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -1575,16 +1728,40 @@ def test_manufacturing_model_routing_endpoint_returns_persisted_reference_data(
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_model_routing_endpoint_reports_missing_reference_record(
+def test_manufacturing_model_routing_endpoint_returns_empty_for_unseeded_tenant(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    """A known tenant with no routing records is empty, not an error.
+
+    Model routing is reached from the overview, so answering 404 here put a red
+    panel on the first screen a new tenant sees.
+    """
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    response = TestClient(app).get(
+        "/demo/manufacturing/model-routing",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provenance"] == "empty"
+    assert body["routes"] == []
+    assert body["filter_options"]["providers"] == []
+
+
+def test_manufacturing_model_routing_endpoint_reports_unknown_tenant(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
-    client = TestClient(app)
-    response = client.get("/demo/manufacturing/model-routing")
+    response = TestClient(app).get(
+        "/demo/manufacturing/model-routing",
+        params={"tenant_id": "tenant_unknown"},
+    )
 
     assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.json()["detail"]["code"] == "TENANT_NOT_FOUND"
 
 
 def test_manufacturing_model_routing_endpoint_rejects_invalid_reference_payload(
@@ -1715,11 +1892,15 @@ def test_manufacturing_ontology_endpoint_returns_persisted_reference_graph(
     app.state.session_factory = overview_session_factory
     seed_ontology_reference(overview_session_factory)
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/ontology")
+    response = client.get(
+        "/demo/manufacturing/ontology",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Ontology Graph"
     assert body["nodes"][1]["node_id"] == "asset_persisted_line"
     assert body["graph_query"]["source"] == "persisted-reference"
@@ -1738,16 +1919,20 @@ def test_manufacturing_ontology_endpoint_returns_persisted_reference_graph(
     assert "password" not in str(body).lower()
 
 
-def test_manufacturing_ontology_endpoint_reports_missing_reference_record(
+def test_manufacturing_ontology_endpoint_returns_empty_without_reference_record(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = overview_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/ontology")
+    response = client.get(
+        "/demo/manufacturing/ontology",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["nodes"] == []
 
 
 def test_manufacturing_ontology_endpoint_rejects_invalid_reference_payload(
@@ -1759,7 +1944,10 @@ def test_manufacturing_ontology_endpoint_rejects_invalid_reference_payload(
     payload["tenant_id"] = "tenant_wrong"
     seed_ontology_reference(overview_session_factory, payload)
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/ontology")
+    response = client.get(
+        "/demo/manufacturing/ontology",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -1801,7 +1989,10 @@ def test_manufacturing_ontology_entity_detail_endpoint_returns_persisted_referen
     app.state.session_factory = overview_session_factory
     seed_ontology_reference(overview_session_factory)
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/ontology/entities/asset_persisted_line")
+    response = client.get(
+        "/demo/manufacturing/ontology/entities/asset_persisted_line",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -1822,7 +2013,10 @@ def test_manufacturing_ontology_entity_detail_endpoint_handles_missing_node(
     app.state.session_factory = overview_session_factory
     seed_ontology_reference(overview_session_factory)
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/ontology/entities/missing-node")
+    response = client.get(
+        "/demo/manufacturing/ontology/entities/missing-node",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Ontology entity not found"
@@ -1869,6 +2063,7 @@ def test_manufacturing_ontology_entity_detail_endpoint_enforces_relationship_sco
     response = client.get(
         "/demo/manufacturing/ontology/entities/asset_persisted_line",
         headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
     )
 
     assert response.status_code == 403
@@ -1898,6 +2093,7 @@ def test_manufacturing_ontology_entity_detail_endpoint_allows_relationship_scope
     response = client.get(
         "/demo/manufacturing/ontology/entities/asset_persisted_line",
         headers={"Authorization": "Bearer valid-token"},
+        params={"tenant_id": "tenant_demo_manufacturing"},
     )
 
     assert response.status_code == 200
@@ -1910,3 +2106,48 @@ def test_openapi_exposes_manufacturing_ontology_entity_detail_endpoint() -> None
 
     assert response.status_code == 200
     assert "/demo/manufacturing/ontology/entities/{node_id}" in response.json()["paths"]
+
+
+def test_reference_console_serves_tenant_seeded_before_the_registry_existed(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    """A pre-registry deployment must keep serving after the upgrade.
+
+    Databases bootstrapped before tenants were recorded in ``tenants`` hold
+    reference records with no matching registry row. Without the reference-record
+    fallback every console answers TENANT_NOT_FOUND for them, which is how the
+    seeded demo tenant broke against a real database while this suite stayed
+    green — ``conftest`` back-fills a registry row for any reference record a
+    test inserts, so the state never arises here by accident.
+    """
+    with session_scope(overview_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_legacy_seeded",
+                surface="overview",
+                reference_id="manufacturing-overview",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload={
+                    **persisted_overview_payload(),
+                    "tenant_id": "tenant_legacy_seeded",
+                },
+            )
+        )
+    # Drop the row conftest back-filled, reproducing the pre-registry database.
+    with session_scope(overview_session_factory) as session:
+        tenant = session.get(Tenant, "tenant_legacy_seeded")
+        if tenant is not None:
+            session.delete(tenant)
+
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    response = TestClient(app).get(
+        "/demo/manufacturing/overview",
+        params={"tenant_id": "tenant_legacy_seeded"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "reference_scenario"

@@ -19,7 +19,11 @@ from axis_api.connectors import (
 from axis_api.db import session_scope
 from axis_api.main import create_app
 from axis_api.models import Base
-from axis_api.persistence import AxisPersistenceRepository, DemoReferenceRecordCreate
+from axis_api.persistence import (
+    AxisPersistenceRepository,
+    DemoReferenceRecordCreate,
+    TenantCreate,
+)
 
 
 def persisted_connector_registry_payload() -> dict:
@@ -132,6 +136,15 @@ def connector_session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).create_tenant(
+            TenantCreate(
+                tenant_id="tenant_demo_manufacturing",
+                display_name="Ravenna Works",
+                description="Plant Operations Cockpit",
+                created_by="test",
+            )
+        )
     yield factory
     engine.dispose()
 
@@ -258,26 +271,34 @@ def test_connector_registry_endpoint_returns_persisted_reference_data(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/connectors")
+    response = client.get(
+        "/demo/manufacturing/connectors",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "reference_scenario"
     assert body["scenario"] == "Persisted Connector Cockpit"
     assert body["connectors"][0]["manifest"]["connector_id"] == "persisted_file_csv_assets"
     assert "password" not in str(body).lower()
 
 
-def test_connector_registry_endpoint_reports_missing_reference_record(
+def test_connector_registry_endpoint_returns_empty_payload_without_reference_record(
     connector_session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = connector_session_factory
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/connectors")
+    response = client.get(
+        "/demo/manufacturing/connectors",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "empty"
+    assert response.json()["connectors"] == []
 
 
 def test_connector_registry_endpoint_rejects_invalid_reference_payload(
@@ -300,7 +321,10 @@ def test_connector_registry_endpoint_rejects_invalid_reference_payload(
             )
         )
     client = TestClient(app)
-    response = client.get("/demo/manufacturing/connectors")
+    response = client.get(
+        "/demo/manufacturing/connectors",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "VALIDATION_FAILED"
@@ -574,7 +598,10 @@ def test_connector_registry_endpoint_returns_bootstrap_public_manifest(
     seed_connector_registry_reference(connector_session_factory)
     client = TestClient(app)
 
-    response = client.get("/demo/manufacturing/connectors")
+    response = client.get(
+        "/demo/manufacturing/connectors",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
 
     assert response.status_code == 200
     body = response.json()

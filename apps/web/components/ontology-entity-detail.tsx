@@ -11,7 +11,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
-import { formatTimestamp } from "@/lib/format";
+import { formatContextPath, formatTimestamp } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import {
@@ -89,7 +89,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
           <Eyebrow>Ontology Entity</Eyebrow>
           <h2 className="font-display m-0 text-2xl text-ink">{detail.node.label}</h2>
           <p className="m-0 text-sm text-muted">
-            {detail.scenario} / {detail.tenant_id}
+            {formatContextPath(detail.scenario, detail.tenant_id)}
           </p>
         </div>
         <div

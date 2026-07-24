@@ -124,6 +124,32 @@ describe("useAxisQuery", () => {
     expect(result.current.data).toBeNull();
   });
 
+  it("classifies a TENANT_NOT_FOUND response separately from transport unavailability", async () => {
+    mocks.axisFetchParsedJson.mockRejectedValueOnce(
+      new AxisApiError("/demo/manufacturing/overview", 404, {
+        body: {
+          detail: {
+            code: "TENANT_NOT_FOUND",
+            message: "The manufacturing tenant is unknown.",
+            tenant_id: "tenant_nope",
+          },
+        },
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/manufacturing/overview?tenant_id=tenant_nope", {
+        parse: parseRegistry,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.source).toBe("tenant_not_found"));
+    expect(result.current.errorStatus).toBe(404);
+    expect(result.current.errorCode).toBe("TENANT_NOT_FOUND");
+    expect(result.current.isTenantNotFound).toBe(true);
+    expect(result.current.isUnavailable).toBe(false);
+  });
+
   it("keeps errorStatus null for non-HTTP failures and clears it on success", async () => {
     mocks.axisFetchParsedJson.mockRejectedValueOnce(new TypeError("fetch failed"));
 

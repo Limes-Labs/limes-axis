@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, FileText, Filter, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { axisFetchParsedJson } from "@/lib/axis-api";
@@ -13,13 +13,12 @@ import {
   buildAuditExportFileName,
   buildAuditExportSummary,
   filterAuditEvents,
-  findAuditEventById,
   formatAuditLabel,
-  resolveAuditEventSelection,
   type AuditFilters,
   type AuditExportBundle,
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
+import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { strings } from "@/lib/strings";
 import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import {
@@ -29,7 +28,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatContextPath, formatDateTime, formatNumber } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import {
   formatOverviewTimestamp,
@@ -51,6 +50,12 @@ const defaultFilters: AuditFilters = {
   tenant: allAuditFilter,
   eventType: allAuditFilter,
   scope: allAuditFilter,
+};
+const auditUrlSchema = {
+  tenant: stringUrlField("tenant", allAuditFilter),
+  eventType: stringUrlField("event_type", allAuditFilter),
+  scope: stringUrlField("scope", allAuditFilter),
+  eventId: stringUrlField("event_id"),
 };
 
 /** Serialize the already-fetched export bundle and trigger a client download. */
@@ -139,11 +144,7 @@ function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExport
 
 export function AuditExplorer() {
   const [auditExport, setAuditExport] = useState<AuditExportBundle | null>(null);
-  const [filters, setFilters] = useState<AuditFilters>(defaultFilters);
-  const [requestedEventId, setRequestedEventId] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("event_id"),
-  );
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [urlState, setUrlState] = useConsoleUrlState(auditUrlSchema);
   const { refreshNonce } = useConsole();
   const { session } = useOidcConsoleSession();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
@@ -164,6 +165,22 @@ export function AuditExplorer() {
   });
   const auditData = auditQuery.data;
   const source = deriveSourceState(auditQuery.source, Boolean(auditData));
+  const filters: AuditFilters = auditData
+    ? {
+        tenant: urlState.tenant === allAuditFilter
+          || auditData.filter_options.tenants.includes(urlState.tenant)
+          ? urlState.tenant
+          : allAuditFilter,
+        eventType: urlState.eventType === allAuditFilter
+          || auditData.filter_options.event_types.includes(urlState.eventType)
+          ? urlState.eventType
+          : allAuditFilter,
+        scope: urlState.scope === allAuditFilter
+          || auditData.filter_options.scopes.includes(urlState.scope)
+          ? urlState.scope
+          : allAuditFilter,
+      }
+    : defaultFilters;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -199,30 +216,10 @@ export function AuditExplorer() {
     return () => controller.abort();
   }, [auditExportPath, refreshNonce, session, tenantId, tenantQueriesEnabled]);
 
-  const filteredEvents = useMemo(
-    () => (auditData ? filterAuditEvents(auditData, filters) : []),
-    [auditData, filters],
-  );
-  const effectiveSelectedEventId = auditData
-    ? resolveAuditEventSelection({
-        explorer: auditData,
-        filteredEvents,
-        requestedEventId,
-        selectedEventId,
-      })
-    : "";
-
-  // `findAuditEventById` falls back to the unfiltered first event when the
-  // id is not found, so the filtered-empty case is guarded here rather than
-  // relying on that fallback — otherwise a filter that matches nothing would
-  // still render an unfiltered record's details under a "0 visible" header.
-  const selectedEvent = useMemo(
-    () =>
-      auditData && filteredEvents.length > 0
-        ? findAuditEventById(auditData, effectiveSelectedEventId)
-        : null,
-    [auditData, filteredEvents.length, effectiveSelectedEventId],
-  );
+  const filteredEvents = auditData ? filterAuditEvents(auditData, filters) : [];
+  const selectedEvent = urlState.eventId
+    ? filteredEvents.find((event) => event.audit_event_id === urlState.eventId)
+    : filteredEvents[0];
   const selectedEventConnectorSnapshotHref =
     selectedEvent?.event_type === "connector.evidence_invariants.snapshot_persisted" &&
     selectedEvent.payload_preview.snapshot_id
@@ -233,14 +230,11 @@ export function AuditExplorer() {
       : null;
 
   function updateFilter(filterName: keyof AuditFilters, value: string) {
-    setFilters((current) => ({
-      ...current,
-      [filterName]: value,
-    }));
+    setUrlState({ [filterName]: value, eventId: "" });
   }
 
   function resetFilters() {
-    setFilters(defaultFilters);
+    setUrlState({ ...defaultFilters, eventId: "" });
   }
 
   if (identity.source === "loading") {
@@ -281,6 +275,17 @@ export function AuditExplorer() {
     );
   }
 
+  if (urlState.eventId && !selectedEvent) {
+    return (
+      <EmptyPanel
+        action={{ label: "Reset filters", onClick: resetFilters }}
+        detail={strings.states.requestedRecord.detail}
+        icon={Filter}
+        title={strings.states.requestedRecord.title}
+      />
+    );
+  }
+
   if (!selectedEvent) {
     return (
       <EmptyPanel
@@ -299,7 +304,11 @@ export function AuditExplorer() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {auditData.plant_name} / {auditData.scenario} / {auditData.tenant_id}
+          {formatContextPath(
+            auditData.plant_name,
+            auditData.scenario,
+            auditData.tenant_id,
+          )}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="audit ledger" />
@@ -399,10 +408,7 @@ export function AuditExplorer() {
                   aria-pressed={isSelected}
                   className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={event.audit_event_id}
-                  onClick={() => {
-                    setRequestedEventId(null);
-                    setSelectedEventId(event.audit_event_id);
-                  }}
+                  onClick={() => setUrlState({ eventId: event.audit_event_id })}
                   type="button"
                 >
                   <span>

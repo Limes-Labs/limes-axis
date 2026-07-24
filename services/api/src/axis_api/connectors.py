@@ -4,6 +4,7 @@ from io import StringIO
 from pydantic import BaseModel, ConfigDict, Field
 
 from axis_api.demo import OverviewMetric, OverviewStatus
+from axis_api.manufacturing_metadata import ManufacturingResponseProvenance
 
 
 class ConnectorCredentialRequirements(BaseModel):
@@ -60,8 +61,11 @@ class ConnectorRegistryItem(BaseModel):
 
 class ManufacturingConnectorRegistry(BaseModel):
     tenant_id: str = Field(min_length=1)
-    plant_name: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
+    plant_name: str | None = Field(default=None, min_length=1)
+    scenario: str | None = Field(default=None, min_length=1)
+    provenance: ManufacturingResponseProvenance = (
+        ManufacturingResponseProvenance.REFERENCE_SCENARIO
+    )
     registry_status: OverviewStatus
     metrics: list[OverviewMetric] = Field(default_factory=list)
     connectors: list[ConnectorRegistryItem] = Field(default_factory=list)

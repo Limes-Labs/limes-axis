@@ -37,6 +37,16 @@ const clockFormat = new Intl.DateTimeFormat("en", {
 
 const numberFormat = new Intl.NumberFormat("en");
 
+/** Join available context labels without rendering empty or null path segments. */
+export function formatContextPath(
+  ...segments: ReadonlyArray<string | null | undefined>
+): string {
+  return segments
+    .map((segment) => segment?.trim())
+    .filter((segment): segment is string => Boolean(segment))
+    .join(" / ");
+}
+
 /**
  * `new Date(null)` is the unix epoch, not an error, so nullish values are
  * rejected before parsing — otherwise a missing timestamp renders as

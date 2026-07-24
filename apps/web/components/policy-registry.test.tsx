@@ -47,10 +47,11 @@ describe("PolicyRegistry tenant scope", () => {
   });
 
   it("requests and validates the verified tenant", () => {
+    window.history.replaceState(null, "", "/policies?scope=approval_requirement");
     render(<PolicyRegistry />);
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
-      "/platform/policies?tenant_id=tenant_acme",
+      "/platform/policies?tenant_id=tenant_acme&scope=approval_requirement",
       expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
     );
     expect(screen.getByTestId("policy-create-tenant")).toHaveTextContent("tenant_acme");

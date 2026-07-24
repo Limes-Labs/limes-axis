@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import {
   Activity,
   Cable,
@@ -13,13 +12,13 @@ import {
 } from "lucide-react";
 
 import { buildAuditEventHref } from "@/lib/audit-demo";
-import { formatNumber } from "@/lib/format";
+import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { formatContextPath, formatNumber } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import {
   allModelRoutingFilter,
   countBlockedModelRoutes,
   filterModelRoutes,
-  findModelRouteById,
   formatEuroCost,
   formatModelRoutingLabel,
   sumEstimatedModelCost,
@@ -66,6 +65,14 @@ const defaultFilters: ModelRoutingFilters = {
   provider: allModelRoutingFilter,
   decision: allModelRoutingFilter,
 };
+const modelRoutingTabs = ["reference", "live"] as const;
+const modelRoutingUrlSchema = {
+  tab: enumUrlField("tab", modelRoutingTabs, "reference"),
+  domain: stringUrlField("domain", allModelRoutingFilter),
+  provider: stringUrlField("provider", allModelRoutingFilter),
+  decision: stringUrlField("decision", allModelRoutingFilter),
+  routeId: stringUrlField("route_id"),
+};
 
 function routeDecisionClass(route: ModelRouteTelemetry): string {
   if (route.egress_decision === "blocked_by_default" || route.egress_decision === "local_allowed") {
@@ -77,6 +84,7 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 
 export function ModelRoutingConsole() {
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
+  const [urlState, setUrlState] = useConsoleUrlState(modelRoutingUrlSchema);
 
   if (identity.source === "loading") {
     return <LoadingPanel layout="detail" />;
@@ -103,7 +111,15 @@ export function ModelRoutingConsole() {
   }
 
   return (
-    <Tabs className="grid min-w-0 gap-4" defaultValue="reference">
+    <Tabs
+      className="grid min-w-0 gap-4"
+      value={urlState.tab}
+      onValueChange={(tab) => {
+        if (tab === "reference" || tab === "live") {
+          setUrlState({ tab });
+        }
+      }}
+    >
       <div
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
         data-models-header-strip
@@ -117,7 +133,17 @@ export function ModelRoutingConsole() {
         </TabsList>
       </div>
       <TabsContent value="reference">
-        <ReferenceModelRouting enabled={tenantQueriesEnabled} tenantId={tenantId} />
+        <ReferenceModelRouting
+          enabled={tenantQueriesEnabled}
+          filters={{
+            decision: urlState.decision,
+            domain: urlState.domain,
+            provider: urlState.provider,
+          }}
+          onStateChange={setUrlState}
+          selectedRouteId={urlState.routeId}
+          tenantId={tenantId}
+        />
       </TabsContent>
       <TabsContent value="live">
         <LiveModelRouterSection enabled={tenantQueriesEnabled} tenantId={tenantId} />
@@ -126,37 +152,51 @@ export function ModelRoutingConsole() {
   );
 }
 
-function ReferenceModelRouting({ enabled, tenantId }: { enabled: boolean; tenantId: string }) {
+function ReferenceModelRouting({
+  enabled,
+  filters: requestedFilters,
+  onStateChange,
+  selectedRouteId,
+  tenantId,
+}: {
+  enabled: boolean;
+  filters: ModelRoutingFilters;
+  onStateChange: (state: Partial<{
+    decision: string;
+    domain: string;
+    provider: string;
+    routeId: string;
+  }>) => void;
+  selectedRouteId: string;
+  tenantId: string;
+}) {
   const routingPath = buildTenantScopedPath("/demo/manufacturing/model-routing", tenantId);
   const { data: routing, source } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
     enabled,
     expectedTenantId: tenantId,
     parse: parseManufacturingModelRouting,
   });
-  const [filters, setFilters] = useState<ModelRoutingFilters>(defaultFilters);
-  const [selectedRouteId, setSelectedRouteId] = useState("");
+  const filters: ModelRoutingFilters = routing
+    ? {
+        domain: requestedFilters.domain === allModelRoutingFilter
+          || routing.filter_options.domains.includes(requestedFilters.domain)
+          ? requestedFilters.domain
+          : allModelRoutingFilter,
+        provider: requestedFilters.provider === allModelRoutingFilter
+          || routing.filter_options.providers.includes(requestedFilters.provider)
+          ? requestedFilters.provider
+          : allModelRoutingFilter,
+        decision: requestedFilters.decision === allModelRoutingFilter
+          || routing.filter_options.egress_decisions.includes(requestedFilters.decision)
+          ? requestedFilters.decision
+          : allModelRoutingFilter,
+      }
+    : defaultFilters;
 
-  const filteredRoutes = useMemo(
-    () => (routing ? filterModelRoutes(routing, filters) : []),
-    [routing, filters],
-  );
-  const effectiveSelectedRouteId = filteredRoutes.some(
-    (route) => route.route_id === selectedRouteId,
-  )
-    ? selectedRouteId
-    : (filteredRoutes[0]?.route_id ?? "");
-
-  // `findModelRouteById` falls back to the unfiltered first route when the
-  // id is not found, so the filtered-empty case is guarded here rather than
-  // relying on that fallback — otherwise a filter that matches nothing would
-  // still render an unfiltered route's details under a "0 visible" header.
-  const selectedRoute = useMemo(
-    () =>
-      routing && filteredRoutes.length > 0
-        ? findModelRouteById(routing, effectiveSelectedRouteId)
-        : null,
-    [routing, filteredRoutes.length, effectiveSelectedRouteId],
-  );
+  const filteredRoutes = routing ? filterModelRoutes(routing, filters) : [];
+  const selectedRoute = selectedRouteId
+    ? filteredRoutes.find((route) => route.route_id === selectedRouteId)
+    : filteredRoutes[0];
   const selectedProvider =
     routing && selectedRoute
       ? (routing.provider_options.find(
@@ -167,14 +207,11 @@ function ReferenceModelRouting({ enabled, tenantId }: { enabled: boolean; tenant
   const estimatedCost = routing ? sumEstimatedModelCost(routing) : 0;
 
   function updateFilter(filterName: keyof ModelRoutingFilters, value: string) {
-    setFilters((current) => ({
-      ...current,
-      [filterName]: value,
-    }));
+    onStateChange({ [filterName]: value, routeId: "" });
   }
 
   function resetFilters() {
-    setFilters(defaultFilters);
+    onStateChange({ ...defaultFilters, routeId: "" });
   }
 
   if (!routing) {
@@ -201,6 +238,15 @@ function ReferenceModelRouting({ enabled, tenantId }: { enabled: boolean; tenant
     );
   }
 
+  if (selectedRouteId && !selectedRoute) {
+    return (
+      <EmptyPanel
+        detail={strings.states.requestedRecord.detail}
+        title={strings.states.requestedRecord.title}
+      />
+    );
+  }
+
   if (!selectedRoute || !selectedProvider) {
     return (
       <EmptyPanel
@@ -218,7 +264,7 @@ function ReferenceModelRouting({ enabled, tenantId }: { enabled: boolean; tenant
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {routing.plant_name} / {routing.scenario} / {routing.tenant_id}
+          {formatContextPath(routing.plant_name, routing.scenario, routing.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="status-pill signal-watch" data-source-badge="reference">
@@ -321,7 +367,7 @@ function ReferenceModelRouting({ enabled, tenantId }: { enabled: boolean; tenant
                   aria-pressed={isSelected}
                   className={`grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-0 border-t border-line/60 bg-transparent px-2.5 py-3.5 text-left text-ink transition-colors first:border-t-0 hover:bg-ink/4 dark:border-white/10 dark:hover:bg-white/6${isSelected ? " bg-signal/10 shadow-[inset_2px_0_0_rgb(var(--signal))] dark:bg-signal/15" : ""}`}
                   key={route.route_id}
-                  onClick={() => setSelectedRouteId(route.route_id)}
+                  onClick={() => onStateChange({ routeId: route.route_id })}
                   type="button"
                 >
                   <span>

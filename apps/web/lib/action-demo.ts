@@ -1,4 +1,4 @@
-import type { PlatformStatus } from "./platform-overview";
+import type { ManufacturingProvenance, PlatformStatus } from "./platform-overview";
 import type { PlatformPolicyDecision } from "./platform-policies";
 
 export type ActionRiskLevel = "low" | "medium" | "high" | "critical";
@@ -67,8 +67,9 @@ export type ActionRegistryFilterOptions = {
 
 export type ManufacturingActionRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   as_of: string;
   registry_status: PlatformStatus;
   schema_version: string;

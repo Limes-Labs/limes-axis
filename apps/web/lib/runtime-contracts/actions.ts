@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ActionRunPersistenceResult, ManufacturingActionRegistry } from "../action-demo";
 import {
   autonomyLevelSchema,
+  manufacturingProvenanceSchema,
   nullableStringSchema,
   overviewMetricSchema,
   parseContract,
@@ -24,8 +25,9 @@ const jsonSchema = z.object({
 }).passthrough();
 const actionRegistry = z.object({
   tenant_id: z.string(),
-  plant_name: z.string(),
-  scenario: z.string(),
+  plant_name: nullableStringSchema,
+  scenario: nullableStringSchema,
+  provenance: manufacturingProvenanceSchema.optional(),
   as_of: z.string(),
   registry_status: platformStatusSchema,
   schema_version: z.string(),

@@ -90,6 +90,7 @@ describe("TenantRegistry loadMore", () => {
     mocks.fetchTenantRegistry.mockResolvedValueOnce(filteredPage);
 
     await user.selectOptions(screen.getByLabelText("Status"), "active");
+    expect(window.location.search).toBe("?status=active");
     expect(
       await screen.findByRole("link", { name: "Display tenant_active_only" }),
     ).toBeInTheDocument();

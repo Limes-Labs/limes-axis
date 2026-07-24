@@ -35,7 +35,13 @@ export function MetricSparkbar({
       <div className="flex items-end gap-1" style={{ height }}>
         {points.map((point, index) => (
           <span
-            className="bar-grow min-w-1 flex-1 rounded-t-[3px] bg-signal/80 dark:bg-signal"
+            className={cn(
+              "bar-grow min-w-1 flex-1 rounded-t-[3px] bg-signal/80 dark:bg-signal",
+              // `flex-1` alone lets a sparse series stretch each bar across the
+              // whole strip: one bucket rendered as a solid full-width slab
+              // rather than a chart, which is what a new tenant sees.
+              "max-w-6",
+            )}
             key={`${point.label}-${index}`}
             style={
               {

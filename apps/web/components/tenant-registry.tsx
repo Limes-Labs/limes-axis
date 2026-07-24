@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
+import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import {
   allTenantFilter,
   fetchTenantRegistry,
@@ -29,6 +30,17 @@ import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 const defaultFilters: TenantRegistryFilters = {
   status: allTenantFilter,
 };
+const tenantUrlSchema = {
+  status: enumUrlField(
+    "status",
+    [allTenantFilter, ...tenantLifecycleStatuses],
+    allTenantFilter,
+  ),
+};
+
+function isTenantLifecycleStatus(value: string): value is TenantLifecycleStatus {
+  return tenantLifecycleStatuses.some((status) => status === value);
+}
 
 /**
  * Cursor-paginated tenant registry read. The first page loads on mount and on
@@ -136,12 +148,17 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
 }
 
 export function TenantRegistry() {
-  const [filters, setFilters] = useState<TenantRegistryFilters>(defaultFilters);
+  const [filters, setFilters] = useConsoleUrlState(tenantUrlSchema);
   const { registry, source, loadMore, loadingMore, loadMoreError } =
     useTenantRegistryPages(filters);
 
   function updateStatus(value: string) {
-    setFilters({ status: value as TenantRegistryFilters["status"] });
+    if (
+      value === allTenantFilter
+      || isTenantLifecycleStatus(value)
+    ) {
+      setFilters({ status: value });
+    }
   }
 
   function resetFilters() {

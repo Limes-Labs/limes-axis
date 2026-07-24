@@ -206,13 +206,17 @@ function PendingActivationPanel() {
 }
 
 export function ConnectorDetail({
+  activeTab,
   entry,
   identitySession,
+  onTabChange,
   registries,
   tenantId,
 }: {
+  activeTab: ConnectorDetailTab;
   entry: ConnectorListEntry;
   identitySession: IdentitySessionReadModel | null;
+  onTabChange: (tab: ConnectorDetailTab) => void;
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
@@ -237,7 +241,11 @@ export function ConnectorDetail({
         <InspectDrawer record={connector} title={manifest.display_name} />
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        if (isConnectorDetailTab(value)) {
+          onTabChange(value);
+        }
+      }}>
         <TabsList>
           <TabsTrigger value="overview">{tabs.overview}</TabsTrigger>
           <TabsTrigger value="schema">{tabs.dataSchema}</TabsTrigger>
@@ -268,4 +276,11 @@ export function ConnectorDetail({
       </Tabs>
     </Card>
   );
+}
+
+export const connectorDetailTabs = ["overview", "schema", "runs", "governance"] as const;
+export type ConnectorDetailTab = typeof connectorDetailTabs[number];
+
+function isConnectorDetailTab(value: string): value is ConnectorDetailTab {
+  return connectorDetailTabs.some((tab) => tab === value);
 }

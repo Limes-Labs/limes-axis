@@ -67,6 +67,8 @@ function buildRegistries(
     runs: "/demo/manufacturing/connectors/runs",
     evidenceInvariants:
       "/demo/manufacturing/connectors/evidence-invariants?tenant_id=tenant_demo_manufacturing",
+    evidenceSnapshots:
+      "/demo/manufacturing/connectors/evidence-invariants/snapshots?tenant_id=tenant_demo_manufacturing",
     ontologyProposals: "/demo/manufacturing/connectors/ontology-proposals",
   };
 

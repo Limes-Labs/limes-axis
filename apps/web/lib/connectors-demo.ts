@@ -1,4 +1,4 @@
-import type { PlatformStatus } from "./platform-overview";
+import type { ManufacturingProvenance, PlatformStatus } from "./platform-overview";
 
 export type ConnectorCredentialRequirements = {
   storage: string;
@@ -54,8 +54,9 @@ export type ConnectorRegistryItem = {
 
 export type ManufacturingConnectorRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -89,8 +90,9 @@ export type ConnectorManifestRecord = {
 
 export type ManufacturingConnectorManifestRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -218,8 +220,9 @@ export type ConnectorCredentialHandle = {
 
 export type ManufacturingConnectorCredentialHandleRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -273,8 +276,9 @@ export type ConnectorCredentialLeaseEvidenceInvariant = {
 
 export type ManufacturingConnectorCredentialLeaseRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -316,8 +320,9 @@ export type ConnectorEgressPolicyEvidenceInvariant = {
 
 export type ManufacturingConnectorEgressPolicyRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -392,8 +397,9 @@ export type ConnectorSyncExecutionResult = {
 
 export type ManufacturingConnectorRunRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -422,8 +428,9 @@ export type ConnectorEvidenceInvariantItem = {
 
 export type ManufacturingConnectorEvidenceInvariantReport = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -434,6 +441,45 @@ export type ManufacturingConnectorEvidenceInvariantReport = {
   invariant_counts: Record<ConnectorEvidenceInvariantType, number>;
   invariants: ConnectorEvidenceInvariantItem[];
   report_notes: string[];
+};
+
+export type ConnectorEvidenceInvariantSnapshotRecord = {
+  tenant_id: string;
+  snapshot_id: string;
+  status: string;
+  connector_id: string | null;
+  requested_by: string;
+  idempotency_key: string;
+  reason: string;
+  invariant_count: number;
+  invariant_counts: Record<string, number>;
+  subject_ids: string[];
+  report_digest_sha256: string;
+  report_hash_algorithm: string;
+  permission_decision: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_event_id: string | null;
+  audit_event_type: string;
+  idempotent_replay: boolean;
+  notes: string[];
+};
+
+export type ManufacturingConnectorEvidenceInvariantSnapshotHistory = {
+  tenant_id: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
+  history_status: PlatformStatus;
+  metrics: {
+    label: string;
+    value: string;
+    detail: string;
+    status: PlatformStatus;
+  }[];
+  snapshots: ConnectorEvidenceInvariantSnapshotRecord[];
+  history_notes: string[];
 };
 
 type ConnectorSnapshotHrefInput = {
@@ -494,8 +540,9 @@ export type ConnectorPromotionPolicyDecision = {
 
 export type ManufacturingConnectorOntologyProposalRegistry = {
   tenant_id: string;
-  plant_name: string;
-  scenario: string;
+  plant_name: string | null;
+  scenario: string | null;
+  provenance?: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;

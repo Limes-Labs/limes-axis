@@ -1916,6 +1916,24 @@ class AxisPersistenceRepository:
             statement = statement.where(DemoReferenceRecord.status == status)
         return self.session.scalars(statement).first()
 
+    def has_demo_reference_records(self, tenant_id: str) -> bool:
+        """Whether any active reference record was ever seeded for this tenant.
+
+        Databases bootstrapped before tenants were registered in ``tenants``
+        hold reference records with no matching registry row. Treating those
+        records as proof of existence keeps such deployments serving instead of
+        answering TENANT_NOT_FOUND for every console after an upgrade.
+        """
+        statement = (
+            select(DemoReferenceRecord.id)
+            .where(
+                DemoReferenceRecord.tenant_id == tenant_id,
+                DemoReferenceRecord.status == "active",
+            )
+            .limit(1)
+        )
+        return self.session.scalars(statement).first() is not None
+
     def create_workflow_run(self, record: WorkflowRunCreate) -> WorkflowRunRecord:
         workflow_run = WorkflowRunRecord(
             tenant_id=record.tenant_id,

@@ -271,6 +271,7 @@ from axis_api.connector_reference import (
     ConnectorReferenceRecordInvalid,
     ConnectorReferenceRecordNotFound,
     get_persisted_manufacturing_connector_registry,
+    require_persisted_manufacturing_connector_registry,
 )
 from axis_api.connector_runs import (
     SYNC_CHECKPOINT_CLAIM_READ_SCOPE,
@@ -360,6 +361,7 @@ from axis_api.identity_session import (
     decode_session_cursor,
     encode_session_cursor,
 )
+from axis_api.manufacturing_metadata import ManufacturingTenantNotFound
 from axis_api.manufacturing_operations import (
     DailyPlantBriefIdempotencyConflict,
     DailyPlantBriefPermissionDenied,
@@ -444,7 +446,6 @@ from axis_api.model_providers import (
 )
 from axis_api.model_routing_reference import (
     ModelRoutingReferenceRecordInvalid,
-    ModelRoutingReferenceRecordNotFound,
     get_persisted_manufacturing_model_routing,
 )
 from axis_api.models import OidcBrowserSession
@@ -2443,6 +2444,23 @@ def create_app(
         openapi_url=None if production else "/openapi.json",
         lifespan=_lifespan,
     )
+
+    @app.exception_handler(ManufacturingTenantNotFound)
+    async def manufacturing_tenant_not_found_handler(
+        _request: Request,
+        exc: ManufacturingTenantNotFound,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "detail": {
+                    "code": AxisErrorCode.TENANT_NOT_FOUND.value,
+                    "message": "The manufacturing tenant is unknown.",
+                    "tenant_id": exc.tenant_id,
+                }
+            },
+        )
+
     validate_refresh_token_encryption_key(resolved_settings)
     app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)
     resolved_rate_limit_backend = rate_limit_backend or build_rate_limit_backend(
@@ -3479,7 +3497,7 @@ def create_app(
     def manufacturing_overview(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingOverview:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -3570,7 +3588,7 @@ def create_app(
     def manufacturing_workflow_console(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingWorkflowConsole:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -3607,7 +3625,7 @@ def create_app(
     def manufacturing_persisted_workflow_runs(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
         state: str | None = Query(default=None, min_length=1),
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ManufacturingWorkflowConsole:
@@ -4193,7 +4211,7 @@ def create_app(
     def manufacturing_agent_registry(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingAgentRegistry:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -4450,7 +4468,7 @@ def create_app(
     def manufacturing_action_registry(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingActionRegistry:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -4491,7 +4509,7 @@ def create_app(
     def manufacturing_connector_registry(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingConnectorRegistry:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -6686,7 +6704,7 @@ def create_app(
     ) -> ConnectorCsvPreviewResult:
         _authorize_connector_tenant_read(preview_request.tenant_id, principal)
         try:
-            registry = get_persisted_manufacturing_connector_registry(
+            registry = require_persisted_manufacturing_connector_registry(
                 repository,
                 tenant_id=preview_request.tenant_id,
             )
@@ -6727,7 +6745,7 @@ def create_app(
     ) -> ConnectorExternalDbPreviewResult:
         _authorize_connector_tenant_read(preview_request.tenant_id, principal)
         try:
-            registry = get_persisted_manufacturing_connector_registry(
+            registry = require_persisted_manufacturing_connector_registry(
                 repository,
                 tenant_id=preview_request.tenant_id,
             )
@@ -7490,7 +7508,7 @@ def create_app(
     def manufacturing_approval_inbox(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingApprovalInbox:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -7660,7 +7678,7 @@ def create_app(
     def manufacturing_audit_explorer(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingAuditExplorer:
         _authorize_tenant_read(tenant_id, principal)
         try:
@@ -7701,7 +7719,7 @@ def create_app(
     def manufacturing_persisted_audit_events(
         repository: PersistenceRepository,
         principal: OidcPrincipalDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
         event_type: str | None = Query(default=None, min_length=1),
         actor_id: str | None = Query(default=None, min_length=1),
         scope: str | None = Query(default=None, min_length=1),
@@ -8426,7 +8444,7 @@ def create_app(
         "/demo/manufacturing/model-routing",
         response_model=ManufacturingModelRouting,
         responses={
-            404: {"description": "Model routing reference record not found"},
+            404: {"description": "Tenant not found"},
             422: {"description": "Model routing reference payload invalid"},
         },
         tags=["demo"],
@@ -8442,16 +8460,6 @@ def create_app(
                 repository,
                 tenant_id=tenant_id,
             )
-        except ModelRoutingReferenceRecordNotFound as exc:
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "code": AxisErrorCode.NOT_FOUND.value,
-                    "message": "Manufacturing model routing reference record not found.",
-                    "tenant_id": tenant_id,
-                    "surface": "model-routing",
-                },
-            ) from exc
         except ModelRoutingReferenceRecordInvalid as exc:
             raise HTTPException(
                 status_code=422,
@@ -8478,7 +8486,7 @@ def create_app(
         principal: OidcPrincipalDependency,
         repository: PersistenceRepository,
         ontology_query_runtime: OntologyQueryRuntimeDependency,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
         limit: int = Query(default=200, ge=1, le=500),
     ) -> ManufacturingOntology:
         try:
@@ -8541,7 +8549,7 @@ def create_app(
         node_id: str,
         principal: OidcPrincipalDependency,
         repository: PersistenceRepository,
-        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        tenant_id: str = Query(min_length=1),
     ) -> ManufacturingOntologyEntityDetail:
         try:
             detail = get_authorized_manufacturing_ontology_entity_detail(

@@ -237,6 +237,7 @@ describe("WorkflowConsole list and filters", () => {
     expect(screen.getByRole("heading", { name: "Supply Fixture Review" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Operations Fixture Brief/ }));
+    expect(window.location.search).toContain("workflow_id=wf_ops_fixture");
     expect(
       screen.getByRole("heading", { name: "Operations Fixture Brief" }),
     ).toBeInTheDocument();
@@ -247,6 +248,7 @@ describe("WorkflowConsole list and filters", () => {
     render(<WorkflowConsole />);
 
     await user.selectOptions(screen.getByLabelText("State"), "waiting_for_approval");
+    expect(window.location.search).toContain("state=waiting_for_approval");
     expect(
       screen.queryByRole("button", { name: /Operations Fixture Brief/ }),
     ).not.toBeInTheDocument();

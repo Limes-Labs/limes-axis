@@ -283,13 +283,23 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
  * mounts. Renders exclusively API-backed rows — empty and unavailable states
  * stay honest, run timelines are never fabricated.
  */
-export function AgentRuns({ agentId }: { agentId: string }) {
-  const [selectedRunId, setSelectedRunId] = useState("");
+export function AgentRuns({
+  agentId,
+  onSelect,
+  selectedRunId,
+}: {
+  agentId: string;
+  onSelect?: (runId: string) => void;
+  selectedRunId?: string;
+}) {
+  const [internalSelectedRunId, setInternalSelectedRunId] = useState("");
+  const resolvedSelectedRunId = selectedRunId ?? internalSelectedRunId;
   const runsQuery = useAxisQuery(agentRunsPath(agentId), { parse: parseAgentRunList });
   const runList = runsQuery.data;
 
-  const selectedRun =
-    runList?.runs.find((run) => run.run_id === selectedRunId) ?? runList?.runs[0] ?? null;
+  const selectedRun = resolvedSelectedRunId
+    ? runList?.runs.find((run) => run.run_id === resolvedSelectedRunId) ?? null
+    : runList?.runs[0] ?? null;
   const deferredCount = runList
     ? runList.runs.filter((run) => isDeferredAgentRunStatus(run.status)).length
     : 0;
@@ -318,6 +328,15 @@ export function AgentRuns({ agentId }: { agentId: string }) {
       <EmptyPanel
         detail={strings.agents.runs.empty.detail}
         title={strings.agents.runs.empty.title}
+      />
+    );
+  }
+
+  if (resolvedSelectedRunId && !selectedRun) {
+    return (
+      <EmptyPanel
+        detail={strings.states.requestedRecord.detail}
+        title={strings.states.requestedRecord.title}
       />
     );
   }
@@ -355,7 +374,12 @@ export function AgentRuns({ agentId }: { agentId: string }) {
               )}
               data-run-id={run.run_id}
               key={run.run_id}
-              onClick={() => setSelectedRunId(run.run_id)}
+              onClick={() => {
+                if (selectedRunId === undefined) {
+                  setInternalSelectedRunId(run.run_id);
+                }
+                onSelect?.(run.run_id);
+              }}
               type="button"
             >
               <span>

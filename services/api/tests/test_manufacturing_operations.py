@@ -28,6 +28,7 @@ from axis_api.persistence import (
     ManufacturingDailyBriefCreate,
     ManufacturingOperationRecordCreate,
     ManufacturingRiskScenarioCreate,
+    TenantCreate,
     WorkflowRunCreate,
 )
 
@@ -41,6 +42,15 @@ def session_factory() -> sessionmaker[Session]:
     )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_scope(factory) as session:
+        AxisPersistenceRepository(session).create_tenant(
+            TenantCreate(
+                tenant_id="tenant_demo_manufacturing",
+                display_name="Ravenna Works",
+                description="Plant Operations Cockpit",
+                created_by="test",
+            )
+        )
     yield factory
     engine.dispose()
 
@@ -136,6 +146,7 @@ def test_query_manufacturing_operations_dataset_filters_by_domain(
         )
 
     assert dataset.tenant_id == "tenant_demo_manufacturing"
+    assert dataset.provenance == "live"
     assert dataset.domains == ["Quality"]
     assert dataset.source_systems == ["QMS"]
     assert dataset.metrics[0].label == "Operational Records"
@@ -162,6 +173,7 @@ def test_manufacturing_operations_endpoint_returns_persisted_records(
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "live"
     assert body["metrics"][1]["label"] == "Action Required"
     assert body["metrics"][1]["value"] == "1"
     assert [record["record_id"] for record in body["records"]] == ["order_rush_4812"]
@@ -295,6 +307,7 @@ def test_build_manufacturing_operations_snapshot_aggregates_persisted_paths(
         )
 
     assert snapshot.tenant_id == "tenant_demo_manufacturing"
+    assert snapshot.provenance == "live"
     assert snapshot.metrics[0].label == "Operation Records"
     assert snapshot.metrics[0].value == "2"
     assert snapshot.metrics[1].label == "Open Workflows"
@@ -335,6 +348,7 @@ def test_manufacturing_operations_snapshot_endpoint_returns_persisted_compositio
     assert response.status_code == 200
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
+    assert body["provenance"] == "live"
     assert body["metrics"][0]["value"] == "2"
     assert body["latest_daily_briefs"][0]["brief_id"] == "brief_20260621_demo"
     assert body["risk_scenarios"][0]["domain"] == "Supply"
@@ -344,6 +358,37 @@ def test_manufacturing_operations_snapshot_endpoint_returns_persisted_compositio
     assert payload_refs["source_record_ids"] == ["order_rush_4812"]
     assert "workflow_id" not in payload_refs
     assert all(value is not None for value in payload_refs.values())
+
+
+def test_manufacturing_operation_views_use_empty_tenant_metadata(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.create_tenant(
+            TenantCreate(
+                tenant_id="tenant_customer_operations",
+                display_name="Bologna Plant",
+                description="",
+                created_by="test",
+            )
+        )
+        dataset = query_manufacturing_operations_dataset(
+            repository,
+            ManufacturingOperationQuery(tenant_id="tenant_customer_operations"),
+        )
+        snapshot = build_manufacturing_operations_snapshot(
+            repository,
+            ManufacturingOperationsSnapshotQuery(
+                tenant_id="tenant_customer_operations"
+            ),
+        )
+
+    for response_model in (dataset, snapshot):
+        assert response_model.plant_name == "Bologna Plant"
+        assert response_model.scenario is None
+        assert response_model.provenance == "empty"
+        assert "Ravenna" not in response_model.model_dump_json()
 
 
 def test_build_manufacturing_notification_center_derives_from_persisted_snapshot(

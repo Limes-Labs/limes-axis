@@ -8,12 +8,14 @@ import type {
   ManufacturingConnectorCredentialLeaseRegistry,
   ManufacturingConnectorEgressPolicyRegistry,
   ManufacturingConnectorEvidenceInvariantReport,
+  ManufacturingConnectorEvidenceInvariantSnapshotHistory,
   ManufacturingConnectorManifestRegistry,
   ManufacturingConnectorOntologyProposalRegistry,
   ManufacturingConnectorRegistry,
   ManufacturingConnectorRunRegistry,
 } from "../connectors-demo";
 import {
+  manufacturingProvenanceSchema,
   nullableStringSchema,
   overviewMetricSchema,
   parseContract,
@@ -120,8 +122,9 @@ const connectorExternalDbPreviewResult = z.object({
 });
 const connectorRegistryHeader = {
   tenant_id: z.string(),
-  plant_name: z.string(),
-  scenario: z.string(),
+  plant_name: nullableStringSchema,
+  scenario: nullableStringSchema,
+  provenance: manufacturingProvenanceSchema.optional(),
   registry_status: platformStatusSchema,
   metrics: z.array(overviewMetricSchema),
 };
@@ -311,6 +314,34 @@ const connectorEvidenceInvariantReport = z.object({
   })),
   report_notes: stringArraySchema,
 });
+const connectorEvidenceInvariantSnapshotHistory = z.object({
+  tenant_id: z.string(),
+  plant_name: nullableStringSchema,
+  scenario: nullableStringSchema,
+  provenance: manufacturingProvenanceSchema.optional(),
+  history_status: platformStatusSchema,
+  metrics: z.array(overviewMetricSchema),
+  snapshots: z.array(z.object({
+    tenant_id: z.string(),
+    snapshot_id: z.string(),
+    status: z.string(),
+    connector_id: nullableStringSchema,
+    requested_by: z.string(),
+    idempotency_key: z.string(),
+    reason: z.string(),
+    invariant_count: z.number(),
+    invariant_counts: z.record(z.string(), z.number()),
+    subject_ids: stringArraySchema,
+    report_digest_sha256: z.string(),
+    report_hash_algorithm: z.string(),
+    permission_decision: permissionDecision,
+    audit_event_id: nullableStringSchema,
+    audit_event_type: z.string(),
+    idempotent_replay: z.boolean(),
+    notes: stringArraySchema,
+  })),
+  history_notes: stringArraySchema,
+});
 const connectorPromotionDecision = z.object({
   status: z.string(),
   allowed: z.boolean(),
@@ -405,6 +436,12 @@ export function parseManufacturingConnectorEvidenceInvariantReport(
   value: unknown,
 ): ManufacturingConnectorEvidenceInvariantReport {
   return parseContract(connectorEvidenceInvariantReport, value);
+}
+
+export function parseManufacturingConnectorEvidenceInvariantSnapshotHistory(
+  value: unknown,
+): ManufacturingConnectorEvidenceInvariantSnapshotHistory {
+  return parseContract(connectorEvidenceInvariantSnapshotHistory, value);
 }
 
 export function parseManufacturingConnectorOntologyProposalRegistry(
