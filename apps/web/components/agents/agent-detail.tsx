@@ -302,7 +302,7 @@ export function AgentDetail({
         title={agent.name}
         trigger={
           <button
-            className="inline-flex w-fit cursor-pointer items-center font-mono text-xs text-muted transition-colors duration-200 hover:text-signal"
+            className="inline-flex min-h-6 w-fit cursor-pointer items-center font-mono text-xs text-muted transition-colors duration-200 hover:text-signal"
             type="button"
           >
             {strings.agents.inspect}

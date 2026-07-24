@@ -32,6 +32,32 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.hasOverflow, JSON.stringify(overflow, null, 2)).toBe(false);
 }
 
+/**
+ * WCAG 2.2 SC 2.5.8 (Target Size, Minimum): standalone controls need at least a
+ * 24x24 CSS px target. Links inline in a sentence are exempt, which is why this
+ * ignores anchors sitting inside a paragraph of prose.
+ */
+async function expectNoUndersizedTargets(page: Page) {
+  const undersized = await page.evaluate(() => {
+    const offenders: string[] = [];
+    for (const element of document.querySelectorAll<HTMLElement>("button, a, [role=button]")) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.height >= 24 && rect.width >= 24) continue;
+      const inlineInProse =
+        element.tagName === "A" && element.closest("p") !== null;
+      if (inlineInProse) continue;
+      offenders.push(
+        `${element.tagName.toLowerCase()} ${Math.round(rect.width)}x${Math.round(rect.height)} ` +
+          `"${(element.textContent ?? "").trim().slice(0, 30)}" .${element.className.toString().slice(0, 70)}`,
+      );
+    }
+    return offenders;
+  });
+
+  expect(undersized, undersized.join("\n")).toEqual([]);
+}
+
 async function expectAxisLightShell(page: Page) {
   const shell = await page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
@@ -167,6 +193,7 @@ test.describe("Axis console smoke", () => {
 
     await expectAxisLightShell(page);
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -198,6 +225,7 @@ test.describe("Axis console smoke", () => {
     );
     expect(reloaded).toBe("rgb(4, 18, 46)");
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
 
     await page.getByRole("button", { name: "Toggle color theme" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -275,6 +303,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("combobox", { name: "Environment" })).toHaveCount(0);
     await expect(page.getByRole("combobox", { name: "Evidence window" })).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
   });
 
   test("routes verified cookie sessions through the real federated logout endpoint", async ({
@@ -493,6 +522,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("No runs recorded — execution flag-gated")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
   });
 
   test("requires the ontology APIs instead of local graph data", async ({ page }) => {
@@ -513,6 +543,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Fallback entity seed")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
   });
 
   test("zooms the mocked ontology graph and opens the entity slide-over in place", async ({
@@ -743,6 +774,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Execution disabled — flag-gated")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
   });
 
   test("requires the approval API instead of local approval decisions", async ({ page }) => {
@@ -760,6 +792,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Expedite supplier batch/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -776,6 +809,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -819,6 +853,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("form", { name: "Platform policy revision" })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -950,6 +985,7 @@ test.describe("Axis console smoke", () => {
     );
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1046,6 +1082,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("− high")).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1063,6 +1100,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /workflow.started/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1079,6 +1117,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: /Supplier Delay Review/ })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1103,6 +1142,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText(`${OPERATIONS_API_PREFIX}/connectors`, { exact: true })).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1121,6 +1161,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1250,6 +1291,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("quality-auditor-role")).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
   });
 
   test("requires the platform tenant API instead of local tenant data", async ({ page }) => {
@@ -1281,6 +1323,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("form", { name: "Tenant quota update" })).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1460,6 +1503,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText(/Tenant suspended\./)).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 
@@ -1509,6 +1553,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Fallback settings seed")).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
+    await expectNoUndersizedTargets(page);
     expect(pageErrors).toEqual([]);
   });
 });

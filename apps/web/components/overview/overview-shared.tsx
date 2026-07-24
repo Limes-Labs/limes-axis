@@ -51,7 +51,7 @@ export function StatusDot({ status }: { status: PlatformStatus }) {
 export function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
-      className="mt-auto inline-flex items-center gap-1.5 pt-1 font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+      className="mt-auto inline-flex min-h-6 items-center gap-1.5 pt-1 font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
       href={href}
     >
       {children}

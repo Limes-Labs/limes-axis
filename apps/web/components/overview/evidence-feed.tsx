@@ -100,7 +100,7 @@ export function EvidenceFeed({
             </span>
             <div className="grid min-w-0 flex-1 gap-0.5">
               <Link
-                className="m-0 w-fit text-sm font-medium break-words text-ink hover:text-signal hover:underline"
+                className="m-0 inline-flex min-h-6 w-fit items-center text-sm font-medium break-words text-ink hover:text-signal hover:underline"
                 href={buildAuditEventHref(event.audit_event_id)}
                 title={copy.viewEvent}
               >

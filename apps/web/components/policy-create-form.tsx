@@ -263,7 +263,7 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Policy created as r{submission.record.revision_number} /{" "}
           {submission.record.policy_version}.{" "}
-          <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${submission.record.policy_id}`}>
+          <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${submission.record.policy_id}`}>
             Open {submission.record.policy_id}
           </Link>
         </p>

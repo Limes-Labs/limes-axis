@@ -206,6 +206,9 @@ from axis_api.connector_execution import (
     connector_sync_execution_runtime_from_settings,
 )
 from axis_api.connector_manifests import (
+    MANIFEST_VALIDATION_BATCH_LIMIT,
+    ConnectorManifestBatchValidationRequest,
+    ConnectorManifestBatchValidationResponse,
     ConnectorManifestConflict,
     ConnectorManifestCreateRequest,
     ConnectorManifestLifecycleRequest,
@@ -217,6 +220,7 @@ from axis_api.connector_manifests import (
     build_connector_manifest_registry,
     record_demo_connector_manifest,
     transition_demo_connector_manifest_lifecycle,
+    validate_connector_manifest_batch,
 )
 from axis_api.connector_manual_imports import (
     ConnectorManualImportCreateRequest,
@@ -4620,8 +4624,43 @@ def create_app(
                     "code": AxisErrorCode.VALIDATION_FAILED.value,
                     "message": exc.message,
                     "reason": exc.reason,
+                    "errors": [error.model_dump() for error in exc.errors],
                 },
             ) from exc
+
+    @operations_router.post(
+        "/connectors/manifests/validation",
+        response_model=ConnectorManifestBatchValidationResponse,
+        responses={
+            403: {"description": "Connector manifest actor binding permission denied"},
+            422: {"description": "Connector manifest validation request failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_manifest_validation(
+        validation_request: ConnectorManifestBatchValidationRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> ConnectorManifestBatchValidationResponse:
+        bound_request = _bind_connector_run_actor(
+            validation_request,
+            principal,
+            actor_field="registered_by",
+        )
+        if len(bound_request.manifests) > MANIFEST_VALIDATION_BATCH_LIMIT:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": (
+                        "Connector manifest validation accepts at most "
+                        f"{MANIFEST_VALIDATION_BATCH_LIMIT} manifests per request."
+                    ),
+                    "reason": "manifest_validation_batch_limit_exceeded",
+                    "maximum": MANIFEST_VALIDATION_BATCH_LIMIT,
+                },
+            )
+        return validate_connector_manifest_batch(repository, bound_request)
 
     @operations_router.post(
         "/connectors/manifests/{connector_id}/lifecycle",

@@ -187,7 +187,7 @@ function CollapsibleSection({
 
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
-      <CollapsibleTrigger className="flex cursor-pointer items-center gap-1.5 bg-transparent p-0">
+      <CollapsibleTrigger className="flex min-h-6 cursor-pointer items-center gap-1.5 bg-transparent p-0">
         <Chevron aria-hidden="true" className="text-muted" size={14} />
         <span className="eyebrow">{label}</span>
       </CollapsibleTrigger>
@@ -396,7 +396,7 @@ function ApprovalDetail({
           title={approval.action}
           trigger={
             <button
-              className="inline-flex w-fit cursor-pointer items-center font-mono text-xs text-muted transition-colors duration-200 hover:text-signal"
+              className="inline-flex min-h-6 w-fit cursor-pointer items-center font-mono text-xs text-muted transition-colors duration-200 hover:text-signal"
               type="button"
             >
               {strings.approvals.sections.inspect}

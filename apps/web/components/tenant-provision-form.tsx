@@ -269,7 +269,7 @@ export function TenantProvisionForm() {
       {submission.phase === "created" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Tenant provisioned.{" "}
-          <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
+          <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
             Open {submission.record.tenant_id}
           </Link>
         </p>
@@ -278,7 +278,7 @@ export function TenantProvisionForm() {
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Idempotent replay: the API returned the existing tenant for this key without creating a
           duplicate.{" "}
-          <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
+          <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
             Open {submission.record.tenant_id}
           </Link>
         </p>

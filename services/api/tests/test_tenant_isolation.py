@@ -516,6 +516,15 @@ def _connector_manifest_body() -> dict:
     }
 
 
+def _connector_manifest_validation_body() -> dict:
+    body = _connector_manifest_body()
+    return {
+        "tenant_id": body.pop("tenant_id"),
+        "registered_by": body.pop("registered_by"),
+        "manifests": [body],
+    }
+
+
 def _connector_manifest_lifecycle_body() -> dict:
     return {
         "tenant_id": TENANT_A,
@@ -712,6 +721,12 @@ ENFORCED_WRITE_CASES: list[tuple[str, str, str, Callable[[], dict]]] = [
         "post",
         "/demo/manufacturing/connectors/manifests",
         _connector_manifest_body,
+    ),
+    (
+        "connector_manifest_validation",
+        "post",
+        "/operations/connectors/manifests/validation",
+        _connector_manifest_validation_body,
     ),
     (
         "action_run",

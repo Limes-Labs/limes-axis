@@ -1,6 +1,8 @@
+from collections import Counter
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -21,11 +23,23 @@ from axis_api.persistence import (
 )
 
 
+class ConnectorManifestFieldError(BaseModel):
+    field_path: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+
 class ConnectorManifestValidationError(ValueError):
-    def __init__(self, message: str, reason: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        reason: str,
+        errors: list[ConnectorManifestFieldError],
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.reason = reason
+        self.errors = errors
 
 
 class ConnectorManifestLifecycleValidationError(ValueError):
@@ -48,15 +62,62 @@ class ConnectorManifestQuery(BaseModel):
     limit: int = Field(default=100, ge=1, le=200)
 
 
-class ConnectorManifestCreateRequest(BaseModel):
+class ConnectorManifestRegistrationDocument(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
-    registered_by: str = Field(min_length=1, max_length=160)
     manifest: dict[str, Any] = Field(default_factory=dict)
     runtime_policy: dict[str, Any] = Field(default_factory=dict)
     preview_sample: dict[str, Any] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
+
+
+class ConnectorManifestCreateRequest(ConnectorManifestRegistrationDocument):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    registered_by: str = Field(min_length=1, max_length=160)
+
+
+MANIFEST_VALIDATION_BATCH_LIMIT = 50
+ConnectorManifestValidationOutcome = Literal[
+    "would_register",
+    "would_replace",
+    "invalid",
+]
+
+
+class ConnectorManifestBatchValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    registered_by: str = Field(min_length=1, max_length=160)
+    manifests: list[Any] = Field(
+        min_length=1,
+        json_schema_extra={"maxItems": MANIFEST_VALIDATION_BATCH_LIMIT},
+    )
+
+
+class ConnectorManifestValidationResult(BaseModel):
+    connector_id: str | None = None
+    outcome: ConnectorManifestValidationOutcome
+    errors: list[ConnectorManifestFieldError] = Field(default_factory=list)
+
+
+class ConnectorManifestValidationSummary(BaseModel):
+    would_register: int = Field(default=0, ge=0)
+    would_replace: int = Field(default=0, ge=0)
+    invalid: int = Field(default=0, ge=0)
+
+
+class ConnectorManifestBatchValidationResponse(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    results: list[ConnectorManifestValidationResult] = Field(default_factory=list)
+    summary: ConnectorManifestValidationSummary
+
+
+@dataclass(frozen=True)
+class ValidatedConnectorManifestRegistration:
+    manifest: ConnectorManifest
+    runtime_policy: ConnectorRuntimePolicy
+    preview_sample: ConnectorPreviewSample
 
 
 class ConnectorManifestLifecycleRequest(BaseModel):
@@ -210,36 +271,16 @@ def record_demo_connector_manifest(
     repository: AxisPersistenceRepository,
     request: ConnectorManifestCreateRequest,
 ) -> ConnectorManifestRecordView:
-    _validate_public_safe_manifest(request)
-    try:
-        manifest = ConnectorManifest.model_validate(request.manifest)
-    except ValidationError as exc:
-        raise ConnectorManifestValidationError(
-            "Connector manifest payload is invalid.",
-            "invalid_manifest_payload",
-        ) from exc
+    validated = validate_connector_manifest_registration(request)
+    manifest = validated.manifest
 
     existing = repository.get_connector_manifest(request.tenant_id, manifest.connector_id)
     if existing is not None:
         raise ConnectorManifestConflict(existing.connector_id)
 
-    try:
-        runtime_policy_model = ConnectorRuntimePolicy.model_validate(request.runtime_policy)
-    except ValidationError as exc:
-        raise ConnectorManifestValidationError(
-            "Connector runtime policy payload is invalid.",
-            "invalid_runtime_policy_payload",
-        ) from exc
-    try:
-        preview_sample_model = ConnectorPreviewSample.model_validate(request.preview_sample)
-    except ValidationError as exc:
-        raise ConnectorManifestValidationError(
-            "Connector preview sample payload is invalid.",
-            "invalid_preview_sample_payload",
-        ) from exc
     manifest_payload = manifest.model_dump(mode="json")
-    runtime_policy = runtime_policy_model.model_dump(mode="json")
-    preview_sample = preview_sample_model.model_dump(mode="json")
+    runtime_policy = validated.runtime_policy.model_dump(mode="json")
+    preview_sample = validated.preview_sample.model_dump(mode="json")
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
@@ -275,6 +316,124 @@ def record_demo_connector_manifest(
         )
     )
     return _record_from_persistence(record)
+
+
+def validate_connector_manifest_registration(
+    request: ConnectorManifestCreateRequest,
+) -> ValidatedConnectorManifestRegistration:
+    errors = _public_safe_manifest_errors(request)
+    validated_models: dict[str, BaseModel] = {}
+    model_specs = (
+        ("manifest", ConnectorManifest, request.manifest, "invalid_manifest_payload"),
+        (
+            "runtime_policy",
+            ConnectorRuntimePolicy,
+            request.runtime_policy,
+            "invalid_runtime_policy_payload",
+        ),
+        (
+            "preview_sample",
+            ConnectorPreviewSample,
+            request.preview_sample,
+            "invalid_preview_sample_payload",
+        ),
+    )
+    for field_name, model_type, payload, reason in model_specs:
+        try:
+            validated_models[field_name] = model_type.model_validate(payload)
+        except ValidationError as exc:
+            errors.extend(_pydantic_field_errors(exc, prefix=field_name, reason=reason))
+
+    if errors:
+        first_error = errors[0]
+        raise ConnectorManifestValidationError(
+            _validation_message(first_error.reason),
+            first_error.reason,
+            errors,
+        )
+
+    return ValidatedConnectorManifestRegistration(
+        manifest=validated_models["manifest"],
+        runtime_policy=validated_models["runtime_policy"],
+        preview_sample=validated_models["preview_sample"],
+    )
+
+
+def validate_connector_manifest_batch(
+    repository: AxisPersistenceRepository,
+    request: ConnectorManifestBatchValidationRequest,
+) -> ConnectorManifestBatchValidationResponse:
+    connector_ids = [_connector_id_from_document(document) for document in request.manifests]
+    duplicate_ids = {
+        connector_id
+        for connector_id, count in Counter(connector_ids).items()
+        if connector_id is not None and count > 1
+    }
+    results: list[ConnectorManifestValidationResult] = []
+
+    for document, connector_id in zip(request.manifests, connector_ids, strict=True):
+        errors: list[ConnectorManifestFieldError] = []
+        registration_request: ConnectorManifestCreateRequest | None = None
+        try:
+            registration_document = ConnectorManifestRegistrationDocument.model_validate(
+                document
+            )
+            registration_request = ConnectorManifestCreateRequest(
+                tenant_id=request.tenant_id,
+                registered_by=request.registered_by,
+                **registration_document.model_dump(),
+            )
+            validated = validate_connector_manifest_registration(registration_request)
+            connector_id = validated.manifest.connector_id
+        except ValidationError as exc:
+            errors.extend(
+                _pydantic_field_errors(
+                    exc,
+                    reason="invalid_manifest_registration_document",
+                )
+            )
+        except ConnectorManifestValidationError as exc:
+            errors.extend(exc.errors)
+
+        if connector_id in duplicate_ids:
+            errors.append(
+                ConnectorManifestFieldError(
+                    field_path="manifest.connector_id",
+                    message=(
+                        "Duplicate connector_id within this manifest validation request."
+                    ),
+                    reason="duplicate_connector_id",
+                )
+            )
+
+        if errors or registration_request is None:
+            results.append(
+                ConnectorManifestValidationResult(
+                    connector_id=connector_id,
+                    outcome="invalid",
+                    errors=errors,
+                )
+            )
+            continue
+
+        existing = repository.get_connector_manifest(request.tenant_id, connector_id)
+        results.append(
+            ConnectorManifestValidationResult(
+                connector_id=connector_id,
+                outcome="would_replace" if existing is not None else "would_register",
+            )
+        )
+
+    summary_counts = Counter(result.outcome for result in results)
+    return ConnectorManifestBatchValidationResponse(
+        tenant_id=request.tenant_id,
+        results=results,
+        summary=ConnectorManifestValidationSummary(
+            would_register=summary_counts["would_register"],
+            would_replace=summary_counts["would_replace"],
+            invalid=summary_counts["invalid"],
+        ),
+    )
 
 
 def transition_demo_connector_manifest_lifecycle(
@@ -458,39 +617,121 @@ def _record_from_persistence(record) -> ConnectorManifestRecordView:
     )
 
 
-def _validate_public_safe_manifest(request: ConnectorManifestCreateRequest) -> None:
+def _public_safe_manifest_errors(
+    request: ConnectorManifestCreateRequest,
+) -> list[ConnectorManifestFieldError]:
     payload = request.model_dump(mode="json")
-    keys = {key for key, _ in _walk_payload(payload)}
-    values = [value for _, value in _walk_payload(payload)]
-    if keys.intersection(RAW_CONNECTION_FIELD_NAMES) or any(
-        marker in value for value in values for marker in RAW_CONNECTION_MARKERS
-    ):
-        raise ConnectorManifestValidationError(
-            "Connector manifest cannot include raw connection material.",
+    entries = list(_walk_payload(payload))
+    errors: list[ConnectorManifestFieldError] = []
+    checks = (
+        (
+            RAW_CONNECTION_FIELD_NAMES,
+            RAW_CONNECTION_MARKERS,
             "raw_connection_field",
-        )
-    if keys.intersection(RAW_QUERY_FIELD_NAMES) or any(
-        marker in value for value in values for marker in RAW_QUERY_MARKERS
-    ):
-        raise ConnectorManifestValidationError(
-            "Connector manifest cannot include raw SQL or query text.",
+            "Connector manifest cannot include raw connection material.",
+        ),
+        (
+            RAW_QUERY_FIELD_NAMES,
+            RAW_QUERY_MARKERS,
             "raw_query_field",
-        )
-    if keys.intersection(RAW_SECRET_FIELD_NAMES):
-        raise ConnectorManifestValidationError(
-            "Connector manifest cannot include raw credential material.",
+            "Connector manifest cannot include raw SQL or query text.",
+        ),
+        (
+            RAW_SECRET_FIELD_NAMES,
+            (),
             "raw_secret_field",
+            "Connector manifest cannot include raw credential material.",
+        ),
+    )
+    for blocked_keys, blocked_markers, reason, message in checks:
+        matching_paths = {
+            path
+            for path, key, value in entries
+            if key in blocked_keys
+            or any(marker in value for marker in blocked_markers)
+        }
+        errors.extend(
+            ConnectorManifestFieldError(
+                field_path=path,
+                message=message,
+                reason=reason,
+            )
+            for path in sorted(matching_paths)
         )
+    return errors
 
 
-def _walk_payload(value: Any) -> Iterator[tuple[str, str]]:
+def _walk_payload(
+    value: Any,
+    path: str = "$",
+) -> Iterator[tuple[str, str, str]]:
     if isinstance(value, dict):
         for key, nested_value in value.items():
             normalized_key = str(key).lower()
-            yield normalized_key, ""
-            yield from _walk_payload(nested_value)
+            nested_path = f"{path}.{key}" if path != "$" else str(key)
+            yield nested_path, normalized_key, ""
+            yield from _walk_payload(nested_value, nested_path)
     elif isinstance(value, list):
-        for nested_value in value:
-            yield from _walk_payload(nested_value)
+        for index, nested_value in enumerate(value):
+            yield from _walk_payload(nested_value, f"{path}[{index}]")
     elif value is not None:
-        yield "", str(value).lower()
+        yield path, "", str(value).lower()
+
+
+def _pydantic_field_errors(
+    error: ValidationError,
+    *,
+    reason: str,
+    prefix: str | None = None,
+) -> list[ConnectorManifestFieldError]:
+    return [
+        ConnectorManifestFieldError(
+            field_path=_field_path(validation_error["loc"], prefix=prefix),
+            message=validation_error["msg"],
+            reason=reason,
+        )
+        for validation_error in error.errors()
+    ]
+
+
+def _field_path(location: tuple[Any, ...], *, prefix: str | None = None) -> str:
+    path = prefix or "$"
+    for part in location:
+        if isinstance(part, int):
+            path = f"{path}[{part}]"
+        elif path == "$":
+            path = str(part)
+        else:
+            path = f"{path}.{part}"
+    return path
+
+
+def _validation_message(reason: str) -> str:
+    return {
+        "raw_connection_field": (
+            "Connector manifest cannot include raw connection material."
+        ),
+        "raw_query_field": "Connector manifest cannot include raw SQL or query text.",
+        "raw_secret_field": (
+            "Connector manifest cannot include raw credential material."
+        ),
+        "invalid_manifest_payload": "Connector manifest payload is invalid.",
+        "invalid_runtime_policy_payload": (
+            "Connector runtime policy payload is invalid."
+        ),
+        "invalid_preview_sample_payload": (
+            "Connector preview sample payload is invalid."
+        ),
+    }[reason]
+
+
+def _connector_id_from_document(document: Any) -> str | None:
+    if not isinstance(document, dict):
+        return None
+    manifest = document.get("manifest")
+    if not isinstance(manifest, dict):
+        return None
+    connector_id = manifest.get("connector_id")
+    if not isinstance(connector_id, str) or not connector_id.strip():
+        return None
+    return connector_id

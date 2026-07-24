@@ -220,7 +220,7 @@ export function AccountPanel({
           </a>
           <Collapsible onOpenChange={setDeveloperBridgeOpen} open={developerBridgeOpen}>
             <CollapsibleTrigger
-              className="cursor-pointer justify-self-start text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
+              className="inline-flex min-h-6 cursor-pointer items-center justify-self-start text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
               type="button"
             >
               Developer access

@@ -93,7 +93,7 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
       </div>
       <button
         aria-expanded={detailsOpen}
-        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-ink"
+        className="mt-3 inline-flex min-h-6 items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-ink"
         type="button"
         onClick={() => setDetailsOpen((open) => !open)}
       >

@@ -223,7 +223,7 @@ export function PolicyRegistry() {
               {policies.map((policy) => (
                 <tr key={`${policy.policy_id}-${policy.revision_number}`}>
                   <td>
-                    <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${policy.policy_id}`}>
+                    <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${policy.policy_id}`}>
                       {policy.display_name}
                     </Link>
                     <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policy.policy_id}</p>

@@ -269,7 +269,7 @@ export function TenantRegistry() {
               {tenants.map((tenant) => (
                 <tr key={tenant.tenant_id}>
                   <td>
-                    <Link className="font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${tenant.tenant_id}`}>
+                    <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${tenant.tenant_id}`}>
                       {tenant.display_name}
                     </Link>
                     <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenant.tenant_id}</p>

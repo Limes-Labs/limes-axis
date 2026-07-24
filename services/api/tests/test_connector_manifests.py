@@ -1,11 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
 from axis_api.connector_manifests import (
+    MANIFEST_VALIDATION_BATCH_LIMIT,
     ConnectorManifestCreateRequest,
     ConnectorManifestLifecycleRequest,
     ConnectorManifestLifecycleValidationError,
@@ -16,7 +17,7 @@ from axis_api.connector_manifests import (
 )
 from axis_api.db import session_scope
 from axis_api.main import create_app
-from axis_api.models import Base
+from axis_api.models import AuditEvent, Base, ConnectorManifestRecord
 from axis_api.persistence import AxisPersistenceRepository
 
 
@@ -119,6 +120,28 @@ def live_capable_external_db_manifest_request() -> ConnectorManifestCreateReques
         "Manifest is registered live-capable but not live-enabled until lifecycle approval."
     ]
     return ConnectorManifestCreateRequest.model_validate(request_payload)
+
+
+def manifest_validation_document(
+    request: ConnectorManifestCreateRequest,
+) -> dict:
+    payload = request.model_dump()
+    payload.pop("tenant_id")
+    payload.pop("registered_by")
+    return payload
+
+
+def manifest_validation_request(
+    *requests: ConnectorManifestCreateRequest,
+) -> dict:
+    return {
+        "tenant_id": "tenant_demo_manufacturing",
+        "registered_by": "platform-connector-owner-role",
+        "manifests": [
+            manifest_validation_document(request)
+            for request in requests
+        ],
+    }
 
 
 def test_build_connector_manifest_registry_maps_persisted_records(
@@ -249,6 +272,219 @@ def test_create_connector_manifest_endpoint_rejects_duplicate_manifest(
     assert second.status_code == 409
     assert second.json()["detail"]["reason"] == "manifest_already_exists"
     assert second.json()["detail"]["connector_id"] == "external_db_shift_orders"
+
+
+def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    with session_scope(session_factory) as session:
+        record_demo_connector_manifest(
+            AxisPersistenceRepository(session),
+            external_db_manifest_request(),
+        )
+    client = TestClient(app)
+    new_request_payload = external_db_manifest_request().model_dump()
+    new_request_payload["manifest"]["connector_id"] = "external_db_new_orders"
+    new_request_payload["manifest"]["display_name"] = "New orders database mirror"
+    new_request = ConnectorManifestCreateRequest.model_validate(new_request_payload)
+    invalid_document = manifest_validation_document(external_db_manifest_request())
+    invalid_document["manifest"].pop("connector_id")
+    request = manifest_validation_request(
+        new_request,
+        external_db_manifest_request(),
+    )
+    request["manifests"].append(invalid_document)
+
+    response = client.post(
+        "/operations/connectors/manifests/validation",
+        json=request,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [result["connector_id"] for result in body["results"]] == [
+        "external_db_new_orders",
+        "external_db_shift_orders",
+        None,
+    ]
+    assert [result["outcome"] for result in body["results"]] == [
+        "would_register",
+        "would_replace",
+        "invalid",
+    ]
+    assert body["results"][2]["errors"] == [
+        {
+            "field_path": "manifest.connector_id",
+            "message": "Field required",
+            "reason": "invalid_manifest_payload",
+        }
+    ]
+    assert body["summary"] == {
+        "would_register": 1,
+        "would_replace": 1,
+        "invalid": 1,
+    }
+
+
+def test_validate_connector_manifests_has_no_database_side_effects(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/operations/connectors/manifests/validation",
+        json=manifest_validation_request(external_db_manifest_request()),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["results"][0]["outcome"] == "would_register"
+    with session_scope(session_factory) as session:
+        assert session.scalar(
+            select(func.count()).select_from(ConnectorManifestRecord)
+        ) == 0
+        assert session.scalar(select(func.count()).select_from(AuditEvent)) == 0
+
+
+def test_validate_connector_manifests_rejects_duplicate_connector_ids(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = manifest_validation_request(
+        external_db_manifest_request(),
+        external_db_manifest_request(),
+    )
+
+    response = client.post(
+        "/operations/connectors/manifests/validation",
+        json=request,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [result["outcome"] for result in body["results"]] == [
+        "invalid",
+        "invalid",
+    ]
+    assert body["summary"]["invalid"] == 2
+    for result in body["results"]:
+        assert result["connector_id"] == "external_db_shift_orders"
+        assert result["errors"] == [
+            {
+                "field_path": "manifest.connector_id",
+                "message": (
+                    "Duplicate connector_id within this manifest validation request."
+                ),
+                "reason": "duplicate_connector_id",
+            }
+        ]
+
+
+def test_validate_connector_manifests_rejects_over_batch_limit(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    document = manifest_validation_document(external_db_manifest_request())
+    request = {
+        "tenant_id": "tenant_demo_manufacturing",
+        "registered_by": "platform-connector-owner-role",
+        "manifests": [
+            {
+                **document,
+                "manifest": {
+                    **document["manifest"],
+                    "connector_id": f"external_db_{index}",
+                },
+            }
+            for index in range(MANIFEST_VALIDATION_BATCH_LIMIT + 1)
+        ],
+    }
+
+    response = client.post(
+        "/operations/connectors/manifests/validation",
+        json=request,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "code": "VALIDATION_FAILED",
+        "message": (
+            "Connector manifest validation accepts at most "
+            f"{MANIFEST_VALIDATION_BATCH_LIMIT} manifests per request."
+        ),
+        "reason": "manifest_validation_batch_limit_exceeded",
+        "maximum": MANIFEST_VALIDATION_BATCH_LIMIT,
+    }
+
+
+def test_manifest_reported_valid_registers_through_real_endpoint(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    registration_request = external_db_manifest_request()
+
+    validation = client.post(
+        "/operations/connectors/manifests/validation",
+        json=manifest_validation_request(registration_request),
+    )
+    registration = client.post(
+        "/demo/manufacturing/connectors/manifests",
+        json=registration_request.model_dump(),
+    )
+
+    assert validation.status_code == 200
+    assert validation.json()["results"][0]["outcome"] == "would_register"
+    assert registration.status_code == 201
+    assert registration.json()["connector_id"] == (
+        validation.json()["results"][0]["connector_id"]
+    )
+
+
+def test_manifest_validation_failure_matches_real_registration_reason(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    registration_request = external_db_manifest_request().model_dump()
+    registration_request["manifest"].pop("connector_id")
+    validation_request = {
+        "tenant_id": registration_request.pop("tenant_id"),
+        "registered_by": registration_request.pop("registered_by"),
+        "manifests": [registration_request],
+    }
+
+    validation = client.post(
+        "/operations/connectors/manifests/validation",
+        json=validation_request,
+    )
+    registration = client.post(
+        "/operations/connectors/manifests",
+        json={
+            "tenant_id": validation_request["tenant_id"],
+            "registered_by": validation_request["registered_by"],
+            **registration_request,
+        },
+    )
+
+    assert validation.status_code == 200
+    assert validation.json()["results"][0]["outcome"] == "invalid"
+    assert registration.status_code == 422
+    assert validation.json()["results"][0]["errors"] == (
+        registration.json()["detail"]["errors"]
+    )
+    assert validation.json()["results"][0]["errors"][0]["reason"] == (
+        registration.json()["detail"]["reason"]
+    )
 
 
 def test_transition_connector_manifest_lifecycle_marks_active_preview(
@@ -590,6 +826,8 @@ def test_openapi_exposes_connector_manifest_endpoints() -> None:
     assert "/demo/manufacturing/connectors/manifests" in paths
     assert "get" in paths["/demo/manufacturing/connectors/manifests"]
     assert "post" in paths["/demo/manufacturing/connectors/manifests"]
+    assert "/operations/connectors/manifests/validation" in paths
+    assert "post" in paths["/operations/connectors/manifests/validation"]
     assert (
         "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle" in paths
     )
