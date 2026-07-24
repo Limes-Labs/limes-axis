@@ -151,6 +151,33 @@ const pages = {
 
 export type PageKey = keyof typeof pages;
 
+/** Route-level boundaries: render error, unmatched URL, root-layout failure. */
+const routeError = {
+  eyebrow: "Console",
+  title: "Something went wrong",
+  subtitle: "This screen stopped responding. The rest of the console still works.",
+  panelTitle: "This screen could not be displayed",
+  detail:
+    "Axis stopped rendering this page to avoid showing an incomplete or misleading view. Retrying reloads just this screen.",
+} as const;
+
+const notFound = {
+  eyebrow: "Console",
+  title: "Page not found",
+  subtitle: "That address does not match anything on this deployment.",
+  panelTitle: "Nothing lives at this address",
+  detail:
+    "The link may be out of date, or the record may belong to a different tenant. Start again from the overview.",
+  action: "Go to overview",
+} as const;
+
+const globalError = {
+  title: "Axis Console could not start",
+  detail:
+    "The console failed before it could load. Reload the page; if this keeps happening, quote the reference below to your platform team.",
+  action: "Reload the console",
+} as const;
+
 const commandMenu = {
   placeholder: "Search pages, entities, actions",
   empty: "No matching command.",
@@ -592,9 +619,17 @@ const connectors = {
 const overview = {
   hero: {
     error: {
-      title: "Operations API unavailable",
+      title: "Operations data could not be loaded",
       detail:
-        "Axis did not receive API-backed overview records. Local fallback overview records are disabled.",
+        "Axis only shows records it has actually recorded, so nothing is displayed until the connection to the platform recovers.",
+    },
+    /* Each label names the persisted dataset the number is read from, so an
+       operator can tell what is being counted without opening the page. */
+    facts: {
+      openWorkflows: "Open workflows",
+      pendingApprovals: "Pending approvals",
+      operationRecords: "Operation records",
+      recentAudit: "Audit events (latest)",
     },
   },
   needsAttention: {
@@ -617,7 +652,11 @@ const overview = {
   posture: {
     agents: { label: "Agents", link: "Manage agents" },
     workflows: { label: "Workflows", link: "Open workflows" },
-    connectors: { label: "Connectors", link: "Manage connectors" },
+    connectors: {
+      label: "Connector activity",
+      link: "Manage connectors",
+      detail: "Connector events in the latest audit window",
+    },
     policies: { label: "Policies", link: "Review policies" },
     models: { label: "Models", link: "View routing" },
     unavailable: "Unavailable",
@@ -723,6 +762,11 @@ const models = {
       title: "Routing API returned no records",
       detail: "The model routing API responded without route records for this tenant.",
     },
+    noMatch: {
+      title: "No routes match the current filters",
+      detail: "Adjust or reset the domain, provider and decision filters to see routing telemetry.",
+      reset: "Reset filters",
+    },
   },
   live: {
     invocationsError: {
@@ -810,9 +854,10 @@ const simulation = {
       "Axis did not receive API-backed replay artifacts. Local fallback replay records are disabled.",
   },
   noArtifacts: {
-    title: "Replay API returned no artifacts",
-    detail: "The replay API responded without simulation artifacts for this tenant.",
+    title: "No replay history yet",
+    detail: "Replay previews will appear after this tenant has governed workflow history.",
   },
+  noPolicyResult: "No policy result recorded for this replay.",
 } as const;
 
 /** Guided-setup checklist copy for empty and partially onboarded tenants. */
@@ -1073,6 +1118,9 @@ const demoBadge = {
 export const strings = {
   nav,
   commandMenu,
+  routeError,
+  notFound,
+  globalError,
   demoBadge,
   agents,
   approvals,
@@ -1088,6 +1136,10 @@ export const strings = {
   workflows,
   states: {
     loading: "Loading…",
+    retry: "Try again",
+    technicalDetails: "Technical details",
+    /** Correlation id an operator can quote to support. */
+    reference: "Reference",
     error: {
       title: "This data could not be loaded",
       detail: "The console could not reach the platform API. Check your connection and try again.",

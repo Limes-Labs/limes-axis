@@ -8,6 +8,15 @@ const mocks = vi.hoisted(() => ({
   fetchPlatformPolicyDetail: vi.fn(),
 }));
 
+vi.mock("@/lib/use-console-tenant-scope", () => ({
+  IDENTITY_SESSION_ENDPOINT: "/identity/session",
+  useConsoleTenantScope: () => ({
+    identity: { data: null, source: "api" },
+    tenantId: "tenant_demo_manufacturing",
+    tenantQueriesEnabled: true,
+  }),
+}));
+
 vi.mock("@/lib/platform-policies", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/platform-policies")>()),
   fetchPlatformPolicyDetail: mocks.fetchPlatformPolicyDetail,
@@ -77,6 +86,17 @@ describe("PolicyDetail tabs", () => {
   beforeEach(() => {
     mocks.fetchPlatformPolicyDetail.mockReset();
     mocks.fetchPlatformPolicyDetail.mockResolvedValue(detailFixture);
+  });
+
+  it("requests and validates the verified tenant scope", async () => {
+    render(<PolicyDetail policyId="deny_critical_actions" />);
+
+    await screen.findByRole("heading", { name: "Deny critical actions" });
+    expect(mocks.fetchPlatformPolicyDetail).toHaveBeenCalledWith(
+      "deny_critical_actions",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      "tenant_demo_manufacturing",
+    );
   });
 
   it("keeps header and KPIs above tabs and defaults to Conditions", async () => {

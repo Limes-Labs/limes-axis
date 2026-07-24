@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { strings } from "@/lib/strings";
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
@@ -45,13 +46,16 @@ test.describe("Axis live overview demo", () => {
     // Single page header + slim hero: the cockpit name renders exactly once.
     await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
     await expect(page.getByText("Plant Operations Cockpit")).toHaveCount(1);
-    await expect(page.locator(".ops-page-subtitle")).toContainText("Ravenna Works");
+    await expect(page.locator("[data-hero-subtitle]")).toContainText("Ravenna Works");
 
     // The hero audit count and the evidence feed read the same registry.
     // "—" is the placeholder while the audit events query is still loading.
     await expect(page.getByTestId("hero-audit-count")).not.toHaveText("—");
     const heroAuditCount = await page.getByTestId("hero-audit-count").innerText();
-    await expect(page.getByText(`${heroAuditCount.trim()} recent events`)).toBeVisible();
+    const visibleAuditCount = Math.min(Number(heroAuditCount.trim()), 10);
+    await expect(
+      page.getByText(`Showing ${visibleAuditCount} of ${heroAuditCount.trim()}`),
+    ).toBeVisible();
 
     // Needs-attention strip with inline decision entry points.
     await expect(page.getByText("Needs attention")).toBeVisible();
@@ -85,8 +89,7 @@ test.describe("Axis live overview demo", () => {
     await expect(page.getByRole("heading", { name: "Domain graph" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Persisted routing posture" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Feedback environment" })).toHaveCount(0);
-    await expect(page.getByText("Local fallback overview records are disabled.")).toHaveCount(0);
-    await expect(page.getByText("Operations API unavailable")).toHaveCount(0);
+    await expect(page.getByText(strings.overview.hero.error.title)).toHaveCount(0);
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);

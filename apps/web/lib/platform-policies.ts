@@ -149,8 +149,15 @@ export const platformPolicyPrecedenceSteps = [
   "When no active policy matches the context, the decision is default allow.",
 ];
 
-export function buildPlatformPoliciesPath(filters: PlatformPolicyRegistryFilters): string {
+export function buildPlatformPoliciesPath(
+  filters: PlatformPolicyRegistryFilters,
+  tenantId?: string,
+): string {
   const params = new URLSearchParams();
+
+  if (tenantId) {
+    params.set("tenant_id", tenantId);
+  }
 
   if (filters.scope !== allPolicyFilter) {
     params.set("scope", filters.scope);
@@ -164,8 +171,9 @@ export function buildPlatformPoliciesPath(filters: PlatformPolicyRegistryFilters
   return query ? `${platformPoliciesPath}?${query}` : platformPoliciesPath;
 }
 
-export function buildPlatformPolicyDetailPath(policyId: string): string {
-  return `${platformPoliciesPath}/${encodeURIComponent(policyId)}`;
+export function buildPlatformPolicyDetailPath(policyId: string, tenantId?: string): string {
+  const path = `${platformPoliciesPath}/${encodeURIComponent(policyId)}`;
+  return tenantId ? `${path}?${new URLSearchParams({ tenant_id: tenantId })}` : path;
 }
 
 export function buildPlatformPolicyRevisionsPath(policyId: string): string {
@@ -847,8 +855,9 @@ export async function revisePlatformPolicy(
 export async function fetchPlatformPolicyDetail(
   policyId: string,
   options: AxisFetchOptions = {},
+  tenantId?: string,
 ): Promise<PlatformPolicyDetail | null> {
-  const path = buildPlatformPolicyDetailPath(policyId);
+  const path = buildPlatformPolicyDetailPath(policyId, tenantId);
   const response = await axisFetch(path, options);
 
   if (response.status === 404) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, CircleHelp, RefreshCw, Search, ShieldCheck } from "lucide-react";
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
@@ -32,16 +32,25 @@ type TopbarPanel = "notifications" | "help" | "account" | null;
 
 export function ConsoleTopbar({
   sourceLabel,
-  evidenceLabel,
 }: {
+  /**
+   * Pre-formatted status text from callers that pre-date `SourcePill`
+   * (`ConsolePage`'s prop is a plain string, so the tone can't be derived
+   * from a real `source`/`hasData` pair here). Rendered in the neutral
+   * "checking" tone rather than a hardcoded success green, so a caller
+   * surfacing an unavailable API doesn't read as a false-positive success.
+   */
   sourceLabel?: string;
-  evidenceLabel?: string;
 }) {
   const { apiStatus, triggerRefresh } = useConsole();
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
   const { session } = useOidcConsoleSession();
-  const { data: identitySession, isUnavailable: identitySessionUnavailable } =
+  const {
+    data: identitySession,
+    isUnavailable: identitySessionUnavailable,
+    source: identitySessionSource,
+  } =
     useAxisQuery<IdentitySessionReadModel>("/identity/session", {
       parse: parseIdentitySessionReadModel,
     });
@@ -53,19 +62,14 @@ export function ConsoleTopbar({
       tenantId ?? DEMO_TENANT_ID,
     ),
     {
-      enabled: tenantId !== null,
+      enabled: identitySessionSource === "api" && tenantId !== null,
       expectedTenantId: tenantId ?? undefined,
       parse: parseManufacturingNotificationCenter,
     },
   );
 
-  const notificationCount = useMemo(() => {
-    if (!notificationCenter) {
-      return 0;
-    }
-
-    return Math.min(9, notificationCenter.unread_count);
-  }, [notificationCenter]);
+  const notificationCount = notificationCenter?.unread_count ?? 0;
+  const notificationBadge = notificationCount > 9 ? "9+" : notificationCount;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -118,10 +122,7 @@ export function ConsoleTopbar({
           tenantId={tenantId ?? DEMO_TENANT_ID}
         />
         {sourceLabel ? (
-          <span className="status-pill signal-ready">{sourceLabel}</span>
-        ) : null}
-        {evidenceLabel ? (
-          <span className="status-pill signal-ready">{evidenceLabel}</span>
+          <span className="status-pill status-checking">{sourceLabel}</span>
         ) : null}
       </div>
       <div
@@ -163,7 +164,7 @@ export function ConsoleTopbar({
           <Bell size={17} />
           {notificationCount > 0 ? (
             <span className="absolute top-1 right-1 grid h-[14px] min-w-[14px] place-items-center rounded-full border border-surface bg-positive px-0.5 font-mono text-[9px] leading-none font-extrabold text-white">
-              {notificationCount}
+              {notificationBadge}
             </span>
           ) : null}
         </button>
@@ -212,6 +213,8 @@ export function ConsoleTopbar({
         onClose={() => setCommandMenuOpen(false)}
         onRefresh={triggerRefresh}
         open={commandMenuOpen}
+        tenantId={tenantId}
+        tenantQueriesEnabled={identitySessionSource === "api" && tenantId !== null}
       />
     </header>
   );

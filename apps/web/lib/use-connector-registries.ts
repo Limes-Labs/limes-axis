@@ -10,7 +10,6 @@ import type {
   ManufacturingConnectorRegistry,
   ManufacturingConnectorRunRegistry,
 } from "./connectors-demo";
-import { CONNECTOR_TENANT_ID } from "./connectors-console";
 import {
   parseManufacturingConnectorCredentialHandleRegistry,
   parseManufacturingConnectorCredentialLeaseRegistry,
@@ -22,6 +21,7 @@ import {
   parseManufacturingConnectorRunRegistry,
 } from "./runtime-contracts/connectors";
 import { useAxisQuery } from "./use-axis-query";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "./tenant-scope";
 
 /*
  * One `useAxisQuery` per endpoint the rebuilt connector console actually
@@ -39,41 +39,58 @@ export const CONNECTOR_ENDPOINTS = {
   credentialLeases: "/demo/manufacturing/connectors/credential-leases",
   egressPolicies: "/demo/manufacturing/connectors/egress-policies",
   runs: "/demo/manufacturing/connectors/runs",
-  evidenceInvariants:
-    `/demo/manufacturing/connectors/evidence-invariants?tenant_id=${CONNECTOR_TENANT_ID}`,
+  evidenceInvariants: "/demo/manufacturing/connectors/evidence-invariants",
   ontologyProposals: "/demo/manufacturing/connectors/ontology-proposals",
 } as const;
 
-export function useConnectorRegistries() {
-  const registry = useAxisQuery<ManufacturingConnectorRegistry>(CONNECTOR_ENDPOINTS.registry, {
-    parse: parseManufacturingConnectorRegistry,
-  });
+export function useConnectorRegistries(tenantId: string | null, enabled: boolean) {
+  // Hooks must receive a stable path even while identity is unresolved. The
+  // query gate guarantees the placeholder demo path is never requested until
+  // the identity API has explicitly selected that tenant.
+  const scopedPath = (path: string) =>
+    buildTenantScopedPath(path, tenantId ?? DEMO_TENANT_ID);
+  const queryOptions = {
+    enabled: enabled && tenantId !== null,
+    expectedTenantId: tenantId ?? undefined,
+  };
+
+  const registry = useAxisQuery<ManufacturingConnectorRegistry>(
+    scopedPath(CONNECTOR_ENDPOINTS.registry),
+    {
+      ...queryOptions,
+      parse: parseManufacturingConnectorRegistry,
+    },
+  );
   const manifests = useAxisQuery<ManufacturingConnectorManifestRegistry>(
-    CONNECTOR_ENDPOINTS.manifests,
-    { parse: parseManufacturingConnectorManifestRegistry },
+    scopedPath(CONNECTOR_ENDPOINTS.manifests),
+    { ...queryOptions, parse: parseManufacturingConnectorManifestRegistry },
   );
   const credentialHandles = useAxisQuery<ManufacturingConnectorCredentialHandleRegistry>(
-    CONNECTOR_ENDPOINTS.credentialHandles,
-    { parse: parseManufacturingConnectorCredentialHandleRegistry },
+    scopedPath(CONNECTOR_ENDPOINTS.credentialHandles),
+    { ...queryOptions, parse: parseManufacturingConnectorCredentialHandleRegistry },
   );
   const credentialLeases = useAxisQuery<ManufacturingConnectorCredentialLeaseRegistry>(
-    CONNECTOR_ENDPOINTS.credentialLeases,
-    { parse: parseManufacturingConnectorCredentialLeaseRegistry },
+    scopedPath(CONNECTOR_ENDPOINTS.credentialLeases),
+    { ...queryOptions, parse: parseManufacturingConnectorCredentialLeaseRegistry },
   );
   const egressPolicies = useAxisQuery<ManufacturingConnectorEgressPolicyRegistry>(
-    CONNECTOR_ENDPOINTS.egressPolicies,
-    { parse: parseManufacturingConnectorEgressPolicyRegistry },
+    scopedPath(CONNECTOR_ENDPOINTS.egressPolicies),
+    { ...queryOptions, parse: parseManufacturingConnectorEgressPolicyRegistry },
   );
-  const runs = useAxisQuery<ManufacturingConnectorRunRegistry>(CONNECTOR_ENDPOINTS.runs, {
-    parse: parseManufacturingConnectorRunRegistry,
-  });
+  const runs = useAxisQuery<ManufacturingConnectorRunRegistry>(
+    scopedPath(CONNECTOR_ENDPOINTS.runs),
+    {
+      ...queryOptions,
+      parse: parseManufacturingConnectorRunRegistry,
+    },
+  );
   const evidenceInvariants = useAxisQuery<ManufacturingConnectorEvidenceInvariantReport>(
-    CONNECTOR_ENDPOINTS.evidenceInvariants,
-    { parse: parseManufacturingConnectorEvidenceInvariantReport },
+    scopedPath(CONNECTOR_ENDPOINTS.evidenceInvariants),
+    { ...queryOptions, parse: parseManufacturingConnectorEvidenceInvariantReport },
   );
   const ontologyProposals = useAxisQuery<ManufacturingConnectorOntologyProposalRegistry>(
-    CONNECTOR_ENDPOINTS.ontologyProposals,
-    { parse: parseManufacturingConnectorOntologyProposalRegistry },
+    scopedPath(CONNECTOR_ENDPOINTS.ontologyProposals),
+    { ...queryOptions, parse: parseManufacturingConnectorOntologyProposalRegistry },
   );
 
   return {

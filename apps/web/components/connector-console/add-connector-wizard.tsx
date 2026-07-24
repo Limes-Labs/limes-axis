@@ -24,7 +24,6 @@ import {
   buildExternalDbPreviewRequest,
   buildManifestCreateRequest,
   CONNECTOR_CONSOLE_ACTOR,
-  CONNECTOR_TENANT_ID,
   deriveConnectorId,
   parseCsvText,
   type ParsedCsv,
@@ -34,14 +33,13 @@ import type {
   ConnectorExternalDbPreviewResult,
   ConnectorRegistryItem,
 } from "@/lib/connectors-demo";
+import { formatNumber } from "@/lib/format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import {
   parseConnectorCsvPreviewResult,
   parseConnectorExternalDbPreviewResult,
 } from "@/lib/runtime-contracts/connectors";
 import { strings } from "@/lib/strings";
-import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
-import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /*
@@ -112,22 +110,22 @@ function IssueList({ title, issues }: { title: string; issues: string[] }) {
 
 export function AddConnectorWizard({
   connectors,
+  identitySession,
   open,
   onOpenChange,
   onCreated,
+  tenantId,
 }: {
   connectors: ConnectorRegistryItem[];
+  identitySession: IdentitySessionReadModel | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  tenantId: string;
 }) {
   const copy = strings.connectors.wizard;
   const { push } = useToast();
   const { session } = useOidcConsoleSession();
-  const { data: identitySession } = useAxisQuery<IdentitySessionReadModel>(
-    "/identity/session",
-    { parse: parseIdentitySessionReadModel },
-  );
 
   const [step, setStep] = useState<WizardStep>("type");
   const [choice, setChoice] = useState<ConnectorChoice>("file_csv");
@@ -246,7 +244,7 @@ export function AddConnectorWizard({
         method: "POST",
         session,
         body: {
-          tenant_id: CONNECTOR_TENANT_ID,
+          tenant_id: tenantId,
           connector_id: template.manifest.connector_id,
           file_name: csvFileName,
           csv_content: csvText,
@@ -256,12 +254,17 @@ export function AddConnectorWizard({
         setPreviewFailed(true);
         return;
       }
-      setCsvPreview(decodeAxisJson(
+      const preview = decodeAxisJson(
         CSV_PREVIEW_ENDPOINT,
         await response.json(),
         parseConnectorCsvPreviewResult,
         response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
-      ));
+      );
+      if (preview.tenant_id !== tenantId) {
+        setPreviewFailed(true);
+        return;
+      }
+      setCsvPreview(preview);
     } catch {
       setPreviewFailed(true);
     } finally {
@@ -280,7 +283,7 @@ export function AddConnectorWizard({
         method: "POST",
         session,
         body: buildExternalDbPreviewRequest({
-          tenantId: CONNECTOR_TENANT_ID,
+          tenantId,
           connectorId: template.manifest.connector_id,
           connectionProfileId: dbForm.connectionProfileId,
           schemaName: dbForm.schemaName,
@@ -293,12 +296,17 @@ export function AddConnectorWizard({
         setPreviewFailed(true);
         return;
       }
-      setDbPreview(decodeAxisJson(
+      const preview = decodeAxisJson(
         DB_PREVIEW_ENDPOINT,
         await response.json(),
         parseConnectorExternalDbPreviewResult,
         response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
-      ));
+      );
+      if (preview.tenant_id !== tenantId) {
+        setPreviewFailed(true);
+        return;
+      }
+      setDbPreview(preview);
     } catch {
       setPreviewFailed(true);
     } finally {
@@ -345,7 +353,7 @@ export function AddConnectorWizard({
         method: "POST",
         session,
         body: buildManifestCreateRequest({
-          tenantId: CONNECTOR_TENANT_ID,
+          tenantId,
           registeredBy: identitySession?.actor_id ?? CONNECTOR_CONSOLE_ACTOR,
           template,
           connectorId: connectorId.trim(),
@@ -456,6 +464,7 @@ export function AddConnectorWizard({
               <>
                 <Field label={copy.csvStep.template}>
                   <Select
+                    disabled={previewing}
                     onChange={(event) => {
                       setCsvTemplateId(event.target.value);
                       setCsvPreview(null);
@@ -504,9 +513,9 @@ export function AddConnectorWizard({
                           : copy.csvStep.blockedTitle}
                       </span>
                       <span className="text-sm text-muted">
-                        {csvPreview.record_count} {copy.csvStep.rows} /{" "}
-                        {csvPreview.accepted_record_count} {copy.csvStep.accepted} /{" "}
-                        {csvPreview.rejected_record_count} {copy.csvStep.rejected}
+                        {formatNumber(csvPreview.record_count)} {copy.csvStep.rows} /{" "}
+                        {formatNumber(csvPreview.accepted_record_count)} {copy.csvStep.accepted} /{" "}
+                        {formatNumber(csvPreview.rejected_record_count)} {copy.csvStep.rejected}
                       </span>
                     </div>
                     {csvPreview.validation_issues.length > 0 ? (
@@ -553,6 +562,7 @@ export function AddConnectorWizard({
               <>
                 <Field label={copy.dbStep.template}>
                   <Select
+                    disabled={previewing}
                     onChange={(event) => {
                       setDbTemplateId(event.target.value);
                       setDbPreview(null);
@@ -572,39 +582,43 @@ export function AddConnectorWizard({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={copy.dbStep.profile}>
                     <Input
-                      onChange={(event) =>
+                      onChange={(event) => {
                         setDbForm((current) => ({
                           ...current,
                           connectionProfileId: event.target.value,
-                        }))
-                      }
+                        }));
+                        setDbPreview(null);
+                      }}
                       value={dbForm.connectionProfileId}
                     />
                   </Field>
                   <Field label={copy.dbStep.credentialHandle}>
                     <Input
-                      onChange={(event) =>
+                      onChange={(event) => {
                         setDbForm((current) => ({
                           ...current,
                           credentialHandleId: event.target.value,
-                        }))
-                      }
+                        }));
+                        setDbPreview(null);
+                      }}
                       value={dbForm.credentialHandleId}
                     />
                   </Field>
                   <Field label={copy.dbStep.schema}>
                     <Input
-                      onChange={(event) =>
-                        setDbForm((current) => ({ ...current, schemaName: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        setDbForm((current) => ({ ...current, schemaName: event.target.value }));
+                        setDbPreview(null);
+                      }}
                       value={dbForm.schemaName}
                     />
                   </Field>
                   <Field label={copy.dbStep.table}>
                     <Input
-                      onChange={(event) =>
-                        setDbForm((current) => ({ ...current, tableName: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        setDbForm((current) => ({ ...current, tableName: event.target.value }));
+                        setDbPreview(null);
+                      }}
                       value={dbForm.tableName}
                     />
                   </Field>
@@ -699,7 +713,7 @@ export function AddConnectorWizard({
               </KeyValueRow>
               <KeyValueRow label={copy.reviewStep.records}>
                 {choice === "file_csv"
-                  ? `${parsedCsv?.rows.length ?? 0} rows from ${csvFileName}`
+                  ? `${formatNumber(parsedCsv?.rows.length ?? 0)} rows from ${csvFileName}`
                   : `${dbForm.schemaName}.${dbForm.tableName} metadata`}
               </KeyValueRow>
             </DetailGrid>

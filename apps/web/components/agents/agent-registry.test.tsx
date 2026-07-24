@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 
 import { agentRegistryFixture } from "./agents-fixtures";
 
@@ -19,6 +21,25 @@ vi.mock("@/lib/use-oidc-session", () => ({
 }));
 
 import { AgentRegistry } from "../agent-registry";
+
+const publicIdentity: IdentitySessionReadModel = {
+  authenticated: false,
+  mode: "public_demo",
+  actor_id: null,
+  tenant_id: null,
+  scopes: [],
+  expires_at: null,
+  api_auth_required: false,
+  enterprise_sso_ready: false,
+  readiness_status: "ready",
+  issuer: "",
+  audience: "",
+  jwks_source: "disabled",
+  session_boundary: "public_demo",
+  capabilities: [],
+  limitations: [],
+  notes: [],
+};
 
 function queryResult(result: {
   data: unknown;
@@ -37,9 +58,13 @@ function queryResult(result: {
 function mockRegistry(result: {
   data: ManufacturingAgentRegistry | null;
   source: "loading" | "api" | "unavailable";
-}) {
+}, identity: IdentitySessionReadModel = publicIdentity) {
+  const tenantId = identity.authenticated ? identity.tenant_id : DEMO_TENANT_ID;
   mocks.useAxisQuery.mockImplementation((path: string) => {
-    if (path === "/demo/manufacturing/agents") {
+    if (path === "/identity/session") {
+      return queryResult({ data: identity, source: "api" });
+    }
+    if (path === `/demo/manufacturing/agents?tenant_id=${tenantId}`) {
       return queryResult(result);
     }
     return queryResult({ data: null, source: "loading" });
@@ -51,6 +76,53 @@ beforeEach(() => {
 });
 
 describe("AgentRegistry states", () => {
+  it("scopes authenticated and public-demo registry reads explicitly", () => {
+    const authenticatedIdentity = {
+      ...publicIdentity,
+      authenticated: true,
+      mode: "oidc",
+      actor_id: "operator_acme",
+      tenant_id: "tenant_acme",
+    };
+    mockRegistry(
+      { data: { ...agentRegistryFixture, tenant_id: "tenant_acme" }, source: "api" },
+      authenticatedIdentity,
+    );
+
+    const { unmount } = render(<AgentRegistry />);
+
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      "/demo/manufacturing/agents?tenant_id=tenant_acme",
+      expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
+    );
+
+    unmount();
+    mocks.useAxisQuery.mockReset();
+    mockRegistry({ data: agentRegistryFixture, source: "api" });
+    render(<AgentRegistry />);
+
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      `/demo/manufacturing/agents?tenant_id=${DEMO_TENANT_ID}`,
+      expect.objectContaining({ enabled: true, expectedTenantId: DEMO_TENANT_ID }),
+    );
+  });
+
+  it("fails closed when identity cannot be verified", () => {
+    mocks.useAxisQuery.mockImplementation((path: string) =>
+      path === "/identity/session"
+        ? queryResult({ data: null, source: "unavailable" })
+        : queryResult({ data: null, source: "loading" }),
+    );
+
+    render(<AgentRegistry />);
+
+    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      `/demo/manufacturing/agents?tenant_id=${DEMO_TENANT_ID}`,
+      expect.objectContaining({ enabled: false, expectedTenantId: undefined }),
+    );
+  });
+
   it("renders a loading skeleton without any error copy while loading", () => {
     mockRegistry({ data: null, source: "loading" });
     render(<AgentRegistry />);

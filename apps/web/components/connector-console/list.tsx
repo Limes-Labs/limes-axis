@@ -6,6 +6,7 @@ import { PlatformStatusPill } from "@/components/status-pill";
 import { cn } from "@/lib/cn";
 import type { ConnectorListEntry } from "@/lib/connectors-console";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
+import { pluralize } from "@/lib/format";
 import { strings } from "@/lib/strings";
 
 /**
@@ -27,7 +28,7 @@ export function ConnectorList({
       <div className="grid gap-1">
         <Eyebrow>{strings.connectors.list.eyebrow}</Eyebrow>
         <h2 className="font-display m-0 text-xl text-ink">
-          {entries.length} {entries.length === 1 ? "connector" : "connectors"}
+          {pluralize(entries.length, "connector")}
         </h2>
       </div>
       <div className="grid gap-2">
@@ -56,7 +57,7 @@ export function ConnectorList({
                   {formatConnectorLabel(connector.manifest.connector_type)}
                 </span>
                 <span className="text-xs text-muted">
-                  {connector.preview_sample.record_count} sample rows
+                  {pluralize(connector.preview_sample.record_count, "sample row")}
                 </span>
               </span>
               {entry.source === "manifest" ? (

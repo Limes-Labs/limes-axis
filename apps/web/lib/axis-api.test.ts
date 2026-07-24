@@ -6,6 +6,7 @@ import {
   AxisApiError,
   axisFetch,
   axisFetchParsedJson,
+  resetBrowserSessionState,
 } from "./axis-api";
 import type { OidcConsoleSession } from "./oidc-session";
 
@@ -42,6 +43,8 @@ function stubBrowserWindow() {
 
 describe("Axis API fetch layer", () => {
   afterEach(() => {
+    // The signed-out latch is module state and would leak between cases.
+    resetBrowserSessionState();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     delete process.env.NEXT_PUBLIC_AXIS_API_BASE_URL;
@@ -237,6 +240,60 @@ describe("Axis API fetch layer", () => {
     expect(dispatchEvent).toHaveBeenCalledTimes(1);
     const [event] = dispatchEvent.mock.calls[0] as [Event];
     expect(event.type).toBe(AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT);
+  });
+
+  it("stops attempting refreshes once the session is known to be dead", async () => {
+    // Regression: the console re-runs every live query when it hears the
+    // signed-out event. Because the API rejects an expired session without
+    // clearing `axis_csrf`, each refetch used to re-arm the refresh, fail, and
+    // announce again — an unbounded request loop on any idle tab.
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubBrowserDocument("axis_csrf=stale-token");
+    const dispatchEvent = stubBrowserWindow();
+
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await axisFetch("/identity/sessions");
+      expect(response.status).toBe(401);
+    }
+
+    const refreshCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith("/identity/session/refresh"),
+    );
+    // Exactly one refresh and one announcement across five failing rounds.
+    expect(refreshCalls).toHaveLength(1);
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-arms the refresh after a new session starts working", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubBrowserDocument("axis_csrf=stale-token");
+    stubBrowserWindow();
+
+    let sessionAlive = false;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      if (String(input).endsWith("/identity/session/refresh")) {
+        return new Response("{}", { status: sessionAlive ? 200 : 401 });
+      }
+      return new Response("{}", { status: sessionAlive ? 200 : 401 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await axisFetch("/identity/sessions");
+    // Signing in elsewhere replaces the cookies; the next accepted response
+    // must clear the latch so refresh works again without a reload.
+    sessionAlive = true;
+    await axisFetch("/identity/sessions");
+    sessionAlive = false;
+
+    fetchMock.mockClear();
+    await axisFetch("/identity/sessions");
+    const refreshCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith("/identity/session/refresh"),
+    );
+    expect(refreshCalls).toHaveLength(1);
   });
 
   it("does not attempt a refresh for anonymous or bearer-mode 401s", async () => {

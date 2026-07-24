@@ -2,6 +2,7 @@
 
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatNumber, pluralize } from "@/lib/format";
 import { countBlockedModelRoutes, type ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import type {
   ManufacturingOperationsSnapshot,
@@ -112,12 +113,21 @@ export function PostureCards({
       label: copy.connectors.label,
       href: "/connectors",
       linkLabel: copy.connectors.link,
+      /*
+       * This counts connector evidence events in the latest audit window — it
+       * is deliberately labelled as activity rather than as a connector count,
+       * which is what it used to claim: five healthy idle connectors read "0 ·
+       * watch" while one connector failing twelve times read "12 · ready".
+       * A true health card needs the connector configurations endpoint on this
+       * page; until then the card states exactly what it measures.
+       */
       ...cardState(snapshot, (data) => {
         const count = connectorEventCount(data);
         return {
-          value: String(count),
-          detail: "Recent connector evidence events",
-          status: count > 0 ? "ready" : "watch",
+          value: formatNumber(count),
+          detail: copy.connectors.detail,
+          // Quiet connectors are not a problem, so zero activity is neutral.
+          status: "ready",
         };
       }),
     },
@@ -138,8 +148,8 @@ export function PostureCards({
       href: "/model-routing",
       linkLabel: copy.models.link,
       ...cardState(routing, (data) => ({
-        value: String(data.routes.length),
-        detail: `${countBlockedModelRoutes(data)} blocked route`,
+        value: formatNumber(data.routes.length),
+        detail: pluralize(countBlockedModelRoutes(data), "blocked route"),
         status: data.routing_status,
       })),
     },
@@ -153,7 +163,7 @@ export function PostureCards({
     >
       {cards.map((card) => (
         <article
-          className="grid content-start gap-2 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5"
+          className="grid content-start gap-2 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5"
           data-kpi-card
           key={card.key}
           role="listitem"

@@ -182,6 +182,7 @@ function SystemHealth({
           <p className="m-0 text-xs text-muted">
             Routing posture: {platformStatusLabel(routing.data.routing_status)} /{" "}
             {countBlockedModelRoutes(routing.data)} blocked route
+            {countBlockedModelRoutes(routing.data) === 1 ? "" : "s"}
           </p>
         </>
       ) : null}
@@ -191,8 +192,8 @@ function SystemHealth({
 
 function QuickActions() {
   const actions = [
-    { label: "New workflow", href: "/workflows", icon: GitBranch },
-    { label: "Deploy agent", href: "/agents", icon: Bot },
+    { label: "View workflows", href: "/workflows", icon: GitBranch },
+    { label: "View agents", href: "/agents", icon: Bot },
     { label: "Create policy", href: "/policies", icon: ShieldCheck },
     { label: "Run simulation", href: "/simulation", icon: Play },
   ];

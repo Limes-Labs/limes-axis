@@ -75,6 +75,12 @@ describe("platform policy path builders", () => {
     expect(
       buildPlatformPoliciesPath({ scope: "approval_requirement", status: "superseded" }),
     ).toBe("/platform/policies?scope=approval_requirement&status=superseded");
+    expect(
+      buildPlatformPoliciesPath(
+        { scope: "approval_requirement", status: "superseded" },
+        "tenant acme",
+      ),
+    ).toBe("/platform/policies?tenant_id=tenant+acme&scope=approval_requirement&status=superseded");
   });
 
   it("encodes the policy id in the detail path", () => {
@@ -83,6 +89,9 @@ describe("platform policy path builders", () => {
     );
     expect(buildPlatformPolicyDetailPath("weird/../id")).toBe(
       "/platform/policies/weird%2F..%2Fid",
+    );
+    expect(buildPlatformPolicyDetailPath("deny_critical_actions", "tenant acme")).toBe(
+      "/platform/policies/deny_critical_actions?tenant_id=tenant+acme",
     );
   });
 });

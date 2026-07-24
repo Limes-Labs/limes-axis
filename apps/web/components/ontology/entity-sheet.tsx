@@ -24,6 +24,8 @@ type OntologyEntitySheetProps = {
   onOpenChange: (open: boolean) => void;
   /** Swap the sheet to a peer entity without navigating away. */
   onNavigateToNode?: (nodeId: string) => void;
+  /** API-verified tenant inherited from the ontology explorer. */
+  tenantId: string;
 };
 
 /**
@@ -35,8 +37,9 @@ export function OntologyEntitySheet({
   nodeId,
   onOpenChange,
   onNavigateToNode,
+  tenantId,
 }: OntologyEntitySheetProps) {
-  const { detail, source } = useOntologyEntity(nodeId);
+  const { detail, endpoint, source } = useOntologyEntity(nodeId, tenantId);
 
   if (!nodeId) {
     return null;
@@ -70,7 +73,7 @@ export function OntologyEntitySheet({
         ) : source === "unavailable" && !detail ? (
           <ErrorPanel
             detail={strings.ontology.sheet.error.detail}
-            endpoint={`/demo/manufacturing/ontology/entities/${nodeId}`}
+            endpoint={endpoint ?? undefined}
             title={strings.ontology.sheet.error.title}
           />
         ) : source === "missing" || !detail ? (

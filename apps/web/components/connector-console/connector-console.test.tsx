@@ -11,6 +11,7 @@ import {
 const mocks = vi.hoisted(() => ({
   axisFetch: vi.fn(),
   useAxisQuery: vi.fn(),
+  useConsoleTenantScope: vi.fn(),
   triggerRefresh: vi.fn(),
 }));
 
@@ -21,6 +22,11 @@ vi.mock("@/lib/axis-api", async (importOriginal) => ({
 
 vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
+}));
+
+vi.mock("@/lib/use-console-tenant-scope", () => ({
+  IDENTITY_SESSION_ENDPOINT: "/identity/session",
+  useConsoleTenantScope: mocks.useConsoleTenantScope,
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
@@ -55,12 +61,16 @@ function queryResult(data: unknown, source: Source) {
 /** Serve fixtures for every endpoint, with optional per-path overrides. */
 function mockQueries(overrides: Record<string, { data: unknown; source: Source }> = {}) {
   mocks.useAxisQuery.mockImplementation((path: string) => {
-    const override = overrides[path];
+    const basePath = path.split("?")[0];
+    const override = overrides[path] ?? overrides[basePath];
     if (override) {
       return queryResult(override.data, override.source);
     }
-    if (path in connectorEndpointFixtures) {
-      return queryResult(connectorEndpointFixtures[path], "api");
+    const fixture = connectorEndpointFixtures[path]
+      ?? connectorEndpointFixtures[basePath]
+      ?? connectorEndpointFixtures[`${basePath}?tenant_id=tenant_demo_manufacturing`];
+    if (fixture) {
+      return queryResult(fixture, "api");
     }
     return queryResult(null, "loading");
   });
@@ -77,11 +87,67 @@ function renderConsole() {
 beforeEach(() => {
   mocks.axisFetch.mockReset();
   mocks.useAxisQuery.mockReset();
+  mocks.useConsoleTenantScope.mockReset();
   mocks.triggerRefresh.mockReset();
+  mocks.useConsoleTenantScope.mockReturnValue({
+    identity: queryResult({
+      authenticated: false,
+      actor_id: null,
+      api_auth_required: false,
+      tenant_id: null,
+    }, "api"),
+    tenantScope: { mode: "demo", tenantId: "tenant_demo_manufacturing" },
+    tenantId: "tenant_demo_manufacturing",
+    tenantQueriesEnabled: true,
+  });
   window.history.replaceState(null, "", "/connectors");
 });
 
 describe("ConnectorConsole states", () => {
+  it("scopes every connector registry read to the verified tenant", () => {
+    mocks.useConsoleTenantScope.mockReturnValue({
+      identity: queryResult({
+        authenticated: true,
+        actor_id: "acme-owner",
+        api_auth_required: true,
+        tenant_id: "tenant_acme",
+      }, "api"),
+      tenantScope: { mode: "authenticated", tenantId: "tenant_acme" },
+      tenantId: "tenant_acme",
+      tenantQueriesEnabled: true,
+    });
+    mockQueries();
+    renderConsole();
+
+    const connectorCalls = mocks.useAxisQuery.mock.calls.filter(
+      ([path]) => typeof path === "string" && path.startsWith("/demo/manufacturing/connectors"),
+    );
+    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(8);
+    connectorCalls.forEach(([path, options]) => {
+      expect(path).toContain("tenant_id=tenant_acme");
+      expect(options).toMatchObject({
+        enabled: true,
+        expectedTenantId: "tenant_acme",
+      });
+    });
+  });
+
+  it("fails closed when the identity API cannot verify a tenant", () => {
+    mocks.useConsoleTenantScope.mockReturnValue({
+      identity: queryResult(null, "unavailable"),
+      tenantScope: { mode: "unresolved", tenantId: null },
+      tenantId: null,
+      tenantQueriesEnabled: false,
+    });
+    mockQueries();
+    renderConsole();
+
+    expect(screen.getByRole("heading", { name: "Tenant identity unavailable" })).toBeInTheDocument();
+    expect(
+      mocks.useAxisQuery.mock.calls.every(([, options]) => options.enabled === false),
+    ).toBe(true);
+  });
+
   it("renders loading skeletons without error copy while the registry loads", () => {
     mockQueries({
       "/demo/manufacturing/connectors": { data: null, source: "loading" },
@@ -235,6 +301,28 @@ describe("ConnectorConsole list and detail", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the evidence invariants error state when that registry is unavailable", async () => {
+    const user = userEvent.setup();
+    mockQueries({
+      "/demo/manufacturing/connectors/evidence-invariants": { data: null, source: "unavailable" },
+    });
+    renderConsole();
+
+    await user.click(screen.getByRole("tab", { name: "Governance & Evidence" }));
+
+    // `invariantReport?.invariants.length === 0` used to be `undefined === 0`
+    // (false) when the fetch failed, so this error never rendered and the
+    // section silently looked empty/clear instead.
+    expect(
+      screen.getByRole("heading", {
+        name: "Evidence invariant findings could not be loaded.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("All evidence invariants hold — every governed record has audit evidence."),
+    ).not.toBeInTheDocument();
+  });
+
   it("lists recorded runs for the selected connector on the Runs tab", async () => {
     const user = userEvent.setup();
     renderConsole();
@@ -252,6 +340,52 @@ describe("ConnectorConsole list and detail", () => {
 
     await user.click(screen.getByRole("button", { name: "Add connector" }));
     expect(screen.getByRole("dialog", { name: "Add connector" })).toBeInTheDocument();
+  });
+
+  it("does not persist a validate result panel across a connector switch", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          tenant_id: "tenant_demo_manufacturing",
+          connector_id: "file_csv_manufacturing_assets",
+          file_name: "assets.csv",
+          preview_status: "ready",
+          sync_mode: "preview_only",
+          record_count: 2,
+          accepted_record_count: 2,
+          rejected_record_count: 0,
+          validation_issues: [],
+          proposed_entities: [],
+          audit_event_preview: {
+            event_type: "connector.preview.generated",
+            scope: "file_csv_manufacturing_assets",
+            actor_id: "connector-preview-service",
+            result: "ready",
+            evidence_refs: [],
+            payload_preview: {},
+          },
+          preview_notes: [],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    renderConsole();
+
+    // Validate the CSV connector (Manufacturing assets CSV, selected by
+    // default) and confirm the result panel commits.
+    await user.click(screen.getByRole("tab", { name: "Runs" }));
+    await user.click(screen.getByRole("button", { name: "Validate" }));
+    expect(await screen.findByText("Validation passed")).toBeInTheDocument();
+
+    // Switching to the other connector must remount the whole detail pane
+    // (ConnectorDetail's `key`), clearing ConnectorRuns' validate state —
+    // without the key, this used to keep showing connector A's result.
+    await user.click(screen.getByRole("button", { name: /Operational mirror DB/ }));
+    await user.click(screen.getByRole("tab", { name: "Runs" }));
+
+    expect(screen.queryByText("Validation passed")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument();
   });
 });
 

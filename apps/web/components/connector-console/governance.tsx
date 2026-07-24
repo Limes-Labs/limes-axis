@@ -7,6 +7,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
+import { formatDateTime } from "@/lib/format";
 import { strings } from "@/lib/strings";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
@@ -18,16 +19,15 @@ import type { ConnectorRegistries } from "@/lib/use-connector-registries";
  * degrades independently when its registry endpoint fails.
  */
 
-function formatWhen(value: string | null): string {
-  if (!value) {
-    return "not recorded";
+function governanceStatusClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (["active", "healthy", "valid", "passed", "compliant", "enabled", "rotated"].includes(normalized)) {
+    return "signal-ready";
   }
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  if (["failed", "revoked", "expired", "breached", "violation", "invalid"].includes(normalized)) {
+    return "signal-action-required";
+  }
+  return "signal-watch";
 }
 
 function Section({
@@ -101,7 +101,9 @@ function RecordRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-medium text-ink">{title}</span>
         <span className="flex items-center gap-3">
-          <span className="status-pill signal-watch">{formatConnectorLabel(status)}</span>
+          <span className={`status-pill ${governanceStatusClass(status)}`}>
+            {formatConnectorLabel(status)}
+          </span>
           <InspectDrawer record={record} title={title} />
         </span>
       </div>
@@ -178,7 +180,7 @@ export function ConnectorGovernance({
                   {lease.lease_id}
                 </KeyValueRow>
                 <KeyValueRow label="Window">
-                  {formatWhen(lease.granted_at)} → {formatWhen(lease.expires_at)}
+                  {formatDateTime(lease.granted_at)} → {formatDateTime(lease.expires_at)}
                 </KeyValueRow>
               </RecordRow>
             ))}
@@ -218,7 +220,7 @@ export function ConnectorGovernance({
         <SectionState
           emptyLabel={copy.invariants.allClear}
           errorTitle={copy.invariants.error}
-          isEmpty={invariantReport?.invariants.length === 0}
+          isEmpty={(invariantReport?.invariants ?? []).length === 0}
           source={registries.evidenceInvariants.source}
         >
           {invariantReport ? (

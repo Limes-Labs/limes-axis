@@ -15,6 +15,7 @@ import {
   type ConnectorListEntry,
 } from "@/lib/connectors-console";
 import { strings } from "@/lib/strings";
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 
 import { ConnectorGovernance } from "./governance";
@@ -206,10 +207,14 @@ function PendingActivationPanel() {
 
 export function ConnectorDetail({
   entry,
+  identitySession,
   registries,
+  tenantId,
 }: {
   entry: ConnectorListEntry;
+  identitySession: IdentitySessionReadModel | null;
   registries: ConnectorRegistries;
+  tenantId: string;
 }) {
   const tabs = strings.connectors.tabs;
   const { connector } = entry;
@@ -249,7 +254,12 @@ export function ConnectorDetail({
           {activationPending ? (
             <PendingActivationPanel />
           ) : (
-            <ConnectorRuns connector={connector} registries={registries} />
+            <ConnectorRuns
+              connector={connector}
+              identitySession={identitySession}
+              registries={registries}
+              tenantId={tenantId}
+            />
           )}
         </TabsContent>
         <TabsContent value="governance">

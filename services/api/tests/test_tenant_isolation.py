@@ -893,6 +893,7 @@ ENFORCED_READ_PATHS: list[tuple[str, str]] = [
     ("audit_events", "/demo/manufacturing/audit/events"),
     ("audit_export", "/demo/manufacturing/audit/export"),
     ("audit_legal_holds", "/demo/manufacturing/audit/legal-holds"),
+    ("replay_simulation", "/demo/manufacturing/simulation/replay"),
     ("connector_manifests", "/demo/manufacturing/connectors/manifests"),
     ("connector_configurations", "/demo/manufacturing/connectors/configurations"),
     ("connector_credential_handles", "/demo/manufacturing/connectors/credential-handles"),

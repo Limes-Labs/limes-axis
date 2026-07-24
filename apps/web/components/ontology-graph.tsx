@@ -131,6 +131,13 @@ export function OntologyGraph({
 
     // Native listener: React's onWheel cannot preventDefault page scroll.
     const onWheel = (event: WheelEvent) => {
+      // Only an explicit zoom gesture is intercepted — ctrl/⌘ + wheel, which is
+      // also what a trackpad pinch emits. A bare wheel must still scroll the
+      // page, or the graph swallows scrolling for the whole route.
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+
       event.preventDefault();
       const rect = svg.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
@@ -255,7 +262,10 @@ export function OntologyGraph({
   return (
     <div className="relative">
       <svg
-        className={`h-auto w-full touch-none select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+        // `touch-pan-y`, not `touch-none`: the graph is full-width, so capturing
+        // every touch made it physically impossible to scroll past it on a phone.
+        // Vertical page scroll passes through; horizontal drag still pans.
+        className={`h-auto w-full touch-pan-y select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         data-testid="ontology-graph"
         ref={svgRef}
         role="group"

@@ -5,41 +5,56 @@ import { useEffect, useState } from "react";
 import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
 import type { ManufacturingOntologyEntityDetail } from "@/lib/ontology-demo";
 import { parseManufacturingOntologyEntityDetail } from "@/lib/runtime-contracts/ontology";
+import { buildTenantScopedPath } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
 export type OntologyEntitySource = "loading" | "api" | "unavailable" | "missing";
 
 type OntologyEntityResult = {
-  nodeId: string;
+  queryKey: string;
   detail: ManufacturingOntologyEntityDetail | null;
   source: OntologyEntitySource;
 };
+
+export function buildOntologyEntityPath(nodeId: string, tenantId: string): string {
+  return buildTenantScopedPath(
+    `/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId)}`,
+    tenantId,
+  );
+}
 
 /**
  * Fetch a single ontology entity detail from the Axis API. Shared by the
  * full entity page and the explorer slide-over; passing `null` keeps the
  * hook idle (nothing is fetched while the slide-over is closed).
  *
- * The result is keyed by node id, so switching entities reports "loading"
- * immediately instead of flashing the previous entity.
+ * The result is keyed by the tenant-scoped request path, so switching either
+ * tenant or entity reports "loading" instead of exposing the previous scope.
  */
-export function useOntologyEntity(nodeId: string | null) {
+export function useOntologyEntity(
+  nodeId: string | null,
+  tenantId: string,
+  enabled = true,
+) {
   const [result, setResult] = useState<OntologyEntityResult | null>(null);
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
+  const entityPath = nodeId ? buildOntologyEntityPath(nodeId, tenantId) : null;
 
   useEffect(() => {
-    if (!nodeId) {
+    const queryKey = entityPath;
+    if (!nodeId || !queryKey || !enabled) {
       return;
     }
+    const requestedPath: string = queryKey;
 
     const controller = new AbortController();
 
     async function fetchEntity() {
       try {
         const response = await axisFetch(
-          `/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId!)}`,
+          requestedPath,
           {
             session,
             signal: controller.signal,
@@ -47,7 +62,7 @@ export function useOntologyEntity(nodeId: string | null) {
         );
 
         if (response.status === 404) {
-          setResult({ nodeId: nodeId!, detail: null, source: "missing" });
+          setResult({ queryKey: requestedPath, detail: null, source: "missing" });
           return;
         }
 
@@ -56,17 +71,20 @@ export function useOntologyEntity(nodeId: string | null) {
         }
 
         const detail = decodeAxisJson(
-          `/demo/manufacturing/ontology/entities/${encodeURIComponent(nodeId!)}`,
+          requestedPath,
           await response.json(),
           parseManufacturingOntologyEntityDetail,
           response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
         );
-        setResult({ nodeId: nodeId!, detail, source: "api" });
+        if (detail.tenant_id !== tenantId) {
+          throw new Error(`Ontology entity tenant does not match ${tenantId}.`);
+        }
+        setResult({ queryKey: requestedPath, detail, source: "api" });
       } catch {
         if (!controller.signal.aborted) {
           setResult((current) => ({
-            nodeId: nodeId!,
-            detail: current?.nodeId === nodeId ? current.detail : null,
+            queryKey: requestedPath,
+            detail: current?.queryKey === requestedPath ? current.detail : null,
             source: "unavailable",
           }));
         }
@@ -76,11 +94,11 @@ export function useOntologyEntity(nodeId: string | null) {
     void fetchEntity();
 
     return () => controller.abort();
-  }, [nodeId, session, refreshNonce]);
+  }, [enabled, entityPath, nodeId, refreshNonce, session, tenantId]);
 
-  if (!nodeId || result?.nodeId !== nodeId) {
-    return { detail: null, source: "loading" as const };
+  if (!nodeId || !entityPath || !enabled || result?.queryKey !== entityPath) {
+    return { detail: null, endpoint: entityPath, source: "loading" as const };
   }
 
-  return { detail: result.detail, source: result.source };
+  return { detail: result.detail, endpoint: entityPath, source: result.source };
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { Building2, RadioTower, RotateCcw, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
 import {
@@ -17,26 +17,18 @@ import {
   type TenantRegistry as TenantRegistryData,
   type TenantRegistryFilters,
 } from "@/lib/platform-tenants";
-import { formatOverviewTimestamp } from "@/lib/platform-overview";
+import { formatNumber, formatTimestamp } from "@/lib/format";
+import { deriveSourceState, type AxisSource } from "@/lib/source-state";
 import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { SourcePill } from "@/components/ui/source-pill";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: TenantRegistryFilters = {
   status: allTenantFilter,
 };
-
-type RegistrySource = "loading" | "api" | "unavailable";
-
-function sourceLabel(source: RegistrySource): string {
-  if (source === "api") {
-    return "API tenant registry";
-  }
-
-  return source === "loading" ? "Loading tenant API" : "Tenant API unavailable";
-}
 
 /**
  * Cursor-paginated tenant registry read. The first page loads on mount and on
@@ -47,10 +39,24 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
   const { refreshNonce } = useConsole();
   const { session } = useOidcConsoleSession();
   const [registry, setRegistry] = useState<TenantRegistryData | null>(null);
-  const [source, setSource] = useState<RegistrySource>("loading");
+  const [source, setSource] = useState<AxisSource>("loading");
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  // Generation guard: bumped every time the base page reloads (filter,
+  // session or console-refresh change). A "load more" page fetch started
+  // under an earlier generation is discarded on arrival instead of merging a
+  // stale filter's tenants into the current list and corrupting the counts
+  // and next_cursor.
+  const generationRef = useRef(0);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    generationRef.current += 1;
+    // A new base load supersedes any in-flight "load more" page fetch.
+    loadMoreControllerRef.current?.abort();
+    loadMoreControllerRef.current = null;
+    const generation = generationRef.current;
+
     const controller = new AbortController();
 
     async function load() {
@@ -67,12 +73,12 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
           signal: controller.signal,
         });
 
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && generationRef.current === generation) {
           setRegistry(page);
           setSource("api");
         }
       } catch {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && generationRef.current === generation) {
           // Preserve any already-loaded registry on a refetch failure; only a
           // first load (registry still null) falls through to the unavailable
           // state. Surface the unavailable source either way.
@@ -93,24 +99,46 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
       return;
     }
 
+    const generation = generationRef.current;
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
     setLoadingMore(true);
+    setLoadMoreError(false);
+
     try {
-      const page = await fetchTenantRegistry(filters, { session }, registry.next_cursor);
-      setRegistry((current) => mergeTenantRegistryPage(current, page));
+      const page = await fetchTenantRegistry(
+        filters,
+        { session, signal: controller.signal },
+        registry.next_cursor,
+      );
+
+      // A filter change (or console refresh) mid-flight bumps the
+      // generation; discard this page rather than merging it into the new
+      // base query's list.
+      if (!controller.signal.aborted && generationRef.current === generation) {
+        setRegistry((current) => mergeTenantRegistryPage(current, page));
+      }
     } catch {
-      // Keep the pages already loaded; the load-more control stays available
-      // for a retry rather than dropping the accumulated registry.
+      if (!controller.signal.aborted && generationRef.current === generation) {
+        setLoadMoreError(true);
+      }
     } finally {
-      setLoadingMore(false);
+      if (loadMoreControllerRef.current === controller) {
+        loadMoreControllerRef.current = null;
+      }
+      if (!controller.signal.aborted && generationRef.current === generation) {
+        setLoadingMore(false);
+      }
     }
   }, [registry, filters, session, loadingMore]);
 
-  return { registry, source, loadMore, loadingMore };
+  return { registry, source, loadMore, loadingMore, loadMoreError };
 }
 
 export function TenantRegistry() {
   const [filters, setFilters] = useState<TenantRegistryFilters>(defaultFilters);
-  const { registry, source, loadMore, loadingMore } = useTenantRegistryPages(filters);
+  const { registry, source, loadMore, loadingMore, loadMoreError } =
+    useTenantRegistryPages(filters);
 
   function updateStatus(value: string) {
     setFilters({ status: value as TenantRegistryFilters["status"] });
@@ -152,41 +180,41 @@ export function TenantRegistry() {
           Cross-tenant operator surface; every lifecycle change appends audit evidence.
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="status-pill signal-ready">
-            <RadioTower size={15} />
-            {sourceLabel(source)}
-          </span>
+          <SourcePill
+            state={deriveSourceState(source, Boolean(registry))}
+            subject="tenant registry"
+          />
           <span className="status-pill signal-watch">
             <ShieldCheck size={15} />
-            {registry.active_tenant_count} active
+            {formatNumber(registry.active_tenant_count)} active
           </span>
         </div>
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Tenants</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{registry.tenant_count}</p>
+          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.tenant_count)}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenants matching the current status filter</p>
         </article>
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Active</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{registry.active_tenant_count}</p>
+          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.active_tenant_count)}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenants able to establish sessions</p>
         </article>
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Suspended</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{suspendedCount}</p>
+          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(suspendedCount)}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">Rejected fail-closed at the OIDC principal boundary</p>
         </article>
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Pending Deletion</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{pendingDeletionCount}</p>
+          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(pendingDeletionCount)}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">Modeled and blocked; no deletion pipeline yet</p>
         </article>
       </div>
 
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow m-0">Filters</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant registry</h2>
@@ -252,7 +280,7 @@ export function TenantRegistry() {
                     )}
                   </td>
                   <td>
-                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatOverviewTimestamp(tenant.updated_at)}</p>
+                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatTimestamp(tenant.updated_at)}</p>
                   </td>
                 </tr>
               ))}
@@ -261,7 +289,7 @@ export function TenantRegistry() {
           {hasMore ? (
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/60 px-4 py-3.5 dark:border-white/10">
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Showing {tenants.length} tenants. More match this filter.
+                Showing {formatNumber(tenants.length)} tenants. More match this filter.
               </p>
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
@@ -274,9 +302,17 @@ export function TenantRegistry() {
               </button>
             </div>
           ) : null}
+          {loadMoreError ? (
+            <p
+              className="mx-0 mt-1 mb-0 border-t border-line/60 px-4 py-3.5 text-sm leading-snug text-danger break-words dark:border-white/10"
+              role="alert"
+            >
+              Axis could not load the next page of tenants. Try again.
+            </p>
+          ) : null}
         </section>
       ) : (
-        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
+        <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="eyebrow m-0">Registry</p>
             <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">No tenants match the current filter</h2>
@@ -295,7 +331,7 @@ export function TenantRegistry() {
       <TenantProvisionForm />
 
       {tenantNotes.length > 0 ? (
-        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+        <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <p className="eyebrow m-0">Registry Notes</p>
           <div className="grid min-w-0 gap-2.5">
             {tenantNotes.map((note) => (

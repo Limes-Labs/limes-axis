@@ -7,6 +7,9 @@ const alias = {
 
 export default defineConfig({
   test: {
+    // jsdom suites are interaction-heavy; bounding concurrency keeps their
+    // five-second per-test budget stable on both developer laptops and CI.
+    maxWorkers: 4,
     projects: [
       {
         resolve: { alias },

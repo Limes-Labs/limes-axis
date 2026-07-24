@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Database, List, Network, Share2, ShieldCheck } from "lucide-react";
+import { Database, List, Share2, ShieldCheck } from "lucide-react";
 
 import { ErrorPanel } from "@/components/ui/states";
 import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SourcePill } from "@/components/ui/source-pill";
 import {
   countNodesByType,
   formatNodeType,
@@ -20,19 +21,18 @@ import {
   type ManufacturingOntology,
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
+import { formatNumber } from "@/lib/format";
+import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import {
+  IDENTITY_SESSION_ENDPOINT,
+  useConsoleTenantScope,
+} from "@/lib/use-console-tenant-scope";
 
 type OntologyView = "graph" | "list";
-
-function sourceLabel(source: "loading" | "api" | "unavailable"): string {
-  if (source === "api") {
-    return "API ontology graph";
-  }
-
-  return source === "loading" ? "Loading ontology API" : "Ontology API unavailable";
-}
 
 function OntologyExplorerSkeleton() {
   return (
@@ -44,10 +44,16 @@ function OntologyExplorerSkeleton() {
 }
 
 export function OntologyExplorer() {
-  const { data: ontology, source } = useAxisQuery<ManufacturingOntology>(
+  const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
+  const ontologyPath = buildTenantScopedPath(
     "/demo/manufacturing/ontology",
-    { parse: parseManufacturingOntology },
+    tenantId ?? DEMO_TENANT_ID,
   );
+  const { data: ontology, source } = useAxisQuery<ManufacturingOntology>(ontologyPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
+    parse: parseManufacturingOntology,
+  });
   const [view, setView] = useState<OntologyView>("graph");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
@@ -60,6 +66,30 @@ export function OntologyExplorer() {
     [ontology],
   );
 
+  if (identity.source === "loading") {
+    return <OntologyExplorerSkeleton />;
+  }
+
+  if (identity.source === "unavailable") {
+    return (
+      <ErrorPanel
+        detail="The ontology is not loaded until the current actor and tenant are verified."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Identity API unavailable"
+      />
+    );
+  }
+
+  if (!tenantId) {
+    return (
+      <ErrorPanel
+        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to the demo ontology."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Authenticated tenant missing"
+      />
+    );
+  }
+
   if (!ontology) {
     if (source === "loading") {
       return <OntologyExplorerSkeleton />;
@@ -68,7 +98,7 @@ export function OntologyExplorer() {
     return (
       <ErrorPanel
         detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
-        endpoint="/demo/manufacturing/ontology"
+        endpoint={ontologyPath}
         title="Ontology API unavailable"
       />
     );
@@ -84,13 +114,10 @@ export function OntologyExplorer() {
           {ontology.plant_name} / {ontology.scenario} / {ontology.tenant_id}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="status-pill signal-ready">
-            <Network size={15} />
-            {sourceLabel(source)}
-          </span>
-          <span className="font-mono text-xs text-muted">{ontology.nodes.length} nodes</span>
+          <SourcePill state={deriveSourceState(source, Boolean(ontology))} subject="ontology" />
+          <span className="font-mono text-xs text-muted">{formatNumber(ontology.nodes.length)} nodes</span>
           <span className="font-mono text-xs text-muted">
-            {ontology.relationships.length} relationships
+            {formatNumber(ontology.relationships.length)} relationships
           </span>
         </div>
       </div>
@@ -258,13 +285,13 @@ export function OntologyExplorer() {
               </span>
               <span className="font-mono text-xs text-muted">{ontology.graph_query.source}</span>
               <span className="font-mono text-xs text-muted">
-                {ontology.graph_query.denied_relationship_count} denied relationships
+                {formatNumber(ontology.graph_query.denied_relationship_count)} denied relationships
               </span>
             </div>
             <div aria-hidden="true" className="rule-hairline" />
             <p className="m-0 text-sm text-muted">
-              {ontology.graph_query.returned_node_count} nodes /{" "}
-              {ontology.graph_query.returned_relationship_count} relationships returned for{" "}
+              {formatNumber(ontology.graph_query.returned_node_count)} nodes /{" "}
+              {formatNumber(ontology.graph_query.returned_relationship_count)} relationships returned for{" "}
               {ontology.graph_query.actor_id}
             </p>
             <p className="m-0 text-sm text-muted">
@@ -294,6 +321,7 @@ export function OntologyExplorer() {
             setSelectedNodeId(null);
           }
         }}
+        tenantId={tenantId}
       />
     </div>
   );

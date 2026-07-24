@@ -13,8 +13,6 @@ import type {
  * shapes were read from `services/api/src/axis_api/{connectors,connector_manifests,connector_runs}.py`.
  */
 
-export const CONNECTOR_TENANT_ID = "tenant_demo_manufacturing";
-
 export const CONNECTOR_SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch";
 export const CONNECTOR_SYNC_EXECUTE_SCOPE = "connectors:sync:execute";
 

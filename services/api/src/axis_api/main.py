@@ -3638,6 +3638,7 @@ def create_app(
         candidate_policy_set_id: str | None = Query(default=None, min_length=1, max_length=180),
         connector_id: str | None = Query(default=None, min_length=1, max_length=160),
     ) -> ManufacturingReplaySimulation:
+        _authorize_tenant_read(tenant_id, principal)
         if any(
             value is not None
             for value in (baseline_policy_set_id, candidate_policy_set_id, connector_id)

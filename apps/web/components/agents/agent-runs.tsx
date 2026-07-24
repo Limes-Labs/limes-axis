@@ -41,7 +41,7 @@ function RunRailMarker({ state }: { state: AgentRunRailState }) {
         "inline-block size-2.5 shrink-0 rotate-45",
         state === "done" && "bg-signal",
         state === "current" && "border-2 border-signal bg-transparent",
-        state === "failed" && "border-2 border-[rgb(var(--signal-action-required,220_38_38))] bg-transparent",
+        state === "failed" && "border-2 border-danger bg-transparent",
         state === "pending" && "border border-mist bg-transparent dark:border-white/25",
       )}
       style={
@@ -80,7 +80,11 @@ function AgentRunRail({ run }: { run: AgentRunRecord }) {
             <p
               className={cn(
                 "m-0 font-mono text-[10.5px] tracking-[0.14em] uppercase",
-                stage.state === "pending" ? "text-muted" : "text-signal",
+                stage.state === "pending"
+                  ? "text-muted"
+                  : stage.state === "failed"
+                    ? "text-danger"
+                    : "text-signal",
               )}
             >
               {stage.label}

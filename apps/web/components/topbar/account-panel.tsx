@@ -244,7 +244,7 @@ export function AccountPanel({
                       />
                     </label>
                     {error ? (
-                      <span className="text-xs font-semibold text-danger" role="status">
+                      <span className="text-xs font-semibold text-danger" role="alert">
                         {error}
                       </span>
                     ) : null}

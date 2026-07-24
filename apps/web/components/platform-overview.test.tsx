@@ -47,6 +47,7 @@ import {
   snapshotFixture,
 } from "./overview/overview-fixtures";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 
 type Source = "loading" | "api" | "unavailable";
 
@@ -150,7 +151,7 @@ describe("PlatformOverview hero", () => {
 
     const heroCount = screen.getByTestId("hero-audit-count");
     expect(heroCount).toHaveTextContent(/^4$/);
-    expect(screen.getByText("4 recent events")).toBeInTheDocument();
+    expect(screen.getByText("Showing 4 of 4")).toBeInTheDocument();
     // The static seeded "Audit" metric string never renders anywhere.
     expect(screen.queryByText(/128 events/)).not.toBeInTheDocument();
   });
@@ -186,7 +187,7 @@ describe("PlatformOverview per-section degradation", () => {
     renderOverview();
 
     expect(
-      screen.getByRole("heading", { name: "Operations API unavailable" }),
+      screen.getByRole("heading", { name: strings.overview.hero.error.title }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Approval Decision Recorded/ }),

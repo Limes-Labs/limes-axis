@@ -134,7 +134,7 @@ function SettingsPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+    <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
         <div>
           <p className="eyebrow m-0">{eyebrow}</p>

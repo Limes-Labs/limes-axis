@@ -1,7 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { ontologyFixture } from "./ontology/ontology-fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -31,18 +33,83 @@ vi.mock("next/navigation", () => ({
 
 import { OntologyExplorer } from "./ontology-explorer";
 
-describe("OntologyExplorer", () => {
-  it("renders no per-type metric cards", () => {
-    mocks.useAxisQuery.mockReturnValue({ data: ontologyFixture, source: "api" });
+const publicIdentity: IdentitySessionReadModel = {
+  authenticated: false,
+  mode: "public_demo",
+  actor_id: null,
+  tenant_id: null,
+  scopes: [],
+  expires_at: null,
+  api_auth_required: false,
+  enterprise_sso_ready: false,
+  readiness_status: "ready",
+  issuer: "",
+  audience: "",
+  jwks_source: "disabled",
+  session_boundary: "public_demo",
+  capabilities: [],
+  limitations: [],
+  notes: [],
+};
 
+function queryResult(data: unknown, source: "loading" | "api" | "unavailable" = "api") {
+  return { data, source, isLoading: source === "loading", isUnavailable: source === "unavailable" };
+}
+
+function mockOntology(identity: IdentitySessionReadModel = publicIdentity) {
+  const tenantId = identity.authenticated ? identity.tenant_id : DEMO_TENANT_ID;
+  mocks.useAxisQuery.mockImplementation((path: string) => {
+    if (path === "/identity/session") {
+      return queryResult(identity);
+    }
+    if (path === `/demo/manufacturing/ontology?tenant_id=${tenantId}`) {
+      return queryResult({ ...ontologyFixture, tenant_id: tenantId });
+    }
+    return queryResult(null, "loading");
+  });
+}
+
+beforeEach(() => {
+  mocks.useAxisQuery.mockReset();
+  mockOntology();
+});
+
+describe("OntologyExplorer", () => {
+  it("scopes authenticated and public-demo ontology reads explicitly", () => {
+    const authenticatedIdentity: IdentitySessionReadModel = {
+      ...publicIdentity,
+      authenticated: true,
+      mode: "oidc",
+      actor_id: "operator_acme",
+      tenant_id: "tenant_acme",
+    };
+    mockOntology(authenticatedIdentity);
+
+    const { unmount } = render(<OntologyExplorer />);
+
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      "/demo/manufacturing/ontology?tenant_id=tenant_acme",
+      expect.objectContaining({ enabled: true, expectedTenantId: "tenant_acme" }),
+    );
+
+    unmount();
+    mocks.useAxisQuery.mockReset();
+    mockOntology();
+    render(<OntologyExplorer />);
+
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      `/demo/manufacturing/ontology?tenant_id=${DEMO_TENANT_ID}`,
+      expect.objectContaining({ enabled: true, expectedTenantId: DEMO_TENANT_ID }),
+    );
+  });
+
+  it("renders no per-type metric cards", () => {
     render(<OntologyExplorer />);
 
     expect(screen.queryByText("Mapped demo ontology nodes")).not.toBeInTheDocument();
   });
 
   it("shows node-type counts inside the graph legend", () => {
-    mocks.useAxisQuery.mockReturnValue({ data: ontologyFixture, source: "api" });
-
     render(<OntologyExplorer />);
 
     const legend = screen.getByLabelText("Ontology graph legend");
@@ -55,8 +122,6 @@ describe("OntologyExplorer", () => {
   });
 
   it("zooms the graph with the +/− controls and resets the view", async () => {
-    mocks.useAxisQuery.mockReturnValue({ data: ontologyFixture, source: "api" });
-
     render(<OntologyExplorer />);
 
     const svg = screen.getByTestId("ontology-graph");
@@ -76,8 +141,6 @@ describe("OntologyExplorer", () => {
   });
 
   it("keeps the graph and list views working", async () => {
-    mocks.useAxisQuery.mockReturnValue({ data: ontologyFixture, source: "api" });
-
     render(<OntologyExplorer />);
 
     expect(screen.getByTestId("ontology-graph")).toBeInTheDocument();

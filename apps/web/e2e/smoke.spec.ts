@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { strings } from "@/lib/strings";
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
@@ -56,17 +57,20 @@ async function expectAxisLightShell(page: Page) {
   });
 }
 
-async function routeVerifiedDemoIdentity(page: Page) {
-  await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+const identitySessionUrl = "http://127.0.0.1:65534/identity/session";
+
+async function routeVerifiedIdentity(page: Page, tenantId: string | null = null) {
+  const authenticated = tenantId !== null;
+  await page.route(identitySessionUrl, async (route) => {
     await route.fulfill({
       contentType: "application/json",
       json: {
-        authenticated: false,
-        mode: "public_demo",
-        actor_id: null,
-        tenant_id: null,
-        scopes: [],
-        expires_at: null,
+        authenticated,
+        mode: authenticated ? "secure_oidc_cookie" : "public_demo",
+        actor_id: authenticated ? "operator-e2e" : null,
+        tenant_id: tenantId,
+        scopes: authenticated ? ["tenant:read"] : [],
+        expires_at: authenticated ? 4102444800 : null,
         api_auth_required: true,
         enterprise_sso_ready: true,
         readiness_status: "watch",
@@ -83,7 +87,17 @@ async function routeVerifiedDemoIdentity(page: Page) {
   });
 }
 
+async function routeVerifiedDemoIdentity(page: Page) {
+  await routeVerifiedIdentity(page);
+}
+
 test.describe("Axis console smoke", () => {
+  test.beforeEach(async ({ page }) => {
+    // Tenant-scoped feature tests start from an API-verified public-demo
+    // identity. Identity-failure and authenticated-session tests replace it.
+    await routeVerifiedDemoIdentity(page);
+  });
+
   test("requires the overview APIs section by section instead of local data", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -121,7 +135,7 @@ test.describe("Axis console smoke", () => {
     // The page header renders once; every section shows its own ErrorPanel
     // instead of one page-level gate.
     await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Operations API unavailable" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: strings.overview.hero.error.title })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Attention items unavailable" }),
     ).toBeVisible();
@@ -132,7 +146,7 @@ test.describe("Axis console smoke", () => {
       page.getByRole("heading", { name: "Operations snapshot API unavailable" }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "System health unavailable" })).toBeVisible();
-    await expect(page.getByText("Local fallback overview records are disabled.")).toBeVisible();
+    await expect(page.getByText(strings.overview.hero.error.detail)).toBeVisible();
 
     // Posture cards degrade in place instead of disappearing.
     await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
@@ -148,7 +162,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Live API")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Refresh state" }).click();
-    await expect(page.getByRole("heading", { name: "Operations API unavailable" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: strings.overview.hero.error.title })).toBeVisible();
 
     await expectAxisLightShell(page);
     await expectNoHorizontalOverflow(page);
@@ -191,6 +205,7 @@ test.describe("Axis console smoke", () => {
   });
 
   test("keeps shell utilities actionable without mock controls", async ({ page }) => {
+    await page.unroute(identitySessionUrl);
     await page.goto("/");
 
     await expect(page.getByRole("button", { name: "Open notifications" })).toBeVisible();
@@ -264,7 +279,8 @@ test.describe("Axis console smoke", () => {
   test("routes verified cookie sessions through the real federated logout endpoint", async ({
     page,
   }) => {
-    await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+    await page.unroute(identitySessionUrl);
+    await page.route(identitySessionUrl, async (route) => {
       await route.fulfill({
         contentType: "application/json",
         json: {
@@ -458,7 +474,12 @@ test.describe("Axis console smoke", () => {
     // fabricated run timelines or detail tabs render without the registry API.
     await expect(page.getByText("/demo/manufacturing/agents", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Technical details" }).first().click();
-    await expect(page.getByText("/demo/manufacturing/agents", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "/demo/manufacturing/agents?tenant_id=tenant_demo_manufacturing",
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(page.getByRole("tab", { name: "Runs" })).toHaveCount(0);
     await expect(page.getByText("No runs recorded — execution flag-gated")).toHaveCount(0);
 
@@ -490,6 +511,8 @@ test.describe("Axis console smoke", () => {
   }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.unroute(identitySessionUrl);
+    await routeVerifiedIdentity(page, "tenant_e2e");
 
     const relationshipMetadata = {
       owner_role: "quality-owner",
@@ -669,12 +692,20 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Fallback routing seed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Quality Risk Agent/ })).toHaveCount(0);
     await page.getByRole("button", { name: "Technical details" }).click();
-    await expect(page.getByText("/demo/manufacturing/model-routing", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "/demo/manufacturing/model-routing?tenant_id=tenant_demo_manufacturing",
+        { exact: true },
+      ),
+    ).toBeVisible();
 
     // Live tab: its own API-required states instead of fabricated invocation
     // rows or endpoint cards.
     await page.getByRole("tab", { name: "Live invocations" }).click();
-    await expect(page.getByText("Live executed", { exact: true })).toBeVisible();
+    // The "Live executed" badge must NOT appear while the invocation API is
+    // down — it previously rendered unconditionally, so a green "Live executed"
+    // sat directly above "Model invocation API unavailable".
+    await expect(page.getByText("Live executed", { exact: true })).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Model invocation API unavailable" }),
     ).toBeVisible();
@@ -687,8 +718,18 @@ test.describe("Axis console smoke", () => {
     for (let index = 0; index < 2; index += 1) {
       await liveDetailToggles.nth(index).click();
     }
-    await expect(page.getByText("/platform/models/invocations", { exact: true })).toBeVisible();
-    await expect(page.getByText("/platform/models/endpoints", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "/platform/models/invocations?tenant_id=tenant_demo_manufacturing&page_size=50",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "/platform/models/endpoints?tenant_id=tenant_demo_manufacturing&limit=100",
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(page.locator("[data-testid='live-invocations-table']")).toHaveCount(0);
     await expect(page.getByText("Execution disabled — flag-gated")).toHaveCount(0);
 
@@ -745,7 +786,11 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback policy records are disabled.")).toBeVisible();
     await page.getByRole("button", { name: "Technical details" }).first().click();
-    await expect(page.getByText("/platform/policies", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("/platform/policies?tenant_id=tenant_demo_manufacturing", {
+        exact: true,
+      }),
+    ).toBeVisible();
     await expect(page.getByText("Fallback policy seed")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Deny critical actions/ })).toHaveCount(0);
 
@@ -756,7 +801,11 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("heading", { name: "Policy detail" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Policy API unavailable" })).toBeVisible();
     await page.getByRole("button", { name: "Technical details" }).first().click();
-    await expect(page.getByText("/platform/policies/deny_critical_actions")).toBeVisible();
+    await expect(
+      page.getByText(
+        "/platform/policies/deny_critical_actions?tenant_id=tenant_demo_manufacturing",
+      ),
+    ).toBeVisible();
     await expect(page.getByRole("form", { name: "Policy dry-run evaluation" })).toHaveCount(0);
     await expect(page.getByRole("form", { name: "Platform policy revision" })).toHaveCount(0);
 
@@ -939,7 +988,10 @@ test.describe("Axis console smoke", () => {
     };
 
     await page.route(
-      "http://127.0.0.1:65534/platform/policies/deny_critical_actions",
+      (url) =>
+        url.href.startsWith(
+          "http://127.0.0.1:65534/platform/policies/deny_critical_actions?",
+        ),
       async (route) => {
         await route.fulfill({
           contentType: "application/json",
@@ -1048,6 +1100,7 @@ test.describe("Axis console smoke", () => {
   test("requires the identity session APIs on the sessions view", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.unroute(identitySessionUrl);
 
     await page.goto("/settings/sessions");
 
@@ -1066,11 +1119,12 @@ test.describe("Axis console smoke", () => {
     context,
     page,
   }) => {
+    await page.unroute(identitySessionUrl);
     await context.addCookies([
       { name: "axis_csrf", value: "csrf-e2e-token", url: "http://127.0.0.1:3100" },
     ]);
 
-    await page.route("http://127.0.0.1:65534/identity/session", async (route) => {
+    await page.route(identitySessionUrl, async (route) => {
       await route.fulfill({
         contentType: "application/json",
         json: {
@@ -1405,6 +1459,7 @@ test.describe("Axis console smoke", () => {
   }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.unroute(identitySessionUrl);
 
     await page.goto("/settings");
 

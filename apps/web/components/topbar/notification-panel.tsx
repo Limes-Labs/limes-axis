@@ -11,6 +11,7 @@ import {
 } from "@/components/topbar/panel-chrome";
 import { axisFetchParsedJson } from "@/lib/axis-api";
 import { cn } from "@/lib/cn";
+import { formatNumber } from "@/lib/format";
 import { notificationTone } from "@/lib/identity-format";
 import type {
   IdentitySessionReadModel,
@@ -34,7 +35,13 @@ export function NotificationPanel({
   onAcknowledged: () => void;
   session: ReturnType<typeof useOidcConsoleSession>["session"];
 }) {
-  const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
+  // A Set of in-flight notification ids, not a single id: acknowledging a
+  // slow item and then a fast one must not let the fast one's completion
+  // clear the pending flag for the still in-flight slow one and re-enable
+  // its button for a double submit.
+  const [pendingNotificationIds, setPendingNotificationIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [acknowledgementError, setAcknowledgementError] = useState<string | null>(null);
 
   if (!center) {
@@ -71,7 +78,7 @@ export function NotificationPanel({
       return;
     }
 
-    setPendingNotificationId(item.notification_id);
+    setPendingNotificationIds((current) => new Set(current).add(item.notification_id));
     setAcknowledgementError(null);
     try {
       await axisFetchParsedJson<ManufacturingNotificationAcknowledgementResult>(
@@ -93,20 +100,24 @@ export function NotificationPanel({
     } catch {
       setAcknowledgementError("Axis could not persist the acknowledgement.");
     } finally {
-      setPendingNotificationId(null);
+      setPendingNotificationIds((current) => {
+        const next = new Set(current);
+        next.delete(item.notification_id);
+        return next;
+      });
     }
   }
 
   return (
     <section className={popoverClass} aria-label="Notifications">
       <PopoverHeader label="Notifications">
-        <span className="status-pill signal-ready">{center.unread_count} live</span>
+        <span className="status-pill signal-ready">{formatNumber(center.unread_count)} live</span>
       </PopoverHeader>
       <div className="grid gap-2">
         {items.length > 0 ? (
           items.map((item) => {
             const acknowledged = item.read_state === "acknowledged";
-            const pending = pendingNotificationId === item.notification_id;
+            const pending = pendingNotificationIds.has(item.notification_id);
             return (
               <div
                 aria-label={`${item.action_label}: ${item.title}`}
@@ -163,7 +174,7 @@ export function NotificationPanel({
         <p className="m-0 text-[11px] leading-snug text-muted">{sessionRequiredLabel}</p>
       ) : null}
       {acknowledgementError ? (
-        <p className="m-0 text-[11px] leading-snug text-warning" role="status">
+        <p className="m-0 text-[11px] leading-snug text-warning" role="alert">
           {acknowledgementError}
         </p>
       ) : null}

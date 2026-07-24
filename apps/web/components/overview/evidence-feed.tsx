@@ -78,7 +78,7 @@ export function EvidenceFeed({
       <PanelHeader
         aside={
           <span className="font-mono text-xs whitespace-nowrap text-muted">
-            {events.length} recent events
+            Showing {Math.min(events.length, FEED_ROW_LIMIT)} of {events.length}
           </span>
         }
         eyebrow={copy.eyebrow}

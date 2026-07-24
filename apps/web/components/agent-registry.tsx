@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Bot, RadioTower } from "lucide-react";
+import { Bot } from "lucide-react";
 
 import { AgentDetail } from "@/components/agents/agent-detail";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { FilterBar, type FilterDef } from "@/components/ui/filter-bar";
 import { Term } from "@/components/ui/glossary";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
+import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   allAgentFilter,
@@ -20,15 +21,21 @@ import {
   type ManufacturingAgentRegistry,
 } from "@/lib/agent-demo";
 import { cn } from "@/lib/cn";
+import { formatNumber, formatTimestamp } from "@/lib/format";
 import {
-  formatOverviewTimestamp,
   platformStatusClass,
   platformStatusLabel,
   type PlatformStatus,
 } from "@/lib/platform-overview";
+import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
+import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import {
+  IDENTITY_SESSION_ENDPOINT,
+  useConsoleTenantScope,
+} from "@/lib/use-console-tenant-scope";
 
 const AGENTS_ENDPOINT = "/demo/manufacturing/agents";
 
@@ -37,14 +44,6 @@ const defaultFilters: AgentFilters = {
   autonomyLevel: allAgentFilter,
   status: allAgentFilter,
 };
-
-function sourceLabel(source: "loading" | "api" | "unavailable"): string {
-  if (source === "api") {
-    return "API agent registry";
-  }
-
-  return source === "loading" ? "Loading agent API" : "Agent API unavailable";
-}
 
 const metricTones: Record<PlatformStatus, Metric["tone"]> = {
   ready: "ready",
@@ -105,7 +104,11 @@ const filterIdToKey: Record<string, keyof AgentFilters> = {
 };
 
 export function AgentRegistry() {
-  const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(AGENTS_ENDPOINT, {
+  const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
+  const agentsPath = buildTenantScopedPath(AGENTS_ENDPOINT, tenantId ?? DEMO_TENANT_ID);
+  const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(agentsPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingAgentRegistry,
   });
   const [filters, setFilters] = useState<AgentFilters>(defaultFilters);
@@ -115,6 +118,26 @@ export function AgentRegistry() {
     () => (registry ? filterAgents(registry, filters) : []),
     [registry, filters],
   );
+
+  if (identity.source === "unavailable") {
+    return (
+      <ErrorPanel
+        detail="The agent registry is not loaded until the current actor and tenant are verified."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Identity API unavailable"
+      />
+    );
+  }
+
+  if (identity.source === "api" && !tenantId) {
+    return (
+      <ErrorPanel
+        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to demo agent records."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Authenticated tenant missing"
+      />
+    );
+  }
 
   if (!registry) {
     if (source === "loading") {
@@ -132,7 +155,7 @@ export function AgentRegistry() {
     return (
       <ErrorPanel
         detail={strings.agents.error.detail}
-        endpoint={AGENTS_ENDPOINT}
+        endpoint={agentsPath}
         title={strings.agents.error.title}
       />
     );
@@ -173,16 +196,16 @@ export function AgentRegistry() {
           {registry.plant_name} / {registry.scenario} / {registry.tenant_id}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="status-pill signal-ready">
-            <RadioTower size={15} />
-            {sourceLabel(source)}
-          </span>
+          <SourcePill
+            state={deriveSourceState(source, Boolean(registry))}
+            subject="agent registry"
+          />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <Bot size={15} />
             {platformStatusLabel(registry.registry_status)}
           </span>
           <span className="font-mono text-xs text-muted">
-            {formatOverviewTimestamp(registry.as_of)}
+            {formatTimestamp(registry.as_of)}
           </span>
         </div>
       </div>
@@ -222,7 +245,7 @@ export function AgentRegistry() {
               <div className="grid gap-1">
                 <Eyebrow>{strings.agents.list.eyebrow}</Eyebrow>
                 <h2 className="font-display m-0 text-xl text-ink">
-                  {filteredAgents.length} visible
+                  {formatNumber(filteredAgents.length)} visible
                 </h2>
               </div>
               <div className="grid gap-2">

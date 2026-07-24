@@ -3,21 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConnectorCsvPreviewResult } from "@/lib/connectors-demo";
+import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 
 import { csvConnectorFixture, dbConnectorFixture } from "./connector-fixtures";
 
 const mocks = vi.hoisted(() => ({
   axisFetch: vi.fn(),
-  useAxisQuery: vi.fn(),
 }));
 
 vi.mock("@/lib/axis-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/axis-api")>()),
   axisFetch: mocks.axisFetch,
-}));
-
-vi.mock("@/lib/use-axis-query", () => ({
-  useAxisQuery: mocks.useAxisQuery,
 }));
 
 vi.mock("@/lib/use-oidc-session", () => ({
@@ -64,27 +60,46 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
+let currentIdentity: IdentitySessionReadModel | null = null;
+
 function mockIdentity(
   identity: { authenticated: boolean; actor_id: string | null; api_auth_required?: boolean } | null,
 ) {
-  mocks.useAxisQuery.mockImplementation(() => ({
-    data: identity,
-    source: identity ? "api" : "loading",
-    error: null,
-    isRefreshing: false,
-    isLoading: identity === null,
-    isUnavailable: false,
-  }));
+  currentIdentity = identity
+    ? {
+        ...identity,
+        api_auth_required: identity.api_auth_required ?? false,
+        audience: "axis-console",
+        capabilities: [],
+        enterprise_sso_ready: false,
+        expires_at: null,
+        issuer: "test",
+        jwks_source: "test",
+        limitations: [],
+        mode: "test",
+        notes: [],
+        readiness_status: "ready",
+        scopes: [],
+        session_boundary: "test",
+        tenant_id: "tenant_demo_manufacturing",
+      }
+    : null;
 }
 
-function renderWizard(overrides: { onCreated?: () => void; onOpenChange?: (open: boolean) => void } = {}) {
+function renderWizard(overrides: {
+  onCreated?: () => void;
+  onOpenChange?: (open: boolean) => void;
+  tenantId?: string;
+} = {}) {
   return render(
     <ToastProvider>
       <AddConnectorWizard
         connectors={[csvConnectorFixture, dbConnectorFixture]}
+        identitySession={currentIdentity}
         open
         onCreated={overrides.onCreated ?? vi.fn()}
         onOpenChange={overrides.onOpenChange ?? vi.fn()}
+        tenantId={overrides.tenantId ?? "tenant_demo_manufacturing"}
       />
     </ToastProvider>,
   );
@@ -109,15 +124,16 @@ async function uploadCsvAndPreview(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   mocks.axisFetch.mockReset();
-  mocks.useAxisQuery.mockReset();
   mockIdentity({ authenticated: true, actor_id: "plant-operations-owner-role" });
 });
 
 describe("AddConnectorWizard CSV flow", () => {
   it("uploads a file, posts its parsed content to the preview endpoint, and shows the result", async () => {
     const user = userEvent.setup();
-    mocks.axisFetch.mockResolvedValueOnce(jsonResponse(csvPreviewReady));
-    renderWizard();
+    mocks.axisFetch.mockResolvedValueOnce(
+      jsonResponse({ ...csvPreviewReady, tenant_id: "tenant_acme" }),
+    );
+    renderWizard({ tenantId: "tenant_acme" });
 
     await uploadCsvAndPreview(user);
 
@@ -126,7 +142,7 @@ describe("AddConnectorWizard CSV flow", () => {
     const [previewPath, previewOptions] = mocks.axisFetch.mock.calls[0];
     expect(previewPath).toBe("/demo/manufacturing/connectors/file-csv/preview");
     expect(previewOptions.body).toEqual({
-      tenant_id: "tenant_demo_manufacturing",
+      tenant_id: "tenant_acme",
       connector_id: "file_csv_manufacturing_assets",
       file_name: "plant-assets.csv",
       csv_content: "asset_id,asset_name\nast-9,Grinder\nast-10,Lathe\n",
@@ -135,6 +151,19 @@ describe("AddConnectorWizard CSV flow", () => {
     // Preview table renders the proposed entities from the API response.
     expect(screen.getByText("ast-9")).toBeInTheDocument();
     expect(screen.getByText(/2 rows/)).toBeInTheDocument();
+  });
+
+  it("rejects a preview response from a different tenant", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch.mockResolvedValueOnce(jsonResponse(csvPreviewReady));
+    renderWizard({ tenantId: "tenant_acme" });
+
+    await uploadCsvAndPreview(user);
+
+    expect(
+      await screen.findByText("The CSV preview endpoint is unavailable."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Preview ready")).not.toBeInTheDocument();
   });
 
   it("keeps Next disabled until the preview is ready, then advances to review", async () => {
@@ -300,6 +329,73 @@ describe("AddConnectorWizard external DB flow", () => {
     expect(screen.getByLabelText("Connector id")).toHaveValue(
       "external_db_operations_production_orders",
     );
+  });
+
+  const dbPreviewReady = {
+    tenant_id: "tenant_demo_manufacturing",
+    connector_id: "external_db_operational_mirror",
+    connection_profile_id: "profile_postgres_ops_readonly",
+    source_type: "postgres_metadata",
+    preview_status: "ready",
+    sync_mode: "preview_only",
+    live_query_executed: false,
+    validation_issues: [],
+    inspected_table: {
+      schema_name: "operations",
+      table_name: "production_orders",
+      table_ref: "operations.production_orders",
+      record_count_estimate: "~1000",
+      sample_limit: 2,
+      columns: [],
+      sample_rows: [],
+    },
+    proposed_entities: [],
+    audit_event_preview: csvPreviewReady.audit_event_preview,
+    preview_notes: [],
+  };
+
+  it("clears a stale metadata preview when a connection field is edited afterward", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch.mockResolvedValueOnce(jsonResponse(dbPreviewReady));
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /^External database/ }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Preview metadata" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Metadata preview ready")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+
+    // Editing the table after a ready preview must not let a stale preview
+    // register a manifest for a table that was never actually previewed.
+    await user.clear(screen.getByLabelText("Table"));
+    await user.type(screen.getByLabelText("Table"), "different_table");
+
+    expect(screen.queryByText("Metadata preview ready")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("disables the connector template select while a preview is in flight", async () => {
+    const user = userEvent.setup();
+    let resolvePreview: (value: Response) => void = () => {};
+    mocks.axisFetch.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => { resolvePreview = resolve; }),
+    );
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /^External database/ }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Preview metadata" }));
+
+    expect(screen.getByLabelText("Connector template")).toBeDisabled();
+
+    resolvePreview(jsonResponse(dbPreviewReady));
+    await waitFor(() =>
+      expect(screen.getByText("Metadata preview ready")).toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Connector template")).toBeEnabled();
   });
 });
 

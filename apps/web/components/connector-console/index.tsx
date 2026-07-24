@@ -6,14 +6,21 @@ import { Cable, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
+import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   mergeConnectorListEntries,
   pendingProposalCount,
   type ConnectorListEntry,
 } from "@/lib/connectors-console";
+import { formatNumber } from "@/lib/format";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
+import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
+import {
+  IDENTITY_SESSION_ENDPOINT,
+  useConsoleTenantScope,
+} from "@/lib/use-console-tenant-scope";
 import {
   CONNECTOR_ENDPOINTS,
   useConnectorRegistries,
@@ -33,7 +40,7 @@ import { ConnectorList } from "./list";
  */
 
 function countOrPlaceholder(count: number | undefined): string | number {
-  return count ?? strings.connectors.metrics.unavailable;
+  return count === undefined ? strings.connectors.metrics.unavailable : formatNumber(count);
 }
 
 function buildMetrics(
@@ -90,7 +97,8 @@ function formatUpdatedAt(updatedAt: Date): string {
 }
 
 export function ConnectorConsole() {
-  const registries = useConnectorRegistries();
+  const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
+  const registries = useConnectorRegistries(tenantId, tenantQueriesEnabled);
   const { registry } = registries;
   const { triggerRefresh } = useConsole();
   const [requestedConnectorId] = useState<string | null>(() =>
@@ -125,6 +133,25 @@ export function ConnectorConsole() {
     [entries, selectedConnectorId, requestedConnectorId],
   );
 
+  if (!tenantQueriesEnabled || tenantId === null) {
+    if (identity.source === "loading") {
+      return (
+        <div aria-label="Loading connector identity" className="grid gap-4">
+          <LoadingPanel layout="metrics" rows={5} />
+          <MasterDetail detail={<LoadingPanel layout="detail" />} list={<LoadingPanel rows={4} />} />
+        </div>
+      );
+    }
+
+    return (
+      <ErrorPanel
+        detail="The connector console is disabled because the current tenant could not be verified."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Tenant identity unavailable"
+      />
+    );
+  }
+
   if (!registry.data) {
     if (registry.source === "loading") {
       return (
@@ -145,12 +172,15 @@ export function ConnectorConsole() {
   }
 
   const registryData = registry.data;
+  const identitySession = identity.data;
   const wizard = (
     <AddConnectorWizard
       connectors={connectors}
+      identitySession={identitySession}
       open={wizardOpen}
       onCreated={triggerRefresh}
       onOpenChange={setWizardOpen}
+      tenantId={tenantId}
     />
   );
 
@@ -164,6 +194,10 @@ export function ConnectorConsole() {
           {registryData.plant_name} / {registryData.scenario} / {registryData.tenant_id}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <SourcePill
+            state={deriveSourceState(registry.source, Boolean(registry.data))}
+            subject="connector registry"
+          />
           <span className={`status-pill ${platformStatusClass(registryData.registry_status)}`}>
             <Cable size={15} />
             {platformStatusLabel(registryData.registry_status)}
@@ -197,7 +231,21 @@ export function ConnectorConsole() {
         />
       ) : (
         <MasterDetail
-          detail={<ConnectorDetail entry={selectedEntry} registries={registries} />}
+          detail={
+            <ConnectorDetail
+              // Remounts the whole detail pane (and its nested action state —
+              // ConnectorRuns' validating/validateOutcome/stepper/syncRunning)
+              // when the selected connector changes. Without this key, Radix
+              // Tabs is uncontrolled and that state is component state, so
+              // switching connectors mid-validation showed the previous
+              // connector's "Validation passed" result under the new one.
+              key={selectedEntry.connector.manifest.connector_id}
+              entry={selectedEntry}
+              identitySession={identitySession}
+              registries={registries}
+              tenantId={tenantId}
+            />
+          }
           list={
             <ConnectorList
               entries={entries}

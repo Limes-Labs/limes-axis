@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronRight, Inbox, RadioTower, ShieldAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Inbox, ShieldAlert } from "lucide-react";
 
 import {
   ApprovalDecisionCard,
@@ -15,6 +15,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
+import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   approvalDecisionLabel,
@@ -24,11 +25,9 @@ import {
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import {
-  formatOverviewTimestamp,
-  type IdentitySessionReadModel,
-  platformStatusClass,
-} from "@/lib/platform-overview";
+import { formatNumber, formatTimestamp } from "@/lib/format";
+import { type IdentitySessionReadModel, platformStatusClass } from "@/lib/platform-overview";
+import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
@@ -394,14 +393,6 @@ function ApprovalDetail({
   );
 }
 
-function sourceLabel(source: "loading" | "api" | "unavailable"): string {
-  if (source === "api") {
-    return "API approval queue";
-  }
-
-  return source === "loading" ? "Loading approval API" : "Approval API unavailable";
-}
-
 export function ApprovalInbox() {
   const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
     parse: parseIdentitySessionReadModel,
@@ -513,16 +504,16 @@ export function ApprovalInbox() {
           {inbox.plant_name} / {inbox.scenario} / {inbox.tenant_id}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="status-pill signal-ready">
-            <RadioTower size={15} />
-            {sourceLabel(source)}
-          </span>
+          <SourcePill
+            state={deriveSourceState(source, Boolean(inbox))}
+            subject="approval queue"
+          />
           <span className={`status-pill ${platformStatusClass(inbox.queue_status)}`}>
             <ShieldAlert size={15} />
-            {pendingCount} pending
+            {formatNumber(pendingCount)} pending
           </span>
           <span className="font-mono text-xs text-muted">
-            {formatOverviewTimestamp(inbox.as_of)}
+            {formatTimestamp(inbox.as_of)}
           </span>
         </div>
       </div>

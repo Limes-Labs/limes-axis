@@ -29,23 +29,27 @@ import { ConsoleCommandMenu } from "./console-command-menu";
 
 function mockEntityEndpoints() {
   mocks.axisFetchParsedJson.mockImplementation((path: string) => {
-    if (path === "/demo/manufacturing/workflows") {
+    if (path === "/demo/manufacturing/workflows?tenant_id=tenant_acme") {
       return Promise.resolve({
+        tenant_id: "tenant_acme",
         workflow_runs: [{ workflow_id: "wf_line2_changeover", name: "Line 2 changeover" }],
       });
     }
-    if (path === "/demo/manufacturing/agents") {
+    if (path === "/demo/manufacturing/agents?tenant_id=tenant_acme") {
       return Promise.resolve({
+        tenant_id: "tenant_acme",
         agents: [{ agent_id: "agent_maintenance", name: "Maintenance planner" }],
       });
     }
-    if (path === "/platform/policies") {
+    if (path === "/platform/policies?tenant_id=tenant_acme") {
       return Promise.resolve({
+        tenant_id: "tenant_acme",
         policies: [{ policy_id: "policy_egress", display_name: "Egress lockdown" }],
       });
     }
-    if (path === "/demo/manufacturing/connectors") {
+    if (path === "/demo/manufacturing/connectors?tenant_id=tenant_acme") {
       return Promise.resolve({
+        tenant_id: "tenant_acme",
         connectors: [
           {
             manifest: { connector_id: "conn_mes_csv", display_name: "MES shift export" },
@@ -63,6 +67,8 @@ function renderMenu(overrides: Partial<Parameters<typeof ConsoleCommandMenu>[0]>
     onClose: vi.fn(),
     onRefresh: vi.fn(),
     open: true,
+    tenantId: "tenant_acme",
+    tenantQueriesEnabled: true,
     ...overrides,
   };
 
@@ -141,6 +147,29 @@ describe("ConsoleCommandMenu", () => {
     await user.click(screen.getByText("Line 2 changeover"));
 
     expect(mocks.routerPush).toHaveBeenCalledWith("/workflows");
+  });
+
+  it("does not issue entity reads until identity has verified a tenant", async () => {
+    renderMenu({ tenantId: null, tenantQueriesEnabled: false });
+
+    await waitFor(() => expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled());
+    expect(screen.queryByText("Entities")).not.toBeInTheDocument();
+  });
+
+  it("drops a registry payload whose tenant does not match the request", async () => {
+    mocks.axisFetchParsedJson.mockImplementation((path: string) => {
+      if (path.startsWith("/demo/manufacturing/workflows")) {
+        return Promise.resolve({
+          tenant_id: "tenant_other",
+          workflow_runs: [{ workflow_id: "wf_foreign", name: "Foreign workflow" }],
+        });
+      }
+      return Promise.reject(new Error("unavailable"));
+    });
+    renderMenu();
+
+    await waitFor(() => expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(4));
+    expect(screen.queryByText("Foreign workflow")).not.toBeInTheDocument();
   });
 
   it("silently omits entities when every registry fetch fails", async () => {

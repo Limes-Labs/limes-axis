@@ -168,10 +168,18 @@ export function NeedsAttention({
   );
   const copy = strings.overview.needsAttention;
 
+  /*
+   * "Nothing is waiting on you" is a governance claim, so it may only be made
+   * once BOTH sources have reported. The gate used to require both to be
+   * dataless: if the overview resolved empty while approvals was still in
+   * flight, the panel announced "All clear" and then flipped to three pending
+   * approvals a moment later.
+   */
+  if (overview.source === "loading" || approvalsQuery.source === "loading") {
+    return <LoadingPanel rows={3} />;
+  }
+
   if (!overview.data && !approvalsQuery.data) {
-    if (overview.source === "loading" || approvalsQuery.source === "loading") {
-      return <LoadingPanel rows={3} />;
-    }
 
     return (
       <ErrorPanel

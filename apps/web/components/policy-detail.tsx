@@ -6,12 +6,12 @@ import {
   ArrowLeft,
   FlaskConical,
   GitCompareArrows,
-  RadioTower,
   ScrollText,
   ShieldCheck,
 } from "lucide-react";
 
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { SourcePill } from "@/components/ui/source-pill";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
 import { PolicyReviseForm } from "@/components/policy-revise-form";
@@ -29,26 +29,25 @@ import {
   type PlatformPolicyDetail,
   type PlatformPolicyRecord,
 } from "@/lib/platform-policies";
-import { formatOverviewTimestamp } from "@/lib/platform-overview";
+import { formatNumber, formatTimestamp } from "@/lib/format";
+import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import {
+  IDENTITY_SESSION_ENDPOINT,
+  useConsoleTenantScope,
+} from "@/lib/use-console-tenant-scope";
 
 type DetailSource = "loading" | "api" | "unavailable" | "missing";
 
-function sourceLabel(source: DetailSource): string {
-  if (source === "api") {
-    return "API policy detail";
-  }
-
-  if (source === "missing") {
-    return "Policy not found";
-  }
-
-  return source === "loading" ? "Loading policy API" : "Policy API unavailable";
-}
+type DetailResult = {
+  tenantId: string;
+  detail: PlatformPolicyDetail | null;
+  source: Exclude<DetailSource, "loading">;
+};
 
 function ConditionTagList({ items, anyLabel }: { items?: string[]; anyLabel: string }) {
   const values = items ?? [];
@@ -114,7 +113,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
               </td>
               <td>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{revision.created_by}</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatOverviewTimestamp(revision.created_at)}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatTimestamp(revision.created_at)}</p>
               </td>
             </tr>
           ))}
@@ -125,34 +124,45 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
 }
 
 export function PolicyDetail({ policyId }: { policyId: string }) {
-  const [detail, setDetail] = useState<PlatformPolicyDetail | null>(null);
-  const [source, setSource] = useState<DetailSource>("loading");
+  const [result, setResult] = useState<DetailResult | null>(null);
   const [compareRevisionNumber, setCompareRevisionNumber] = useState("");
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
+  const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
+  const detailPath = buildPlatformPolicyDetailPath(policyId, tenantId ?? undefined);
 
   useEffect(() => {
+    if (!tenantQueriesEnabled || !tenantId) {
+      return;
+    }
+    const requestedTenantId: string = tenantId;
+
     const controller = new AbortController();
 
     async function fetchPolicy() {
       try {
-        const policyDetail = await fetchPlatformPolicyDetail(policyId, {
-          session,
-          signal: controller.signal,
-        });
+        const policyDetail = await fetchPlatformPolicyDetail(
+          policyId,
+          {
+            session,
+            signal: controller.signal,
+          },
+          requestedTenantId,
+        );
 
         if (policyDetail === null) {
-          setDetail(null);
-          setSource("missing");
+          setResult({ tenantId: requestedTenantId, detail: null, source: "missing" });
           return;
         }
 
-        setDetail(policyDetail);
-        setSource("api");
+        if (policyDetail.tenant_id !== requestedTenantId) {
+          throw new Error(`Policy detail tenant does not match ${requestedTenantId}.`);
+        }
+
+        setResult({ tenantId: requestedTenantId, detail: policyDetail, source: "api" });
       } catch {
         if (!controller.signal.aborted) {
-          setDetail(null);
-          setSource("unavailable");
+          setResult({ tenantId: requestedTenantId, detail: null, source: "unavailable" });
         }
       }
     }
@@ -160,7 +170,24 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
     void fetchPolicy();
 
     return () => controller.abort();
-  }, [policyId, session, refreshNonce]);
+  }, [policyId, session, refreshNonce, tenantId, tenantQueriesEnabled]);
+
+  if (identity.source === "loading") {
+    return <LoadingPanel layout="detail" />;
+  }
+
+  if (identity.source === "unavailable" || !tenantId) {
+    return (
+      <ErrorPanel
+        detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
+        endpoint={IDENTITY_SESSION_ENDPOINT}
+        title="Identity API unavailable"
+      />
+    );
+  }
+
+  const detail = result?.tenantId === tenantId ? result.detail : null;
+  const source: DetailSource = result?.tenantId === tenantId ? result.source : "loading";
 
   if (!detail) {
     if (source === "loading") {
@@ -171,7 +198,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       return (
         <ErrorPanel
           detail={strings.policyDetail.error.detailDetail}
-          endpoint={buildPlatformPolicyDetailPath(policyId)}
+          endpoint={detailPath}
           title={strings.policyDetail.error.title}
         />
       );
@@ -179,7 +206,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
     return (
       <div className="grid min-w-0 gap-4">
-        <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
+        <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="eyebrow m-0">Platform Policy</p>
             <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Policy not found</h2>
@@ -205,7 +232,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="eyebrow m-0">{policyScopeLabel(current.scope)}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{current.display_name}</h2>
@@ -215,10 +242,10 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           </p>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Policy source and status">
-          <span className="status-pill signal-ready">
-            <RadioTower size={15} />
-            {sourceLabel(source)}
-          </span>
+          <SourcePill
+            state={deriveSourceState(source === "missing" ? "unavailable" : source, Boolean(detail))}
+            subject="policy"
+          />
           <span className={`status-pill ${policyEffectClass(current.effect)}`}>
             <ShieldCheck size={15} />
             {policyEffectLabel(current.effect)}
@@ -231,24 +258,24 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       </section>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Current Revision</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink font-mono text-[13px] break-words">r{current.revision_number}</p>
+          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">r{current.revision_number}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{current.policy_version}</p>
         </article>
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Status</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{policyStatusLabel(current.status)}</p>
+          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{policyStatusLabel(current.status)}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">Only the active revision is evaluated</p>
         </article>
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Authored By</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink">{current.created_by}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatOverviewTimestamp(current.created_at)}</p>
+          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{current.created_by}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatTimestamp(current.created_at)}</p>
         </article>
-        <article className="min-w-0 rounded-3xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
+        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Authoring Scope</p>
-          <p className="font-display mx-0 mt-4 mb-2 text-3xl text-ink font-mono text-[13px] break-words">{current.required_authoring_scope}</p>
+          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{current.required_authoring_scope}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{current.audit_event_type}</p>
         </article>
       </div>
@@ -261,7 +288,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </TabsList>
 
         <TabsContent className="grid min-w-0 gap-4" value="conditions">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <p className="eyebrow m-0">Rule Conditions</p>
         <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{summarizePolicyConditions(current.conditions)}</h2>
         <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
@@ -301,7 +328,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         ) : null}
       </section>
 
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <p className="eyebrow m-0">Evaluation Precedence</p>
         <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Deterministic decision order</h2>
         <div className="grid min-w-0 gap-2.5">
@@ -321,11 +348,11 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         tenantId={detail.tenant_id}
       />
 
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
           <div>
             <p className="eyebrow m-0">Revision History</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{detail.revisions.length} append-only revisions</h2>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatNumber(detail.revisions.length)} append-only revisions</h2>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
               Superseded revisions stay readable but are never evaluated.
             </p>
@@ -335,7 +362,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       </section>
       <RevisionHistoryTable revisions={detail.revisions} />
 
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
           <div>
             <p className="eyebrow m-0">Revision Compare</p>
@@ -375,7 +402,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </TabsContent>
 
         <TabsContent className="grid min-w-0 gap-4" value="evaluate">
-      <section className="min-w-0 rounded-3xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
           <div>
             <p className="eyebrow m-0">Dry-Run Evaluation</p>

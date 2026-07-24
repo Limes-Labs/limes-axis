@@ -130,6 +130,26 @@ function announceBrowserSessionSignedOut(): void {
   }
 }
 
+/**
+ * Latches once a browser-session refresh has definitively failed.
+ *
+ * Without it an expired session loops forever: the 401 arms a refresh, the
+ * refresh fails, the signed-out event makes the console re-run every live
+ * query, and each of those 401s again — the API rejects without clearing the
+ * `axis_csrf` cookie, so nothing ever disarms the refresh. A tab left open
+ * overnight would wake up hammering the API and never finish loading.
+ *
+ * The latch is cleared by any non-401 cookie-mode response, so signing in again
+ * (in this tab or another) re-arms refresh without a reload.
+ */
+let browserSessionSignedOut = false;
+
+/** Test-only: module state outlives individual cases. */
+export function resetBrowserSessionState(): void {
+  browserSessionSignedOut = false;
+  inflightBrowserSessionRefresh = null;
+}
+
 let inflightBrowserSessionRefresh: Promise<boolean> | null = null;
 
 async function performBrowserSessionRefresh(): Promise<boolean> {
@@ -175,6 +195,10 @@ function shouldAttemptSessionRefresh(
   if (response.status !== 401 || path === SESSION_REFRESH_PATH) {
     return false;
   }
+  // A session already known to be dead must not re-arm the refresh cycle.
+  if (browserSessionSignedOut) {
+    return false;
+  }
   // Bearer-mode requests own their token lifecycle; the cookie refresh
   // endpoint cannot mint bearer credentials for them.
   if (new Headers(init.headers).has("Authorization")) {
@@ -192,12 +216,19 @@ export async function axisFetch(
   const init = buildRequestInit(options);
   const response = await fetch(`${getApiBaseUrl()}${path}`, init);
 
+  // Any accepted cookie-mode response means a session is alive again — clear
+  // the latch so a fresh sign-in restores refresh without a page reload.
+  if (response.status !== 401) {
+    browserSessionSignedOut = false;
+  }
+
   if (!shouldAttemptSessionRefresh(response, init, path)) {
     return response;
   }
 
   const refreshed = await refreshBrowserSession();
   if (!refreshed) {
+    browserSessionSignedOut = true;
     announceBrowserSessionSignedOut();
     return response;
   }
@@ -212,6 +243,7 @@ export async function axisFetch(
   // converge to the signed-out state so the console re-runs its live queries
   // against /identity/session, matching the refresh-failure path above.
   if (shouldAttemptSessionRefresh(retryResponse, retryInit, path)) {
+    browserSessionSignedOut = true;
     announceBrowserSessionSignedOut();
   }
   return retryResponse;

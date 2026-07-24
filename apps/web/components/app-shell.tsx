@@ -49,7 +49,7 @@ function ApprovalsBadge() {
       tenantScope.tenantId ?? DEMO_TENANT_ID,
     ),
     {
-      enabled: tenantScope.tenantId !== null,
+      enabled: identity.source === "api" && tenantScope.tenantId !== null,
       expectedTenantId: tenantScope.tenantId ?? undefined,
       parse: parseManufacturingApprovalInbox,
     },
@@ -116,16 +116,18 @@ function Navigation({ pathname }: { pathname: string }) {
 
 function TopNavigation({ pathname }: { pathname: string }) {
   return (
-    <div className="sticky top-0 z-10 block overflow-hidden border-b border-line bg-surface/90 px-3 py-2.5 backdrop-blur-md min-[921px]:hidden dark:border-white/10">
+    <nav
+      aria-label="Mobile Axis sections"
+      className="sticky top-0 z-10 block overflow-hidden border-b border-line bg-surface/90 px-3 py-2.5 backdrop-blur-md min-[921px]:hidden dark:border-white/10"
+    >
       <div
         className="topnav flex max-w-full min-w-0 gap-1.5 overflow-x-auto pb-0.5"
-        aria-label="Axis sections"
       >
         {navItems.map((item) => (
           <NavLink className="shrink-0" item={item} key={item.href} pathname={pathname} />
         ))}
       </div>
-    </div>
+    </nav>
   );
 }
 
@@ -135,6 +137,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ConsoleProvider>
       <ToastProvider>
+        <a
+          className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-surface shadow-lg transition-transform focus:translate-y-0"
+          href="#console-main"
+        >
+          Skip to main content
+        </a>
         <div className="grid min-h-screen grid-cols-1 min-[921px]:grid-cols-[190px_minmax(0,1fr)]">
           <aside
             className="sidebar fixed inset-y-0 left-0 z-12 hidden h-dvh min-h-0 w-[190px] flex-col overflow-hidden border-r border-line bg-surface px-2.5 py-4 min-[921px]:flex dark:border-white/10"
@@ -155,7 +163,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
             <Navigation pathname={pathname} />
           </aside>
-          <main className="min-w-0 min-[921px]:col-start-2">
+          <main className="min-w-0 min-[921px]:col-start-2" id="console-main" tabIndex={-1}>
             <TopNavigation pathname={pathname} />
             {children}
           </main>
