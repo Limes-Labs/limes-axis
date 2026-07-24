@@ -63,10 +63,9 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: strings.nav.platform,
-    items: [
-      { href: "/tenants", label: pages.tenants.title, icon: "building" },
-      { href: "/settings", label: pages.settings.title, icon: "settings" },
-    ],
+    /* Settings is not listed here: it sits in the sidebar footer beside the
+       account row, with the rest of "how is this set up". */
+    items: [{ href: "/tenants", label: pages.tenants.title, icon: "building" }],
   },
 ];
 

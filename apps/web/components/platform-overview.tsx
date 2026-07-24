@@ -124,7 +124,7 @@ function OverviewHero({
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
         <div className="grid gap-1">
           <h2 className="font-display font-display-lg m-0 text-2xl text-white">
-            {formatContextPath(data.scenario) || "Manufacturing overview"}
+            {formatContextPath(data.scenario) || strings.overview.hero.fallbackTitle}
           </h2>
           <p className="m-0 text-sm text-white/70" data-hero-subtitle>
             {formatContextPath(data.plant_name, formatTimestamp(asOf))}

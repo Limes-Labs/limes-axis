@@ -72,6 +72,11 @@ const nav = {
   dataAndModels: "Data & Models",
   governance: "Governance",
   platform: "Platform",
+  help: "Help",
+  /* Shown in the sidebar account row when the identity API has not named an
+     actor or tenant — never a blank line, which reads as a rendering fault. */
+  signedOut: "Not signed in",
+  noTenant: "No tenant selected",
 } as const;
 
 /** Per-route header copy, keyed by route segment (`overview` for `/`). */
@@ -649,6 +654,9 @@ const connectors = {
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
   hero: {
+    /* Used when the tenant has recorded no scenario name. Must stay
+       vertical-neutral: this console is not manufacturing-only. */
+    fallbackTitle: "Operations overview",
     error: {
       title: "Operations data could not be loaded",
       detail:

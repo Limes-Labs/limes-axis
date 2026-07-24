@@ -12,11 +12,11 @@ describe("grouped navigation model", () => {
     ]);
   });
 
-  it("keeps all 12 console routes addressable exactly once", () => {
+  it("keeps all 11 grouped console routes addressable exactly once", () => {
     const hrefs = navItems.map((item) => item.href);
 
-    expect(hrefs).toHaveLength(12);
-    expect(new Set(hrefs).size).toBe(12);
+    expect(hrefs).toHaveLength(11);
+    expect(new Set(hrefs).size).toBe(11);
     expect([...hrefs].sort()).toEqual(
       [
         "/",
@@ -27,12 +27,17 @@ describe("grouped navigation model", () => {
         "/model-routing",
         "/ontology",
         "/policies",
-        "/settings",
         "/simulation",
         "/tenants",
         "/workflows",
       ].sort(),
     );
+  });
+
+  it("leaves /settings out of the groups because the footer owns it", () => {
+    // Listing it in both places would give the route two active states in the
+    // sidebar at once.
+    expect(navItems.map((item) => item.href)).not.toContain("/settings");
   });
 
   it("gives every item a unique icon", () => {

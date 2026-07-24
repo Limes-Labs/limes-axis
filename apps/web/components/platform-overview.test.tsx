@@ -161,7 +161,12 @@ describe("PlatformOverview hero", () => {
 
     renderOverview();
 
-    expect(screen.getByRole("heading", { name: "Manufacturing overview" })).toBeInTheDocument();
+    // Vertical-neutral: this console is not manufacturing-only, and a tenant
+    // with no scenario of its own must not be labelled as one.
+    expect(
+      screen.getByRole("heading", { name: strings.overview.hero.fallbackTitle }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Manufacturing overview/)).not.toBeInTheDocument();
     expect(screen.getByTestId("hero-audit-count")).toBeInTheDocument();
     expect(screen.getByText(/Northwind Press/)).not.toHaveTextContent(/null|^\s*\//);
   });

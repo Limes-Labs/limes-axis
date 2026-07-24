@@ -40,9 +40,11 @@ function currentReturnPath(): string {
 }
 
 export function AccountPanel({
+  className,
   identitySession,
   identitySessionUnavailable,
 }: {
+  className?: string;
   identitySession: IdentitySessionReadModel | null;
   identitySessionUnavailable: boolean;
 }) {
@@ -84,7 +86,7 @@ export function AccountPanel({
 
   return (
     <section
-      className={cn(popoverClass, "w-[min(390px,calc(100vw-32px))]")}
+      className={cn(className ?? popoverClass, "w-[min(390px,calc(100vw-32px))]")}
       aria-label="Operator account"
     >
       <PopoverHeader label="Operator">

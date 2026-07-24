@@ -24,6 +24,8 @@ export const securityHeaders = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  // The default bottom-left placement sits on top of the sidebar's account row.
+  devIndicators: { position: "bottom-right" },
   allowedDevOrigins: ["127.0.0.1"],
   reactStrictMode: true,
   turbopack: {

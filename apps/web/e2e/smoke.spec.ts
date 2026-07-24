@@ -309,11 +309,13 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("button", { name: "Open operator account" }).click();
 
     await expect(page.locator('[aria-label="Operator account"]')).toBeVisible();
-    await expect(page.getByText("plant-operations-owner-role")).toBeVisible();
+    await expect(
+      page.locator('[aria-label="Operator account"]').getByText("plant-operations-owner-role"),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Sign out with identity provider" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open operator account" })).toHaveText("PO");
+    await expect(page.locator("[data-operator-initials]").first()).toHaveText("PO");
 
     const [logoutRequest] = await Promise.all([
       page.waitForRequest("http://127.0.0.1:65534/identity/oidc/logout?return_to=%2F"),
@@ -367,7 +369,6 @@ test.describe("Axis console smoke", () => {
       "Audit",
       "Simulation",
       "Tenants",
-      "Settings",
     ]);
     expect(sidebarState.sidebar?.clientHeight).toBe(sidebarState.viewportHeight);
     expect(sidebarState.sidebar?.scrollHeight ?? 0).toBeLessThanOrEqual(
@@ -379,7 +380,10 @@ test.describe("Axis console smoke", () => {
     await page.locator(".nav-list").evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
+    // Settings and the account row live in the footer now, outside the
+    // scrolling nav list, so they stay reachable on a short screen.
     await expect(page.getByRole("link", { name: "Settings" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Open operator account" })).toBeInViewport();
   });
 
   test("keeps topbar utility hitboxes and popovers stable", async ({ page }) => {
@@ -392,16 +396,20 @@ test.describe("Axis console smoke", () => {
     const utilityRects = await page
       .locator(".ops-toolbar-icons button")
       .evaluateAll((buttons) =>
-        buttons.map((button) => {
-          const rect = button.getBoundingClientRect();
-          return {
-            height: Math.round(rect.height),
-            width: Math.round(rect.width),
-          };
-        }),
+        buttons
+          // Below 921px the topbar also carries the identity controls; at this
+          // width they are display:none and would measure 0x0.
+          .filter((button) => (button as HTMLElement).offsetParent !== null)
+          .map((button) => {
+            const rect = button.getBoundingClientRect();
+            return {
+              height: Math.round(rect.height),
+              width: Math.round(rect.width),
+            };
+          }),
       );
 
-    expect(utilityRects.length).toBeGreaterThanOrEqual(5);
+    expect(utilityRects.length).toBeGreaterThanOrEqual(4);
     for (const rect of utilityRects) {
       expect(rect).toEqual({ height: 34, width: 34 });
     }

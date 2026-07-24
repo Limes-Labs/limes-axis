@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bell, CircleHelp, RefreshCw, Search, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Bell, RefreshCw, Search, ShieldCheck } from "lucide-react";
 
 import { ConsoleCommandMenu } from "@/components/console-command-menu";
+import { announcePopoverOpened, useExclusivePopover } from "@/lib/console-popovers";
+import { SidebarAccount } from "@/components/sidebar-account";
 import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AccountPanel } from "@/components/topbar/account-panel";
-import { HelpPanel } from "@/components/topbar/help-panel";
 import { NotificationPanel } from "@/components/topbar/notification-panel";
-import { cn } from "@/lib/cn";
-import { apiStatusClass, operatorInitials } from "@/lib/identity-format";
+import { apiStatusClass } from "@/lib/identity-format";
 import type {
   IdentitySessionReadModel,
   ManufacturingNotificationCenter,
@@ -45,10 +44,13 @@ export function ConsoleTopbar({
   const { apiStatus, triggerRefresh } = useConsole();
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
+  useExclusivePopover(
+    "topbar",
+    useCallback(() => setActivePanel(null), []),
+  );
   const { session } = useOidcConsoleSession();
   const {
     data: identitySession,
-    isUnavailable: identitySessionUnavailable,
     source: identitySessionSource,
   } =
     useAxisQuery<IdentitySessionReadModel>("/identity/session", {
@@ -158,7 +160,13 @@ export function ConsoleTopbar({
           aria-label="Open notifications"
           title="Open notifications"
           onClick={() =>
-            setActivePanel((current) => (current === "notifications" ? null : "notifications"))
+            setActivePanel((current) => {
+              const next = current === "notifications" ? null : "notifications";
+              if (next !== null) {
+                announcePopoverOpened("topbar");
+              }
+              return next;
+            })
           }
         >
           <Bell size={17} />
@@ -168,43 +176,24 @@ export function ConsoleTopbar({
             </span>
           ) : null}
         </button>
-        <button
-          className={`icon-button${activePanel === "help" ? " icon-button-active" : ""}`}
-          type="button"
-          aria-expanded={activePanel === "help"}
-          aria-label="Open platform help"
-          title="Open platform help"
-          onClick={() => setActivePanel((current) => (current === "help" ? null : "help"))}
-        >
-          <CircleHelp size={17} />
-        </button>
-        <span className="mx-0.5 h-[22px] w-px shrink-0 bg-line dark:bg-white/15" aria-hidden="true" />
-        <button
-          className={cn(
-            "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-surface text-xs font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 active:translate-y-px dark:border-white/20 dark:bg-white/5",
-            activePanel === "account" && "border-signal/40 bg-signal/10",
-          )}
-          type="button"
-          aria-expanded={activePanel === "account"}
-          aria-label="Open operator account"
-          title="Open operator account"
-          onClick={() => setActivePanel((current) => (current === "account" ? null : "account"))}
-        >
-          {operatorInitials(identitySession?.actor_id ?? session?.actorId)}
-        </button>
+        <span
+          aria-hidden="true"
+          className="mx-0.5 h-[22px] w-px shrink-0 bg-line min-[921px]:hidden dark:bg-white/15"
+        />
+        <div className="min-[921px]:hidden">
+          <SidebarAccount
+            identitySession={identitySession ?? null}
+            identitySessionUnavailable={identitySessionSource === "unavailable"}
+            settingsActive={false}
+            variant="compact"
+          />
+        </div>
         {activePanel === "notifications" ? (
           <NotificationPanel
             center={notificationCenter}
             identitySession={identitySession}
             onAcknowledged={triggerRefresh}
             session={session}
-          />
-        ) : null}
-        {activePanel === "help" ? <HelpPanel /> : null}
-        {activePanel === "account" ? (
-          <AccountPanel
-            identitySession={identitySession}
-            identitySessionUnavailable={identitySessionUnavailable}
           />
         ) : null}
       </div>

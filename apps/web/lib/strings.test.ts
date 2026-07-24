@@ -52,7 +52,12 @@ describe("strings.pages", () => {
 
 describe("strings.nav", () => {
   it("exposes the four sidebar group labels", () => {
-    expect(Object.values(strings.nav)).toEqual(navGroupLabels);
+    // `strings.nav` also carries the footer's copy, so assert the group labels
+    // are present rather than that they are the only entries.
+    const navValues: string[] = Object.values(strings.nav);
+    expect(navGroupLabels.every((label) => navValues.includes(label))).toBe(true);
+    expect(strings.nav.help.length).toBeGreaterThan(0);
+    expect(strings.nav.signedOut.length).toBeGreaterThan(0);
   });
 });
 
