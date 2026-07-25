@@ -64,9 +64,6 @@ function outcomeClass(outcome: ConnectorManifestValidationOutcome): string {
   if (outcome === "would_register") {
     return "signal-ready";
   }
-  if (outcome === "would_replace") {
-    return "signal-watch";
-  }
   return "signal-action-required";
 }
 
@@ -106,7 +103,13 @@ export function ManifestImportPanel({
     && identitySession.api_auth_required
     && !identitySession.authenticated;
   const invalidCount = validation?.summary.invalid ?? 0;
-  const canApply = validation !== null && invalidCount === 0 && !ssoBlocked;
+  const alreadyRegisteredCount = validation?.summary.already_registered ?? 0;
+  const rejectedCount = invalidCount + alreadyRegisteredCount;
+  const applying = applyState.phase === "applying";
+  const canApply = validation !== null
+    && rejectedCount === 0
+    && !ssoBlocked
+    && applyState.phase === "idle";
 
   function resetReview(nextText: string) {
     setText(nextText);
@@ -148,6 +151,8 @@ export function ManifestImportPanel({
     setLocalError(null);
     setLimitErrorCount(null);
     setRequestError(null);
+    setDocuments([]);
+    setValidation(null);
     setApplyState({ phase: "idle" });
     try {
       const response = await axisFetch(MANIFEST_VALIDATION_ENDPOINT, {
@@ -187,7 +192,7 @@ export function ManifestImportPanel({
   }
 
   async function applyDocuments() {
-    if (!validation || invalidCount > 0) {
+    if (!validation || rejectedCount > 0) {
       return;
     }
     const results: ApplyResult[] = documents.map(() => "pending");
@@ -199,9 +204,9 @@ export function ManifestImportPanel({
           method: "POST",
           session,
           body: {
+            ...documents[index],
             tenant_id: tenantId,
             registered_by: identitySession?.actor_id ?? CONNECTOR_CONSOLE_ACTOR,
-            ...documents[index],
           },
         });
         if (response.status !== 201) {
@@ -285,13 +290,19 @@ export function ManifestImportPanel({
           <Textarea
             aria-invalid={Boolean(localError || limitErrorCount)}
             className="min-h-40 font-mono text-xs"
+            disabled={applying}
             onChange={(event) => resetReview(event.target.value)}
             placeholder={copy.inputPlaceholder}
             value={text}
           />
         </Field>
         <Field label={copy.fileLabel}>
-          <Input accept=".json,application/json" onChange={handleFileChange} type="file" />
+          <Input
+            accept=".json,application/json"
+            disabled={applying}
+            onChange={handleFileChange}
+            type="file"
+          />
           {fileName ? <span className="font-mono text-xs text-muted">{fileName}</span> : null}
         </Field>
       </div>
@@ -315,7 +326,7 @@ export function ManifestImportPanel({
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button
-          disabled={!text.trim() || ssoBlocked}
+          disabled={!text.trim() || ssoBlocked || applying}
           loading={checking}
           onClick={() => void checkDocuments()}
           variant="secondary"
@@ -323,7 +334,7 @@ export function ManifestImportPanel({
           {checking ? copy.checking : copy.check}
         </Button>
         <Button
-          disabled={!canApply || applyState.phase === "applying"}
+          disabled={!canApply}
           onClick={() => setApplyState({ phase: "confirming" })}
         >
           {copy.reviewApply}
@@ -343,7 +354,7 @@ export function ManifestImportPanel({
           <div aria-label={copy.summary.title} className="grid gap-2 sm:grid-cols-3">
             {([
               ["would_register", copy.summary.wouldRegister],
-              ["would_replace", copy.summary.wouldReplace],
+              ["already_registered", copy.summary.alreadyRegistered],
               ["invalid", copy.summary.invalid],
             ] as const).map(([outcome, label]) => (
               <div className="rounded-xl border border-line p-3 dark:border-white/10" key={outcome}>
@@ -395,11 +406,17 @@ export function ManifestImportPanel({
             </tbody>
           </DataTable>
 
-          {invalidCount > 0 ? (
-            <p className="m-0 text-sm text-danger" role="status">
-              {copy.blocked(invalidCount, documents.length)}
-            </p>
-          ) : null}
+          <p
+            className={cn("m-0 text-sm", rejectedCount > 0 ? "text-danger" : "text-muted")}
+            role="status"
+          >
+            {copy.applyability(
+              rejectedCount,
+              invalidCount,
+              alreadyRegisteredCount,
+              documents.length,
+            )}
+          </p>
           {applyState.phase === "confirming" ? (
             <div className="grid gap-3 rounded-xl border border-warning/40 bg-warning/8 p-4">
               <p className="m-0 text-sm text-muted" role="status">

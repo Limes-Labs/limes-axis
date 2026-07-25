@@ -420,7 +420,8 @@ const connectors = {
     title: "Import connector manifests",
     description:
       "Paste one registration document or an array, or upload a JSON file. Check the whole batch before anything is written.",
-    access: "Access: the tenant and registered actor must match your signed-in session.",
+    access:
+      "Required scope: none. The API instead requires the tenant and registered actor to match your signed-in session.",
     validationEndpoint: "Dry run endpoint",
     applyEndpoint: "Apply endpoint",
     inputLabel: "Registration document JSON",
@@ -450,7 +451,7 @@ const connectors = {
     summary: {
       title: "Dry-run summary",
       wouldRegister: "Would register",
-      wouldReplace: "Would replace",
+      alreadyRegistered: "Already registered",
       invalid: "Invalid",
     },
     table: {
@@ -462,7 +463,7 @@ const connectors = {
     },
     outcomes: {
       would_register: "Would register",
-      would_replace: "Would replace",
+      already_registered: "Already registered",
       invalid: "Invalid",
     },
     applyResults: {
@@ -471,8 +472,14 @@ const connectors = {
       notAttempted: "Not applied",
       pending: "Pending",
     },
-    blocked: (invalid: number, total: number) =>
-      `${invalid} of ${total} need fixing. Apply stays disabled until the whole batch is valid.`,
+    applyability: (
+      rejected: number,
+      invalid: number,
+      alreadyRegistered: number,
+      total: number,
+    ) => rejected === 0
+      ? `0 of ${total} will be rejected. Every checked document can be registered.`
+      : `${rejected} of ${total} will be rejected: ${invalid} invalid, ${alreadyRegistered} already registered. Apply stays disabled until every document can be registered.`,
     applySuccess: (count: number) =>
       `${count} of ${count} manifests were created.`,
     applyFailure: (landed: number, total: number) =>

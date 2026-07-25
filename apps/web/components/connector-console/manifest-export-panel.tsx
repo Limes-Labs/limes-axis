@@ -51,7 +51,7 @@ export function ManifestExportPanel({ entry }: { entry: ConnectorListEntry }) {
   }
 
   return (
-    <section className="col-span-full grid min-w-0 gap-3 rounded-xl border border-line bg-surface/70 p-4 dark:border-white/10 dark:bg-white/4">
+    <section className="grid w-full basis-full min-w-0 gap-3 rounded-xl border border-line bg-surface/70 p-4 dark:border-white/10 dark:bg-white/4">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="m-0 text-sm font-medium text-ink">{copy.title}</h3>

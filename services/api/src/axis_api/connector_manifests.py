@@ -77,9 +77,11 @@ class ConnectorManifestCreateRequest(ConnectorManifestRegistrationDocument):
 
 
 MANIFEST_VALIDATION_BATCH_LIMIT = 50
+# Existing manifests cannot be replaced by the registration endpoint, so this is
+# deliberately factual rather than named "would_replace".
 ConnectorManifestValidationOutcome = Literal[
     "would_register",
-    "would_replace",
+    "already_registered",
     "invalid",
 ]
 
@@ -97,13 +99,20 @@ class ConnectorManifestBatchValidationRequest(BaseModel):
 
 class ConnectorManifestValidationResult(BaseModel):
     connector_id: str | None = None
-    outcome: ConnectorManifestValidationOutcome
+    outcome: ConnectorManifestValidationOutcome = Field(
+        description=(
+            "Dry-run disposition. `would_register` can be submitted to the apply "
+            "endpoint; `already_registered` means that connector id already exists "
+            "and the apply endpoint will reject the document with HTTP 409 rather "
+            "than replace it; `invalid` means validation failed."
+        )
+    )
     errors: list[ConnectorManifestFieldError] = Field(default_factory=list)
 
 
 class ConnectorManifestValidationSummary(BaseModel):
     would_register: int = Field(default=0, ge=0)
-    would_replace: int = Field(default=0, ge=0)
+    already_registered: int = Field(default=0, ge=0)
     invalid: int = Field(default=0, ge=0)
 
 
@@ -420,7 +429,9 @@ def validate_connector_manifest_batch(
         results.append(
             ConnectorManifestValidationResult(
                 connector_id=connector_id,
-                outcome="would_replace" if existing is not None else "would_register",
+                outcome=(
+                    "already_registered" if existing is not None else "would_register"
+                ),
             )
         )
 
@@ -430,7 +441,7 @@ def validate_connector_manifest_batch(
         results=results,
         summary=ConnectorManifestValidationSummary(
             would_register=summary_counts["would_register"],
-            would_replace=summary_counts["would_replace"],
+            already_registered=summary_counts["already_registered"],
             invalid=summary_counts["invalid"],
         ),
     )

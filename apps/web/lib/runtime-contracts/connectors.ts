@@ -165,12 +165,12 @@ const connectorManifestBatchValidationResponse = z.object({
   tenant_id: z.string(),
   summary: z.object({
     would_register: z.number().int().nonnegative(),
-    would_replace: z.number().int().nonnegative(),
+    already_registered: z.number().int().nonnegative(),
     invalid: z.number().int().nonnegative(),
   }),
   results: z.array(z.object({
     connector_id: nullableStringSchema,
-    outcome: z.enum(["would_register", "would_replace", "invalid"]),
+    outcome: z.enum(["would_register", "already_registered", "invalid"]),
     errors: z.array(z.object({
       field_path: z.string(),
       message: z.string(),

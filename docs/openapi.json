@@ -6426,9 +6426,10 @@
             "type": "array"
           },
           "outcome": {
+            "description": "Dry-run disposition. `would_register` can be submitted to the apply endpoint; `already_registered` means that connector id already exists and the apply endpoint will reject the document with HTTP 409 rather than replace it; `invalid` means validation failed.",
             "enum": [
               "would_register",
-              "would_replace",
+              "already_registered",
               "invalid"
             ],
             "title": "Outcome",
@@ -6443,6 +6444,12 @@
       },
       "ConnectorManifestValidationSummary": {
         "properties": {
+          "already_registered": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Already Registered",
+            "type": "integer"
+          },
           "invalid": {
             "default": 0,
             "minimum": 0.0,
@@ -6453,12 +6460,6 @@
             "default": 0,
             "minimum": 0.0,
             "title": "Would Register",
-            "type": "integer"
-          },
-          "would_replace": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Would Replace",
             "type": "integer"
           }
         },

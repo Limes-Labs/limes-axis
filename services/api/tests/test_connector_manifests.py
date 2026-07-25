@@ -311,7 +311,7 @@ def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
     ]
     assert [result["outcome"] for result in body["results"]] == [
         "would_register",
-        "would_replace",
+        "already_registered",
         "invalid",
     ]
     assert body["results"][2]["errors"] == [
@@ -323,7 +323,7 @@ def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
     ]
     assert body["summary"] == {
         "would_register": 1,
-        "would_replace": 1,
+        "already_registered": 1,
         "invalid": 1,
     }
 
@@ -424,29 +424,55 @@ def test_validate_connector_manifests_rejects_over_batch_limit(
     }
 
 
-def test_manifest_reported_valid_registers_through_real_endpoint(
+def test_manifest_validation_applyability_promise_matches_registration_endpoint(
     session_factory: sessionmaker[Session],
 ) -> None:
     app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
     app.state.session_factory = session_factory
     client = TestClient(app)
-    registration_request = external_db_manifest_request()
+    existing_request = external_db_manifest_request()
+    with session_scope(session_factory) as session:
+        record_demo_connector_manifest(
+            AxisPersistenceRepository(session),
+            existing_request,
+        )
+    new_request_payload = existing_request.model_dump()
+    new_request_payload["manifest"]["connector_id"] = "external_db_new_orders"
+    new_request_payload["manifest"]["display_name"] = "New orders database mirror"
+    new_request = ConnectorManifestCreateRequest.model_validate(new_request_payload)
+    registration_requests = [new_request, existing_request]
 
     validation = client.post(
         "/operations/connectors/manifests/validation",
-        json=manifest_validation_request(registration_request),
-    )
-    registration = client.post(
-        "/operations/connectors/manifests",
-        json=registration_request.model_dump(),
+        json=manifest_validation_request(*registration_requests),
     )
 
     assert validation.status_code == 200
-    assert validation.json()["results"][0]["outcome"] == "would_register"
-    assert registration.status_code == 201
-    assert registration.json()["connector_id"] == (
-        validation.json()["results"][0]["connector_id"]
-    )
+    results = validation.json()["results"]
+    assert [result["outcome"] for result in results] == [
+        "would_register",
+        "already_registered",
+    ]
+
+    applyable_outcomes = {"would_register"}
+    for result, registration_request in zip(
+        results,
+        registration_requests,
+        strict=True,
+    ):
+        registration = client.post(
+            "/operations/connectors/manifests",
+            json=registration_request.model_dump(),
+        )
+        if result["outcome"] in applyable_outcomes:
+            assert registration.status_code == 201
+            assert registration.json()["connector_id"] == result["connector_id"]
+        else:
+            assert result["outcome"] == "already_registered"
+            assert registration.status_code == 409
+            assert registration.json()["detail"]["reason"] == (
+                "manifest_already_exists"
+            )
 
 
 def test_manifest_validation_failure_matches_real_registration_reason(
