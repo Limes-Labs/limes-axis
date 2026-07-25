@@ -66,6 +66,7 @@ const templateConnector: ConnectorRegistryItem = {
     payload_policy: "metadata_only",
   },
   preview_sample: previewSample,
+  last_successful_sync: null,
   connector_status: "watch",
 };
 

@@ -2790,6 +2790,28 @@ class AxisPersistenceRepository:
         ).limit(limit)
         return list(self.session.scalars(statement))
 
+    def get_latest_connector_run(
+        self,
+        tenant_id: str,
+        connector_id: str,
+        status: str,
+    ) -> ConnectorRun | None:
+        statement = (
+            select(ConnectorRun)
+            .where(
+                ConnectorRun.tenant_id == tenant_id,
+                ConnectorRun.connector_id == connector_id,
+                ConnectorRun.status == status,
+            )
+            .order_by(
+                ConnectorRun.updated_at.desc(),
+                ConnectorRun.created_at.desc(),
+                ConnectorRun.id.desc(),
+            )
+            .limit(1)
+        )
+        return self.session.scalar(statement)
+
     def get_connector_run(self, tenant_id: str, run_id: str) -> ConnectorRun | None:
         statement = select(ConnectorRun).where(
             ConnectorRun.tenant_id == tenant_id,

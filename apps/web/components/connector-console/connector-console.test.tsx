@@ -392,6 +392,49 @@ describe("ConnectorConsole list and detail", () => {
     expect(screen.queryByText("No sample rows are recorded for this connector.")).not.toBeInTheDocument();
   });
 
+  it("labels a recorded preview sample distinctly from sync evidence", () => {
+    renderConsole();
+
+    const connector = screen.getByRole("button", { name: /Manufacturing assets CSV/ });
+    expect(within(connector).getByText("2 sample rows")).toBeInTheDocument();
+    expect(within(connector).getByText("Preview sample")).toBeInTheDocument();
+    expect(within(connector).queryByText(/Successful sync/)).not.toBeInTheDocument();
+  });
+
+  it("renders successful sync evidence ahead of an existing preview sample", () => {
+    mockQueries({
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
+        data: {
+          ...connectorRegistryFixture,
+          connectors: connectorRegistryFixture.connectors.map((connector, index) => (
+            index === 0
+              ? {
+                  ...connector,
+                  last_successful_sync: {
+                    run_id: "run_assets_20260724",
+                    completed_at: "2026-07-24T10:30:00Z",
+                    records_read: 37,
+                  },
+                }
+              : connector
+          )),
+        },
+        source: "api",
+      },
+    });
+    renderConsole();
+
+    const connector = screen.getByRole("button", { name: /Manufacturing assets CSV/ });
+    expect(within(connector).getByText("37 records observed")).toBeInTheDocument();
+    expect(
+      within(connector).getByText(
+        /Successful sync · .+ · run run_assets_20260724/,
+      ),
+    ).toBeInTheDocument();
+    expect(within(connector).queryByText("2 sample rows")).not.toBeInTheDocument();
+    expect(within(connector).queryByText("Preview sample")).not.toBeInTheDocument();
+  });
+
   it("renders governance records with plain sections instead of metric tiles", async () => {
     const user = userEvent.setup();
     renderConsole();

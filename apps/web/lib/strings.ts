@@ -411,6 +411,10 @@ const connectors = {
     eyebrow: "Registry",
     registeredPill: "Registered",
     neverSampled: "Never sampled",
+    previewSample: "Preview sample",
+    observedRecords: (count: number) => `${count.toLocaleString("en")} records observed`,
+    successfulSync: (completedAt: string, runId: string) =>
+      `Successful sync · ${completedAt} · run ${runId}`,
   },
   header: {
     addConnector: "Add connector",

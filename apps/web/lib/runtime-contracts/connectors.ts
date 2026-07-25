@@ -134,6 +134,11 @@ const connectorRegistry = z.object({
     manifest: connectorManifest,
     runtime_policy: connectorRuntimePolicy,
     preview_sample: connectorPreviewSample.nullable(),
+    last_successful_sync: z.object({
+      run_id: z.string(),
+      completed_at: z.string(),
+      records_read: z.number().int().nonnegative(),
+    }).nullable(),
     connector_status: platformStatusSchema,
   })),
   connector_notes: stringArraySchema,

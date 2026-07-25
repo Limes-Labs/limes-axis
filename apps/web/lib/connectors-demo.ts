@@ -45,10 +45,17 @@ export type ConnectorPreviewSample = {
   sample_rows: Record<string, string>[];
 };
 
+export type ConnectorSyncObservation = {
+  run_id: string;
+  completed_at: string;
+  records_read: number;
+};
+
 export type ConnectorRegistryItem = {
   manifest: ConnectorManifest;
   runtime_policy: ConnectorRuntimePolicy;
   preview_sample: ConnectorPreviewSample | null;
+  last_successful_sync: ConnectorSyncObservation | null;
   connector_status: PlatformStatus;
 };
 

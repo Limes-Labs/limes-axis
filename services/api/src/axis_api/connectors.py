@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 from io import StringIO
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -52,10 +53,17 @@ class ConnectorPreviewSample(BaseModel):
     sample_rows: list[dict[str, str]] = Field(default_factory=list)
 
 
+class ConnectorSyncObservation(BaseModel):
+    run_id: str = Field(min_length=1)
+    completed_at: datetime
+    records_read: int = Field(ge=0)
+
+
 class ConnectorRegistryItem(BaseModel):
     manifest: ConnectorManifest
     runtime_policy: ConnectorRuntimePolicy
     preview_sample: ConnectorPreviewSample | None = None
+    last_successful_sync: ConnectorSyncObservation | None = None
     connector_status: OverviewStatus
 
 

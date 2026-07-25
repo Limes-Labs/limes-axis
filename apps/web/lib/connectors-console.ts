@@ -429,6 +429,7 @@ export function mergeConnectorListEntries(
         manifest: record.manifest,
         runtime_policy: record.runtime_policy,
         preview_sample: record.preview_sample,
+        last_successful_sync: null,
         connector_status: "watch",
       },
       source: "manifest",

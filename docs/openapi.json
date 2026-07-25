@@ -9040,6 +9040,16 @@
           "connector_status": {
             "$ref": "#/components/schemas/OverviewStatus"
           },
+          "last_successful_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorSyncObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "manifest": {
             "$ref": "#/components/schemas/ConnectorManifest"
           },
@@ -10190,6 +10200,32 @@
           "idempotency_key"
         ],
         "title": "ConnectorSyncExecutionResult",
+        "type": "object"
+      },
+      "ConnectorSyncObservation": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "records_read": {
+            "minimum": 0.0,
+            "title": "Records Read",
+            "type": "integer"
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "completed_at",
+          "records_read"
+        ],
+        "title": "ConnectorSyncObservation",
         "type": "object"
       },
       "ConnectorSyncScheduleResult": {

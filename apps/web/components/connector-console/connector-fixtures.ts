@@ -71,6 +71,7 @@ export const csvConnectorFixture: ConnectorRegistryItem = {
       { asset_id: "ast-2", asset_name: "Press" },
     ],
   },
+  last_successful_sync: null,
   connector_status: "watch",
 };
 

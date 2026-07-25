@@ -6,7 +6,7 @@ import { PlatformStatusPill } from "@/components/status-pill";
 import { cn } from "@/lib/cn";
 import type { ConnectorListEntry } from "@/lib/connectors-console";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
-import { pluralize } from "@/lib/format";
+import { formatDateTime, pluralize } from "@/lib/format";
 import { strings } from "@/lib/strings";
 
 /**
@@ -35,6 +35,7 @@ export function ConnectorList({
         {entries.map((entry) => {
           const { connector } = entry;
           const isSelected = connector.manifest.connector_id === selectedConnectorId;
+          const syncObservation = connector.last_successful_sync;
 
           return (
             <button
@@ -57,10 +58,24 @@ export function ConnectorList({
                   {formatConnectorLabel(connector.manifest.connector_type)}
                 </span>
                 <span className="text-xs text-muted">
-                  {connector.preview_sample
-                    ? pluralize(connector.preview_sample.record_count, "sample row")
-                    : strings.connectors.list.neverSampled}
+                  {syncObservation
+                    ? strings.connectors.list.observedRecords(syncObservation.records_read)
+                    : connector.preview_sample
+                      ? pluralize(connector.preview_sample.record_count, "sample row")
+                      : strings.connectors.list.neverSampled}
                 </span>
+                {syncObservation ? (
+                  <span className="text-xs text-muted">
+                    {strings.connectors.list.successfulSync(
+                      formatDateTime(syncObservation.completed_at),
+                      syncObservation.run_id,
+                    )}
+                  </span>
+                ) : connector.preview_sample ? (
+                  <span className="text-xs text-muted">
+                    {strings.connectors.list.previewSample}
+                  </span>
+                ) : null}
               </span>
               {entry.source === "manifest" ? (
                 <span className="status-pill status-checking">
