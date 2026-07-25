@@ -8,7 +8,7 @@ const alias = {
 export default defineConfig({
   test: {
     // jsdom suites are interaction-heavy; bounding concurrency keeps their
-    // five-second per-test budget stable on both developer laptops and CI.
+    // per-test budget stable on both developer laptops and CI.
     maxWorkers: 4,
     projects: [
       {
@@ -26,6 +26,13 @@ export default defineConfig({
           environment: "jsdom",
           include: ["**/*.test.tsx"],
           setupFiles: ["./vitest.setup.ts"],
+          // A userEvent-driven test spends most of its budget in jsdom and
+          // React commits rather than in assertions, so the 5s default is a
+          // load-tolerance ceiling, not a statement about how long these
+          // should take. Under contention it produced timeout failures across
+          // a dozen unrelated tests that pass deterministically when given
+          // room. Still short enough that a genuine hang fails fast.
+          testTimeout: 15_000,
         },
       },
     ],
