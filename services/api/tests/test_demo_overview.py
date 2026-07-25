@@ -2151,3 +2151,36 @@ def test_reference_console_serves_tenant_seeded_before_the_registry_existed(
 
     assert response.status_code == 200
     assert response.json()["provenance"] == "reference_scenario"
+
+
+def test_seeding_a_reference_record_does_not_create_a_tenant(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    """Reference records and the tenant registry are separate facts.
+
+    A `tests/conftest.py` hook used to back-fill a `Tenant` row whenever a test
+    inserted a `DemoReferenceRecord`, which made "the tenant exists" true in
+    every such test — the exact condition two production bugs depended on being
+    false, and which both suites therefore missed. The hook is gone; this asserts
+    the state it was papering over is reachable again, so reintroducing any
+    equivalent back-fill fails here.
+    """
+    with session_scope(overview_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_never_registered",
+                surface="overview",
+                reference_id="manufacturing-overview",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload={
+                    **persisted_overview_payload(),
+                    "tenant_id": "tenant_never_registered",
+                },
+            )
+        )
+
+    with session_scope(overview_session_factory) as session:
+        assert session.get(Tenant, "tenant_never_registered") is None
