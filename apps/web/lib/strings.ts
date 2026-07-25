@@ -423,7 +423,9 @@ const connectors = {
     access:
       "Required scope: none. The API instead requires the tenant and registered actor to match your signed-in session.",
     validationEndpoint: "Dry run endpoint",
-    applyEndpoint: "Apply endpoint",
+    applyEndpoint: "Apply endpoints",
+    applyEndpointPaths: (endpoint: string) =>
+      `POST ${endpoint}; PUT ${endpoint}/{connector_id}`,
     inputLabel: "Registration document JSON",
     inputPlaceholder: "Paste one registration document or an array of documents",
     fileLabel: "Upload JSON file",
@@ -445,13 +447,15 @@ const connectors = {
       tooMany: (count: number, maximum: number) =>
         `${count} documents were provided. Check at most ${maximum} at a time.`,
       validationRequest: "The manifest dry run could not be completed.",
+      replacementRevisionRequest:
+        "The current connector revision could not be verified, so replacement stays disabled.",
       tenantMismatch: "The dry-run response belongs to a different tenant.",
       resultCountMismatch: "The dry-run response did not include one result per document.",
     },
     summary: {
       title: "Dry-run summary",
       wouldRegister: "Would register",
-      alreadyRegistered: "Already registered",
+      wouldReplace: "Would replace",
       invalid: "Invalid",
     },
     table: {
@@ -460,30 +464,29 @@ const connectors = {
       outcome: "Outcome",
       applyResult: "Apply result",
       unknownConnector: "Not available",
+      replacesRevision: (revision: number) => `Replaces revision ${revision}`,
     },
     outcomes: {
       would_register: "Would register",
-      already_registered: "Already registered",
+      would_replace: "Would replace",
       invalid: "Invalid",
     },
     applyResults: {
-      landed: "Created",
+      landed: "Applied",
       failed: "Failed",
+      conflict: "Concurrent change",
       notAttempted: "Not applied",
       pending: "Pending",
     },
-    applyability: (
-      rejected: number,
-      invalid: number,
-      alreadyRegistered: number,
-      total: number,
-    ) => rejected === 0
-      ? `0 of ${total} will be rejected. Every checked document can be registered.`
-      : `${rejected} of ${total} will be rejected: ${invalid} invalid, ${alreadyRegistered} already registered. Apply stays disabled until every document can be registered.`,
+    applyability: (invalid: number, total: number) => invalid === 0
+      ? `0 of ${total} will be rejected. Every checked document can be applied.`
+      : `${invalid} of ${total} will be rejected as invalid. Apply stays disabled until every document is valid.`,
     applySuccess: (count: number) =>
-      `${count} of ${count} manifests were created.`,
+      `${count} of ${count} manifests were applied.`,
     applyFailure: (landed: number, total: number) =>
-      `${landed} of ${total} manifests were created. The remaining documents were not applied.`,
+      `${landed} of ${total} manifests were applied. The remaining documents were not applied.`,
+    concurrentConflict: (connectorId: string) =>
+      `Apply stopped because someone else changed ${connectorId}. Check the batch again before replacing it.`,
     toast: {
       success: "Connector manifests applied",
       partial: "Connector manifest apply stopped",
@@ -564,6 +567,20 @@ const connectors = {
     manifest: "Registered manifest",
     manifestMissing: "No manifest registered yet — registering one records audit evidence.",
     manifestRegisteredBy: "Registered by",
+    manifestStatus: "Status",
+    currentRevision: "Current revision",
+    revisionHistory: "Revision history",
+    revisionHistoryDetail: "Ordered record of every manifest version recorded for this connector.",
+    revisionHistoryUnavailable: "Revision history unavailable",
+    revisionHistoryUnavailableDetail:
+      "Axis could not verify which manifest revision is live for this connector.",
+    revisionColumns: {
+      revision: "Revision",
+      version: "Manifest version",
+      status: "Status",
+      registeredBy: "Registered by",
+      createdAt: "Recorded at",
+    },
   },
   schema: {
     mappingTitle: "Field mapping",

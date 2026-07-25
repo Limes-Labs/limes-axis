@@ -123,7 +123,7 @@ describe("ConnectorConsole states", () => {
     const connectorCalls = mocks.useAxisQuery.mock.calls.filter(
       ([path]) => typeof path === "string" && path.startsWith(`${OPERATIONS_API_PREFIX}/connectors`),
     );
-    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(9);
+    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(10);
     connectorCalls.forEach(([path, options]) => {
       expect(path).toContain("tenant_id=tenant_acme");
       expect(options).toMatchObject({ expectedTenantId: "tenant_acme" });
@@ -344,7 +344,12 @@ describe("ConnectorConsole list and detail", () => {
     renderConsole();
 
     expect(screen.getByText("Registered manifest")).toBeInTheDocument();
-    expect(screen.getByText("Active Preview")).toBeInTheDocument();
+    expect(screen.getAllByText("Active Preview").length).toBeGreaterThan(0);
+    expect(screen.getByText("Current revision")).toBeInTheDocument();
+    expect(screen.getByText("2", { selector: "dd" })).toBeInTheDocument();
+    const history = screen.getByRole("table", { name: "Revision history" });
+    expect(within(history).getByText("0.9.0")).toBeInTheDocument();
+    expect(within(history).getByText("1.0.0")).toBeInTheDocument();
   });
 
   it("renders the schema mapping and sample rows on the Data & Schema tab", async () => {

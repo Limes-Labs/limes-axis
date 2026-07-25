@@ -138,39 +138,52 @@ const connectorRegistry = z.object({
   })),
   connector_notes: stringArraySchema,
 });
+const connectorManifestRecord = z.object({
+  tenant_id: z.string(),
+  manifest_id: z.string(),
+  connector_id: z.string(),
+  revision_number: z.number().int().positive(),
+  display_name: z.string(),
+  connector_type: z.string(),
+  source_type: z.string(),
+  version: z.string(),
+  status: z.string(),
+  runtime_boundary: z.string(),
+  registered_by: z.string(),
+  manifest: connectorManifest,
+  runtime_policy: connectorRuntimePolicy,
+  preview_sample: connectorPreviewSample,
+  audit_event_id: nullableStringSchema,
+  audit_event_type: z.string(),
+  revises_revision_number: z.number().int().positive().nullable(),
+  replaced_by_revision_number: z.number().int().positive().nullable(),
+  revision_idempotency_key: nullableStringSchema,
+  idempotent_replay: z.boolean(),
+  unchanged: z.boolean(),
+  notes: stringArraySchema,
+  created_at: z.string(),
+});
 const connectorManifestRegistry = z.object({
   ...connectorRegistryHeader,
-  manifests: z.array(z.object({
-    tenant_id: z.string(),
-    manifest_id: z.string(),
-    connector_id: z.string(),
-    display_name: z.string(),
-    connector_type: z.string(),
-    source_type: z.string(),
-    version: z.string(),
-    status: z.string(),
-    runtime_boundary: z.string(),
-    registered_by: z.string(),
-    manifest: connectorManifest,
-    runtime_policy: connectorRuntimePolicy,
-    preview_sample: connectorPreviewSample,
-    audit_event_id: nullableStringSchema,
-    audit_event_type: z.string(),
-    notes: stringArraySchema,
-    created_at: z.string(),
-  })),
+  manifests: z.array(connectorManifestRecord),
   manifest_notes: stringArraySchema,
+});
+const connectorManifestDetail = z.object({
+  tenant_id: z.string(),
+  connector_id: z.string(),
+  current_revision: connectorManifestRecord,
+  revisions: z.array(connectorManifestRecord),
 });
 const connectorManifestBatchValidationResponse = z.object({
   tenant_id: z.string(),
   summary: z.object({
     would_register: z.number().int().nonnegative(),
-    already_registered: z.number().int().nonnegative(),
+    would_replace: z.number().int().nonnegative(),
     invalid: z.number().int().nonnegative(),
   }),
   results: z.array(z.object({
     connector_id: nullableStringSchema,
-    outcome: z.enum(["would_register", "already_registered", "invalid"]),
+    outcome: z.enum(["would_register", "would_replace", "invalid"]),
     errors: z.array(z.object({
       field_path: z.string(),
       message: z.string(),
@@ -423,6 +436,10 @@ export function parseManufacturingConnectorManifestRegistry(
   value: unknown,
 ): ManufacturingConnectorManifestRegistry {
   return parseContract(connectorManifestRegistry, value);
+}
+
+export function parseConnectorManifestDetail(value: unknown) {
+  return parseContract(connectorManifestDetail, value);
 }
 
 export function parseConnectorManifestBatchValidationResponse(value: unknown) {

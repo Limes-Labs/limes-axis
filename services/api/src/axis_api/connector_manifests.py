@@ -55,6 +55,24 @@ class ConnectorManifestConflict(ValueError):
         self.connector_id = connector_id
 
 
+class ConnectorManifestRevisionConflict(ValueError):
+    def __init__(
+        self,
+        connector_id: str,
+        reason: str,
+        *,
+        current_revision_number: int | None = None,
+    ) -> None:
+        super().__init__("Connector manifest revision conflict")
+        self.connector_id = connector_id
+        self.reason = reason
+        self.current_revision_number = current_revision_number
+
+
+class ConnectorManifestNotFound(LookupError):
+    pass
+
+
 class ConnectorManifestQuery(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     connector_id: str | None = Field(default=None, min_length=1)
@@ -76,12 +94,18 @@ class ConnectorManifestCreateRequest(ConnectorManifestRegistrationDocument):
     registered_by: str = Field(min_length=1, max_length=160)
 
 
+class ConnectorManifestReplaceRequest(ConnectorManifestRegistrationDocument):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    registered_by: str = Field(min_length=1, max_length=160)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    # Optional preserves last-write-wins for callers that do not maintain revision state.
+    expected_revision_number: int | None = Field(default=None, ge=1)
+
+
 MANIFEST_VALIDATION_BATCH_LIMIT = 50
-# Existing manifests cannot be replaced by the registration endpoint, so this is
-# deliberately factual rather than named "would_replace".
 ConnectorManifestValidationOutcome = Literal[
     "would_register",
-    "already_registered",
+    "would_replace",
     "invalid",
 ]
 
@@ -102,9 +126,9 @@ class ConnectorManifestValidationResult(BaseModel):
     outcome: ConnectorManifestValidationOutcome = Field(
         description=(
             "Dry-run disposition. `would_register` can be submitted to the apply "
-            "endpoint; `already_registered` means that connector id already exists "
-            "and the apply endpoint will reject the document with HTTP 409 rather "
-            "than replace it; `invalid` means validation failed."
+            "endpoint; `would_replace` means that connector id already exists and "
+            "the document can be submitted to the replacement endpoint; `invalid` "
+            "means validation failed."
         )
     )
     errors: list[ConnectorManifestFieldError] = Field(default_factory=list)
@@ -112,7 +136,7 @@ class ConnectorManifestValidationResult(BaseModel):
 
 class ConnectorManifestValidationSummary(BaseModel):
     would_register: int = Field(default=0, ge=0)
-    already_registered: int = Field(default=0, ge=0)
+    would_replace: int = Field(default=0, ge=0)
     invalid: int = Field(default=0, ge=0)
 
 
@@ -145,6 +169,7 @@ class ConnectorManifestRecordView(BaseModel):
     tenant_id: str = Field(min_length=1)
     manifest_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
+    revision_number: int = Field(ge=1)
     display_name: str = Field(min_length=1)
     connector_type: str = Field(min_length=1)
     source_type: str = Field(min_length=1)
@@ -157,8 +182,20 @@ class ConnectorManifestRecordView(BaseModel):
     preview_sample: dict[str, Any] = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
+    revises_revision_number: int | None = None
+    replaced_by_revision_number: int | None = None
+    revision_idempotency_key: str | None = None
+    idempotent_replay: bool = False
+    unchanged: bool = False
     notes: list[str] = Field(default_factory=list)
     created_at: datetime
+
+
+class ConnectorManifestDetail(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    connector_id: str = Field(min_length=1)
+    current_revision: ConnectorManifestRecordView
+    revisions: list[ConnectorManifestRecordView] = Field(min_length=1)
 
 
 class ManufacturingConnectorManifestRegistry(BaseModel):
@@ -309,6 +346,7 @@ def record_demo_connector_manifest(
         ConnectorManifestCreate(
             tenant_id=request.tenant_id,
             connector_id=manifest.connector_id,
+            revision_number=1,
             display_name=manifest.display_name,
             connector_type=manifest.connector_type,
             source_type=manifest.source_type,
@@ -325,6 +363,137 @@ def record_demo_connector_manifest(
         )
     )
     return _record_from_persistence(record)
+
+
+def replace_demo_connector_manifest(
+    repository: AxisPersistenceRepository,
+    request: ConnectorManifestReplaceRequest,
+) -> ConnectorManifestRecordView:
+    validated = validate_connector_manifest_registration(
+        ConnectorManifestCreateRequest(
+            tenant_id=request.tenant_id,
+            registered_by=request.registered_by,
+            manifest=request.manifest,
+            runtime_policy=request.runtime_policy,
+            preview_sample=request.preview_sample,
+            notes=request.notes,
+        )
+    )
+    manifest = validated.manifest
+    manifest_payload = manifest.model_dump(mode="json")
+    runtime_policy = validated.runtime_policy.model_dump(mode="json")
+    preview_sample = validated.preview_sample.model_dump(mode="json")
+
+    existing_replay = repository.get_connector_manifest_by_revision_idempotency_key(
+        request.tenant_id,
+        request.idempotency_key,
+    )
+    if existing_replay is not None:
+        if existing_replay.connector_id != manifest.connector_id or not (
+            existing_replay.manifest_payload == manifest_payload
+            and existing_replay.runtime_policy == runtime_policy
+            and existing_replay.preview_sample == preview_sample
+            and existing_replay.notes == request.notes
+        ):
+            raise ConnectorManifestRevisionConflict(
+                manifest.connector_id,
+                "revision_idempotency_conflict",
+            )
+        return _record_from_persistence(existing_replay, idempotent_replay=True)
+
+    current_manifest = repository.get_connector_manifest(
+        request.tenant_id,
+        manifest.connector_id,
+    )
+    if current_manifest is None:
+        raise ConnectorManifestNotFound()
+    if (
+        request.expected_revision_number is not None
+        and request.expected_revision_number != current_manifest.revision_number
+    ):
+        raise ConnectorManifestRevisionConflict(
+            manifest.connector_id,
+            "expected_revision_mismatch",
+            current_revision_number=current_manifest.revision_number,
+        )
+    if (
+        current_manifest.manifest_payload == manifest_payload
+        and current_manifest.runtime_policy == runtime_policy
+        and current_manifest.preview_sample == preview_sample
+        and current_manifest.notes == request.notes
+    ):
+        return _record_from_persistence(current_manifest, unchanged=True)
+
+    revision_number = current_manifest.revision_number + 1
+    audit_event = repository.append_audit_event(
+        AuditEventCreate(
+            tenant_id=request.tenant_id,
+            actor_id=request.registered_by,
+            event_type="connector.manifest.replaced",
+            payload={
+                "connector_id": manifest.connector_id,
+                "manifest_version": manifest.version,
+                "previous_manifest_version": current_manifest.version,
+                "revision_number": revision_number,
+                "revises_revision_number": current_manifest.revision_number,
+                "display_name": manifest.display_name,
+                "connector_type": manifest.connector_type,
+                "source_type": manifest.source_type,
+                "runtime_boundary": manifest.runtime_boundary,
+                "status": "registered_preview_only",
+                "idempotency_key": request.idempotency_key,
+            },
+        )
+    )
+    revised_manifest = repository.append_connector_manifest_revision(
+        current_manifest,
+        ConnectorManifestCreate(
+            tenant_id=request.tenant_id,
+            connector_id=manifest.connector_id,
+            revision_number=revision_number,
+            display_name=manifest.display_name,
+            connector_type=manifest.connector_type,
+            source_type=manifest.source_type,
+            version=manifest.version,
+            status="registered_preview_only",
+            runtime_boundary=manifest.runtime_boundary,
+            registered_by=request.registered_by,
+            manifest_payload=manifest_payload,
+            runtime_policy=runtime_policy,
+            preview_sample=preview_sample,
+            audit_event_id=audit_event.id,
+            audit_event_type=audit_event.event_type,
+            revises_revision_number=current_manifest.revision_number,
+            revision_idempotency_key=request.idempotency_key,
+            notes=request.notes,
+        ),
+    )
+    return _record_from_persistence(revised_manifest)
+
+
+def get_connector_manifest_detail(
+    repository: AxisPersistenceRepository,
+    tenant_id: str,
+    connector_id: str,
+) -> ConnectorManifestDetail:
+    revisions = repository.list_connector_manifest_revisions(tenant_id, connector_id)
+    if not revisions:
+        raise ConnectorManifestNotFound()
+    records = [_record_from_persistence(revision) for revision in revisions]
+    current_revision = next(
+        (
+            record
+            for record in reversed(records)
+            if record.replaced_by_revision_number is None
+        ),
+        records[-1],
+    )
+    return ConnectorManifestDetail(
+        tenant_id=tenant_id,
+        connector_id=connector_id,
+        current_revision=current_revision,
+        revisions=records,
+    )
 
 
 def validate_connector_manifest_registration(
@@ -430,7 +599,7 @@ def validate_connector_manifest_batch(
             ConnectorManifestValidationResult(
                 connector_id=connector_id,
                 outcome=(
-                    "already_registered" if existing is not None else "would_register"
+                    "would_replace" if existing is not None else "would_register"
                 ),
             )
         )
@@ -441,7 +610,7 @@ def validate_connector_manifest_batch(
         results=results,
         summary=ConnectorManifestValidationSummary(
             would_register=summary_counts["would_register"],
-            already_registered=summary_counts["already_registered"],
+            would_replace=summary_counts["would_replace"],
             invalid=summary_counts["invalid"],
         ),
     )
@@ -606,11 +775,17 @@ def _has_required_live_evidence(evidence_refs: list[str]) -> bool:
     )
 
 
-def _record_from_persistence(record) -> ConnectorManifestRecordView:
+def _record_from_persistence(
+    record,
+    *,
+    idempotent_replay: bool = False,
+    unchanged: bool = False,
+) -> ConnectorManifestRecordView:
     return ConnectorManifestRecordView(
         tenant_id=record.tenant_id,
         manifest_id=str(record.id),
         connector_id=record.connector_id,
+        revision_number=record.revision_number,
         display_name=record.display_name,
         connector_type=record.connector_type,
         source_type=record.source_type,
@@ -623,6 +798,11 @@ def _record_from_persistence(record) -> ConnectorManifestRecordView:
         preview_sample=record.preview_sample,
         audit_event_id=record.audit_event_id,
         audit_event_type=record.audit_event_type,
+        revises_revision_number=record.revises_revision_number,
+        replaced_by_revision_number=record.replaced_by_revision_number,
+        revision_idempotency_key=record.revision_idempotency_key,
+        idempotent_replay=idempotent_replay,
+        unchanged=unchanged,
         notes=record.notes,
         created_at=record.created_at,
     )

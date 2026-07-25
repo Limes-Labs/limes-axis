@@ -255,6 +255,7 @@ class ConnectorConfigurationCreate(BaseModel):
 class ConnectorManifestCreate(BaseModel):
     tenant_id: str = Field(min_length=1)
     connector_id: str = Field(min_length=1)
+    revision_number: int = Field(ge=1)
     display_name: str = Field(min_length=1)
     connector_type: str = Field(min_length=1)
     source_type: str = Field(min_length=1)
@@ -267,6 +268,9 @@ class ConnectorManifestCreate(BaseModel):
     preview_sample: dict = Field(default_factory=dict)
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.manifest.registered", min_length=1)
+    revises_revision_number: int | None = None
+    replaced_by_revision_number: int | None = None
+    revision_idempotency_key: str | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -2355,6 +2359,7 @@ class AxisPersistenceRepository:
         manifest = ConnectorManifestRecord(
             tenant_id=record.tenant_id,
             connector_id=record.connector_id,
+            revision_number=record.revision_number,
             display_name=record.display_name,
             connector_type=record.connector_type,
             source_type=record.source_type,
@@ -2367,6 +2372,9 @@ class AxisPersistenceRepository:
             preview_sample=record.preview_sample,
             audit_event_id=record.audit_event_id,
             audit_event_type=record.audit_event_type,
+            revises_revision_number=record.revises_revision_number,
+            replaced_by_revision_number=record.replaced_by_revision_number,
+            revision_idempotency_key=record.revision_idempotency_key,
             notes=record.notes,
         )
         self.session.add(manifest)
@@ -2378,11 +2386,37 @@ class AxisPersistenceRepository:
         tenant_id: str,
         connector_id: str,
     ) -> ConnectorManifestRecord | None:
-        statement = select(ConnectorManifestRecord).where(
-            ConnectorManifestRecord.tenant_id == tenant_id,
-            ConnectorManifestRecord.connector_id == connector_id,
+        statement = (
+            select(ConnectorManifestRecord)
+            .where(
+                ConnectorManifestRecord.tenant_id == tenant_id,
+                ConnectorManifestRecord.connector_id == connector_id,
+                ConnectorManifestRecord.replaced_by_revision_number.is_(None),
+            )
+            .order_by(ConnectorManifestRecord.revision_number.desc())
         )
         return self.session.scalars(statement).first()
+
+    def get_connector_manifest_by_revision_idempotency_key(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> ConnectorManifestRecord | None:
+        statement = select(ConnectorManifestRecord).where(
+            ConnectorManifestRecord.tenant_id == tenant_id,
+            ConnectorManifestRecord.revision_idempotency_key == idempotency_key,
+        )
+        return self.session.scalars(statement).first()
+
+    def append_connector_manifest_revision(
+        self,
+        current_manifest: ConnectorManifestRecord,
+        record: ConnectorManifestCreate,
+    ) -> ConnectorManifestRecord:
+        current_manifest.replaced_by_revision_number = record.revision_number
+        current_manifest.updated_at = utc_now()
+        self.session.flush()
+        return self.create_connector_manifest(record)
 
     def list_connector_manifests(
         self,
@@ -2393,7 +2427,10 @@ class AxisPersistenceRepository:
     ) -> list[ConnectorManifestRecord]:
         statement: Select[tuple[ConnectorManifestRecord]] = select(
             ConnectorManifestRecord
-        ).where(ConnectorManifestRecord.tenant_id == tenant_id)
+        ).where(
+            ConnectorManifestRecord.tenant_id == tenant_id,
+            ConnectorManifestRecord.replaced_by_revision_number.is_(None),
+        )
         if connector_id is not None:
             statement = statement.where(ConnectorManifestRecord.connector_id == connector_id)
         if status is not None:
@@ -2403,6 +2440,21 @@ class AxisPersistenceRepository:
             ConnectorManifestRecord.created_at.desc(),
             ConnectorManifestRecord.id.desc(),
         ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_connector_manifest_revisions(
+        self,
+        tenant_id: str,
+        connector_id: str,
+    ) -> list[ConnectorManifestRecord]:
+        statement = (
+            select(ConnectorManifestRecord)
+            .where(
+                ConnectorManifestRecord.tenant_id == tenant_id,
+                ConnectorManifestRecord.connector_id == connector_id,
+            )
+            .order_by(ConnectorManifestRecord.revision_number.asc())
+        )
         return list(self.session.scalars(statement))
 
     def update_connector_manifest_lifecycle(

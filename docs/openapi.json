@@ -6209,6 +6209,39 @@
         "title": "ConnectorManifestCreateRequest",
         "type": "object"
       },
+      "ConnectorManifestDetail": {
+        "properties": {
+          "connector_id": {
+            "minLength": 1,
+            "title": "Connector Id",
+            "type": "string"
+          },
+          "current_revision": {
+            "$ref": "#/components/schemas/ConnectorManifestRecordView"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorManifestRecordView"
+            },
+            "minItems": 1,
+            "title": "Revisions",
+            "type": "array"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "connector_id",
+          "current_revision",
+          "revisions"
+        ],
+        "title": "ConnectorManifestDetail",
+        "type": "object"
+      },
       "ConnectorManifestFieldError": {
         "properties": {
           "field_path": {
@@ -6330,6 +6363,11 @@
             "title": "Display Name",
             "type": "string"
           },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
           "manifest": {
             "additionalProperties": true,
             "title": "Manifest",
@@ -6357,6 +6395,44 @@
             "title": "Registered By",
             "type": "string"
           },
+          "replaced_by_revision_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Revision Number"
+          },
+          "revises_revision_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revises Revision Number"
+          },
+          "revision_idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Idempotency Key"
+          },
+          "revision_number": {
+            "minimum": 1.0,
+            "title": "Revision Number",
+            "type": "integer"
+          },
           "runtime_boundary": {
             "minLength": 1,
             "title": "Runtime Boundary",
@@ -6382,6 +6458,11 @@
             "title": "Tenant Id",
             "type": "string"
           },
+          "unchanged": {
+            "default": false,
+            "title": "Unchanged",
+            "type": "boolean"
+          },
           "version": {
             "minLength": 1,
             "title": "Version",
@@ -6392,6 +6473,7 @@
           "tenant_id",
           "manifest_id",
           "connector_id",
+          "revision_number",
           "display_name",
           "connector_type",
           "source_type",
@@ -6403,6 +6485,69 @@
           "created_at"
         ],
         "title": "ConnectorManifestRecordView",
+        "type": "object"
+      },
+      "ConnectorManifestReplaceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision Number"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "title": "Manifest",
+            "type": "object"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "preview_sample": {
+            "additionalProperties": true,
+            "title": "Preview Sample",
+            "type": "object"
+          },
+          "registered_by": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Registered By",
+            "type": "string"
+          },
+          "runtime_policy": {
+            "additionalProperties": true,
+            "title": "Runtime Policy",
+            "type": "object"
+          },
+          "tenant_id": {
+            "default": "tenant_demo_manufacturing",
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registered_by",
+          "idempotency_key"
+        ],
+        "title": "ConnectorManifestReplaceRequest",
         "type": "object"
       },
       "ConnectorManifestValidationResult": {
@@ -6426,10 +6571,10 @@
             "type": "array"
           },
           "outcome": {
-            "description": "Dry-run disposition. `would_register` can be submitted to the apply endpoint; `already_registered` means that connector id already exists and the apply endpoint will reject the document with HTTP 409 rather than replace it; `invalid` means validation failed.",
+            "description": "Dry-run disposition. `would_register` can be submitted to the apply endpoint; `would_replace` means that connector id already exists and the document can be submitted to the replacement endpoint; `invalid` means validation failed.",
             "enum": [
               "would_register",
-              "already_registered",
+              "would_replace",
               "invalid"
             ],
             "title": "Outcome",
@@ -6444,12 +6589,6 @@
       },
       "ConnectorManifestValidationSummary": {
         "properties": {
-          "already_registered": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Already Registered",
-            "type": "integer"
-          },
           "invalid": {
             "default": 0,
             "minimum": 0.0,
@@ -6460,6 +6599,12 @@
             "default": 0,
             "minimum": 0.0,
             "title": "Would Register",
+            "type": "integer"
+          },
+          "would_replace": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Would Replace",
             "type": "integer"
           }
         },
@@ -23095,6 +23240,151 @@
         ]
       }
     },
+    "/demo/manufacturing/connectors/manifests/{connector_id}": {
+      "get": {
+        "deprecated": true,
+        "operationId": "manufacturing_connector_manifest_detail_demo_manufacturing_connectors_manifests__connector_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest read permission denied"
+          },
+          "404": {
+            "description": "Connector manifest not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Detail",
+        "tags": [
+          "demo"
+        ]
+      },
+      "put": {
+        "deprecated": true,
+        "operationId": "manufacturing_connector_manifest_replace_demo_manufacturing_connectors_manifests__connector_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorManifestReplaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestRecordView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest actor binding permission denied"
+          },
+          "404": {
+            "description": "Connector manifest not found"
+          },
+          "409": {
+            "description": "Connector manifest revision conflict"
+          },
+          "422": {
+            "description": "Connector manifest validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Replace",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle": {
       "post": {
         "deprecated": true,
@@ -30435,6 +30725,149 @@
           }
         },
         "summary": "Manufacturing Connector Manifest Validation",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/operations/connectors/manifests/{connector_id}": {
+      "get": {
+        "operationId": "manufacturing_connector_manifest_detail_operations_connectors_manifests__connector_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "default": "tenant_demo_manufacturing",
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest read permission denied"
+          },
+          "404": {
+            "description": "Connector manifest not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Detail",
+        "tags": [
+          "demo"
+        ]
+      },
+      "put": {
+        "operationId": "manufacturing_connector_manifest_replace_operations_connectors_manifests__connector_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorManifestReplaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorManifestRecordView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Connector manifest actor binding permission denied"
+          },
+          "404": {
+            "description": "Connector manifest not found"
+          },
+          "409": {
+            "description": "Connector manifest revision conflict"
+          },
+          "422": {
+            "description": "Connector manifest validation failed"
+          }
+        },
+        "summary": "Manufacturing Connector Manifest Replace",
         "tags": [
           "demo"
         ]

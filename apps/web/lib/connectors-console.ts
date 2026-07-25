@@ -29,7 +29,7 @@ export type ConnectorRegistrationDocument = {
 
 export type ConnectorManifestValidationOutcome =
   | "would_register"
-  | "already_registered"
+  | "would_replace"
   | "invalid";
 
 export type ConnectorManifestValidationResult = {

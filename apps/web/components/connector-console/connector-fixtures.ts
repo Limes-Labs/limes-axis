@@ -102,6 +102,7 @@ export const manifestRegistryFixture: ManufacturingConnectorManifestRegistry = {
       tenant_id: registryBase.tenant_id,
       manifest_id: "manifest-1",
       connector_id: "file_csv_manufacturing_assets",
+      revision_number: 2,
       display_name: "Manufacturing assets CSV",
       connector_type: "file_csv",
       source_type: "csv_upload",
@@ -114,11 +115,35 @@ export const manifestRegistryFixture: ManufacturingConnectorManifestRegistry = {
       preview_sample: csvConnectorFixture.preview_sample,
       audit_event_id: "audit-manifest-1",
       audit_event_type: "connector.manifest.registered",
+      revises_revision_number: 1,
+      replaced_by_revision_number: null,
+      revision_idempotency_key: "fixture-revision-2",
+      idempotent_replay: false,
+      unchanged: false,
       notes: [],
       created_at: "2026-07-10T08:00:00Z",
     },
   ],
   manifest_notes: [],
+};
+
+export const manifestDetailFixture = {
+  tenant_id: registryBase.tenant_id,
+  connector_id: "file_csv_manufacturing_assets",
+  current_revision: manifestRegistryFixture.manifests[0],
+  revisions: [
+    {
+      ...manifestRegistryFixture.manifests[0],
+      manifest_id: "manifest-0",
+      revision_number: 1,
+      version: "0.9.0",
+      revises_revision_number: null,
+      replaced_by_revision_number: 2,
+      revision_idempotency_key: null,
+      created_at: "2026-07-09T08:00:00Z",
+    },
+    manifestRegistryFixture.manifests[0],
+  ],
 };
 
 export const credentialHandleRegistryFixture: ManufacturingConnectorCredentialHandleRegistry = {
@@ -307,6 +332,8 @@ export const ontologyProposalRegistryFixture: ManufacturingConnectorOntologyProp
 export const connectorEndpointFixtures: Record<string, unknown> = {
   [`${OPERATIONS_API_PREFIX}/connectors`]: connectorRegistryFixture,
   [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: manifestRegistryFixture,
+  [`${OPERATIONS_API_PREFIX}/connectors/manifests/file_csv_manufacturing_assets`]:
+    manifestDetailFixture,
   [`${OPERATIONS_API_PREFIX}/connectors/credential-handles`]: credentialHandleRegistryFixture,
   [`${OPERATIONS_API_PREFIX}/connectors/credential-leases`]: credentialLeaseRegistryFixture,
   [`${OPERATIONS_API_PREFIX}/connectors/egress-policies`]: egressPolicyRegistryFixture,

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
@@ -144,6 +146,22 @@ def manifest_validation_request(
     }
 
 
+def manifest_replacement_payload(
+    request: ConnectorManifestCreateRequest,
+    *,
+    idempotency_key: str,
+    version: str | None = None,
+    expected_revision_number: int | None = None,
+) -> dict:
+    payload = request.model_dump()
+    payload["idempotency_key"] = idempotency_key
+    if version is not None:
+        payload["manifest"]["version"] = version
+    if expected_revision_number is not None:
+        payload["expected_revision_number"] = expected_revision_number
+    return payload
+
+
 def test_build_connector_manifest_registry_maps_persisted_records(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -251,6 +269,7 @@ def test_create_connector_manifest_endpoint_persists_public_safe_manifest(
     body = response.json()
     assert body["tenant_id"] == "tenant_demo_manufacturing"
     assert body["connector_id"] == "external_db_shift_orders"
+    assert body["revision_number"] == 1
     assert body["status"] == "registered_preview_only"
     assert body["audit_event_id"] is not None
     assert body["audit_event_type"] == "connector.manifest.registered"
@@ -272,6 +291,234 @@ def test_create_connector_manifest_endpoint_rejects_duplicate_manifest(
     assert second.status_code == 409
     assert second.json()["detail"]["reason"] == "manifest_already_exists"
     assert second.json()["detail"]["connector_id"] == "external_db_shift_orders"
+
+
+def test_replace_connector_manifest_increments_revision_and_retains_ordered_history(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    assert client.post(
+        "/operations/connectors/manifests",
+        json=request.model_dump(),
+    ).status_code == 201
+
+    second = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="manifest-revision-2",
+            version="2026-07-01",
+        ),
+    )
+    third = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="manifest-revision-3",
+            version="2026-07-02",
+        ),
+    )
+    history = client.get(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert second.status_code == 200
+    assert second.json()["revision_number"] == 2
+    assert second.json()["revises_revision_number"] == 1
+    assert third.status_code == 200
+    assert third.json()["revision_number"] == 3
+    assert history.status_code == 200
+    body = history.json()
+    assert body["current_revision"]["revision_number"] == 3
+    assert [revision["revision_number"] for revision in body["revisions"]] == [1, 2, 3]
+    assert [revision["version"] for revision in body["revisions"]] == [
+        "2026-06-22",
+        "2026-07-01",
+        "2026-07-02",
+    ]
+    assert [revision["replaced_by_revision_number"] for revision in body["revisions"]] == [
+        2,
+        3,
+        None,
+    ]
+
+
+def test_replace_connector_manifest_identical_document_is_unchanged(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+
+    response = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="identical-manifest",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["revision_number"] == 1
+    assert response.json()["unchanged"] is True
+    with session_scope(session_factory) as session:
+        assert session.scalar(
+            select(func.count()).select_from(ConnectorManifestRecord)
+        ) == 1
+        assert session.scalar(select(func.count()).select_from(AuditEvent)) == 1
+
+
+def test_replace_connector_manifest_idempotent_replay_returns_stored_revision(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+    replacement = manifest_replacement_payload(
+        request,
+        idempotency_key="replay-manifest-revision",
+        version="2026-07-01",
+    )
+
+    first = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=replacement,
+    )
+    replay = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=replacement,
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert replay.json()["manifest_id"] == first.json()["manifest_id"]
+    assert replay.json()["revision_number"] == 2
+    assert replay.json()["idempotent_replay"] is True
+    with session_scope(session_factory) as session:
+        assert session.scalar(
+            select(func.count()).select_from(ConnectorManifestRecord)
+        ) == 2
+
+
+def test_replace_connector_manifest_rejects_conflicting_idempotency_replay(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+    client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="conflicting-manifest-revision",
+            version="2026-07-01",
+        ),
+    )
+
+    response = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="conflicting-manifest-revision",
+            version="2026-07-02",
+        ),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["reason"] == "revision_idempotency_conflict"
+
+
+def test_replace_connector_manifest_expected_revision_guard(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+
+    mismatch = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="revision-guard-mismatch",
+            version="2026-07-01",
+            expected_revision_number=2,
+        ),
+    )
+    match = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="revision-guard-match",
+            version="2026-07-01",
+            expected_revision_number=1,
+        ),
+    )
+
+    assert mismatch.status_code == 409
+    assert mismatch.json()["detail"]["reason"] == "expected_revision_mismatch"
+    assert mismatch.json()["detail"]["current_revision_number"] == 1
+    assert match.status_code == 200
+    assert match.json()["revision_number"] == 2
+
+
+def test_replace_connector_manifest_unknown_id_is_not_found(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request().model_dump()
+    request["manifest"]["connector_id"] = "unknown_connector"
+    request["idempotency_key"] = "unknown-manifest-revision"
+
+    response = client.put(
+        "/operations/connectors/manifests/unknown_connector",
+        json=request,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["connector_id"] == "unknown_connector"
+
+
+def test_replace_connector_manifest_records_revision_audit_evidence(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+
+    response = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=manifest_replacement_payload(
+            request,
+            idempotency_key="audited-manifest-revision",
+            version="2026-07-01",
+        ),
+    )
+    with session_scope(session_factory) as session:
+        audit_event = session.get(AuditEvent, UUID(response.json()["audit_event_id"]))
+
+    assert response.status_code == 200
+    assert audit_event is not None
+    assert audit_event.event_type == "connector.manifest.replaced"
+    assert audit_event.payload["revises_revision_number"] == 1
+    assert audit_event.payload["revision_number"] == 2
+    assert audit_event.payload["previous_manifest_version"] == "2026-06-22"
+    assert audit_event.payload["manifest_version"] == "2026-07-01"
 
 
 def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
@@ -311,7 +558,7 @@ def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
     ]
     assert [result["outcome"] for result in body["results"]] == [
         "would_register",
-        "already_registered",
+        "would_replace",
         "invalid",
     ]
     assert body["results"][2]["errors"] == [
@@ -323,7 +570,7 @@ def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
     ]
     assert body["summary"] == {
         "would_register": 1,
-        "already_registered": 1,
+        "would_replace": 1,
         "invalid": 1,
     }
 
@@ -451,28 +698,31 @@ def test_manifest_validation_applyability_promise_matches_registration_endpoint(
     results = validation.json()["results"]
     assert [result["outcome"] for result in results] == [
         "would_register",
-        "already_registered",
+        "would_replace",
     ]
 
-    applyable_outcomes = {"would_register"}
     for result, registration_request in zip(
         results,
         registration_requests,
         strict=True,
     ):
-        registration = client.post(
-            "/operations/connectors/manifests",
-            json=registration_request.model_dump(),
-        )
-        if result["outcome"] in applyable_outcomes:
-            assert registration.status_code == 201
-            assert registration.json()["connector_id"] == result["connector_id"]
-        else:
-            assert result["outcome"] == "already_registered"
-            assert registration.status_code == 409
-            assert registration.json()["detail"]["reason"] == (
-                "manifest_already_exists"
+        if result["outcome"] == "would_register":
+            applied = client.post(
+                "/operations/connectors/manifests",
+                json=registration_request.model_dump(),
             )
+            assert applied.status_code == 201
+        else:
+            assert result["outcome"] == "would_replace"
+            applied = client.put(
+                f"/operations/connectors/manifests/{result['connector_id']}",
+                json=manifest_replacement_payload(
+                    registration_request,
+                    idempotency_key="dry-run-apply-replacement",
+                ),
+            )
+            assert applied.status_code == 200
+        assert applied.json()["connector_id"] == result["connector_id"]
 
 
 def test_manifest_validation_failure_matches_real_registration_reason(

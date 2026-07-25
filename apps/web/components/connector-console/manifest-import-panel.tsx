@@ -20,17 +20,21 @@ import {
   type ConnectorManifestValidationOutcome,
   type ConnectorRegistrationDocument,
 } from "@/lib/connectors-console";
+import { safeRandomUuid } from "@/lib/ids";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { parseConnectorManifestBatchValidationResponse } from "@/lib/runtime-contracts/connectors";
+import {
+  parseConnectorManifestBatchValidationResponse,
+  parseConnectorManifestDetail,
+} from "@/lib/runtime-contracts/connectors";
 import { strings } from "@/lib/strings";
-import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
+import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 export const MANIFESTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/connectors/manifests`;
 export const MANIFEST_VALIDATION_ENDPOINT = `${MANIFESTS_ENDPOINT}/validation`;
 
 type LocalError = "malformed" | "shape" | "file" | null;
-type ApplyResult = "landed" | "failed" | "notAttempted" | "pending";
+type ApplyResult = "landed" | "failed" | "conflict" | "notAttempted" | "pending";
 
 type ApplyState =
   | { phase: "idle" }
@@ -64,17 +68,37 @@ function outcomeClass(outcome: ConnectorManifestValidationOutcome): string {
   if (outcome === "would_register") {
     return "signal-ready";
   }
-  return "signal-action-required";
+  return outcome === "would_replace" ? "signal-watch" : "signal-action-required";
 }
 
 function applyResultClass(result: ApplyResult): string {
   if (result === "landed") {
     return "signal-ready";
   }
-  if (result === "failed") {
+  if (result === "failed" || result === "conflict") {
     return "signal-action-required";
   }
   return "status-checking";
+}
+
+export function buildManifestDetailPath(connectorId: string, tenantId: string): string {
+  return buildTenantScopedPath(
+    `${MANIFESTS_ENDPOINT}/${encodeURIComponent(connectorId)}`,
+    tenantId,
+  );
+}
+
+async function isConcurrentChangeResponse(response: Response): Promise<boolean> {
+  if (response.status !== 409) {
+    return false;
+  }
+  try {
+    const body = await response.json() as { detail?: { reason?: unknown } };
+    return body.detail?.reason === "expected_revision_mismatch"
+      || body.detail?.reason === "revision_idempotency_conflict";
+  } catch {
+    return false;
+  }
 }
 
 export function ManifestImportPanel({
@@ -97,17 +121,19 @@ export function ManifestImportPanel({
   const [requestError, setRequestError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<ConnectorRegistrationDocument[]>([]);
   const [validation, setValidation] = useState<ConnectorManifestBatchValidationResponse | null>(null);
+  const [replacementRevisions, setReplacementRevisions] = useState<Array<number | null>>([]);
   const [applyState, setApplyState] = useState<ApplyState>({ phase: "idle" });
 
   const ssoBlocked = identitySession != null
     && identitySession.api_auth_required
     && !identitySession.authenticated;
   const invalidCount = validation?.summary.invalid ?? 0;
-  const alreadyRegisteredCount = validation?.summary.already_registered ?? 0;
-  const rejectedCount = invalidCount + alreadyRegisteredCount;
   const applying = applyState.phase === "applying";
   const canApply = validation !== null
-    && rejectedCount === 0
+    && invalidCount === 0
+    && validation.results.every((result, index) => (
+      result.outcome !== "would_replace" || typeof replacementRevisions[index] === "number"
+    ))
     && !ssoBlocked
     && applyState.phase === "idle";
 
@@ -118,6 +144,7 @@ export function ManifestImportPanel({
     setRequestError(null);
     setDocuments([]);
     setValidation(null);
+    setReplacementRevisions([]);
     setApplyState({ phase: "idle" });
   }
 
@@ -153,7 +180,9 @@ export function ManifestImportPanel({
     setRequestError(null);
     setDocuments([]);
     setValidation(null);
+    setReplacementRevisions([]);
     setApplyState({ phase: "idle" });
+    let loadingReplacementRevisions = false;
     try {
       const response = await axisFetch(MANIFEST_VALIDATION_ENDPOINT, {
         method: "POST",
@@ -182,42 +211,91 @@ export function ManifestImportPanel({
         setRequestError(copy.errors.resultCountMismatch);
         return;
       }
+      loadingReplacementRevisions = true;
+      const revisions = await Promise.all(result.results.map(async (validationResult) => {
+        if (validationResult.outcome !== "would_replace") {
+          return null;
+        }
+        if (!validationResult.connector_id) {
+          throw new Error(copy.errors.replacementRevisionRequest);
+        }
+        const detailPath = buildManifestDetailPath(validationResult.connector_id, tenantId);
+        const detailResponse = await axisFetch(detailPath, { session });
+        if (!detailResponse.ok) {
+          throw new Error(copy.errors.replacementRevisionRequest);
+        }
+        const detail = decodeAxisJson(
+          detailPath,
+          await detailResponse.json(),
+          parseConnectorManifestDetail,
+          detailResponse.headers.get("x-request-id")
+            ?? detailResponse.headers.get("x-correlation-id"),
+        );
+        if (detail.tenant_id !== tenantId || detail.connector_id !== validationResult.connector_id) {
+          throw new Error(copy.errors.replacementRevisionRequest);
+        }
+        return detail.current_revision.revision_number;
+      }));
       setDocuments(parsed.documents);
+      setReplacementRevisions(revisions);
       setValidation(result);
     } catch {
-      setRequestError(copy.errors.validationRequest);
+      setRequestError(
+        loadingReplacementRevisions
+          ? copy.errors.replacementRevisionRequest
+          : copy.errors.validationRequest,
+      );
     } finally {
       setChecking(false);
     }
   }
 
   async function applyDocuments() {
-    if (!validation || rejectedCount > 0) {
+    if (!validation || invalidCount > 0) {
       return;
     }
     const results: ApplyResult[] = documents.map(() => "pending");
+    const applyAttemptId = safeRandomUuid();
+    const idempotencyKeys = documents.map((_, index) => (
+      `connector-manifest-replace:${applyAttemptId}:${index + 1}`
+    ));
     setApplyState({ phase: "applying", results });
     let landed = 0;
     for (let index = 0; index < documents.length; index += 1) {
       try {
-        const response = await axisFetch(MANIFESTS_ENDPOINT, {
-          method: "POST",
+        const validationResult = validation.results[index];
+        const replacing = validationResult.outcome === "would_replace";
+        const connectorId = validationResult.connector_id;
+        const path = replacing && connectorId
+          ? `${MANIFESTS_ENDPOINT}/${encodeURIComponent(connectorId)}`
+          : MANIFESTS_ENDPOINT;
+        const response = await axisFetch(path, {
+          method: replacing ? "PUT" : "POST",
           session,
           body: {
             ...documents[index],
             tenant_id: tenantId,
             registered_by: identitySession?.actor_id ?? CONNECTOR_CONSOLE_ACTOR,
+            ...(replacing ? {
+              idempotency_key: idempotencyKeys[index],
+              expected_revision_number: replacementRevisions[index],
+            } : {}),
           },
         });
-        if (response.status !== 201) {
-          results[index] = "failed";
+        const expectedStatus = replacing ? 200 : 201;
+        if (response.status !== expectedStatus) {
+          const conflict = await isConcurrentChangeResponse(response);
+          results[index] = conflict ? "conflict" : "failed";
           for (let pendingIndex = index + 1; pendingIndex < results.length; pendingIndex += 1) {
             results[pendingIndex] = "notAttempted";
           }
           setApplyState({ phase: "done", results: [...results], landed });
+          const detail = conflict && connectorId
+            ? copy.concurrentConflict(connectorId)
+            : copy.applyFailure(landed, documents.length);
           push({
             title: copy.toast.partial,
-            detail: copy.applyFailure(landed, documents.length),
+            detail,
             tone: "danger",
           });
           if (landed > 0) {
@@ -258,7 +336,12 @@ export function ManifestImportPanel({
     ? applyState.results
     : null;
   const applyMessage = applyState.phase === "done"
-    ? applyState.landed === documents.length
+    ? applyState.results.includes("conflict")
+      ? copy.concurrentConflict(
+          validation?.results[applyState.results.indexOf("conflict")].connector_id
+            ?? copy.table.unknownConnector,
+        )
+      : applyState.landed === documents.length
       ? copy.applySuccess(applyState.landed)
       : copy.applyFailure(applyState.landed, documents.length)
     : null;
@@ -275,7 +358,7 @@ export function ManifestImportPanel({
             {copy.validationEndpoint}: {MANIFEST_VALIDATION_ENDPOINT}
           </p>
           <p className="mx-0 mt-1 mb-0 font-mono text-xs break-words text-muted">
-            {copy.applyEndpoint}: {MANIFESTS_ENDPOINT}
+            {copy.applyEndpoint}: {copy.applyEndpointPaths(MANIFESTS_ENDPOINT)}
           </p>
         </div>
         <FileJson aria-hidden="true" className="text-muted" size={20} />
@@ -354,7 +437,7 @@ export function ManifestImportPanel({
           <div aria-label={copy.summary.title} className="grid gap-2 sm:grid-cols-3">
             {([
               ["would_register", copy.summary.wouldRegister],
-              ["already_registered", copy.summary.alreadyRegistered],
+              ["would_replace", copy.summary.wouldReplace],
               ["invalid", copy.summary.invalid],
             ] as const).map(([outcome, label]) => (
               <div className="rounded-xl border border-line p-3 dark:border-white/10" key={outcome}>
@@ -393,6 +476,11 @@ export function ManifestImportPanel({
                     <span className={cn("status-pill", outcomeClass(result.outcome))}>
                       {copy.outcomes[result.outcome]}
                     </span>
+                    {result.outcome === "would_replace" && replacementRevisions[index] ? (
+                      <p className="mx-0 mt-1 mb-0 text-xs text-muted">
+                        {copy.table.replacesRevision(replacementRevisions[index])}
+                      </p>
+                    ) : null}
                   </td>
                   {applyResults ? (
                     <td>
@@ -407,15 +495,10 @@ export function ManifestImportPanel({
           </DataTable>
 
           <p
-            className={cn("m-0 text-sm", rejectedCount > 0 ? "text-danger" : "text-muted")}
+            className={cn("m-0 text-sm", invalidCount > 0 ? "text-danger" : "text-muted")}
             role="status"
           >
-            {copy.applyability(
-              rejectedCount,
-              invalidCount,
-              alreadyRegisteredCount,
-              documents.length,
-            )}
+            {copy.applyability(invalidCount, documents.length)}
           </p>
           {applyState.phase === "confirming" ? (
             <div className="grid gap-3 rounded-xl border border-warning/40 bg-warning/8 p-4">

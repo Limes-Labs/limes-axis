@@ -7,16 +7,25 @@ import { DataTable } from "@/components/ui/data-table";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
-import { EmptyPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatConnectorLabel, type ConnectorRegistryItem } from "@/lib/connectors-demo";
+import {
+  formatConnectorLabel,
+  type ConnectorManifestDetail,
+  type ConnectorRegistryItem,
+} from "@/lib/connectors-demo";
 import {
   manifestRecordForConnector,
   type ConnectorListEntry,
 } from "@/lib/connectors-console";
 import { strings } from "@/lib/strings";
+import { formatNumber, formatTimestamp } from "@/lib/format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { parseConnectorManifestDetail } from "@/lib/runtime-contracts/connectors";
+import { buildTenantScopedPath } from "@/lib/tenant-scope";
+import { useAxisQuery, type AxisQuerySource } from "@/lib/use-axis-query";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
+import { CONNECTOR_ENDPOINTS } from "@/lib/use-connector-registries";
 
 import { ConnectorGovernance } from "./governance";
 import { ConnectorRuns } from "./runs";
@@ -49,9 +58,15 @@ function ChipList({ items, emptyLabel }: { items: string[]; emptyLabel?: string 
 
 function OverviewTab({
   connector,
+  manifestDetail,
+  manifestDetailPath,
+  manifestDetailSource,
   registries,
 }: {
   connector: ConnectorRegistryItem;
+  manifestDetail: ConnectorManifestDetail | null;
+  manifestDetailPath: string;
+  manifestDetailSource: AxisQuerySource;
   registries: ConnectorRegistries;
 }) {
   const copy = strings.connectors.overview;
@@ -104,14 +119,59 @@ function OverviewTab({
       <div className="grid gap-2 border-t border-line/60 pt-4 dark:border-white/10">
         <Eyebrow>{copy.manifest}</Eyebrow>
         {manifestRecord ? (
-          <DetailGrid>
-            <KeyValueRow label="Status">
-              {formatConnectorLabel(manifestRecord.status)}
-            </KeyValueRow>
-            <KeyValueRow label={copy.manifestRegisteredBy}>
-              {manifestRecord.registered_by}
-            </KeyValueRow>
-          </DetailGrid>
+          <div className="grid gap-4">
+            <DetailGrid>
+              <KeyValueRow label={copy.manifestStatus}>
+                {formatConnectorLabel(manifestRecord.status)}
+              </KeyValueRow>
+              <KeyValueRow label={copy.manifestRegisteredBy}>
+                {manifestRecord.registered_by}
+              </KeyValueRow>
+              {manifestDetail ? (
+                <KeyValueRow label={copy.currentRevision}>
+                  {formatNumber(manifestDetail.current_revision.revision_number)}
+                </KeyValueRow>
+              ) : null}
+            </DetailGrid>
+            {manifestDetailSource === "loading" ? <LoadingPanel rows={2} /> : null}
+            {manifestDetailSource === "unavailable" ? (
+              <ErrorPanel
+                detail={copy.revisionHistoryUnavailableDetail}
+                endpoint={manifestDetailPath}
+                title={copy.revisionHistoryUnavailable}
+              />
+            ) : null}
+            {manifestDetail ? (
+              <section className="grid gap-2">
+                <div className="grid gap-1">
+                  <Eyebrow>{copy.revisionHistory}</Eyebrow>
+                  <p className="m-0 text-sm text-muted">{copy.revisionHistoryDetail}</p>
+                </div>
+                <DataTable aria-label={copy.revisionHistory} minWidth={680}>
+                  <thead>
+                    <tr>
+                      <th>{copy.revisionColumns.revision}</th>
+                      <th>{copy.revisionColumns.version}</th>
+                      <th>{copy.revisionColumns.status}</th>
+                      <th>{copy.revisionColumns.registeredBy}</th>
+                      <th>{copy.revisionColumns.createdAt}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manifestDetail.revisions.map((revision) => (
+                      <tr key={revision.revision_number}>
+                        <td>{formatNumber(revision.revision_number)}</td>
+                        <td className="font-mono text-xs">{revision.version}</td>
+                        <td>{formatConnectorLabel(revision.status)}</td>
+                        <td>{revision.registered_by}</td>
+                        <td>{formatTimestamp(revision.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DataTable>
+              </section>
+            ) : null}
+          </div>
         ) : (
           <p className="m-0 text-sm text-muted">{copy.manifestMissing}</p>
         )}
@@ -224,6 +284,15 @@ export function ConnectorDetail({
   const tabs = strings.connectors.tabs;
   const { connector } = entry;
   const { manifest } = connector;
+  const manifestDetailPath = buildTenantScopedPath(
+    `${CONNECTOR_ENDPOINTS.manifests}/${encodeURIComponent(manifest.connector_id)}`,
+    tenantId,
+  );
+  const manifestDetail = useAxisQuery<ConnectorManifestDetail>(manifestDetailPath, {
+    enabled: entry.manifestRecord !== null,
+    expectedTenantId: tenantId,
+    parse: parseConnectorManifestDetail,
+  });
   // Manifest-only entries (wizard registrations the reference registry does
   // not know yet) cannot preview or run syncs, so those tabs explain the
   // pending activation instead of offering actions that would 404/422.
@@ -255,7 +324,13 @@ export function ConnectorDetail({
           <TabsTrigger value="governance">{tabs.governance}</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
-          <OverviewTab connector={connector} registries={registries} />
+          <OverviewTab
+            connector={connector}
+            manifestDetail={manifestDetail.data}
+            manifestDetailPath={manifestDetailPath}
+            manifestDetailSource={manifestDetail.source}
+            registries={registries}
+          />
         </TabsContent>
         <TabsContent value="schema">
           {activationPending ? <PendingActivationPanel /> : <DataSchemaTab connector={connector} />}

@@ -72,6 +72,7 @@ export type ConnectorManifestRecord = {
   tenant_id: string;
   manifest_id: string;
   connector_id: string;
+  revision_number: number;
   display_name: string;
   connector_type: string;
   source_type: string;
@@ -84,8 +85,20 @@ export type ConnectorManifestRecord = {
   preview_sample: ConnectorPreviewSample;
   audit_event_id: string | null;
   audit_event_type: string;
+  revises_revision_number: number | null;
+  replaced_by_revision_number: number | null;
+  revision_idempotency_key: string | null;
+  idempotent_replay: boolean;
+  unchanged: boolean;
   notes: string[];
   created_at: string;
+};
+
+export type ConnectorManifestDetail = {
+  tenant_id: string;
+  connector_id: string;
+  current_revision: ConnectorManifestRecord;
+  revisions: ConnectorManifestRecord[];
 };
 
 export type ManufacturingConnectorManifestRegistry = {

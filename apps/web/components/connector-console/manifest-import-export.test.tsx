@@ -6,12 +6,17 @@ import { ToastProvider } from "@/components/ui/toast";
 import type { ConnectorListEntry } from "@/lib/connectors-console";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 
-import { csvConnectorFixture, manifestRegistryFixture } from "./connector-fixtures";
+import {
+  csvConnectorFixture,
+  manifestDetailFixture,
+  manifestRegistryFixture,
+} from "./connector-fixtures";
 import { ManifestExportPanel } from "./manifest-export-panel";
 import {
   MANIFESTS_ENDPOINT,
   MANIFEST_VALIDATION_ENDPOINT,
   ManifestImportPanel,
+  buildManifestDetailPath,
 } from "./manifest-import-panel";
 
 const mocks = vi.hoisted(() => ({
@@ -73,7 +78,7 @@ function response(payload: unknown, status = 200): Response {
 function validationResponse(
   results: Array<{
     connector_id: string | null;
-    outcome: "would_register" | "already_registered" | "invalid";
+    outcome: "would_register" | "would_replace" | "invalid";
     errors?: Array<{ field_path: string; message: string; reason: string }>;
   }>,
 ) {
@@ -81,12 +86,30 @@ function validationResponse(
     tenant_id: tenantId,
     summary: {
       would_register: results.filter((result) => result.outcome === "would_register").length,
-      already_registered: results.filter((result) => (
-        result.outcome === "already_registered"
+      would_replace: results.filter((result) => (
+        result.outcome === "would_replace"
       )).length,
       invalid: results.filter((result) => result.outcome === "invalid").length,
     },
     results: results.map((result) => ({ ...result, errors: result.errors ?? [] })),
+  };
+}
+
+function manifestDetail(connectorId: string, revisionNumber = 3) {
+  const currentRevision = {
+    ...manifestDetailFixture.current_revision,
+    connector_id: connectorId,
+    revision_number: revisionNumber,
+    manifest: {
+      ...manifestDetailFixture.current_revision.manifest,
+      connector_id: connectorId,
+    },
+  };
+  return {
+    tenant_id: tenantId,
+    connector_id: connectorId,
+    current_revision: currentRevision,
+    revisions: [currentRevision],
   };
 }
 
@@ -118,19 +141,21 @@ describe("ManifestImportPanel", () => {
   it("renders each outcome and field-level errors for a mixed batch", async () => {
     const user = userEvent.setup();
     const documents = [documentFor("new-connector"), documentFor("existing-connector"), {}];
-    mocks.axisFetch.mockResolvedValueOnce(response(validationResponse([
-      { connector_id: "new-connector", outcome: "would_register" },
-      { connector_id: "existing-connector", outcome: "already_registered" },
-      {
-        connector_id: null,
-        outcome: "invalid",
-        errors: [{
-          field_path: "preview_sample.file_name",
-          message: "Field required",
-          reason: "invalid_preview_sample_payload",
-        }],
-      },
-    ])));
+    mocks.axisFetch
+      .mockResolvedValueOnce(response(validationResponse([
+        { connector_id: "new-connector", outcome: "would_register" },
+        { connector_id: "existing-connector", outcome: "would_replace" },
+        {
+          connector_id: null,
+          outcome: "invalid",
+          errors: [{
+            field_path: "preview_sample.file_name",
+            message: "Field required",
+            reason: "invalid_preview_sample_payload",
+          }],
+        },
+      ])))
+      .mockResolvedValueOnce(response(manifestDetail("existing-connector", 4)));
     renderImport();
 
     setJson(documents);
@@ -139,7 +164,8 @@ describe("ManifestImportPanel", () => {
     const table = await screen.findByRole("table", { name: "Import connector manifests" });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(within(rows[0]).getByText("Would register")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Already registered")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Would replace")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Replaces revision 4")).toBeInTheDocument();
     expect(within(rows[2]).getByText("Invalid")).toBeInTheDocument();
     expect(within(rows[2]).getByText("preview_sample.file_name")).toBeInTheDocument();
     expect(within(rows[2]).getByText(/Field required/)).toBeInTheDocument();
@@ -161,25 +187,74 @@ describe("ManifestImportPanel", () => {
     setJson([documentFor("valid"), documentFor("invalid")]);
     await user.click(screen.getByRole("button", { name: "Check" }));
 
-    expect(await screen.findByText("1 of 2 will be rejected: 1 invalid, 0 already registered. Apply stays disabled until every document can be registered.")).toBeInTheDocument();
+    expect(await screen.findByText("1 of 2 will be rejected as invalid. Apply stays disabled until every document is valid.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review apply" })).toBeDisabled();
   });
 
-  it("keeps Apply disabled and surfaces the count for already-registered documents", async () => {
+  it("makes a would-replace row applyable and routes it to PUT with revision guards", async () => {
     const user = userEvent.setup();
-    mocks.axisFetch.mockResolvedValueOnce(response(validationResponse([
-      { connector_id: "valid", outcome: "would_register" },
-      { connector_id: "existing", outcome: "already_registered" },
-    ])));
+    mocks.axisFetch
+      .mockResolvedValueOnce(response(validationResponse([
+        { connector_id: "existing", outcome: "would_replace" },
+      ])))
+      .mockResolvedValueOnce(response(manifestDetail("existing", 7)))
+      .mockResolvedValueOnce(response({ revision_number: 8 }, 200));
     renderImport();
 
-    setJson([documentFor("valid"), documentFor("existing")]);
+    const document = documentFor("existing");
+    setJson(document);
     await user.click(screen.getByRole("button", { name: "Check" }));
 
-    expect(await screen.findByText("1 of 2 will be rejected: 0 invalid, 1 already registered. Apply stays disabled until every document can be registered.")).toBeInTheDocument();
-    expect(screen.getByText("Already registered", { selector: ".status-pill" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Review apply" })).toBeDisabled();
-    expect(mocks.axisFetch).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Replaces revision 7")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review apply" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Review apply" }));
+    await user.click(screen.getByRole("button", { name: "Apply manifests" }));
+
+    expect(await screen.findAllByText("1 of 1 manifests were applied.")).toHaveLength(2);
+    expect(mocks.axisFetch).toHaveBeenNthCalledWith(
+      2,
+      buildManifestDetailPath("existing", tenantId),
+      expect.objectContaining({ session: null }),
+    );
+    expect(mocks.axisFetch).toHaveBeenNthCalledWith(
+      3,
+      `${MANIFESTS_ENDPOINT}/existing`,
+      expect.objectContaining({
+        method: "PUT",
+        body: expect.objectContaining({
+          ...document,
+          expected_revision_number: 7,
+          idempotency_key: expect.stringMatching(/^connector-manifest-replace:.+:1$/),
+        }),
+      }),
+    );
+  });
+
+  it("reports an expected-revision 409 as a concurrent-change conflict", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch
+      .mockResolvedValueOnce(response(validationResponse([
+        { connector_id: "existing", outcome: "would_replace" },
+      ])))
+      .mockResolvedValueOnce(response(manifestDetail("existing", 7)))
+      .mockResolvedValueOnce(response({
+        detail: {
+          reason: "expected_revision_mismatch",
+          current_revision_number: 8,
+        },
+      }, 409));
+    renderImport();
+
+    setJson(documentFor("existing"));
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    await user.click(await screen.findByRole("button", { name: "Review apply" }));
+    await user.click(screen.getByRole("button", { name: "Apply manifests" }));
+
+    expect(await screen.findByText("Concurrent change")).toBeInTheDocument();
+    expect(screen.getAllByText(
+      "Apply stopped because someone else changed existing. Check the batch again before replacing it.",
+    )).toHaveLength(2);
+    expect(mocks.onApplied).not.toHaveBeenCalled();
   });
 
   it("stops after a partial apply failure and identifies landed, failed, and untouched documents", async () => {
@@ -199,11 +274,11 @@ describe("ManifestImportPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Review apply" }));
     await user.click(screen.getByRole("button", { name: "Apply manifests" }));
 
-    expect(await screen.findAllByText("1 of 3 manifests were created. The remaining documents were not applied.")).toHaveLength(2);
+    expect(await screen.findAllByText("1 of 3 manifests were applied. The remaining documents were not applied.")).toHaveLength(2);
     const rows = within(screen.getByRole("table", { name: "Import connector manifests" }))
       .getAllByRole("row")
       .slice(1);
-    expect(within(rows[0]).getByText("Created")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("Applied")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Failed")).toBeInTheDocument();
     expect(within(rows[2]).getByText("Not applied")).toBeInTheDocument();
     expect(mocks.axisFetch.mock.calls.filter(([path]) => path === MANIFESTS_ENDPOINT)).toHaveLength(2);
@@ -262,7 +337,7 @@ describe("ManifestImportPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Review apply" }));
     await user.click(screen.getByRole("button", { name: "Apply manifests" }));
 
-    expect(await screen.findAllByText("2 of 2 manifests were created.")).toHaveLength(2);
+    expect(await screen.findAllByText("2 of 2 manifests were applied.")).toHaveLength(2);
     expect(mocks.axisFetch.mock.calls.map(([path]) => path)).toEqual([
       MANIFEST_VALIDATION_ENDPOINT,
       MANIFESTS_ENDPOINT,
@@ -296,14 +371,19 @@ describe("ManifestImportPanel", () => {
 });
 
 describe("manifest export round trip", () => {
-  it("feeds the exact formatted export into import and reports it as already registered", async () => {
+  it("feeds the exact formatted export into import and reports it as replaceable", async () => {
     const user = userEvent.setup();
-    mocks.axisFetch.mockResolvedValueOnce(response(validationResponse([
-      {
-        connector_id: csvConnectorFixture.manifest.connector_id,
-        outcome: "already_registered",
-      },
-    ])));
+    mocks.axisFetch
+      .mockResolvedValueOnce(response(validationResponse([
+        {
+          connector_id: csvConnectorFixture.manifest.connector_id,
+          outcome: "would_replace",
+        },
+      ])))
+      .mockResolvedValueOnce(response(manifestDetail(
+        csvConnectorFixture.manifest.connector_id,
+        2,
+      )));
     renderImport(<ManifestExportPanel entry={entry} />);
 
     await user.click(screen.getByRole("button", { name: "Export manifest" }));
@@ -313,7 +393,7 @@ describe("manifest export round trip", () => {
     setJson(exportedJson);
     await user.click(screen.getByRole("button", { name: "Check" }));
 
-    expect(await screen.findByText("Already registered", {
+    expect(await screen.findByText("Would replace", {
       selector: ".status-pill",
     })).toBeInTheDocument();
     expect(mocks.axisFetch).toHaveBeenCalledWith(

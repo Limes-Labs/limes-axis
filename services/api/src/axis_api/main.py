@@ -211,14 +211,20 @@ from axis_api.connector_manifests import (
     ConnectorManifestBatchValidationResponse,
     ConnectorManifestConflict,
     ConnectorManifestCreateRequest,
+    ConnectorManifestDetail,
     ConnectorManifestLifecycleRequest,
     ConnectorManifestLifecycleValidationError,
+    ConnectorManifestNotFound,
     ConnectorManifestQuery,
     ConnectorManifestRecordView,
+    ConnectorManifestReplaceRequest,
+    ConnectorManifestRevisionConflict,
     ConnectorManifestValidationError,
     ManufacturingConnectorManifestRegistry,
     build_connector_manifest_registry,
+    get_connector_manifest_detail,
     record_demo_connector_manifest,
+    replace_demo_connector_manifest,
     transition_demo_connector_manifest_lifecycle,
     validate_connector_manifest_batch,
 )
@@ -4617,6 +4623,100 @@ def create_app(
                     "connector_id": exc.connector_id,
                 },
             ) from exc
+        except ConnectorManifestValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": exc.message,
+                    "reason": exc.reason,
+                    "errors": [error.model_dump() for error in exc.errors],
+                },
+            ) from exc
+
+    @operations_router.get(
+        "/connectors/manifests/{connector_id}",
+        response_model=ConnectorManifestDetail,
+        responses={
+            403: {"description": "Connector manifest read permission denied"},
+            404: {"description": "Connector manifest not found"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_manifest_detail(
+        connector_id: str,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+    ) -> ConnectorManifestDetail:
+        _authorize_connector_tenant_read(tenant_id, principal)
+        try:
+            return get_connector_manifest_detail(repository, tenant_id, connector_id)
+        except ConnectorManifestNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The connector manifest was not found for this tenant.",
+                    "connector_id": connector_id,
+                },
+            ) from exc
+
+    @operations_router.put(
+        "/connectors/manifests/{connector_id}",
+        response_model=ConnectorManifestRecordView,
+        responses={
+            403: {"description": "Connector manifest actor binding permission denied"},
+            404: {"description": "Connector manifest not found"},
+            409: {"description": "Connector manifest revision conflict"},
+            422: {"description": "Connector manifest validation failed"},
+        },
+        tags=["demo"],
+    )
+    def manufacturing_connector_manifest_replace(
+        connector_id: str,
+        replace_request: ConnectorManifestReplaceRequest,
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+    ) -> ConnectorManifestRecordView:
+        bound_request = _bind_connector_run_actor(
+            replace_request,
+            principal,
+            actor_field="registered_by",
+        )
+        request_connector_id = bound_request.manifest.get("connector_id")
+        if connector_id != request_connector_id:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The path connector_id must match the manifest connector_id.",
+                    "reason": "connector_id_mismatch",
+                },
+            )
+        try:
+            return replace_demo_connector_manifest(repository, bound_request)
+        except ConnectorManifestNotFound as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": AxisErrorCode.NOT_FOUND.value,
+                    "message": "The connector manifest was not found for this tenant.",
+                    "connector_id": connector_id,
+                },
+            ) from exc
+        except ConnectorManifestRevisionConflict as exc:
+            detail = {
+                "code": AxisErrorCode.POLICY_VIOLATION.value,
+                "message": (
+                    "The connector manifest revision conflicts with persisted state."
+                ),
+                "reason": exc.reason,
+                "connector_id": exc.connector_id,
+            }
+            if exc.current_revision_number is not None:
+                detail["current_revision_number"] = exc.current_revision_number
+            raise HTTPException(status_code=409, detail=detail) from exc
         except ConnectorManifestValidationError as exc:
             raise HTTPException(
                 status_code=422,
