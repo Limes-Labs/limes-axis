@@ -30,15 +30,18 @@ from axis_api.action_runs import (
     ActionPayloadValidationError,
     ActionPermissionDenied,
     ActionRunIdempotencyConflict,
+    ActionRunList,
     ActionRunOutcomeConflict,
     ActionRunOutcomePermissionDenied,
     ActionRunOutcomePersistenceResult,
     ActionRunOutcomeRequest,
     ActionRunOutcomeValidationError,
     ActionRunPersistenceResult,
+    ActionRunQuery,
     ActionRunRequest,
     DemoActionNotFound,
     DemoActionRunNotFound,
+    list_action_run_records,
     record_demo_action_run,
     record_demo_action_run_outcome,
 )
@@ -7498,6 +7501,31 @@ def create_app(
                 exc,
                 "The actor cannot update tenant vocabulary.",
             ) from exc
+
+    @operations_router.get(
+        "/actions/runs",
+        response_model=ActionRunList,
+        responses={403: {"description": "Action run read permission denied"}},
+        tags=["demo"],
+    )
+    def manufacturing_action_run_list(
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(default="tenant_demo_manufacturing", min_length=1),
+        action_id: str | None = Query(default=None, min_length=1),
+        status: str | None = Query(default=None, min_length=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ) -> ActionRunList:
+        _authorize_tenant_read(tenant_id, principal)
+        return list_action_run_records(
+            repository,
+            ActionRunQuery(
+                tenant_id=tenant_id,
+                action_id=action_id,
+                status=status,
+                limit=limit,
+            ),
+        )
 
     @operations_router.post(
         "/actions/{action_id}/runs",

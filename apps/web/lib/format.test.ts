@@ -4,6 +4,7 @@ import {
   formatClockTime,
   formatContextPath,
   formatDateTime,
+  formatElapsedDuration,
   formatNumber,
   formatTimestamp,
 } from "./format";
@@ -57,5 +58,20 @@ describe("formatNumber", () => {
     expect(formatNumber(Number.NaN)).toBe("—");
     expect(formatNumber(Number.POSITIVE_INFINITY)).toBe("—");
     expect(formatNumber(null)).toBe("—");
+  });
+});
+
+describe("formatElapsedDuration", () => {
+  it("formats operational waits in minutes, hours, and days instead of raw seconds", () => {
+    expect(formatElapsedDuration(45)).toBe("under 1 min");
+    expect(formatElapsedDuration(3_600)).toBe("1 hr");
+    expect(formatElapsedDuration(78_183)).toBe("21 hr 43 min");
+    expect(formatElapsedDuration(97_200)).toBe("1 day 3 hr");
+  });
+
+  it("fails soft for invalid durations", () => {
+    expect(formatElapsedDuration(-1)).toBe("—");
+    expect(formatElapsedDuration(Number.NaN)).toBe("—");
+    expect(formatElapsedDuration(null)).toBe("—");
   });
 });

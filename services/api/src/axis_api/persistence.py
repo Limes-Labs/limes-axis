@@ -1860,16 +1860,21 @@ class AxisPersistenceRepository:
     def list_action_runs(
         self,
         tenant_id: str,
+        action_id: str | None = None,
         status: str | None = None,
         limit: int = 100,
     ) -> list[ActionRun]:
         statement: Select[tuple[ActionRun]] = select(ActionRun).where(
             ActionRun.tenant_id == tenant_id
         )
+        if action_id is not None:
+            statement = statement.where(ActionRun.action_id == action_id)
         if status is not None:
             statement = statement.where(ActionRun.status == status)
 
-        statement = statement.order_by(ActionRun.created_at.desc()).limit(limit)
+        statement = statement.order_by(ActionRun.created_at.desc(), ActionRun.id.desc()).limit(
+            limit
+        )
         return list(self.session.scalars(statement))
 
     def upsert_demo_reference_record(

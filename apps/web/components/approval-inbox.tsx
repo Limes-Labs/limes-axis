@@ -8,6 +8,7 @@ import {
   useApprovalDecisionState,
   type ApprovalDecisionRecord,
 } from "@/components/approvals/approval-decision-card";
+import { ActionFollowThrough } from "@/components/approvals/action-follow-through";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
@@ -17,6 +18,7 @@ import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import type { ActionRunList } from "@/lib/action-demo";
 import {
   approvalDecisionLabel,
   approvalRiskClass,
@@ -29,6 +31,7 @@ import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel, platformStatusClass } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
+import { parseActionRunList } from "@/lib/runtime-contracts/actions";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import {
   parseManufacturingAuditExplorer,
@@ -42,9 +45,11 @@ import {
   OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
+import { useConsole } from "@/providers/console-provider";
 import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 
 const APPROVALS_ENDPOINT = `${OPERATIONS_API_PREFIX}/approvals`;
+const ACTION_RUNS_ENDPOINT = `${OPERATIONS_API_PREFIX}/actions/runs`;
 const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 const approvalUrlSchema = {
   approvalId: stringUrlField("approval_id"),
@@ -410,6 +415,7 @@ function ApprovalDetail({
 
 export function ApprovalInbox() {
   const { labelDomain } = useTenantVocabulary();
+  const { triggerRefresh } = useConsole();
   const identity = useAxisQuery<IdentitySessionReadModel>("/identity/session", {
     parse: parseIdentitySessionReadModel,
   });
@@ -421,6 +427,14 @@ export function ApprovalInbox() {
       enabled: identity.source === "api" && tenantId !== null,
       expectedTenantId: tenantId ?? undefined,
       parse: parseManufacturingApprovalInbox,
+    },
+  );
+  const actionRunsQuery = useAxisQuery<ActionRunList>(
+    buildTenantScopedPath(ACTION_RUNS_ENDPOINT, tenantId ?? DEMO_TENANT_ID),
+    {
+      enabled: identity.source === "api" && tenantId !== null,
+      expectedTenantId: tenantId ?? undefined,
+      parse: parseActionRunList,
     },
   );
   const [urlState, setUrlState] = useConsoleUrlState(approvalUrlSchema);
@@ -437,6 +451,16 @@ export function ApprovalInbox() {
     },
   );
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
+
+  function handleDecisionChange(
+    approvalId: string,
+    record: ApprovalDecisionRecord | null,
+  ) {
+    setDecision(approvalId, record);
+    if (record?.storage === "persisted") {
+      triggerRefresh();
+    }
+  }
 
   if (identity.source === "unavailable") {
     return (
@@ -480,16 +504,6 @@ export function ApprovalInbox() {
     );
   }
 
-  if (inbox.approvals.length === 0) {
-    return (
-      <EmptyPanel
-        detail={strings.approvals.empty.detail}
-        icon={Inbox}
-        title={strings.approvals.empty.title}
-      />
-    );
-  }
-
   const directActionRunApproval = urlState.actionRunId
     ? inbox.approvals.find((approval) => approval.action_run_id === urlState.actionRunId)
     : undefined;
@@ -527,7 +541,7 @@ export function ApprovalInbox() {
     );
   }
 
-  if (!selectedApproval) {
+  if (!selectedApproval && (urlState.actionRunId || urlState.approvalId)) {
     return (
       <EmptyPanel
         detail={strings.approvals.requestedMissing.detail}
@@ -591,35 +605,48 @@ export function ApprovalInbox() {
 
       <MetricStrip metrics={metrics} />
 
-      <MasterDetail
-        detail={
-          <ApprovalDetail
-            actor={
-              identity.data?.actor_id
-                ? { actorId: identity.data.actor_id, scopes: identity.data.scopes }
-                : undefined
-            }
-            approval={selectedApproval}
-            decision={decisions[selectedApproval.approval_id]}
-            domainLabel={labelDomain(selectedApproval.domain)}
-            error={errors[selectedApproval.approval_id]}
-            onDecisionChange={setDecision}
-            onErrorChange={setError}
-            tenantId={inbox.tenant_id}
-          />
-        }
-        list={
-          <QueueList
-            decisions={decisions}
-            inbox={inbox}
-            labelDomain={labelDomain}
-            onSelect={(approvalId) => setUrlState({
-              actionRunId: "",
-              approvalId,
-            })}
-            selectedApproval={selectedApproval}
-          />
-        }
+      {selectedApproval ? (
+        <MasterDetail
+          detail={
+            <ApprovalDetail
+              actor={
+                identity.data?.actor_id
+                  ? { actorId: identity.data.actor_id, scopes: identity.data.scopes }
+                  : undefined
+              }
+              approval={selectedApproval}
+              decision={decisions[selectedApproval.approval_id]}
+              domainLabel={labelDomain(selectedApproval.domain)}
+              error={errors[selectedApproval.approval_id]}
+              onDecisionChange={handleDecisionChange}
+              onErrorChange={setError}
+              tenantId={inbox.tenant_id}
+            />
+          }
+          list={
+            <QueueList
+              decisions={decisions}
+              inbox={inbox}
+              labelDomain={labelDomain}
+              onSelect={(approvalId) => setUrlState({
+                actionRunId: "",
+                approvalId,
+              })}
+              selectedApproval={selectedApproval}
+            />
+          }
+        />
+      ) : (
+        <EmptyPanel
+          detail={strings.approvals.empty.detail}
+          icon={Inbox}
+          title={strings.approvals.empty.title}
+        />
+      )}
+
+      <ActionFollowThrough
+        actionRuns={actionRunsQuery.data}
+        source={actionRunsQuery.source}
       />
 
       <Card className="grid content-start gap-3">

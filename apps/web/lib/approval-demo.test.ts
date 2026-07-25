@@ -6,6 +6,7 @@ import {
   approvalDecisionLabel,
   approvalRiskClass,
   buildApprovalDecisionPayload,
+  buildApprovalHref,
   findApprovalById,
   type ManufacturingApprovalInbox,
 } from "./approval-demo";
@@ -104,6 +105,11 @@ describe("approval inbox helpers", () => {
     expect(findApprovalById(approvalInboxFixture, "missing").action).toBe(
       "Expedite fixture batch",
     );
+  });
+
+  it("builds shareable approval deep links", () => {
+    expect(buildApprovalHref("approval / 42")).toBe("/approvals?approval_id=approval+%2F+42");
+    expect(buildApprovalHref(null)).toBe("/approvals");
   });
 
   it("builds public-safe persisted decision payloads from provided approval data", () => {

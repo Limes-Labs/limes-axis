@@ -93,6 +93,34 @@ export function formatNumber(value: number | null | undefined): string {
   return numberFormat.format(value);
 }
 
+/** Compact elapsed time for operational waits — "21 hr 43 min", never raw seconds. */
+export function formatElapsedDuration(seconds: number | null | undefined): string {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
+    return NO_VALUE;
+  }
+
+  const totalMinutes = Math.floor(seconds / 60);
+  if (totalMinutes < 1) {
+    return "under 1 min";
+  }
+
+  const totalHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (totalHours < 1) {
+    return `${totalMinutes} min`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  if (days > 0) {
+    return hours > 0
+      ? `${days} ${days === 1 ? "day" : "days"} ${hours} hr`
+      : `${days} ${days === 1 ? "day" : "days"}`;
+  }
+
+  return minutes > 0 ? `${totalHours} hr ${minutes} min` : `${totalHours} hr`;
+}
+
 /** `1 run` / `2 runs`, so operational copy never reads "1 blocked routes". */
 export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return `${formatNumber(count)} ${count === 1 ? singular : plural}`;

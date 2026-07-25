@@ -148,3 +148,12 @@ export function findApprovalById(
     inbox.approvals.find((approval) => approval.approval_id === approvalId) ?? inbox.approvals[0]
   );
 }
+
+export function buildApprovalHref(approvalId: string | null | undefined): string {
+  if (!approvalId) {
+    return "/approvals";
+  }
+
+  const params = new URLSearchParams({ approval_id: approvalId });
+  return `/approvals?${params.toString()}`;
+}

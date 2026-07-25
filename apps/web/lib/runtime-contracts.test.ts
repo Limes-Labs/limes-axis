@@ -22,6 +22,7 @@ import {
 } from "@/components/overview/overview-fixtures";
 
 import {
+  parseActionRunList,
   parseActionRunPersistenceResult,
   parseManufacturingActionRegistry,
 } from "./runtime-contracts/actions";
@@ -81,6 +82,7 @@ import {
 } from "./runtime-contracts/tenants";
 
 const productionDecoders = [
+  parseActionRunList,
   parseActionRunPersistenceResult,
   parseApprovalDecisionPersistenceResult,
   parseAuditExportBundle,
@@ -202,6 +204,47 @@ describe("production runtime contracts", () => {
     });
     expect(() =>
       parseApprovalDecisionPersistenceResult({ ...payload, idempotent_replay: "yes" }),
+    ).toThrow();
+  });
+
+  it("accepts action runs with waiting state and executor-reported outcomes", () => {
+    const payload = {
+      tenant_id: "tenant-1",
+      runs: [
+        {
+          action_run_id: "run-waiting",
+          action_id: "place_quality_hold",
+          status: "approved_for_execution",
+          approval_id: "approval-1",
+          workflow_id: "workflow-1",
+          created_at: "2026-07-24T10:00:00Z",
+          updated_at: "2026-07-24T10:00:00Z",
+          waiting_duration_seconds: 78_183,
+          outcome: null,
+        },
+        {
+          action_run_id: "run-reported",
+          action_id: "request_supplier_expedite",
+          status: "execution_completed",
+          approval_id: "approval-2",
+          workflow_id: "workflow-2",
+          created_at: "2026-07-24T09:00:00Z",
+          updated_at: "2026-07-24T11:00:00Z",
+          waiting_duration_seconds: 7_200,
+          outcome: {
+            result_summary: "External executor completed the approved action.",
+            evidence_refs: ["audit-executor-completion"],
+          },
+        },
+      ],
+    };
+
+    expect(parseActionRunList(payload)).toBe(payload);
+    expect(() =>
+      parseActionRunList({
+        ...payload,
+        runs: [{ ...payload.runs[0], waiting_duration_seconds: -1 }],
+      }),
     ).toThrow();
   });
 

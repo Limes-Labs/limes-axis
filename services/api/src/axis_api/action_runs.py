@@ -1,4 +1,5 @@
 import math
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -115,6 +116,35 @@ class ActionRunPersistenceResult(BaseModel):
     platform_policy_decision: PlatformPolicyDecision | None = None
 
 
+class ActionRunQuery(BaseModel):
+    tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
+    action_id: str | None = Field(default=None, min_length=1)
+    status: str | None = Field(default=None, min_length=1)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+class ActionRunOutcomeRecord(BaseModel):
+    result_summary: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class ActionRunRecord(BaseModel):
+    action_run_id: UUID
+    action_id: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    approval_id: str | None = None
+    workflow_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    waiting_duration_seconds: int = Field(ge=0)
+    outcome: ActionRunOutcomeRecord | None = None
+
+
+class ActionRunList(BaseModel):
+    tenant_id: str = Field(min_length=1)
+    runs: list[ActionRunRecord] = Field(default_factory=list)
+
+
 class ActionRunOutcomeRequest(BaseModel):
     actor_id: str = Field(min_length=1)
     actor_scopes: list[str] = Field(default_factory=list)
@@ -160,6 +190,68 @@ EXECUTION_ADVANCING_OUTCOME_STATUSES = {
     "dry_run_completed",
     "execution_completed",
 }
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _listed_outcome(result_payload: object) -> ActionRunOutcomeRecord | None:
+    if not isinstance(result_payload, dict):
+        return None
+    if result_payload.get("source") != "action_run_outcome":
+        return None
+
+    result_summary = result_payload.get("result_summary")
+    evidence_refs = result_payload.get("evidence_refs")
+    if not isinstance(result_summary, str) or not result_summary:
+        return None
+    if not isinstance(evidence_refs, list) or not all(
+        isinstance(reference, str) for reference in evidence_refs
+    ):
+        return None
+    return ActionRunOutcomeRecord(
+        result_summary=result_summary,
+        evidence_refs=evidence_refs,
+    )
+
+
+def list_action_run_records(
+    repository: AxisPersistenceRepository,
+    query: ActionRunQuery,
+    *,
+    observed_at: datetime | None = None,
+) -> ActionRunList:
+    records = repository.list_action_runs(
+        tenant_id=query.tenant_id,
+        action_id=query.action_id,
+        status=query.status,
+        limit=query.limit,
+    )
+    now = _ensure_utc(observed_at or datetime.now(UTC))
+    runs: list[ActionRunRecord] = []
+    for record in records:
+        created_at = _ensure_utc(record.created_at)
+        # Waiting time is derived because a stored moving duration would become stale.
+        waiting_duration_seconds = max(0, int((now - created_at).total_seconds()))
+        runs.append(
+            ActionRunRecord(
+                action_run_id=record.id,
+                action_id=record.action_id,
+                status=record.status,
+                approval_id=record.approval_id,
+                workflow_id=record.workflow_id,
+                created_at=created_at,
+                updated_at=_ensure_utc(record.updated_at),
+                waiting_duration_seconds=waiting_duration_seconds,
+                outcome=_listed_outcome(record.result_payload),
+            )
+        )
+
+    # Listing only reads governed state; execution remains the external executor's boundary.
+    return ActionRunList(tenant_id=query.tenant_id, runs=runs)
 
 
 def _find_action(

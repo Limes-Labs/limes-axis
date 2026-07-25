@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "@/components/ui/toast";
+import type { ActionRunList } from "@/lib/action-demo";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 
 const mocks = vi.hoisted(() => ({
   axisFetchParsedJson: vi.fn(),
+  triggerRefresh: vi.fn(),
   useAxisQuery: vi.fn(),
   useTenantVocabulary: vi.fn(),
 }));
@@ -17,6 +19,10 @@ vi.mock("@/lib/axis-api", () => ({
 
 vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
+}));
+
+vi.mock("@/providers/console-provider", () => ({
+  useConsole: () => ({ triggerRefresh: mocks.triggerRefresh }),
 }));
 
 vi.mock("@/providers/tenant-vocabulary-provider", () => ({
@@ -143,7 +149,13 @@ function mockQuery(result: {
 }, auditEvents: Array<{
   evidence_refs: string[];
   payload_preview: Record<string, string>;
-}> = []) {
+}> = [], actionRuns: {
+  data: ActionRunList | null;
+  source: "loading" | "api" | "unavailable";
+} = {
+  data: { tenant_id: "tenant_fixture", runs: [] },
+  source: "api",
+}) {
   mocks.useAxisQuery.mockImplementation((path: string) => {
     if (path === "/identity/session") {
       return {
@@ -180,6 +192,16 @@ function mockQuery(result: {
         isUnavailable: false,
       };
     }
+    if (path === `${OPERATIONS_API_PREFIX}/actions/runs?tenant_id=tenant_fixture`) {
+      return {
+        data: actionRuns.data,
+        source: actionRuns.source,
+        error: actionRuns.source === "unavailable" ? "Axis API request failed." : null,
+        isRefreshing: false,
+        isLoading: actionRuns.source === "loading",
+        isUnavailable: actionRuns.source === "unavailable",
+      };
+    }
     return {
       data: result.data,
       source: result.source,
@@ -201,6 +223,7 @@ function renderInbox() {
 
 beforeEach(() => {
   mocks.axisFetchParsedJson.mockReset();
+  mocks.triggerRefresh.mockReset();
   mocks.useAxisQuery.mockReset();
   mocks.useTenantVocabulary.mockReturnValue({
     labelDomain: (domain: string) => domain,
@@ -239,6 +262,39 @@ describe("ApprovalInbox states", () => {
     expect(screen.getByRole("heading", { name: "No approvals waiting" })).toBeInTheDocument();
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
   });
+
+  it("keeps past follow-through visible when the current approval queue is empty", () => {
+    mockQuery(
+      { data: { ...inboxFixture, approvals: [] }, source: "api" },
+      [],
+      {
+        source: "api",
+        data: {
+          tenant_id: "tenant_fixture",
+          runs: [
+            {
+              action_run_id: "run-reported",
+              action_id: "place_quality_hold",
+              status: "execution_completed",
+              approval_id: "appr_quality_fixture",
+              workflow_id: "wf_quality_fixture",
+              created_at: "2026-07-24T10:00:00Z",
+              updated_at: "2026-07-24T11:00:00Z",
+              waiting_duration_seconds: 3_600,
+              outcome: {
+                result_summary: "External executor completed the quality hold.",
+                evidence_refs: ["audit_quality_hold_execution"],
+              },
+            },
+          ],
+        },
+      },
+    );
+    renderInbox();
+
+    expect(screen.getByRole("heading", { name: "No approvals waiting" })).toBeInTheDocument();
+    expect(screen.getByText("External executor completed the quality hold.")).toBeVisible();
+  });
 });
 
 describe("ApprovalInbox decision flow", () => {
@@ -251,6 +307,10 @@ describe("ApprovalInbox decision flow", () => {
 
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
       `${OPERATIONS_API_PREFIX}/approvals?tenant_id=tenant_fixture`,
+      expect.objectContaining({ expectedTenantId: "tenant_fixture" }),
+    );
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      `${OPERATIONS_API_PREFIX}/actions/runs?tenant_id=tenant_fixture`,
       expect.objectContaining({ expectedTenantId: "tenant_fixture" }),
     );
     expect(
@@ -375,6 +435,7 @@ describe("ApprovalInbox decision flow", () => {
         },
       }),
     );
+    expect(mocks.triggerRefresh).toHaveBeenCalledTimes(1);
 
     // Inline confirmation links to the created audit event.
     const decisionSection = screen.getByRole("region", { name: "Decision" });

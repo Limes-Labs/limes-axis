@@ -91,7 +91,7 @@ const pages = {
     eyebrow: nav.operate,
     title: "Approvals",
     description:
-      "Review and decide on actions agents have proposed. Every decision is recorded as audit evidence.",
+      "Review proposed actions, record decisions, and see what external executors report afterward.",
   },
   workflows: {
     eyebrow: nav.operate,
@@ -256,6 +256,52 @@ const approvals = {
     title: "Linked approval could not be verified",
     detail:
       "Axis could not resolve the action run through the audit ledger, so the console will not show a different approval.",
+  },
+  followThrough: {
+    eyebrow: "Follow-through",
+    title: "After the decision",
+    detail:
+      "Axis records the decision and displays what external executors report. Axis does not execute or retry approved actions.",
+    sourceSubject: "action follow-through",
+    awaiting: {
+      title: "Awaiting external execution",
+      detail:
+        "Approved actions with no reported outcome, longest wait first. Each remains here until an external executor reports back.",
+      status: "Waiting for external executor",
+      waited: (duration: string) => `Waiting ${duration}`,
+      emptyTitle: "Nothing awaiting external execution",
+      emptyDetail: "No approved action is currently waiting for an external executor to report back.",
+    },
+    reported: {
+      title: "Reported outcomes",
+      detail: "What external executors reported to Axis after an approval.",
+      emptyTitle: "No outcomes reported",
+      emptyDetail: "No external executor has reported an outcome for an approved action yet.",
+    },
+    empty: {
+      title: "No approved actions yet",
+      detail:
+        "Approved action runs and executor-reported outcomes will appear here after a decision is recorded.",
+    },
+    error: {
+      title: "Action run API unavailable",
+      detail:
+        "Axis could not load approved action runs or executor-reported outcomes. No follow-through state is inferred.",
+    },
+    stale: "Live refresh failed. Showing the last validated action follow-through data.",
+    links: {
+      approval: "Open authorising approval",
+      auditEvidence: "Open audit evidence",
+    },
+    fields: {
+      approved: "Approved",
+      reported: "Reported",
+      workflow: "Workflow",
+      run: "Run",
+      noWorkflow: "No workflow recorded",
+      noApproval: "No authorising approval recorded",
+      noAuditEvidence: "No audit evidence references reported",
+    },
   },
 } as const;
 
