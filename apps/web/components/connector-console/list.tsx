@@ -57,7 +57,9 @@ export function ConnectorList({
                   {formatConnectorLabel(connector.manifest.connector_type)}
                 </span>
                 <span className="text-xs text-muted">
-                  {pluralize(connector.preview_sample.record_count, "sample row")}
+                  {connector.preview_sample
+                    ? pluralize(connector.preview_sample.record_count, "sample row")
+                    : strings.connectors.list.neverSampled}
                 </span>
               </span>
               {entry.source === "manifest" ? (

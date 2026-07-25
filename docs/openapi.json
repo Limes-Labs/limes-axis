@@ -6181,9 +6181,14 @@
             "type": "array"
           },
           "preview_sample": {
-            "additionalProperties": true,
-            "title": "Preview Sample",
-            "type": "object"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorPreviewSample"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "registered_by": {
             "maxLength": 160,
@@ -6386,9 +6391,14 @@
             "type": "array"
           },
           "preview_sample": {
-            "additionalProperties": true,
-            "title": "Preview Sample",
-            "type": "object"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorPreviewSample"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "registered_by": {
             "minLength": 1,
@@ -6521,9 +6531,14 @@
             "type": "array"
           },
           "preview_sample": {
-            "additionalProperties": true,
-            "title": "Preview Sample",
-            "type": "object"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorPreviewSample"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "registered_by": {
             "maxLength": 160,
@@ -9029,7 +9044,14 @@
             "$ref": "#/components/schemas/ConnectorManifest"
           },
           "preview_sample": {
-            "$ref": "#/components/schemas/ConnectorPreviewSample"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorPreviewSample"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "runtime_policy": {
             "$ref": "#/components/schemas/ConnectorRuntimePolicy"
@@ -9038,7 +9060,6 @@
         "required": [
           "manifest",
           "runtime_policy",
-          "preview_sample",
           "connector_status"
         ],
         "title": "ConnectorRegistryItem",

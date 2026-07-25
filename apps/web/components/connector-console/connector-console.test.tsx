@@ -367,6 +367,31 @@ describe("ConnectorConsole list and detail", () => {
     expect(within(sample).getByText("CNC Mill")).toBeInTheDocument();
   });
 
+  it("renders never-sampled state in the connector list and detail", async () => {
+    const user = userEvent.setup();
+    mockQueries({
+      [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: {
+        data: {
+          ...manifestRegistryFixture,
+          manifests: manifestRegistryFixture.manifests.map((manifest) => ({
+            ...manifest,
+            preview_sample: null,
+          })),
+        },
+        source: "api",
+      },
+    });
+    renderConsole();
+
+    expect(screen.getByText("Never sampled")).toBeInTheDocument();
+    expect(screen.queryByText("0 sample rows")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Data & Schema" }));
+
+    expect(screen.getByText("This connector has never been sampled.")).toBeInTheDocument();
+    expect(screen.queryByText("No sample rows are recorded for this connector.")).not.toBeInTheDocument();
+  });
+
   it("renders governance records with plain sections instead of metric tiles", async () => {
     const user = userEvent.setup();
     renderConsole();

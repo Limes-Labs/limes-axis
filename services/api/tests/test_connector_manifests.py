@@ -133,6 +133,16 @@ def manifest_validation_document(
     return payload
 
 
+def sampleless_external_db_manifest_payload(
+    *, connector_id: str = "external_db_sampleless_orders"
+) -> dict:
+    payload = external_db_manifest_request().model_dump()
+    payload["manifest"]["connector_id"] = connector_id
+    payload["manifest"]["display_name"] = "Sampleless orders database mirror"
+    payload.pop("preview_sample")
+    return payload
+
+
 def manifest_validation_request(
     *requests: ConnectorManifestCreateRequest,
 ) -> dict:
@@ -274,6 +284,104 @@ def test_create_connector_manifest_endpoint_persists_public_safe_manifest(
     assert body["audit_event_id"] is not None
     assert body["audit_event_type"] == "connector.manifest.registered"
     assert body["manifest"]["connector_id"] == "external_db_shift_orders"
+
+
+def test_create_connector_manifest_without_sample_records_never_sampled_state(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = sampleless_external_db_manifest_payload()
+
+    created = client.post("/operations/connectors/manifests", json=request)
+    registry = client.get(
+        "/operations/connectors/manifests",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+    detail = client.get(
+        "/operations/connectors/manifests/external_db_sampleless_orders",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert created.status_code == 201
+    assert created.json()["preview_sample"] is None
+    assert registry.status_code == 200
+    assert registry.json()["manifests"][0]["preview_sample"] is None
+    assert detail.status_code == 200
+    assert detail.json()["current_revision"]["preview_sample"] is None
+
+
+def test_create_connector_manifest_with_zero_rows_keeps_recorded_sample(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request().model_dump()
+    request["preview_sample"] = {
+        "file_name": "operations.empty_orders",
+        "record_count": 0,
+        "headers": ["order_id"],
+        "sample_rows": [],
+    }
+
+    response = client.post("/operations/connectors/manifests", json=request)
+
+    assert response.status_code == 201
+    assert response.json()["preview_sample"] == request["preview_sample"]
+
+
+def test_replace_connector_manifest_without_sample_preserves_recorded_sample(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+    replacement = manifest_replacement_payload(
+        request,
+        idempotency_key="preserve-recorded-preview-sample",
+        version="2026-07-25",
+    )
+    replacement.pop("preview_sample")
+
+    response = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=replacement,
+    )
+    with session_scope(session_factory) as session:
+        audit_event = session.get(AuditEvent, UUID(response.json()["audit_event_id"]))
+
+    assert response.status_code == 200
+    assert response.json()["preview_sample"] == request.preview_sample.model_dump()
+    assert audit_event is not None
+    assert audit_event.payload["preview_sample_action"] == "preserved"
+
+
+def test_replace_connector_manifest_with_null_sample_clears_recorded_sample(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    request = external_db_manifest_request()
+    client.post("/operations/connectors/manifests", json=request.model_dump())
+    replacement = manifest_replacement_payload(
+        request,
+        idempotency_key="clear-recorded-preview-sample",
+        version="2026-07-25",
+    )
+    replacement["preview_sample"] = None
+
+    response = client.put(
+        "/operations/connectors/manifests/external_db_shift_orders",
+        json=replacement,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["preview_sample"] is None
 
 
 def test_create_connector_manifest_endpoint_rejects_duplicate_manifest(
@@ -575,6 +683,35 @@ def test_validate_connector_manifests_returns_mixed_batch_in_request_order(
     }
 
 
+def test_validate_connector_manifest_without_sample_is_applyable(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+    document = sampleless_external_db_manifest_payload()
+    document.pop("tenant_id")
+    document.pop("registered_by")
+
+    response = client.post(
+        "/operations/connectors/manifests/validation",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "registered_by": "platform-connector-owner-role",
+            "manifests": [document],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["results"] == [
+        {
+            "connector_id": "external_db_sampleless_orders",
+            "outcome": "would_register",
+            "errors": [],
+        }
+    ]
+
+
 def test_validate_connector_manifests_has_no_database_side_effects(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -687,7 +824,12 @@ def test_manifest_validation_applyability_promise_matches_registration_endpoint(
     new_request_payload["manifest"]["connector_id"] = "external_db_new_orders"
     new_request_payload["manifest"]["display_name"] = "New orders database mirror"
     new_request = ConnectorManifestCreateRequest.model_validate(new_request_payload)
-    registration_requests = [new_request, existing_request]
+    sampleless_request = ConnectorManifestCreateRequest.model_validate(
+        sampleless_external_db_manifest_payload(
+            connector_id="external_db_sampleless_applyability"
+        )
+    )
+    registration_requests = [new_request, existing_request, sampleless_request]
 
     validation = client.post(
         "/operations/connectors/manifests/validation",
@@ -699,6 +841,7 @@ def test_manifest_validation_applyability_promise_matches_registration_endpoint(
     assert [result["outcome"] for result in results] == [
         "would_register",
         "would_replace",
+        "would_register",
     ]
 
     for result, registration_request in zip(
@@ -709,7 +852,7 @@ def test_manifest_validation_applyability_promise_matches_registration_endpoint(
         if result["outcome"] == "would_register":
             applied = client.post(
                 "/operations/connectors/manifests",
-                json=registration_request.model_dump(),
+                json=registration_request.model_dump(exclude_unset=True),
             )
             assert applied.status_code == 201
         else:
@@ -1111,3 +1254,14 @@ def test_openapi_exposes_connector_manifest_endpoints() -> None:
         "post"
         in paths["/demo/manufacturing/connectors/manifests/{connector_id}/lifecycle"]
     )
+    schemas = response.json()["components"]["schemas"]
+    for schema_name in (
+        "ConnectorManifestCreateRequest",
+        "ConnectorManifestReplaceRequest",
+    ):
+        schema = schemas[schema_name]
+        assert "preview_sample" not in schema.get("required", [])
+        assert {entry.get("$ref") for entry in schema["properties"]["preview_sample"]["anyOf"]} == {
+            "#/components/schemas/ConnectorPreviewSample",
+            None,
+        }

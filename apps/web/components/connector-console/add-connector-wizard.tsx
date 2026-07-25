@@ -330,7 +330,7 @@ export function AddConnectorWizard({
   }
 
   async function submitManifest() {
-    if (!template) {
+    if (!template || (choice === "external_db" && !template.preview_sample)) {
       return;
     }
     setSubmitting(true);
@@ -345,7 +345,7 @@ export function AddConnectorWizard({
             sample_rows: parsedCsv.rows.slice(0, 5),
           }
         : {
-            ...template.preview_sample,
+            ...template.preview_sample!,
             file_name: `${dbForm.schemaName}.${dbForm.tableName}`,
           };
 

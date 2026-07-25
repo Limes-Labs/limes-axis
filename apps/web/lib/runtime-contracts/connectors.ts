@@ -133,7 +133,7 @@ const connectorRegistry = z.object({
   connectors: z.array(z.object({
     manifest: connectorManifest,
     runtime_policy: connectorRuntimePolicy,
-    preview_sample: connectorPreviewSample,
+    preview_sample: connectorPreviewSample.nullable(),
     connector_status: platformStatusSchema,
   })),
   connector_notes: stringArraySchema,
@@ -152,7 +152,7 @@ const connectorManifestRecord = z.object({
   registered_by: z.string(),
   manifest: connectorManifest,
   runtime_policy: connectorRuntimePolicy,
-  preview_sample: connectorPreviewSample,
+  preview_sample: connectorPreviewSample.nullable(),
   audit_event_id: nullableStringSchema,
   audit_event_type: z.string(),
   revises_revision_number: z.number().int().positive().nullable(),

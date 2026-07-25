@@ -23,7 +23,7 @@ export const CONNECTOR_CONSOLE_ACTOR = "connector-console-operator";
 export type ConnectorRegistrationDocument = {
   manifest: ConnectorRegistryItem["manifest"];
   runtime_policy: ConnectorRegistryItem["runtime_policy"];
-  preview_sample: ConnectorPreviewSample;
+  preview_sample?: ConnectorPreviewSample | null;
   notes?: string[];
 };
 
@@ -408,14 +408,19 @@ export function mergeConnectorListEntries(
     referenceConnectors.map((connector) => connector.manifest.connector_id),
   );
 
-  const referenceEntries: ConnectorListEntry[] = referenceConnectors.map((connector) => ({
-    connector,
-    source: "reference",
-    manifestRecord: manifestRecordForConnector(
+  const referenceEntries: ConnectorListEntry[] = referenceConnectors.map((connector) => {
+    const manifestRecord = manifestRecordForConnector(
       manifestRecords,
       connector.manifest.connector_id,
-    ),
-  }));
+    );
+    return {
+      connector: manifestRecord
+        ? { ...connector, preview_sample: manifestRecord.preview_sample }
+        : connector,
+      source: "reference",
+      manifestRecord,
+    };
+  });
 
   const manifestOnlyEntries: ConnectorListEntry[] = manifestRecords
     .filter((record) => !referenceIds.has(record.connector_id))

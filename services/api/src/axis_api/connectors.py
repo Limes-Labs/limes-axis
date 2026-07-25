@@ -55,7 +55,7 @@ class ConnectorPreviewSample(BaseModel):
 class ConnectorRegistryItem(BaseModel):
     manifest: ConnectorManifest
     runtime_policy: ConnectorRuntimePolicy
-    preview_sample: ConnectorPreviewSample
+    preview_sample: ConnectorPreviewSample | None = None
     connector_status: OverviewStatus
 
 
@@ -350,6 +350,8 @@ def _external_db_validation_issues(
         issues.append(f"Unsupported connector_id: {request.connector_id}")
     elif not connector.manifest.schema_fields:
         issues.append("Connector manifest must declare schema fields.")
+    elif connector.preview_sample is None:
+        issues.append("No preview sample has been recorded for this connector.")
 
     keys = _external_db_requested_keys(request)
     values = _external_db_requested_values(request)
@@ -410,7 +412,7 @@ def _external_db_sample_rows(
     request: ConnectorExternalDbPreviewRequest,
     issues: list[str],
 ) -> list[dict[str, str]]:
-    if issues or connector is None:
+    if issues or connector is None or connector.preview_sample is None:
         return []
     return connector.preview_sample.sample_rows[: request.sample_limit]
 

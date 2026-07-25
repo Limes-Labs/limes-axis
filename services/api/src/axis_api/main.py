@@ -223,6 +223,7 @@ from axis_api.connector_manifests import (
     ManufacturingConnectorManifestRegistry,
     build_connector_manifest_registry,
     get_connector_manifest_detail,
+    overlay_registered_connector_manifest,
     record_demo_connector_manifest,
     replace_demo_connector_manifest,
     transition_demo_connector_manifest_lifecycle,
@@ -6864,6 +6865,12 @@ def create_app(
                 repository,
                 tenant_id=preview_request.tenant_id,
             )
+            registry = overlay_registered_connector_manifest(
+                repository,
+                registry,
+                preview_request.tenant_id,
+                preview_request.connector_id,
+            )
             return preview_file_csv_connector(registry, preview_request)
         except ConnectorReferenceRecordNotFound as exc:
             raise HTTPException(
@@ -6904,6 +6911,12 @@ def create_app(
             registry = require_persisted_manufacturing_connector_registry(
                 repository,
                 tenant_id=preview_request.tenant_id,
+            )
+            registry = overlay_registered_connector_manifest(
+                repository,
+                registry,
+                preview_request.tenant_id,
+                preview_request.connector_id,
             )
             return preview_external_db_connector(registry, preview_request)
         except ConnectorReferenceRecordNotFound as exc:

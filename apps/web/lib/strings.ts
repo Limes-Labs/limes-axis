@@ -410,6 +410,7 @@ const connectors = {
   list: {
     eyebrow: "Registry",
     registeredPill: "Registered",
+    neverSampled: "Never sampled",
   },
   header: {
     addConnector: "Add connector",
@@ -438,8 +439,6 @@ const connectors = {
     cancel: "Cancel",
     confirmation: (count: number) =>
       `Apply ${count} checked ${count === 1 ? "manifest" : "manifests"} sequentially? Writes cannot be rolled back as a batch.`,
-    requiredPreview:
-      "Every document must include preview_sample. The runtime requires it even though the published schema marks it optional.",
     ssoGate: "Sign in with SSO to check or apply connector manifests.",
     errors: {
       malformed: "This is not valid JSON. Fix the syntax before checking.",
@@ -496,7 +495,7 @@ const connectors = {
     action: "Export manifest",
     title: "Registration document",
     description:
-      "This formatted JSON includes the manifest, runtime policy, preview sample and notes required for replay.",
+      "This formatted JSON includes the manifest, runtime policy, optional preview sample and notes required for replay.",
     jsonLabel: "Registration document JSON",
     copy: "Copy JSON",
     copied: "Registration document copied",
@@ -596,6 +595,7 @@ const connectors = {
     requiredNo: "Optional",
     sampleTitle: "Sample rows",
     sampleDetail: "Reference sample used for preview and validation.",
+    neverSampled: "This connector has never been sampled.",
     sampleEmpty: "No sample rows are recorded for this connector.",
   },
   governance: {

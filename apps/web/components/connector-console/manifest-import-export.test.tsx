@@ -138,6 +138,12 @@ beforeEach(() => {
 });
 
 describe("ManifestImportPanel", () => {
+  it("does not claim that every registration document requires a preview sample", () => {
+    renderImport();
+
+    expect(screen.queryByText(/Every document must include preview_sample/)).not.toBeInTheDocument();
+  });
+
   it("renders each outcome and field-level errors for a mixed batch", async () => {
     const user = userEvent.setup();
     const documents = [documentFor("new-connector"), documentFor("existing-connector"), {}];

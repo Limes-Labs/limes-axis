@@ -341,6 +341,17 @@ describe("mergeConnectorListEntries", () => {
     expect(entries[0].manifestRecord).toBe(record);
   });
 
+  it("uses the persisted never-sampled state for a registered reference connector", () => {
+    const record = manifestRecord("file_csv_manufacturing_assets", {
+      preview_sample: null,
+    });
+
+    const entries = mergeConnectorListEntries([templateConnector], [record]);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].connector.preview_sample).toBeNull();
+  });
+
   it("returns only manifest entries when the reference registry is empty", () => {
     const entries = mergeConnectorListEntries([], [manifestRecord("file_csv_only")]);
 

@@ -48,7 +48,7 @@ export type ConnectorPreviewSample = {
 export type ConnectorRegistryItem = {
   manifest: ConnectorManifest;
   runtime_policy: ConnectorRuntimePolicy;
-  preview_sample: ConnectorPreviewSample;
+  preview_sample: ConnectorPreviewSample | null;
   connector_status: PlatformStatus;
 };
 
@@ -82,7 +82,7 @@ export type ConnectorManifestRecord = {
   registered_by: string;
   manifest: ConnectorManifest;
   runtime_policy: ConnectorRuntimePolicy;
-  preview_sample: ConnectorPreviewSample;
+  preview_sample: ConnectorPreviewSample | null;
   audit_event_id: string | null;
   audit_event_type: string;
   revises_revision_number: number | null;

@@ -637,7 +637,7 @@ class ConnectorManifestRecord(Base):
     registered_by: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     manifest_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     runtime_policy: Mapped[dict] = mapped_column(JSON, nullable=False)
-    preview_sample: Mapped[dict] = mapped_column(JSON, nullable=False)
+    preview_sample: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     audit_event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     revises_revision_number: Mapped[int | None] = mapped_column(Integer, nullable=True)

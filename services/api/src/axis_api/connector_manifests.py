@@ -8,7 +8,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from axis_api.audit import AuditEventCreate
-from axis_api.connectors import ConnectorManifest, ConnectorPreviewSample, ConnectorRuntimePolicy
+from axis_api.connectors import (
+    ConnectorManifest,
+    ConnectorPreviewSample,
+    ConnectorRegistryItem,
+    ConnectorRuntimePolicy,
+    ManufacturingConnectorRegistry,
+)
 from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.manufacturing_metadata import (
     ManufacturingResponseProvenance,
@@ -85,7 +91,7 @@ class ConnectorManifestRegistrationDocument(BaseModel):
 
     manifest: dict[str, Any] = Field(default_factory=dict)
     runtime_policy: dict[str, Any] = Field(default_factory=dict)
-    preview_sample: dict[str, Any] = Field(default_factory=dict)
+    preview_sample: ConnectorPreviewSample | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -150,7 +156,7 @@ class ConnectorManifestBatchValidationResponse(BaseModel):
 class ValidatedConnectorManifestRegistration:
     manifest: ConnectorManifest
     runtime_policy: ConnectorRuntimePolicy
-    preview_sample: ConnectorPreviewSample
+    preview_sample: ConnectorPreviewSample | None
 
 
 class ConnectorManifestLifecycleRequest(BaseModel):
@@ -179,7 +185,7 @@ class ConnectorManifestRecordView(BaseModel):
     registered_by: str = Field(min_length=1)
     manifest: dict[str, Any] = Field(default_factory=dict)
     runtime_policy: dict[str, Any] = Field(default_factory=dict)
-    preview_sample: dict[str, Any] = Field(default_factory=dict)
+    preview_sample: ConnectorPreviewSample | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(min_length=1)
     revises_revision_number: int | None = None
@@ -313,6 +319,36 @@ def build_connector_manifest_registry(
     )
 
 
+def overlay_registered_connector_manifest(
+    repository: AxisPersistenceRepository,
+    registry: ManufacturingConnectorRegistry,
+    tenant_id: str,
+    connector_id: str,
+) -> ManufacturingConnectorRegistry:
+    record = repository.get_connector_manifest(tenant_id, connector_id)
+    if record is None:
+        return registry
+
+    persisted_connector = ConnectorRegistryItem(
+        manifest=record.manifest_payload,
+        runtime_policy=record.runtime_policy,
+        preview_sample=record.preview_sample,
+        connector_status=OverviewStatus.WATCH,
+    )
+    connectors = [
+        persisted_connector
+        if connector.manifest.connector_id == connector_id
+        else connector
+        for connector in registry.connectors
+    ]
+    if not any(
+        connector.manifest.connector_id == connector_id
+        for connector in registry.connectors
+    ):
+        connectors.append(persisted_connector)
+    return registry.model_copy(update={"connectors": connectors})
+
+
 def record_demo_connector_manifest(
     repository: AxisPersistenceRepository,
     request: ConnectorManifestCreateRequest,
@@ -326,7 +362,11 @@ def record_demo_connector_manifest(
 
     manifest_payload = manifest.model_dump(mode="json")
     runtime_policy = validated.runtime_policy.model_dump(mode="json")
-    preview_sample = validated.preview_sample.model_dump(mode="json")
+    preview_sample = (
+        validated.preview_sample.model_dump(mode="json")
+        if validated.preview_sample is not None
+        else None
+    )
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=request.tenant_id,
@@ -375,24 +415,38 @@ def replace_demo_connector_manifest(
             registered_by=request.registered_by,
             manifest=request.manifest,
             runtime_policy=request.runtime_policy,
-            preview_sample=request.preview_sample,
+            preview_sample=(
+                request.preview_sample.model_dump(mode="json")
+                if request.preview_sample is not None
+                else None
+            ),
             notes=request.notes,
         )
     )
     manifest = validated.manifest
     manifest_payload = manifest.model_dump(mode="json")
     runtime_policy = validated.runtime_policy.model_dump(mode="json")
-    preview_sample = validated.preview_sample.model_dump(mode="json")
+    submitted_preview_sample = (
+        validated.preview_sample.model_dump(mode="json")
+        if validated.preview_sample is not None
+        else None
+    )
+    preview_sample_was_provided = "preview_sample" in request.model_fields_set
 
     existing_replay = repository.get_connector_manifest_by_revision_idempotency_key(
         request.tenant_id,
         request.idempotency_key,
     )
     if existing_replay is not None:
+        replay_preview_sample = (
+            submitted_preview_sample
+            if preview_sample_was_provided
+            else existing_replay.preview_sample
+        )
         if existing_replay.connector_id != manifest.connector_id or not (
             existing_replay.manifest_payload == manifest_payload
             and existing_replay.runtime_policy == runtime_policy
-            and existing_replay.preview_sample == preview_sample
+            and existing_replay.preview_sample == replay_preview_sample
             and existing_replay.notes == request.notes
         ):
             raise ConnectorManifestRevisionConflict(
@@ -407,6 +461,11 @@ def replace_demo_connector_manifest(
     )
     if current_manifest is None:
         raise ConnectorManifestNotFound()
+    preview_sample = (
+        submitted_preview_sample
+        if preview_sample_was_provided
+        else current_manifest.preview_sample
+    )
     if (
         request.expected_revision_number is not None
         and request.expected_revision_number != current_manifest.revision_number
@@ -442,6 +501,13 @@ def replace_demo_connector_manifest(
                 "runtime_boundary": manifest.runtime_boundary,
                 "status": "registered_preview_only",
                 "idempotency_key": request.idempotency_key,
+                "preview_sample_action": (
+                    "preserved"
+                    if not preview_sample_was_provided
+                    else "cleared"
+                    if submitted_preview_sample is None
+                    else "replaced"
+                ),
             },
         )
     )
@@ -509,18 +575,25 @@ def validate_connector_manifest_registration(
             request.runtime_policy,
             "invalid_runtime_policy_payload",
         ),
-        (
-            "preview_sample",
-            ConnectorPreviewSample,
-            request.preview_sample,
-            "invalid_preview_sample_payload",
-        ),
     )
     for field_name, model_type, payload, reason in model_specs:
         try:
             validated_models[field_name] = model_type.model_validate(payload)
         except ValidationError as exc:
             errors.extend(_pydantic_field_errors(exc, prefix=field_name, reason=reason))
+
+    preview_sample: ConnectorPreviewSample | None = None
+    if request.preview_sample is not None:
+        try:
+            preview_sample = ConnectorPreviewSample.model_validate(request.preview_sample)
+        except ValidationError as exc:
+            errors.extend(
+                _pydantic_field_errors(
+                    exc,
+                    prefix="preview_sample",
+                    reason="invalid_preview_sample_payload",
+                )
+            )
 
     if errors:
         first_error = errors[0]
@@ -533,7 +606,7 @@ def validate_connector_manifest_registration(
     return ValidatedConnectorManifestRegistration(
         manifest=validated_models["manifest"],
         runtime_policy=validated_models["runtime_policy"],
-        preview_sample=validated_models["preview_sample"],
+        preview_sample=preview_sample,
     )
 
 

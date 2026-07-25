@@ -84,7 +84,7 @@ export const dbConnectorFixture: ConnectorRegistryItem = {
     source_type: "postgres_metadata",
   },
   preview_sample: {
-    ...csvConnectorFixture.preview_sample,
+    ...csvConnectorFixture.preview_sample!,
     file_name: "operations.production_orders",
   },
 };

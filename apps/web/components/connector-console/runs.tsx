@@ -211,6 +211,10 @@ export function ConnectorRuns({
         return;
       }
 
+      if (!connector.preview_sample) {
+        commitOutcome({ kind: "error" });
+        return;
+      }
       const response = await axisFetch(CSV_PREVIEW_ENDPOINT, {
         method: "POST",
         session,

@@ -265,7 +265,7 @@ class ConnectorManifestCreate(BaseModel):
     registered_by: str = Field(min_length=1)
     manifest_payload: dict = Field(default_factory=dict)
     runtime_policy: dict = Field(default_factory=dict)
-    preview_sample: dict = Field(default_factory=dict)
+    preview_sample: dict | None = None
     audit_event_id: UUID | None = None
     audit_event_type: str = Field(default="connector.manifest.registered", min_length=1)
     revises_revision_number: int | None = None

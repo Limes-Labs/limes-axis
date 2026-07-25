@@ -221,12 +221,16 @@ function DataSchemaTab({ connector }: { connector: ConnectorRegistryItem }) {
       <section className="grid gap-2">
         <div className="grid gap-1">
           <Eyebrow>{copy.sampleTitle}</Eyebrow>
-          <p className="m-0 text-sm text-muted">
-            {copy.sampleDetail}{" "}
-            <span className="font-mono text-xs">{sample.file_name}</span>
-          </p>
+          {sample ? (
+            <p className="m-0 text-sm text-muted">
+              {copy.sampleDetail}{" "}
+              <span className="font-mono text-xs">{sample.file_name}</span>
+            </p>
+          ) : (
+            <p className="m-0 text-sm text-muted">{copy.neverSampled}</p>
+          )}
         </div>
-        {sample.sample_rows.length === 0 ? (
+        {!sample ? null : sample.sample_rows.length === 0 ? (
           <p className="m-0 text-sm text-muted">{copy.sampleEmpty}</p>
         ) : (
           <DataTable aria-label={copy.sampleTitle} minWidth={420}>

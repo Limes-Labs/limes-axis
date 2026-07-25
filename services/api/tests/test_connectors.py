@@ -9,6 +9,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from axis_api.config import Settings
+from axis_api.connector_manifests import (
+    ConnectorManifestCreateRequest,
+    record_demo_connector_manifest,
+)
 from axis_api.connectors import (
     ConnectorCsvPreviewRequest,
     ConnectorExternalDbPreviewRequest,
@@ -590,6 +594,33 @@ def test_external_db_connector_preview_accepts_persisted_manifest_connector_id()
     ]
 
 
+def test_external_db_connector_preview_states_when_sample_was_never_recorded() -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][1]["preview_sample"] = None
+    registry = ManufacturingConnectorRegistry.model_validate(payload)
+
+    preview = preview_external_db_connector(
+        registry,
+        ConnectorExternalDbPreviewRequest(
+            tenant_id="tenant_demo_manufacturing",
+            connector_id="external_db_operational_mirror",
+            connection_profile_id="profile_postgres_ops_readonly",
+            schema_name="operations",
+            table_name="production_orders",
+            selected_columns=["order_id", "asset_id", "status"],
+            sample_limit=2,
+            credential_handle_id="cred_external_db_readonly",
+        ),
+    )
+
+    assert preview.preview_status == "blocked"
+    assert preview.validation_issues == [
+        "No preview sample has been recorded for this connector."
+    ]
+    assert preview.inspected_table.sample_rows == []
+    assert preview.proposed_entities == []
+
+
 def test_connector_registry_endpoint_returns_bootstrap_public_manifest(
     connector_session_factory: sessionmaker[Session],
 ) -> None:
@@ -730,6 +761,94 @@ def test_connector_external_db_preview_endpoint_returns_metadata_only_preview(
     assert "connection_string" not in str(body).lower()
     assert "postgres://" not in str(body).lower()
     assert "password" not in str(body).lower()
+
+
+def test_connector_external_db_preview_endpoint_states_never_sampled_reason(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][1]["preview_sample"] = None
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    seed_connector_registry_reference(connector_session_factory, payload)
+    client = TestClient(app)
+
+    response = client.post(
+        "/operations/connectors/external-db/preview",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "external_db_operational_mirror",
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": ["order_id", "asset_id", "status"],
+            "sample_limit": 2,
+            "credential_handle_id": "cred_external_db_readonly",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["preview_status"] == "blocked"
+    assert response.json()["validation_issues"] == [
+        "No preview sample has been recorded for this connector."
+    ]
+    assert response.json()["inspected_table"]["sample_rows"] == []
+
+
+def test_connector_external_db_preview_endpoint_uses_sampleless_registered_manifest(
+    connector_session_factory: sessionmaker[Session],
+) -> None:
+    registry_payload = connector_registry_payload()
+    template = registry_payload["connectors"][1]
+    manifest = {
+        **template["manifest"],
+        "connector_id": "external_db_declarative_sampleless",
+        "display_name": "Declarative sampleless database",
+    }
+    with session_scope(connector_session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        repository.upsert_demo_reference_record(
+            DemoReferenceRecordCreate(
+                tenant_id="tenant_demo_manufacturing",
+                surface="connectors",
+                reference_id="manufacturing-connector-registry",
+                status="active",
+                source="bootstrap",
+                version="2026-06-22",
+                payload=registry_payload,
+            )
+        )
+        record_demo_connector_manifest(
+            repository,
+            ConnectorManifestCreateRequest(
+                registered_by="platform-connector-owner-role",
+                manifest=manifest,
+                runtime_policy=template["runtime_policy"],
+            ),
+        )
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = connector_session_factory
+    client = TestClient(app)
+
+    response = client.post(
+        "/operations/connectors/external-db/preview",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "connector_id": "external_db_declarative_sampleless",
+            "connection_profile_id": "profile_postgres_ops_readonly",
+            "schema_name": "operations",
+            "table_name": "production_orders",
+            "selected_columns": ["order_id", "asset_id", "status"],
+            "sample_limit": 2,
+            "credential_handle_id": "cred_external_db_readonly",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["validation_issues"] == [
+        "No preview sample has been recorded for this connector."
+    ]
+    assert response.json()["inspected_table"]["sample_rows"] == []
 
 
 def test_connector_external_db_preview_endpoint_reports_missing_registry_reference(

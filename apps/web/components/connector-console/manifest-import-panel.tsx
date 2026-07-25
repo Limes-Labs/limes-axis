@@ -364,10 +364,6 @@ export function ManifestImportPanel({
         <FileJson aria-hidden="true" className="text-muted" size={20} />
       </div>
 
-      <p className="m-0 rounded-xl border border-warning/35 bg-warning/8 p-3 text-sm text-muted">
-        {copy.requiredPreview}
-      </p>
-
       <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.35fr)]">
         <Field label={copy.inputLabel}>
           <Textarea
