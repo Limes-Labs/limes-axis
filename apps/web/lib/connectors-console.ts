@@ -15,9 +15,58 @@ import type {
 
 export const CONNECTOR_SYNC_DISPATCH_SCOPE = "connectors:sync:dispatch";
 export const CONNECTOR_SYNC_EXECUTE_SCOPE = "connectors:sync:execute";
+export const CONNECTOR_MANIFEST_BATCH_LIMIT = 50;
 
 /** Fallback actor recorded on unauthenticated demo writes; the API rebinds it to the OIDC principal when a session exists. */
 export const CONNECTOR_CONSOLE_ACTOR = "connector-console-operator";
+
+export type ConnectorRegistrationDocument = {
+  manifest: ConnectorRegistryItem["manifest"];
+  runtime_policy: ConnectorRegistryItem["runtime_policy"];
+  preview_sample: ConnectorPreviewSample;
+  notes?: string[];
+};
+
+export type ConnectorManifestValidationOutcome =
+  | "would_register"
+  | "would_replace"
+  | "invalid";
+
+export type ConnectorManifestValidationResult = {
+  connector_id: string | null;
+  outcome: ConnectorManifestValidationOutcome;
+  errors: Array<{
+    field_path: string;
+    message: string;
+    reason: string;
+  }>;
+};
+
+export type ConnectorManifestBatchValidationResponse = {
+  tenant_id: string;
+  summary: Record<ConnectorManifestValidationOutcome, number>;
+  results: ConnectorManifestValidationResult[];
+};
+
+export function buildConnectorRegistrationDocument(
+  entry: ConnectorListEntry,
+): ConnectorRegistrationDocument {
+  return {
+    manifest: entry.connector.manifest,
+    runtime_policy: entry.connector.runtime_policy,
+    preview_sample: entry.connector.preview_sample,
+    notes: entry.manifestRecord?.notes ?? [],
+  };
+}
+
+export function serializeConnectorRegistrationDocument(entry: ConnectorListEntry): string {
+  return JSON.stringify(buildConnectorRegistrationDocument(entry), null, 2);
+}
+
+export function connectorRegistrationFileName(entry: ConnectorListEntry): string {
+  const connectorId = entry.connector.manifest.connector_id.replace(/[^a-zA-Z0-9_-]+/g, "-");
+  return `${connectorId}.registration.json`;
+}
 
 // ---------------------------------------------------------------------------
 // CSV round-trip

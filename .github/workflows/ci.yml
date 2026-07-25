@@ -125,11 +125,15 @@ jobs:
           done
           echo "API failed to become ready"; cat "${RUNNER_TEMP}/api.log"; exit 1
 
+      # tenant_id and requested_by go in the body, and the actor needs the
+      # demo:scenario:bootstrap scope — a query parameter with an empty body
+      # answers 422, and a body without the scope answers 403.
       - name: Seed demo scenario
         run: |
-          curl -fsS -X POST \
-            "http://127.0.0.1:8000/demo/manufacturing/bootstrap?tenant_id=tenant_demo_manufacturing" \
-            -H "content-type: application/json" -d '{}' > /dev/null
+          curl -fsS -X POST "http://127.0.0.1:8000/demo/manufacturing/bootstrap" \
+            -H "content-type: application/json" \
+            -d '{"tenant_id":"tenant_demo_manufacturing","requested_by":"ci","actor_scopes":["demo:scenario:bootstrap"]}' \
+            > /dev/null
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

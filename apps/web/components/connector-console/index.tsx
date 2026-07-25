@@ -48,6 +48,7 @@ import {
   type ConnectorDetailTab,
 } from "./detail";
 import { ConnectorList } from "./list";
+import { ManifestImportPanel } from "./manifest-import-panel";
 
 /*
  * Connector console orchestrator: five user-relevant metrics, a master/detail
@@ -309,6 +310,12 @@ export function ConnectorConsole() {
       </div>
 
       <MetricStrip metrics={buildMetrics(registries, entries)} />
+
+      <ManifestImportPanel
+        identitySession={identitySession}
+        onApplied={triggerRefresh}
+        tenantId={tenantId}
+      />
 
       {requestedSnapshot ? <SnapshotPanel snapshot={requestedSnapshot} /> : null}
 

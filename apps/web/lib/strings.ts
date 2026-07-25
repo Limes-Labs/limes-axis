@@ -415,6 +415,85 @@ const connectors = {
     addConnector: "Add connector",
     updated: "Updated",
   },
+  manifestImport: {
+    eyebrow: "Manifest portability",
+    title: "Import connector manifests",
+    description:
+      "Paste one registration document or an array, or upload a JSON file. Check the whole batch before anything is written.",
+    access: "Access: the tenant and registered actor must match your signed-in session.",
+    validationEndpoint: "Dry run endpoint",
+    applyEndpoint: "Apply endpoint",
+    inputLabel: "Registration document JSON",
+    inputPlaceholder: "Paste one registration document or an array of documents",
+    fileLabel: "Upload JSON file",
+    fileReadError: "The selected JSON file could not be read.",
+    check: "Check",
+    checking: "Checking…",
+    reviewApply: "Review apply",
+    apply: "Apply manifests",
+    applying: "Applying…",
+    cancel: "Cancel",
+    confirmation: (count: number) =>
+      `Apply ${count} checked ${count === 1 ? "manifest" : "manifests"} sequentially? Writes cannot be rolled back as a batch.`,
+    requiredPreview:
+      "Every document must include preview_sample. The runtime requires it even though the published schema marks it optional.",
+    ssoGate: "Sign in with SSO to check or apply connector manifests.",
+    errors: {
+      malformed: "This is not valid JSON. Fix the syntax before checking.",
+      shape: "Provide one JSON object or a non-empty array of JSON objects.",
+      tooMany: (count: number, maximum: number) =>
+        `${count} documents were provided. Check at most ${maximum} at a time.`,
+      validationRequest: "The manifest dry run could not be completed.",
+      tenantMismatch: "The dry-run response belongs to a different tenant.",
+      resultCountMismatch: "The dry-run response did not include one result per document.",
+    },
+    summary: {
+      title: "Dry-run summary",
+      wouldRegister: "Would register",
+      wouldReplace: "Would replace",
+      invalid: "Invalid",
+    },
+    table: {
+      document: "Document",
+      connector: "Connector id",
+      outcome: "Outcome",
+      applyResult: "Apply result",
+      unknownConnector: "Not available",
+    },
+    outcomes: {
+      would_register: "Would register",
+      would_replace: "Would replace",
+      invalid: "Invalid",
+    },
+    applyResults: {
+      landed: "Created",
+      failed: "Failed",
+      notAttempted: "Not applied",
+      pending: "Pending",
+    },
+    blocked: (invalid: number, total: number) =>
+      `${invalid} of ${total} need fixing. Apply stays disabled until the whole batch is valid.`,
+    applySuccess: (count: number) =>
+      `${count} of ${count} manifests were created.`,
+    applyFailure: (landed: number, total: number) =>
+      `${landed} of ${total} manifests were created. The remaining documents were not applied.`,
+    toast: {
+      success: "Connector manifests applied",
+      partial: "Connector manifest apply stopped",
+    },
+  },
+  manifestExport: {
+    action: "Export manifest",
+    title: "Registration document",
+    description:
+      "This formatted JSON includes the manifest, runtime policy, preview sample and notes required for replay.",
+    jsonLabel: "Registration document JSON",
+    copy: "Copy JSON",
+    copied: "Registration document copied",
+    copyFailed: "The registration document could not be copied.",
+    download: "Download JSON",
+    close: "Close export",
+  },
   pendingActivation: {
     title: "Sync activation pending",
     detail:

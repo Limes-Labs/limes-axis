@@ -161,6 +161,23 @@ const connectorManifestRegistry = z.object({
   })),
   manifest_notes: stringArraySchema,
 });
+const connectorManifestBatchValidationResponse = z.object({
+  tenant_id: z.string(),
+  summary: z.object({
+    would_register: z.number().int().nonnegative(),
+    would_replace: z.number().int().nonnegative(),
+    invalid: z.number().int().nonnegative(),
+  }),
+  results: z.array(z.object({
+    connector_id: nullableStringSchema,
+    outcome: z.enum(["would_register", "would_replace", "invalid"]),
+    errors: z.array(z.object({
+      field_path: z.string(),
+      message: z.string(),
+      reason: z.string(),
+    })),
+  })),
+});
 const credentialRotation = z.object({
   tenant_id: z.string(),
   handle_id: z.string(),
@@ -406,6 +423,10 @@ export function parseManufacturingConnectorManifestRegistry(
   value: unknown,
 ): ManufacturingConnectorManifestRegistry {
   return parseContract(connectorManifestRegistry, value);
+}
+
+export function parseConnectorManifestBatchValidationResponse(value: unknown) {
+  return parseContract(connectorManifestBatchValidationResponse, value);
 }
 
 export function parseManufacturingConnectorCredentialHandleRegistry(

@@ -20,6 +20,7 @@ import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 
 import { ConnectorGovernance } from "./governance";
 import { ConnectorRuns } from "./runs";
+import { ManifestExportPanel } from "./manifest-export-panel";
 
 /*
  * Connector detail pane: Overview / Data & Schema / Runs / Governance &
@@ -239,6 +240,7 @@ export function ConnectorDetail({
           </p>
         </div>
         <InspectDrawer record={connector} title={manifest.display_name} />
+        <ManifestExportPanel entry={entry} />
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => {
