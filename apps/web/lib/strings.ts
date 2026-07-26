@@ -829,11 +829,20 @@ const overview = {
     review: "Review & decide",
     openWorkflows: "Open workflows",
     openAudit: "Open audit",
+    openApproval: "Open approval",
     approvalsUnavailable: "Pending approvals could not be loaded from the approval API.",
     overviewUnavailable: "Workflow and risk signals could not be loaded from the overview API.",
+    actionRunsUnavailable:
+      "Approved actions awaiting an external executor could not be loaded from the action run API.",
+    stalledAction: {
+      /* Names the party that has not reported. Axis records the approval and
+         waits: it never executes an approved action and never retries one. */
+      noOutcome: "No outcome reported by an external executor",
+    },
     allClear: {
       title: "All clear — nothing waiting on you",
-      detail: "No pending approvals, blocked workflows, or active risk signals right now.",
+      detail:
+        "No pending approvals, blocked workflows, risk signals, or approved actions waiting on an external executor right now.",
     },
     error: {
       title: "Attention items unavailable",

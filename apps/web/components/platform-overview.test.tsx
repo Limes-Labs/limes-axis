@@ -40,6 +40,7 @@ import { PlatformOverview } from "./platform-overview";
 import {
   approvalInboxFixture,
   auditEventsFixture,
+  emptyActionRunsFixture,
   identitySessionFixture,
   modelRoutingFixture,
   overviewFixture,
@@ -108,6 +109,7 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
     [`${OPERATIONS_API_PREFIX}/model-routing`, modelRoutingFixture],
     [`${OPERATIONS_API_PREFIX}/audit/events`, auditEventsFixture],
     [`${OPERATIONS_API_PREFIX}/approvals`, approvalInboxFixture],
+    [`${OPERATIONS_API_PREFIX}/actions/runs`, emptyActionRunsFixture],
     ["/platform/policies", policyRegistryFixture],
     ["/identity/session", options.identity ?? identitySessionFixture],
     ...onboardingRegistryFixtures(options.onboardingCount ?? 1),
