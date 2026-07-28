@@ -134,9 +134,9 @@ Three systemic causes account for most individual findings:
 
 The follow-up was run against the product paths, not only the original visual demo:
 
-- 796 web unit/component tests in 88 files, ESLint, TypeScript, and two production builds
+- 827 web unit/component tests in 91 files, ESLint, TypeScript, and two production builds
   passed.
-- 1,488 API tests passed with 14 infrastructure-gated skips; worker 51 passed with 3
+- 1,530 API tests passed with 14 infrastructure-gated skips; worker 51 passed with 3
   infrastructure-gated skips; the Python SDK passed all 104 tests. Ruff was clean across
   all three Python packages.
 - 69 fail-closed/mock browser cases passed across desktop, Pixel 7 and iPad profiles.
@@ -145,9 +145,30 @@ The follow-up was run against the product paths, not only the original visual de
 - The in-app browser verified ontology graph selection, peer traversal, browser Back,
   opaque node identifiers, the full entity route, a single `main` landmark, zero
   horizontal overflow, and no browser-console errors at 1280×720.
-- Connector registry composition was exercised with 103 visible connectors. Current
-  manifests and latest successful runs are each loaded in one tenant-scoped query, so the
-  view is neither capped at 100 nor N+1.
+- A second in-app browser pass at 390×844 verified the real mobile product shell with the
+  drawer closed and open: grouped navigation, the current Settings destination, one
+  `main` landmark, no horizontal overflow or console errors, body scroll lock, Escape
+  close, and focus restoration all behaved correctly.
+- Connector registry composition was exercised with 103 API records and 101 rendered UI
+  records. Current manifests and latest successful runs are each loaded in one
+  tenant-scoped query, so the view is neither capped at 100 nor N+1. Explicit
+  `registry_origin` and `persisted_manifest` fields now preserve provenance through the
+  API and runtime decoder instead of reconstructing it in the component layer.
+- Selected connector detail is now authoritative for lifecycle controls, schema, preview
+  data and export. Persisted-only provenance no longer leaves an active connector stuck in
+  a pending state, and cross-tenant or cross-connector nested revisions fail decoding.
+- Policy detail and Settings tabs are URL-backed and keyboard-tested. Discrete tab changes
+  create navigable history entries, invalid policy comparison revisions are normalized,
+  and visible tab panels expose a focus ring.
+- Overview status indicators use distinct icon shapes and accessible status text, and
+  sparkbars expose their numeric series without depending on colour or pointer-only
+  titles.
+- Production readiness now requires registered-tenant admission. Unknown tenants are
+  rejected consistently across bearer, cookie, login and refresh paths; only the exact
+  persisted `active` status is admitted. A serialized, auditable one-shot command closes
+  the empty-registry bootstrap deadlock without weakening HTTP admission, and lifecycle,
+  quota and provisioning cache invalidation now runs only after commit. Local development
+  retains an explicit `claims_only` option.
 - Concurrent identical notification acknowledgements converge on one acknowledgement and
   one audit event. Changed replay evidence and backward state transitions return a
   structured `409` without overwriting the persisted audit trail.
@@ -157,9 +178,15 @@ The follow-up was run against the product paths, not only the original visual de
 
 ![Live production ontology entity detail](screenshots/console-quality-2026-07-24/ontology-entity-reference-live.jpg)
 
-The screenshot is a direct 1280×720 capture from the production Next.js build backed by
-the live FastAPI fixture. The source badge deliberately says `reference scenario`; it is
-not presented as live tenant evidence.
+![Mobile Settings route with stacked navigation and status bar](screenshots/console-quality-2026-07-28/mobile-settings-navigation-closed.jpg)
+
+![Grouped mobile navigation with Settings selected](screenshots/console-quality-2026-07-28/mobile-settings-navigation-open.jpg)
+
+These are direct captures from production Next.js builds backed by the real FastAPI
+application and a temporary SQLite fixture seeded from the canonical migration payloads.
+The ontology capture is 1280×720; the mobile captures are 390×844. Source labels
+deliberately identify demo/reference data, so none of these images is presented as live
+customer or distributed-infrastructure evidence.
 
 ---
 
@@ -177,3 +204,11 @@ not presented as live tenant evidence.
    change to a consistently client-fetched app.
 4. **Audit pagination.** The events endpoint exposes no total or cursor, so the UI can only
    ever say "Latest N".
+
+## Remaining engineering follow-ups
+
+- Connector manifest updates still use last-write-wins semantics. Revision-aware compare
+  and swap remains a separate concurrency hardening task.
+- Live Postgres migrations and the Temporal, TypeDB, MinIO and Keycloak boundaries remain
+  unverified in this environment because the Docker daemon was unavailable. The current
+  SQLite-backed browser evidence does not substitute for those checks.

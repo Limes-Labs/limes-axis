@@ -455,7 +455,6 @@ const workflows = {
 const connectors = {
   list: {
     eyebrow: "Registry",
-    registeredPill: "Registered",
     neverSampled: "Never sampled",
     previewSample: "Preview sample",
     observedRecords: (count: number) => `${count.toLocaleString("en")} records observed`,
@@ -552,11 +551,6 @@ const connectors = {
     copyFailed: "The registration document could not be copied.",
     download: "Download JSON",
     close: "Close export",
-  },
-  pendingActivation: {
-    title: "Sync activation pending",
-    detail:
-      "This connector was just registered. Its data previews and governed sync runs become available once the platform activates the manifest.",
   },
   requestedMissing: {
     title: "Requested connector is not in this registry",
@@ -1121,8 +1115,11 @@ const settings = {
   source: {
     live: "Live system status",
     loading: "Loading system status",
+    stale: "Stale system status",
     required: "API required",
   },
+  stale:
+    "Live refresh failed. Showing the last validated system status for this panel.",
   tabs: {
     readiness: "Readiness",
     identity: "Identity",

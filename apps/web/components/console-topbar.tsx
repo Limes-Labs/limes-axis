@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Bell, RefreshCw, Search, ShieldCheck } from "lucide-react";
 
@@ -10,6 +11,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/topbar/notification-panel";
 import { apiStatusClass } from "@/lib/identity-format";
+import { isNavActive } from "@/lib/nav";
 import type {
   IdentitySessionReadModel,
   ManufacturingNotificationCenter,
@@ -42,6 +44,7 @@ export function ConsoleTopbar({
    */
   sourceLabel?: string;
 }) {
+  const pathname = usePathname();
   const { apiStatus, triggerRefresh } = useConsole();
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
@@ -118,7 +121,7 @@ export function ConsoleTopbar({
 
   return (
     <header
-      className="ops-topbar sticky top-0 isolate z-10 -mx-4 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 px-4 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-2 max-sm:py-1.5 sm:-mx-6 sm:px-6 dark:border-white/10"
+      className="ops-topbar sticky top-14 isolate z-10 -mx-4 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 px-4 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-2 max-sm:py-1.5 sm:-mx-6 sm:px-6 min-[921px]:top-0 dark:border-white/10"
       aria-label="Console status bar"
     >
       <div className="hidden min-w-0 flex-1 sm:block">
@@ -197,7 +200,7 @@ export function ConsoleTopbar({
           <SidebarAccount
             identitySession={identitySession ?? null}
             identitySessionUnavailable={identitySessionSource === "unavailable"}
-            settingsActive={false}
+            settingsActive={isNavActive(pathname, "/settings")}
             variant="compact"
           />
         </div>

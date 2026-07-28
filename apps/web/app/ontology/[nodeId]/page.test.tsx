@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
+import { getRouteMatcher } from "next/dist/shared/lib/router/utils/route-matcher";
+import { getRouteRegex } from "next/dist/shared/lib/router/utils/route-regex";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 
 vi.mock("@/components/console-page", () => ({
   ConsolePage: ({ children }: { children: ReactNode }) => <main>{children}</main>,
@@ -14,15 +18,21 @@ vi.mock("@/components/ontology-entity-detail", () => ({
 
 import OntologyEntityPage, { generateMetadata } from "./page";
 
+const matchOntologyRoute = getRouteMatcher(getRouteRegex("/ontology/[nodeId]"));
+
 function routeParams(nodeId: string) {
-  return { params: Promise.resolve({ nodeId }) };
+  const params = matchOntologyRoute(buildOntologyEntityRoute(nodeId));
+  if (!params || typeof params.nodeId !== "string") {
+    throw new Error("Next did not match the ontology entity route.");
+  }
+  return { params: Promise.resolve({ nodeId: params.nodeId }) };
 }
 
 describe("ontology entity page route boundary", () => {
   it("passes the decoded opaque node ID to the full-page entity detail", async () => {
     render(
       await OntologyEntityPage(
-        routeParams("%20node%2Fwith%3F%23%20"),
+        routeParams(" node/with?# "),
       ),
     );
 
@@ -30,8 +40,19 @@ describe("ontology entity page route boundary", () => {
   });
 
   it("uses the decoded node ID in metadata", async () => {
-    await expect(generateMetadata(routeParams("asset%2Fline%3F2"))).resolves.toEqual({
+    await expect(generateMetadata(routeParams("asset/line?2"))).resolves.toEqual({
       title: "Entity asset/line?2",
+    });
+  });
+
+  it("does not decode a literal percent escape for a second time", async () => {
+    const nodeId = "asset%2Fline%3F2";
+
+    render(await OntologyEntityPage(routeParams(nodeId)));
+
+    expect(screen.getByTestId("entity-node-id")).toHaveTextContent(nodeId);
+    await expect(generateMetadata(routeParams(nodeId))).resolves.toEqual({
+      title: `Entity ${nodeId}`,
     });
   });
 

@@ -8,10 +8,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from axis_api.audit import AuditEventCreate
+from axis_api.connector_registry_composition import (
+    connector_persisted_manifest_summary,
+)
 from axis_api.connectors import (
     ConnectorManifest,
     ConnectorPreviewSample,
     ConnectorRegistryItem,
+    ConnectorRegistryOrigin,
     ConnectorRuntimePolicy,
     ManufacturingConnectorRegistry,
 )
@@ -329,23 +333,41 @@ def overlay_registered_connector_manifest(
     if record is None:
         return registry
 
-    persisted_connector = ConnectorRegistryItem(
-        manifest=record.manifest_payload,
-        runtime_policy=record.runtime_policy,
-        preview_sample=record.preview_sample,
-        connector_status=OverviewStatus.WATCH,
-    )
-    connectors = [
-        persisted_connector
-        if connector.manifest.connector_id == connector_id
-        else connector
-        for connector in registry.connectors
-    ]
-    if not any(
-        connector.manifest.connector_id == connector_id
-        for connector in registry.connectors
-    ):
-        connectors.append(persisted_connector)
+    persistence = connector_persisted_manifest_summary(record)
+    connectors: list[ConnectorRegistryItem] = []
+    matched = False
+    for connector in registry.connectors:
+        if connector.manifest.connector_id != connector_id:
+            connectors.append(connector)
+            continue
+        matched = True
+        connectors.append(
+            connector.model_copy(
+                update={
+                    "manifest": ConnectorManifest.model_validate(record.manifest_payload),
+                    "runtime_policy": ConnectorRuntimePolicy.model_validate(
+                        record.runtime_policy
+                    ),
+                    "preview_sample": (
+                        ConnectorPreviewSample.model_validate(record.preview_sample)
+                        if record.preview_sample is not None
+                        else None
+                    ),
+                    "persisted_manifest": persistence,
+                }
+            )
+        )
+    if not matched:
+        connectors.append(
+            ConnectorRegistryItem(
+                manifest=record.manifest_payload,
+                runtime_policy=record.runtime_policy,
+                preview_sample=record.preview_sample,
+                connector_status=OverviewStatus.WATCH,
+                registry_origin=ConnectorRegistryOrigin.PERSISTED_MANIFEST,
+                persisted_manifest=persistence,
+            )
+        )
     return registry.model_copy(update={"connectors": connectors})
 
 

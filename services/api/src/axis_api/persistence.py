@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -1032,6 +1033,19 @@ class OidcBrowserSessionRevocation(BaseModel):
 class AxisPersistenceRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def defer_until_after_commit(self, callback: Callable[[], None]) -> None:
+        """Run a process-local side effect only after this transaction commits."""
+
+        callbacks = self.session.info.setdefault("axis_after_commit_callbacks", [])
+        callbacks.append(callback)
+
+    def run_after_commit_callbacks(self) -> None:
+        """Drain callbacks registered by a successfully committed request."""
+
+        callbacks = self.session.info.pop("axis_after_commit_callbacks", [])
+        for callback in callbacks:
+            callback()
 
     def _insert_with_on_conflict(self, model: type):
         """Return a dialect-aware INSERT that supports on_conflict_do_nothing.
@@ -3716,6 +3730,34 @@ class AxisPersistenceRepository:
         self.session.add(tenant)
         self.session.flush()
         return tenant
+
+    def acquire_first_tenant_bootstrap_lock(self) -> None:
+        """Serialize the one permitted empty-registry bootstrap transaction."""
+
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            self.session.execute(
+                select(
+                    func.pg_advisory_xact_lock(
+                        func.hashtextextended("axis:first-tenant-bootstrap", 0)
+                    )
+                )
+            )
+            return
+        if dialect_name == "sqlite":
+            # SQLite has no advisory locks. A no-op write takes database write
+            # intent before the empty-registry read, closing the two-bootstrap
+            # race in local/test profiles.
+            self.session.execute(
+                update(Tenant)
+                .where(Tenant.id == "__axis_first_tenant_bootstrap_lock__")
+                .values(updated_at=Tenant.updated_at)
+            )
+            return
+        raise NotImplementedError(
+            "First-tenant bootstrap locking is not supported for "
+            f"dialect {dialect_name!r}."
+        )
 
     def get_tenant(self, tenant_id: str) -> Tenant | None:
         return self.session.get(Tenant, tenant_id)

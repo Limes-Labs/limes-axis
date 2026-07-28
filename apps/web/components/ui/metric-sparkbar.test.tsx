@@ -26,6 +26,11 @@ describe("MetricSparkbar", () => {
 
     expect(screen.getByTitle("09:00: 5")).toHaveStyle({ height: "50%" });
     expect(screen.getByTitle("10:00: 10")).toHaveStyle({ height: "100%" });
+    expect(
+      screen.getByRole("img", {
+        name: "Audit events. 09:00: 5, 10:00: 10.",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("keeps a zero-valued bucket visible instead of collapsing it", () => {
@@ -40,5 +45,13 @@ describe("MetricSparkbar", () => {
     );
 
     expect(screen.getByTitle("09:00: 0")).toHaveStyle({ height: "8%" });
+  });
+
+  it("announces an empty series without relying on hover text", () => {
+    render(<MetricSparkbar caption="Audit events" points={[]} />);
+
+    expect(
+      screen.getByRole("img", { name: "Audit events. No data." }),
+    ).toBeInTheDocument();
   });
 });

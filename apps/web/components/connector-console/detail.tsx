@@ -1,23 +1,18 @@
 "use client";
 
-import { FileClock } from "lucide-react";
-
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   formatConnectorLabel,
   type ConnectorManifestDetail,
   type ConnectorRegistryItem,
 } from "@/lib/connectors-demo";
-import {
-  manifestRecordForConnector,
-  type ConnectorListEntry,
-} from "@/lib/connectors-console";
+import { connectorWithCurrentManifest } from "@/lib/connectors-console";
 import { strings } from "@/lib/strings";
 import { formatNumber, formatTimestamp } from "@/lib/format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
@@ -62,23 +57,17 @@ function OverviewTab({
   manifestDetailErrorRequestId,
   manifestDetailPath,
   manifestDetailSource,
-  registries,
 }: {
   connector: ConnectorRegistryItem;
   manifestDetail: ConnectorManifestDetail | null;
   manifestDetailErrorRequestId: string | null;
   manifestDetailPath: string;
   manifestDetailSource: AxisQuerySource;
-  registries: ConnectorRegistries;
 }) {
   const copy = strings.connectors.overview;
   const { manifest, runtime_policy: runtimePolicy } = connector;
-  const manifestRecord = registries.manifests.data
-    ? manifestRecordForConnector(
-        registries.manifests.data.manifests,
-        manifest.connector_id,
-      )
-    : null;
+  const persistedManifest = connector.persisted_manifest;
+  const currentManifest = manifestDetail?.current_revision ?? null;
 
   return (
     <div className="grid content-start gap-5">
@@ -120,20 +109,20 @@ function OverviewTab({
 
       <div className="grid gap-2 border-t border-line/60 pt-4 dark:border-white/10">
         <Eyebrow>{copy.manifest}</Eyebrow>
-        {manifestRecord ? (
+        {persistedManifest ? (
           <div className="grid gap-4">
             <DetailGrid>
               <KeyValueRow label={copy.manifestStatus}>
-                {formatConnectorLabel(manifestRecord.status)}
+                {formatConnectorLabel(currentManifest?.status ?? persistedManifest.status)}
               </KeyValueRow>
               <KeyValueRow label={copy.manifestRegisteredBy}>
-                {manifestRecord.registered_by}
+                {currentManifest?.registered_by ?? persistedManifest.registered_by}
               </KeyValueRow>
-              {manifestDetail ? (
-                <KeyValueRow label={copy.currentRevision}>
-                  {formatNumber(manifestDetail.current_revision.revision_number)}
-                </KeyValueRow>
-              ) : null}
+              <KeyValueRow label={copy.currentRevision}>
+                {formatNumber(
+                  currentManifest?.revision_number ?? persistedManifest.revision_number,
+                )}
+              </KeyValueRow>
             </DetailGrid>
             {manifestDetailSource === "loading" ? <LoadingPanel rows={2} /> : null}
             {manifestDetailSource === "unavailable" ? (
@@ -262,61 +251,58 @@ function DataSchemaTab({ connector }: { connector: ConnectorRegistryItem }) {
   );
 }
 
-/** Placeholder for sync surfaces of a just-registered, not-yet-activated manifest. */
-function PendingActivationPanel() {
-  return (
-    <EmptyPanel
-      detail={strings.connectors.pendingActivation.detail}
-      icon={FileClock}
-      title={strings.connectors.pendingActivation.title}
-    />
-  );
-}
-
 export function ConnectorDetail({
   activeTab,
-  entry,
+  connector,
   identitySession,
   onTabChange,
   registries,
   tenantId,
 }: {
   activeTab: ConnectorDetailTab;
-  entry: ConnectorListEntry;
+  connector: ConnectorRegistryItem;
   identitySession: IdentitySessionReadModel | null;
   onTabChange: (tab: ConnectorDetailTab) => void;
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
   const tabs = strings.connectors.tabs;
-  const { connector } = entry;
   const { manifest } = connector;
   const manifestDetailPath = buildTenantScopedPath(
     `${CONNECTOR_ENDPOINTS.manifests}/${encodeURIComponent(manifest.connector_id)}`,
     tenantId,
   );
   const manifestDetail = useAxisQuery<ConnectorManifestDetail>(manifestDetailPath, {
-    enabled: entry.manifestRecord !== null,
+    enabled: connector.persisted_manifest !== null,
     expectedTenantId: tenantId,
-    parse: parseConnectorManifestDetail,
+    parse: (value) => {
+      const detail = parseConnectorManifestDetail(value);
+      if (detail.connector_id !== manifest.connector_id) {
+        throw new Error("Connector manifest detail response does not match the selected connector.");
+      }
+      return detail;
+    },
   });
-  // Manifest-only entries (wizard registrations the reference registry does
-  // not know yet) cannot preview or run syncs, so those tabs explain the
-  // pending activation instead of offering actions that would 404/422.
-  const activationPending = entry.source === "manifest";
+  const effectiveConnector = connectorWithCurrentManifest(
+    connector,
+    manifestDetail.data,
+  );
+  const effectiveManifest = effectiveConnector.manifest;
 
   return (
     <Card className="grid content-start gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid max-w-xl gap-1">
-          <Eyebrow>{formatConnectorLabel(manifest.connector_type)}</Eyebrow>
-          <h2 className="font-display m-0 text-xl text-ink">{manifest.display_name}</h2>
+          <Eyebrow>{formatConnectorLabel(effectiveManifest.connector_type)}</Eyebrow>
+          <h2 className="font-display m-0 text-xl text-ink">
+            {effectiveManifest.display_name}
+          </h2>
           <p className="m-0 font-mono text-xs break-words text-muted">
-            {manifest.connector_id}
+            {effectiveManifest.connector_id}
           </p>
         </div>
-        <InspectDrawer record={connector} title={manifest.display_name} />
-        <ManifestExportPanel entry={entry} />
+        <InspectDrawer record={effectiveConnector} title={effectiveManifest.display_name} />
+        <ManifestExportPanel connector={effectiveConnector} />
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => {
@@ -332,31 +318,29 @@ export function ConnectorDetail({
         </TabsList>
         <TabsContent value="overview">
           <OverviewTab
-            connector={connector}
+            connector={effectiveConnector}
             manifestDetail={manifestDetail.data}
             manifestDetailErrorRequestId={manifestDetail.errorRequestId}
             manifestDetailPath={manifestDetailPath}
             manifestDetailSource={manifestDetail.source}
-            registries={registries}
           />
         </TabsContent>
         <TabsContent value="schema">
-          {activationPending ? <PendingActivationPanel /> : <DataSchemaTab connector={connector} />}
+          <DataSchemaTab connector={effectiveConnector} />
         </TabsContent>
         <TabsContent value="runs">
-          {activationPending ? (
-            <PendingActivationPanel />
-          ) : (
-            <ConnectorRuns
-              connector={connector}
-              identitySession={identitySession}
-              registries={registries}
-              tenantId={tenantId}
-            />
-          )}
+          <ConnectorRuns
+            connector={effectiveConnector}
+            identitySession={identitySession}
+            registries={registries}
+            tenantId={tenantId}
+          />
         </TabsContent>
         <TabsContent value="governance">
-          <ConnectorGovernance connectorId={manifest.connector_id} registries={registries} />
+          <ConnectorGovernance
+            connectorId={effectiveManifest.connector_id}
+            registries={registries}
+          />
         </TabsContent>
       </Tabs>
     </Card>

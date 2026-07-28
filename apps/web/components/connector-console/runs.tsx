@@ -23,7 +23,6 @@ import {
   CONNECTOR_CONSOLE_ACTOR,
   findActiveLeaseForConnector,
   manifestAllowsRuns,
-  manifestRecordForConnector,
 } from "@/lib/connectors-console";
 import {
   formatConnectorLabel,
@@ -135,10 +134,7 @@ export function ConnectorRuns({
     connectorId,
     new Date(),
   );
-  const manifestRecord = registries.manifests.data
-    ? manifestRecordForConnector(registries.manifests.data.manifests, connectorId)
-    : null;
-  const runsAllowed = manifestAllowsRuns(manifestRecord);
+  const runsAllowed = manifestAllowsRuns(connector.persisted_manifest);
   // Gate only when the API enforces OIDC (see the wizard's identical rule).
   const ssoBlocked = identitySession != null
     && identitySession.api_auth_required

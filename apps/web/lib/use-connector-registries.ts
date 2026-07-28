@@ -6,7 +6,6 @@ import type {
   ManufacturingConnectorEgressPolicyRegistry,
   ManufacturingConnectorEvidenceInvariantReport,
   ManufacturingConnectorEvidenceInvariantSnapshotHistory,
-  ManufacturingConnectorManifestRegistry,
   ManufacturingConnectorOntologyProposalRegistry,
   ManufacturingConnectorRegistry,
   ManufacturingConnectorRunRegistry,
@@ -17,7 +16,6 @@ import {
   parseManufacturingConnectorEgressPolicyRegistry,
   parseManufacturingConnectorEvidenceInvariantReport,
   parseManufacturingConnectorEvidenceInvariantSnapshotHistory,
-  parseManufacturingConnectorManifestRegistry,
   parseManufacturingConnectorOntologyProposalRegistry,
   parseManufacturingConnectorRegistry,
   parseManufacturingConnectorRunRegistry,
@@ -69,10 +67,6 @@ export function useConnectorRegistries(
       parse: parseManufacturingConnectorRegistry,
     },
   );
-  const manifests = useAxisQuery<ManufacturingConnectorManifestRegistry>(
-    scopedPath(CONNECTOR_ENDPOINTS.manifests),
-    { ...queryOptions, parse: parseManufacturingConnectorManifestRegistry },
-  );
   const credentialHandles = useAxisQuery<ManufacturingConnectorCredentialHandleRegistry>(
     scopedPath(CONNECTOR_ENDPOINTS.credentialHandles),
     { ...queryOptions, parse: parseManufacturingConnectorCredentialHandleRegistry },
@@ -118,7 +112,6 @@ export function useConnectorRegistries(
 
   return {
     registry,
-    manifests,
     credentialHandles,
     credentialLeases,
     egressPolicies,

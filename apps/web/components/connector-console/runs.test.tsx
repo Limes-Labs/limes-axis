@@ -77,7 +77,6 @@ function buildRegistries(
 ): ConnectorRegistries {
   const paths: Record<keyof ConnectorRegistries, string> = {
     registry: `${OPERATIONS_API_PREFIX}/connectors`,
-    manifests: `${OPERATIONS_API_PREFIX}/connectors/manifests`,
     credentialHandles: `${OPERATIONS_API_PREFIX}/connectors/credential-handles`,
     credentialLeases: `${OPERATIONS_API_PREFIX}/connectors/credential-leases`,
     egressPolicies: `${OPERATIONS_API_PREFIX}/connectors/egress-policies`,

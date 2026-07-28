@@ -7,6 +7,7 @@ import {
   credentialLeaseRegistryFixture,
   egressPolicyRegistryFixture,
   evidenceInvariantReportFixture,
+  manifestDetailFixture,
   manifestRegistryFixture,
   ontologyProposalRegistryFixture,
   runRegistryFixture,
@@ -42,6 +43,7 @@ import {
 import {
   parseConnectorCsvPreviewResult,
   parseConnectorExternalDbPreviewResult,
+  parseConnectorManifestDetail,
   parseConnectorRunRecord,
   parseManufacturingConnectorCredentialHandleRegistry,
   parseManufacturingConnectorCredentialLeaseRegistry,
@@ -471,6 +473,40 @@ describe("production runtime contracts", () => {
     expect(() =>
       parseManufacturingOverview({ ...payload, provenance: "unverified" }),
     ).toThrow();
+  });
+
+  it("rejects a persisted-only connector without persistence metadata", () => {
+    const payload = structuredClone(connectorRegistryFixture);
+    payload.connectors[1].registry_origin = "persisted_manifest";
+    payload.connectors[1].persisted_manifest = null;
+
+    expect(() => parseManufacturingConnectorRegistry(payload)).toThrow();
+  });
+
+  it.each([
+    {
+      name: "nested tenant",
+      mutate: (payload: typeof manifestDetailFixture) => {
+        payload.current_revision.tenant_id = "tenant-cross-boundary";
+      },
+    },
+    {
+      name: "nested connector",
+      mutate: (payload: typeof manifestDetailFixture) => {
+        payload.revisions[0].connector_id = "connector-cross-boundary";
+      },
+    },
+    {
+      name: "nested manifest connector",
+      mutate: (payload: typeof manifestDetailFixture) => {
+        payload.revisions[0].manifest.connector_id = "connector-cross-boundary";
+      },
+    },
+  ])("rejects a manifest detail with a mismatched $name", ({ mutate }) => {
+    const payload = structuredClone(manifestDetailFixture);
+    mutate(payload);
+
+    expect(() => parseConnectorManifestDetail(payload)).toThrow();
   });
 
   it.each(provenanceContracts)(

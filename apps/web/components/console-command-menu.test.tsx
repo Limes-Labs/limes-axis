@@ -97,6 +97,17 @@ describe("ConsoleCommandMenu", () => {
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
   });
 
+  it("keeps Settings discoverable and navigable from command search", async () => {
+    const user = userEvent.setup();
+    const props = renderMenu({ tenantId: null, tenantQueriesEnabled: false });
+
+    await user.keyboard("settings");
+    await user.click(screen.getByText("Settings"));
+
+    expect(mocks.routerPush).toHaveBeenCalledWith("/settings");
+    expect(props.onClose).toHaveBeenCalled();
+  });
+
   it("navigates with ArrowDown and Enter", async () => {
     const user = userEvent.setup();
     const props = renderMenu();

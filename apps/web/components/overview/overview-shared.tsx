@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CircleAlert, CircleCheck, Clock3 } from "lucide-react";
 
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { cn } from "@/lib/cn";
-import type { PlatformStatus } from "@/lib/platform-overview";
+import { platformStatusLabel, type PlatformStatus } from "@/lib/platform-overview";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
 
 /*
@@ -46,15 +46,23 @@ export function shortTime(value: string): string {
 }
 
 export function StatusDot({ status }: { status: PlatformStatus }) {
+  const Icon = status === "ready"
+    ? CircleCheck
+    : status === "watch"
+      ? Clock3
+      : CircleAlert;
+
   return (
-    <span
-      aria-hidden="true"
+    <Icon
+      aria-label={`Status: ${platformStatusLabel(status)}`}
       className={cn(
-        "inline-block size-2 shrink-0 rounded-full",
-        status === "ready" && "bg-positive",
-        status === "watch" && "bg-warning",
-        status === "action_required" && "bg-danger",
+        "size-3.5 shrink-0",
+        status === "ready" && "text-positive",
+        status === "watch" && "text-warning",
+        status === "action_required" && "text-danger",
       )}
+      data-status={status}
+      role="img"
     />
   );
 }

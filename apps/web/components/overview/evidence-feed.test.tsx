@@ -54,7 +54,10 @@ describe("EvidenceFeed", () => {
     render(<EvidenceFeed auditEvents={{ data: auditEventsFixture, source: "api" }} />);
 
     expect(
-      screen.getByRole("img", { name: "Recent audit events by category" }),
+      screen.getByRole("img", {
+        name:
+          "Recent audit events by category. approval: 1, connector: 1, workflow: 1, agent: 1.",
+      }),
     ).toBeInTheDocument();
   });
 });

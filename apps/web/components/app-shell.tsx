@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { AxisMark } from "@/components/axis-mark";
+import { MobileNavigation } from "@/components/mobile-navigation";
 import { navIconMap } from "@/components/nav-icons";
 import { SidebarAccount } from "@/components/sidebar-account";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { ToastProvider } from "@/components/ui/toast";
-import { navGroups, navItems, type NavItem } from "@/lib/nav";
+import { desktopNavGroups, isNavActive, type NavItem } from "@/lib/nav";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
@@ -31,14 +32,6 @@ const navItemClass =
   "flex min-h-[44px] items-center gap-2.5 rounded-xl px-3 text-[13px] font-medium text-muted transition-colors hover:bg-signal/8 hover:text-ink";
 const navItemActiveClass =
   "bg-tint-100 text-signal shadow-[inset_2px_0_0_rgb(var(--signal))] hover:bg-tint-100 hover:text-signal dark:bg-signal/15 dark:text-ink dark:hover:bg-signal/15 dark:hover:text-ink";
-
-function isNavActive(pathname: string, href: string): boolean {
-  if (href === "/") {
-    return pathname === "/";
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 /**
  * Pending-approvals count pill next to the Approvals nav label. Best-effort:
@@ -119,7 +112,7 @@ function Navigation({
       className="nav-list grid min-h-0 grow content-start gap-1 overflow-y-auto overscroll-contain pr-1 pb-1"
       aria-label="Axis sections"
     >
-      {navGroups.map((group, index) => (
+      {desktopNavGroups.map((group, index) => (
         <section
           aria-label={group.label}
           className="grid gap-1"
@@ -138,33 +131,6 @@ function Navigation({
           ))}
         </section>
       ))}
-    </nav>
-  );
-}
-
-function TopNavigation({
-  badge,
-  pathname,
-}: {
-  badge: ReactNode;
-  pathname: string;
-}) {
-  return (
-    <nav
-      aria-label="Mobile Axis sections"
-      className="sticky top-0 z-10 block overflow-hidden border-b border-line bg-surface/90 px-3 py-2.5 backdrop-blur-md min-[921px]:hidden dark:border-white/10"
-    >
-      <div className="topnav flex max-w-full min-w-0 gap-1.5 overflow-x-auto pb-0.5">
-        {navItems.map((item) => (
-          <NavLink
-            badge={badge}
-            className="shrink-0"
-            item={item}
-            key={item.href}
-            pathname={pathname}
-          />
-        ))}
-      </div>
     </nav>
   );
 }
@@ -232,7 +198,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
             id="console-main"
             tabIndex={-1}
           >
-            <TopNavigation badge={approvalsBadge} pathname={pathname} />
+            <MobileNavigation badge={approvalsBadge} pathname={pathname} />
             {children}
           </main>
         </div>

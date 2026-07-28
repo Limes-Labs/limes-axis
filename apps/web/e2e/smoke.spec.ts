@@ -58,6 +58,66 @@ async function expectNoUndersizedTargets(page: Page) {
   expect(undersized, undersized.join("\n")).toEqual([]);
 }
 
+async function expectMobileHeadersStacked(page: Page) {
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+  const geometry = await page.evaluate(() => {
+    const navigation = document.querySelector<HTMLElement>("[data-mobile-navigation]");
+    const statusBar = document.querySelector<HTMLElement>(".ops-topbar");
+    const trigger = document.querySelector<HTMLElement>("[data-mobile-navigation-trigger]");
+
+    if (!navigation || !statusBar || !trigger) {
+      return null;
+    }
+
+    const navigationRect = navigation.getBoundingClientRect();
+    const statusBarRect = statusBar.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      triggerRect.left + triggerRect.width / 2,
+      triggerRect.top + triggerRect.height / 2,
+    );
+
+    return {
+      navigationBottom: Math.round(navigationRect.bottom),
+      navigationTop: Math.round(navigationRect.top),
+      statusBarTop: Math.round(statusBarRect.top),
+      triggerHit: hit === trigger || (hit instanceof Node && trigger.contains(hit)),
+    };
+  });
+
+  expect(geometry).not.toBeNull();
+  expect(geometry?.navigationTop).toBe(0);
+  expect(geometry?.statusBarTop).toBeGreaterThanOrEqual((geometry?.navigationBottom ?? 0) - 1);
+  expect(geometry?.triggerHit).toBe(true);
+}
+
+async function expectNavigationDestination(
+  page: Page,
+  label: string,
+  href: string,
+) {
+  const desktopLink = page.locator(".sidebar").getByRole("link", {
+    name: label,
+    exact: true,
+  });
+  if (await desktopLink.isVisible()) {
+    await expect(desktopLink).toHaveAttribute("href", href);
+    return;
+  }
+
+  const trigger = page.locator("[data-mobile-navigation-trigger]");
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const drawer = page.getByRole("dialog", { name: "Navigate Axis" });
+  await expect(drawer.getByRole("link", { name: label, exact: true })).toHaveAttribute(
+    "href",
+    href,
+  );
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+}
+
 async function expectAxisLightShell(page: Page) {
   const shell = await page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
@@ -489,18 +549,34 @@ test.describe("Axis console smoke", () => {
     expect(accountPopover.bottom).toBeLessThanOrEqual(760 - 16);
   });
 
-  test("keeps navigation and requires agent/action APIs on mobile", async ({ page }) => {
+  test("keeps grouped navigation operable and requires agent/action APIs on mobile", async ({ page }) => {
     await routeVerifiedDemoIdentity(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/settings/sessions");
 
-    const mobileNav = page.locator(".topnav");
+    const mobileNav = page.locator("[data-mobile-navigation]");
     await expect(mobileNav).toBeVisible();
-    await expect(mobileNav.getByRole("link", { name: "Agents" })).toHaveAttribute(
-      "href",
-      "/agents",
+    await expect(mobileNav.locator("[data-mobile-current-section]")).toHaveText("Settings");
+    const menuTrigger = mobileNav.getByRole("button", {
+      name: "Open navigation. Current section: Settings",
+    });
+    await menuTrigger.click();
+
+    const drawer = page.getByRole("dialog", { name: "Navigate Axis" });
+    await expect(drawer).toBeVisible();
+    const platformGroup = drawer.getByRole("region", { name: "Platform" });
+    await expect(platformGroup.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
-    await page.goto("/agents");
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    await expect(menuTrigger).toBeFocused();
+
+    await menuTrigger.click();
+    await drawer.getByRole("link", { name: "Agents" }).click();
+    await expect(drawer).toBeHidden();
+    await expect(page).toHaveURL(/\/agents$/);
 
     await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Agent API unavailable" })).toBeVisible();
@@ -527,6 +603,13 @@ test.describe("Axis console smoke", () => {
 
     await expectNoHorizontalOverflow(page);
     await expectNoUndersizedTargets(page);
+    await expectMobileHeadersStacked(page);
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto("/policies/policy_e2e_navigation");
+    await expect(page.locator("[data-mobile-current-section]")).toHaveText("Policies");
+    await expectMobileHeadersStacked(page);
+    await expectNoHorizontalOverflow(page);
   });
 
   test("requires the ontology APIs instead of local graph data", async ({ page }) => {
@@ -1355,10 +1438,7 @@ test.describe("Axis console smoke", () => {
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Tenants" }).first()).toHaveAttribute(
-      "href",
-      "/tenants",
-    );
+    await expectNavigationDestination(page, "Tenants", "/tenants");
 
     await page.goto("/tenants");
 

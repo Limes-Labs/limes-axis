@@ -8,6 +8,7 @@ import { ConsolePage } from "@/components/console-page";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import {
   settingsCheckGuidance,
@@ -45,6 +46,12 @@ const DEPLOYMENT_READINESS_ENDPOINT = "/deployment/readiness";
 const SUPPORT_DIAGNOSTICS_ENDPOINT = "/support/diagnostics";
 
 const copy = strings.settings;
+
+const settingsTabs = ["readiness", "identity", "deployment", "support"] as const;
+type SettingsTab = (typeof settingsTabs)[number];
+const settingsUrlSchema = {
+  tab: enumUrlField("tab", settingsTabs, "readiness"),
+};
 
 type SettingsQuery<T> = {
   data: T | null;
@@ -84,7 +91,17 @@ function PanelState<T>({
   children: (data: T) => ReactNode;
 }) {
   if (query.data) {
-    return <>{children(query.data)}</>;
+    return (
+      <div className="grid min-w-0 gap-2">
+        {query.source !== "api" ? (
+          <p className="m-0 text-sm text-warning" role="status">
+            {copy.stale}
+            {query.errorRequestId ? ` Request ${query.errorRequestId}.` : null}
+          </p>
+        ) : null}
+        {children(query.data)}
+      </div>
+    );
   }
 
   if (query.source === "loading") {
@@ -387,6 +404,7 @@ function SupportPanel({ query }: { query: SettingsQuery<SupportDiagnosticsReport
 }
 
 export function PlatformSettingsConsole() {
+  const [urlState, setUrlState] = useConsoleUrlState(settingsUrlSchema);
   const ready = useAxisQuery<AxisReadyReport>(READY_ENDPOINT, { parse: parseAxisReadyReport });
   const oidc = useAxisQuery<OidcReadinessReport>(OIDC_READINESS_ENDPOINT, {
     parse: parseOidcReadinessReport,
@@ -402,15 +420,23 @@ export function PlatformSettingsConsole() {
   });
 
   const queries = [ready, oidc, identity, deployment, support];
-  const sourceLabel = queries.every((query) => query.data)
+  const sourceLabel = queries.every((query) => query.source === "api")
     ? copy.source.live
-    : queries.some((query) => query.source === "loading")
+    : queries.some((query) => query.source === "loading" && !query.data)
       ? copy.source.loading
-      : copy.source.required;
+      : queries.some((query) => !query.data)
+        ? copy.source.required
+        : copy.source.stale;
 
   return (
     <ConsolePage pageKey="settings" sourceLabel={sourceLabel} title={copy.pageTitle}>
-      <Tabs className="grid min-w-0 gap-1" defaultValue="readiness">
+      <Tabs
+        className="grid min-w-0 gap-1"
+        onValueChange={(tab) =>
+          setUrlState({ tab: tab as SettingsTab }, { history: "push" })
+        }
+        value={urlState.tab}
+      >
         <TabsList>
           <TabsTrigger value="readiness">{copy.tabs.readiness}</TabsTrigger>
           <TabsTrigger value="identity">{copy.tabs.identity}</TabsTrigger>

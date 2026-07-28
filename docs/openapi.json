@@ -7901,6 +7901,51 @@
         "title": "ConnectorOntologyProposalRecord",
         "type": "object"
       },
+      "ConnectorPersistedManifestSummary": {
+        "properties": {
+          "manifest_id": {
+            "minLength": 1,
+            "title": "Manifest Id",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "registered_at": {
+            "format": "date-time",
+            "title": "Registered At",
+            "type": "string"
+          },
+          "registered_by": {
+            "minLength": 1,
+            "title": "Registered By",
+            "type": "string"
+          },
+          "revision_number": {
+            "minimum": 1.0,
+            "title": "Revision Number",
+            "type": "integer"
+          },
+          "status": {
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "manifest_id",
+          "revision_number",
+          "status",
+          "registered_by",
+          "registered_at"
+        ],
+        "title": "ConnectorPersistedManifestSummary",
+        "type": "object"
+      },
       "ConnectorPreviewSample": {
         "properties": {
           "file_name": {
@@ -9171,6 +9216,16 @@
           "manifest": {
             "$ref": "#/components/schemas/ConnectorManifest"
           },
+          "persisted_manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorPersistedManifestSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "preview_sample": {
             "anyOf": [
               {
@@ -9180,6 +9235,10 @@
                 "type": "null"
               }
             ]
+          },
+          "registry_origin": {
+            "$ref": "#/components/schemas/ConnectorRegistryOrigin",
+            "default": "reference"
           },
           "runtime_policy": {
             "$ref": "#/components/schemas/ConnectorRuntimePolicy"
@@ -9192,6 +9251,14 @@
         ],
         "title": "ConnectorRegistryItem",
         "type": "object"
+      },
+      "ConnectorRegistryOrigin": {
+        "enum": [
+          "reference",
+          "persisted_manifest"
+        ],
+        "title": "ConnectorRegistryOrigin",
+        "type": "string"
       },
       "ConnectorRunCreateRequest": {
         "additionalProperties": false,
@@ -10990,9 +11057,15 @@
           "public_base_url_https": {
             "title": "Public Base Url Https",
             "type": "boolean"
+          },
+          "tenant_admission_mode": {
+            "minLength": 1,
+            "title": "Tenant Admission Mode",
+            "type": "string"
           }
         },
         "required": [
+          "tenant_admission_mode",
           "oidc_session_cookie_secure",
           "oidc_session_cookie_signing_secret_configured",
           "oidc_session_cookie_ttl_seconds",
@@ -18728,7 +18801,7 @@
             "type": "array"
           },
           "requested_by": {
-            "maxLength": 160,
+            "maxLength": 120,
             "minLength": 1,
             "title": "Requested By",
             "type": "string"
@@ -18860,7 +18933,7 @@
             "$ref": "#/components/schemas/TenantQuotaValues"
           },
           "requested_by": {
-            "maxLength": 160,
+            "maxLength": 120,
             "minLength": 1,
             "title": "Requested By",
             "type": "string"
@@ -18943,7 +19016,7 @@
             "type": "string"
           },
           "requested_by": {
-            "maxLength": 160,
+            "maxLength": 120,
             "minLength": 1,
             "title": "Requested By",
             "type": "string"
@@ -19195,7 +19268,7 @@
             "type": "string"
           },
           "requested_by": {
-            "maxLength": 160,
+            "maxLength": 120,
             "minLength": 1,
             "title": "Requested By",
             "type": "string"
@@ -19435,7 +19508,7 @@
             "type": "array"
           },
           "requested_by": {
-            "maxLength": 160,
+            "maxLength": 120,
             "minLength": 1,
             "title": "Requested By",
             "type": "string"

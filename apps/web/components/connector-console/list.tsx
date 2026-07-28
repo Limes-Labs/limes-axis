@@ -4,22 +4,30 @@ import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { PlatformStatusPill } from "@/components/status-pill";
 import { cn } from "@/lib/cn";
-import type { ConnectorListEntry } from "@/lib/connectors-console";
-import { formatConnectorLabel } from "@/lib/connectors-demo";
+import { formatConnectorLabel, type ConnectorRegistryItem } from "@/lib/connectors-demo";
 import { formatDateTime, pluralize } from "@/lib/format";
 import { strings } from "@/lib/strings";
 
-/**
- * Connector list rail: reference connectors plus persisted manifest records
- * merged in (so a wizard registration appears immediately). Manifest-only
- * entries carry a "Registered" pill instead of a runtime status.
- */
+function manifestLifecycleClass(status: string): string {
+  if (status === "active_live") {
+    return "signal-ready";
+  }
+  if (status === "active_preview") {
+    return "signal-watch";
+  }
+  if (status === "registered_preview_only") {
+    return "status-checking";
+  }
+  return "signal-action-required";
+}
+
+/** Connector list rail over the API's complete registry contract. */
 export function ConnectorList({
-  entries,
+  connectors,
   selectedConnectorId,
   onSelect,
 }: {
-  entries: ConnectorListEntry[];
+  connectors: ConnectorRegistryItem[];
   selectedConnectorId: string;
   onSelect: (connectorId: string) => void;
 }) {
@@ -28,12 +36,11 @@ export function ConnectorList({
       <div className="grid gap-1">
         <Eyebrow>{strings.connectors.list.eyebrow}</Eyebrow>
         <h2 className="font-display m-0 text-xl text-ink">
-          {pluralize(entries.length, "connector")}
+          {pluralize(connectors.length, "connector")}
         </h2>
       </div>
       <div className="grid gap-2">
-        {entries.map((entry) => {
-          const { connector } = entry;
+        {connectors.map((connector) => {
           const isSelected = connector.manifest.connector_id === selectedConnectorId;
           const syncObservation = connector.last_successful_sync;
 
@@ -77,9 +84,13 @@ export function ConnectorList({
                   </span>
                 ) : null}
               </span>
-              {entry.source === "manifest" ? (
-                <span className="status-pill status-checking">
-                  {strings.connectors.list.registeredPill}
+              {connector.registry_origin === "persisted_manifest" && connector.persisted_manifest ? (
+                <span
+                  className={`status-pill ${manifestLifecycleClass(
+                    connector.persisted_manifest.status,
+                  )}`}
+                >
+                  {formatConnectorLabel(connector.persisted_manifest.status)}
                 </span>
               ) : (
                 <PlatformStatusPill status={connector.connector_status} />

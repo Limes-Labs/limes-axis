@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 import { ConsolePage } from "@/components/console-page";
 import { OntologyEntityDetail } from "@/components/ontology-entity-detail";
-import { decodeOntologyEntityRouteParam } from "@/lib/ontology-routes";
 
 type OntologyEntityPageProps = {
   params: Promise<{
@@ -11,14 +10,12 @@ type OntologyEntityPageProps = {
 };
 
 export async function generateMetadata({ params }: OntologyEntityPageProps): Promise<Metadata> {
-  const { nodeId: routeNodeId } = await params;
-  const nodeId = decodeOntologyEntityRouteParam(routeNodeId);
+  const { nodeId } = await params;
   return { title: `Entity ${nodeId}` };
 }
 
 export default async function OntologyEntityPage({ params }: OntologyEntityPageProps) {
-  const { nodeId: routeNodeId } = await params;
-  const nodeId = decodeOntologyEntityRouteParam(routeNodeId);
+  const { nodeId } = await params;
 
   return (
     <ConsolePage

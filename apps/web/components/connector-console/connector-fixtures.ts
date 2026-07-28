@@ -74,6 +74,15 @@ export const csvConnectorFixture: ConnectorRegistryItem = {
   },
   last_successful_sync: null,
   connector_status: "watch",
+  registry_origin: "reference",
+  persisted_manifest: {
+    manifest_id: "manifest-1",
+    revision_number: 2,
+    status: "active_preview",
+    registered_by: "plant-operations-owner-role",
+    registered_at: "2026-07-10T08:00:00Z",
+    notes: [],
+  },
 };
 
 export const dbConnectorFixture: ConnectorRegistryItem = {
@@ -89,6 +98,7 @@ export const dbConnectorFixture: ConnectorRegistryItem = {
     ...csvConnectorFixture.preview_sample!,
     file_name: "operations.production_orders",
   },
+  persisted_manifest: null,
 };
 
 export const connectorRegistryFixture: ManufacturingConnectorRegistry = {

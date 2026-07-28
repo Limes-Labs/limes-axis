@@ -12,14 +12,11 @@ import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import {
-  mergeConnectorListEntries,
-  pendingProposalCount,
-  type ConnectorListEntry,
-} from "@/lib/connectors-console";
+import { pendingProposalCount } from "@/lib/connectors-console";
 import {
   formatConnectorLabel,
   type ConnectorEvidenceInvariantSnapshotRecord,
+  type ConnectorRegistryItem,
 } from "@/lib/connectors-demo";
 import {
   enumUrlField,
@@ -63,7 +60,7 @@ function countOrPlaceholder(count: number | undefined): string | number {
 
 function buildMetrics(
   registries: ConnectorRegistries,
-  entries: ConnectorListEntry[],
+  connectors: ConnectorRegistryItem[],
 ): Metric[] {
   const copy = strings.connectors.metrics;
   const invariantCount = registries.evidenceInvariants.data?.invariants.length;
@@ -71,9 +68,7 @@ function buildMetrics(
   return [
     {
       label: copy.connectors.label,
-      // Reference connectors plus persisted-manifest-only connectors,
-      // deduped by connector_id (the merged list length).
-      value: countOrPlaceholder(registries.registry.data ? entries.length : undefined),
+      value: countOrPlaceholder(registries.registry.data ? connectors.length : undefined),
       detail: copy.connectors.detail,
     },
     {
@@ -171,23 +166,17 @@ export function ConnectorConsole() {
   const updatedAt = fetchStamp?.at ?? null;
 
   const connectors = useMemo(() => registry.data?.connectors ?? [], [registry.data]);
-  // Merge persisted manifests into the list so wizard registrations appear
-  // immediately, deduped against the reference registry by connector_id.
-  const entries = useMemo(
-    () => mergeConnectorListEntries(connectors, registries.manifests.data?.manifests ?? []),
-    [connectors, registries.manifests.data],
-  );
   const requestedSnapshot = urlState.snapshotId
     ? registries.evidenceSnapshots.data?.snapshots.find(
         (snapshot) => snapshot.snapshot_id === urlState.snapshotId,
       ) ?? null
     : null;
   const requestedConnectorId = urlState.connectorId || requestedSnapshot?.connector_id || "";
-  const selectedEntry = requestedConnectorId
-    ? entries.find(
-        (entry) => entry.connector.manifest.connector_id === requestedConnectorId,
+  const selectedConnector = requestedConnectorId
+    ? connectors.find(
+        (connector) => connector.manifest.connector_id === requestedConnectorId,
       )
-    : entries[0];
+    : connectors[0];
 
   if (!tenantQueriesEnabled || tenantId === null) {
     if (identity.source === "loading") {
@@ -252,7 +241,7 @@ export function ConnectorConsole() {
     );
   }
 
-  if (requestedConnectorId && !selectedEntry) {
+  if (requestedConnectorId && !selectedConnector) {
     return (
       <EmptyPanel
         detail={strings.connectors.requestedMissing.detail}
@@ -316,7 +305,7 @@ export function ConnectorConsole() {
         </div>
       </div>
 
-      <MetricStrip metrics={buildMetrics(registries, entries)} />
+      <MetricStrip metrics={buildMetrics(registries, connectors)} />
 
       <ManifestImportPanel
         identitySession={identitySession}
@@ -326,7 +315,7 @@ export function ConnectorConsole() {
 
       {requestedSnapshot ? <SnapshotPanel snapshot={requestedSnapshot} /> : null}
 
-      {entries.length === 0 || !selectedEntry ? (
+      {connectors.length === 0 || !selectedConnector ? (
         <EmptyPanel
           action={{
             label: strings.connectors.empty.action,
@@ -351,8 +340,8 @@ export function ConnectorConsole() {
               // Tabs is uncontrolled and that state is component state, so
               // switching connectors mid-validation showed the previous
               // connector's "Validation passed" result under the new one.
-              key={selectedEntry.connector.manifest.connector_id}
-              entry={selectedEntry}
+              key={selectedConnector.manifest.connector_id}
+              connector={selectedConnector}
               identitySession={identitySession}
               onTabChange={(tab: ConnectorDetailTab) => setUrlState({ tab })}
               registries={registries}
@@ -361,8 +350,8 @@ export function ConnectorConsole() {
           }
           list={
             <ConnectorList
-              entries={entries}
-              selectedConnectorId={selectedEntry.connector.manifest.connector_id}
+              connectors={connectors}
+              selectedConnectorId={selectedConnector.manifest.connector_id}
               onSelect={(connectorId) => setUrlState({
                 connectorId,
                 snapshotId: "",

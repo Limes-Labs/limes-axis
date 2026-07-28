@@ -63,6 +63,35 @@ const connectorPreviewSample = z.object({
   headers: stringArraySchema,
   sample_rows: z.array(stringRecord),
 });
+const connectorPersistedManifestSummary = z.object({
+  manifest_id: z.string(),
+  revision_number: z.number().int().positive(),
+  status: z.string(),
+  registered_by: z.string(),
+  registered_at: z.string(),
+  notes: stringArraySchema,
+});
+const connectorRegistryItem = z.object({
+  manifest: connectorManifest,
+  runtime_policy: connectorRuntimePolicy,
+  preview_sample: connectorPreviewSample.nullable(),
+  last_successful_sync: z.object({
+    run_id: z.string(),
+    completed_at: z.string(),
+    records_read: z.number().int().nonnegative(),
+  }).nullable(),
+  connector_status: platformStatusSchema,
+  registry_origin: z.enum(["reference", "persisted_manifest"]),
+  persisted_manifest: connectorPersistedManifestSummary.nullable(),
+}).superRefine((item, context) => {
+  if (item.registry_origin === "persisted_manifest" && item.persisted_manifest === null) {
+    context.addIssue({
+      code: "custom",
+      message: "Persisted-manifest connector items require persistence metadata.",
+      path: ["persisted_manifest"],
+    });
+  }
+});
 const proposedOntologyEntity = z.object({
   node_id: z.string(),
   node_type: z.string(),
@@ -130,17 +159,7 @@ const connectorRegistryHeader = {
 };
 const connectorRegistry = z.object({
   ...connectorRegistryHeader,
-  connectors: z.array(z.object({
-    manifest: connectorManifest,
-    runtime_policy: connectorRuntimePolicy,
-    preview_sample: connectorPreviewSample.nullable(),
-    last_successful_sync: z.object({
-      run_id: z.string(),
-      completed_at: z.string(),
-      records_read: z.number().int().nonnegative(),
-    }).nullable(),
-    connector_status: platformStatusSchema,
-  })),
+  connectors: z.array(connectorRegistryItem),
   connector_notes: stringArraySchema,
 });
 const connectorManifestRecord = z.object({
@@ -178,6 +197,32 @@ const connectorManifestDetail = z.object({
   connector_id: z.string(),
   current_revision: connectorManifestRecord,
   revisions: z.array(connectorManifestRecord),
+}).superRefine((detail, context) => {
+  const revisions = [detail.current_revision, ...detail.revisions];
+  revisions.forEach((revision, index) => {
+    const pathPrefix = index === 0 ? ["current_revision"] : ["revisions", index - 1];
+    if (revision.tenant_id !== detail.tenant_id) {
+      context.addIssue({
+        code: "custom",
+        message: "Manifest revision tenant does not match the detail envelope.",
+        path: [...pathPrefix, "tenant_id"],
+      });
+    }
+    if (revision.connector_id !== detail.connector_id) {
+      context.addIssue({
+        code: "custom",
+        message: "Manifest revision connector does not match the detail envelope.",
+        path: [...pathPrefix, "connector_id"],
+      });
+    }
+    if (revision.manifest.connector_id !== detail.connector_id) {
+      context.addIssue({
+        code: "custom",
+        message: "Nested manifest connector does not match the detail envelope.",
+        path: [...pathPrefix, "manifest", "connector_id"],
+      });
+    }
+  });
 });
 const connectorManifestBatchValidationResponse = z.object({
   tenant_id: z.string(),

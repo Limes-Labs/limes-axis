@@ -51,12 +51,25 @@ export type ConnectorSyncObservation = {
   records_read: number;
 };
 
+export type ConnectorRegistryOrigin = "reference" | "persisted_manifest";
+
+export type ConnectorPersistedManifestSummary = {
+  manifest_id: string;
+  revision_number: number;
+  status: string;
+  registered_by: string;
+  registered_at: string;
+  notes: string[];
+};
+
 export type ConnectorRegistryItem = {
   manifest: ConnectorManifest;
   runtime_policy: ConnectorRuntimePolicy;
   preview_sample: ConnectorPreviewSample | null;
   last_successful_sync: ConnectorSyncObservation | null;
   connector_status: PlatformStatus;
+  registry_origin: ConnectorRegistryOrigin;
+  persisted_manifest: ConnectorPersistedManifestSummary | null;
 };
 
 export type ManufacturingConnectorRegistry = {

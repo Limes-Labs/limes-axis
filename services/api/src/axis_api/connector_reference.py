@@ -2,8 +2,12 @@ from datetime import UTC
 
 from pydantic import ValidationError
 
+from axis_api.connector_registry_composition import (
+    connector_persisted_manifest_summary,
+)
 from axis_api.connectors import (
     ConnectorRegistryItem,
+    ConnectorRegistryOrigin,
     ConnectorSyncObservation,
     ManufacturingConnectorRegistry,
 )
@@ -37,29 +41,38 @@ def _with_registered_connector_manifests(
         tenant_id=registry.tenant_id,
     )
     records_by_connector_id = {record.connector_id: record for record in records}
-    connectors = [
-        ConnectorRegistryItem(
-            manifest=record.manifest_payload,
-            runtime_policy=record.runtime_policy,
-            preview_sample=record.preview_sample,
-            connector_status=connector.connector_status,
-        )
-        if (
-            record := records_by_connector_id.pop(
-                connector.manifest.connector_id,
-                None,
+    connectors: list[ConnectorRegistryItem] = []
+    for connector in registry.connectors:
+        record = records_by_connector_id.pop(connector.manifest.connector_id, None)
+        if record is None:
+            connectors.append(
+                connector.model_copy(
+                    update={
+                        "registry_origin": ConnectorRegistryOrigin.REFERENCE,
+                        "persisted_manifest": None,
+                    }
+                )
+            )
+            continue
+        connectors.append(
+            ConnectorRegistryItem(
+                manifest=record.manifest_payload,
+                runtime_policy=record.runtime_policy,
+                preview_sample=record.preview_sample,
+                last_successful_sync=connector.last_successful_sync,
+                connector_status=connector.connector_status,
+                registry_origin=ConnectorRegistryOrigin.REFERENCE,
+                persisted_manifest=connector_persisted_manifest_summary(record),
             )
         )
-        is not None
-        else connector
-        for connector in registry.connectors
-    ]
     connectors.extend(
         ConnectorRegistryItem(
             manifest=record.manifest_payload,
             runtime_policy=record.runtime_policy,
             preview_sample=record.preview_sample,
             connector_status="watch",
+            registry_origin=ConnectorRegistryOrigin.PERSISTED_MANIFEST,
+            persisted_manifest=connector_persisted_manifest_summary(record),
         )
         for record in records_by_connector_id.values()
     )

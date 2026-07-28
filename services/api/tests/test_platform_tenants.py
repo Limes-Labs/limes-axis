@@ -1,8 +1,10 @@
 import secrets
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from pydantic import BaseModel, ValidationError
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -27,7 +29,21 @@ from axis_api.persistence import (
 from axis_api.platform_tenants import (
     TENANT_VOCABULARY_LABEL_MAX_LENGTH,
     TENANT_VOCABULARY_MAX_DOMAIN_LABELS,
+    TenantProvisionConflict,
+    TenantProvisionRequest,
     TenantQuotaKey,
+    TenantQuotaUpdateRequest,
+    TenantReactivateRequest,
+    TenantRecord,
+    TenantSuspendRequest,
+    TenantVocabularyUpdateRequest,
+    bootstrap_first_tenant,
+)
+from axis_api.tenant_admission import (
+    TENANT_ADMISSION_CLAIMS_ONLY,
+    TENANT_ADMISSION_REGISTERED_ONLY,
+    UNREGISTERED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+    tenant_admission_denial_reason,
 )
 
 OPERATOR_ACTOR = "axis-platform-operator-role"
@@ -74,6 +90,7 @@ def provision_payload(
     tenant_id: str = TENANT_ID,
     display_name: str = "Acme Manufacturing",
     idempotency_key: str = "idem_provision_acme_v1",
+    requested_by: str = OPERATOR_ACTOR,
     actor_scopes: list[str] | None = None,
     bootstrap_admin: dict | None = None,
 ) -> dict:
@@ -81,7 +98,7 @@ def provision_payload(
         "tenant_id": tenant_id,
         "display_name": display_name,
         "description": "Reference multi-tenant SaaS design partner.",
-        "requested_by": OPERATOR_ACTOR,
+        "requested_by": requested_by,
         "actor_scopes": actor_scopes if actor_scopes is not None else OPERATOR_SCOPES,
         "idempotency_key": idempotency_key,
         "notes": ["Provisioned during platform tenant tests."],
@@ -96,6 +113,29 @@ def provision_payload(
         }
     )
     return payload
+
+
+def bootstrap_tenant(
+    factory: sessionmaker[Session],
+    *,
+    tenant_id: str = "tenant_axis_platform_ops",
+    display_name: str = "Axis platform operators",
+    idempotency_key: str = "idem_bootstrap_axis_platform_ops_v1",
+) -> TenantRecord:
+    request = TenantProvisionRequest.model_validate(
+        provision_payload(
+            tenant_id=tenant_id,
+            display_name=display_name,
+            idempotency_key=idempotency_key,
+            bootstrap_admin={
+                "actor_id": f"{tenant_id}-bootstrap-admin-role",
+                "display_name": f"{display_name} bootstrap admin",
+                "scopes": ["platform:tenant:operator"],
+            },
+        )
+    )
+    with session_scope(factory) as session:
+        return bootstrap_first_tenant(AxisPersistenceRepository(session), request)
 
 
 def suspend_payload(*, actor_scopes: list[str] | None = None) -> dict:
@@ -198,6 +238,300 @@ def session_cookie_for(
     return session_cookie_name(settings), cookie_value
 
 
+@pytest.mark.parametrize(
+    ("status", "admission_mode", "expected_reason"),
+    [
+        (None, TENANT_ADMISSION_CLAIMS_ONLY, None),
+        (None, TENANT_ADMISSION_REGISTERED_ONLY, "tenant_not_registered"),
+        ("active", TENANT_ADMISSION_REGISTERED_ONLY, None),
+        ("suspended", TENANT_ADMISSION_REGISTERED_ONLY, "tenant_suspended"),
+        (
+            "pending_deletion",
+            TENANT_ADMISSION_REGISTERED_ONLY,
+            "tenant_pending_deletion",
+        ),
+        (
+            "future_lifecycle_state",
+            TENANT_ADMISSION_REGISTERED_ONLY,
+            "tenant_status_not_active",
+        ),
+        (
+            "ACTIVE",
+            TENANT_ADMISSION_REGISTERED_ONLY,
+            "tenant_status_not_active",
+        ),
+    ],
+)
+def test_tenant_admission_policy_matrix(
+    status: str | None,
+    admission_mode: str,
+    expected_reason: str | None,
+) -> None:
+    assert tenant_admission_denial_reason(status, admission_mode=admission_mode) == expected_reason
+
+
+def test_first_tenant_bootstrap_succeeds_once_and_exact_replay_is_idempotent() -> None:
+    _client, factory = build_test_client()
+
+    created = bootstrap_tenant(factory)
+    replay = bootstrap_tenant(factory)
+
+    assert created.idempotent_replay is False
+    assert replay.idempotent_replay is True
+    with factory() as session:
+        assert len(list(session.scalars(select(Tenant)))) == 1
+        assert len(list(session.scalars(select(Actor)))) == 1
+        assert (
+            len(
+                audit_events(
+                    session,
+                    "tenant_axis_platform_ops",
+                    "platform.tenant.provisioned",
+                )
+            )
+            == 1
+        )
+
+
+def test_first_tenant_bootstrap_refuses_replay_of_normal_provisioning() -> None:
+    client, factory = build_test_client()
+    tenant_id = "tenant_axis_platform_ops"
+    payload = provision_payload(
+        tenant_id=tenant_id,
+        display_name="Axis platform operators",
+        idempotency_key="idem_bootstrap_axis_platform_ops_v1",
+        bootstrap_admin={
+            "actor_id": f"{tenant_id}-bootstrap-admin-role",
+            "display_name": "Axis platform operators bootstrap admin",
+            "scopes": ["platform:tenant:operator"],
+        },
+    )
+    assert client.post("/platform/tenants", json=payload).status_code == 201
+
+    with pytest.raises(TenantProvisionConflict) as exc_info:
+        bootstrap_tenant(factory)
+
+    assert exc_info.value.reason == "tenant_registry_already_initialized"
+    with factory() as session:
+        assert not audit_events(
+            session,
+            tenant_id,
+            "platform.tenant.first_bootstrap.completed",
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "corrupt_value"),
+    [
+        ("actor_id", "different-bootstrap-operator"),
+        ("authority", "authenticated_api"),
+        ("provision_audit_event_id", "00000000-0000-0000-0000-000000000000"),
+        ("idempotency_key", "different-bootstrap-key"),
+    ],
+)
+def test_first_tenant_bootstrap_refuses_replay_with_corrupt_authority_evidence(
+    field: str,
+    corrupt_value: str,
+) -> None:
+    _client, factory = build_test_client()
+    bootstrap_tenant(factory)
+    with session_scope(factory) as session:
+        event = audit_events(
+            session,
+            "tenant_axis_platform_ops",
+            "platform.tenant.first_bootstrap.completed",
+        )[0]
+        if field == "actor_id":
+            event.actor_id = corrupt_value
+        else:
+            event.payload = {**event.payload, field: corrupt_value}
+
+    with pytest.raises(TenantProvisionConflict) as exc_info:
+        bootstrap_tenant(factory)
+
+    assert exc_info.value.reason == "tenant_registry_already_initialized"
+
+
+@pytest.mark.parametrize(
+    ("tenant_id", "idempotency_key"),
+    [
+        ("tenant_axis_platform_ops", "idem_bootstrap_axis_platform_ops_v2"),
+        ("tenant_second_platform_ops", "idem_bootstrap_second_platform_ops_v1"),
+    ],
+)
+def test_first_tenant_bootstrap_refuses_non_replay_after_registry_initialization(
+    tenant_id: str,
+    idempotency_key: str,
+) -> None:
+    _client, factory = build_test_client()
+    bootstrap_tenant(factory)
+
+    with pytest.raises(TenantProvisionConflict) as exc_info:
+        bootstrap_tenant(
+            factory,
+            tenant_id=tenant_id,
+            display_name="Unexpected bootstrap",
+            idempotency_key=idempotency_key,
+        )
+
+    assert exc_info.value.reason == "tenant_registry_already_initialized"
+    with factory() as session:
+        tenants = list(session.scalars(select(Tenant)))
+        assert [tenant.id for tenant in tenants] == ["tenant_axis_platform_ops"]
+
+
+def test_registered_only_bootstrap_admits_operator_then_authenticated_provisioning() -> None:
+    operator_tenant_id = "tenant_axis_platform_ops"
+    settings = Settings(
+        postgres_dsn="sqlite+pysqlite://",
+        tenant_admission_mode=TENANT_ADMISSION_REGISTERED_ONLY,
+        tenant_state_cache_ttl_seconds=60,
+        oidc_auth_required=True,
+    )
+    client, factory = build_test_client(settings)
+    operator_principal = OidcPrincipal(
+        actor_id=OPERATOR_ACTOR,
+        tenant_id=operator_tenant_id,
+        scopes=OPERATOR_SCOPES,
+    )
+    client.app.state.identity_verifier = StaticIdentityVerifier(operator_principal)
+    bearer = {"Authorization": "Bearer valid-token"}
+
+    denied = client.get("/platform/tenants", headers=bearer)
+
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == {
+        "code": "PERMISSION_DENIED",
+        "message": "The tenant for this request is not active.",
+        "reason": "tenant_not_registered",
+        "tenant_status": "unregistered",
+    }
+    with factory() as session:
+        denial_events = audit_events(
+            session,
+            operator_tenant_id,
+            UNREGISTERED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+        )
+        assert len(denial_events) == 1
+        assert denial_events[0].payload["path"] == "/platform/tenants"
+        assert denial_events[0].payload["tenant_status"] == "unregistered"
+
+    # The one-shot command runs after migrations and before the first operator
+    # login. Recreate the process here only to clear the deliberate miss cached
+    # by the pre-bootstrap denial above.
+    bootstrap_tenant(factory, tenant_id=operator_tenant_id)
+    restarted_app = create_app(settings)
+    restarted_app.state.session_factory = factory
+    restarted_app.state.identity_verifier = StaticIdentityVerifier(operator_principal)
+    restarted_client = TestClient(restarted_app)
+
+    registry = restarted_client.get("/platform/tenants", headers=bearer)
+    assert registry.status_code == 200
+    assert [tenant["tenant_id"] for tenant in registry.json()["tenants"]] == [operator_tenant_id]
+
+    # Prime an unregistered cache entry for the target tenant, then prove that
+    # authenticated provisioning invalidates it after persistence succeeds.
+    target_principal = OidcPrincipal(
+        actor_id="acme-console-user-role",
+        tenant_id=TENANT_ID,
+        scopes=["platform:policy:read"],
+    )
+    restarted_app.state.identity_verifier = StaticIdentityVerifier(target_principal)
+    target_denied = restarted_client.get(
+        "/platform/policies",
+        params={"tenant_id": TENANT_ID},
+        headers=bearer,
+    )
+    assert target_denied.status_code == 403
+    assert target_denied.json()["detail"]["reason"] == "tenant_not_registered"
+
+    restarted_app.state.identity_verifier = StaticIdentityVerifier(operator_principal)
+    provisioned = restarted_client.post(
+        "/platform/tenants",
+        json=provision_payload(actor_scopes=[]),
+        headers=bearer,
+    )
+    assert provisioned.status_code == 201
+
+    restarted_app.state.identity_verifier = StaticIdentityVerifier(target_principal)
+    admitted = restarted_client.get(
+        "/platform/policies",
+        params={"tenant_id": TENANT_ID},
+        headers=bearer,
+    )
+    assert admitted.status_code == 200
+
+
+def test_tenant_cache_invalidation_runs_only_after_successful_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, factory = build_test_client()
+    transaction_events: list[str] = []
+    cache = client.app.state.tenant_state_cache
+    original_invalidate = cache.invalidate
+
+    def observe_commit(_session: Session) -> None:
+        transaction_events.append("commit")
+
+    def reject_commit_once(_session: Session) -> None:
+        raise RuntimeError("forced commit failure")
+
+    def observe_invalidation(tenant_id: str) -> None:
+        transaction_events.append(f"invalidate:{tenant_id}")
+        original_invalidate(tenant_id)
+
+    event.listen(factory.class_, "after_commit", observe_commit)
+    monkeypatch.setattr(cache, "invalidate", observe_invalidation)
+    try:
+        event.listen(factory.class_, "before_commit", reject_commit_once)
+        try:
+            with pytest.raises(RuntimeError, match="forced commit failure"):
+                client.post("/platform/tenants", json=provision_payload())
+        finally:
+            event.remove(factory.class_, "before_commit", reject_commit_once)
+
+        assert transaction_events == []
+        with factory() as session:
+            assert session.get(Tenant, TENANT_ID) is None
+
+        succeeded = client.post("/platform/tenants", json=provision_payload())
+        assert succeeded.status_code == 201
+        assert transaction_events == ["commit", f"invalidate:{TENANT_ID}"]
+    finally:
+        event.remove(factory.class_, "after_commit", observe_commit)
+
+
+def test_registered_only_cookie_admission_rejects_unregistered_tenant() -> None:
+    settings = Settings(
+        postgres_dsn="sqlite+pysqlite://",
+        tenant_admission_mode=TENANT_ADMISSION_REGISTERED_ONLY,
+        oidc_session_cookie_signing_secret="registered-only-cookie-test-secret",
+    )
+    client, factory = build_test_client(settings)
+    cookie_name, cookie_value = session_cookie_for(
+        settings,
+        factory=factory,
+        tenant_id=TENANT_ID,
+    )
+    client.cookies.set(cookie_name, cookie_value)
+
+    denied = client.get("/identity/session")
+
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["reason"] == "tenant_not_registered"
+    with factory() as session:
+        assert (
+            len(
+                audit_events(
+                    session,
+                    TENANT_ID,
+                    UNREGISTERED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+                )
+            )
+            == 1
+        )
+
+
 def test_provision_endpoint_creates_tenant_bootstrap_admin_and_audit() -> None:
     client, factory = build_test_client()
 
@@ -225,11 +559,70 @@ def test_provision_endpoint_creates_tenant_bootstrap_admin_and_audit() -> None:
         assert len(events) == 1
         assert events[0].actor_id == OPERATOR_ACTOR
         assert events[0].payload["bootstrap_admin_actor_id"] == "acme-platform-admin-role"
+        assert events[0].payload["bootstrap_admin_display_name"] == "Acme platform admin"
         assert events[0].payload["bootstrap_admin_requested_scopes"] == [
             "platform:policy:author",
             "audit:read",
         ]
         assert events[0].payload["permission_decision"]["allowed"] is True
+
+
+@pytest.mark.parametrize(("actor_length", "expected_status"), [(120, 201), (121, 422)])
+def test_provision_endpoint_validates_actor_against_audit_storage_limit(
+    actor_length: int,
+    expected_status: int,
+) -> None:
+    client, factory = build_test_client()
+    requested_by = "o" * actor_length
+
+    response = client.post(
+        "/platform/tenants",
+        json=provision_payload(requested_by=requested_by),
+    )
+
+    assert response.status_code == expected_status
+    with factory() as session:
+        events = audit_events(session, TENANT_ID, "platform.tenant.provisioned")
+        if expected_status == 201:
+            assert events[0].actor_id == requested_by
+        else:
+            assert session.get(Tenant, TENANT_ID) is None
+            assert events == []
+
+
+@pytest.mark.parametrize(
+    ("request_model", "payload"),
+    [
+        (TenantProvisionRequest, provision_payload()),
+        (
+            TenantSuspendRequest,
+            {
+                "actor_scopes": OPERATOR_SCOPES,
+                "reason": "Boundary validation.",
+            },
+        ),
+        (TenantReactivateRequest, {"actor_scopes": OPERATOR_SCOPES}),
+        (
+            TenantQuotaUpdateRequest,
+            {"actor_scopes": OPERATOR_SCOPES, "quotas": {}},
+        ),
+        (
+            TenantVocabularyUpdateRequest,
+            {"actor_scopes": OPERATOR_SCOPES, "vocabulary": {}},
+        ),
+    ],
+)
+def test_platform_tenant_audit_actor_models_share_the_storage_boundary(
+    request_model: type[BaseModel],
+    payload: dict,
+) -> None:
+    boundary_actor = "o" * 120
+
+    request = request_model.model_validate({**payload, "requested_by": boundary_actor})
+    assert request.requested_by == boundary_actor
+
+    with pytest.raises(ValidationError):
+        request_model.model_validate({**payload, "requested_by": "o" * 121})
 
 
 def test_provision_endpoint_replays_idempotent_request() -> None:
@@ -244,6 +637,127 @@ def test_provision_endpoint_replays_idempotent_request() -> None:
         assert len(list(session.scalars(select(Tenant)))) == 1
         assert len(list(session.scalars(select(Actor)))) == 1
         assert len(audit_events(session, TENANT_ID, "platform.tenant.provisioned")) == 1
+
+
+def test_provision_replay_survives_suspend_and_reactivate_lifecycle_evidence() -> None:
+    client, factory = build_test_client()
+    payload = provision_payload()
+    assert client.post("/platform/tenants", json=payload).status_code == 201
+
+    suspended = client.post(
+        f"/platform/tenants/{TENANT_ID}/suspend",
+        json=suspend_payload(),
+    )
+    assert suspended.status_code == 200
+    assert suspended.json()["audit_event_type"] == "platform.tenant.suspended"
+
+    suspended_replay = client.post("/platform/tenants", json=payload)
+    assert suspended_replay.status_code == 200
+    assert suspended_replay.json()["status"] == "suspended"
+    assert suspended_replay.json()["idempotent_replay"] is True
+
+    reactivated = client.post(
+        f"/platform/tenants/{TENANT_ID}/reactivate",
+        json=reactivate_payload(),
+    )
+    assert reactivated.status_code == 200
+    assert reactivated.json()["audit_event_type"] == "platform.tenant.reactivated"
+
+    active_replay = client.post("/platform/tenants", json=payload)
+    assert active_replay.status_code == 200
+    assert active_replay.json()["status"] == "active"
+    assert active_replay.json()["idempotent_replay"] is True
+
+    with factory() as session:
+        tenant = session.get(Tenant, TENANT_ID)
+        assert tenant is not None
+        assert tenant.notes != payload["notes"]
+        assert tenant.audit_event_type == "platform.tenant.reactivated"
+        assert len(audit_events(session, TENANT_ID, "platform.tenant.provisioned")) == 1
+
+
+def test_legacy_provision_replay_rejects_changed_notes_before_lifecycle() -> None:
+    client, factory = build_test_client()
+    payload = provision_payload()
+    assert client.post("/platform/tenants", json=payload).status_code == 201
+    with session_scope(factory) as session:
+        event = audit_events(session, TENANT_ID, "platform.tenant.provisioned")[0]
+        event.payload = {
+            key: value
+            for key, value in event.payload.items()
+            if key not in {"description", "provision_notes"}
+        }
+
+    assert client.post("/platform/tenants", json=payload).status_code == 200
+
+    changed = client.post(
+        "/platform/tenants",
+        json={**payload, "notes": ["Changed legacy provisioning note."]},
+    )
+
+    assert changed.status_code == 409
+    assert changed.json()["detail"]["reason"] == "provision_idempotency_conflict"
+
+
+def test_legacy_provision_replay_fails_closed_after_lifecycle_note_ambiguity() -> None:
+    client, factory = build_test_client()
+    payload = provision_payload()
+    assert client.post("/platform/tenants", json=payload).status_code == 201
+    with session_scope(factory) as session:
+        event = audit_events(session, TENANT_ID, "platform.tenant.provisioned")[0]
+        event.payload = {
+            key: value
+            for key, value in event.payload.items()
+            if key not in {"description", "provision_notes"}
+        }
+
+    assert (
+        client.post(
+            f"/platform/tenants/{TENANT_ID}/suspend",
+            json=suspend_payload(),
+        ).status_code
+        == 200
+    )
+
+    replay = client.post("/platform/tenants", json=payload)
+
+    assert replay.status_code == 409
+    assert replay.json()["detail"]["reason"] == "provision_idempotency_conflict"
+
+
+def test_provision_replay_rejects_ambiguous_provision_evidence() -> None:
+    client, factory = build_test_client()
+    payload = provision_payload()
+    assert client.post("/platform/tenants", json=payload).status_code == 201
+    with session_scope(factory) as session:
+        original = audit_events(session, TENANT_ID, "platform.tenant.provisioned")[0]
+        session.add(
+            AuditEvent(
+                tenant_id=original.tenant_id,
+                actor_id=original.actor_id,
+                event_type=original.event_type,
+                payload=dict(original.payload),
+            )
+        )
+
+    replay = client.post("/platform/tenants", json=payload)
+
+    assert replay.status_code == 409
+    assert replay.json()["detail"]["reason"] == "provision_idempotency_conflict"
+
+
+def test_provision_replay_rejects_corrupt_immutable_provision_evidence() -> None:
+    client, factory = build_test_client()
+    payload = provision_payload()
+    assert client.post("/platform/tenants", json=payload).status_code == 201
+    with session_scope(factory) as session:
+        event = audit_events(session, TENANT_ID, "platform.tenant.provisioned")[0]
+        event.payload = {**event.payload, "description": "Corrupt description"}
+
+    replay = client.post("/platform/tenants", json=payload)
+
+    assert replay.status_code == 409
+    assert replay.json()["detail"]["reason"] == "provision_idempotency_conflict"
 
 
 def test_provision_endpoint_rejects_idempotency_conflict() -> None:
@@ -585,8 +1099,7 @@ def test_quota_endpoint_updates_clears_and_audits_changes() -> None:
         "max_concurrent_sessions": 2,
     }
     assert all(
-        change["audit_event_type"] == "platform.tenant.quota.updated"
-        for change in body["changes"]
+        change["audit_event_type"] == "platform.tenant.quota.updated" for change in body["changes"]
     )
 
     fetched = client.get(f"/platform/tenants/{TENANT_ID}/quotas")
@@ -620,8 +1133,7 @@ def test_quota_endpoint_updates_clears_and_audits_changes() -> None:
         events = audit_events(session, TENANT_ID, "platform.tenant.quota.updated")
         assert len(events) == 5
         stored = {
-            quota.quota_key: quota.quota_value
-            for quota in session.scalars(select(TenantQuota))
+            quota.quota_key: quota.quota_value for quota in session.scalars(select(TenantQuota))
         }
         assert stored == {
             "api_requests_per_window": 75,
@@ -880,11 +1392,15 @@ def test_vocabulary_unknown_tenant_matches_platform_404() -> None:
 
     assert fetched.status_code == 404
     assert updated.status_code == 404
-    assert fetched.json()["detail"] == updated.json()["detail"] == {
-        "code": "NOT_FOUND",
-        "message": "The tenant was not found.",
-        "tenant_id": "tenant_missing",
-    }
+    assert (
+        fetched.json()["detail"]
+        == updated.json()["detail"]
+        == {
+            "code": "NOT_FOUND",
+            "message": "The tenant was not found.",
+            "tenant_id": "tenant_missing",
+        }
+    )
 
 
 def test_tenant_detail_endpoint_returns_record() -> None:
@@ -929,10 +1445,7 @@ def test_tenant_detail_requires_operator_read_scopes_when_authenticated() -> Non
         headers={"Authorization": "Bearer valid-token"},
     )
     assert missing_operator.status_code == 403
-    assert (
-        missing_operator.json()["detail"]["required_permission"]
-        == "platform:tenant:operator"
-    )
+    assert missing_operator.json()["detail"]["required_permission"] == "platform:tenant:operator"
 
     client.app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
@@ -946,9 +1459,7 @@ def test_tenant_detail_requires_operator_read_scopes_when_authenticated() -> Non
         headers={"Authorization": "Bearer valid-token"},
     )
     assert missing_read.status_code == 403
-    assert (
-        missing_read.json()["detail"]["required_permission"] == "platform:tenant:read"
-    )
+    assert missing_read.json()["detail"]["required_permission"] == "platform:tenant:read"
 
     client.app.state.identity_verifier = StaticIdentityVerifier(
         OidcPrincipal(
@@ -1002,9 +1513,7 @@ def test_tenant_detail_is_isolated_per_tenant_for_cross_tenant_operator() -> Non
     assert acme.json()["tenant_id"] == TENANT_ID
     assert acme.json()["display_name"] == "Acme Manufacturing"
 
-    beta = client.get(
-        "/platform/tenants/tenant_beta_manufacturing", headers=headers
-    )
+    beta = client.get("/platform/tenants/tenant_beta_manufacturing", headers=headers)
     assert beta.status_code == 200
     assert beta.json()["tenant_id"] == "tenant_beta_manufacturing"
     assert beta.json()["display_name"] == "Beta Manufacturing"

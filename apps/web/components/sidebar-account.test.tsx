@@ -118,4 +118,12 @@ describe("SidebarAccount", () => {
       "page",
     );
   });
+
+  it("marks the compact Settings shortcut current instead of hiding route context", () => {
+    renderFooter({ settingsActive: true, variant: "compact" });
+
+    const settings = screen.getByRole("link", { name: strings.pages.settings.title });
+    expect(settings).toHaveAttribute("aria-current", "page");
+    expect(settings).toHaveClass("icon-button-active");
+  });
 });

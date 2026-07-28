@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/settings/sessions",
+}));
+
 vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
 }));
@@ -103,6 +107,16 @@ beforeEach(() => {
 });
 
 describe("ConsoleTopbar notification badge", () => {
+  it("marks the compact Settings shortcut current on descendant routes", () => {
+    mockNotifications(0);
+    render(<ConsoleTopbar />);
+
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   it("caps a double-digit unread count at 9+, matching the sidebar convention", () => {
     mockNotifications(25);
     render(<ConsoleTopbar />);

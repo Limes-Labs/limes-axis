@@ -572,7 +572,6 @@ from axis_api.platform_tenants import (
     REQUIRED_READ_SCOPE as PLATFORM_TENANT_READ_SCOPE,
 )
 from axis_api.platform_tenants import (
-    SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
     TenantLifecycleConflict,
     TenantLifecycleStatus,
     TenantListCursorError,
@@ -590,7 +589,6 @@ from axis_api.platform_tenants import (
     TenantSuspendRequest,
     TenantVocabularySet,
     TenantVocabularyUpdateRequest,
-    blocked_tenant_reason,
     build_tenant_registry,
     decode_tenant_cursor,
     get_tenant_detail,
@@ -660,6 +658,10 @@ from axis_api.telemetry import (
     set_span_attributes,
     shutdown_providers,
 )
+from axis_api.tenant_admission import (
+    tenant_admission_denial_audit_event_type,
+    tenant_admission_denial_reason,
+)
 from axis_api.usage_metering import (
     REQUIRED_USAGE_READ_SCOPE as PLATFORM_TENANT_USAGE_SCOPE,
 )
@@ -689,7 +691,9 @@ _LOGGER = logging.getLogger("axis_api")
 
 def persistence_repository(request: Request) -> Generator[AxisPersistenceRepository]:
     with session_scope(request.app.state.session_factory) as session:
-        yield AxisPersistenceRepository(session)
+        repository = AxisPersistenceRepository(session)
+        yield repository
+    repository.run_after_commit_callbacks()
 
 
 PersistenceRepository = Annotated[
@@ -922,7 +926,7 @@ def oidc_principal(
     settings: Settings = request.app.state.settings
     cached_principal = getattr(request.state, "axis_principal", None)
     if authorization and isinstance(cached_principal, OidcPrincipal):
-        _reject_suspended_tenant_request(request, cached_principal)
+        _enforce_tenant_admission(request, cached_principal)
         _annotate_request_span_with_principal(cached_principal)
         _record_request_usage_admission(request, cached_principal)
         return cached_principal
@@ -976,7 +980,7 @@ def oidc_principal(
                 if cookie_failure_reason is not None:
                     raise OidcCookieValidationError(cookie_failure_reason)
                 if principal is not None:
-                    _reject_suspended_tenant_request(request, principal)
+                    _enforce_tenant_admission(request, principal)
                     _annotate_request_span_with_principal(principal)
                     request.state.axis_principal = principal
                     _record_request_usage_admission(request, principal)
@@ -1030,7 +1034,7 @@ def oidc_principal(
                 "reason": exc.reason,
             },
         ) from exc
-    _reject_suspended_tenant_request(request, principal)
+    _enforce_tenant_admission(request, principal)
     _annotate_request_span_with_principal(principal)
     request.state.axis_principal = principal
     _record_request_usage_admission(request, principal)
@@ -1066,15 +1070,16 @@ def _annotate_request_span_with_principal(principal: OidcPrincipal) -> None:
     )
 
 
-def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal) -> None:
-    """Fail closed on any authenticated request for a non-active tenant.
+def _enforce_tenant_admission(request: Request, principal: OidcPrincipal) -> None:
+    """Fail closed on an authenticated principal denied by tenant policy.
 
     This runs where tenant scoping is resolved for every OIDC-bound route: the
     shared principal dependency, covering both bearer tokens and browser session
     cookies. Unauthenticated demo-mode requests carry no verified tenant context
     and are not covered, matching the demo-mode caveat used across the API.
-    Status lookups go through the short-TTL tenant state cache, so a suspension
-    takes effect within the documented staleness window.
+    Status lookups go through the short-TTL tenant state cache, so lifecycle
+    changes and newly registered tenants take effect within the documented
+    cross-replica staleness window.
     """
     cache: TenantStateCache | None = getattr(request.app.state, "tenant_state_cache", None)
     session_factory = getattr(request.app.state, "session_factory", None)
@@ -1091,18 +1096,23 @@ def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal)
                 "reason": "tenant_state_unavailable",
             },
         ) from exc
-    reason = blocked_tenant_reason(snapshot.status)
+    settings: Settings = request.app.state.settings
+    reason = tenant_admission_denial_reason(
+        snapshot.status,
+        admission_mode=settings.tenant_admission_mode,
+    )
     if reason is None:
         return
+    tenant_status = snapshot.status or "unregistered"
     with session_scope(session_factory) as session:
         AxisPersistenceRepository(session).append_audit_event(
             AuditEventCreate(
                 tenant_id=principal.tenant_id,
                 actor_id=principal.actor_id,
-                event_type=SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+                event_type=tenant_admission_denial_audit_event_type(reason),
                 payload={
                     "tenant_id": principal.tenant_id,
-                    "tenant_status": snapshot.status,
+                    "tenant_status": tenant_status,
                     "reason": reason,
                     "method": request.method,
                     "path": request.url.path,
@@ -1116,16 +1126,18 @@ def _reject_suspended_tenant_request(request: Request, principal: OidcPrincipal)
             "code": AxisErrorCode.PERMISSION_DENIED.value,
             "message": "The tenant for this request is not active.",
             "reason": reason,
-            "tenant_status": snapshot.status,
+            "tenant_status": tenant_status,
         },
     )
 
 
-def _fresh_blocked_tenant_reason(
+def _fresh_tenant_admission_denial_reason(
     repository: AxisPersistenceRepository,
     tenant_id: str,
+    *,
+    admission_mode: str,
 ) -> str | None:
-    """Read the tenant lifecycle status directly and return a block reason.
+    """Read tenant state directly and return the admission denial reason.
 
     Session establishment and rotation are low-frequency security boundaries, so
     they read the persisted status directly (bypassing the request-path TTL
@@ -1133,7 +1145,10 @@ def _fresh_blocked_tenant_reason(
     very next login or refresh, never up to one TTL later.
     """
     tenant = repository.get_tenant(tenant_id)
-    return blocked_tenant_reason(tenant.status if tenant is not None else None)
+    return tenant_admission_denial_reason(
+        tenant.status if tenant is not None else None,
+        admission_mode=admission_mode,
+    )
 
 
 OIDC_SESSION_BOUNDARY = "http_only_cookie_verified_by_axis_api"
@@ -1194,8 +1209,10 @@ def _claim_session_refresh(
         # Fail closed on refresh for a non-active tenant with a fresh status read,
         # revoking the session with distinct audit evidence exactly like any other
         # dead-session refresh precondition. No new session cookie is issued.
-        refresh_block_reason = _fresh_blocked_tenant_reason(
-            repository, stored_session.tenant_id
+        refresh_block_reason = _fresh_tenant_admission_denial_reason(
+            repository,
+            stored_session.tenant_id,
+            admission_mode=settings.tenant_admission_mode,
         )
         if refresh_block_reason is not None:
             if stored_session.status in {"active", "refreshing"}:
@@ -2872,8 +2889,10 @@ def create_app(
                 )
             with session_scope(request.app.state.session_factory) as guard_session:
                 guard_repository = AxisPersistenceRepository(guard_session)
-                login_block_reason = _fresh_blocked_tenant_reason(
-                    guard_repository, principal.tenant_id
+                login_block_reason = _fresh_tenant_admission_denial_reason(
+                    guard_repository,
+                    principal.tenant_id,
+                    admission_mode=resolved_settings.tenant_admission_mode,
                 )
                 if login_block_reason is not None:
                     # Persist the denial in its own committed transaction before
@@ -2882,7 +2901,9 @@ def create_app(
                         AuditEventCreate(
                             tenant_id=principal.tenant_id,
                             actor_id=principal.actor_id,
-                            event_type=SUSPENDED_REQUEST_DENIED_AUDIT_EVENT_TYPE,
+                            event_type=tenant_admission_denial_audit_event_type(
+                                login_block_reason
+                            ),
                             payload={
                                 "tenant_id": principal.tenant_id,
                                 "reason": login_block_reason,
@@ -7284,6 +7305,9 @@ def create_app(
 
         if result.idempotent_replay:
             response.status_code = status.HTTP_200_OK
+        repository.defer_until_after_commit(
+            lambda: app.state.tenant_state_cache.invalidate(result.tenant_id)
+        )
         return result
 
     @app.get(
@@ -7373,7 +7397,9 @@ def create_app(
         except TenantLifecycleConflict as exc:
             raise _platform_tenant_lifecycle_conflict_http_exception(exc) from exc
 
-        app.state.tenant_state_cache.invalidate(tenant_id)
+        repository.defer_until_after_commit(
+            lambda: app.state.tenant_state_cache.invalidate(tenant_id)
+        )
         return result
 
     @app.post(
@@ -7406,7 +7432,9 @@ def create_app(
         except TenantLifecycleConflict as exc:
             raise _platform_tenant_lifecycle_conflict_http_exception(exc) from exc
 
-        app.state.tenant_state_cache.invalidate(tenant_id)
+        repository.defer_until_after_commit(
+            lambda: app.state.tenant_state_cache.invalidate(tenant_id)
+        )
         return result
 
     @app.get(
@@ -7532,7 +7560,9 @@ def create_app(
                 "The actor cannot update tenant quotas.",
             ) from exc
 
-        app.state.tenant_state_cache.invalidate(tenant_id)
+        repository.defer_until_after_commit(
+            lambda: app.state.tenant_state_cache.invalidate(tenant_id)
+        )
         return result
 
     @app.put(

@@ -105,6 +105,14 @@ def bootstrap_connector_registry() -> ManufacturingConnectorRegistry:
     return ManufacturingConnectorRegistry.model_validate(connector_registry_payload())
 
 
+def test_connector_registry_rejects_persisted_origin_without_metadata() -> None:
+    payload = connector_registry_payload()
+    payload["connectors"][0]["registry_origin"] = "persisted_manifest"
+
+    with pytest.raises(ValueError, match="require persistence metadata"):
+        ManufacturingConnectorRegistry.model_validate(payload)
+
+
 def seed_connector_registry_reference(
     factory: sessionmaker[Session],
     payload: dict | None = None,
@@ -415,6 +423,9 @@ def test_connector_registry_observes_success_for_manifest_only_connector(
     assert connector.last_successful_sync is not None
     assert connector.last_successful_sync.run_id == "run_manifest_only_success"
     assert connector.last_successful_sync.records_read == 29
+    assert connector.registry_origin == "persisted_manifest"
+    assert connector.persisted_manifest is not None
+    assert connector.persisted_manifest.status == "registered_preview_only"
 
 
 def test_connector_registry_uses_most_recent_successful_sync_completion(
@@ -487,6 +498,8 @@ def test_connector_registry_sync_observation_is_derived_without_manifest_write(
             "updated_at": manifest_before.updated_at,
         }
         assert registry_before.connectors[0].last_successful_sync is None
+        assert registry_before.connectors[0].registry_origin == "reference"
+        assert registry_before.connectors[0].persisted_manifest is not None
 
         create_connector_run(
             repository,
@@ -561,6 +574,8 @@ def test_connector_registry_endpoint_composes_live_manifest_without_reference_re
     )
 
     assert response.status_code == 200
+    assert manifest_response.status_code == 200
+    manifest_body = manifest_response.json()
     body = response.json()
     assert body["provenance"] == "live"
     assert body["registry_status"] == "ready"
@@ -577,9 +592,17 @@ def test_connector_registry_endpoint_composes_live_manifest_without_reference_re
     ]
     assert body["connectors"][0]["connector_status"] == "watch"
     assert body["connectors"][0]["last_successful_sync"] is None
+    assert body["connectors"][0]["registry_origin"] == "persisted_manifest"
+    assert body["connectors"][0]["persisted_manifest"] == {
+        "manifest_id": manifest_body["manifests"][0]["manifest_id"],
+        "revision_number": 1,
+        "status": "registered_preview_only",
+        "registered_by": "platform-connector-owner-role",
+        "registered_at": manifest_body["manifests"][0]["created_at"],
+        "notes": [],
+    }
 
-    assert manifest_response.status_code == 200
-    assert [item["connector_id"] for item in manifest_response.json()["manifests"]] == [
+    assert [item["connector_id"] for item in manifest_body["manifests"]] == [
         "file_csv_manufacturing_assets"
     ]
     assert "password" not in str(body).lower()
@@ -691,6 +714,19 @@ def test_connector_registry_materializes_full_tenant_view_in_constant_queries(
     assert len(connectors_by_id) == 103
     assert oldest_connector_id in connectors_by_id
     assert other_tenant_connector_id not in connectors_by_id
+    reference_connector_id = template["manifest"]["connector_id"]
+    assert connectors_by_id[reference_connector_id]["registry_origin"] == "reference"
+    assert connectors_by_id[reference_connector_id]["persisted_manifest"] is None
+    assert connectors_by_id[oldest_connector_id]["registry_origin"] == (
+        "persisted_manifest"
+    )
+    oldest_persistence = connectors_by_id[oldest_connector_id]["persisted_manifest"]
+    assert oldest_persistence["manifest_id"]
+    assert oldest_persistence["registered_at"]
+    assert oldest_persistence["revision_number"] == 1
+    assert oldest_persistence["status"] == "registered_preview_only"
+    assert oldest_persistence["registered_by"] == "platform-connector-owner-role"
+    assert oldest_persistence["notes"] == []
     assert connectors_by_id[oldest_connector_id]["last_successful_sync"] == {
         "run_id": "run_scale_oldest",
         "completed_at": "2026-07-24T09:00:00Z",

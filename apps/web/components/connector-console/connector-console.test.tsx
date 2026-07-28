@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   connectorEndpointFixtures,
   connectorRegistryFixture,
+  manifestDetailFixture,
   manifestRegistryFixture,
 } from "./connector-fixtures";
 
@@ -139,7 +140,7 @@ describe("ConnectorConsole states", () => {
     const connectorCalls = mocks.useAxisQuery.mock.calls.filter(
       ([path]) => typeof path === "string" && path.startsWith(`${OPERATIONS_API_PREFIX}/connectors`),
     );
-    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(10);
+    expect(new Set(connectorCalls.map(([path]) => path)).size).toBe(9);
     connectorCalls.forEach(([path, options]) => {
       expect(path).toContain("tenant_id=tenant_acme");
       expect(options).toMatchObject({ expectedTenantId: "tenant_acme" });
@@ -194,12 +195,6 @@ describe("ConnectorConsole states", () => {
     mockQueries({
       [`${OPERATIONS_API_PREFIX}/connectors`]: {
         data: { ...connectorRegistryFixture, connectors: [] },
-        source: "api",
-      },
-      // A truly empty tenant has no persisted manifests either; a manifest
-      // record alone would legitimately render as a connector entry.
-      [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: {
-        data: { ...manifestRegistryFixture, manifests: [] },
         source: "api",
       },
     });
@@ -400,13 +395,22 @@ describe("ConnectorConsole list and detail", () => {
   it("renders never-sampled state in the connector list and detail", async () => {
     const user = userEvent.setup();
     mockQueries({
-      [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: {
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
         data: {
-          ...manifestRegistryFixture,
-          manifests: manifestRegistryFixture.manifests.map((manifest) => ({
-            ...manifest,
+          ...connectorRegistryFixture,
+          connectors: connectorRegistryFixture.connectors.map((connector, index) => (
+            index === 0 ? { ...connector, preview_sample: null } : connector
+          )),
+        },
+        source: "api",
+      },
+      [`${OPERATIONS_API_PREFIX}/connectors/manifests/file_csv_manufacturing_assets`]: {
+        data: {
+          ...manifestDetailFixture,
+          current_revision: {
+            ...manifestDetailFixture.current_revision,
             preview_sample: null,
-          })),
+          },
         },
         source: "api",
       },
@@ -574,7 +578,7 @@ describe("ConnectorConsole list and detail", () => {
   });
 });
 
-describe("ConnectorConsole merged manifest entries", () => {
+describe("ConnectorConsole persisted registry entries", () => {
   const wizardManifest = {
     ...manifestRegistryFixture.manifests[0],
     manifest_id: "manifest-wizard",
@@ -587,64 +591,239 @@ describe("ConnectorConsole merged manifest entries", () => {
       display_name: "Press shop assets",
     },
   };
+  const wizardConnector = {
+    ...connectorRegistryFixture.connectors[0],
+    manifest: wizardManifest.manifest,
+    runtime_policy: wizardManifest.runtime_policy,
+    preview_sample: wizardManifest.preview_sample,
+    last_successful_sync: null,
+    connector_status: "watch" as const,
+    registry_origin: "persisted_manifest" as const,
+    persisted_manifest: {
+      manifest_id: wizardManifest.manifest_id,
+      revision_number: wizardManifest.revision_number,
+      status: wizardManifest.status,
+      registered_by: wizardManifest.registered_by,
+      registered_at: wizardManifest.created_at,
+      notes: wizardManifest.notes,
+    },
+  };
 
   function mockWithWizardManifest() {
     mockQueries({
-      [`${OPERATIONS_API_PREFIX}/connectors/manifests`]: {
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
         data: {
-          ...manifestRegistryFixture,
-          manifests: [...manifestRegistryFixture.manifests, wizardManifest],
+          ...connectorRegistryFixture,
+          connectors: [...connectorRegistryFixture.connectors, wizardConnector],
+        },
+        source: "api",
+      },
+      [`${OPERATIONS_API_PREFIX}/connectors/manifests/${wizardManifest.connector_id}`]: {
+        data: {
+          tenant_id: wizardManifest.tenant_id,
+          connector_id: wizardManifest.connector_id,
+          current_revision: wizardManifest,
+          revisions: [wizardManifest],
         },
         source: "api",
       },
     });
   }
 
-  it("shows a wizard-registered manifest in the list with a Registered pill", () => {
+  it("shows a wizard-registered manifest in the list with its lifecycle state", () => {
     mockWithWizardManifest();
     renderConsole();
 
     const item = screen.getByRole("button", { name: /Press shop assets/ });
-    expect(within(item).getByText("Registered")).toBeInTheDocument();
+    expect(within(item).getByText("Registered Preview Only")).toBeInTheDocument();
   });
 
   it("counts reference plus persisted-unique connectors in the Connectors metric", () => {
     mockWithWizardManifest();
     renderConsole();
 
-    // 2 reference connectors + 1 manifest-only record; the fixture manifest
-    // for file_csv_manufacturing_assets dedupes against its reference entry.
     const metrics = screen.getAllByRole("listitem");
     expect(within(metrics[0]).getByText("3")).toBeInTheDocument();
   });
 
-  it("dedupes manifests that match a reference connector by connector_id", () => {
+  it("keeps persisted provenance and selected detail beyond the old 100-manifest boundary", () => {
+    const persistedConnectors = Array.from({ length: 101 }, (_, index) => {
+      const connectorId = `file_csv_scale_${index.toString().padStart(3, "0")}`;
+      return {
+        ...wizardConnector,
+        manifest: {
+          ...wizardConnector.manifest,
+          connector_id: connectorId,
+          display_name: `Scale fixture ${index.toString().padStart(3, "0")}`,
+        },
+        persisted_manifest: {
+          ...wizardConnector.persisted_manifest,
+          manifest_id: `manifest-scale-${index}`,
+        },
+      };
+    });
+    const oldestConnector = persistedConnectors[0];
+    const oldestManifest = {
+      ...wizardManifest,
+      manifest_id: oldestConnector.persisted_manifest.manifest_id,
+      connector_id: oldestConnector.manifest.connector_id,
+      display_name: oldestConnector.manifest.display_name,
+      manifest: oldestConnector.manifest,
+    };
+    window.history.replaceState(
+      null,
+      "",
+      `/connectors?connector_id=${oldestConnector.manifest.connector_id}`,
+    );
+    const oldestDetailPath =
+      `${OPERATIONS_API_PREFIX}/connectors/manifests/${oldestConnector.manifest.connector_id}`;
+    mockQueries({
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
+        data: {
+          ...connectorRegistryFixture,
+          connectors: [...connectorRegistryFixture.connectors, ...persistedConnectors],
+        },
+        source: "api",
+      },
+      [oldestDetailPath]: {
+        data: {
+          tenant_id: oldestManifest.tenant_id,
+          connector_id: oldestManifest.connector_id,
+          current_revision: oldestManifest,
+          revisions: [oldestManifest],
+        },
+        source: "api",
+      },
+    });
+
+    renderConsole();
+
+    const selectedItem = screen.getByRole("button", { name: /Scale fixture 000/ });
+    expect(within(selectedItem).getByText("Registered Preview Only")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Scale fixture 000" })).toBeInTheDocument();
+    expect(screen.getByText("Current revision")).toBeInTheDocument();
+    expect(mocks.useAxisQuery).toHaveBeenCalledWith(
+      expect.stringContaining(oldestDetailPath),
+      expect.objectContaining({ enabled: true }),
+    );
+  });
+
+  it("uses the complete connector registry without requesting the capped manifest list", () => {
     mockQueries();
     renderConsole();
 
     const metrics = screen.getAllByRole("listitem");
     expect(within(metrics[0]).getByText("2")).toBeInTheDocument();
     expect(screen.queryByText("Registered")).not.toBeInTheDocument();
+    expect(mocks.useAxisQuery.mock.calls.some(([path]) => (
+      typeof path === "string"
+      && path.split("?")[0] === `${OPERATIONS_API_PREFIX}/connectors/manifests`
+    ))).toBe(false);
   });
 
-  it("renders the simplified detail for a manifest-only entry", async () => {
+  it("renders schema and runs for a persisted-only entry while gating sync by lifecycle", async () => {
     const user = userEvent.setup();
     mockWithWizardManifest();
     renderConsole();
 
     await user.click(screen.getByRole("button", { name: /Press shop assets/ }));
     expect(screen.getByRole("heading", { name: "Press shop assets" })).toBeInTheDocument();
-    // Overview renders from the manifest record's own fields.
-    expect(screen.getByText("Registered Preview Only")).toBeInTheDocument();
+    // Overview renders the persisted summary before the selected detail fetch.
+    expect(screen.getAllByText("Registered Preview Only").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("tab", { name: "Runs" }));
+    expect(screen.getByRole("button", { name: "Validate" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Run sync (preview)" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Preview sync needs a registered manifest in the active preview state before it can run.",
+    );
+    expect(screen.queryByText("Sync activation pending")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Data & Schema" }));
+    const mapping = screen.getByRole("table", { name: "Field mapping" });
+    expect(within(mapping).getByText("asset_id")).toBeInTheDocument();
+    expect(screen.queryByText("Sync activation pending")).not.toBeInTheDocument();
+  });
+
+  it("uses current detail for persisted controls, schema and export when the registry is stale", async () => {
+    const user = userEvent.setup();
+    const authoritativeManifest = {
+      ...wizardManifest.manifest,
+      display_name: "Press shop assets current",
+      version: "2.0.0",
+      schema_fields: [
+        {
+          ...wizardManifest.manifest.schema_fields[0],
+          source_column: "current_press_asset_id",
+        },
+      ],
+    };
+    const authoritativeRevision = {
+      ...wizardManifest,
+      revision_number: wizardManifest.revision_number + 1,
+      display_name: authoritativeManifest.display_name,
+      version: authoritativeManifest.version,
+      status: "active_preview",
+      manifest: authoritativeManifest,
+      runtime_policy: {
+        ...wizardManifest.runtime_policy,
+        row_limit: 250,
+      },
+      revises_revision_number: wizardManifest.revision_number,
+      revision_idempotency_key: "wizard-authoritative-revision",
+      notes: ["authoritative detail"],
+    };
+    mockQueries({
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
+        data: {
+          ...connectorRegistryFixture,
+          connectors: [...connectorRegistryFixture.connectors, wizardConnector],
+        },
+        source: "api",
+      },
+      [`${OPERATIONS_API_PREFIX}/connectors/manifests/${wizardManifest.connector_id}`]: {
+        data: {
+          tenant_id: authoritativeRevision.tenant_id,
+          connector_id: authoritativeRevision.connector_id,
+          current_revision: authoritativeRevision,
+          revisions: [wizardManifest, authoritativeRevision],
+        },
+        source: "api",
+      },
+    });
+    renderConsole();
+
+    await user.click(screen.getByRole("button", { name: /Press shop assets/ }));
     expect(
-      screen.getByRole("heading", { name: "Sync activation pending" }),
+      screen.getByRole("heading", { name: "Press shop assets current" }),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Runs" }));
+    expect(screen.getByRole("button", { name: "Run sync (preview)" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Preview sync needs an active credential lease for this connector before it can run.",
+    );
+    expect(screen.queryByText(/registered manifest in the active preview state/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Data & Schema" }));
     expect(
-      screen.getByRole("heading", { name: "Sync activation pending" }),
+      within(screen.getByRole("table", { name: "Field mapping" })).getByText(
+        "current_press_asset_id",
+      ),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Export manifest" }));
+    const exportDocuments = screen
+      .getAllByLabelText("Registration document JSON")
+      .filter((element) => element.hasAttribute("readonly"));
+    expect(exportDocuments).toHaveLength(1);
+    const parsedExport = JSON.parse((exportDocuments[0] as HTMLTextAreaElement).value);
+    expect(parsedExport.manifest).toMatchObject({
+      display_name: "Press shop assets current",
+      version: "2.0.0",
+      schema_fields: [expect.objectContaining({ source_column: "current_press_asset_id" })],
+    });
+    expect(parsedExport.runtime_policy.row_limit).toBe(250);
+    expect(parsedExport.notes).toEqual(["authoritative detail"]);
   });
 });

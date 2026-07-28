@@ -29,9 +29,18 @@ export function MetricSparkbar({
   ...rest
 }: MetricSparkbarProps) {
   const max = Math.max(1, ...points.map((point) => point.value));
+  const valueSummary = points.map((point) => `${point.label}: ${point.value}`).join(", ");
+  const accessibleLabel = valueSummary
+    ? `${caption}. ${valueSummary}.`
+    : `${caption}. No data.`;
 
   return (
-    <div className={cn("grid gap-1.5", className)} role="img" aria-label={caption} {...rest}>
+    <div
+      aria-label={accessibleLabel}
+      className={cn("grid gap-1.5", className)}
+      role="img"
+      {...rest}
+    >
       <div className="flex items-end gap-1" style={{ height }}>
         {points.map((point, index) => (
           <span

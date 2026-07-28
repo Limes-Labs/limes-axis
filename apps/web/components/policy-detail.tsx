@@ -31,6 +31,11 @@ import {
   type PlatformPolicyRecord,
 } from "@/lib/platform-policies";
 import { formatNumber, formatTimestamp } from "@/lib/format";
+import {
+  enumUrlField,
+  stringUrlField,
+  useConsoleUrlState,
+} from "@/lib/console-url-state";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -43,6 +48,13 @@ import {
 } from "@/lib/use-console-tenant-scope";
 
 type DetailSource = "loading" | "api" | "unavailable" | "missing";
+
+const policyDetailTabs = ["conditions", "revisions", "evaluate"] as const;
+type PolicyDetailTab = (typeof policyDetailTabs)[number];
+const policyDetailUrlSchema = {
+  tab: enumUrlField("tab", policyDetailTabs, "conditions"),
+  compareRevisionNumber: stringUrlField("compare_revision"),
+};
 
 type DetailResult = {
   tenantId: string;
@@ -73,6 +85,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
   return (
     <section className="min-w-0 overflow-x-auto rounded-2xl border border-line bg-surface dark:border-white/10 dark:bg-white/5">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm text-ink [&_th]:border-b [&_th]:border-line [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-[0.16em] [&_th]:uppercase [&_th]:text-signal dark:[&_th]:border-white/10 [&_td]:border-b [&_td]:border-line/60 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top dark:[&_td]:border-white/6 [&_tbody_tr:last-child_td]:border-b-0">
+        <caption className="sr-only">Policy revision history</caption>
         <thead>
           <tr>
             <th>Revision</th>
@@ -127,7 +140,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
 
 export function PolicyDetail({ policyId }: { policyId: string }) {
   const [result, setResult] = useState<DetailResult | null>(null);
-  const [compareRevisionNumber, setCompareRevisionNumber] = useState("");
+  const [urlState, setUrlState] = useConsoleUrlState(policyDetailUrlSchema);
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
@@ -192,6 +205,23 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
     return () => controller.abort();
   }, [policyId, session, refreshNonce, tenantId, tenantQueriesEnabled]);
 
+  useEffect(() => {
+    const detail = result?.tenantId === tenantId ? result.detail : null;
+    if (!detail || !urlState.compareRevisionNumber) {
+      return;
+    }
+
+    const comparisonExists = detail.revisions.some(
+      (revision) => (
+        revision.revision_number !== detail.current_revision.revision_number
+        && String(revision.revision_number) === urlState.compareRevisionNumber
+      ),
+    );
+    if (!comparisonExists) {
+      setUrlState({ compareRevisionNumber: "" });
+    }
+  }, [result, setUrlState, tenantId, urlState.compareRevisionNumber]);
+
   if (identity.source === "loading") {
     return <LoadingPanel layout="detail" />;
   }
@@ -249,8 +279,9 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
   );
   const compareRevision =
     compareCandidates.find(
-      (revision) => String(revision.revision_number) === compareRevisionNumber,
+      (revision) => String(revision.revision_number) === urlState.compareRevisionNumber,
     ) ?? null;
+  const compareRevisionNumber = compareRevision ? urlState.compareRevisionNumber : "";
 
   return (
     <div className="grid min-w-0 gap-4">
@@ -306,7 +337,13 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </article>
       </div>
 
-      <Tabs className="grid min-w-0 gap-3" defaultValue="conditions">
+      <Tabs
+        className="grid min-w-0 gap-3"
+        onValueChange={(tab) =>
+          setUrlState({ tab: tab as PolicyDetailTab }, { history: "push" })
+        }
+        value={urlState.tab}
+      >
         <TabsList>
           <TabsTrigger value="conditions">{strings.policyDetail.tabs.conditions}</TabsTrigger>
           <TabsTrigger value="revisions">{strings.policyDetail.tabs.revisions}</TabsTrigger>
@@ -314,138 +351,164 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </TabsList>
 
         <TabsContent className="grid min-w-0 gap-4" value="conditions">
-      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <p className="eyebrow m-0">Rule Conditions</p>
-        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{summarizePolicyConditions(current.conditions)}</h2>
-        <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
-          <div>
-            <p className="eyebrow m-0">Action Domains</p>
-            <ConditionTagList anyLabel="Any domain" items={current.conditions.action_domains} />
-          </div>
-          <div>
-            <p className="eyebrow m-0">Risk Levels</p>
-            <ConditionTagList anyLabel="Any risk level" items={current.conditions.risk_levels} />
-          </div>
-          <div>
-            <p className="eyebrow m-0">Autonomy Levels</p>
-            <ConditionTagList
-              anyLabel="Any autonomy level"
-              items={current.conditions.autonomy_levels}
-            />
-          </div>
-          <div>
-            <p className="eyebrow m-0">Amount Threshold</p>
-            <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">
-              {current.conditions.requested_amount_at_least != null
-                ? `>= ${current.conditions.requested_amount_at_least}`
-                : "No amount gate"}
-            </p>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Malformed amounts fail closed</p>
-          </div>
-        </div>
-        {current.notes && current.notes.length > 0 ? (
-          <div className="grid min-w-0 gap-2.5">
-            {current.notes.map((note) => (
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
-                {note}
-              </p>
-            ))}
-          </div>
-        ) : null}
-      </section>
+          <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+            <p className="eyebrow m-0">Rule Conditions</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
+              {summarizePolicyConditions(current.conditions)}
+            </h2>
+            <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
+              <div>
+                <p className="eyebrow m-0">Action Domains</p>
+                <ConditionTagList
+                  anyLabel="Any domain"
+                  items={current.conditions.action_domains}
+                />
+              </div>
+              <div>
+                <p className="eyebrow m-0">Risk Levels</p>
+                <ConditionTagList
+                  anyLabel="Any risk level"
+                  items={current.conditions.risk_levels}
+                />
+              </div>
+              <div>
+                <p className="eyebrow m-0">Autonomy Levels</p>
+                <ConditionTagList
+                  anyLabel="Any autonomy level"
+                  items={current.conditions.autonomy_levels}
+                />
+              </div>
+              <div>
+                <p className="eyebrow m-0">Amount Threshold</p>
+                <p className="m-0 font-mono text-[13px] font-medium text-ink break-words">
+                  {current.conditions.requested_amount_at_least != null
+                    ? `>= ${current.conditions.requested_amount_at_least}`
+                    : "No amount gate"}
+                </p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                  Malformed amounts fail closed
+                </p>
+              </div>
+            </div>
+            {current.notes && current.notes.length > 0 ? (
+              <div className="grid min-w-0 gap-2.5">
+                {current.notes.map((note) => (
+                  <p
+                    className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words"
+                    key={note}
+                  >
+                    {note}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </section>
 
-      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <p className="eyebrow m-0">Evaluation Precedence</p>
-        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Deterministic decision order</h2>
-        <div className="grid min-w-0 gap-2.5">
-          {platformPolicyPrecedenceSteps.map((step) => (
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={step}>
-              {step}
-            </p>
-          ))}
-        </div>
-      </section>
+          <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+            <p className="eyebrow m-0">Evaluation Precedence</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
+              Deterministic decision order
+            </h2>
+            <div className="grid min-w-0 gap-2.5">
+              {platformPolicyPrecedenceSteps.map((step) => (
+                <p
+                  className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words"
+                  key={step}
+                >
+                  {step}
+                </p>
+              ))}
+            </div>
+          </section>
         </TabsContent>
 
         <TabsContent className="grid min-w-0 gap-4" value="revisions">
-      <PolicyReviseForm
-        current={current}
-        key={`revise-${current.revision_number}`}
-        tenantId={detail.tenant_id}
-      />
+          <PolicyReviseForm
+            current={current}
+            key={`revise-${current.revision_number}`}
+            tenantId={detail.tenant_id}
+          />
 
-      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-          <div>
-            <p className="eyebrow m-0">Revision History</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatNumber(detail.revisions.length)} append-only revisions</h2>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              Superseded revisions stay readable but are never evaluated.
-            </p>
-          </div>
-          <ScrollText size={18} />
-        </div>
-      </section>
-      <RevisionHistoryTable revisions={detail.revisions} />
+          <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <div>
+                <p className="eyebrow m-0">Revision History</p>
+                <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
+                  {formatNumber(detail.revisions.length)} append-only revisions
+                </h2>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                  Superseded revisions stay readable but are never evaluated.
+                </p>
+              </div>
+              <ScrollText size={18} />
+            </div>
+          </section>
+          <RevisionHistoryTable revisions={detail.revisions} />
 
-      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-          <div>
-            <p className="eyebrow m-0">Revision Compare</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Diff a revision against the current one</h2>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              Field-level compare of name, description, effect and typed conditions.
-            </p>
-          </div>
-          <GitCompareArrows size={18} />
-        </div>
-        {compareCandidates.length > 0 ? (
-          <div className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
-            <Field label="Compare Revision">
-              <Select
-                aria-label="Revision to compare"
-                onChange={(event) => setCompareRevisionNumber(event.target.value)}
-                value={compareRevisionNumber}
-              >
-                <option value="">Select a revision</option>
-                {compareCandidates.map((revision) => (
-                  <option key={revision.revision_number} value={revision.revision_number}>
-                    r{revision.revision_number} / {revision.policy_version}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-        ) : (
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Only the initial revision exists; append a revision to compare definitions.
-          </p>
-        )}
-        {compareRevision ? (
-          <PolicyRevisionCompare base={compareRevision} target={current} />
-        ) : null}
-      </section>
+          <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <div>
+                <p className="eyebrow m-0">Revision Compare</p>
+                <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
+                  Diff a revision against the current one
+                </h2>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                  Field-level compare of name, description, effect and typed conditions.
+                </p>
+              </div>
+              <GitCompareArrows size={18} />
+            </div>
+            {compareCandidates.length > 0 ? (
+              <div className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+                <Field label="Compare Revision">
+                  <Select
+                    aria-label="Revision to compare"
+                    onChange={(event) =>
+                      setUrlState({ compareRevisionNumber: event.target.value })
+                    }
+                    value={compareRevisionNumber}
+                  >
+                    <option value="">Select a revision</option>
+                    {compareCandidates.map((revision) => (
+                      <option key={revision.revision_number} value={revision.revision_number}>
+                        r{revision.revision_number} / {revision.policy_version}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            ) : (
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                Only the initial revision exists; append a revision to compare definitions.
+              </p>
+            )}
+            {compareRevision ? (
+              <PolicyRevisionCompare base={compareRevision} target={current} />
+            ) : null}
+          </section>
         </TabsContent>
 
         <TabsContent className="grid min-w-0 gap-4" value="evaluate">
-      <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-          <div>
-            <p className="eyebrow m-0">Dry-Run Evaluation</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Evaluate a context against tenant policies</h2>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              Dry run only: evaluation is deterministic, records no audit event and never
-              mutates state.
-            </p>
-          </div>
-          <FlaskConical size={18} />
-        </div>
-        <PolicyEvaluationPanel
-          formLabel="Policy dry-run evaluation"
-          scope={current.scope}
-          tenantId={detail.tenant_id}
-        />
-      </section>
+          <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
+              <div>
+                <p className="eyebrow m-0">Dry-Run Evaluation</p>
+                <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
+                  Evaluate a context against tenant policies
+                </h2>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                  Dry run only: evaluation is deterministic, records no audit event and
+                  never mutates state.
+                </p>
+              </div>
+              <FlaskConical size={18} />
+            </div>
+            <PolicyEvaluationPanel
+              formLabel="Policy dry-run evaluation"
+              scope={current.scope}
+              tenantId={detail.tenant_id}
+            />
+          </section>
         </TabsContent>
       </Tabs>
     </div>

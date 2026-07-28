@@ -89,7 +89,12 @@ export function SidebarAccount({
   if (variant === "compact") {
     return (
       <div className="relative flex items-center gap-1" ref={containerRef}>
-        <Link aria-label={strings.pages.settings.title} className="icon-button" href="/settings">
+        <Link
+          aria-current={settingsActive ? "page" : undefined}
+          aria-label={strings.pages.settings.title}
+          className={cn("icon-button", settingsActive && "icon-button-active")}
+          href="/settings"
+        >
           <HugeiconsIcon icon={Settings01Icon} size={17} strokeWidth={1.8} />
         </Link>
         <button

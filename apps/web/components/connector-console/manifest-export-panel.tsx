@@ -10,27 +10,27 @@ import { useToast } from "@/components/ui/toast";
 import {
   connectorRegistrationFileName,
   serializeConnectorRegistrationDocument,
-  type ConnectorListEntry,
 } from "@/lib/connectors-console";
+import type { ConnectorRegistryItem } from "@/lib/connectors-demo";
 import { strings } from "@/lib/strings";
 
-function downloadRegistrationDocument(entry: ConnectorListEntry, json: string) {
+function downloadRegistrationDocument(connector: ConnectorRegistryItem, json: string) {
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = connectorRegistrationFileName(entry);
+  anchor.download = connectorRegistrationFileName(connector);
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
 }
 
-export function ManifestExportPanel({ entry }: { entry: ConnectorListEntry }) {
+export function ManifestExportPanel({ connector }: { connector: ConnectorRegistryItem }) {
   const copy = strings.connectors.manifestExport;
   const { push } = useToast();
   const [open, setOpen] = useState(false);
-  const json = serializeConnectorRegistrationDocument(entry);
+  const json = serializeConnectorRegistrationDocument(connector);
 
   async function copyJson() {
     try {
@@ -69,7 +69,7 @@ export function ManifestExportPanel({ entry }: { entry: ConnectorListEntry }) {
           <Clipboard aria-hidden="true" />
           {copy.copy}
         </Button>
-        <Button onClick={() => downloadRegistrationDocument(entry, json)}>
+        <Button onClick={() => downloadRegistrationDocument(connector, json)}>
           <Download aria-hidden="true" />
           {copy.download}
         </Button>

@@ -3,13 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "@/components/ui/toast";
-import type { ConnectorListEntry } from "@/lib/connectors-console";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 
 import {
   csvConnectorFixture,
   manifestDetailFixture,
-  manifestRegistryFixture,
 } from "./connector-fixtures";
 import { ManifestExportPanel } from "./manifest-export-panel";
 import {
@@ -67,12 +65,6 @@ const identitySession: IdentitySessionReadModel = {
   scopes: [],
   session_boundary: "test",
   tenant_id: tenantId,
-};
-
-const entry: ConnectorListEntry = {
-  connector: csvConnectorFixture,
-  source: "reference",
-  manifestRecord: manifestRegistryFixture.manifests[0],
 };
 
 function documentFor(connectorId: string) {
@@ -473,7 +465,7 @@ describe("manifest export round trip", () => {
         csvConnectorFixture.manifest.connector_id,
         2,
       )));
-    renderImport(<ManifestExportPanel entry={entry} />);
+    renderImport(<ManifestExportPanel connector={csvConnectorFixture} />);
 
     await user.click(screen.getByRole("button", { name: "Export manifest" }));
     const exportedJson = (screen.getByLabelText("Registration document JSON", {
@@ -502,7 +494,7 @@ describe("manifest export round trip", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     render(
       <ToastProvider>
-        <ManifestExportPanel entry={entry} />
+        <ManifestExportPanel connector={csvConnectorFixture} />
       </ToastProvider>,
     );
 

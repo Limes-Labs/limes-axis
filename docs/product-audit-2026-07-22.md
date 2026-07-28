@@ -28,13 +28,16 @@ This checklist records the repository-wide product review requested on 2026-07-2
 ## P2 — UX, navigation, and accessibility
 
 - [x] Provide a skip link and a stable main-content target; remove nested `main` landmarks.
-- [ ] Give mobile navigation an explicit navigation landmark and a discoverable overflow/menu pattern.
+- [x] Give mobile navigation an explicit navigation landmark and a discoverable
+      overflow/menu pattern.
 - [x] Give loading regions accessible status text while keeping the skeleton visual concise.
-- [ ] Expose status and sparkbar values without relying on color or pointer-only `title` text.
+- [x] Expose status and sparkbar values without relying on color or pointer-only
+      `title` text.
 - [x] Add route-level loading, error, and not-found boundaries and route-specific metadata.
-- [ ] Keep selected filters, records, and deep links synchronized with the URL. The
-      highest-risk record links and ontology traversal are URL-backed; a few secondary
-      policy/settings tabs still need the same treatment.
+- [x] Keep selected filters, records, and deep links synchronized with the URL. Record
+      selection, high-risk filters, ontology traversal, policy tabs and Settings tabs are
+      URL-backed; discrete tab changes push browser history while comparison-only policy
+      state replaces the current entry.
 - [ ] Replace implementation-oriented tenant copy with operator-facing language.
 
 ## P2 — Runtime and deployment follow-ups
@@ -48,7 +51,10 @@ This checklist records the repository-wide product review requested on 2026-07-2
       writers. PostgreSQL uses a transaction-scoped advisory lock, SQLite acquires write
       intent immediately before the authoritative read, identical retries replay one
       audit event, and acknowledgement state cannot regress.
-- [ ] Decide whether production admits valid identity claims for unknown tenant records.
+- [x] Decide whether production admits valid identity claims for unknown tenant records.
+      Local development can opt into `claims_only`; production readiness requires
+      `registered_only`, which rejects unknown tenants consistently across bearer, cookie,
+      login and refresh flows and records a denial audit event.
 - [ ] Expand the Python SDK beyond the current demo-manufacturing surface.
 
 ## P3 — Component and code consistency
@@ -71,18 +77,31 @@ This checklist records the repository-wide product review requested on 2026-07-2
 
 ### Verification evidence
 
-- Web: 796 unit/component tests in 88 files; lint, typecheck, and production Next.js builds for both the live-API and fail-closed profiles passed.
-- Browser: 69 mocked Chromium smoke tests passed across desktop, Pixel 7, and iPad profiles; 21 read-only live-API scenarios passed across the same three profiles and 2 state-mutating scenarios passed once, serially, in Chromium.
-- Persisted product sweep: 12 console routes rendered with one `main` landmark and no horizontal overflow; audit filtering/reset and truthful empty workflow/replay states were exercised.
-- Services: API 1,488 passed / 14 infrastructure-gated skipped; worker 51 passed / 3 infrastructure-gated skipped; Python SDK 104 passed. Ruff passed for all three Python packages.
-- Contracts: OpenAPI export, all six schema lint/compile checks, GitHub Actions syntax, deployment package, all three Helm profiles, container-image, and container-release checks passed.
+- Web: 827 unit/component tests in 91 files; lint, typecheck, and production Next.js
+  builds for both the live-API and fail-closed profiles passed.
+- Browser: 69 mocked Chromium smoke tests passed across desktop, Pixel 7, and iPad
+  profiles; 21 read-only live-API scenarios passed across the same three profiles
+  and 2 state-mutating scenarios passed once, serially, in Chromium.
+- In-app browser: the real production build and API were inspected at 390×844 with the
+  mobile drawer closed and open. The route retained one `main` landmark, had no horizontal
+  overflow or console errors, exposed the current Settings destination, locked body scroll
+  while open, closed on Escape, and restored focus to the menu trigger.
+- Persisted product sweep: 12 console routes rendered with one `main` landmark and no
+  horizontal overflow; audit filtering/reset and truthful empty workflow/replay states
+  were exercised.
+- Services: API 1,530 passed / 14 infrastructure-gated skipped; worker 51 passed / 3
+  infrastructure-gated skipped; Python SDK 104 passed. Ruff passed for all three Python
+  packages.
+- Contracts: OpenAPI export, all six schema lint/compile checks, deployment package, all
+  three Helm profiles, container-image, and container-release checks passed.
 
 ## Current environment boundary
 
 The Docker daemon was not running during the final review. The persisted browser pass
 therefore used a temporary SQLite database created from the current ORM schema, populated
 with the canonical migration reference payloads, and bootstrapped through the real API.
-The 92 browser scenarios exercised the real FastAPI application and production Next.js
-build, but this is not evidence that the distributed stack or Postgres migrations work in
-this environment. Live Postgres, Temporal, TypeDB, MinIO and Keycloak claims remain
-unverified until Docker is available.
+The 23 live-profile browser scenarios exercised the real FastAPI application and production
+Next.js build; the other 69 scenarios intentionally exercised the fail-closed/mock profile.
+Neither set is evidence that the distributed stack or Postgres migrations work in this
+environment. Live Postgres, Temporal, TypeDB, MinIO and Keycloak claims remain unverified
+until Docker is available.

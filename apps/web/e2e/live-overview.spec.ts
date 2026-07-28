@@ -198,7 +198,8 @@ test.describe("Axis live overview demo", () => {
 
     const navigation = await page.evaluate(() => {
       const element = document.querySelector<HTMLElement>("[data-console-sidebar]");
-      const topnav = document.querySelector<HTMLElement>(".topnav");
+      const mobileNavigation = document.querySelector<HTMLElement>("[data-mobile-navigation]");
+      const statusBar = document.querySelector<HTMLElement>(".ops-topbar");
       const viewportWidth = window.innerWidth;
 
       if (!element) {
@@ -212,7 +213,13 @@ test.describe("Axis live overview demo", () => {
         height: Math.round(rect.height),
         navVisible: element.textContent?.includes("Connectors") ?? false,
         top: Math.round(rect.top),
-        topnavVisible: topnav ? window.getComputedStyle(topnav).display !== "none" : false,
+        mobileNavigationBottom: mobileNavigation
+          ? Math.round(mobileNavigation.getBoundingClientRect().bottom)
+          : null,
+        mobileNavigationVisible: mobileNavigation
+          ? window.getComputedStyle(mobileNavigation).display !== "none"
+          : false,
+        statusBarTop: statusBar ? Math.round(statusBar.getBoundingClientRect().top) : null,
         viewportHeight: window.innerHeight,
         viewportWidth,
       };
@@ -222,7 +229,10 @@ test.describe("Axis live overview demo", () => {
 
     if ((navigation?.viewportWidth ?? 0) <= 920) {
       expect(navigation?.display).toBe("none");
-      expect(navigation?.topnavVisible).toBe(true);
+      expect(navigation?.mobileNavigationVisible).toBe(true);
+      expect(navigation?.statusBarTop).toBeGreaterThanOrEqual(
+        (navigation?.mobileNavigationBottom ?? 0) - 1,
+      );
       return;
     }
 
