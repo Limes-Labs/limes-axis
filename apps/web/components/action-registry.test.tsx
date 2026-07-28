@@ -43,6 +43,7 @@ const actionRegistryFixture: ManufacturingActionRegistry = {
   tenant_id: DEMO_TENANT_ID,
   plant_name: "Fixture Plant",
   scenario: "Runtime contract fixture",
+  provenance: "reference_scenario",
   as_of: "2026-06-22T09:00:00+02:00",
   registry_status: "ready",
   schema_version: "2026-06-22",
@@ -147,7 +148,7 @@ function queryResult(data: unknown, source: "loading" | "api" | "unavailable" = 
   };
 }
 
-function mockActions() {
+function mockActions(registry: ManufacturingActionRegistry = actionRegistryFixture) {
   mocks.useAxisQuery.mockImplementation((path: string) => {
     if (path === "/identity/session") {
       return queryResult(publicIdentity);
@@ -157,8 +158,8 @@ function mockActions() {
       // behaviour: every fetch — including a background refresh that finds
       // nothing new — returns a brand-new object.
       return queryResult({
-        ...actionRegistryFixture,
-        actions: actionRegistryFixture.actions.map((action) => ({ ...action })),
+        ...registry,
+        actions: registry.actions.map((action) => ({ ...action })),
       });
     }
     return queryResult(null, "loading");
@@ -171,6 +172,22 @@ beforeEach(() => {
 });
 
 describe("ActionRegistry selection", () => {
+  it("renders a valid empty payload as onboarding state, not an API error", () => {
+    mockActions({
+      ...actionRegistryFixture,
+      provenance: "empty",
+      metrics: [],
+      actions: [],
+    });
+
+    render(<ActionRegistry />);
+
+    expect(screen.getByRole("heading", { name: "No actions registered yet" })).toBeInTheDocument();
+    expect(screen.getByText("action registry: no records")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Action API returned no records" }))
+      .not.toBeInTheDocument();
+  });
+
   it("keeps the selected action across a background refetch", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<ActionRegistry />);

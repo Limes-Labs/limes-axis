@@ -960,8 +960,8 @@ const models = {
         "Axis did not receive API-backed model routing records. Local fallback routing records are disabled.",
     },
     noRecords: {
-      title: "Routing API returned no records",
-      detail: "The model routing API responded without route records for this tenant.",
+      title: "No model routes yet",
+      detail: "Governed model routes will appear here after they are configured for this tenant.",
     },
     noMatch: {
       title: "No routes match the current filters",

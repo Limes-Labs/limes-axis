@@ -59,17 +59,29 @@ export function ConsoleTopbar({
     });
   const tenantScope = resolveConsoleTenantScope(identitySession);
   const tenantId = tenantScope.tenantId;
-  const { data: notificationCenter } = useAxisQuery<ManufacturingNotificationCenter>(
+  const notificationsEnabled = identitySessionSource === "api" && tenantId !== null;
+  const {
+    data: notificationCenter,
+    source: notificationCenterSource,
+  } = useAxisQuery<ManufacturingNotificationCenter>(
     buildTenantScopedPath(
       `${OPERATIONS_API_PREFIX}/notifications`,
       tenantId ?? DEMO_TENANT_ID,
     ),
     {
-      enabled: identitySessionSource === "api" && tenantId !== null,
+      enabled: notificationsEnabled,
       expectedTenantId: tenantId ?? undefined,
       parse: parseManufacturingNotificationCenter,
     },
   );
+  // A disabled query deliberately reports `loading`, because it has never
+  // attempted transport. Do not expose that internal sentinel forever when
+  // identity already failed or supplied no usable tenant.
+  const effectiveNotificationCenterSource = notificationsEnabled
+    ? notificationCenterSource
+    : identitySessionSource === "loading"
+      ? "loading"
+      : "unavailable";
 
   const notificationCount = notificationCenter?.unread_count ?? 0;
   const notificationBadge = notificationCount > 9 ? "9+" : notificationCount;
@@ -195,6 +207,7 @@ export function ConsoleTopbar({
             identitySession={identitySession}
             onAcknowledged={triggerRefresh}
             session={session}
+            source={effectiveNotificationCenterSource}
           />
         ) : null}
       </div>
@@ -204,7 +217,7 @@ export function ConsoleTopbar({
         onRefresh={triggerRefresh}
         open={commandMenuOpen}
         tenantId={tenantId}
-        tenantQueriesEnabled={identitySessionSource === "api" && tenantId !== null}
+        tenantQueriesEnabled={notificationsEnabled}
       />
     </header>
   );

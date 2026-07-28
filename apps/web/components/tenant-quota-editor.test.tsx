@@ -117,3 +117,47 @@ describe("TenantQuotaEditor background refresh", () => {
     await waitFor(() => expect(field).toHaveValue(250));
   });
 });
+
+describe("TenantQuotaEditor failure references", () => {
+  it("shows the response request reference for a failed quota update", async () => {
+    const user = userEvent.setup();
+    mocks.fetchTenantQuotas.mockResolvedValue(initialQuotas);
+    mocks.updateTenantQuotas.mockResolvedValue({
+      kind: "failed",
+      status: 503,
+      message: "Tenant request failed with 503.",
+      requestId: "req-tenant-quota-503",
+    });
+
+    render(<TenantQuotaEditor tenantId="tenant_x" />);
+
+    await screen.findByLabelText("API requests per window");
+    await user.click(screen.getByRole("button", { name: "Review quota update" }));
+    await user.click(screen.getByRole("button", { name: "Confirm quota update" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Quota update failed: Tenant request failed with 503.",
+    );
+    expect(screen.getByText("req-tenant-quota-503")).toBeInTheDocument();
+  });
+
+  it("keeps local quota validation reference-free and does not call the API", async () => {
+    const user = userEvent.setup();
+    mocks.fetchTenantQuotas.mockResolvedValue(initialQuotas);
+
+    render(<TenantQuotaEditor tenantId="tenant_x" />);
+
+    const field = await screen.findByLabelText("API requests per window");
+    await user.clear(field);
+    await user.type(field, "-1");
+    await user.click(screen.getByRole("button", { name: "Review quota update" }));
+
+    expect(
+      screen.getAllByRole("alert").find((alert) =>
+        alert.textContent?.includes("Quota update failed: Fix the highlighted fields; nothing was sent."),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Request reference:/)).not.toBeInTheDocument();
+    expect(mocks.updateTenantQuotas).not.toHaveBeenCalled();
+  });
+});

@@ -246,7 +246,10 @@ describe("platform policy API bindings", () => {
     process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
     vi.stubGlobal(
       "fetch",
-      vi.fn<typeof fetch>(async () => new Response("{}", { status: 503 })),
+      vi.fn<typeof fetch>(async () => new Response("{}", {
+        headers: { "x-request-id": "request-policy-detail-503" },
+        status: 503,
+      })),
     );
 
     const caught = await fetchPlatformPolicyDetail("deny_critical_actions").catch(
@@ -256,6 +259,7 @@ describe("platform policy API bindings", () => {
     expect(caught).toBeInstanceOf(AxisApiError);
     expect((caught as AxisApiError).status).toBe(503);
     expect((caught as AxisApiError).path).toBe("/platform/policies/deny_critical_actions");
+    expect((caught as AxisApiError).requestId).toBe("request-policy-detail-503");
   });
 
   it("posts the evaluation payload as JSON and returns the typed decision", async () => {

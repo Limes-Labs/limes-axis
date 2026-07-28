@@ -5,6 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
+import {
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import {
   allTenantFilter,
@@ -19,7 +23,11 @@ import {
   type TenantRegistryFilters,
 } from "@/lib/platform-tenants";
 import { formatNumber, formatTimestamp } from "@/lib/format";
-import { deriveSourceState, type AxisSource } from "@/lib/source-state";
+import {
+  deriveSourceState,
+  PROVENANCE_NOT_APPLICABLE,
+  type AxisSource,
+} from "@/lib/source-state";
 import { useConsole } from "@/providers/console-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
@@ -52,8 +60,9 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
   const { session } = useOidcConsoleSession();
   const [registry, setRegistry] = useState<TenantRegistryData | null>(null);
   const [source, setSource] = useState<AxisSource>("loading");
+  const [loadError, setLoadError] = useState<AxisOperatorError | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<AxisOperatorError | null>(null);
   // Generation guard: bumped every time the base page reloads (filter,
   // session or console-refresh change). A "load more" page fetch started
   // under an earlier generation is discarded on arrival instead of merging a
@@ -87,13 +96,18 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
 
         if (!controller.signal.aborted && generationRef.current === generation) {
           setRegistry(page);
+          setLoadError(null);
           setSource("api");
         }
-      } catch {
+      } catch (caught) {
         if (!controller.signal.aborted && generationRef.current === generation) {
           // Preserve any already-loaded registry on a refetch failure; only a
           // first load (registry still null) falls through to the unavailable
           // state. Surface the unavailable source either way.
+          setLoadError(toAxisOperatorError(
+            caught,
+            "Axis could not load platform tenant records.",
+          ));
           setSource("unavailable");
         }
       }
@@ -115,7 +129,7 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
     const controller = new AbortController();
     loadMoreControllerRef.current = controller;
     setLoadingMore(true);
-    setLoadMoreError(false);
+    setLoadMoreError(null);
 
     try {
       const page = await fetchTenantRegistry(
@@ -130,9 +144,12 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
       if (!controller.signal.aborted && generationRef.current === generation) {
         setRegistry((current) => mergeTenantRegistryPage(current, page));
       }
-    } catch {
+    } catch (caught) {
       if (!controller.signal.aborted && generationRef.current === generation) {
-        setLoadMoreError(true);
+        setLoadMoreError(toAxisOperatorError(
+          caught,
+          "Axis could not load the next page of tenants.",
+        ));
       }
     } finally {
       if (loadMoreControllerRef.current === controller) {
@@ -144,12 +161,12 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
     }
   }, [registry, filters, session, loadingMore]);
 
-  return { registry, source, loadMore, loadingMore, loadMoreError };
+  return { registry, source, loadError, loadMore, loadingMore, loadMoreError };
 }
 
 export function TenantRegistry() {
   const [filters, setFilters] = useConsoleUrlState(tenantUrlSchema);
-  const { registry, source, loadMore, loadingMore, loadMoreError } =
+  const { registry, source, loadError, loadMore, loadingMore, loadMoreError } =
     useTenantRegistryPages(filters);
 
   function updateStatus(value: string) {
@@ -174,6 +191,7 @@ export function TenantRegistry() {
       <ErrorPanel
         detail="Axis did not receive API-backed platform tenant records. Local fallback tenant records are disabled."
         endpoint={platformTenantsPath}
+        reference={loadError?.requestId ?? undefined}
         title="Tenant API unavailable"
       />
     );
@@ -198,7 +216,7 @@ export function TenantRegistry() {
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
-            state={deriveSourceState(source, Boolean(registry))}
+            state={deriveSourceState(source, Boolean(registry), PROVENANCE_NOT_APPLICABLE)}
             subject="tenant registry"
           />
           <span className="status-pill signal-watch">
@@ -320,12 +338,13 @@ export function TenantRegistry() {
             </div>
           ) : null}
           {loadMoreError ? (
-            <p
-              className="mx-0 mt-1 mb-0 border-t border-line/60 px-4 py-3.5 text-sm leading-snug text-danger break-words dark:border-white/10"
-              role="alert"
-            >
-              Axis could not load the next page of tenants. Try again.
-            </p>
+            <div className="border-t border-line/60 p-4 dark:border-white/10" role="alert">
+              <ErrorPanel
+                detail="Axis could not load the next page of tenants. Try again."
+                reference={loadMoreError.requestId ?? undefined}
+                title="Tenant page unavailable"
+              />
+            </div>
           ) : null}
         </section>
       ) : (

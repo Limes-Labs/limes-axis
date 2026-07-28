@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { Download, FileText, Filter, RotateCcw, ShieldCheck } from "lucide-react";
 
-import { axisFetchParsedJson } from "@/lib/axis-api";
+import {
+  axisFetchParsedJson,
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import {
   parseAuditExportBundle,
   parseManufacturingAuditExplorer,
@@ -148,6 +152,7 @@ function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExport
 
 export function AuditExplorer() {
   const [auditExport, setAuditExport] = useState<AuditExportBundle | null>(null);
+  const [auditExportError, setAuditExportError] = useState<AxisOperatorError | null>(null);
   const [urlState, setUrlState] = useConsoleUrlState(auditUrlSchema);
   const { refreshNonce } = useConsole();
   const { session } = useOidcConsoleSession();
@@ -168,7 +173,11 @@ export function AuditExplorer() {
     parse: parseManufacturingAuditExplorer,
   });
   const auditData = auditQuery.data;
-  const source = deriveSourceState(auditQuery.source, Boolean(auditData));
+  const source = deriveSourceState(
+    auditQuery.source,
+    Boolean(auditData),
+    auditData?.provenance,
+  );
   const filters: AuditFilters = auditData
     ? {
         tenant: urlState.tenant === allAuditFilter
@@ -192,25 +201,35 @@ export function AuditExplorer() {
     async function loadAuditExport() {
       if (!tenantQueriesEnabled || !tenantId) {
         setAuditExport(null);
+        setAuditExportError(null);
         return;
       }
 
       setAuditExport(null);
+      setAuditExportError(null);
       try {
         const exportData = await axisFetchParsedJson<AuditExportBundle>(
           auditExportPath,
-          parseAuditExportBundle,
+          (value) => {
+            const parsed = parseAuditExportBundle(value);
+            if (parsed.tenant_id !== tenantId) {
+              throw new Error("Audit export tenant does not match the verified console tenant.");
+            }
+            return parsed;
+          },
           { session, signal: controller.signal },
         );
-        if (exportData.tenant_id !== tenantId) {
-          throw new Error("Audit export tenant does not match the verified console tenant.");
-        }
         if (!controller.signal.aborted) {
           setAuditExport(exportData);
+          setAuditExportError(null);
         }
-      } catch {
+      } catch (caught) {
         if (!controller.signal.aborted) {
           setAuditExport(null);
+          setAuditExportError(toAxisOperatorError(
+            caught,
+            strings.audit.integrity.error.detail,
+          ));
         }
       }
     }
@@ -250,6 +269,7 @@ export function AuditExplorer() {
       <ErrorPanel
         detail="The console could not verify the current actor and tenant. Audit data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -264,6 +284,7 @@ export function AuditExplorer() {
       <ErrorPanel
         detail={strings.audit.error.detail}
         endpoint={auditEventsPath}
+        reference={auditQuery.errorRequestId ?? undefined}
         title={strings.audit.error.title}
       />
     );
@@ -546,6 +567,7 @@ export function AuditExplorer() {
         <ErrorPanel
           detail={strings.audit.integrity.error.detail}
           endpoint={auditExportPath}
+          reference={auditExportError?.requestId ?? undefined}
           title={strings.audit.integrity.error.title}
         />
       )}

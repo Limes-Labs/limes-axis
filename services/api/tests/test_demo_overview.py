@@ -1,5 +1,6 @@
 from pathlib import Path
 from runpy import run_path
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2006,6 +2007,55 @@ def test_manufacturing_ontology_entity_detail_endpoint_returns_persisted_referen
     assert "password" not in str(body).lower()
 
 
+def test_manufacturing_ontology_entity_detail_endpoint_preserves_opaque_node_id(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    node_id = " node/with?# "
+    encoded_node_id = quote(node_id, safe="")
+    assert encoded_node_id == "%20node%2Fwith%3F%23%20"
+
+    payload = persisted_ontology_payload()
+    payload["nodes"].append(
+        {
+            "node_id": node_id,
+            "label": "Opaque persisted node",
+            "node_type": "asset",
+            "domain": "Operations",
+            "status": "ready",
+            "source_system": "MES",
+            "summary": "Opaque identifier persisted in the ontology reference record.",
+        }
+    )
+    seed_ontology_reference(overview_session_factory, payload)
+
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+    response = TestClient(app).get(
+        f"/operations/ontology/entities/{encoded_node_id}",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["node"]["node_id"] == node_id
+
+
+def test_manufacturing_ontology_entity_detail_endpoint_rejects_empty_node_id(
+    overview_session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = overview_session_factory
+
+    response = TestClient(app).get(
+        "/operations/ontology/entities/",
+        params={"tenant_id": "tenant_demo_manufacturing"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["path", "node_id"]
+    assert response.json()["detail"][0]["type"] == "string_too_short"
+
+
 def test_manufacturing_ontology_entity_detail_endpoint_handles_missing_node(
     overview_session_factory: sessionmaker[Session],
 ) -> None:
@@ -2105,7 +2155,15 @@ def test_openapi_exposes_manufacturing_ontology_entity_detail_endpoint() -> None
     response = client.get("/openapi.json")
 
     assert response.status_code == 200
-    assert "/demo/manufacturing/ontology/entities/{node_id}" in response.json()["paths"]
+    for path in (
+        "/operations/ontology/entities/{node_id}",
+        "/demo/manufacturing/ontology/entities/{node_id}",
+    ):
+        operation = response.json()["paths"][path]["get"]
+        node_id_parameter = next(
+            parameter for parameter in operation["parameters"] if parameter["name"] == "node_id"
+        )
+        assert node_id_parameter["schema"]["minLength"] == 1
 
 
 def test_reference_console_serves_tenant_seeded_before_the_registry_existed(

@@ -5,7 +5,10 @@ import { useState } from "react";
 
 import { ErrorPanel } from "@/components/ui/states";
 import { ConsolePage } from "@/components/console-page";
-import { AxisApiError } from "@/lib/axis-api";
+import {
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import { formatNumber } from "@/lib/format";
 import {
   canListTenantSessions,
@@ -22,7 +25,11 @@ import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseIdentityBrowserSessionList } from "@/lib/runtime-contracts/identity";
 import { parseIdentitySessionReadModel } from "@/lib/runtime-contracts/overview";
-import { deriveSourceState, type SourceState } from "@/lib/source-state";
+import {
+  deriveSourceState,
+  PROVENANCE_NOT_APPLICABLE,
+  type SourceState,
+} from "@/lib/source-state";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -30,16 +37,21 @@ import { useConsole } from "@/providers/console-provider";
 const SESSIONS_ROUTE = "/settings/sessions";
 const SESSION_ENDPOINTS = "/identity/session /identity/sessions";
 
-function revokeErrorMessage(caught: unknown): string {
-  if (caught instanceof AxisApiError) {
-    if (caught.status === 403) {
-      return "Axis denied the revocation. Managing other actors' sessions requires identity:sessions:admin.";
-    }
-    if (caught.status === 404) {
-      return "Axis could not find that session in this tenant. Refresh the list.";
-    }
+function revokeOperatorError(caught: unknown): AxisOperatorError {
+  const failure = toAxisOperatorError(caught, "Axis could not revoke the session.");
+  if (failure.status === 403) {
+    return {
+      ...failure,
+      message: "Axis denied the revocation. Managing other actors' sessions requires identity:sessions:admin.",
+    };
   }
-  return "Axis could not revoke the session.";
+  if (failure.status === 404) {
+    return {
+      ...failure,
+      message: "Axis could not find that session in this tenant. Refresh the list.",
+    };
+  }
+  return failure;
 }
 
 /**
@@ -170,7 +182,7 @@ function SessionListPanel({
   const [pendingSessionRefs, setPendingSessionRefs] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [revokeError, setRevokeError] = useState<AxisOperatorError | null>(null);
 
   async function revokeSession(record: IdentityBrowserSessionRecord) {
     setPendingSessionRefs((current) => new Set(current).add(record.session_ref));
@@ -179,7 +191,7 @@ function SessionListPanel({
       await revokeIdentitySession(record.session_ref, { session });
       triggerRefresh();
     } catch (caught) {
-      setRevokeError(revokeErrorMessage(caught));
+      setRevokeError(revokeOperatorError(caught));
     } finally {
       setPendingSessionRefs((current) => {
         const next = new Set(current);
@@ -194,6 +206,7 @@ function SessionListPanel({
       <ErrorPanel
         detail="Live session data requires the Axis identity session APIs. Local fallback session records are disabled."
         endpoint={identitySessionsPath(listTenantWide)}
+        reference={sessions.errorRequestId ?? undefined}
         title="Sessions API unavailable"
       />
     );
@@ -263,9 +276,13 @@ function SessionListPanel({
       )}
 
       {revokeError ? (
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words signal-action-required" role="alert">
-          {revokeError}
-        </p>
+        <div role="alert">
+          <ErrorPanel
+            detail={revokeError.message}
+            reference={revokeError.requestId ?? undefined}
+            title="Session revocation failed"
+          />
+        </div>
       ) : null}
 
       {list?.notes.length ? (
@@ -302,7 +319,11 @@ export function SessionSecurityConsole() {
       }
       eyebrow="Platform control"
       sourceLabel={sourceStateLabel(
-        deriveSourceState(identity.source, Boolean(identitySession)),
+        deriveSourceState(
+          identity.source,
+          Boolean(identitySession),
+          PROVENANCE_NOT_APPLICABLE,
+        ),
         "session security",
       )}
       subtitle="API-owned OIDC browser sessions with rotation, revocation and logout evidence."
@@ -312,6 +333,7 @@ export function SessionSecurityConsole() {
         <ErrorPanel
           detail="Live session management requires the Axis identity APIs. Local fallback session records are disabled."
           endpoint={SESSION_ENDPOINTS}
+          reference={identity.errorRequestId ?? undefined}
           title="Session API unavailable"
         />
       ) : !identitySession.authenticated ? (

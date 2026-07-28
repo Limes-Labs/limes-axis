@@ -30,8 +30,18 @@ type ConsoleUrlStateUpdate<TSchema extends ConsoleUrlSchema> =
   | Partial<ConsoleUrlState<TSchema>>
   | ((current: ConsoleUrlState<TSchema>) => Partial<ConsoleUrlState<TSchema>>);
 
+type ConsoleUrlStateUpdateOptions = {
+  /**
+   * Filters default to `replace` so typing and refinement do not flood browser
+   * history. Use `push` for record traversal that operators should be able to
+   * undo with Back/Forward.
+   */
+  history?: "push" | "replace";
+};
+
 type ConsoleUrlContextValue = {
   pathname: string;
+  push: (search: string) => void;
   replace: (search: string) => void;
   search: string;
 };
@@ -43,6 +53,23 @@ export function stringUrlField(param: string, defaultValue = ""): ConsoleUrlFiel
     defaultValue,
     param,
     parse: (value) => value.trim() || null,
+    serialize: String,
+  };
+}
+
+/**
+ * URL field for identifiers whose bytes are owned by another system. Unlike a
+ * human-entered filter, an opaque identifier must not be normalized: leading
+ * and trailing whitespace can be part of its identity.
+ */
+export function opaqueStringUrlField(
+  param: string,
+  defaultValue = "",
+): ConsoleUrlField<string> {
+  return {
+    defaultValue,
+    param,
+    parse: (value) => value.length > 0 ? value : null,
     serialize: String,
   };
 }
@@ -73,9 +100,15 @@ export function ConsoleUrlStateProvider({ children }: { children: ReactNode }) {
     },
     [pathname, router],
   );
+  const push = useCallback(
+    (nextSearch: string) => {
+      router.push(nextSearch ? `${pathname}?${nextSearch}` : pathname, { scroll: false });
+    },
+    [pathname, router],
+  );
   const value = useMemo(
-    () => ({ pathname, replace, search }),
-    [pathname, replace, search],
+    () => ({ pathname, push, replace, search }),
+    [pathname, push, replace, search],
   );
 
   return <ConsoleUrlContext.Provider value={value}>{children}</ConsoleUrlContext.Provider>;
@@ -103,7 +136,10 @@ export function useConsoleUrlState<const TSchema extends ConsoleUrlSchema>(
   schema: TSchema,
 ): [
   ConsoleUrlState<TSchema>,
-  (update: ConsoleUrlStateUpdate<TSchema>) => void,
+  (
+    update: ConsoleUrlStateUpdate<TSchema>,
+    options?: ConsoleUrlStateUpdateOptions,
+  ) => void,
 ] {
   const context = useContext(ConsoleUrlContext);
   const [browserLocation, setBrowserLocation] = useState(() =>
@@ -132,7 +168,10 @@ export function useConsoleUrlState<const TSchema extends ConsoleUrlSchema>(
   const state = useMemo(() => readState(schema, search), [schema, search]);
 
   const setState = useCallback(
-    (update: ConsoleUrlStateUpdate<TSchema>) => {
+    (
+      update: ConsoleUrlStateUpdate<TSchema>,
+      options: ConsoleUrlStateUpdateOptions = {},
+    ) => {
       const changes = typeof update === "function" ? update(state) : update;
       const params = new URLSearchParams(search);
 
@@ -153,15 +192,16 @@ export function useConsoleUrlState<const TSchema extends ConsoleUrlSchema>(
       if (nextSearch === search) {
         return;
       }
+      const historyMode = options.history ?? "replace";
       if (context) {
-        context.replace(nextSearch);
+        context[historyMode](nextSearch);
         return;
       }
       if (typeof window !== "undefined") {
         const nextUrl = nextSearch
           ? `${browserLocation.pathname}?${nextSearch}`
           : browserLocation.pathname;
-        window.history.replaceState(window.history.state, "", nextUrl);
+        window.history[`${historyMode}State`](window.history.state, "", nextUrl);
         setBrowserLocation((current) => ({ ...current, search: nextSearch }));
       }
     },

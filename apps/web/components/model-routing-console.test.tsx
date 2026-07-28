@@ -196,6 +196,7 @@ describe("ModelRoutingConsole no-match filter state", () => {
     tenant_id: "tenant_acme",
     plant_name: "Acme Plant",
     scenario: "Fixture scenario",
+    provenance: "reference_scenario",
     as_of: "2026-07-22T12:00:00Z",
     routing_status: "watch",
     metrics: [],
@@ -335,5 +336,53 @@ describe("ModelRoutingConsole no-match filter state", () => {
     expect(
       screen.queryByRole("heading", { name: "No routes match the current filters" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses the payload provenance as the single source-of-truth badge", () => {
+    render(<ModelRoutingConsole />);
+
+    expect(screen.getAllByText("model routing: reference scenario")).toHaveLength(1);
+    expect(screen.queryByText("model routing: live")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("model routing: reference scenario").closest(".status-pill"),
+    ).toHaveAttribute("data-source-state", "reference");
+  });
+
+  it("renders a valid empty routing payload as onboarding state, not an API error", () => {
+    mocks.useAxisQuery.mockImplementation((path: string) => {
+      if (path === "/identity/session") {
+        return {
+          data: authenticatedIdentity,
+          source: "api",
+          error: null,
+          isLoading: false,
+          isRefreshing: false,
+          isUnavailable: false,
+        };
+      }
+      if (path.startsWith(`${OPERATIONS_API_PREFIX}/model-routing`)) {
+        return {
+          data: {
+            ...routingFixture,
+            provenance: "empty",
+            provider_options: [],
+            routes: [],
+          },
+          source: "api",
+          error: null,
+          isLoading: false,
+          isRefreshing: false,
+          isUnavailable: false,
+        };
+      }
+      return unavailableResult();
+    });
+
+    render(<ModelRoutingConsole />);
+
+    expect(screen.getByRole("heading", { name: "No model routes yet" })).toBeInTheDocument();
+    expect(screen.getByText("model routing: no records")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Routing API unavailable" }))
+      .not.toBeInTheDocument();
   });
 });

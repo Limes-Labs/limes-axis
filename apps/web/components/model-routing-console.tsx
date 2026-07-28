@@ -95,6 +95,7 @@ export function ModelRoutingConsole() {
       <ErrorPanel
         detail="Model routing data is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -171,7 +172,11 @@ function ReferenceModelRouting({
   tenantId: string;
 }) {
   const routingPath = buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/model-routing`, tenantId);
-  const { data: routing, source } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
+  const {
+    data: routing,
+    errorRequestId: routingErrorRequestId,
+    source,
+  } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
     enabled,
     expectedTenantId: tenantId,
     parse: parseManufacturingModelRouting,
@@ -223,6 +228,7 @@ function ReferenceModelRouting({
       <ErrorPanel
         detail={strings.models.reference.error.detail}
         endpoint={routingPath}
+        reference={routingErrorRequestId ?? undefined}
         title={strings.models.reference.error.title}
       />
     );
@@ -230,11 +236,18 @@ function ReferenceModelRouting({
 
   if (routing.routes.length === 0) {
     return (
-      <ErrorPanel
-        detail={strings.models.reference.noRecords.detail}
-        endpoint={routingPath}
-        title={strings.models.reference.noRecords.title}
-      />
+      <div className="grid gap-3">
+        <div className="flex justify-end">
+          <SourcePill
+            state={deriveSourceState(source, true, routing.provenance)}
+            subject="model routing"
+          />
+        </div>
+        <EmptyPanel
+          detail={strings.models.reference.noRecords.detail}
+          title={strings.models.reference.noRecords.title}
+        />
+      </div>
     );
   }
 
@@ -267,11 +280,10 @@ function ReferenceModelRouting({
           {formatContextPath(routing.plant_name, routing.scenario, routing.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="status-pill signal-watch" data-source-badge="reference">
-            <FileText size={15} />
-            Reference
-          </span>
-          <SourcePill state={deriveSourceState(source, Boolean(routing))} subject="model routing" />
+          <SourcePill
+            state={deriveSourceState(source, Boolean(routing), routing.provenance)}
+            subject="model routing"
+          />
           <span className={`status-pill ${platformStatusClass(routing.routing_status)}`}>
             <Gauge size={15} />
             {platformStatusLabel(routing.routing_status)}
@@ -663,6 +675,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
           <ErrorPanel
             detail={strings.models.live.invocationsError.detail}
             endpoint={invocationsPath}
+            reference={invocations.errorRequestId ?? undefined}
             title={strings.models.live.invocationsError.title}
           />
         ) : invocations.data.invocations.length === 0 ? (
@@ -763,6 +776,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
           <ErrorPanel
             detail={strings.models.live.endpointsError.detail}
             endpoint={endpointsPath}
+            reference={endpoints.errorRequestId ?? undefined}
             title={strings.models.live.endpointsError.title}
           />
         ) : endpoints.data.endpoints.length === 0 ? (

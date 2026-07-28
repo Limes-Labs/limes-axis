@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { Database, List, Share2, ShieldCheck } from "lucide-react";
 
 import { ErrorPanel } from "@/components/ui/states";
 import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
+import { useOntologyEntityHistory } from "@/components/ontology/use-ontology-entity-history";
 import { OntologyGraph } from "@/components/ontology-graph";
 import { Reveal } from "@/components/reveal";
 import { PlatformStatusPill } from "@/components/status-pill";
@@ -22,6 +23,11 @@ import {
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
 import { formatContextPath, formatNumber } from "@/lib/format";
+import {
+  enumUrlField,
+  opaqueStringUrlField,
+  useConsoleUrlState,
+} from "@/lib/console-url-state";
 import { deriveSourceState } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
@@ -38,6 +44,12 @@ import {
 
 type OntologyView = "graph" | "list";
 
+const ontologyViews = ["graph", "list"] as const satisfies readonly OntologyView[];
+const ontologyUrlSchema = {
+  entityId: opaqueStringUrlField("entity_id"),
+  view: enumUrlField("view", ontologyViews, "graph"),
+};
+
 function OntologyExplorerSkeleton() {
   return (
     <div className="grid gap-5" aria-busy="true" aria-label="Loading ontology API">
@@ -53,13 +65,27 @@ export function OntologyExplorer() {
     `${OPERATIONS_API_PREFIX}/ontology`,
     tenantId ?? DEMO_TENANT_ID,
   );
-  const { data: ontology, source } = useAxisQuery<ManufacturingOntology>(ontologyPath, {
+  const {
+    data: ontology,
+    errorRequestId: ontologyErrorRequestId,
+    source,
+  } = useAxisQuery<ManufacturingOntology>(ontologyPath, {
     enabled: tenantQueriesEnabled,
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingOntology,
   });
-  const [view, setView] = useState<OntologyView>("graph");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [urlState, setUrlState] = useConsoleUrlState(ontologyUrlSchema);
+  const selectedNodeId = urlState.entityId || null;
+  const updateEntityId = useCallback(
+    (entityId: string, history: "push" | "replace") => {
+      setUrlState({ entityId }, { history });
+    },
+    [setUrlState],
+  );
+  const { closeEntity, navigateToEntity } = useOntologyEntityHistory({
+    entityId: selectedNodeId,
+    updateEntityId,
+  });
 
   const nodeLabels = useMemo(
     () => (ontology ? nodeLabelById(ontology) : new Map<string, string>()),
@@ -79,6 +105,7 @@ export function OntologyExplorer() {
       <ErrorPanel
         detail="The ontology is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -103,6 +130,7 @@ export function OntologyExplorer() {
       <ErrorPanel
         detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
         endpoint={ontologyPath}
+        reference={ontologyErrorRequestId ?? undefined}
         title="Ontology API unavailable"
       />
     );
@@ -118,7 +146,10 @@ export function OntologyExplorer() {
           {formatContextPath(ontology.plant_name, ontology.scenario, ontology.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={deriveSourceState(source, Boolean(ontology))} subject="ontology" />
+          <SourcePill
+            state={deriveSourceState(source, Boolean(ontology), ontology.provenance)}
+            subject="ontology"
+          />
           <span className="font-mono text-xs text-muted">{formatNumber(ontology.nodes.length)} nodes</span>
           <span className="font-mono text-xs text-muted">
             {formatNumber(ontology.relationships.length)} relationships
@@ -134,19 +165,19 @@ export function OntologyExplorer() {
           </div>
           <div className="flex gap-2" role="group" aria-label="Ontology view">
             <Button
-              aria-pressed={view === "graph"}
+              aria-pressed={urlState.view === "graph"}
               className="px-4 py-2 text-sm"
-              onClick={() => setView("graph")}
-              variant={view === "graph" ? "primary" : "secondary"}
+              onClick={() => setUrlState({ view: "graph" })}
+              variant={urlState.view === "graph" ? "primary" : "secondary"}
             >
               <Share2 size={15} />
               Graph
             </Button>
             <Button
-              aria-pressed={view === "list"}
+              aria-pressed={urlState.view === "list"}
               className="px-4 py-2 text-sm"
-              onClick={() => setView("list")}
-              variant={view === "list" ? "primary" : "secondary"}
+              onClick={() => setUrlState({ view: "list" })}
+              variant={urlState.view === "list" ? "primary" : "secondary"}
             >
               <List size={15} />
               List
@@ -155,13 +186,13 @@ export function OntologyExplorer() {
         </div>
         <div aria-hidden="true" className="rule-hairline" />
 
-        {view === "graph" ? (
+        {urlState.view === "graph" ? (
           <div className="grid gap-3">
             <OntologyGraph
               nodes={ontology.nodes}
               relationships={ontology.relationships}
               selectedNodeId={selectedNodeId ?? undefined}
-              onNodeActivate={setSelectedNodeId}
+              onNodeActivate={navigateToEntity}
             />
             <div
               className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] tracking-[0.14em] text-muted uppercase"
@@ -203,7 +234,7 @@ export function OntologyExplorer() {
                     <td>
                       <button
                         className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-signal hover:underline"
-                        onClick={() => setSelectedNodeId(node.node_id)}
+                        onClick={() => navigateToEntity(node.node_id)}
                         type="button"
                       >
                         {node.label}
@@ -319,10 +350,10 @@ export function OntologyExplorer() {
 
       <OntologyEntitySheet
         nodeId={selectedNodeId}
-        onNavigateToNode={setSelectedNodeId}
+        onNavigateToNode={navigateToEntity}
         onOpenChange={(open) => {
           if (!open) {
-            setSelectedNodeId(null);
+            closeEntity();
           }
         }}
         tenantId={tenantId}

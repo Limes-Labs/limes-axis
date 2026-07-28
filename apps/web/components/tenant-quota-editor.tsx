@@ -10,17 +10,20 @@ import {
   platformTenantQuotaScope,
   quotaFormFromQuotaSet,
   tenantQuotaFields,
+  tenantWriteOperatorError,
   updateTenantQuotas,
   validateQuotaForm,
   type TenantQuotaFieldError,
   type TenantQuotaFormState,
   type TenantQuotaSet,
 } from "@/lib/platform-tenants";
+import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
 import { pluralize } from "@/lib/format";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 
 type QuotaSource = "loading" | "api" | "unavailable" | "missing";
 
@@ -29,7 +32,7 @@ type SaveState =
   | { phase: "confirming" }
   | { phase: "saving" }
   | { phase: "done"; changeCount: number }
-  | { phase: "failed"; message: string };
+  | { phase: "failed"; error: AxisOperatorError };
 
 function sourceLabel(source: QuotaSource): string {
   if (source === "api") {
@@ -136,7 +139,10 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      setSave({ phase: "failed", message: "Fix the highlighted fields; nothing was sent." });
+      setSave({
+        phase: "failed",
+        error: toAxisOperatorError(null, "Fix the highlighted fields; nothing was sent."),
+      });
       return;
     }
 
@@ -166,29 +172,38 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
       if (result.kind === "forbidden") {
         setSave({
           phase: "failed",
-          message: result.requiredPermission
-            ? `${result.message} Required permission: ${result.requiredPermission}.`
-            : result.message,
+          error: tenantWriteOperatorError(
+            result,
+            result.requiredPermission
+              ? `${result.message} Required permission: ${result.requiredPermission}.`
+              : result.message,
+          ),
         });
         return;
       }
 
       if (result.kind === "invalid") {
-        setSave({ phase: "failed", message: result.message });
+        setSave({ phase: "failed", error: tenantWriteOperatorError(result) });
         return;
       }
 
       if (result.kind === "notFound") {
-        setSave({ phase: "failed", message: result.message });
+        setSave({ phase: "failed", error: tenantWriteOperatorError(result) });
         return;
       }
 
       setSave({
         phase: "failed",
-        message: result.kind === "failed" ? result.message : "Quota update failed.",
+        error: tenantWriteOperatorError(
+          result,
+          result.kind === "failed" ? result.message : "Quota update failed.",
+        ),
       });
-    } catch {
-      setSave({ phase: "failed", message: "Tenant quota API is unavailable." });
+    } catch (caught) {
+      setSave({
+        phase: "failed",
+        error: toAxisOperatorError(caught, "Tenant quota API is unavailable."),
+      });
     }
   }
 
@@ -275,9 +290,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
       )}
 
       {save.phase === "failed" ? (
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
-          Quota update failed: {save.message}
-        </p>
+        <InlineOperatorError error={save.error} prefix="Quota update failed" />
       ) : null}
       {save.phase === "done" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">

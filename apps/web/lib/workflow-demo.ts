@@ -45,7 +45,7 @@ export type ManufacturingWorkflowConsole = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   runtime_status: PlatformStatus;
   metrics: {

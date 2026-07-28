@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 import { cn } from "@/lib/cn";
 import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
 import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
 import type { ManufacturingOntology } from "@/lib/ontology-demo";
+import type { AxisOperatorError } from "@/lib/axis-api";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
@@ -64,7 +66,7 @@ export type OnboardingChecklistProps = {
   /** In-flight demo bootstrap: the CTA disables and shows the pending label. */
   demoPending?: boolean;
   /** Bootstrap failure rendered inline above the CTA; the CTA stays retryable. */
-  demoError?: string | null;
+  demoError?: AxisOperatorError | null;
   /** API-verified tenant scope; defaults to the explicit public demo tenant. */
   tenantId?: string;
 };
@@ -277,9 +279,7 @@ export function OnboardingChecklist({
       <StepList steps={steps} />
       <div className="grid gap-3 border-t border-line/60 pt-4 dark:border-white/10">
         {demoError ? (
-          <p className="m-0 text-sm leading-snug text-danger break-words" role="alert">
-            {demoError}
-          </p>
+          <InlineOperatorError error={demoError} />
         ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <ExploreDemoButton

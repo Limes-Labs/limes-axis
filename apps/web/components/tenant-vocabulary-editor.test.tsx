@@ -102,6 +102,7 @@ describe("TenantVocabularyEditor", () => {
       kind: "forbidden",
       message: "Configure permission denied.",
       requiredPermission: "platform:tenant:configure",
+      requestId: "req-tenant-vocabulary-403",
     });
 
     renderEditor();
@@ -115,6 +116,7 @@ describe("TenantVocabularyEditor", () => {
         /Configure permission denied\. Required permission: platform:tenant:configure\./,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("req-tenant-vocabulary-403")).toBeInTheDocument();
   });
 
   it("does not overwrite an unsaved edit during a background refresh", async () => {
@@ -247,6 +249,7 @@ describe("TenantVocabularyEditor", () => {
       kind: "invalid",
       message: "Domain labels must use registered operational keys.",
       fieldErrors: { domainLabels: "Unknown domain key: rogue." },
+      requestId: "req-tenant-vocabulary-422",
     });
 
     renderEditor();
@@ -259,5 +262,27 @@ describe("TenantVocabularyEditor", () => {
       await screen.findByText(/Domain labels must use registered operational keys\./),
     ).toBeInTheDocument();
     expect(screen.getByText("Unknown domain key: rogue.")).toBeInTheDocument();
+    expect(screen.getByText("req-tenant-vocabulary-422")).toBeInTheDocument();
+  });
+
+  it("keeps local vocabulary validation reference-free and does not call the API", async () => {
+    const user = userEvent.setup();
+    mocks.fetchTenantVocabulary.mockResolvedValue(defaultVocabulary);
+
+    renderEditor();
+
+    await screen.findByDisplayValue("Site");
+    await user.click(screen.getByRole("button", { name: "Add domain label" }));
+    await user.click(screen.getByRole("button", { name: "Review vocabulary update" }));
+
+    expect(
+      screen.getAllByRole("alert").find((alert) =>
+        alert.textContent?.includes(
+          "Vocabulary update failed: Fix the highlighted fields; nothing was sent.",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Request reference:/)).not.toBeInTheDocument();
+    expect(mocks.updateTenantVocabulary).not.toHaveBeenCalled();
   });
 });

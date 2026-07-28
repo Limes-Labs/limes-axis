@@ -16,8 +16,19 @@ import type { AxisQuerySource } from "@/lib/use-axis-query";
 /** The subset of a `useAxisQuery` result the overview sections consume. */
 export type OverviewQuery<T> = {
   data: T | null;
+  errorRequestId?: string | null;
   source: AxisQuerySource;
 };
+
+/** Combine request ids when a section depends on more than one failed query. */
+export function overviewErrorReference(
+  ...queries: Array<OverviewQuery<unknown>>
+): string | undefined {
+  const requestIds = Array.from(
+    new Set(queries.flatMap((query) => query.errorRequestId ? [query.errorRequestId] : [])),
+  );
+  return requestIds.length > 0 ? requestIds.join(", ") : undefined;
+}
 
 export function normalizeLabel(value: string): string {
   return value

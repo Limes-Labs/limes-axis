@@ -11,6 +11,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   formatActionLabel,
@@ -29,12 +30,19 @@ import { cn } from "@/lib/cn";
 import { formatElapsedDuration } from "@/lib/format";
 import type { ManufacturingOverview, RiskSignal, WorkflowSummary } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
-import { normalizeLabel, PanelHeader, StatusDot, type OverviewQuery } from "./overview-shared";
+import {
+  normalizeLabel,
+  overviewErrorReference,
+  PanelHeader,
+  StatusDot,
+  type OverviewQuery,
+} from "./overview-shared";
 
 /*
  * The needs-attention strip: everything currently waiting on a human, each
@@ -199,6 +207,48 @@ function SourceUnavailableNote({ message }: { message: string }) {
   );
 }
 
+function AttentionSources({
+  actionRuns,
+  approvals,
+  overview,
+}: {
+  actionRuns: OverviewQuery<ActionRunList>;
+  approvals: OverviewQuery<ManufacturingApprovalInbox>;
+  overview: OverviewQuery<ManufacturingOverview>;
+}) {
+  return (
+    <div
+      aria-label="Needs attention data sources"
+      className="flex min-w-0 flex-wrap items-center justify-end gap-1.5"
+    >
+      <SourcePill
+        state={deriveSourceState(
+          overview.source,
+          Boolean(overview.data),
+          overview.data?.provenance,
+        )}
+        subject="risk context"
+      />
+      <SourcePill
+        state={deriveSourceState(
+          approvals.source,
+          Boolean(approvals.data),
+          approvals.data?.provenance,
+        )}
+        subject="approval queue"
+      />
+      <SourcePill
+        state={deriveSourceState(
+          actionRuns.source,
+          Boolean(actionRuns.data),
+          PROVENANCE_NOT_APPLICABLE,
+        )}
+        subject="action follow-through"
+      />
+    </div>
+  );
+}
+
 export function NeedsAttention({
   actor,
   overview,
@@ -236,6 +286,7 @@ export function NeedsAttention({
       <ErrorPanel
         detail={copy.error.detail}
         endpoint={`${APPROVALS_ENDPOINT} + ${OPERATIONS_API_PREFIX}/overview`}
+        reference={overviewErrorReference(overview, approvalsQuery)}
         title={copy.error.title}
       />
     );
@@ -260,13 +311,33 @@ export function NeedsAttention({
     }
 
     return (
-      <EmptyPanel detail={copy.allClear.detail} icon={CircleCheckBig} title={copy.allClear.title} />
+      <div className="grid gap-3">
+        <AttentionSources
+          actionRuns={actionRunsQuery}
+          approvals={approvalsQuery}
+          overview={overview}
+        />
+        <EmptyPanel
+          detail={copy.allClear.detail}
+          icon={CircleCheckBig}
+          title={copy.allClear.title}
+        />
+      </div>
     );
   }
 
   return (
     <section aria-label={copy.eyebrow} className="grid gap-3">
-      <PanelHeader eyebrow={copy.eyebrow} />
+      <PanelHeader
+        aside={
+          <AttentionSources
+            actionRuns={actionRunsQuery}
+            approvals={approvalsQuery}
+            overview={overview}
+          />
+        }
+        eyebrow={copy.eyebrow}
+      />
       {approvalsFailed ? <SourceUnavailableNote message={copy.approvalsUnavailable} /> : null}
       {overviewFailed ? <SourceUnavailableNote message={copy.overviewUnavailable} /> : null}
       {actionRunsFailed ? <SourceUnavailableNote message={copy.actionRunsUnavailable} /> : null}

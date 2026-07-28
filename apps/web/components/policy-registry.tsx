@@ -23,7 +23,7 @@ import {
   type PlatformPolicyScope,
 } from "@/lib/platform-policies";
 import { formatNumber, formatTimestamp } from "@/lib/format";
-import { deriveSourceState } from "@/lib/source-state";
+import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import { useAxisQuery } from "@/lib/use-axis-query";
@@ -61,7 +61,11 @@ export function PolicyRegistry() {
   const [filters, setFilters] = useConsoleUrlState(policyUrlSchema);
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const registryPath = buildPlatformPoliciesPath(filters, tenantId ?? undefined);
-  const { data: registry, source } = useAxisQuery<PlatformPolicyRegistry>(
+  const {
+    data: registry,
+    errorRequestId: registryErrorRequestId,
+    source,
+  } = useAxisQuery<PlatformPolicyRegistry>(
     registryPath,
     {
       enabled: tenantQueriesEnabled,
@@ -98,6 +102,7 @@ export function PolicyRegistry() {
       <ErrorPanel
         detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -112,6 +117,7 @@ export function PolicyRegistry() {
       <ErrorPanel
         detail={strings.policyDetail.error.registryDetail}
         endpoint={registryPath}
+        reference={registryErrorRequestId ?? undefined}
         title={strings.policyDetail.error.title}
       />
     );
@@ -134,7 +140,7 @@ export function PolicyRegistry() {
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
-            state={deriveSourceState(source, Boolean(registry))}
+            state={deriveSourceState(source, Boolean(registry), PROVENANCE_NOT_APPLICABLE)}
             subject="policy registry"
           />
           <span className="status-pill signal-watch">

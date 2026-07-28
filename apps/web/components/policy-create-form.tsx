@@ -6,6 +6,11 @@ import { FilePlus2, FlaskConical } from "lucide-react";
 
 import { PolicyConditionFields } from "@/components/policy-condition-fields";
 import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
+import { Field } from "@/components/ui/field";
+import { InlineOperatorError } from "@/components/ui/inline-operator-error";
+import { Input, Textarea } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
 import {
   buildPolicyConditionsPayload,
   buildPolicyCreatePayload,
@@ -17,6 +22,7 @@ import {
   platformPolicyScopes,
   policyEffectLabel,
   policyScopeLabel,
+  policyWriteOperatorError,
   validatePolicyDraft,
   type PlatformPolicyRecord,
   type PlatformPolicyScope,
@@ -27,15 +33,12 @@ import {
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
-import { Field } from "@/components/ui/field";
-import { Input, Textarea } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 
 type SubmissionState =
   | { phase: "idle" }
   | { phase: "saving" }
   | { phase: "created"; record: PlatformPolicyRecord }
-  | { phase: "failed"; message: string };
+  | { phase: "failed"; error: AxisOperatorError };
 
 export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
   const { session } = useOidcConsoleSession();
@@ -61,7 +64,10 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
     if (Object.keys(validationErrors).length > 0) {
       setSubmission({
         phase: "failed",
-        message: "Fix the highlighted fields; nothing was sent to the API.",
+        error: toAxisOperatorError(
+          null,
+          "Fix the highlighted fields; nothing was sent to the API.",
+        ),
       });
       return;
     }
@@ -83,33 +89,38 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
 
       if (result.kind === "conflict") {
         setFieldErrors({ policyId: result.message });
-        setSubmission({ phase: "failed", message: result.message });
+        setSubmission({ phase: "failed", error: policyWriteOperatorError(result) });
         return;
       }
 
       if (result.kind === "invalid") {
         setFieldErrors(result.fieldErrors);
-        setSubmission({ phase: "failed", message: result.message });
+        setSubmission({ phase: "failed", error: policyWriteOperatorError(result) });
         return;
       }
 
       if (result.kind === "forbidden") {
         setSubmission({
           phase: "failed",
-          message: result.requiredPermission
-            ? `${result.message} Required permission: ${result.requiredPermission}.`
-            : result.message,
+          error: policyWriteOperatorError(
+            result,
+            result.requiredPermission
+              ? `${result.message} Required permission: ${result.requiredPermission}.`
+              : result.message,
+          ),
         });
         return;
       }
 
       setSubmission({
         phase: "failed",
-        message:
-          result.kind === "failed" ? result.message : "Policy authoring returned an unexpected result.",
+        error: policyWriteOperatorError(result),
       });
-    } catch {
-      setSubmission({ phase: "failed", message: "Policy authoring API is unavailable." });
+    } catch (caught) {
+      setSubmission({
+        phase: "failed",
+        error: toAxisOperatorError(caught, "Policy authoring API is unavailable."),
+      });
     }
   }
 
@@ -255,9 +266,7 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
       </form>
 
       {submission.phase === "failed" ? (
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
-          Policy authoring failed: {submission.message}
-        </p>
+        <InlineOperatorError error={submission.error} prefix="Policy authoring failed" />
       ) : null}
       {submission.phase === "created" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">

@@ -12,6 +12,7 @@ from fastapi import (
     FastAPI,
     Header,
     HTTPException,
+    Path,
     Query,
     Request,
     Response,
@@ -398,6 +399,7 @@ from axis_api.manufacturing_operations import (
     MaintenanceRiskScenarioRequest,
     MaintenanceRiskScenarioValidationError,
     ManufacturingDemoReadinessReport,
+    ManufacturingNotificationAcknowledgementConflict,
     ManufacturingNotificationAcknowledgementPermissionDenied,
     ManufacturingNotificationAcknowledgementRequest,
     ManufacturingNotificationAcknowledgementResult,
@@ -617,6 +619,11 @@ from axis_api.replay_simulation import (
     ReplaySimulationQuery,
     build_replay_simulation,
     persist_replay_simulation_output,
+)
+from axis_api.request_correlation import (
+    REQUEST_ID_HEADER,
+    RequestCorrelationMiddleware,
+    new_request_id,
 )
 from axis_api.runtime_readiness import (
     RuntimeReadinessService,
@@ -2490,6 +2497,41 @@ def create_app(
             },
         )
 
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(
+        request: Request,
+        exc: Exception,
+    ) -> JSONResponse:
+        # Starlette's ServerErrorMiddleware sits outside user middleware. Its
+        # default 500 response therefore bypasses request-correlation and CORS
+        # response processing unless the application-level error handler carries
+        # that evidence explicitly.
+        request_id = getattr(request.state, "request_id", None) or new_request_id()
+        _LOGGER.error(
+            "Unhandled API request failed request_id=%s exception_type=%s",
+            request_id,
+            type(exc).__name__,
+        )
+        headers = {REQUEST_ID_HEADER: request_id}
+        origin = request.headers.get("origin")
+        if origin and (
+            "*" in resolved_settings.cors_origins
+            or origin in resolved_settings.cors_origins
+        ):
+            headers.update(
+                {
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Expose-Headers": REQUEST_ID_HEADER,
+                    "Vary": "Origin",
+                }
+            )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Internal Server Error"},
+            headers=headers,
+        )
+
     validate_refresh_token_encryption_key(resolved_settings)
     app.add_middleware(BrowserSessionCsrfMiddleware, settings=resolved_settings)
     resolved_rate_limit_backend = rate_limit_backend or build_rate_limit_backend(
@@ -2512,8 +2554,11 @@ def create_app(
             "X-Axis-Tenant",
             "X-Axis-Actor",
             "X-Axis-Csrf-Token",
+            REQUEST_ID_HEADER,
         ],
+        expose_headers=[REQUEST_ID_HEADER],
     )
+    app.add_middleware(RequestCorrelationMiddleware)
     app.state.settings = resolved_settings
     app.state.rate_limit_backend = resolved_rate_limit_backend
     telemetry = telemetry or configure_api_telemetry(resolved_settings)
@@ -3933,6 +3978,7 @@ def create_app(
         responses={
             403: {"description": "Notification acknowledgement permission denied"},
             404: {"description": "Notification not found"},
+            409: {"description": "Notification acknowledgement state conflict"},
         },
         tags=["demo"],
     )
@@ -3969,6 +4015,21 @@ def create_app(
                         "notification window."
                     ),
                     "notification_id": exc.notification_id,
+                },
+            ) from exc
+        except ManufacturingNotificationAcknowledgementConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": AxisErrorCode.CONFLICT.value,
+                    "message": (
+                        "The notification acknowledgement conflicts with "
+                        "persisted state."
+                    ),
+                    "reason": exc.reason,
+                    "notification_id": exc.notification_id,
+                    "current_state": exc.current_state,
+                    "requested_state": exc.requested_state,
                 },
             ) from exc
 
@@ -8784,7 +8845,7 @@ def create_app(
         )
 
     @operations_router.get(
-        "/ontology/entities/{node_id}",
+        "/ontology/entities/{node_id:path}",
         response_model=ManufacturingOntologyEntityDetail,
         responses={
             401: {"description": "OIDC authentication required"},
@@ -8795,9 +8856,9 @@ def create_app(
         tags=["demo"],
     )
     def manufacturing_ontology_entity_detail(
-        node_id: str,
         principal: OidcPrincipalDependency,
         repository: PersistenceRepository,
+        node_id: str = Path(min_length=1),
         tenant_id: str = Query(min_length=1),
     ) -> ManufacturingOntologyEntityDetail:
         try:

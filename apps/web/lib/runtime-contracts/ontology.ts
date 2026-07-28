@@ -43,7 +43,7 @@ const ontology = z.object({
   tenant_id: z.string(),
   plant_name: nullableStringSchema,
   scenario: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
+  provenance: manufacturingProvenanceSchema,
   as_of: z.string(),
   nodes: z.array(ontologyNode),
   relationships: z.array(ontologyRelationship),
@@ -71,7 +71,7 @@ const ontologyEntityDetail = z.object({
   tenant_id: z.string(),
   plant_name: nullableStringSchema,
   scenario: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
+  provenance: manufacturingProvenanceSchema,
   as_of: z.string(),
   node: ontologyNode,
   connected_relationships: z.array(z.object({

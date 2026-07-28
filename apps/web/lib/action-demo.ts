@@ -69,7 +69,7 @@ export type ManufacturingActionRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   registry_status: PlatformStatus;
   schema_version: string;

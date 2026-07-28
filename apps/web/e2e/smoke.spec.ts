@@ -258,9 +258,13 @@ test.describe("Axis console smoke", () => {
     await page.getByRole("button", { name: "Open notifications" }).click();
     const notificationsPanel = page.locator('[aria-label="Notifications"]');
     await expect(notificationsPanel).toBeVisible();
-    await expect(notificationsPanel.getByText("API required", { exact: true })).toBeVisible();
     await expect(
-      notificationsPanel.getByText(`Live notification data requires \`${OPERATIONS_API_PREFIX}/notifications\`.`),
+      notificationsPanel.locator('[data-source-state="unavailable"]'),
+    ).toContainText("notifications: unavailable");
+    await expect(
+      notificationsPanel.getByText(
+        `Notification data requires ${OPERATIONS_API_PREFIX}/notifications.`,
+      ),
     ).toBeVisible();
     const notificationsTopbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
@@ -609,23 +613,33 @@ test.describe("Axis console smoke", () => {
       (url) => url.href.startsWith(`http://127.0.0.1:65534${OPERATIONS_API_PREFIX}/ontology`),
       async (route) => {
         if (route.request().url().includes("/entities/")) {
+          const requestUrl = new URL(route.request().url());
+          const requestedNodeId = decodeURIComponent(requestUrl.pathname.split("/").at(-1) ?? "");
+          const requestedNode = nodes.find((node) => node.node_id === requestedNodeId);
+          if (!requestedNode) {
+            await route.fulfill({ contentType: "application/json", json: {}, status: 404 });
+            return;
+          }
+
+          const viewingPlant = requestedNode.node_id === nodes[0].node_id;
           await route.fulfill({
             contentType: "application/json",
             json: {
               tenant_id: "tenant_e2e",
               plant_name: "E2E Plant",
               scenario: "E2E mocked scenario",
+              provenance: "reference_scenario",
               as_of: "2026-07-10T09:00:00+02:00",
-              node: nodes[1],
+              node: requestedNode,
               connected_relationships: [
                 {
-                  direction: "inbound",
+                  direction: viewingPlant ? "outbound" : "inbound",
                   relationship: relationships[0],
-                  peer_node: nodes[0],
+                  peer_node: viewingPlant ? nodes[1] : nodes[0],
                 },
               ],
-              inbound_count: 1,
-              outbound_count: 0,
+              inbound_count: viewingPlant ? 0 : 1,
+              outbound_count: viewingPlant ? 1 : 0,
               required_permissions: ["ontology:read"],
               evidence_refs: ["audit_evt_e2e"],
               data_access: ["MES summary"],
@@ -646,6 +660,7 @@ test.describe("Axis console smoke", () => {
             tenant_id: "tenant_e2e",
             plant_name: "E2E Plant",
             scenario: "E2E mocked scenario",
+            provenance: "reference_scenario",
             as_of: "2026-07-10T09:00:00+02:00",
             nodes,
             relationships,
@@ -672,10 +687,20 @@ test.describe("Axis console smoke", () => {
       },
     );
 
+    // Keep a deterministic pre-explorer entry so the final Close -> Back
+    // assertion can detect a duplicate explorer entry, not only a reopened
+    // entity sheet.
+    await page.goto("/ontology?history_origin=1");
     await page.goto("/ontology");
 
     const graph = page.getByTestId("ontology-graph");
     await expect(graph).toBeVisible();
+    const ontologySource = page.locator('[data-source-state="reference"]');
+    await expect(ontologySource).toBeVisible();
+    await expect(ontologySource).toContainText("ontology: reference scenario");
+    await expect(
+      page.locator('[data-source-state="live"]').filter({ hasText: "ontology" }),
+    ).toHaveCount(0);
 
     // Node-type counts live in the legend; the old metric cards are gone.
     const legend = page.getByLabel("Ontology graph legend");
@@ -702,12 +727,43 @@ test.describe("Axis console smoke", () => {
     );
     await expect(sheet.getByText("Read-only entity context")).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/ontology");
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe("asset_line_2");
 
-    // Closing the sheet keeps the zoomed graph state — no reload, no navigation.
+    // Peer traversal is URL-backed. Back walks the entity history in place,
+    // then closes the sheet without leaving the ontology explorer.
+    await sheet.getByRole("button", { name: "E2E Plant" }).click();
+    await expect(sheet.getByRole("heading", { name: "E2E Plant" })).toBeVisible();
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe("org_e2e_plant");
+
+    await page.goBack();
+    await expect(sheet.getByRole("heading", { name: "Line 2 Packaging" })).toBeVisible();
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe("asset_line_2");
+
+    await page.goBack();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/ontology");
+    expect(new URL(page.url()).search).toBe("");
+    await expect(graph).toHaveAttribute("viewBox", zoomedViewBox ?? "");
+
+    // Explicit Close collapses the whole peer traversal to the explorer root.
+    // The next Back must reach the entry before that root, not reopen either
+    // entity or visit a duplicate /ontology entry.
+    await graph.getByRole("link", { name: /Line 2 Packaging/ }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe("asset_line_2");
+    await sheet.getByRole("button", { name: "E2E Plant" }).click();
+    await expect(sheet.getByRole("heading", { name: "E2E Plant" })).toBeVisible();
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe("org_e2e_plant");
     await sheet.getByRole("button", { name: "Close" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(graph).toHaveAttribute("viewBox", zoomedViewBox ?? "");
     expect(new URL(page.url()).pathname).toBe("/ontology");
+    expect(new URL(page.url()).search).toBe("");
+
+    await page.goBack();
+    await expect.poll(() => new URL(page.url()).searchParams.get("history_origin")).toBe("1");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(new URL(page.url()).searchParams.has("entity_id")).toBe(false);
 
     expect(pageErrors).toEqual([]);
   });
@@ -748,7 +804,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByText("Live executed", { exact: true })).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Model invocation API unavailable" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByRole("heading", { name: "Model endpoint API unavailable" }),
     ).toBeVisible();

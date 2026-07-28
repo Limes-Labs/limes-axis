@@ -51,6 +51,24 @@ describe("ErrorPanel", () => {
     expect(screen.getByText(`${OPERATIONS_API_PREFIX}/approvals`)).toBeInTheDocument();
   });
 
+  it("reveals an operator reference only inside technical details", async () => {
+    const user = userEvent.setup();
+    render(
+      <ErrorPanel
+        title="Decision persistence error"
+        detail="Axis could not persist the decision."
+        reference="request-approval-503"
+      />,
+    );
+
+    expect(screen.queryByText("request-approval-503")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Technical details" }));
+
+    expect(screen.getByText("request-approval-503")).toBeInTheDocument();
+    expect(screen.getByText("Reference")).toBeInTheDocument();
+  });
+
   it("explains the default base URL inside technical details when no override is set", async () => {
     vi.stubEnv("NEXT_PUBLIC_AXIS_API_BASE_URL", "");
     const user = userEvent.setup();

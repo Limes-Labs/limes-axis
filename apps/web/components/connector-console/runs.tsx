@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
+import {
+  axisFetchParsedJson,
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -61,7 +65,7 @@ type StageState = {
   /** Status string reported by the API response for this stage. */
   resultStatus?: string;
   auditEventId?: string | null;
-  errorDetail?: string;
+  error?: AxisOperatorError;
 };
 
 type StepperState = Record<StageKey, StageState>;
@@ -75,23 +79,7 @@ const IDLE_STEPPER: StepperState = {
 type ValidateOutcome =
   | { kind: "csv"; result: ConnectorCsvPreviewResult }
   | { kind: "db"; result: ConnectorExternalDbPreviewResult }
-  | { kind: "error" };
-
-async function readApiErrorMessage(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      detail?: { message?: string; reason?: string; required_permission?: string };
-    };
-    return (
-      payload.detail?.message
-      ?? payload.detail?.reason
-      ?? payload.detail?.required_permission
-      ?? `Request failed with ${response.status}`
-    );
-  } catch {
-    return `Request failed with ${response.status}`;
-  }
-}
+  | { kind: "error"; error: AxisOperatorError };
 
 function StageIcon({ status }: { status: StageStatus }) {
   if (status === "success") {
@@ -180,68 +168,69 @@ export function ConnectorRuns({
     setValidateOutcome(null);
     try {
       if (connector.manifest.connector_type === "external_db") {
-        const response = await axisFetch(DB_PREVIEW_ENDPOINT, {
-          method: "POST",
-          session,
-          body: buildExternalDbPreviewRequest({
-            tenantId,
-            connectorId,
-            connectionProfileId: "profile_postgres_ops_readonly",
-            schemaName: "operations",
-            tableName: "production_orders",
-            credentialHandleId: "cred_external_db_readonly",
-            template: connector,
-          }),
-        });
-        if (!response.ok) {
-          commitOutcome({ kind: "error" });
-          return;
-        }
-        const result = decodeAxisJson(
+        const result = await axisFetchParsedJson<ConnectorExternalDbPreviewResult>(
           DB_PREVIEW_ENDPOINT,
-          await response.json(),
-          parseConnectorExternalDbPreviewResult,
-          response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+          (value) => {
+            const parsed = parseConnectorExternalDbPreviewResult(value);
+            if (parsed.tenant_id !== tenantId) {
+              throw new Error("Connector preview response tenant mismatch.");
+            }
+            return parsed;
+          },
+          {
+            method: "POST",
+            session,
+            body: buildExternalDbPreviewRequest({
+              tenantId,
+              connectorId,
+              connectionProfileId: "profile_postgres_ops_readonly",
+              schemaName: "operations",
+              tableName: "production_orders",
+              credentialHandleId: "cred_external_db_readonly",
+              template: connector,
+            }),
+          },
         );
-        if (result.tenant_id !== tenantId) {
-          commitOutcome({ kind: "error" });
-          return;
-        }
         commitOutcome({ kind: "db", result });
         return;
       }
 
       if (!connector.preview_sample) {
-        commitOutcome({ kind: "error" });
+        commitOutcome({
+          kind: "error",
+          error: toAxisOperatorError(
+            null,
+            "This connector does not expose a recorded preview sample.",
+          ),
+        });
         return;
       }
-      const response = await axisFetch(CSV_PREVIEW_ENDPOINT, {
-        method: "POST",
-        session,
-        body: {
-          tenant_id: tenantId,
-          connector_id: connectorId,
-          file_name: connector.preview_sample.file_name,
-          csv_content: buildCsvFromPreviewSample(connector.preview_sample),
-        },
-      });
-      if (!response.ok) {
-        commitOutcome({ kind: "error" });
-        return;
-      }
-      const result = decodeAxisJson(
+      const result = await axisFetchParsedJson<ConnectorCsvPreviewResult>(
         CSV_PREVIEW_ENDPOINT,
-        await response.json(),
-        parseConnectorCsvPreviewResult,
-        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+        (value) => {
+          const parsed = parseConnectorCsvPreviewResult(value);
+          if (parsed.tenant_id !== tenantId) {
+            throw new Error("Connector preview response tenant mismatch.");
+          }
+          return parsed;
+        },
+        {
+          method: "POST",
+          session,
+          body: {
+            tenant_id: tenantId,
+            connector_id: connectorId,
+            file_name: connector.preview_sample.file_name,
+            csv_content: buildCsvFromPreviewSample(connector.preview_sample),
+          },
+        },
       );
-      if (result.tenant_id !== tenantId) {
-        commitOutcome({ kind: "error" });
-        return;
-      }
       commitOutcome({ kind: "csv", result });
-    } catch {
-      commitOutcome({ kind: "error" });
+    } catch (caught) {
+      commitOutcome({
+        kind: "error",
+        error: toAxisOperatorError(caught, "Connector validation API unavailable."),
+      });
     } finally {
       setValidating(false);
     }
@@ -254,24 +243,17 @@ export function ConnectorRuns({
   ): Promise<ConnectorRunRecord | null> {
     setStepper((current) => ({ ...current, [key]: { status: "pending" } }));
     try {
-      const response = await axisFetch(path, { method: "POST", session, body });
-      if (!response.ok) {
-        const errorDetail = await readApiErrorMessage(response);
-        setStepper((current) => ({
-          ...current,
-          [key]: { status: "failure", errorDetail },
-        }));
-        return null;
-      }
-      const record = decodeAxisJson(
+      const record = await axisFetchParsedJson<ConnectorRunRecord>(
         path,
-        await response.json(),
-        parseConnectorRunRecord,
-        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+        (value) => {
+          const parsed = parseConnectorRunRecord(value);
+          if (parsed.tenant_id !== tenantId) {
+            throw new Error("Connector run response tenant mismatch.");
+          }
+          return parsed;
+        },
+        { method: "POST", session, body },
       );
-      if (record.tenant_id !== tenantId) {
-        throw new Error("Connector run response tenant mismatch.");
-      }
       const resultStatus =
         key === "create"
           ? (record.schedule_result?.status ?? record.status)
@@ -287,10 +269,13 @@ export function ConnectorRuns({
         },
       }));
       return record;
-    } catch {
+    } catch (caught) {
       setStepper((current) => ({
         ...current,
-        [key]: { status: "failure", errorDetail: "The Axis API request failed." },
+        [key]: {
+          status: "failure",
+          error: toAxisOperatorError(caught, "The Axis API request failed."),
+        },
       }));
       return null;
     }
@@ -377,7 +362,11 @@ export function ConnectorRuns({
       ) : null}
 
       {validateOutcome?.kind === "error" ? (
-        <ErrorPanel title={copy.validate.error} />
+        <ErrorPanel
+          detail={validateOutcome.error.message}
+          reference={validateOutcome.error.requestId ?? undefined}
+          title={copy.validate.error}
+        />
       ) : null}
       {validateOutcome && validateOutcome.kind !== "error" ? (
         <div
@@ -454,9 +443,13 @@ export function ConnectorRuns({
                     </span>
                   </span>
                 </li>
-                {state.status === "failure" && state.errorDetail ? (
+                {state.status === "failure" && state.error ? (
                   <li aria-label={`${stage.title} error`} className="list-none">
-                    <ErrorPanel detail={state.errorDetail} title={`${stage.title} failed`} />
+                    <ErrorPanel
+                      detail={state.error.message}
+                      reference={state.error.requestId ?? undefined}
+                      title={`${stage.title} failed`}
+                    />
                   </li>
                 ) : null}
               </Fragment>
@@ -474,7 +467,10 @@ export function ConnectorRuns({
       {runsQuery.source === "loading" ? (
         <LoadingPanel rows={3} />
       ) : runsQuery.source === "unavailable" && connectorRuns.length === 0 ? (
-        <ErrorPanel title={copy.error} />
+        <ErrorPanel
+          reference={runsQuery.errorRequestId ?? undefined}
+          title={copy.error}
+        />
       ) : connectorRuns.length === 0 ? (
         <p className="m-0 text-sm text-muted">{copy.empty}</p>
       ) : (

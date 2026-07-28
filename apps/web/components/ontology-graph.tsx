@@ -22,6 +22,7 @@ import {
   type GraphViewBox,
   type OntologyGraphLayoutNode,
 } from "@/lib/ontology-graph-layout";
+import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 import { platformStatusLabel } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 
@@ -173,7 +174,7 @@ export function OntologyGraph({
       return;
     }
 
-    router.push(`/ontology/${nodeId}`);
+    router.push(buildOntologyEntityRoute(nodeId));
   }
 
   function onNodeKeyDown(event: KeyboardEvent<SVGGElement>, nodeId: string) {

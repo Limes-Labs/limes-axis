@@ -48,10 +48,12 @@ const publicIdentity: IdentitySessionReadModel = {
 
 function queryResult(result: {
   data: unknown;
+  errorRequestId?: string | null;
   source: "loading" | "api" | "unavailable";
 }) {
   return {
     data: result.data,
+    errorRequestId: result.errorRequestId ?? null,
     source: result.source,
     error: result.source === "unavailable" ? "Axis API request failed." : null,
     isRefreshing: false,
@@ -62,6 +64,7 @@ function queryResult(result: {
 
 function mockRegistry(result: {
   data: ManufacturingAgentRegistry | null;
+  errorRequestId?: string | null;
   source: "loading" | "api" | "unavailable";
 }, identity: IdentitySessionReadModel = publicIdentity) {
   const tenantId = identity.authenticated ? identity.tenant_id : DEMO_TENANT_ID;
@@ -139,8 +142,13 @@ describe("AgentRegistry states", () => {
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
   });
 
-  it("renders the ErrorPanel when the agent API is unavailable", () => {
-    mockRegistry({ data: null, source: "unavailable" });
+  it("renders the API request reference inside technical details", async () => {
+    const user = userEvent.setup();
+    mockRegistry({
+      data: null,
+      errorRequestId: "request-agent-registry-503",
+      source: "unavailable",
+    });
     render(<AgentRegistry />);
 
     expect(
@@ -151,12 +159,18 @@ describe("AgentRegistry states", () => {
     ).toBeInTheDocument();
     // Endpoint stays demoted behind the technical-details expander.
     expect(screen.queryByText(`${OPERATIONS_API_PREFIX}/agents`)).not.toBeInTheDocument();
+    expect(screen.queryByText("request-agent-registry-503")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Technical details" }));
+
+    expect(screen.getByText("request-agent-registry-503")).toBeInTheDocument();
   });
 
   it("renders the EmptyPanel when the API responds with zero agents", () => {
     mockRegistry({
       data: {
         ...agentRegistryFixture,
+        provenance: "empty",
         agents: [],
         metrics: [],
       },
@@ -168,6 +182,30 @@ describe("AgentRegistry states", () => {
       screen.getByRole("heading", { name: "No agents registered yet" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it("labels a reference payload without claiming that it is live", () => {
+    mockRegistry({
+      data: { ...agentRegistryFixture, provenance: "reference_scenario" },
+      source: "api",
+    });
+
+    render(<AgentRegistry />);
+
+    expect(screen.getByText("agent registry: reference scenario")).toBeInTheDocument();
+    expect(screen.queryByText("agent registry: live")).not.toBeInTheDocument();
+  });
+
+  it("labels cached registry data stale after a failed refresh", () => {
+    mockRegistry({
+      data: { ...agentRegistryFixture, provenance: "reference_scenario" },
+      source: "unavailable",
+    });
+
+    render(<AgentRegistry />);
+
+    expect(screen.getByText("agent registry: stale")).toBeInTheDocument();
+    expect(screen.queryByText("agent registry: reference scenario")).not.toBeInTheDocument();
   });
 });
 

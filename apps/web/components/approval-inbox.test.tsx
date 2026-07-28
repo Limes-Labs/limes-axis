@@ -40,6 +40,7 @@ const inboxFixture: ManufacturingApprovalInbox = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Plant",
   scenario: "Runtime contract fixture",
+  provenance: "reference_scenario",
   as_of: "2026-07-10T09:00:00+02:00",
   queue_status: "action_required",
   policy_notes: ["Fixture data is scoped to tests."],

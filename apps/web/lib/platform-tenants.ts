@@ -1,4 +1,11 @@
-import { AxisApiError, axisFetch, decodeAxisJson, type AxisFetchOptions } from "./axis-api";
+import {
+  AxisApiError,
+  axisFetch,
+  axisResponseRequestId,
+  decodeAxisJson,
+  type AxisFetchOptions,
+  type AxisOperatorError,
+} from "./axis-api";
 import {
   parseTenantQuotaSet,
   parseTenantRecord,
@@ -540,15 +547,51 @@ export function buildTenantQuotaUpdatePayload(
   };
 }
 
-export type TenantWriteResult<T> =
+export type TenantWriteFailure =
+  | { kind: "conflict"; reason: string; message: string; requestId: string | null }
+  | { kind: "notFound"; message: string; requestId: string | null }
+  | {
+      kind: "invalid";
+      message: string;
+      fieldErrors: Record<string, string>;
+      requestId: string | null;
+    }
+  | {
+      kind: "forbidden";
+      message: string;
+      requiredPermission?: string;
+      requestId: string | null;
+    }
+  | { kind: "failed"; status: number; message: string; requestId: string | null };
+
+export type TenantProvisionResult<T> =
   | { kind: "created"; record: T }
   | { kind: "replayed"; record: T }
+  | TenantWriteFailure;
+
+export type TenantUpdateResult<T> =
   | { kind: "updated"; record: T }
-  | { kind: "conflict"; reason: string; message: string }
-  | { kind: "notFound"; message: string }
-  | { kind: "invalid"; message: string; fieldErrors: Record<string, string> }
-  | { kind: "forbidden"; message: string; requiredPermission?: string }
-  | { kind: "failed"; status: number; message: string };
+  | TenantWriteFailure;
+
+const tenantWriteStatusByKind = {
+  conflict: 409,
+  forbidden: 403,
+  invalid: 422,
+  notFound: 404,
+} as const;
+
+/** Convert an HTTP write failure to the safe metadata accepted by mutation UIs. */
+export function tenantWriteOperatorError(
+  failure: TenantWriteFailure,
+  message: string = failure.message,
+): AxisOperatorError {
+  return {
+    code: null,
+    message,
+    requestId: failure.requestId,
+    status: failure.kind === "failed" ? failure.status : tenantWriteStatusByKind[failure.kind],
+  };
+}
 
 type TenantWriteErrorDetail = {
   code?: string;
@@ -611,10 +654,12 @@ const provisionFieldByRequestField: Record<string, string> = {
 };
 
 function parseTenantWriteFailure(
-  status: number,
+  response: Response,
   body: unknown,
   fieldByRequestField: Record<string, string> = {},
-): TenantWriteResult<never> {
+): TenantWriteFailure {
+  const { status } = response;
+  const requestId = axisResponseRequestId(response);
   const detail = extractErrorDetail(body);
   const detailObject = Array.isArray(detail) ? null : detail;
   const message = detailObject?.message ?? `Tenant request failed with ${status}.`;
@@ -624,11 +669,12 @@ function parseTenantWriteFailure(
       kind: "conflict",
       reason: detailObject?.reason ?? "conflict",
       message,
+      requestId,
     };
   }
 
   if (status === 404) {
-    return { kind: "notFound", message };
+    return { kind: "notFound", message, requestId };
   }
 
   if (status === 422) {
@@ -637,10 +683,11 @@ function parseTenantWriteFailure(
         kind: "invalid",
         message: "The tenant request failed API validation.",
         fieldErrors: mapValidationIssues(detail, fieldByRequestField),
+        requestId,
       };
     }
 
-    return { kind: "invalid", message, fieldErrors: {} };
+    return { kind: "invalid", message, fieldErrors: {}, requestId };
   }
 
   if (status === 403) {
@@ -648,10 +695,11 @@ function parseTenantWriteFailure(
       kind: "forbidden",
       message,
       requiredPermission: detailObject?.required_permission,
+      requestId,
     };
   }
 
-  return { kind: "failed", status, message };
+  return { kind: "failed", status, message, requestId };
 }
 
 async function readJsonBody(response: Response): Promise<unknown> {
@@ -660,10 +708,6 @@ async function readJsonBody(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
-}
-
-function responseRequestId(response: Response): string | null {
-  return response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id");
 }
 
 export async function fetchTenantRegistry(
@@ -675,10 +719,17 @@ export async function fetchTenantRegistry(
   const response = await axisFetch(path, options);
 
   if (!response.ok) {
-    throw new AxisApiError(path, response.status);
+    throw new AxisApiError(path, response.status, {
+      requestId: axisResponseRequestId(response),
+    });
   }
 
-  return decodeAxisJson(path, await response.json(), parseTenantRegistry, responseRequestId(response));
+  return decodeAxisJson(
+    path,
+    await response.json(),
+    parseTenantRegistry,
+    axisResponseRequestId(response),
+  );
 }
 
 export type TenantDetailResult =
@@ -703,7 +754,9 @@ export async function fetchTenantDetail(
   }
 
   if (!response.ok) {
-    throw new AxisApiError(path, response.status);
+    throw new AxisApiError(path, response.status, {
+      requestId: axisResponseRequestId(response),
+    });
   }
 
   return {
@@ -712,7 +765,7 @@ export async function fetchTenantDetail(
       path,
       await response.json(),
       parseTenantRecord,
-      responseRequestId(response),
+      axisResponseRequestId(response),
     ),
   };
 }
@@ -729,10 +782,17 @@ export async function fetchTenantQuotas(
   }
 
   if (!response.ok) {
-    throw new AxisApiError(path, response.status);
+    throw new AxisApiError(path, response.status, {
+      requestId: axisResponseRequestId(response),
+    });
   }
 
-  return decodeAxisJson(path, await response.json(), parseTenantQuotaSet, responseRequestId(response));
+  return decodeAxisJson(
+    path,
+    await response.json(),
+    parseTenantQuotaSet,
+    axisResponseRequestId(response),
+  );
 }
 
 export async function fetchTenantVocabulary(
@@ -750,7 +810,7 @@ export async function fetchTenantVocabulary(
     const body = await readJsonBody(response);
     throw new AxisApiError(path, response.status, {
       body,
-      requestId: responseRequestId(response),
+      requestId: axisResponseRequestId(response),
     });
   }
 
@@ -758,14 +818,14 @@ export async function fetchTenantVocabulary(
     path,
     await response.json(),
     parseTenantVocabularySet,
-    responseRequestId(response),
+    axisResponseRequestId(response),
   );
 }
 
 export async function provisionTenant(
   payload: TenantProvisionRequestPayload,
   options: AxisFetchOptions = {},
-): Promise<TenantWriteResult<TenantRecord>> {
+): Promise<TenantProvisionResult<TenantRecord>> {
   const response = await axisFetch(platformTenantsPath, {
     ...options,
     method: "POST",
@@ -780,7 +840,7 @@ export async function provisionTenant(
         platformTenantsPath,
         body,
         parseTenantRecord,
-        responseRequestId(response),
+        axisResponseRequestId(response),
       ),
     };
   }
@@ -793,19 +853,19 @@ export async function provisionTenant(
         platformTenantsPath,
         body,
         parseTenantRecord,
-        responseRequestId(response),
+        axisResponseRequestId(response),
       ),
     };
   }
 
-  return parseTenantWriteFailure(response.status, body, provisionFieldByRequestField);
+  return parseTenantWriteFailure(response, body, provisionFieldByRequestField);
 }
 
 export async function suspendTenant(
   tenantId: string,
   payload: TenantSuspendRequestPayload,
   options: AxisFetchOptions = {},
-): Promise<TenantWriteResult<TenantRecord>> {
+): Promise<TenantUpdateResult<TenantRecord>> {
   const response = await axisFetch(buildPlatformTenantSuspendPath(tenantId), {
     ...options,
     method: "POST",
@@ -820,19 +880,19 @@ export async function suspendTenant(
         buildPlatformTenantSuspendPath(tenantId),
         body,
         parseTenantRecord,
-        responseRequestId(response),
+        axisResponseRequestId(response),
       ),
     };
   }
 
-  return parseTenantWriteFailure(response.status, body);
+  return parseTenantWriteFailure(response, body);
 }
 
 export async function reactivateTenant(
   tenantId: string,
   payload: TenantReactivateRequestPayload,
   options: AxisFetchOptions = {},
-): Promise<TenantWriteResult<TenantRecord>> {
+): Promise<TenantUpdateResult<TenantRecord>> {
   const response = await axisFetch(buildPlatformTenantReactivatePath(tenantId), {
     ...options,
     method: "POST",
@@ -847,19 +907,19 @@ export async function reactivateTenant(
         buildPlatformTenantReactivatePath(tenantId),
         body,
         parseTenantRecord,
-        responseRequestId(response),
+        axisResponseRequestId(response),
       ),
     };
   }
 
-  return parseTenantWriteFailure(response.status, body);
+  return parseTenantWriteFailure(response, body);
 }
 
 export async function updateTenantQuotas(
   tenantId: string,
   payload: TenantQuotaUpdateRequestPayload,
   options: AxisFetchOptions = {},
-): Promise<TenantWriteResult<TenantQuotaSet>> {
+): Promise<TenantUpdateResult<TenantQuotaSet>> {
   const response = await axisFetch(buildPlatformTenantQuotasPath(tenantId), {
     ...options,
     method: "PUT",
@@ -874,12 +934,12 @@ export async function updateTenantQuotas(
         buildPlatformTenantQuotasPath(tenantId),
         body,
         parseTenantQuotaSet,
-        responseRequestId(response),
+        axisResponseRequestId(response),
       ),
     };
   }
 
-  return parseTenantWriteFailure(response.status, body);
+  return parseTenantWriteFailure(response, body);
 }
 
 const vocabularyFieldByRequestField: Record<string, string> = {
@@ -905,7 +965,7 @@ export async function updateTenantVocabulary(
   tenantId: string,
   payload: TenantVocabularyUpdateRequestPayload,
   options: AxisFetchOptions = {},
-): Promise<TenantWriteResult<TenantVocabularySet>> {
+): Promise<TenantUpdateResult<TenantVocabularySet>> {
   const path = buildPlatformTenantVocabularyPath(tenantId);
   const response = await axisFetch(path, {
     ...options,
@@ -921,10 +981,10 @@ export async function updateTenantVocabulary(
         path,
         body,
         parseTenantVocabularySet,
-        responseRequestId(response),
+        axisResponseRequestId(response),
       ),
     };
   }
 
-  return parseTenantWriteFailure(response.status, body, vocabularyFieldByRequestField);
+  return parseTenantWriteFailure(response, body, vocabularyFieldByRequestField);
 }

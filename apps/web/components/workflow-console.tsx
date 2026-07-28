@@ -403,7 +403,11 @@ export function WorkflowConsole() {
   const [urlState, setUrlState] = useConsoleUrlState(workflowUrlSchema);
 
   const workflowData = persisted.data;
-  const source = deriveSourceState(persisted.source, Boolean(workflowData));
+  const source = deriveSourceState(
+    persisted.source,
+    Boolean(workflowData),
+    workflowData?.provenance,
+  );
   const validFilterOptions = workflowData ? workflowFilterOptions(workflowData) : null;
   const filters: WorkflowFilters = {
     state: urlState.state === allWorkflowFilter
@@ -427,6 +431,7 @@ export function WorkflowConsole() {
       <ErrorPanel
         detail="The console could not verify the current actor and tenant. Workflow data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -449,6 +454,7 @@ export function WorkflowConsole() {
       <ErrorPanel
         detail={strings.workflows.error.detail}
         endpoint={runsPath}
+        reference={persisted.errorRequestId ?? undefined}
         title={strings.workflows.error.title}
       />
     );

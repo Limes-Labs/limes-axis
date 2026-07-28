@@ -56,20 +56,24 @@ function queryResult(data: unknown, source: "loading" | "api" | "unavailable" = 
   return { data, source, isLoading: source === "loading", isUnavailable: source === "unavailable" };
 }
 
-function mockOntology(identity: IdentitySessionReadModel = publicIdentity) {
+function mockOntology(
+  identity: IdentitySessionReadModel = publicIdentity,
+  provenance: "reference_scenario" | "live" | "empty" = ontologyFixture.provenance,
+) {
   const tenantId = identity.authenticated ? identity.tenant_id : DEMO_TENANT_ID;
   mocks.useAxisQuery.mockImplementation((path: string) => {
     if (path === "/identity/session") {
       return queryResult(identity);
     }
     if (path === `${OPERATIONS_API_PREFIX}/ontology?tenant_id=${tenantId}`) {
-      return queryResult({ ...ontologyFixture, tenant_id: tenantId });
+      return queryResult({ ...ontologyFixture, tenant_id: tenantId, provenance });
     }
     return queryResult(null, "loading");
   });
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/ontology");
   mocks.useAxisQuery.mockReset();
   mockOntology();
 });
@@ -107,6 +111,16 @@ describe("OntologyExplorer", () => {
     render(<OntologyExplorer />);
 
     expect(screen.queryByText("Mapped demo ontology nodes")).not.toBeInTheDocument();
+  });
+
+  it("labels reference ontology records as a scenario rather than live data", () => {
+    mockOntology(publicIdentity, "reference_scenario");
+
+    const { container } = render(<OntologyExplorer />);
+
+    const source = container.querySelector('[data-source-state="reference"]');
+    expect(source).toHaveTextContent("ontology: reference scenario");
+    expect(container.querySelector('[data-source-state="live"]')).toBeNull();
   });
 
   it("shows node-type counts inside the graph legend", () => {
@@ -148,7 +162,17 @@ describe("OntologyExplorer", () => {
     await userEvent.click(screen.getByRole("button", { name: "List" }));
 
     expect(screen.queryByTestId("ontology-graph")).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?view=list");
     const nodesTable = screen.getByRole("table", { name: "Ontology nodes" });
     expect(within(nodesTable).getByText("Line 2 Packaging")).toBeInTheDocument();
+  });
+
+  it("restores a shareable list view from the URL", () => {
+    window.history.replaceState(null, "", "/ontology?view=list");
+
+    render(<OntologyExplorer />);
+
+    expect(screen.queryByTestId("ontology-graph")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
   });
 });

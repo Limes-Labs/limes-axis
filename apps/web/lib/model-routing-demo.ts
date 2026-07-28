@@ -55,7 +55,7 @@ export type ManufacturingModelRouting = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   routing_status: PlatformStatus;
   metrics: OverviewMetric[];

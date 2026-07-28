@@ -26,6 +26,7 @@ import {
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
+import type { AxisOperatorError } from "@/lib/axis-api";
 import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel, platformStatusClass } from "@/lib/platform-overview";
@@ -314,9 +315,9 @@ function ApprovalDetail({
   actor?: { actorId: string; scopes: string[] };
   decision: ApprovalDecisionRecord | undefined;
   domainLabel: string;
-  error: string | undefined;
+  error: AxisOperatorError | undefined;
   onDecisionChange: (approvalId: string, record: ApprovalDecisionRecord | null) => void;
-  onErrorChange: (approvalId: string, message: string | null) => void;
+  onErrorChange: (approvalId: string, error: AxisOperatorError | null) => void;
   tenantId: string;
 }) {
   return (
@@ -421,7 +422,11 @@ export function ApprovalInbox() {
   });
   const tenantScope = resolveConsoleTenantScope(identity.data);
   const tenantId = tenantScope.tenantId;
-  const { data: inbox, source } = useAxisQuery<ManufacturingApprovalInbox>(
+  const {
+    data: inbox,
+    errorRequestId: inboxErrorRequestId,
+    source,
+  } = useAxisQuery<ManufacturingApprovalInbox>(
     buildTenantScopedPath(APPROVALS_ENDPOINT, tenantId ?? DEMO_TENANT_ID),
     {
       enabled: identity.source === "api" && tenantId !== null,
@@ -467,6 +472,7 @@ export function ApprovalInbox() {
       <ErrorPanel
         detail="The approval queue is not loaded until the current actor and tenant are verified."
         endpoint="/identity/session"
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -499,6 +505,7 @@ export function ApprovalInbox() {
       <ErrorPanel
         detail={strings.approvals.error.detail}
         endpoint={APPROVALS_ENDPOINT}
+        reference={inboxErrorRequestId ?? undefined}
         title={strings.approvals.error.title}
       />
     );
@@ -536,6 +543,7 @@ export function ApprovalInbox() {
       <ErrorPanel
         detail={strings.approvals.lookupError.detail}
         endpoint={AUDIT_EVENTS_ENDPOINT}
+        reference={actionRunAudit.errorRequestId ?? undefined}
         title={strings.approvals.lookupError.title}
       />
     );
@@ -590,7 +598,7 @@ export function ApprovalInbox() {
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
-            state={deriveSourceState(source, Boolean(inbox))}
+            state={deriveSourceState(source, Boolean(inbox), inbox.provenance)}
             subject="approval queue"
           />
           <span className={`status-pill ${platformStatusClass(inbox.queue_status)}`}>
@@ -646,6 +654,7 @@ export function ApprovalInbox() {
 
       <ActionFollowThrough
         actionRuns={actionRunsQuery.data}
+        errorRequestId={actionRunsQuery.errorRequestId}
         source={actionRunsQuery.source}
       />
 

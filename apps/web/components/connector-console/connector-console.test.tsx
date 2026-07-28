@@ -15,10 +15,26 @@ const mocks = vi.hoisted(() => ({
   triggerRefresh: vi.fn(),
 }));
 
-vi.mock("@/lib/axis-api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/axis-api")>()),
-  axisFetch: mocks.axisFetch,
-}));
+vi.mock("@/lib/axis-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/axis-api")>();
+  return {
+    ...actual,
+    axisFetch: mocks.axisFetch,
+    axisFetchParsedJson: async <T,>(
+      path: string,
+      decoder: (value: unknown) => T,
+      options: import("@/lib/axis-api").AxisFetchOptions = {},
+    ): Promise<T> => {
+      const response = await mocks.axisFetch(path, options) as Response;
+      const requestId = actual.axisResponseRequestId(response);
+      const body = await response.json();
+      if (!response.ok) {
+        throw new actual.AxisApiError(path, response.status, { body, requestId });
+      }
+      return actual.decodeAxisJson(path, body, decoder, requestId);
+    },
+  };
+});
 
 vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
@@ -194,6 +210,20 @@ describe("ConnectorConsole states", () => {
 
     await user.click(screen.getByRole("button", { name: "Add your first connector" }));
     expect(screen.getByRole("dialog", { name: "Add connector" })).toBeInTheDocument();
+  });
+
+  it("uses connector registry provenance instead of treating every API payload as live", () => {
+    mockQueries({
+      [`${OPERATIONS_API_PREFIX}/connectors`]: {
+        data: { ...connectorRegistryFixture, provenance: "reference_scenario" },
+        source: "api",
+      },
+    });
+
+    renderConsole();
+
+    expect(screen.getByText("connector registry: reference scenario")).toBeInTheDocument();
+    expect(screen.queryByText("connector registry: live")).not.toBeInTheDocument();
   });
 });
 

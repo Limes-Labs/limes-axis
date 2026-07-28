@@ -135,13 +135,19 @@ describe("OnboardingChecklist (full)", () => {
     render(
       <OnboardingChecklist
         demoAvailable
-        demoError="Axis API request failed with 403"
+        demoError={{
+          code: "forbidden",
+          message: "Axis API request failed with 403",
+          requestId: "req-demo-403",
+          status: 403,
+        }}
         onExploreDemo={() => {}}
         variant="full"
       />,
     );
 
     expect(screen.getByText("Axis API request failed with 403")).toBeInTheDocument();
+    expect(screen.getByText("req-demo-403")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Explore with demo data" })).toBeEnabled();
   });
 

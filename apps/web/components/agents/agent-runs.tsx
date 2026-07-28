@@ -187,6 +187,7 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
         <ErrorPanel
           detail={strings.agents.runs.detailError.detail}
           endpoint={agentRunDetailPath(agentId, run.run_id)}
+          reference={detailQuery.errorRequestId ?? undefined}
           title={strings.agents.runs.detailError.title}
         />
       )}
@@ -319,6 +320,7 @@ export function AgentRuns({
       <ErrorPanel
         detail={strings.agents.runs.error.detail}
         endpoint={`${OPERATIONS_API_PREFIX}/agents/${agentId}/runs`}
+        reference={runsQuery.errorRequestId ?? undefined}
         title={strings.agents.runs.error.title}
       />
     );

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { toAxisOperatorError } from "@/lib/axis-api";
 import { SourcePill } from "@/components/ui/source-pill";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
@@ -30,7 +31,7 @@ import {
   type PlatformPolicyRecord,
 } from "@/lib/platform-policies";
 import { formatNumber, formatTimestamp } from "@/lib/format";
-import { deriveSourceState } from "@/lib/source-state";
+import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -46,6 +47,7 @@ type DetailSource = "loading" | "api" | "unavailable" | "missing";
 type DetailResult = {
   tenantId: string;
   detail: PlatformPolicyDetail | null;
+  errorRequestId: string | null;
   source: Exclude<DetailSource, "loading">;
 };
 
@@ -151,7 +153,12 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         );
 
         if (policyDetail === null) {
-          setResult({ tenantId: requestedTenantId, detail: null, source: "missing" });
+          setResult({
+            tenantId: requestedTenantId,
+            detail: null,
+            errorRequestId: null,
+            source: "missing",
+          });
           return;
         }
 
@@ -159,10 +166,23 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           throw new Error(`Policy detail tenant does not match ${requestedTenantId}.`);
         }
 
-        setResult({ tenantId: requestedTenantId, detail: policyDetail, source: "api" });
-      } catch {
+        setResult({
+          tenantId: requestedTenantId,
+          detail: policyDetail,
+          errorRequestId: null,
+          source: "api",
+        });
+      } catch (caught) {
         if (!controller.signal.aborted) {
-          setResult({ tenantId: requestedTenantId, detail: null, source: "unavailable" });
+          setResult({
+            tenantId: requestedTenantId,
+            detail: null,
+            errorRequestId: toAxisOperatorError(
+              caught,
+              strings.policyDetail.error.detailDetail,
+            ).requestId,
+            source: "unavailable",
+          });
         }
       }
     }
@@ -181,6 +201,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       <ErrorPanel
         detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -199,6 +220,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         <ErrorPanel
           detail={strings.policyDetail.error.detailDetail}
           endpoint={detailPath}
+          reference={result?.errorRequestId ?? undefined}
           title={strings.policyDetail.error.title}
         />
       );
@@ -243,7 +265,11 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Policy source and status">
           <SourcePill
-            state={deriveSourceState(source === "missing" ? "unavailable" : source, Boolean(detail))}
+            state={deriveSourceState(
+              source === "missing" ? "unavailable" : source,
+              Boolean(detail),
+              PROVENANCE_NOT_APPLICABLE,
+            )}
             subject="policy"
           />
           <span className={`status-pill ${policyEffectClass(current.effect)}`}>

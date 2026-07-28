@@ -18,6 +18,7 @@ export const overviewFixture: ManufacturingOverview = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Works",
   scenario: "Plant Operations Cockpit",
+  provenance: "reference_scenario",
   as_of: "2026-07-10T09:00:00+02:00",
   metrics: [
     {
@@ -123,6 +124,7 @@ export const snapshotFixture: ManufacturingOperationsSnapshot = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Works",
   scenario: "Plant Operations Cockpit",
+  provenance: "live",
   as_of: "2026-07-10T10:30:00+02:00",
   metrics: [
     {
@@ -189,6 +191,7 @@ export const modelRoutingFixture: ManufacturingModelRouting = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Works",
   scenario: "Plant Operations Cockpit",
+  provenance: "reference_scenario",
   as_of: "2026-07-10T09:00:00+02:00",
   routing_status: "watch",
   metrics: [],
@@ -291,6 +294,7 @@ export const auditEventsFixture: ManufacturingAuditExplorer = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Works",
   scenario: "Plant Operations Cockpit",
+  provenance: "live",
   as_of: "2026-07-10T10:30:00+02:00",
   ledger_status: "ready",
   metrics: [],
@@ -323,6 +327,7 @@ export const approvalInboxFixture: ManufacturingApprovalInbox = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Works",
   scenario: "Plant Operations Cockpit",
+  provenance: "reference_scenario",
   as_of: "2026-07-10T09:00:00+02:00",
   queue_status: "action_required",
   policy_notes: [],

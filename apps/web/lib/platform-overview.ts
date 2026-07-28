@@ -55,7 +55,7 @@ export type ManufacturingOverview = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   metrics: OverviewMetric[];
   risk_signals: RiskSignal[];
@@ -132,7 +132,7 @@ export type ManufacturingOperationsSnapshot = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   metrics: OverviewMetric[];
   domain_snapshots: ManufacturingDomainSnapshot[];
@@ -164,7 +164,6 @@ export type ManufacturingDemoReadinessReport = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
   as_of: string;
   readiness_status: PlatformStatus;
   summary: string;
@@ -200,7 +199,7 @@ export type ManufacturingNotificationCenter = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   unread_count: number;
   action_required_count: number;

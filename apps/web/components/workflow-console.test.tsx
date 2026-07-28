@@ -41,6 +41,7 @@ export const workflowConsoleFixture: ManufacturingWorkflowConsole = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Plant",
   scenario: "Runtime contract fixture",
+  provenance: "reference_scenario",
   as_of: hourAgo,
   runtime_status: "watch",
   metrics: [

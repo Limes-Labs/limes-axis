@@ -11,13 +11,16 @@ import {
   platformTenantConfigureScope,
   tenantVocabularyDomainLimit,
   tenantVocabularyLabelMaxLength,
+  tenantWriteOperatorError,
   updateTenantVocabulary,
   type TenantVocabulary,
   type TenantVocabularySet,
 } from "@/lib/platform-tenants";
+import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
+import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 
 type DomainLabelRow = {
   id: number;
@@ -41,7 +44,7 @@ type SaveState =
   | { phase: "confirming" }
   | { phase: "saving" }
   | { phase: "done" }
-  | { phase: "failed"; message: string };
+  | { phase: "failed"; error: AxisOperatorError };
 
 let nextDomainRowId = 0;
 
@@ -236,7 +239,10 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      setSave({ phase: "failed", message: strings.tenantVocabulary.validation.fix });
+      setSave({
+        phase: "failed",
+        error: toAxisOperatorError(null, strings.tenantVocabulary.validation.fix),
+      });
       return;
     }
 
@@ -270,34 +276,40 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
       if (result.kind === "forbidden") {
         setSave({
           phase: "failed",
-          message: result.requiredPermission
-            ? strings.tenantVocabulary.errors.requiredPermission(
-                result.message,
-                result.requiredPermission,
-              )
-            : result.message,
+          error: tenantWriteOperatorError(
+            result,
+            result.requiredPermission
+              ? strings.tenantVocabulary.errors.requiredPermission(
+                  result.message,
+                  result.requiredPermission,
+                )
+              : result.message,
+          ),
         });
         return;
       }
 
       if (result.kind === "invalid") {
         setFieldErrors(result.fieldErrors);
-        setSave({ phase: "failed", message: result.message });
+        setSave({ phase: "failed", error: tenantWriteOperatorError(result) });
         return;
       }
 
       setSave({
         phase: "failed",
-        message: result.kind === "failed"
-          ? result.message
-          : result.kind === "notFound"
+        error: tenantWriteOperatorError(
+          result,
+          result.kind === "failed"
             ? result.message
-            : strings.tenantVocabulary.errors.generic,
+            : result.kind === "notFound"
+              ? result.message
+              : strings.tenantVocabulary.errors.generic,
+        ),
       });
-    } catch {
+    } catch (caught) {
       setSave({
         phase: "failed",
-        message: strings.tenantVocabulary.errors.unavailable,
+        error: toAxisOperatorError(caught, strings.tenantVocabulary.errors.unavailable),
       });
     }
   }
@@ -496,9 +508,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
       )}
 
       {save.phase === "failed" ? (
-        <p className="mx-0 mt-3 mb-0 text-sm leading-snug text-danger" role="alert">
-          {copy.errors.prefix} {save.message}
-        </p>
+        <InlineOperatorError error={save.error} prefix={copy.errors.prefix.replace(/:$/, "")} />
       ) : null}
       {save.phase === "done" ? (
         <p className="mx-0 mt-3 mb-0 text-sm leading-snug text-muted" role="status">

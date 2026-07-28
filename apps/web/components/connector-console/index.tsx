@@ -203,6 +203,7 @@ export function ConnectorConsole() {
       <ErrorPanel
         detail="The connector console is disabled because the current tenant could not be verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Tenant identity unavailable"
       />
     );
@@ -222,6 +223,7 @@ export function ConnectorConsole() {
       <ErrorPanel
         detail={strings.connectors.error.detail}
         endpoint={CONNECTOR_ENDPOINTS.registry}
+        reference={registry.errorRequestId ?? undefined}
         title={strings.connectors.error.title}
       />
     );
@@ -236,6 +238,7 @@ export function ConnectorConsole() {
         <ErrorPanel
           detail={strings.connectors.snapshot.errorDetail}
           endpoint={CONNECTOR_ENDPOINTS.evidenceSnapshots}
+          reference={registries.evidenceSnapshots.errorRequestId ?? undefined}
           title={strings.connectors.snapshot.errorTitle}
         />
       );
@@ -287,7 +290,11 @@ export function ConnectorConsole() {
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           <SourcePill
-            state={deriveSourceState(registry.source, Boolean(registry.data))}
+            state={deriveSourceState(
+              registry.source,
+              Boolean(registry.data),
+              registryData.provenance,
+            )}
             subject="connector registry"
           />
           <span className={`status-pill ${platformStatusClass(registryData.registry_status)}`}>

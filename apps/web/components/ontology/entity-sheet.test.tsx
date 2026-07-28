@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildOntologyEntityDetail } from "@/lib/ontology-demo";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
@@ -18,11 +18,26 @@ vi.mock("@/lib/use-axis-query", () => ({
   useAxisQuery: mocks.useAxisQuery,
 }));
 
-vi.mock("@/lib/axis-api", () => ({
-  axisFetch: mocks.axisFetch,
-  decodeAxisJson: (_path: string, body: unknown, decoder: (value: unknown) => unknown) =>
-    decoder(body),
-}));
+vi.mock("@/lib/axis-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/axis-api")>();
+  return {
+    ...actual,
+    axisFetch: mocks.axisFetch,
+    axisFetchParsedJson: async function axisFetchParsedJson<T>(
+      path: string,
+      decoder: (value: unknown) => T,
+      options: import("@/lib/axis-api").AxisFetchOptions = {},
+    ): Promise<T> {
+      const response: Response = await mocks.axisFetch(path, options);
+      const body = await response.json();
+      const requestId = actual.axisResponseRequestId(response);
+      if (!response.ok) {
+        throw new actual.AxisApiError(path, response.status, { body, requestId });
+      }
+      return actual.decodeAxisJson(path, body, decoder, requestId);
+    },
+  };
+});
 
 vi.mock("@/lib/use-oidc-session", () => ({
   useOidcConsoleSession: () => ({ session: null }),
@@ -86,9 +101,14 @@ function fulfillEntity(tenantId = DEMO_TENANT_ID) {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/ontology");
   mocks.axisFetch.mockReset();
   mocks.useAxisQuery.mockReset();
   mocks.refreshNonce = 0;
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("OntologyEntitySheet", () => {
@@ -129,6 +149,29 @@ describe("OntologyEntitySheet", () => {
     expect(within(dialog).getByText(/connected$/)).toBeInTheDocument();
     expect(mocks.axisFetch).toHaveBeenCalledWith(
       `${OPERATIONS_API_PREFIX}/ontology/entities/asset_line_2?tenant_id=${DEMO_TENANT_ID}`,
+      expect.anything(),
+    );
+  });
+
+  it("encodes an opaque node id as one detail-path segment without normalizing it", async () => {
+    const nodeId = " node/with?# ";
+    fulfillEntity();
+
+    render(
+      <OntologyEntitySheet
+        nodeId={nodeId}
+        onOpenChange={vi.fn()}
+        tenantId={DEMO_TENANT_ID}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("link", { name: /Open full page/ })).toHaveAttribute(
+      "href",
+      "/ontology/%20node%2Fwith%3F%23%20",
+    );
+    expect(mocks.axisFetch).toHaveBeenCalledWith(
+      `${OPERATIONS_API_PREFIX}/ontology/entities/%20node%2Fwith%3F%23%20?tenant_id=${DEMO_TENANT_ID}`,
       expect.anything(),
     );
   });
@@ -241,7 +284,10 @@ describe("OntologyEntitySheet", () => {
   });
 
   it("shows the not-found state for a 404", async () => {
-    mocks.axisFetch.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
+    mocks.axisFetch.mockResolvedValue(new Response("{}", {
+      headers: { "Content-Type": "application/json" },
+      status: 404,
+    }));
 
     render(
       <OntologyEntitySheet
@@ -308,6 +354,8 @@ describe("OntologyExplorer entity slide-over", () => {
 
     await userEvent.click(screen.getByRole("link", { name: /Line 2 Packaging — Asset/ }));
 
+    expect(window.location.search).toBe("?entity_id=asset_line_2");
+
     const dialog = await screen.findByRole("dialog");
     expect(
       await within(dialog).findByRole("heading", { name: "Line 2 Packaging" }),
@@ -320,6 +368,7 @@ describe("OntologyExplorer entity slide-over", () => {
     });
     // No navigation happened and the zoomed view is still applied.
     expect(screen.getByTestId("ontology-graph").getAttribute("viewBox")).toBe(zoomedViewBox);
+    expect(window.location.search).toBe("");
   });
 
   it("opens from a list row without navigating", async () => {
@@ -336,5 +385,29 @@ describe("OntologyExplorer entity slide-over", () => {
     expect(
       await within(dialog).findByRole("heading", { name: "Line 2 Packaging" }),
     ).toBeInTheDocument();
+    expect(window.location.search).toBe("?view=list&entity_id=asset_line_2");
+  });
+
+  it("opens a directly linked entity without losing the explorer", async () => {
+    mockExplorerScope();
+    fulfillEntity();
+    window.history.replaceState(null, "", "/ontology?entity_id=asset_line_2");
+    const go = vi.spyOn(window.history, "go");
+
+    render(<OntologyExplorer />);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByRole("heading", { name: "Line 2 Packaging" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("ontology-graph")).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(go).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
   });
 });

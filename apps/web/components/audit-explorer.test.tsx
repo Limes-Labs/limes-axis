@@ -50,6 +50,7 @@ const explorerFixture: ManufacturingAuditExplorer = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Plant",
   scenario: "Component fixture",
+  provenance: "live",
   as_of: "2026-07-09T09:00:00+02:00",
   ledger_status: "ready",
   metrics: [],

@@ -100,21 +100,24 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
 
       try {
         const fetchOptions = { session, signal: controller.signal };
-        const payload = await axisFetchParsedJson(path, parse, fetchOptions);
-        if (
-          expectedTenantId
-          && (
-            typeof payload !== "object"
-            || payload === null
-            || !("tenant_id" in payload)
-            || payload.tenant_id !== expectedTenantId
-          )
-        ) {
-          throw new AxisApiDecodeError(
-            path,
-            `Axis API response tenant does not match the requested tenant ${expectedTenantId}.`,
-          );
-        }
+        // Validate tenant ownership inside the response decoder. If this guard
+        // fails, axisFetchParsedJson wraps it in AxisApiDecodeError while it
+        // still has access to the response correlation header.
+        const payload = await axisFetchParsedJson(path, (value) => {
+          const parsed = parse(value);
+          if (
+            expectedTenantId
+            && (
+              typeof parsed !== "object"
+              || parsed === null
+              || !("tenant_id" in parsed)
+              || parsed.tenant_id !== expectedTenantId
+            )
+          ) {
+            throw new TypeError("Axis API response belongs to a different tenant.");
+          }
+          return parsed;
+        }, fetchOptions);
 
         if (!controller.signal.aborted) {
           staleDataRef.current = payload;

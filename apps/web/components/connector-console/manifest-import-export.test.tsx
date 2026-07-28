@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "@/components/ui/toast";
 import type { ConnectorListEntry } from "@/lib/connectors-console";
@@ -24,10 +24,26 @@ const mocks = vi.hoisted(() => ({
   onApplied: vi.fn(),
 }));
 
-vi.mock("@/lib/axis-api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/axis-api")>()),
-  axisFetch: mocks.axisFetch,
-}));
+vi.mock("@/lib/axis-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/axis-api")>();
+  return {
+    ...actual,
+    axisFetch: mocks.axisFetch,
+    axisFetchParsedJson: async function axisFetchParsedJson<T>(
+      path: string,
+      decoder: (value: unknown) => T,
+      options: import("@/lib/axis-api").AxisFetchOptions = {},
+    ): Promise<T> {
+      const response: Response = await mocks.axisFetch(path, options);
+      const body = await response.json();
+      const requestId = actual.axisResponseRequestId(response);
+      if (!response.ok) {
+        throw new actual.AxisApiError(path, response.status, { body, requestId });
+      }
+      return actual.decodeAxisJson(path, body, decoder, requestId);
+    },
+  };
+});
 
 vi.mock("@/lib/use-oidc-session", () => ({
   useOidcConsoleSession: () => ({ session: null }),
@@ -68,10 +84,14 @@ function documentFor(connectorId: string) {
   };
 }
 
-function response(payload: unknown, status = 200): Response {
+function response(
+  payload: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
   });
 }
 
@@ -135,6 +155,10 @@ function setJson(value: unknown) {
 beforeEach(() => {
   mocks.axisFetch.mockReset();
   mocks.onApplied.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("ManifestImportPanel", () => {
@@ -272,7 +296,11 @@ describe("ManifestImportPanel", () => {
         outcome: "would_register" as const,
       })))))
       .mockResolvedValueOnce(response({ manifest_id: "created" }, 201))
-      .mockResolvedValueOnce(response({ detail: { reason: "write_failed" } }, 500));
+      .mockResolvedValueOnce(response(
+        { detail: { reason: "write_failed", debug: "secret-apply-trace" } },
+        500,
+        { "x-request-id": "req-manifest-apply-500" },
+      ));
     renderImport();
 
     setJson(documents);
@@ -289,6 +317,35 @@ describe("ManifestImportPanel", () => {
     expect(within(rows[2]).getByText("Not applied")).toBeInTheDocument();
     expect(mocks.axisFetch.mock.calls.filter(([path]) => path === MANIFESTS_ENDPOINT)).toHaveLength(2);
     expect(mocks.onApplied).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("req-manifest-apply-500")).toBeInTheDocument();
+    expect(screen.queryByText(/secret-apply-trace|write_failed/)).not.toBeInTheDocument();
+  });
+
+  it("ignores validation that completes after the registration JSON changes", async () => {
+    const user = userEvent.setup();
+    let resolveValidation: (value: Response) => void = () => {};
+    let validationSettled = false;
+    mocks.axisFetch.mockImplementationOnce(async () => {
+      const result = await new Promise<Response>((resolve) => { resolveValidation = resolve; });
+      validationSettled = true;
+      return result;
+    });
+    renderImport();
+
+    setJson(documentFor("first-document"));
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    setJson(documentFor("replacement-document"));
+    resolveValidation(response(validationResponse([
+      { connector_id: "first-document", outcome: "would_register" },
+    ])));
+
+    await waitFor(() => expect(validationSettled).toBe(true));
+    expect(screen.queryByRole("table", { name: "Import connector manifests" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review apply" })).toBeDisabled();
+    expect(screen.getByLabelText("Registration document JSON", {
+      selector: "textarea:not([readonly])",
+    })).toHaveValue(JSON.stringify(documentFor("replacement-document")));
   });
 
   it("rejects more than 50 documents before making a request", async () => {
@@ -373,6 +430,32 @@ describe("ManifestImportPanel", () => {
       MANIFEST_VALIDATION_ENDPOINT,
       expect.objectContaining({ body: expect.objectContaining({ manifests: [document] }) }),
     );
+  });
+
+  it("clears typed JSON while a selected file is still loading", async () => {
+    const user = userEvent.setup();
+    renderImport();
+    setJson(documentFor("typed-document"));
+    expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+
+    vi.stubGlobal("FileReader", class DeferredFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      onerror: ((event: ProgressEvent<FileReader>) => void) | null = null;
+
+      readAsText() {}
+    });
+    await user.upload(
+      screen.getByLabelText("Upload JSON file"),
+      new File([JSON.stringify(documentFor("uploaded"))], "connector.json", {
+        type: "application/json",
+      }),
+    );
+
+    expect(screen.getByLabelText("Registration document JSON", {
+      selector: "textarea:not([readonly])",
+    })).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Check" })).toBeDisabled();
   });
 });
 

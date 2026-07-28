@@ -1511,6 +1511,52 @@ class AxisPersistenceRepository:
         self.session.flush()
         return legal_hold
 
+    def acquire_platform_notification_acknowledgement_lock(
+        self,
+        *,
+        tenant_id: str,
+        notification_id: str,
+        actor_id: str,
+    ) -> None:
+        """Serialize one actor's acknowledgement state transition.
+
+        PostgreSQL uses a transaction-scoped advisory lock so coordination also
+        works across API processes and replicas. SQLite permits only one writer;
+        a no-op update acquires that write intent before the acknowledgement is
+        read, including when no acknowledgement row exists yet. In both cases
+        the lock is held until the request transaction commits or rolls back.
+        """
+
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            lock_key = (
+                "axis:platform-notification-acknowledgement:"
+                f"{len(tenant_id)}:{tenant_id}"
+                f"{len(notification_id)}:{notification_id}"
+                f"{len(actor_id)}:{actor_id}"
+            )
+            self.session.execute(
+                select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0)))
+            )
+            return
+        if dialect_name == "sqlite":
+            self.session.execute(
+                update(PlatformNotificationAcknowledgement)
+                .where(
+                    PlatformNotificationAcknowledgement.tenant_id == tenant_id,
+                    PlatformNotificationAcknowledgement.notification_id == notification_id,
+                    PlatformNotificationAcknowledgement.actor_id == actor_id,
+                )
+                .values(
+                    updated_at=PlatformNotificationAcknowledgement.updated_at,
+                )
+            )
+            return
+        raise NotImplementedError(
+            "Platform notification acknowledgement locking is not supported for "
+            f"dialect {dialect_name!r}."
+        )
+
     def upsert_platform_notification_acknowledgement(
         self,
         record: PlatformNotificationAcknowledgementCreate,
@@ -2430,6 +2476,35 @@ class AxisPersistenceRepository:
         status: str | None = None,
         limit: int = 100,
     ) -> list[ConnectorManifestRecord]:
+        statement = self._connector_manifest_statement(
+            tenant_id,
+            connector_id=connector_id,
+            status=status,
+        ).limit(limit)
+        return list(self.session.scalars(statement))
+
+    def list_all_current_connector_manifests(
+        self,
+        tenant_id: str,
+        connector_id: str | None = None,
+        status: str | None = None,
+    ) -> list[ConnectorManifestRecord]:
+        """Materialize one consistent tenant registry view in a single query."""
+
+        statement = self._connector_manifest_statement(
+            tenant_id,
+            connector_id=connector_id,
+            status=status,
+        )
+        return list(self.session.scalars(statement))
+
+    @staticmethod
+    def _connector_manifest_statement(
+        tenant_id: str,
+        *,
+        connector_id: str | None = None,
+        status: str | None = None,
+    ) -> Select[tuple[ConnectorManifestRecord]]:
         statement: Select[tuple[ConnectorManifestRecord]] = select(
             ConnectorManifestRecord
         ).where(
@@ -2441,11 +2516,10 @@ class AxisPersistenceRepository:
         if status is not None:
             statement = statement.where(ConnectorManifestRecord.status == status)
 
-        statement = statement.order_by(
+        return statement.order_by(
             ConnectorManifestRecord.created_at.desc(),
             ConnectorManifestRecord.id.desc(),
-        ).limit(limit)
-        return list(self.session.scalars(statement))
+        )
 
     def list_connector_manifest_revisions(
         self,
@@ -2816,6 +2890,48 @@ class AxisPersistenceRepository:
             .limit(1)
         )
         return self.session.scalar(statement)
+
+    def list_latest_connector_runs_by_connector(
+        self,
+        tenant_id: str,
+        status: str,
+    ) -> list[ConnectorRun]:
+        """Return the latest matching run for every tenant connector in one query.
+
+        This stays tenant-wide because registry size is not capped; binding every
+        connector ID would introduce backend-specific parameter-count limits.
+        """
+
+        ranked_runs = (
+            select(
+                ConnectorRun.id.label("connector_run_id"),
+                func.row_number()
+                .over(
+                    partition_by=ConnectorRun.connector_id,
+                    order_by=(
+                        ConnectorRun.updated_at.desc(),
+                        ConnectorRun.created_at.desc(),
+                        ConnectorRun.id.desc(),
+                    ),
+                )
+                .label("run_rank"),
+            )
+            .where(
+                ConnectorRun.tenant_id == tenant_id,
+                ConnectorRun.status == status,
+            )
+            .subquery()
+        )
+        statement = (
+            select(ConnectorRun)
+            .join(
+                ranked_runs,
+                ConnectorRun.id == ranked_runs.c.connector_run_id,
+            )
+            .where(ranked_runs.c.run_rank == 1)
+            .order_by(ConnectorRun.connector_id.asc())
+        )
+        return list(self.session.scalars(statement))
 
     def get_connector_run(self, tenant_id: str, run_id: str) -> ConnectorRun | None:
         statement = select(ConnectorRun).where(

@@ -18,7 +18,7 @@ import {
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
 
-import { StatusDot, type OverviewQuery } from "./overview-shared";
+import { overviewErrorReference, StatusDot, type OverviewQuery } from "./overview-shared";
 
 /*
  * Overview side rail: the system-health radar (computed from the live
@@ -118,7 +118,13 @@ function SystemHealth({
       return <LoadingPanel layout="detail" />;
     }
 
-    return <ErrorPanel detail={copy.error.detail} title={copy.error.title} />;
+    return (
+      <ErrorPanel
+        detail={copy.error.detail}
+        reference={overviewErrorReference(overview, snapshot, routing)}
+        title={copy.error.title}
+      />
+    );
   }
 
   const polygon = signals

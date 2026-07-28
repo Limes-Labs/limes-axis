@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   useAxisQuery: vi.fn(),
 }));
 
-vi.mock("@/lib/axis-api", () => ({
+vi.mock("@/lib/axis-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/axis-api")>()),
   axisFetchParsedJson: mocks.axisFetchParsedJson,
 }));
 
@@ -37,6 +38,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { PlatformOverview } from "./platform-overview";
+import { AxisApiError } from "@/lib/axis-api";
 import {
   approvalInboxFixture,
   auditEventsFixture,
@@ -183,6 +185,41 @@ describe("PlatformOverview hero", () => {
     expect(screen.getByText("Showing 4 of 4")).toBeInTheDocument();
     // The static seeded "Audit" metric string never renders anywhere.
     expect(screen.queryByText(/128 events/)).not.toBeInTheDocument();
+  });
+
+  it("labels mixed source provenance instead of collapsing the overview into a live claim", () => {
+    mockQueriesByPath([], {
+      overview: { ...overviewFixture, provenance: "reference_scenario" },
+    });
+    renderOverview();
+
+    const sources = screen.getByLabelText("Overview data sources");
+    expect(within(sources).getByText("scenario context: reference scenario"))
+      .toBeInTheDocument();
+    expect(within(sources).getByText("operations snapshot: live")).toBeInTheDocument();
+    expect(within(sources).getByText("audit window: live")).toBeInTheDocument();
+
+    const posture = screen.getByLabelText("Platform posture");
+    const cards = within(posture).getAllByRole("listitem");
+    const agentsCard = cards.find((card) => within(card).queryByText("Agents"));
+    const connectorsCard = cards.find((card) => within(card).queryByText("Connector activity"));
+    const modelsCard = cards.find((card) => within(card).queryByText("Models"));
+
+    expect(agentsCard).toBeDefined();
+    expect(connectorsCard).toBeDefined();
+    expect(modelsCard).toBeDefined();
+    expect(within(agentsCard as HTMLElement).getByText("agents: reference scenario"))
+      .toBeInTheDocument();
+    expect(within(connectorsCard as HTMLElement).getByText("connector activity: live"))
+      .toBeInTheDocument();
+    expect(within(modelsCard as HTMLElement).getByText("models: reference scenario"))
+      .toBeInTheDocument();
+
+    const attentionSources = screen.getByLabelText("Needs attention data sources");
+    expect(within(attentionSources).getByText("approval queue: reference scenario"))
+      .toBeInTheDocument();
+    expect(within(attentionSources).getByText("action follow-through: live"))
+      .toBeInTheDocument();
   });
 
   it("scopes every overview request to the API-verified authenticated tenant", () => {
@@ -373,13 +410,20 @@ describe("PlatformOverview demo bootstrap CTA", () => {
   });
 
   it("renders the bootstrap failure inline on the checklist without refreshing", async () => {
-    mocks.axisFetchParsedJson.mockRejectedValue(new Error("Axis API request failed with 403"));
+    mocks.axisFetchParsedJson.mockRejectedValue(
+      new AxisApiError("/demo/manufacturing/bootstrap", 403, {
+        body: { detail: { message: "Demo bootstrap forbidden", debug: "secret-debug" } },
+        requestId: "req-demo-bootstrap-403",
+      }),
+    );
     const user = userEvent.setup();
     renderEmptyTenant();
 
     await user.click(screen.getByRole("button", { name: "Explore with demo data" }));
 
-    expect(await screen.findByText("Axis API request failed with 403")).toBeInTheDocument();
+    expect(await screen.findByText("Demo bootstrap forbidden")).toBeInTheDocument();
+    expect(screen.getByText("req-demo-bootstrap-403")).toBeInTheDocument();
+    expect(screen.queryByText(/secret-debug/)).not.toBeInTheDocument();
     expect(mocks.triggerRefresh).not.toHaveBeenCalled();
     expect(screen.queryByText("Demo data loaded")).not.toBeInTheDocument();
     // The checklist stays actionable for a retry.

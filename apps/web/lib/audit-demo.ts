@@ -36,7 +36,7 @@ export type ManufacturingAuditExplorer = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   ledger_status: PlatformStatus;
   metrics: {
@@ -96,7 +96,6 @@ export type AuditLedgerSignatureProof = {
 export type AuditExportBundle = {
   tenant_id: string;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
   format: string;
   export_reason: string;
   filters: {

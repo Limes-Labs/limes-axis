@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConnectorCsvPreviewResult } from "@/lib/connectors-demo";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
@@ -54,10 +54,14 @@ const csvPreviewReady: ConnectorCsvPreviewResult = {
   preview_notes: [],
 };
 
-function jsonResponse(payload: unknown, status = 200): Response {
+function jsonResponse(
+  payload: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
   });
 }
 
@@ -128,6 +132,10 @@ beforeEach(() => {
   mockIdentity({ authenticated: true, actor_id: "plant-operations-owner-role" });
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("AddConnectorWizard CSV flow", () => {
   it("uploads a file, posts its parsed content to the preview endpoint, and shows the result", async () => {
     const user = userEvent.setup();
@@ -167,6 +175,26 @@ describe("AddConnectorWizard CSV flow", () => {
     expect(screen.queryByText("Preview ready")).not.toBeInTheDocument();
   });
 
+  it("shows a preview request reference without exposing the response body", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetch.mockResolvedValueOnce(
+      jsonResponse(
+        { detail: { message: "Preview unavailable", debug: "secret-preview-trace" } },
+        503,
+        { "x-request-id": "req-preview-503" },
+      ),
+    );
+    renderWizard();
+
+    await uploadCsvAndPreview(user);
+
+    expect(
+      await screen.findByText("The CSV preview endpoint is unavailable."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("req-preview-503")).toBeInTheDocument();
+    expect(screen.queryByText(/secret-preview-trace/)).not.toBeInTheDocument();
+  });
+
   it("keeps Next disabled until the preview is ready, then advances to review", async () => {
     const user = userEvent.setup();
     mocks.axisFetch.mockResolvedValueOnce(jsonResponse(csvPreviewReady));
@@ -188,6 +216,36 @@ describe("AddConnectorWizard CSV flow", () => {
 
     expect(screen.getByText("Review and register")).toBeInTheDocument();
     expect(screen.getByLabelText("Connector id")).toHaveValue("file_csv_plant_assets");
+  });
+
+  it("clears the previous CSV while a replacement file is still loading", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /^CSV file/ }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    const input = screen.getByLabelText("CSV file", { selector: "input" });
+    await user.upload(
+      input,
+      new File(["asset_id\nast-9\n"], "first.csv", { type: "text/csv" }),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Preview file" })).toBeEnabled();
+    });
+
+    vi.stubGlobal("FileReader", class DeferredFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      onerror: ((event: ProgressEvent<FileReader>) => void) | null = null;
+
+      readAsText() {}
+    });
+    await user.upload(
+      input,
+      new File(["asset_id\nast-10\n"], "replacement.csv", { type: "text/csv" }),
+    );
+
+    expect(screen.getByRole("button", { name: "Preview file" })).toBeDisabled();
   });
 
   it("posts the manifest payload derived from the template and the uploaded file", async () => {
@@ -250,11 +308,17 @@ describe("AddConnectorWizard CSV flow", () => {
     ).toBeInTheDocument();
   });
 
-  it("explains a 403 in plain language with the raw reason in mono", async () => {
+  it("explains a 403 with a request reference and never renders raw details", async () => {
     const user = userEvent.setup();
     mocks.axisFetch
       .mockResolvedValueOnce(jsonResponse(csvPreviewReady))
-      .mockResolvedValueOnce(jsonResponse({ detail: { reason: "tenant_mismatch" } }, 403));
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { detail: { reason: "tenant_mismatch", debug: "secret-submit-trace" } },
+          403,
+          { "x-correlation-id": "corr-submit-403" },
+        ),
+      );
     renderWizard();
 
     await uploadCsvAndPreview(user);
@@ -265,7 +329,8 @@ describe("AddConnectorWizard CSV flow", () => {
     expect(
       await screen.findByText(/not allowed to register connectors/),
     ).toBeInTheDocument();
-    expect(screen.getByText("tenant_mismatch")).toBeInTheDocument();
+    expect(screen.getByText("corr-submit-403")).toBeInTheDocument();
+    expect(screen.queryByText(/tenant_mismatch|secret-submit-trace/)).not.toBeInTheDocument();
   });
 });
 
@@ -397,6 +462,32 @@ describe("AddConnectorWizard external DB flow", () => {
       expect(screen.getByText("Metadata preview ready")).toBeInTheDocument(),
     );
     expect(screen.getByLabelText("Connector template")).toBeEnabled();
+  });
+
+  it("ignores a preview that completes after its database source changes", async () => {
+    const user = userEvent.setup();
+    let resolvePreview: (value: Response) => void = () => {};
+    let previewSettled = false;
+    mocks.axisFetch.mockImplementationOnce(
+      async () => {
+        const response = await new Promise<Response>((resolve) => { resolvePreview = resolve; });
+        previewSettled = true;
+        return response;
+      },
+    );
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /^External database/ }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Preview metadata" }));
+
+    await user.clear(screen.getByLabelText("Table"));
+    await user.type(screen.getByLabelText("Table"), "unreviewed_table");
+    resolvePreview(jsonResponse(dbPreviewReady));
+
+    await waitFor(() => expect(previewSettled).toBe(true));
+    expect(screen.queryByText("Metadata preview ready")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 });
 

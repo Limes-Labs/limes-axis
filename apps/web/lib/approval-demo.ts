@@ -43,7 +43,7 @@ export type ManufacturingApprovalInbox = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   queue_status: PlatformStatus;
   policy_notes: string[];

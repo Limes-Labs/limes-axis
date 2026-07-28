@@ -126,7 +126,11 @@ export function AgentRegistry() {
   const { labelDomain } = useTenantVocabulary();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const agentsPath = buildTenantScopedPath(AGENTS_ENDPOINT, tenantId ?? DEMO_TENANT_ID);
-  const { data: registry, source } = useAxisQuery<ManufacturingAgentRegistry>(agentsPath, {
+  const {
+    data: registry,
+    errorRequestId: registryErrorRequestId,
+    source,
+  } = useAxisQuery<ManufacturingAgentRegistry>(agentsPath, {
     enabled: tenantQueriesEnabled,
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingAgentRegistry,
@@ -156,6 +160,7 @@ export function AgentRegistry() {
       <ErrorPanel
         detail="The agent registry is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -188,6 +193,7 @@ export function AgentRegistry() {
       <ErrorPanel
         detail={strings.agents.error.detail}
         endpoint={agentsPath}
+        reference={registryErrorRequestId ?? undefined}
         title={strings.agents.error.title}
       />
     );
@@ -225,7 +231,7 @@ export function AgentRegistry() {
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
-            state={deriveSourceState(source, Boolean(registry))}
+            state={deriveSourceState(source, Boolean(registry), registry.provenance)}
             subject="agent registry"
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>

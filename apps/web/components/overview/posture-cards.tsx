@@ -2,6 +2,7 @@
 
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SourcePill } from "@/components/ui/source-pill";
 import { formatNumber, pluralize } from "@/lib/format";
 import { countBlockedModelRoutes, type ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import type {
@@ -14,6 +15,12 @@ import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
 import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
+import {
+  deriveSourceState,
+  PROVENANCE_NOT_APPLICABLE,
+  type SourceProvenance,
+  type SourceState,
+} from "@/lib/source-state";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 import { PanelLink, StatusDot, type OverviewQuery } from "./overview-shared";
@@ -36,7 +43,7 @@ type PostureCard = {
   value: string | null;
   detail: string;
   status: PlatformStatus;
-  unavailable: boolean;
+  sourceState: SourceState;
 };
 
 function metricByLabel(overview: ManufacturingOverview, label: string): OverviewMetric | null {
@@ -51,20 +58,29 @@ function connectorEventCount(snapshot: ManufacturingOperationsSnapshot): number 
 function cardState<T>(
   query: OverviewQuery<T>,
   build: (data: T) => Pick<PostureCard, "value" | "detail" | "status">,
-): Pick<PostureCard, "value" | "detail" | "status" | "unavailable"> {
+  provenanceOf: (data: T) => SourceProvenance,
+): Pick<PostureCard, "value" | "detail" | "status" | "sourceState"> {
   if (query.data) {
-    return { ...build(query.data), unavailable: false };
+    return {
+      ...build(query.data),
+      sourceState: deriveSourceState(query.source, true, provenanceOf(query.data)),
+    };
   }
 
   if (query.source === "loading") {
-    return { value: null, detail: "", status: "watch", unavailable: false };
+    return {
+      value: null,
+      detail: "",
+      status: "watch",
+      sourceState: deriveSourceState(query.source, false),
+    };
   }
 
   return {
     value: strings.overview.posture.unavailable,
     detail: "This endpoint did not respond.",
     status: "watch",
-    unavailable: true,
+    sourceState: deriveSourceState(query.source, false),
   };
 }
 
@@ -95,7 +111,7 @@ export function PostureCards({
         value: String(data.agents.length),
         detail: metricByLabel(data, "Agents")?.detail ?? "Governed autonomy records",
         status: metricByLabel(data, "Agents")?.status ?? "ready",
-      })),
+      }), (data) => data.provenance),
     },
     {
       key: "workflows",
@@ -106,7 +122,7 @@ export function PostureCards({
         value: String(data.workflows.length),
         detail: metricByLabel(data, "Workflow Load")?.detail ?? "Workflow records from the API",
         status: metricByLabel(data, "Workflow Load")?.status ?? "watch",
-      })),
+      }), (data) => data.provenance),
     },
     {
       key: "connectors",
@@ -129,7 +145,7 @@ export function PostureCards({
           // Quiet connectors are not a problem, so zero activity is neutral.
           status: "ready",
         };
-      }),
+      }, (data) => data.provenance),
     },
     {
       key: "policies",
@@ -140,7 +156,7 @@ export function PostureCards({
         value: String(data.active_policy_count),
         detail: `${data.policy_count} authored, ${data.active_policy_count} active`,
         status: data.active_policy_count > 0 ? "ready" : "watch",
-      })),
+      }), () => PROVENANCE_NOT_APPLICABLE),
     },
     {
       key: "models",
@@ -151,7 +167,7 @@ export function PostureCards({
         value: formatNumber(data.routes.length),
         detail: pluralize(countBlockedModelRoutes(data), "blocked route"),
         status: data.routing_status,
-      })),
+      }), (data) => data.provenance),
     },
   ];
 
@@ -179,6 +195,11 @@ export function PostureCards({
           )}
           <div aria-hidden="true" className="rule-hairline" />
           <p className="m-0 text-xs text-muted">{card.detail}</p>
+          <SourcePill
+            className="w-fit max-w-full"
+            state={card.sourceState}
+            subject={card.label.toLowerCase()}
+          />
           <PanelLink href={card.href}>{card.linkLabel}</PanelLink>
         </article>
       ))}

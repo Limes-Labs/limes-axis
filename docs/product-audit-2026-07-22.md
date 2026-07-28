@@ -11,9 +11,9 @@ This checklist records the repository-wide product review requested on 2026-07-2
 
 ## P1 — Data fidelity and operational correctness
 
-- [ ] Do not replace valid empty persisted datasets with reference/demo records.
-- [ ] Distinguish live, stale-after-refresh-failure, empty, and unavailable sources.
-- [ ] Replace proxy or invented overview metrics with values backed by the named dataset.
+- [x] Do not replace valid empty persisted datasets with reference/demo records.
+- [x] Distinguish live, reference-scenario, stale-after-refresh-failure, empty, and unavailable sources.
+- [x] Replace proxy or invented overview metrics with values backed by the named dataset.
 - [x] Treat a zero-artifact replay response as an empty state, not an API error.
 - [x] Reconcile the connector live-sync Temporal schedule when the feature is disabled.
 - [x] Remove wall-clock expiry from fixed-date API tests so the full suite is deterministic.
@@ -31,8 +31,10 @@ This checklist records the repository-wide product review requested on 2026-07-2
 - [ ] Give mobile navigation an explicit navigation landmark and a discoverable overflow/menu pattern.
 - [x] Give loading regions accessible status text while keeping the skeleton visual concise.
 - [ ] Expose status and sparkbar values without relying on color or pointer-only `title` text.
-- [ ] Add route-level loading, error, and not-found boundaries and route-specific metadata.
-- [ ] Keep selected filters, records, and deep links synchronized with the URL.
+- [x] Add route-level loading, error, and not-found boundaries and route-specific metadata.
+- [ ] Keep selected filters, records, and deep links synchronized with the URL. The
+      highest-risk record links and ontology traversal are URL-backed; a few secondary
+      policy/settings tabs still need the same treatment.
 - [ ] Replace implementation-oriented tenant copy with operator-facing language.
 
 ## P2 — Runtime and deployment follow-ups
@@ -40,13 +42,18 @@ This checklist records the repository-wide product review requested on 2026-07-2
 - [ ] Add worker/outbox health and backlog-age evidence to deployment readiness.
 - [ ] Resolve registered model credential handles during provider invocation.
 - [ ] Make model endpoint and invocation idempotency race-safe.
-- [ ] Implement the documented `X-Request-Id` correlation boundary, including CORS.
+- [x] Implement the documented `X-Request-Id` correlation boundary, including validation,
+      request state, response echo, CORS exposure, and generic-500 correlation evidence.
+- [x] Make notification acknowledgement audit idempotency race-safe for simultaneous
+      writers. PostgreSQL uses a transaction-scoped advisory lock, SQLite acquires write
+      intent immediately before the authoritative read, identical retries replay one
+      audit event, and acknowledgement state cannot regress.
 - [ ] Decide whether production admits valid identity claims for unknown tenant records.
 - [ ] Expand the Python SDK beyond the current demo-manufacturing surface.
 
 ## P3 — Component and code consistency
 
-- [ ] Use semantic source/status badges instead of unconditional green source pills.
+- [x] Use semantic source/status badges instead of unconditional green source pills.
 - [x] Use semantic connector governance tones and the defined danger token for failed agent runs.
 - [x] Correct singular/plural operational copy.
 - [ ] Consolidate repeated cards, tables, and action styles onto shared primitives.
@@ -55,7 +62,7 @@ This checklist records the repository-wide product review requested on 2026-07-2
 ## Verification gates
 
 - [x] Web unit tests, lint, typecheck, and production build.
-- [x] API, worker, SDK, schema, OpenAPI, security, and deployment contract checks.
+- [x] API, worker, SDK, schema, OpenAPI, deployment, and container contract checks.
 - [x] Desktop, mobile, tablet, and small-laptop browser sweeps with overflow checks.
 - [x] Keyboard focus, dialogs, drawers, filters, empty/loading/error states, refreshes, and repeated submissions.
 - [x] Authenticated non-demo tenant contract test across all tenant-scoped routes.
@@ -64,12 +71,18 @@ This checklist records the repository-wide product review requested on 2026-07-2
 
 ### Verification evidence
 
-- Web: 605 unit/component tests; lint, typecheck, and the production Next.js build passed.
-- Browser: 69 mocked Chromium smoke tests passed across desktop, Pixel 7, and iPad profiles; 9 live-API Chromium scenarios passed against the real FastAPI and Next.js applications.
+- Web: 796 unit/component tests in 88 files; lint, typecheck, and production Next.js builds for both the live-API and fail-closed profiles passed.
+- Browser: 69 mocked Chromium smoke tests passed across desktop, Pixel 7, and iPad profiles; 21 read-only live-API scenarios passed across the same three profiles and 2 state-mutating scenarios passed once, serially, in Chromium.
 - Persisted product sweep: 12 console routes rendered with one `main` landmark and no horizontal overflow; audit filtering/reset and truthful empty workflow/replay states were exercised.
-- Services: API 1,394 passed / 14 infrastructure-gated skipped; worker 51 passed / 3 skipped; Python SDK 103 passed.
-- Contracts: OpenAPI export, schema, security posture, deployment package, all three Helm profiles, container-image, release, scan, and vulnerability-management checks passed.
+- Services: API 1,488 passed / 14 infrastructure-gated skipped; worker 51 passed / 3 infrastructure-gated skipped; Python SDK 104 passed. Ruff passed for all three Python packages.
+- Contracts: OpenAPI export, all six schema lint/compile checks, GitHub Actions syntax, deployment package, all three Helm profiles, container-image, and container-release checks passed.
 
 ## Current environment boundary
 
-Docker returned `EOF` during this review. The persisted browser pass therefore uses the repository's canonical migration payloads in a temporary SQLite database through the real FastAPI and Next.js applications. Live distributed-infrastructure claims remain unverified until Docker is healthy.
+The Docker daemon was not running during the final review. The persisted browser pass
+therefore used a temporary SQLite database created from the current ORM schema, populated
+with the canonical migration reference payloads, and bootstrapped through the real API.
+The 92 browser scenarios exercised the real FastAPI application and production Next.js
+build, but this is not evidence that the distributed stack or Postgres migrations work in
+this environment. Live Postgres, Temporal, TypeDB, MinIO and Keycloak claims remain
+unverified until Docker is available.

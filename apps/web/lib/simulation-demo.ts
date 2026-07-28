@@ -92,7 +92,7 @@ export type ManufacturingReplaySimulation = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   as_of: string;
   simulation_status: PlatformStatus;
   metrics: {

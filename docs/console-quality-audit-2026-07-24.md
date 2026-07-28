@@ -7,6 +7,9 @@ consistency, responsive behaviour, accessibility, bugs/edge cases, and maintaina
 Every item below was verified against source (file:line) before being listed. Items are
 ordered by operator impact, not by area.
 
+> Follow-up, 2026-07-28: the diagnosis below records the original audit baseline;
+> checkbox state and resolution notes reflect the current PR branch.
+
 ## Root diagnosis
 
 Three systemic causes account for most individual findings:
@@ -69,10 +72,13 @@ Three systemic causes account for most individual findings:
       site in the app consumes any of it.
 - [x] **D6** `ErrorPanel.onRetry` has **zero** call sites — every error state in the console
       is a dead end.
-- [ ] **D7** Reference-scenario surfaces do not declare themselves as such in the API
-      response. Needs a `provenance` field server-side. *(Product decision — see below.)*
-- [ ] **D8** Empty datasets are returned as 404 by the API (`Field(min_length=1)`), so a
-      new tenant sees a red "unavailable" error instead of an empty state. *(API change.)*
+- [x] **D7** Reference-scenario surfaces declare `provenance` in the API response, and
+      shared source pills distinguish them from persisted live data.
+- [x] **D8** Valid empty tenant datasets return typed payloads with `provenance: "empty"`;
+      the consoles render onboarding/empty panels rather than API errors.
+- [x] **D9** API failures retain the server's validated request reference through runtime
+      decoding, query state and mutation state; operators can expose it without rendering
+      raw response bodies or debug fields.
 
 ## P1 — Navigation and deep links
 
@@ -80,7 +86,10 @@ Three systemic causes account for most individual findings:
 - [x] **N2** Selection and filters absent from the URL across 9 consoles.
 - [x] **N3** Detail tabs are all uncontrolled `defaultValue` — a policy revision cannot be
       linked.
-- [ ] **N4** Ontology entity sheet traversal creates no history; Back exits the page.
+- [x] **N4** Ontology graph/list view and entity selection are URL-backed; entity
+      traversal pushes history so Back walks the sheet history before leaving the page.
+      Opaque node ids are encoded exactly, and explicit Close collapses the in-sheet
+      traversal instead of manufacturing duplicate explorer history entries.
 
 ## P1 — Typography and controls
 
@@ -121,15 +130,45 @@ Three systemic causes account for most individual findings:
       `evidenceLabel` prop, orphan `ops-*` CSS classes referenced but never defined.
 - [x] **M4** `lib/next-config.test.ts` asserts one trivial fact and implies config coverage.
 
+## Follow-up verification — 2026-07-28
+
+The follow-up was run against the product paths, not only the original visual demo:
+
+- 796 web unit/component tests in 88 files, ESLint, TypeScript, and two production builds
+  passed.
+- 1,488 API tests passed with 14 infrastructure-gated skips; worker 51 passed with 3
+  infrastructure-gated skips; the Python SDK passed all 104 tests. Ruff was clean across
+  all three Python packages.
+- 69 fail-closed/mock browser cases passed across desktop, Pixel 7 and iPad profiles.
+- 21 read-only scenarios passed across the same three profiles against the real FastAPI
+  application; 2 shared-state writes then passed once, serially, in Chromium.
+- The in-app browser verified ontology graph selection, peer traversal, browser Back,
+  opaque node identifiers, the full entity route, a single `main` landmark, zero
+  horizontal overflow, and no browser-console errors at 1280×720.
+- Connector registry composition was exercised with 103 visible connectors. Current
+  manifests and latest successful runs are each loaded in one tenant-scoped query, so the
+  view is neither capped at 100 nor N+1.
+- Concurrent identical notification acknowledgements converge on one acknowledgement and
+  one audit event. Changed replay evidence and backward state transitions return a
+  structured `409` without overwriting the persisted audit trail.
+- Request correlation, safe mutation errors, stale async preview invalidation, and the
+  browser-session refresh latch have focused regressions for the failure paths that
+  originally escaped the happy-path tests.
+
+![Live production ontology entity detail](screenshots/console-quality-2026-07-24/ontology-entity-reference-live.jpg)
+
+The screenshot is a direct 1280×720 capture from the production Next.js build backed by
+the live FastAPI fixture. The source badge deliberately says `reference scenario`; it is
+not presented as live tenant evidence.
+
 ---
 
 ## Requires a product or business decision
 
-1. **Reference-scenario data (D7/D8).** Nine surfaces return hand-authored JSON from
-   `demo_reference_records` rather than queries. Options: (a) label provenance honestly in
-   the API and UI, (b) back each surface with real queries, (c) both. This work implements
-   (a) on the client where the information is available and flags the rest — (b) is a
-   backend roadmap item, and dropping the scenario entirely is a go-to-market call.
+1. **Reference-scenario data (D7/D8).** Resolved for product truthfulness: reference,
+   live, empty, stale, loading and unavailable states now remain distinct across the API
+   and shared UI. Replacing every reference surface with a production integration remains
+   a backend roadmap item; the console no longer presents those scenarios as live data.
 2. **CSP strategy (P4).** Requires nonce + middleware, which opts routes into dynamic
    rendering. Cost is near zero here (all data is client-fetched) but it is an
    infrastructure decision.

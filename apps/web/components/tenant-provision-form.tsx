@@ -10,24 +10,27 @@ import {
   platformTenantProvisionScope,
   provisionTenant,
   tenantIdPattern,
+  tenantWriteOperatorError,
   validateTenantProvisionForm,
   type TenantProvisionFieldErrors,
   type TenantProvisionFormState,
   type TenantRecord,
 } from "@/lib/platform-tenants";
+import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
 import { safeRandomUuid } from "@/lib/ids";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
+import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 
 type SubmissionState =
   | { phase: "idle" }
   | { phase: "saving" }
   | { phase: "created"; record: TenantRecord }
   | { phase: "replayed"; record: TenantRecord }
-  | { phase: "conflict"; message: string }
-  | { phase: "failed"; message: string };
+  | { phase: "conflict"; error: AxisOperatorError }
+  | { phase: "failed"; error: AxisOperatorError };
 
 export function TenantProvisionForm() {
   const { session } = useOidcConsoleSession();
@@ -50,7 +53,10 @@ export function TenantProvisionForm() {
     if (Object.keys(validationErrors).length > 0) {
       setSubmission({
         phase: "failed",
-        message: "Fix the highlighted fields; nothing was sent to the API.",
+        error: toAxisOperatorError(
+          null,
+          "Fix the highlighted fields; nothing was sent to the API.",
+        ),
       });
       return;
     }
@@ -88,32 +94,50 @@ export function TenantProvisionForm() {
         setFieldErrors(
           result.reason === "tenant_already_exists" ? { tenantId: result.message } : {},
         );
-        setSubmission({ phase: "conflict", message: result.message });
+        setSubmission({
+          phase: "conflict",
+          error: tenantWriteOperatorError(
+            result,
+            `${result.message} A fresh idempotency key was generated for the next attempt.`,
+          ),
+        });
         return;
       }
 
       if (result.kind === "invalid") {
         setFieldErrors(result.fieldErrors as TenantProvisionFieldErrors);
-        setSubmission({ phase: "failed", message: result.message });
+        setSubmission({
+          phase: "failed",
+          error: tenantWriteOperatorError(result),
+        });
         return;
       }
 
       if (result.kind === "forbidden") {
         setSubmission({
           phase: "failed",
-          message: result.requiredPermission
-            ? `${result.message} Required permission: ${result.requiredPermission}.`
-            : result.message,
+          error: tenantWriteOperatorError(
+            result,
+            result.requiredPermission
+              ? `${result.message} Required permission: ${result.requiredPermission}.`
+              : result.message,
+          ),
         });
         return;
       }
 
       setSubmission({
         phase: "failed",
-        message: result.kind === "failed" ? result.message : "Tenant provisioning failed.",
+        error: tenantWriteOperatorError(
+          result,
+          result.kind === "failed" ? result.message : "Tenant provisioning failed.",
+        ),
       });
-    } catch {
-      setSubmission({ phase: "failed", message: "Tenant provisioning API is unavailable." });
+    } catch (caught) {
+      setSubmission({
+        phase: "failed",
+        error: toAxisOperatorError(caught, "Tenant provisioning API is unavailable."),
+      });
     }
   }
 
@@ -256,15 +280,10 @@ export function TenantProvisionForm() {
       </form>
 
       {submission.phase === "failed" ? (
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
-          Tenant provisioning failed: {submission.message}
-        </p>
+        <InlineOperatorError error={submission.error} prefix="Tenant provisioning failed" />
       ) : null}
       {submission.phase === "conflict" ? (
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words" role="alert">
-          Tenant provisioning conflict: {submission.message} A fresh idempotency key was generated
-          for the next attempt.
-        </p>
+        <InlineOperatorError error={submission.error} prefix="Tenant provisioning conflict" />
       ) : null}
       {submission.phase === "created" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">

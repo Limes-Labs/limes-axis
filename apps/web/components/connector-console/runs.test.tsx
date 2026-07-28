@@ -18,10 +18,26 @@ const mocks = vi.hoisted(() => ({
   triggerRefresh: vi.fn(),
 }));
 
-vi.mock("@/lib/axis-api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/axis-api")>()),
-  axisFetch: mocks.axisFetch,
-}));
+vi.mock("@/lib/axis-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/axis-api")>();
+  return {
+    ...actual,
+    axisFetch: mocks.axisFetch,
+    axisFetchParsedJson: async <T,>(
+      path: string,
+      decoder: (value: unknown) => T,
+      options: import("@/lib/axis-api").AxisFetchOptions = {},
+    ): Promise<T> => {
+      const response = await mocks.axisFetch(path, options) as Response;
+      const requestId = actual.axisResponseRequestId(response);
+      const body = await response.json();
+      if (!response.ok) {
+        throw new actual.AxisApiError(path, response.status, { body, requestId });
+      }
+      return actual.decodeAxisJson(path, body, decoder, requestId);
+    },
+  };
+});
 
 vi.mock("@/lib/use-oidc-session", () => ({
   useOidcConsoleSession: () => ({ session: null }),

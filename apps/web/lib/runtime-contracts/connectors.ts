@@ -124,7 +124,7 @@ const connectorRegistryHeader = {
   tenant_id: z.string(),
   plant_name: nullableStringSchema,
   scenario: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
+  provenance: manufacturingProvenanceSchema,
   registry_status: platformStatusSchema,
   metrics: z.array(overviewMetricSchema),
 };
@@ -353,7 +353,7 @@ const connectorEvidenceInvariantSnapshotHistory = z.object({
   tenant_id: z.string(),
   plant_name: nullableStringSchema,
   scenario: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
+  provenance: manufacturingProvenanceSchema,
   history_status: platformStatusSchema,
   metrics: z.array(overviewMetricSchema),
   snapshots: z.array(z.object({

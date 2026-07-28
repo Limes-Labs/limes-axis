@@ -53,12 +53,14 @@ function Section({
 function SectionState({
   source,
   errorTitle,
+  errorRequestId,
   isEmpty,
   emptyLabel,
   children,
 }: {
   source: AxisQuerySource;
   errorTitle: string;
+  errorRequestId?: string | null;
   isEmpty: boolean;
   emptyLabel: string;
   children: ReactNode;
@@ -67,7 +69,7 @@ function SectionState({
     return <LoadingPanel rows={2} />;
   }
   if (source === "unavailable" && isEmpty) {
-    return <ErrorPanel title={errorTitle} />;
+    return <ErrorPanel reference={errorRequestId ?? undefined} title={errorTitle} />;
   }
   if (isEmpty) {
     return <p className="m-0 text-sm text-muted">{emptyLabel}</p>;
@@ -136,6 +138,7 @@ export function ConnectorGovernance({
       <Section detail={copy.handles.detail} title={copy.handles.title}>
         <SectionState
           emptyLabel={copy.handles.empty}
+          errorRequestId={registries.credentialHandles.errorRequestId}
           errorTitle={copy.handles.error}
           isEmpty={handles.length === 0}
           source={registries.credentialHandles.source}
@@ -164,6 +167,7 @@ export function ConnectorGovernance({
       <Section detail={copy.leases.detail} title={copy.leases.title}>
         <SectionState
           emptyLabel={copy.leases.empty}
+          errorRequestId={registries.credentialLeases.errorRequestId}
           errorTitle={copy.leases.error}
           isEmpty={leases.length === 0}
           source={registries.credentialLeases.source}
@@ -191,6 +195,7 @@ export function ConnectorGovernance({
       <Section detail={copy.egress.detail} title={copy.egress.title}>
         <SectionState
           emptyLabel={copy.egress.empty}
+          errorRequestId={registries.egressPolicies.errorRequestId}
           errorTitle={copy.egress.error}
           isEmpty={egressPolicies.length === 0}
           source={registries.egressPolicies.source}
@@ -219,6 +224,7 @@ export function ConnectorGovernance({
       <Section detail={copy.invariants.detail} title={copy.invariants.title}>
         <SectionState
           emptyLabel={copy.invariants.allClear}
+          errorRequestId={registries.evidenceInvariants.errorRequestId}
           errorTitle={copy.invariants.error}
           isEmpty={(invariantReport?.invariants ?? []).length === 0}
           source={registries.evidenceInvariants.source}

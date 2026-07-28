@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { FileText, Filter, RotateCcw, Send, ShieldCheck } from "lucide-react";
 
-import { axisFetchParsedJson } from "@/lib/axis-api";
+import {
+  axisFetchParsedJson,
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import {
   parseActionRunPersistenceResult,
   parseManufacturingActionRegistry,
@@ -94,7 +98,11 @@ export function ActionRegistry() {
   });
   const tenantScope = resolveConsoleTenantScope(identity.data);
   const tenantId = tenantScope.tenantId;
-  const { data: registry, source } = useAxisQuery<ManufacturingActionRegistry>(
+  const {
+    data: registry,
+    errorRequestId: registryErrorRequestId,
+    source,
+  } = useAxisQuery<ManufacturingActionRegistry>(
     buildTenantScopedPath(
       `${OPERATIONS_API_PREFIX}/actions`,
       tenantId ?? DEMO_TENANT_ID,
@@ -110,7 +118,7 @@ export function ActionRegistry() {
   const [actionRunResults, setActionRunResults] = useState<Record<string, LocalActionRunResult>>(
     {},
   );
-  const [actionRunErrors, setActionRunErrors] = useState<Record<string, string>>({});
+  const [actionRunErrors, setActionRunErrors] = useState<Record<string, AxisOperatorError>>({});
   const [submittingActionId, setSubmittingActionId] = useState<string | null>(null);
   const { session } = useOidcConsoleSession();
 
@@ -194,13 +202,13 @@ export function ActionRegistry() {
           workflowSignalDetail: actionRunWorkflowSignalLabel(result),
         },
       }));
-    } catch (error) {
+    } catch (caught) {
       setActionRunErrors((current) => ({
         ...current,
-        [action.definition.action_id]:
-          error instanceof Error
-            ? error.message
-            : "Action run API persistence is unavailable.",
+        [action.definition.action_id]: toAxisOperatorError(
+          caught,
+          "Action run API persistence is unavailable.",
+        ),
       }));
     } finally {
       setSubmittingActionId(null);
@@ -212,6 +220,7 @@ export function ActionRegistry() {
       <ErrorPanel
         detail="The action registry is not loaded until the current actor and tenant are verified."
         endpoint="/identity/session"
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -236,8 +245,27 @@ export function ActionRegistry() {
       <ErrorPanel
         detail="Axis did not receive API-backed action records. Local fallback action records are disabled."
         endpoint={`${OPERATIONS_API_PREFIX}/actions`}
+        reference={registryErrorRequestId ?? undefined}
         title="Action API unavailable"
       />
+    );
+  }
+
+  if (registry.actions.length === 0) {
+    return (
+      <div className="grid gap-3">
+        <div className="flex justify-end">
+          <SourcePill
+            state={deriveSourceState(source, true, registry.provenance)}
+            subject="action registry"
+          />
+        </div>
+        <EmptyPanel
+          detail="Governed actions will appear here after they are registered for this tenant."
+          icon={FileText}
+          title="No actions registered yet"
+        />
+      </div>
     );
   }
 
@@ -266,7 +294,7 @@ export function ActionRegistry() {
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
-            state={deriveSourceState(source, Boolean(registry))}
+            state={deriveSourceState(source, Boolean(registry), registry.provenance)}
             subject="action registry"
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
@@ -628,12 +656,12 @@ export function ActionRegistry() {
               </section>
             ) : null}
             {selectedRunError ? (
-              <section className="grid gap-4 border-t border-line/60 pt-3.5 dark:border-white/10 lg:grid-cols-[minmax(220px,0.4fr)_minmax(0,1fr)] [&>*]:min-w-0" aria-label="Action run persistence error">
-                <div>
-                  <p className="eyebrow m-0">Action Run Error</p>
-                  <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">Persistence unavailable</h3>
-                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunError}</p>
-                </div>
+              <section className="border-t border-line/60 pt-3.5 dark:border-white/10" aria-label="Action run persistence error">
+                <ErrorPanel
+                  detail={selectedRunError.message}
+                  reference={selectedRunError.requestId ?? undefined}
+                  title="Action run persistence unavailable"
+                />
               </section>
             ) : null}
           </section>

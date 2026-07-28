@@ -15,7 +15,7 @@ const agentRegistry = z.object({
   tenant_id: z.string(),
   plant_name: nullableStringSchema,
   scenario: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
+  provenance: manufacturingProvenanceSchema,
   as_of: z.string(),
   registry_status: platformStatusSchema,
   metrics: z.array(overviewMetricSchema),

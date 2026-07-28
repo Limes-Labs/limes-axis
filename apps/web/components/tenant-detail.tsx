@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, History, ShieldCheck } from "lucide-react";
 
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import {
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import { SourcePill } from "@/components/ui/source-pill";
 import { TenantLifecycleActions } from "@/components/tenant-lifecycle-actions";
 import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
@@ -18,7 +22,7 @@ import {
   type TenantRecord,
 } from "@/lib/platform-tenants";
 import { formatTimestamp } from "@/lib/format";
-import { deriveSourceState } from "@/lib/source-state";
+import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -76,6 +80,7 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
 export function TenantDetail({ tenantId }: { tenantId: string }) {
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [source, setSource] = useState<DetailSource>("loading");
+  const [loadError, setLoadError] = useState<AxisOperatorError | null>(null);
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
 
@@ -95,15 +100,21 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
 
         if (result.kind === "notFound") {
           setTenant(null);
+          setLoadError(null);
           setSource("missing");
           return;
         }
 
         setTenant(result.record);
+        setLoadError(null);
         setSource("api");
-      } catch {
+      } catch (caught) {
         if (!controller.signal.aborted) {
           setTenant(null);
+          setLoadError(toAxisOperatorError(
+            caught,
+            "Axis could not load this platform tenant.",
+          ));
           setSource("unavailable");
         }
       }
@@ -124,6 +135,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         <ErrorPanel
           detail="Axis did not receive an API-backed platform tenant. Local fallback tenant records are disabled."
           endpoint={buildPlatformTenantDetailPath(tenantId)}
+          reference={loadError?.requestId ?? undefined}
           title="Tenant API unavailable"
         />
       );
@@ -163,7 +175,11 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Tenant source and status">
           <SourcePill
-            state={deriveSourceState(source === "missing" ? "unavailable" : source, Boolean(tenant))}
+            state={deriveSourceState(
+              source === "missing" ? "unavailable" : source,
+              Boolean(tenant),
+              PROVENANCE_NOT_APPLICABLE,
+            )}
             subject="tenant"
           />
           <span className={`status-pill ${tenantStatusClass(tenant.status)}`}>

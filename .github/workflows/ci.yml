@@ -48,18 +48,19 @@ jobs:
         run: pnpm --filter @limes-axis/web test
 
       - name: Build
+        env:
+          NEXT_PUBLIC_AXIS_API_BASE_URL: http://127.0.0.1:65534
         run: pnpm --filter @limes-axis/web build
 
       - name: Install Playwright browsers
         run: pnpm --filter @limes-axis/web exec playwright install --with-deps chromium
 
       - name: Smoke test
-        run: pnpm --filter @limes-axis/web test:e2e
+        run: pnpm --filter @limes-axis/web test:e2e:smoke
 
-  # The `web` job stubs the API at an unreachable port, so it only ever exercises
-  # failure states — every spec guarded by AXIS_E2E_LIVE_API (the live overview and
-  # the three story specs) skipped silently in CI. This job runs the console against
-  # a real API on a real Postgres so those paths are actually covered.
+  # The `web` job intentionally selects the API-unavailable smoke spec. This job
+  # runs the four live files against a real API and Postgres. Read-only scenarios
+  # stay parallel; shared-state writes run once in Chromium with one worker.
   integration:
     name: Integration (live API)
     runs-on: ubuntu-latest
@@ -152,10 +153,14 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @limes-axis/web exec playwright install --with-deps chromium
 
-      - name: Live overview and story specs
-        run: |
-          pnpm --filter @limes-axis/web test:e2e:live
-          pnpm --filter @limes-axis/web test:e2e:stories
+      - name: Build live console
+        run: pnpm --filter @limes-axis/web build
+
+      - name: Live read-only overview and story specs
+        run: pnpm --filter @limes-axis/web test:e2e:live:read
+
+      - name: Live state-mutating specs (Chromium, serial)
+        run: pnpm --filter @limes-axis/web test:e2e:live:stateful
 
       - name: API log on failure
         if: failure()

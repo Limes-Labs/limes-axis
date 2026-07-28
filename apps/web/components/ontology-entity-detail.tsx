@@ -21,7 +21,7 @@ import {
 
 export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
-  const { detail, endpoint, source } = useOntologyEntity(
+  const { detail, endpoint, errorRequestId, source } = useOntologyEntity(
     nodeId,
     tenantId ?? DEMO_TENANT_ID,
     tenantQueriesEnabled,
@@ -32,6 +32,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
       <ErrorPanel
         detail="The entity is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identity.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );
@@ -68,6 +69,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
         <ErrorPanel
           detail="Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled."
           endpoint={endpoint ?? undefined}
+          reference={errorRequestId ?? undefined}
           title="Entity API unavailable"
         />
       );
@@ -97,7 +99,11 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
           aria-label="Entity source and node status"
         >
           <SourcePill
-            state={deriveSourceState(source === "missing" ? "unavailable" : source, Boolean(detail))}
+            state={deriveSourceState(
+              source === "missing" ? "unavailable" : source,
+              Boolean(detail),
+              detail.provenance,
+            )}
             subject="ontology entity"
           />
           <PlatformStatusPill status={detail.node.status} />

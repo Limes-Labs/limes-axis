@@ -48,6 +48,7 @@ const copy = strings.settings;
 
 type SettingsQuery<T> = {
   data: T | null;
+  errorRequestId?: string | null;
   source: AxisQuerySource;
 };
 
@@ -90,7 +91,14 @@ function PanelState<T>({
     return <LoadingPanel layout="detail" />;
   }
 
-  return <ErrorPanel detail={error.detail} endpoint={endpoint} title={error.title} />;
+  return (
+    <ErrorPanel
+      detail={error.detail}
+      endpoint={endpoint}
+      reference={query.errorRequestId ?? undefined}
+      title={error.title}
+    />
+  );
 }
 
 /** Check list with a guidance line on every action-required check. */

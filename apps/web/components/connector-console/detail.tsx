@@ -59,12 +59,14 @@ function ChipList({ items, emptyLabel }: { items: string[]; emptyLabel?: string 
 function OverviewTab({
   connector,
   manifestDetail,
+  manifestDetailErrorRequestId,
   manifestDetailPath,
   manifestDetailSource,
   registries,
 }: {
   connector: ConnectorRegistryItem;
   manifestDetail: ConnectorManifestDetail | null;
+  manifestDetailErrorRequestId: string | null;
   manifestDetailPath: string;
   manifestDetailSource: AxisQuerySource;
   registries: ConnectorRegistries;
@@ -138,6 +140,7 @@ function OverviewTab({
               <ErrorPanel
                 detail={copy.revisionHistoryUnavailableDetail}
                 endpoint={manifestDetailPath}
+                reference={manifestDetailErrorRequestId ?? undefined}
                 title={copy.revisionHistoryUnavailable}
               />
             ) : null}
@@ -331,6 +334,7 @@ export function ConnectorDetail({
           <OverviewTab
             connector={connector}
             manifestDetail={manifestDetail.data}
+            manifestDetailErrorRequestId={manifestDetail.errorRequestId}
             manifestDetailPath={manifestDetailPath}
             manifestDetailSource={manifestDetail.source}
             registries={registries}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { FileJson, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,18 @@ import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Field } from "@/components/ui/field";
+import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 import { Input, Textarea } from "@/components/ui/input";
 import { ErrorPanel } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
-import { axisFetch, decodeAxisJson } from "@/lib/axis-api";
+import {
+  AxisApiError,
+  axisFetch,
+  axisFetchParsedJson,
+  axisResponseRequestId,
+  toAxisOperatorError,
+  type AxisOperatorError,
+} from "@/lib/axis-api";
 import { cn } from "@/lib/cn";
 import {
   CONNECTOR_CONSOLE_ACTOR,
@@ -88,17 +96,33 @@ export function buildManifestDetailPath(connectorId: string, tenantId: string): 
   );
 }
 
-async function isConcurrentChangeResponse(response: Response): Promise<boolean> {
-  if (response.status !== 409) {
-    return false;
+async function readResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return null;
   }
   try {
-    const body = await response.json() as { detail?: { reason?: unknown } };
-    return body.detail?.reason === "expected_revision_mismatch"
-      || body.detail?.reason === "revision_idempotency_conflict";
+    return JSON.parse(text) as unknown;
   } catch {
+    return text;
+  }
+}
+
+function concurrentChangeReason(body: unknown): boolean {
+  if (!body || typeof body !== "object" || !("detail" in body)) {
     return false;
   }
+  const detail = (body as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== "object" || !("reason" in detail)) {
+    return false;
+  }
+  const reason = (detail as { reason?: unknown }).reason;
+  return reason === "expected_revision_mismatch"
+    || reason === "revision_idempotency_conflict";
+}
+
+function operatorErrorWithMessage(caught: unknown, message: string): AxisOperatorError {
+  return { ...toAxisOperatorError(caught, message), message };
 }
 
 export function ManifestImportPanel({
@@ -118,11 +142,13 @@ export function ManifestImportPanel({
   const [localError, setLocalError] = useState<LocalError>(null);
   const [limitErrorCount, setLimitErrorCount] = useState<number | null>(null);
   const [checking, setChecking] = useState(false);
-  const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<AxisOperatorError | null>(null);
+  const [applyError, setApplyError] = useState<AxisOperatorError | null>(null);
   const [documents, setDocuments] = useState<ConnectorRegistrationDocument[]>([]);
   const [validation, setValidation] = useState<ConnectorManifestBatchValidationResponse | null>(null);
   const [replacementRevisions, setReplacementRevisions] = useState<Array<number | null>>([]);
   const [applyState, setApplyState] = useState<ApplyState>({ phase: "idle" });
+  const reviewGeneration = useRef(0);
 
   const ssoBlocked = identitySession != null
     && identitySession.api_auth_required
@@ -137,27 +163,39 @@ export function ManifestImportPanel({
     && !ssoBlocked
     && applyState.phase === "idle";
 
-  function resetReview(nextText: string) {
+  function resetReview(nextText: string): number {
+    reviewGeneration.current += 1;
     setText(nextText);
     setLocalError(null);
     setLimitErrorCount(null);
     setRequestError(null);
+    setApplyError(null);
     setDocuments([]);
     setValidation(null);
     setReplacementRevisions([]);
     setApplyState({ phase: "idle" });
+    setChecking(false);
+    return reviewGeneration.current;
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    const fileGeneration = resetReview(file ? "" : text);
     setFileName(file?.name ?? "");
-    setLocalError(null);
     if (!file) {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => resetReview(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => setLocalError("file");
+    reader.onload = () => {
+      if (reviewGeneration.current === fileGeneration) {
+        resetReview(typeof reader.result === "string" ? reader.result : "");
+      }
+    };
+    reader.onerror = () => {
+      if (reviewGeneration.current === fileGeneration) {
+        setLocalError("file");
+      }
+    };
     reader.readAsText(file);
   }
 
@@ -174,43 +212,41 @@ export function ManifestImportPanel({
       return;
     }
 
+    reviewGeneration.current += 1;
+    const requestGeneration = reviewGeneration.current;
     setChecking(true);
     setLocalError(null);
     setLimitErrorCount(null);
     setRequestError(null);
+    setApplyError(null);
     setDocuments([]);
     setValidation(null);
     setReplacementRevisions([]);
     setApplyState({ phase: "idle" });
     let loadingReplacementRevisions = false;
     try {
-      const response = await axisFetch(MANIFEST_VALIDATION_ENDPOINT, {
-        method: "POST",
-        session,
-        body: {
-          tenant_id: tenantId,
-          registered_by: identitySession?.actor_id ?? CONNECTOR_CONSOLE_ACTOR,
-          manifests: parsed.documents,
-        },
-      });
-      if (!response.ok) {
-        setRequestError(copy.errors.validationRequest);
-        return;
-      }
-      const result = decodeAxisJson(
+      const result = await axisFetchParsedJson<ConnectorManifestBatchValidationResponse>(
         MANIFEST_VALIDATION_ENDPOINT,
-        await response.json(),
-        parseConnectorManifestBatchValidationResponse,
-        response.headers.get("x-request-id") ?? response.headers.get("x-correlation-id"),
+        (value) => {
+          const decoded = parseConnectorManifestBatchValidationResponse(value);
+          if (
+            decoded.tenant_id !== tenantId
+            || decoded.results.length !== parsed.documents.length
+          ) {
+            throw new Error("Manifest validation response scope mismatch.");
+          }
+          return decoded;
+        },
+        {
+          method: "POST",
+          session,
+          body: {
+            tenant_id: tenantId,
+            registered_by: identitySession?.actor_id ?? CONNECTOR_CONSOLE_ACTOR,
+            manifests: parsed.documents,
+          },
+        },
       );
-      if (result.tenant_id !== tenantId) {
-        setRequestError(copy.errors.tenantMismatch);
-        return;
-      }
-      if (result.results.length !== parsed.documents.length) {
-        setRequestError(copy.errors.resultCountMismatch);
-        return;
-      }
       loadingReplacementRevisions = true;
       const revisions = await Promise.all(result.results.map(async (validationResult) => {
         if (validationResult.outcome !== "would_replace") {
@@ -220,33 +256,40 @@ export function ManifestImportPanel({
           throw new Error(copy.errors.replacementRevisionRequest);
         }
         const detailPath = buildManifestDetailPath(validationResult.connector_id, tenantId);
-        const detailResponse = await axisFetch(detailPath, { session });
-        if (!detailResponse.ok) {
-          throw new Error(copy.errors.replacementRevisionRequest);
-        }
-        const detail = decodeAxisJson(
+        const detail = await axisFetchParsedJson(
           detailPath,
-          await detailResponse.json(),
-          parseConnectorManifestDetail,
-          detailResponse.headers.get("x-request-id")
-            ?? detailResponse.headers.get("x-correlation-id"),
+          (value) => {
+            const decoded = parseConnectorManifestDetail(value);
+            if (
+              decoded.tenant_id !== tenantId
+              || decoded.connector_id !== validationResult.connector_id
+            ) {
+              throw new Error("Manifest detail response scope mismatch.");
+            }
+            return decoded;
+          },
+          { session },
         );
-        if (detail.tenant_id !== tenantId || detail.connector_id !== validationResult.connector_id) {
-          throw new Error(copy.errors.replacementRevisionRequest);
-        }
         return detail.current_revision.revision_number;
       }));
-      setDocuments(parsed.documents);
-      setReplacementRevisions(revisions);
-      setValidation(result);
-    } catch {
-      setRequestError(
-        loadingReplacementRevisions
-          ? copy.errors.replacementRevisionRequest
-          : copy.errors.validationRequest,
-      );
+      if (reviewGeneration.current === requestGeneration) {
+        setDocuments(parsed.documents);
+        setReplacementRevisions(revisions);
+        setValidation(result);
+      }
+    } catch (caught) {
+      if (reviewGeneration.current === requestGeneration) {
+        setRequestError(toAxisOperatorError(
+          caught,
+          loadingReplacementRevisions
+            ? copy.errors.replacementRevisionRequest
+            : copy.errors.validationRequest,
+        ));
+      }
     } finally {
-      setChecking(false);
+      if (reviewGeneration.current === requestGeneration) {
+        setChecking(false);
+      }
     }
   }
 
@@ -259,6 +302,7 @@ export function ManifestImportPanel({
     const idempotencyKeys = documents.map((_, index) => (
       `connector-manifest-replace:${applyAttemptId}:${index + 1}`
     ));
+    setApplyError(null);
     setApplyState({ phase: "applying", results });
     let landed = 0;
     for (let index = 0; index < documents.length; index += 1) {
@@ -284,7 +328,18 @@ export function ManifestImportPanel({
         });
         const expectedStatus = replacing ? 200 : 201;
         if (response.status !== expectedStatus) {
-          const conflict = await isConcurrentChangeResponse(response);
+          const responseBody = await readResponseBody(response);
+          const conflict = response.status === 409 && concurrentChangeReason(responseBody);
+          const fallbackMessage = conflict && connectorId
+            ? copy.concurrentConflict(connectorId)
+            : copy.applyFailure(landed, documents.length);
+          setApplyError(operatorErrorWithMessage(
+            new AxisApiError(path, response.status, {
+              body: responseBody,
+              requestId: axisResponseRequestId(response),
+            }),
+            fallbackMessage,
+          ));
           results[index] = conflict ? "conflict" : "failed";
           for (let pendingIndex = index + 1; pendingIndex < results.length; pendingIndex += 1) {
             results[pendingIndex] = "notAttempted";
@@ -303,7 +358,11 @@ export function ManifestImportPanel({
           }
           return;
         }
-      } catch {
+      } catch (caught) {
+        setApplyError(operatorErrorWithMessage(
+          caught,
+          copy.applyFailure(landed, documents.length),
+        ));
         results[index] = "failed";
         for (let pendingIndex = index + 1; pendingIndex < results.length; pendingIndex += 1) {
           results[pendingIndex] = "notAttempted";
@@ -422,8 +481,9 @@ export function ManifestImportPanel({
 
       {requestError ? (
         <ErrorPanel
-          detail={requestError}
+          detail={requestError.message}
           endpoint={MANIFEST_VALIDATION_ENDPOINT}
+          reference={requestError.requestId ?? undefined}
           title={copy.errors.validationRequest}
         />
       ) : null}
@@ -512,7 +572,7 @@ export function ManifestImportPanel({
           {applyState.phase === "applying" ? (
             <p className="m-0 text-sm text-muted" role="status">{copy.applying}</p>
           ) : null}
-          {applyMessage ? (
+          {applyMessage && !applyError ? (
             <p
               className={cn(
                 "m-0 text-sm",
@@ -525,6 +585,7 @@ export function ManifestImportPanel({
               {applyMessage}
             </p>
           ) : null}
+          {applyError ? <InlineOperatorError error={applyError} /> : null}
         </div>
       ) : null}
     </Card>

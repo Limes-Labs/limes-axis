@@ -7,6 +7,7 @@ from axis_api.connectors import (
     ConnectorSyncObservation,
     ManufacturingConnectorRegistry,
 )
+from axis_api.demo import OverviewMetric, OverviewStatus
 from axis_api.manufacturing_empty import empty_manufacturing_connector_registry
 from axis_api.manufacturing_metadata import (
     ManufacturingResponseProvenance,
@@ -32,9 +33,8 @@ def _with_registered_connector_manifests(
     repository: AxisPersistenceRepository,
     registry: ManufacturingConnectorRegistry,
 ) -> ManufacturingConnectorRegistry:
-    records = repository.list_connector_manifests(
+    records = repository.list_all_current_connector_manifests(
         tenant_id=registry.tenant_id,
-        limit=100,
     )
     records_by_connector_id = {record.connector_id: record for record in records}
     connectors = [
@@ -63,20 +63,51 @@ def _with_registered_connector_manifests(
         )
         for record in records_by_connector_id.values()
     )
-    return registry.model_copy(update={"connectors": connectors})
+    updates: dict[str, object] = {"connectors": connectors}
+    if records:
+        persisted_metric = OverviewMetric(
+            label="Persisted Manifests",
+            value=str(len(records)),
+            detail="Tenant-scoped connector manifest records",
+            status=OverviewStatus.READY,
+        )
+        metrics = [
+            metric.model_copy(update={"value": str(len(connectors))})
+            if metric.label == "Connector Manifests"
+            else metric
+            for metric in registry.metrics
+            if metric.label != persisted_metric.label
+        ]
+        updates["metrics"] = [persisted_metric, *metrics]
+
+    if records and registry.provenance == ManufacturingResponseProvenance.EMPTY:
+        updates.update(
+            provenance=ManufacturingResponseProvenance.LIVE,
+            registry_status=OverviewStatus.READY,
+            connector_notes=[
+                "Registry is composed from tenant-scoped persisted connector manifests."
+            ],
+        )
+    return registry.model_copy(update=updates)
 
 
 def _with_last_successful_sync_observations(
     repository: AxisPersistenceRepository,
     registry: ManufacturingConnectorRegistry,
 ) -> ManufacturingConnectorRegistry:
-    connectors: list[ConnectorRegistryItem] = []
-    for connector in registry.connectors:
-        run = repository.get_latest_connector_run(
+    if not registry.connectors:
+        return registry
+
+    runs_by_connector_id = {
+        run.connector_id: run
+        for run in repository.list_latest_connector_runs_by_connector(
             tenant_id=registry.tenant_id,
-            connector_id=connector.manifest.connector_id,
             status=SUCCESSFUL_SYNC_STATUS,
         )
+    }
+    connectors: list[ConnectorRegistryItem] = []
+    for connector in registry.connectors:
+        run = runs_by_connector_id.get(connector.manifest.connector_id)
         observation = None
         if run is not None:
             records_read = run.result_summary.get("records_read")
@@ -109,23 +140,23 @@ def get_persisted_manufacturing_connector_registry(
         reference_id=MANUFACTURING_CONNECTOR_REGISTRY_REFERENCE_ID,
     )
     if record is None:
-        return empty_manufacturing_connector_registry(tenant_id, tenant_metadata)
+        registry = empty_manufacturing_connector_registry(tenant_id, tenant_metadata)
+    else:
+        try:
+            registry = ManufacturingConnectorRegistry.model_validate(record.payload)
+        except ValidationError as exc:
+            raise ConnectorReferenceRecordInvalid(
+                "Manufacturing connector registry reference payload is invalid"
+            ) from exc
 
-    try:
-        registry = ManufacturingConnectorRegistry.model_validate(record.payload)
-    except ValidationError as exc:
-        raise ConnectorReferenceRecordInvalid(
-            "Manufacturing connector registry reference payload is invalid"
-        ) from exc
+        if registry.tenant_id != tenant_id:
+            raise ConnectorReferenceRecordInvalid(
+                "Manufacturing connector registry tenant does not match record tenant"
+            )
 
-    if registry.tenant_id != tenant_id:
-        raise ConnectorReferenceRecordInvalid(
-            "Manufacturing connector registry tenant does not match record tenant"
+        registry = registry.model_copy(
+            update={"provenance": ManufacturingResponseProvenance.REFERENCE_SCENARIO}
         )
-
-    registry = registry.model_copy(
-        update={"provenance": ManufacturingResponseProvenance.REFERENCE_SCENARIO}
-    )
     registry = _with_registered_connector_manifests(repository, registry)
     return _with_last_successful_sync_observations(repository, registry)
 

@@ -19,7 +19,11 @@ test.describe("Axis live story: onboarding demo bootstrap", () => {
     "Set AXIS_E2E_LIVE_API=1 when the local Axis API is running.",
   );
 
-  test("bootstraps the demo scenario into a throwaway tenant", async ({ request }) => {
+  // The API story is viewport-independent and writes a shared tenant. Keep it
+  // in the single-worker Chromium lane; the UI story still covers all projects.
+  test("bootstraps the demo scenario into a throwaway tenant", {
+    tag: "@stateful",
+  }, async ({ request }) => {
     const response = await request.post(`${API_BASE_URL}/demo/manufacturing/bootstrap`, {
       data: {
         tenant_id: E2E_TENANT_ID,

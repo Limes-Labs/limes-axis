@@ -9,6 +9,7 @@ import { NeedsAttention } from "@/components/overview/needs-attention";
 import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
 import { SideRail } from "@/components/overview/side-rail";
+import { SourcePill } from "@/components/ui/source-pill";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
@@ -31,6 +32,7 @@ import {
   parseManufacturingOverview,
   parseIdentitySessionReadModel,
 } from "@/lib/runtime-contracts/overview";
+import { deriveSourceState } from "@/lib/source-state";
 import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
@@ -72,6 +74,7 @@ function OverviewHero({
       <ErrorPanel
         detail={strings.overview.hero.error.detail}
         endpoint={OVERVIEW_ENDPOINT}
+        reference={overview.errorRequestId ?? undefined}
         title={strings.overview.hero.error.title}
       />
     );
@@ -111,46 +114,73 @@ function OverviewHero({
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-navy bg-navy px-6 py-6 text-white sm:px-8 dark:border-white/10">
-      {/* Signal glow + static dot grid, same treatment in both themes. */}
+    <div className="grid gap-2">
+      <section className="relative overflow-hidden rounded-3xl border border-navy bg-navy px-6 py-6 text-white sm:px-8 dark:border-white/10">
+        {/* Signal glow + static dot grid, same treatment in both themes. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "radial-gradient(ellipse 80% 90% at 50% 110%, rgb(47 100 255 / 0.35) 0%, rgb(47 100 255 / 0.08) 45%, transparent 70%), radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px)",
+            backgroundSize: "auto, 22px 22px",
+          }}
+        />
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+          <div className="grid gap-1">
+            <h2 className="font-display font-display-lg m-0 text-2xl text-white">
+              {formatContextPath(data.scenario) || strings.overview.hero.fallbackTitle}
+            </h2>
+            <p className="m-0 text-sm text-white/70" data-hero-subtitle>
+              {formatContextPath(data.plant_name, formatTimestamp(asOf))}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            {facts.map((fact) => (
+              <div className="grid gap-0.5" key={fact.label}>
+                {/* Facts sit one step below the scenario title so the band has a
+                    single focal point, and use tabular figures so the row does
+                    not shift as counts change. */}
+                <span
+                  className="font-display text-xl tabular-nums text-white"
+                  data-testid={fact.testId}
+                >
+                  {fact.value}
+                </span>
+                <span className="font-mono text-[11px] tracking-[0.12em] text-white/60 uppercase">
+                  {fact.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
       <div
-        aria-hidden="true"
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(ellipse 80% 90% at 50% 110%, rgb(47 100 255 / 0.35) 0%, rgb(47 100 255 / 0.08) 45%, transparent 70%), radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px)",
-          backgroundSize: "auto, 22px 22px",
-        }}
-      />
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
-        <div className="grid gap-1">
-          <h2 className="font-display font-display-lg m-0 text-2xl text-white">
-            {formatContextPath(data.scenario) || strings.overview.hero.fallbackTitle}
-          </h2>
-          <p className="m-0 text-sm text-white/70" data-hero-subtitle>
-            {formatContextPath(data.plant_name, formatTimestamp(asOf))}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-x-8 gap-y-3">
-          {facts.map((fact) => (
-            <div className="grid gap-0.5" key={fact.label}>
-              {/* Facts sit one step below the scenario title so the band has a
-                  single focal point, and use tabular figures so the row does
-                  not shift as counts change. */}
-              <span
-                className="font-display text-xl tabular-nums text-white"
-                data-testid={fact.testId}
-              >
-                {fact.value}
-              </span>
-              <span className="font-mono text-[11px] tracking-[0.12em] text-white/60 uppercase">
-                {fact.label}
-              </span>
-            </div>
-          ))}
-        </div>
+        aria-label="Overview data sources"
+        className="flex min-w-0 flex-wrap items-center justify-end gap-1.5"
+      >
+        <SourcePill
+          state={deriveSourceState(overview.source, true, data.provenance)}
+          subject="scenario context"
+        />
+        <SourcePill
+          state={deriveSourceState(
+            snapshot.source,
+            Boolean(snapshot.data),
+            snapshot.data?.provenance,
+          )}
+          subject="operations snapshot"
+        />
+        <SourcePill
+          state={deriveSourceState(
+            auditEvents.source,
+            Boolean(auditEvents.data),
+            auditEvents.data?.provenance,
+          )}
+          subject="audit window"
+        />
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -210,6 +240,7 @@ export function PlatformOverview() {
       <ErrorPanel
         detail="The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        reference={identityQuery.errorRequestId ?? undefined}
         title="Identity API unavailable"
       />
     );

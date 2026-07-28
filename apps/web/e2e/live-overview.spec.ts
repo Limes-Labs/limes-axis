@@ -95,9 +95,11 @@ test.describe("Axis live overview demo", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("decides a live approval from the needs-attention strip with audit evidence", async ({
-    page,
-  }) => {
+  // The seed owns one deterministic approval queue. Run this tagged write once
+  // after the cross-viewport read-only pass instead of racing three projects.
+  test("decides a live approval from the needs-attention strip with audit evidence", {
+    tag: "@stateful",
+  }, async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
@@ -112,9 +114,10 @@ test.describe("Axis live overview demo", () => {
         .first(),
     ).toBeVisible();
     const reviewButtons = page.getByRole("button", { name: "Review & decide" });
-    if ((await reviewButtons.count()) === 0) {
-      test.skip(true, "No pending approvals in the live tenant right now.");
-    }
+    await expect(
+      reviewButtons.first(),
+      "The freshly seeded live tenant must expose a pending approval.",
+    ).toBeVisible();
 
     // The sheet reuses the approvals decision card: consequences visible,
     // confirm dialog gating persistence.

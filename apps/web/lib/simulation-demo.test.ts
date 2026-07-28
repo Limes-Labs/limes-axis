@@ -112,6 +112,7 @@ const replaySimulationFixture: ManufacturingReplaySimulation = {
   tenant_id: "tenant_fixture",
   plant_name: "Fixture Plant",
   scenario: "Runtime contract fixture",
+  provenance: "live",
   as_of: "2026-06-22T09:00:00+02:00",
   simulation_status: "ready",
   metrics: [],

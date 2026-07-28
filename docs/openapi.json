@@ -13526,6 +13526,9 @@
             ],
             "title": "Plant Name"
           },
+          "provenance": {
+            "$ref": "#/components/schemas/ManufacturingResponseProvenance"
+          },
           "scenario": {
             "anyOf": [
               {
@@ -13556,6 +13559,7 @@
         },
         "required": [
           "tenant_id",
+          "provenance",
           "as_of",
           "unread_count",
           "action_required_count",
@@ -26010,6 +26014,9 @@
           "404": {
             "description": "Notification not found"
           },
+          "409": {
+            "description": "Notification acknowledgement state conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -26111,6 +26118,7 @@
             "name": "node_id",
             "required": true,
             "schema": {
+              "minLength": 1,
               "title": "Node Id",
               "type": "string"
             }
@@ -33581,6 +33589,9 @@
           "404": {
             "description": "Notification not found"
           },
+          "409": {
+            "description": "Notification acknowledgement state conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -33680,6 +33691,7 @@
             "name": "node_id",
             "required": true,
             "schema": {
+              "minLength": 1,
               "title": "Node Id",
               "type": "string"
             }

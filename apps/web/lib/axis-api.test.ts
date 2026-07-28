@@ -7,6 +7,7 @@ import {
   axisFetch,
   axisFetchParsedJson,
   resetBrowserSessionState,
+  toAxisOperatorError,
 } from "./axis-api";
 import type { OidcConsoleSession } from "./oidc-session";
 import { OPERATIONS_API_PREFIX } from "./tenant-scope";
@@ -283,9 +284,10 @@ describe("Axis API fetch layer", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await axisFetch("/identity/sessions");
-    // Signing in elsewhere replaces the cookies; the next accepted response
-    // must clear the latch so refresh works again without a reload.
+    // Signing in elsewhere rotates the readable CSRF cookie. The next request
+    // observes that new cookie and clears the latch without a reload.
     sessionAlive = true;
+    stubBrowserDocument("axis_csrf=fresh-session-token");
     await axisFetch("/identity/sessions");
     sessionAlive = false;
 
@@ -295,6 +297,33 @@ describe("Axis API fetch layer", () => {
       String(input).endsWith("/identity/session/refresh"),
     );
     expect(refreshCalls).toHaveLength(1);
+  });
+
+  it("does not re-arm a failed cookie session after an unrelated public success", async () => {
+    process.env.NEXT_PUBLIC_AXIS_API_BASE_URL = "http://axis-api.test";
+    stubBrowserDocument("axis_csrf=stale-token");
+    const dispatchEvent = stubBrowserWindow();
+
+    let refreshCalls = 0;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/identity/session/refresh")) {
+        refreshCalls += 1;
+        return new Response("{}", { status: 401 });
+      }
+      if (url.endsWith("/ready")) {
+        return new Response('{"status":"ready"}', { status: 200 });
+      }
+      return new Response("{}", { status: 401 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect((await axisFetch("/identity/sessions")).status).toBe(401);
+    expect((await axisFetch("/ready")).status).toBe(200);
+    expect((await axisFetch("/identity/sessions")).status).toBe(401);
+
+    expect(refreshCalls).toBe(1);
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
   });
 
   it("does not attempt a refresh for anonymous or bearer-mode 401s", async () => {
@@ -387,6 +416,63 @@ describe("Axis API fetch layer", () => {
       requiredPermission: "tenant:read",
       status: 403,
     });
+  });
+
+  it("reduces typed failures to operator-safe messages and request ids", () => {
+    const apiError = new AxisApiError("/protected", 403, {
+      body: { detail: { code: "PERMISSION_DENIED", message: "Tenant access denied." } },
+      requestId: "request-api-123",
+    });
+    const decodeError = new AxisApiDecodeError("/protected", "Response contract invalid.", {
+      cause: new Error("decoder internals must stay hidden"),
+      requestId: "request-decode-456",
+    });
+
+    expect(toAxisOperatorError(apiError, "Fallback")).toEqual({
+      code: "PERMISSION_DENIED",
+      message: "Tenant access denied.",
+      requestId: "request-api-123",
+      status: 403,
+    });
+    expect(toAxisOperatorError(decodeError, "Fallback")).toEqual({
+      code: null,
+      message: "Response contract invalid.",
+      requestId: "request-decode-456",
+      status: null,
+    });
+  });
+
+  it("does not retain arbitrary error messages or response bodies", () => {
+    const arbitraryError = toAxisOperatorError(
+      new Error("secret=do-not-render"),
+      "Axis request failed.",
+    );
+    const typedError = toAxisOperatorError(
+      new AxisApiError("/protected", 503, {
+        body: {
+          detail: {
+            message: "Axis request unavailable.",
+            debug_context: "secret=database-credential",
+          },
+        },
+        requestId: "request-safe-503",
+      }),
+      "Axis request failed.",
+    );
+
+    expect(arbitraryError).toEqual({
+      code: null,
+      message: "Axis request failed.",
+      requestId: null,
+      status: null,
+    });
+    expect(typedError).toEqual({
+      code: null,
+      message: "Axis request unavailable.",
+      requestId: "request-safe-503",
+      status: 503,
+    });
+    expect(JSON.stringify({ arbitraryError, typedError })).not.toContain("secret");
   });
 
   it("preserves FastAPI validation issues", async () => {

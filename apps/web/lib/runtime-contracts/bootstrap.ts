@@ -1,17 +1,12 @@
 import { z } from "zod";
 
 import type { DemoBootstrapResult } from "../use-demo-bootstrap";
-import {
-  manufacturingProvenanceSchema,
-  nullableStringSchema,
-  parseContract,
-} from "./shared";
+import { nullableStringSchema, parseContract } from "./shared";
 
 const demoBootstrapResult = z.object({
   tenant_id: z.string(),
   scenario: nullableStringSchema,
   plant_name: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
   bootstrapped: z.boolean(),
   surfaces: z.array(z.object({
     surface: z.string(),

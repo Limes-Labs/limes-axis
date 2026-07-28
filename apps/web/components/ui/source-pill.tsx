@@ -1,4 +1,11 @@
-import { CircleAlert, CircleCheck, Clock, Loader2 } from "lucide-react";
+import {
+  BookOpenText,
+  CircleAlert,
+  CircleCheck,
+  CircleMinus,
+  Clock,
+  Loader2,
+} from "lucide-react";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/cn";
@@ -7,6 +14,8 @@ import type { SourceState } from "@/lib/source-state";
 const tones: Record<SourceState, string> = {
   loading: "status-checking",
   live: "signal-ready",
+  reference: "status-checking",
+  empty: "status-checking",
   stale: "signal-watch",
   unavailable: "signal-action-required",
 };
@@ -14,16 +23,10 @@ const tones: Record<SourceState, string> = {
 const icons: Record<SourceState, ComponentType<{ className?: string }>> = {
   loading: Loader2,
   live: CircleCheck,
+  reference: BookOpenText,
+  empty: CircleMinus,
   stale: Clock,
   unavailable: CircleAlert,
-};
-
-/** Screen-reader text so the state is never conveyed by color alone. */
-const assistiveText: Record<SourceState, string> = {
-  loading: "Loading:",
-  live: "Live data:",
-  stale: "Stale data:",
-  unavailable: "Unavailable:",
 };
 
 export interface SourcePillProps {
@@ -37,10 +40,12 @@ export interface SourcePillProps {
 }
 
 const labels: Record<SourceState, (subject: string) => string> = {
-  loading: (subject) => `Loading ${subject}`,
-  live: (subject) => `Live ${subject}`,
-  stale: (subject) => `Stale ${subject}`,
-  unavailable: (subject) => `${subject} unavailable`,
+  loading: (subject) => `${subject}: loading`,
+  live: (subject) => `${subject}: live`,
+  reference: (subject) => `${subject}: reference scenario`,
+  empty: (subject) => `${subject}: no records`,
+  stale: (subject) => `${subject}: stale`,
+  unavailable: (subject) => `${subject}: unavailable`,
 };
 
 /**
@@ -52,9 +57,9 @@ export function SourcePill({ state, subject, className }: SourcePillProps) {
   const Icon = icons[state];
 
   return (
-    <span className={cn("status-pill", tones[state], className)}>
+    <span className={cn("status-pill", tones[state], className)} data-source-state={state}>
       <Icon aria-hidden="true" className={cn("size-3.5", state === "loading" && "animate-spin")} />
-      <span className="sr-only">{assistiveText[state]} </span>
+      <span className="sr-only">Data source: </span>
       {labels[state](subject)}
     </span>
   );

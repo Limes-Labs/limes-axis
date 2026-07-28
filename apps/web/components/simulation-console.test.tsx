@@ -24,6 +24,7 @@ const emptyReplay: ManufacturingReplaySimulation = {
   tenant_id: "tenant_acme",
   plant_name: "Acme Operations",
   scenario: "Replay history",
+  provenance: "empty",
   as_of: "2026-07-22T12:00:00Z",
   simulation_status: "ready",
   metrics: [],

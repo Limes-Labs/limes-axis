@@ -63,7 +63,7 @@ export type ManufacturingConnectorRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -112,7 +112,7 @@ export type ManufacturingConnectorManifestRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -242,7 +242,7 @@ export type ManufacturingConnectorCredentialHandleRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -298,7 +298,7 @@ export type ManufacturingConnectorCredentialLeaseRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -342,7 +342,7 @@ export type ManufacturingConnectorEgressPolicyRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -419,7 +419,7 @@ export type ManufacturingConnectorRunRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -450,7 +450,7 @@ export type ManufacturingConnectorEvidenceInvariantReport = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;
@@ -490,7 +490,7 @@ export type ManufacturingConnectorEvidenceInvariantSnapshotHistory = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   history_status: PlatformStatus;
   metrics: {
     label: string;
@@ -562,7 +562,7 @@ export type ManufacturingConnectorOntologyProposalRegistry = {
   tenant_id: string;
   plant_name: string | null;
   scenario: string | null;
-  provenance?: ManufacturingProvenance;
+  provenance: ManufacturingProvenance;
   registry_status: PlatformStatus;
   metrics: {
     label: string;

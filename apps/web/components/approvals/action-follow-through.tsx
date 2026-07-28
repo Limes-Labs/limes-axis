@@ -14,7 +14,11 @@ import {
 import { buildApprovalHref } from "@/lib/approval-demo";
 import { buildAuditEventHref } from "@/lib/audit-demo";
 import { formatDateTime, formatElapsedDuration, formatNumber } from "@/lib/format";
-import { deriveSourceState, type AxisSource } from "@/lib/source-state";
+import {
+  deriveSourceState,
+  PROVENANCE_NOT_APPLICABLE,
+  type AxisSource,
+} from "@/lib/source-state";
 import { strings } from "@/lib/strings";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
@@ -152,9 +156,11 @@ function ReportedRun({ run }: { run: ActionRunRecord }) {
 
 export function ActionFollowThrough({
   actionRuns,
+  errorRequestId,
   source,
 }: {
   actionRuns: ActionRunList | null;
+  errorRequestId?: string | null;
   source: AxisSource;
 }) {
   const copy = strings.approvals.followThrough;
@@ -172,7 +178,7 @@ export function ActionFollowThrough({
           <p className="m-0 text-sm leading-snug text-muted">{copy.detail}</p>
         </div>
         <SourcePill
-          state={deriveSourceState(source, Boolean(actionRuns))}
+          state={deriveSourceState(source, Boolean(actionRuns), PROVENANCE_NOT_APPLICABLE)}
           subject={copy.sourceSubject}
         />
       </div>
@@ -189,6 +195,7 @@ export function ActionFollowThrough({
         <ErrorPanel
           detail={copy.error.detail}
           endpoint={ACTION_RUNS_ENDPOINT}
+          reference={errorRequestId ?? undefined}
           title={copy.error.title}
         />
       ) : actionRuns && !hasVisibleRuns ? (

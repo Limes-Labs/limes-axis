@@ -17,7 +17,7 @@ const approvalInbox = z.object({
   tenant_id: z.string(),
   plant_name: nullableStringSchema,
   scenario: nullableStringSchema,
-  provenance: manufacturingProvenanceSchema.optional(),
+  provenance: manufacturingProvenanceSchema,
   as_of: z.string(),
   queue_status: platformStatusSchema,
   policy_notes: stringArraySchema,

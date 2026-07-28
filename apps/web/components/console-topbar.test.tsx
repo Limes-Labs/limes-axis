@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -76,6 +77,7 @@ function mockNotifications(unreadCount: number) {
     tenant_id: DEMO_TENANT_ID,
     plant_name: "Fixture Plant",
     scenario: "Fixture scenario",
+    provenance: "live",
     as_of: "2026-07-24T09:00:00Z",
     unread_count: unreadCount,
     action_required_count: 0,
@@ -113,5 +115,28 @@ describe("ConsoleTopbar notification badge", () => {
     render(<ConsoleTopbar />);
 
     expect(screen.getByLabelText("Open notifications")).toHaveTextContent("4");
+  });
+
+  it.each([
+    ["identity is unavailable", null, "unavailable" as const],
+    [
+      "an authenticated identity has no tenant",
+      { ...identitySession, authenticated: true, mode: "oidc" as const },
+      "api" as const,
+    ],
+  ])("does not leave notifications loading forever when %s", async (_, identity, source) => {
+    const user = userEvent.setup();
+    mocks.useAxisQuery.mockImplementation((path: string) => {
+      if (path === "/identity/session") {
+        return queryResult(identity, source);
+      }
+      return queryResult(null, "loading");
+    });
+
+    render(<ConsoleTopbar />);
+    await user.click(screen.getByLabelText("Open notifications"));
+
+    expect(screen.getByText("notifications: unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("notifications: loading")).not.toBeInTheDocument();
   });
 });

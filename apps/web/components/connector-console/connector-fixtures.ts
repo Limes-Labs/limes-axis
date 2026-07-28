@@ -15,6 +15,7 @@ const registryBase = {
   tenant_id: "tenant_demo_manufacturing",
   plant_name: "Ravenna Works",
   scenario: "Plant Operations Cockpit",
+  provenance: "reference_scenario" as const,
   registry_status: "watch" as const,
   metrics: [],
 };
