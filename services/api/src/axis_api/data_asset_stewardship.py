@@ -23,8 +23,6 @@ from axis_api.persistence import (
     DataAssetStewardshipCreate,
 )
 
-STEWARDSHIP_CLASSIFICATIONS = ("public", "internal", "confidential", "restricted")
-
 
 class DataAssetClassification(StrEnum):
     PUBLIC = "public"
