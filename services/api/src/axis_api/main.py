@@ -355,6 +355,10 @@ from axis_api.data_asset_discovery import (
     list_data_asset_resources,
     record_data_resource_observation,
 )
+from axis_api.data_asset_lineage import (
+    DataAssetLineageView,
+    build_data_asset_lineage_view,
+)
 from axis_api.data_asset_stewardship import (
     DataAssetStewardshipConflict,
     DataAssetStewardshipDeclarationRequest,
@@ -4921,6 +4925,31 @@ def create_app(
         except DataAssetNotInCatalog as exc:
             raise _data_asset_not_found(tenant_id, asset_id) from exc
         return evaluate_data_asset_contract(
+            repository,
+            tenant_id=tenant_id,
+            asset_id=asset_id,
+        )
+
+    @data_router.get(
+        "/assets/{asset_id}/lineage",
+        response_model=DataAssetLineageView,
+        responses={
+            403: {"description": "Tenant scope read permission denied"},
+            404: {"description": "Tenant or data asset not found"},
+        },
+    )
+    def data_asset_lineage_view_route(
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(min_length=1),
+        asset_id: str = Path(min_length=1),
+    ) -> DataAssetLineageView:
+        _authorize_tenant_read(tenant_id, principal)
+        try:
+            ensure_data_asset_in_catalog(repository, tenant_id=tenant_id, asset_id=asset_id)
+        except DataAssetNotInCatalog as exc:
+            raise _data_asset_not_found(tenant_id, asset_id) from exc
+        return build_data_asset_lineage_view(
             repository,
             tenant_id=tenant_id,
             asset_id=asset_id,
