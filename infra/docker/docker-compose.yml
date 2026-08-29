@@ -16,7 +16,7 @@ services:
       retries: 20
 
   valkey:
-    image: valkey/valkey:8.1.8-alpine@sha256:94365b275456ae14621001c03556c732b1d93a0cdeacc317d1bdd52eba680885
+    image: valkey/valkey:9.1.1-alpine@sha256:de31910896150d5e754a07d57d227cfdde4e258ddd0d1aa4607f2d2f95843715
     command: ["valkey-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
