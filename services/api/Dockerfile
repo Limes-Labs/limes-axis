@@ -13,7 +13,7 @@ RUN uv sync --frozen --no-dev --no-editable
 COPY services/api/alembic.ini ./alembic.ini
 COPY services/api/migrations ./migrations
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /app/services/api
 ENV AXIS_ENV=production \

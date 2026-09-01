@@ -14,7 +14,7 @@ COPY services/worker/pyproject.toml services/worker/uv.lock ./
 COPY services/worker/src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /app/services/worker
 ENV AXIS_ENV=production \
