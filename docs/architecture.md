@@ -5,6 +5,13 @@ It is intentionally about current component ownership, data flow and trust
 boundaries. Delivery sequence and superseded intermediate designs belong in the
 [architecture changelog](./architecture-changelog.md).
 
+This private repository is the complete commercial source of truth. The
+[repository-topology ADR](./adr/0002-commercial-source-and-oss-export-boundary.md)
+owns the separate, future OSS publication boundary; no OSS repository or export
+path is part of the current runtime. The
+[edition capability matrix](./editions.md) classifies product scope without
+treating mixed top-level directories as release units.
+
 ## Current Component and Data Flow
 
 ```mermaid
@@ -73,11 +80,11 @@ the nearest contract evidence; they are not an exhaustive test inventory.
 | Boundary | Current responsibility | Owning modules | Contract tests |
 | --- | --- | --- | --- |
 | Console/API | Browser transport, response validation and the public HTTP composition root | [`apps/web/lib/axis-api.ts`](../apps/web/lib/axis-api.ts), [`apps/web/lib/runtime-contracts`](../apps/web/lib/runtime-contracts), [`axis_api/main.py`](../services/api/src/axis_api/main.py) | [`axis-api.test.ts`](../apps/web/lib/axis-api.test.ts), [`runtime-contracts.test.ts`](../apps/web/lib/runtime-contracts.test.ts), [`test_health.py`](../services/api/tests/test_health.py) |
-| Identity and tenancy | OIDC verification, browser sessions, principal hydration and tenant binding | [`identity.py`](../services/api/src/axis_api/identity.py), [`identity_session.py`](../services/api/src/axis_api/identity_session.py), [`oidc_code_flow.py`](../services/api/src/axis_api/oidc_code_flow.py), [`tenant.py`](../services/api/src/axis_api/tenant.py) | [`test_identity.py`](../services/api/tests/test_identity.py), [`test_identity_session_gate.py`](../services/api/tests/test_identity_session_gate.py), [`test_oidc_authorization_code_session.py`](../services/api/tests/test_oidc_authorization_code_session.py), [`test_tenant_isolation.py`](../services/api/tests/test_tenant_isolation.py) |
+| Identity and tenancy | OIDC verification, browser sessions, principal hydration and tenant binding | [`identity.py`](../services/api/src/axis_api/identity.py), [`identity_session.py`](../services/api/src/axis_api/identity_session.py), [`oidc_code_flow.py`](../services/api/src/axis_api/oidc_code_flow.py), [`tenant_admission.py`](../services/api/src/axis_api/tenant_admission.py) | [`test_identity.py`](../services/api/tests/test_identity.py), [`test_identity_session_gate.py`](../services/api/tests/test_identity_session_gate.py), [`test_oidc_authorization_code_session.py`](../services/api/tests/test_oidc_authorization_code_session.py), [`test_tenant_isolation.py`](../services/api/tests/test_tenant_isolation.py) |
 | Authorization, approvals and audit | RBAC/ABAC/relationship checks, governed decisions, outbox delivery and append-only evidence | [`permissions.py`](../services/api/src/axis_api/permissions.py), [`approval_decisions.py`](../services/api/src/axis_api/approval_decisions.py), [`approval_outbox.py`](../services/api/src/axis_api/approval_outbox.py), [`audit.py`](../services/api/src/axis_api/audit.py), [`audit_queries.py`](../services/api/src/axis_api/audit_queries.py) | [`test_permissions.py`](../services/api/tests/test_permissions.py), [`test_approval_decisions.py`](../services/api/tests/test_approval_decisions.py), [`test_audit_queries.py`](../services/api/tests/test_audit_queries.py) |
 | Operational persistence | SQLAlchemy sessions, relational models, repositories and ordered migrations | [`db.py`](../services/api/src/axis_api/db.py), [`models.py`](../services/api/src/axis_api/models.py), [`persistence.py`](../services/api/src/axis_api/persistence.py), [`migrations`](../services/api/migrations) | [`test_persistence.py`](../services/api/tests/test_persistence.py), [`test_migration_chain_postgres.py`](../services/api/tests/integration/test_migration_chain_postgres.py) |
 | Ontology | Graph queries, relationship-scoped filtering and explicitly gated mutations | [`ontology/queries.py`](../services/api/src/axis_api/ontology/queries.py), [`ontology/mutations.py`](../services/api/src/axis_api/ontology/mutations.py), [`ontology_authorization.py`](../services/api/src/axis_api/ontology_authorization.py) | [`test_ontology_queries.py`](../services/api/tests/test_ontology_queries.py), [`test_ontology_mutations.py`](../services/api/tests/test_ontology_mutations.py), [`test_ontology_mutation_runtime.py`](../services/api/tests/integration/test_ontology_mutation_runtime.py) |
-| Workflow runtime | API-side workflow contract plus worker-side Temporal implementation | [`workflow_runtime.py`](../services/api/src/axis_api/workflow_runtime.py), [`workflow_port.py`](../services/worker/src/axis_worker/workflow_port.py), [`temporal_adapter.py`](../services/worker/src/axis_worker/temporal_adapter.py) | [`test_workflow_runtime.py`](../services/api/tests/test_workflow_runtime.py), [`test_workflow_port.py`](../services/worker/tests/test_workflow_port.py), [`test_temporal_adapter.py`](../services/worker/tests/test_temporal_adapter.py) |
+| Workflow runtime | API-side workflow contract plus worker-side Temporal implementation | [`workflow_runtime.py`](../services/api/src/axis_api/workflow_runtime.py), [`workflow_port.py`](../services/worker/src/axis_worker/workflow_port.py), [`temporal_adapter.py`](../services/worker/src/axis_worker/temporal_adapter.py) | [`test_workflow_runtime.py`](../services/api/tests/test_workflow_runtime.py), [`test_temporal_adapter.py`](../services/worker/tests/test_temporal_adapter.py) |
 | Model routing | Endpoint registry, provider selection, invocation evidence and guarded egress | [`model_endpoints.py`](../services/api/src/axis_api/model_endpoints.py), [`model_providers.py`](../services/api/src/axis_api/model_providers.py), [`model_invocations.py`](../services/api/src/axis_api/model_invocations.py) | [`test_model_endpoints.py`](../services/api/tests/test_model_endpoints.py), [`test_model_providers.py`](../services/api/tests/test_model_providers.py), [`test_model_invocation_runtime_integration.py`](../services/api/tests/integration/test_model_invocation_runtime_integration.py) |
 | Connectors and object storage | Connector contracts, governed execution, source ingestion and payload/artifact storage | [`connectors.py`](../services/api/src/axis_api/connectors.py), [`connector_execution.py`](../services/api/src/axis_api/connector_execution.py), [`connector_source_ingestion.py`](../services/api/src/axis_api/connector_source_ingestion.py), [`object_storage.py`](../services/api/src/axis_api/object_storage.py), [`connector_live_sync_activities.py`](../services/worker/src/axis_worker/connector_live_sync_activities.py) | [`test_connector_execution.py`](../services/api/tests/test_connector_execution.py), [`test_connector_source_ingestion.py`](../services/api/tests/test_connector_source_ingestion.py), [`test_connector_source_ingestion_runtime.py`](../services/api/tests/integration/test_connector_source_ingestion_runtime.py), [`test_source_ingestion_wiring.py`](../services/worker/tests/test_source_ingestion_wiring.py) |
 | Public schemas | Cross-client JSON schema definitions and schema validation | [`packages/schemas`](../packages/schemas), [`validate-schemas.mjs`](../packages/schemas/scripts/validate-schemas.mjs) | [`test_schemas_package_contract.py`](../services/api/tests/test_schemas_package_contract.py) |
@@ -123,8 +130,9 @@ the nearest contract evidence; they are not an exhaustive test inventory.
   default deployment posture.
 - The TypeDB runtime is an adapter boundary and may be disabled independently of
   the persisted public reference graph.
-- The repository is still unified. A component should be extracted only when
-  ownership, release cadence, secrets, deployment or versioning genuinely diverge.
+- The commercial repository is still a unified monorepo. A future OSS edition
+  is a files-only, fresh-history export governed by the topology ADR and a
+  capability allowlist; it is not a runtime module split or an automatic sync.
 
 ## Detailed Current Contracts
 
@@ -140,6 +148,7 @@ the nearest contract evidence; they are not an exhaustive test inventory.
 - [Model routing](./platform-model-routing.md)
 - [Deployment](./deployment.md)
 - [Threat model](./threat-model.md)
+- [Compliance applicability and evidence](./compliance-applicability-and-evidence.md)
 
 ## Keeping This Document Current
 
