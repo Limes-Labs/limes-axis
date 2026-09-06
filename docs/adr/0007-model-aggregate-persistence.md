@@ -1,6 +1,6 @@
 # ADR 0007: Model aggregate persistence behind stable facade methods
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-06
 - **Owners:** @metaforismo
 - **Related:** [Issue #356](https://github.com/Limes-Labs/limes-axis/issues/356), [aggregate boundaries](../persistence-aggregates.md)
