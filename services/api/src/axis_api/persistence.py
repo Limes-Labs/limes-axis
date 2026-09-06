@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -2736,16 +2736,25 @@ class AxisPersistenceRepository:
         self.session.flush()
         return self.create_data_asset_stewardship_record(record)
 
-    def list_all_current_data_asset_stewardship(
+    def list_current_data_asset_stewardship(
         self,
         tenant_id: str,
+        asset_ids: Sequence[str],
     ) -> list[DataAssetStewardshipRecord]:
-        """Materialize one consistent tenant stewardship view in a single query."""
+        """Read the current stewardship rows for named assets in one query.
 
+        The caller passes the assets its response will actually contain, so the
+        read stays proportional to the response instead of to everything the
+        tenant has ever declared.
+        """
+
+        if not asset_ids:
+            return []
         statement = (
             select(DataAssetStewardshipRecord)
             .where(
                 DataAssetStewardshipRecord.tenant_id == tenant_id,
+                DataAssetStewardshipRecord.asset_id.in_(asset_ids),
                 DataAssetStewardshipRecord.replaced_by_revision_number.is_(None),
             )
             .order_by(DataAssetStewardshipRecord.asset_id.asc())
@@ -2845,15 +2854,28 @@ class AxisPersistenceRepository:
     def count_data_resource_observations_by_asset(
         self,
         tenant_id: str,
+        asset_ids: Sequence[str],
     ) -> dict[str, int]:
-        """One grouped query materializing per-asset observation counts."""
+        """Count observations per asset for named assets in one grouped query.
 
+        Scoping the group-by to the requested assets keeps the aggregate
+        proportional to the response. The composite ``(tenant_id, asset_id)``
+        index keeps the scan proportional to this tenant's rows; without it the
+        planner combines two single-column indexes and touches index entries for
+        every other tenant holding the same asset ids.
+        """
+
+        if not asset_ids:
+            return {}
         statement = (
             select(
                 DataAssetResourceObservation.asset_id,
                 func.count(DataAssetResourceObservation.id),
             )
-            .where(DataAssetResourceObservation.tenant_id == tenant_id)
+            .where(
+                DataAssetResourceObservation.tenant_id == tenant_id,
+                DataAssetResourceObservation.asset_id.in_(asset_ids),
+            )
             .group_by(DataAssetResourceObservation.asset_id)
         )
         return {asset_id: count for asset_id, count in self.session.execute(statement).all()}
