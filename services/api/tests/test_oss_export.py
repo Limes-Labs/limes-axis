@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -28,7 +29,11 @@ def exporter(monkeypatch):
 
 
 @pytest.fixture
-def source(tmp_path, exporter):
+def source(tmp_path, exporter, monkeypatch):
+    # The source policy rejects configured filters; fixture behavior must not
+    # depend on a developer's global LFS/filter setup or the runner image.
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     repo = tmp_path / "source"
     repo.mkdir()
     run_git(repo, "init", "-q")
