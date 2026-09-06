@@ -1,6 +1,6 @@
 # ADR 0013: OSS Candidate Provenance Gate
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Owners:** `@metaforismo`
 - **Related:** [Issue #321](https://github.com/Limes-Labs/limes-axis/issues/321),
