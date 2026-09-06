@@ -119,9 +119,11 @@ Use actual private paths; these paths are placeholders. The output has:
   automatic check names and all pending release decisions;
 - `manifest.sha256`: SHA-256 of the canonical JSON bytes.
 
-There are no timestamps, host paths, remote URLs or credentials in the manifest.
-The source SHA and inventory can still disclose commercial metadata, so the
-manifest stays private until its disclosure is explicitly reviewed. A checksum
+The generator adds no timestamps, host paths or remote URLs. The manifest retains
+reviewed policy declarations and attributions; content tripwires cannot certify
+that arbitrary input is secret-free. Its source SHA and inventory can also
+disclose commercial metadata, so the manifest stays private until its disclosure
+is explicitly reviewed. A checksum
 provides integrity comparison, not an authenticated signature or human approval.
 
 Repeat `build` using an independently obtained clean checkout of the same commit
