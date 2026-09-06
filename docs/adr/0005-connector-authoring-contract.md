@@ -1,6 +1,6 @@
 # ADR 0005: Versioned connector authoring contract in the Python SDK
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-06
 - **Owners:** @metaforismo
 - **Related:** [Issue #334](https://github.com/Limes-Labs/limes-axis/issues/334), [capability matrix](../connector-capabilities.md)
