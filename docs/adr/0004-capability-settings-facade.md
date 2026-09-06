@@ -1,6 +1,6 @@
 # ADR 0004: Capability settings behind one environment facade
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 
