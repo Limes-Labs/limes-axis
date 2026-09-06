@@ -1,6 +1,6 @@
 # ADR 0006: Domain-owned model HTTP routers
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-06
 - **Owners:** @metaforismo
 - **Related:** [Issue #355](https://github.com/Limes-Labs/limes-axis/issues/355), [route extraction](../api-route-extraction.md)
