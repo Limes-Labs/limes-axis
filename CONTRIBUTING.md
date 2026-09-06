@@ -1,12 +1,13 @@
 # Contributing to Limes Axis
 
-Limes Axis is early. The first public work is design, architecture and platform
-foundation. Contributions should improve clarity, architecture, tests,
-documentation or implementation without weakening the core principles.
+Limes Axis is early. Contributions by authorized collaborators should improve
+clarity, architecture, tests, documentation or implementation without weakening
+the core principles.
 
 ## Principles
 
-- Keep the open core self-hostable.
+- Keep the commercial product self-hostable; future OSS disposition is decided
+  separately by the edition matrix.
 - Avoid required managed-service dependencies.
 - Treat security, tenant isolation, permissions and audit as product features.
 - Prefer typed schemas and explicit interfaces over implicit coupling.
@@ -28,6 +29,10 @@ review before broad external contribution intake.
 Axis is under active development. Use the repository `Makefile` and package-local
 commands documented in the README; do not infer readiness from one component's
 tests alone.
+
+The [development guide](docs/development.md) lists targeted checks, local CI
+parity, worktree setup and runtime/browser debugging. Repository-local agent
+instructions are in [AGENTS.md](AGENTS.md).
 
 ## Pull Request Expectations
 
