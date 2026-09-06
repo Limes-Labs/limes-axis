@@ -1,6 +1,6 @@
 # ADR 0008: Connector conformance and health in the authoring SDK
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-06
 - **Owners:** @metaforismo
 - **Related:** [Issue #342](https://github.com/Limes-Labs/limes-axis/issues/342), [conformance and health](../connector-conformance.md)
