@@ -490,3 +490,32 @@ def test_scoped_reads_stay_within_the_tenant(session_factory: sessionmaker) -> N
             repository.count_data_resource_observations_by_asset(TENANT_B, CATALOG_ASSET_IDS)
             == {}
         )
+
+
+def test_large_catalog_reads_preserve_all_assets_with_a_database_parameter_limit(
+    session_factory: sessionmaker,
+) -> None:
+    # SQLite supports an enforced connection-level bind-parameter budget. This
+    # exercises the actual database error boundary rather than mocking SQL.
+    import sqlite3
+
+    asset_ids = tuple(f"source:large_catalog_{n:04d}:default" for n in range(1001))
+    seed_stewardship_and_observations(session_factory, asset_ids)
+    with session_scope(session_factory) as session:
+        connection = session.connection().connection.driver_connection
+        previous_limit = connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+        try:
+            repository = AxisPersistenceRepository(session)
+            # Duplicate, unsorted input must not duplicate rows or lose global
+            # ordering when it crosses a query-batch boundary.
+            requested_ids = [*reversed(asset_ids), *asset_ids[:5]]
+            stewardship = repository.list_current_data_asset_stewardship(
+                TENANT_A, requested_ids,
+            )
+            counts = repository.count_data_resource_observations_by_asset(
+                TENANT_A, requested_ids,
+            )
+            assert [row.asset_id for row in stewardship] == list(asset_ids)
+            assert counts == dict.fromkeys(asset_ids, 1)
+        finally:
+            connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, previous_limit)

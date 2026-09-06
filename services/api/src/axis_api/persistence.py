@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from itertools import batched
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -2741,7 +2742,7 @@ class AxisPersistenceRepository:
         tenant_id: str,
         asset_ids: Sequence[str],
     ) -> list[DataAssetStewardshipRecord]:
-        """Read the current stewardship rows for named assets in one query.
+        """Read current stewardship for named assets in bounded query batches.
 
         The caller passes the assets its response will actually contain, so the
         read stays proportional to the response instead of to everything the
@@ -2750,16 +2751,21 @@ class AxisPersistenceRepository:
 
         if not asset_ids:
             return []
-        statement = (
-            select(DataAssetStewardshipRecord)
-            .where(
-                DataAssetStewardshipRecord.tenant_id == tenant_id,
-                DataAssetStewardshipRecord.asset_id.in_(asset_ids),
-                DataAssetStewardshipRecord.replaced_by_revision_number.is_(None),
+        records: list[DataAssetStewardshipRecord] = []
+        # Registries have no connector cap. Keep each IN clause below backend
+        # parameter limits without truncating the catalog or duplicating rows.
+        for asset_id_batch in batched(sorted(set(asset_ids)), 500):
+            statement = (
+                select(DataAssetStewardshipRecord)
+                .where(
+                    DataAssetStewardshipRecord.tenant_id == tenant_id,
+                    DataAssetStewardshipRecord.asset_id.in_(asset_id_batch),
+                    DataAssetStewardshipRecord.replaced_by_revision_number.is_(None),
+                )
+                .order_by(DataAssetStewardshipRecord.asset_id.asc())
             )
-            .order_by(DataAssetStewardshipRecord.asset_id.asc())
-        )
-        return list(self.session.scalars(statement))
+            records.extend(self.session.scalars(statement))
+        return records
 
     def acquire_data_asset_stewardship_lock(
         self,
@@ -2856,7 +2862,7 @@ class AxisPersistenceRepository:
         tenant_id: str,
         asset_ids: Sequence[str],
     ) -> dict[str, int]:
-        """Count observations per asset for named assets in one grouped query.
+        """Count observations for named assets in bounded grouped queries.
 
         Scoping the group-by to the requested assets keeps the aggregate
         proportional to the response. The composite ``(tenant_id, asset_id)``
@@ -2867,18 +2873,21 @@ class AxisPersistenceRepository:
 
         if not asset_ids:
             return {}
-        statement = (
-            select(
-                DataAssetResourceObservation.asset_id,
-                func.count(DataAssetResourceObservation.id),
+        counts: dict[str, int] = {}
+        for asset_id_batch in batched(sorted(set(asset_ids)), 500):
+            statement = (
+                select(
+                    DataAssetResourceObservation.asset_id,
+                    func.count(DataAssetResourceObservation.id),
+                )
+                .where(
+                    DataAssetResourceObservation.tenant_id == tenant_id,
+                    DataAssetResourceObservation.asset_id.in_(asset_id_batch),
+                )
+                .group_by(DataAssetResourceObservation.asset_id)
             )
-            .where(
-                DataAssetResourceObservation.tenant_id == tenant_id,
-                DataAssetResourceObservation.asset_id.in_(asset_ids),
-            )
-            .group_by(DataAssetResourceObservation.asset_id)
-        )
-        return {asset_id: count for asset_id, count in self.session.execute(statement).all()}
+            counts.update(self.session.execute(statement).all())
+        return counts
 
     def record_repeat_data_resource_observation(
         self,

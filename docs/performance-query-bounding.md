@@ -4,17 +4,18 @@ This document records which repository reads are bounded, which are not, and
 what measured evidence justified the changes made for
 [issue #363](https://github.com/Limes-Labs/limes-axis/issues/363).
 
-A read is *bounded* when its cost is proportional to what the caller actually
-returns. A read that is proportional to everything a tenant has ever
-accumulated becomes slower for the tenants that use Axis most, which is the
-wrong direction for a control plane.
+Reads can be bounded by a row limit or scoped to the assets selected for a
+response. Asset scoping avoids unrelated data; it is not a fixed cost bound.
+Grouped counts still visit observations for the selected assets, and the
+connector registry itself has no fixed size cap.
 
 ## Inventory
 
-`AxisPersistenceRepository` exposes 52 `list_*` reads. **Forty already take a
-limit.** The twelve that do not are classified below by how they actually grow;
-naming the naturally bounded ones matters as much as naming the risky ones, so
-that a future reader does not re-derive the same conclusion.
+`AxisPersistenceRepository` exposes 52 `list_*` reads: **38 take a `limit`
+argument and 14 do not**. One of those fourteen delegates to a query with a
+fixed limit of 20. The tables below include all fourteen plus the supporting
+`count_*` aggregate changed by this PR. Resource scoping is distinguished from
+an enforced row cap.
 
 ### Grows with tenant scale
 
@@ -23,6 +24,8 @@ that a future reader does not re-derive the same conclusion.
 | `list_current_data_asset_stewardship` | One row per declared asset | **Bounded by this change** — takes the asset ids the response returns |
 | `count_data_resource_observations_by_asset` | One row per observed resource | **Bounded by this change** — grouped over the asset ids the response returns |
 | `list_all_current_connector_manifests` | One row per connector | Open |
+| `list_data_resource_observations_by_asset` | All observations for one asset | Open; asset-scoped without a row cap |
+| `list_latest_connector_runs_by_connector` | Latest matching run for every connector; ranks tenant run history | Open; output has one row per connector, input scan is not capped |
 
 ### Grows with time and is never pruned
 
@@ -35,19 +38,21 @@ revision-history responses whose shape would have to change to page them.
 | `list_connector_manifest_revisions` | One row per manifest revision, forever |
 | `list_platform_policy_revisions` | One row per policy revision, forever |
 
-### Naturally bounded
+### Other scoped reads and fixed caps
 
-These need no limit, because something other than tenant growth caps them.
+These have different scopes. A resource or operator scope alone does not
+establish a hard bound or remove the need for later measurement.
 
-| Read | What caps it |
+| Read | Scope or enforced cap |
 | --- | --- |
 | `list_tenant_quotas` | The number of quota kinds |
 | `list_action_runs_for_approval` | Runs attached to one approval |
 | `list_agent_run_steps` | Steps in one run |
-| `list_active_audit_legal_holds` | Active holds, an operator-scale set |
-| `list_active_platform_policies_for_scope` | Active policies in one scope |
+| `list_active_audit_legal_holds` | Active holds for a tenant; no fixed row cap |
+| `list_active_platform_policies_for_scope` | Active policies in one tenant/scope; no fixed row cap |
 | `list_active_oidc_browser_sessions` | The per-actor concurrent-session cap |
-| `list_platform_notification_acknowledgements` | Acknowledgements for one notification |
+| `list_platform_notification_acknowledgements` | Tenant/actor acknowledgements, optionally filtered by notification ids; no fixed row cap |
+| `list_active_connector_promotion_policy_sets` | Delegates with a fixed `limit=20` |
 
 ## The Catalog Read
 
@@ -62,7 +67,9 @@ The projection then used only the entries whose asset id came from the
 registry, so the surplus rows were read and discarded. The registry is now read
 first, and both supporting reads are scoped to the asset ids the response will
 contain. That is behaviour-preserving by construction: the discarded rows were
-never part of the response.
+never part of the response. Asset ids are deduplicated and queried in batches
+of 500, preserving the full response while staying within database bind limits.
+The normal small catalog still takes one query per supporting read.
 
 ## Measured Evidence
 
@@ -126,8 +133,11 @@ No data ever crossed a tenant boundary in either form; every variant filters on
 | Rows for assets outside the catalog do not change the response, and every returned asset still resolves its stewardship and counts | `test_off_catalog_rows_do_not_change_the_catalog_response` |
 | An empty catalog issues no read at all | `test_scoped_reads_return_nothing_without_asset_ids` |
 | Asset ids are not a cross-tenant lookup key | `test_scoped_reads_stay_within_the_tenant` |
+| Large catalogs retain every asset within an enforced database parameter budget | `test_large_catalog_reads_preserve_all_assets_with_a_database_parameter_limit` |
 
-All live in `services/api/tests/test_data_assets.py`. The bounding test asserts
+Catalog tests live in `services/api/tests/test_data_assets.py`. Migration
+transaction and rollback tests live in
+`services/api/tests/test_data_asset_observation_index_migration.py`. The bounding test asserts
 on the SQL actually sent to the database, so reintroducing a tenant-wide read
 fails it.
 
