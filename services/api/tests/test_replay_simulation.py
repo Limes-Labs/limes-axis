@@ -607,6 +607,26 @@ def test_replay_simulation_endpoint_keeps_expired_outputs_under_legal_hold(
     assert body["retention_window"]["legal_hold"] is True
 
 
+def test_replay_simulation_endpoint_rejects_invalid_legal_hold(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    client = TestClient(app)
+
+    response = client.get(
+        "/demo/manufacturing/simulation/replay",
+        params={
+            "tenant_id": "tenant_demo_manufacturing",
+            "legal_hold": "not-a-boolean",
+        },
+    )
+
+    client.close()
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["query", "legal_hold"]
+
+
 def test_build_replay_simulation_filters_by_workflow_id(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -654,13 +674,9 @@ def test_replay_simulation_endpoint_returns_artifact(
     assert "tenant_other" not in str(body)
 
 
-def test_openapi_exposes_replay_simulation_endpoint() -> None:
-    client = TestClient(create_app())
-    response = client.get("/openapi.json")
-
-    assert response.status_code == 200
-    assert "/demo/manufacturing/simulation/replay" in response.json()["paths"]
-    assert "/demo/manufacturing/simulation/replay/outputs" in response.json()["paths"]
+def test_openapi_exposes_replay_simulation_endpoint(openapi_schema: dict) -> None:
+    assert "/demo/manufacturing/simulation/replay" in openapi_schema["paths"]
+    assert "/demo/manufacturing/simulation/replay/outputs" in openapi_schema["paths"]
 
 
 def test_replay_arbitrary_policy_set_diff_reports_changed_outcomes(
