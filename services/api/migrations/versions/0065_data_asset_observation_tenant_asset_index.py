@@ -23,8 +23,18 @@ def upgrade() -> None:
     # the single-column tenant_id and asset_id indexes the planner combines both
     # and touches index entries for every other tenant holding the same asset
     # ids, so one tenant's read cost grows with unrelated tenants' data.
-    op.create_index(INDEX_NAME, TABLE_NAME, ["tenant_id", "asset_id"])
+    # Observations already contain live ingestion data. Follow migration 0053:
+    # PostgreSQL must build this index outside a transaction without blocking
+    # inserts, updates and deletes for the duration of the table scan.
+    with op.get_context().autocommit_block():
+        op.create_index(
+            INDEX_NAME,
+            TABLE_NAME,
+            ["tenant_id", "asset_id"],
+            postgresql_concurrently=True,
+        )
 
 
 def downgrade() -> None:
-    op.drop_index(INDEX_NAME, table_name=TABLE_NAME)
+    with op.get_context().autocommit_block():
+        op.drop_index(INDEX_NAME, table_name=TABLE_NAME, postgresql_concurrently=True)

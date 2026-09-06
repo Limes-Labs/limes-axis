@@ -106,6 +106,15 @@ Migration `0065_data_asset_observation_tenant_asset_index` adds
 index this change adds, and it is added because the plans above show the
 access shape changing, not because a composite index looked reasonable.
 
+The migration uses PostgreSQL `CREATE INDEX CONCURRENTLY` outside the
+transaction, following migration 0053, so the index build does not block
+observation inserts, updates or deletes for the duration of the scan. The
+build still uses I/O and can wait for other transactions. An interrupted
+concurrent build can leave an invalid index: inspect its validity and recover
+the index before rerunning the migration. Downgrade drops only this index
+concurrently and retains observation data. See the
+[PostgreSQL index-build guidance](https://www.postgresql.org/docs/16/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY).
+
 No data ever crossed a tenant boundary in either form; every variant filters on
 `tenant_id`. The defect was cost coupling between tenants, not visibility.
 
