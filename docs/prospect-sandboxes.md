@@ -154,7 +154,7 @@ profile revision and recorded approval; the UI cannot request unlimited values.
 | Admitted users | 5 verified people per organization | Durable identity/seat reservation, separate from browser-session quotas |
 | Browser sessions | `max_concurrent_sessions=2` | Existing limit per actor within the tenant; not a five-user or tenant-total session limit |
 | Protected API traffic | `api_requests_per_window=120`, 60-second global window | Existing per-process middleware plus a hosted aggregate admission budget; no distributed guarantee from current middleware alone |
-| Ingestion | `max_connector_sync_rows_per_run=1000`; one active fixture ingestion job | Existing per-run row cap plus future durable concurrent-job admission; existing byte/page/timeout limits can only be tightened |
+| Ingestion | `max_connector_sync_rows_per_run=1000`; one active fixture ingestion job | Existing row cap applies to governed live sync; other fixture ingestion paths need explicit equivalent enforcement. Future durable concurrent-job admission is also required; existing byte/page/timeout limits can only be tightened |
 | Workflow work | 2 active runs, at most 50 starts per generation, 120 seconds per runnable activity | Atomic reservations, bounded retries and normal workflow timeouts; waiting for a human consumes a run slot and cannot outlive the lease |
 | Stored evaluation payloads | 256 MiB per generation, including staging and object versions | Reserve bytes before writes and reconcile actual storage; failed attempts remain charged until cleanup is verified |
 | User-supplied sources | None | Only pinned synthetic fixtures and install-time allowlisted adapters; no uploads or arbitrary connector registration |

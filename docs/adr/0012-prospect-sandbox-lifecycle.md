@@ -1,6 +1,6 @@
 # ADR 0012: Dedicated prospect evaluations with generation replacement
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Owners:** @metaforismo
 - **Related:** [Issue #322](https://github.com/Limes-Labs/limes-axis/issues/322),
