@@ -1,8 +1,10 @@
 # 0009 — Observe legacy API use before removal
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-06
 - Issue: #357
+- Review: implementation self-review completed for shared handlers, bounded
+  telemetry, consumer evidence and the separate production removal gate.
 
 ## Context
 

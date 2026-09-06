@@ -28,7 +28,7 @@ def add_legacy_deprecation_headers(headers: MutableMapping[str, str], scope: Sco
         return
     headers["Deprecation"] = f"@{int(DEPRECATED_AT.timestamp())}"
     headers["Sunset"] = format_datetime(SUNSET_AT, usegmt=True)
-    policy_link = f'<{POLICY_URL}>; rel="deprecation"; type="text/markdown"'
+    policy_link = f'<{POLICY_URL}>; rel="deprecation"; type="text/html"'
     existing_link = headers.get("Link")
     headers["Link"] = f"{existing_link}, {policy_link}" if existing_link else policy_link
 
