@@ -39,6 +39,19 @@ Protocol removals also follow the upstream protocol's own lifecycle policy.
 Changing the pin requires an explicit compatibility diff and client conformance
 run. No older protocol support is promised by this document.
 
+## Demonstrations and editions
+
+Demonstrate the real product with synthetic data in an isolated, authenticated
+deployment, using the same permission, approval and audit paths. Keep reusable
+fixtures and persisted example records; do not create a separately maintained
+demo application or give MCP an anonymous demonstration mode. Retiring existing
+REST demo fallbacks requires its own migration of presentations, onboarding and
+CI before removal. This specification does not remove those supported paths.
+The future OSS edition is a useful product edition under the
+[edition policy](editions.md) and [export boundary](adr/0002-commercial-source-and-oss-export-boundary.md),
+not a synonym for demo mode. Neither an OSS export nor a repository split is
+part of the gateway implementation.
+
 ## Ownership and request flow
 
 ```mermaid
@@ -118,6 +131,11 @@ and is the sole initial `scopes_supported` entry. Request further scopes per
 operation, together with all applicable domain grants. None implies another or
 supports wildcards. No initial scope allows approval decisions, action execution,
 tenant administration, secret reads or unrestricted model invocation.
+Clients choose the intended scope set during explicit connection/consent from
+this documented profile and the user's authorized Axis configuration. A token
+with only `mcp:discover` may receive empty lists; discovery must not expose an
+ungranted catalog just to suggest upgrades. A later explicit consent/reauthorization
+can add the selected grants without revealing another tenant's capabilities.
 
 ## Mapping to Axis layers
 

@@ -1,6 +1,6 @@
 # ADR 0010: MCP is an authenticated adapter to governed domain capabilities
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-06
 - **Owners:** @metaforismo
 - **Related:** [Issue #367](https://github.com/Limes-Labs/limes-axis/issues/367), [gateway specification](../mcp-gateway.md), [threat model](../mcp-threat-model.md)
@@ -46,6 +46,10 @@ an Axis approval or undo a committed effect.
   dual-era handling would require a separately reviewed contract and tests.
 - Private zero-TTL results favor clear revocation behavior over caching. Shared
   quota/concurrency storage and local IdP/client conformance are enablement costs.
+- Product demonstrations use an isolated authenticated deployment with synthetic
+  data and normal governance. Fixtures remain useful; the existing anonymous REST
+  compatibility paths need a separate migration before removal. A future OSS
+  edition follows ADR 0002 and is not defined by demo mode.
 
 ## Alternatives Considered
 
