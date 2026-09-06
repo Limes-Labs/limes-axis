@@ -1,6 +1,6 @@
 # ADR 0011: Request-scoped connector workspace projection
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-06
 - **Owners:** @metaforismo
 - **Related:** [Issue #364](https://github.com/Limes-Labs/limes-axis/issues/364), [workspace contract](../connector-workspace.md)
@@ -18,7 +18,9 @@ to records outside the first page must remain correct.
 the existing registry builders. The HTTP composition root verifies the request
 principal and tenant before calling it and derives the audit actor from that
 principal. The summary has a page limit, bounded text and a 64 KiB response
-budget. Only canonical `/operations/connectors/workspace` routes are added.
+budget. The existing operations router exposes `/operations/connectors/workspace`
+and its selected-detail route with equivalent deprecated aliases, preserving
+the repository's shared-handler compatibility contract.
 
 The console reads the summary, then its selected connector. Tab-specific reads
 include that connector's ID and run only while needed. Snapshot history retains

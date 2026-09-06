@@ -1,7 +1,8 @@
 # Connector workspace read model
 
 The console loads a compact, request-scoped summary, then the selected
-connector. The legacy registries remain supported. This slice reduces browser
+connector. The legacy registries remain supported. Both new operations also use the
+existing router's equivalent deprecated aliases and migration notices. This slice reduces browser
 fan-out and response bytes; it does not introduce a shared cache or a new
 permission model.
 

@@ -4384,8 +4384,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/operations/connectors/workspace",
+    @operations_router.get(
+        "/connectors/workspace",
         response_model=ConnectorWorkspaceSummary,
         tags=["connectors"],
     )
@@ -4416,8 +4416,8 @@ def create_app(
                 },
             ) from exc
 
-    @app.get(
-        "/operations/connectors/workspace/detail",
+    @operations_router.get(
+        "/connectors/workspace/detail",
         response_model=ConnectorWorkspaceDetail,
         tags=["connectors"],
     )
