@@ -68,7 +68,7 @@ become durable before the await.
 
 - Provider latency no longer occupies a database connection on the governed
   model-invocation path, measured at the connection pool.
-- Exactly one provider call is issued per tenant and idempotency key, including
+- At most one provider call is issued per tenant and idempotency key, including
   under concurrent duplicate delivery. A duplicate that previously produced a
   second billable call and a uniqueness failure now returns the stored record.
 - A caller can receive a `requested` status for a key whose provider call is

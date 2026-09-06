@@ -1,3 +1,4 @@
+import asyncio
 import json
 import math
 from decimal import Decimal
@@ -1309,3 +1310,114 @@ async def test_provider_call_occupies_a_pooled_connection_for_embedded_callers(
     # The measured baseline this change removes for the request handler, and
     # the behaviour embedded callers still have until their own slice lands.
     assert runtime.checked_out_during_call == [1]
+
+
+def test_http_invocation_releases_pool_before_provider(pooled_engine) -> None:
+    factory = sessionmaker(bind=pooled_engine, autoflush=False, expire_on_commit=False)
+    seed_committed_endpoint(factory)
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    runtime = PoolProbeRuntime(pooled_engine)
+    app.state.model_invocation_runtime = runtime
+    with TestClient(app) as client:
+        response = client.post(
+            "/platform/models/invocations",
+            json=invocation_request().model_dump(mode="json"),
+        )
+    assert response.status_code == 201
+    assert response.json()["status"] == "completed"
+    assert runtime.checked_out_during_call == [0]
+
+
+async def test_overlapping_deliveries_replay_the_committed_in_flight_claim(
+    pooled_engine,
+) -> None:
+    factory = sessionmaker(bind=pooled_engine, autoflush=False, expire_on_commit=False)
+    seed_committed_endpoint(factory)
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class PausedRuntime(RecordingModelInvocationRuntime):
+        async def invoke(self, request):
+            entered.set()
+            await release.wait()
+            return await super().invoke(request)
+
+    runtime = PausedRuntime()
+
+    async def first_delivery():
+        with session_scope(factory) as session:
+            return await invoke_model(
+                AxisPersistenceRepository(session), invocation_request(), runtime,
+                commit_before_provider_call=True, usage_metering_enabled=True,
+            )
+
+    task = asyncio.create_task(first_delivery())
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=5)
+        assert pooled_engine.pool.checkedout() == 0
+        duplicate_runtime = RecordingModelInvocationRuntime()
+        with session_scope(factory) as session:
+            replay = await invoke_model(
+                AxisPersistenceRepository(session), invocation_request(), duplicate_runtime,
+                commit_before_provider_call=True, usage_metering_enabled=True,
+            )
+        assert replay.status == MODEL_INVOCATION_REQUESTED_STATUS
+        assert replay.idempotent_replay is True
+        assert IN_FLIGHT_REPLAY_NOTE in replay.notes
+        assert duplicate_runtime.requests == []
+        release.set()
+        completed = await asyncio.wait_for(task, timeout=5)
+        assert completed.invocation_id == replay.invocation_id
+        assert completed.status == "completed"
+        assert len(runtime.requests) == 1
+        with session_scope(factory) as session:
+            assert len(session.scalars(select(ModelInvocation)).all()) == 1
+            assert len(session.scalars(select(TenantUsageEvent)).all()) == 3
+    finally:
+        release.set()
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.parametrize("failure_phase", ["prepare", "finalize"])
+async def test_commit_failure_never_reissues_a_provider_call(
+    pooled_engine, monkeypatch, failure_phase,
+) -> None:
+    factory = sessionmaker(bind=pooled_engine, autoflush=False, expire_on_commit=False)
+    seed_committed_endpoint(factory)
+    runtime = RecordingModelInvocationRuntime()
+    with pytest.raises(RuntimeError, match="commit failed"), session_scope(factory) as session:
+        real_commit = session.commit
+        calls = 0
+
+        def fail_commit():
+            nonlocal calls
+            calls += 1
+            if calls == (1 if failure_phase == "prepare" else 2):
+                raise RuntimeError("commit failed")
+            real_commit()
+
+        monkeypatch.setattr(session, "commit", fail_commit)
+        await invoke_model(
+            AxisPersistenceRepository(session), invocation_request(), runtime,
+            commit_before_provider_call=True, usage_metering_enabled=True,
+        )
+    with session_scope(factory) as session:
+        records = session.scalars(select(ModelInvocation)).all()
+        assert session.scalars(select(TenantUsageEvent)).all() == []
+        if failure_phase == "prepare":
+            assert records == []
+            assert runtime.requests == []
+        else:
+            assert len(records) == 1
+            assert records[0].status == MODEL_INVOCATION_REQUESTED_STATUS
+            assert len(runtime.requests) == 1
+            replay_runtime = RecordingModelInvocationRuntime()
+            replay = await invoke_model(
+                AxisPersistenceRepository(session), invocation_request(), replay_runtime,
+                commit_before_provider_call=True,
+            )
+            assert replay.idempotent_replay is True
+            assert replay_runtime.requests == []

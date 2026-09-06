@@ -64,9 +64,13 @@ paths are in
 [external-await transaction boundaries](./performance-external-await-boundaries.md)
 and [ADR 0003](./adr/0003-external-await-transaction-boundary.md).
 
+A process can stop after the claim is committed but before the provider is
+called. This guarantees at-most-once dispatch, not exactly-once execution or
+automatic recovery.
+
 Two consequences are part of the endpoint contract:
 
-- Exactly one provider call is issued per tenant and idempotency key. A
+- At most one provider call is issued per tenant and idempotency key. A
   duplicate delivery that arrives while the first call is in flight replays the
   stored record instead of calling the provider again.
 - A replayed record whose outcome has not been written yet is returned with

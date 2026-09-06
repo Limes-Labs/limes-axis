@@ -69,7 +69,7 @@ provider call. Two behaviours follow from that commit and are contract, not
 side effects:
 
 - A duplicate delivery that arrives while the first call is in flight now finds
-  the committed record and replays it, so exactly one provider call is issued
+  the committed record and replays it, so at most one provider call is issued
   per idempotency key. Previously both deliveries called the provider and one
   of them failed on the uniqueness constraint at the end of the request.
 - A replayed record whose provider call has not yet been recorded is returned
@@ -98,6 +98,9 @@ resolved without knowing whether the provider ran.
 | A retry after an interruption issues no second provider call | `test_retry_after_an_interrupted_call_does_not_call_the_provider_again` |
 | A concurrent duplicate replays instead of failing | `test_concurrent_duplicate_delivery_replays_instead_of_failing` |
 | A concurrent duplicate with a different payload still conflicts | `test_concurrent_duplicate_with_a_different_payload_still_conflicts` |
+| HTTP handler releases the pool before dispatch | `test_http_invocation_releases_pool_before_provider` |
+| Overlapping deliveries see the committed in-flight claim | `test_overlapping_deliveries_replay_the_committed_in_flight_claim` |
+| Prepare and finalize commit failures preserve dispatch and metering boundaries | `test_commit_failure_never_reissues_a_provider_call` |
 | Embedded callers keep their transaction semantics | `test_invoke_model_keeps_the_caller_transaction_when_not_the_owner` |
 
 All of the above live in `services/api/tests/test_model_invocations.py`.

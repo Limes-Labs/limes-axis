@@ -7,10 +7,11 @@ audit trail. Routing (:func:`decide_model_route`) is pure and deterministic —
 no enabled endpoint matching the request means a blocked decision, never a
 silent fallback to an external hop.
 
-Transactions: :func:`invoke_model` runs in three phases — prepare and commit,
-external await, idempotent finalize. The requested row is committed before the
-provider call, so no database transaction is held across the external await and
-the idempotency key is durable if the process dies mid-call. See
+Transactions: callers that own the request transaction can opt into three
+phases — prepare and commit, external await, idempotent finalize. The requested
+row is committed before the provider call, so no database transaction is held
+across the external await and the idempotency key is durable if the process
+dies mid-call. See
 ``docs/platform-model-routing.md`` and ADR 0003.
 
 Privacy: prompts and responses are never persisted or audited. The invocation
@@ -573,7 +574,7 @@ async def invoke_model(
     if duplicate_delivery:
         # A concurrent request with the same key won the unique constraint
         # while this one was still routing. Returning its record keeps
-        # duplicate delivery to exactly one provider call.
+        # duplicate delivery to at most one provider call.
         if not _replay_matches_request(invocation, request, prompt_sha256):
             raise ModelInvocationIdempotencyConflict(invocation.id)
         return _result_from_invocation(

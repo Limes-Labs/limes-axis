@@ -26,7 +26,7 @@ release-bound behavior, not the complete commit history.
 
 - Governed model invocations commit the requested record before calling the
   provider, so a provider timeout no longer occupies a database connection and
-  the idempotency key survives an interrupted process. Exactly one provider
+  the idempotency key survives an interrupted process. At most one provider
   call is now issued per tenant and idempotency key, including under concurrent
   duplicate delivery; a replay whose outcome is not yet recorded returns status
   `requested` with an explanatory note and is never re-invoked automatically
