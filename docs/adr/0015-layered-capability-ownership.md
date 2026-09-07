@@ -1,6 +1,6 @@
 # ADR 0015: Layered capability ownership and vertical dependency direction
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Owners:** @metaforismo
 - **Related:** [Issue #352](https://github.com/Limes-Labs/limes-axis/issues/352), [layer contract](../layered-architecture.md)
