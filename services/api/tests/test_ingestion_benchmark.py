@@ -59,7 +59,8 @@ def test_strategies_complete_identical_work_and_bound_memory(modules, corpus, ki
         benchmark.validate_trial(result, corpus.workload)
         assert not result["rejected"]
         assert all(row["status"] == "PASS" for row in result["samples"])
-        assert "approved/" not in json.dumps(result) and "é" not in json.dumps(result)
+        encoded_result = json.dumps(result, ensure_ascii=False)
+        assert "approved/" not in encoded_result and "é" not in encoded_result
         completed.append(
             sorted(
                 (r["tenant"], r["job"], r["payload_sha256"], r["checkpoint_sha256"], r["bytes"])
