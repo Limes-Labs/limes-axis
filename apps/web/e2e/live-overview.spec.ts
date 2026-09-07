@@ -43,10 +43,10 @@ test.describe("Axis live overview demo", () => {
 
     await page.goto("/");
 
-    // Single page header + slim hero: the cockpit name renders exactly once.
+    // One page title followed by persisted activity counts.
     await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
-    await expect(page.getByText("Plant Operations Cockpit")).toHaveCount(1);
-    await expect(page.locator("[data-hero-subtitle]")).toContainText("Ravenna Works");
+    await expect(page.getByRole("heading", { name: "Recorded activity" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Recorded activity" })).toContainText("Ravenna Works");
 
     // The hero audit count and the evidence feed read the same registry.
     // "—" is the placeholder while the audit events query is still loading.
@@ -54,7 +54,7 @@ test.describe("Axis live overview demo", () => {
     const heroAuditCount = await page.getByTestId("hero-audit-count").innerText();
     const visibleAuditCount = Math.min(Number(heroAuditCount.trim()), 10);
     await expect(
-      page.getByText(`Showing ${visibleAuditCount} of ${heroAuditCount.trim()}`),
+      page.getByText(`Showing ${visibleAuditCount} of ${heroAuditCount.trim()} recent events`),
     ).toBeVisible();
 
     // Needs-attention strip: decision entry points while work is pending;
@@ -83,9 +83,8 @@ test.describe("Axis live overview demo", () => {
     await expect(page.getByRole("button", { name: /Generate daily brief/ })).toBeDisabled();
     await expect(page.getByRole("button", { name: /Build quality scenario/ })).toBeDisabled();
 
-    // Side rail: system health radar + quick actions.
-    await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
-    await expect(page.getByText("Quick actions")).toBeVisible();
+    // Labeled category shares use the same returned audit window.
+    await expect(page.getByRole("region", { name: "Activity by category" })).toBeVisible();
 
     // Dropped surfaces stay dropped: domain graph, routing strip, readiness QA.
     await expect(page.getByRole("heading", { name: "Domain graph" })).toHaveCount(0);

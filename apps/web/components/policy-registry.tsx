@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { RotateCcw, ScrollText, ShieldCheck } from "lucide-react";
 
+import { Disclosure } from "@/components/ui/disclosure";
 import { PolicyCreateForm } from "@/components/policy-create-form";
 import {
   enumUrlField,
@@ -348,7 +349,9 @@ export function PolicyRegistry() {
         </section>
       )}
 
-      <PolicyCreateForm tenantId={registry.tenant_id} />
+      <Disclosure title={strings.clarity.createPolicy}>
+        <PolicyCreateForm tenantId={registry.tenant_id} />
+      </Disclosure>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <p className="eyebrow m-0">Evaluation Precedence</p>

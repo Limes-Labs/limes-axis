@@ -356,7 +356,7 @@ export function NeedsAttention({
       {approvalsFailed ? <SourceUnavailableNote message={copy.approvalsUnavailable} /> : null}
       {overviewFailed ? <SourceUnavailableNote message={copy.overviewUnavailable} /> : null}
       {actionRunsFailed ? <SourceUnavailableNote message={copy.actionRunsUnavailable} /> : null}
-      <Card className="grid gap-2 p-4">
+      <Card className="grid gap-2 p-4 lg:grid-cols-2">
         {approvals.map((approval) => (
           <ApprovalAttentionRow
             approval={approval}

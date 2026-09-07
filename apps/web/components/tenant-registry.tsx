@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
+import { strings } from "@/lib/strings";
+import { Disclosure } from "@/components/ui/disclosure";
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
 import {
   toAxisOperatorError,
@@ -364,7 +366,9 @@ export function TenantRegistry() {
         </section>
       )}
 
-      <TenantProvisionForm />
+      <Disclosure title={strings.clarity.createOrganization}>
+        <TenantProvisionForm />
+      </Disclosure>
 
       {tenantNotes.length > 0 ? (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">

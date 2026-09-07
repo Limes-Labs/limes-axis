@@ -234,7 +234,7 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Operations snapshot API unavailable" }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "System health unavailable" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Activity breakdown unavailable" })).toBeVisible();
     await expect(page.getByText(strings.overview.hero.error.detail)).toBeVisible();
 
     // Posture cards degrade in place instead of disappearing.
@@ -613,6 +613,14 @@ test.describe("Axis console smoke", () => {
     await page.goto("/policies/policy_e2e_navigation");
     await expect(page.locator("[data-mobile-current-section]")).toHaveText("Policies");
     await expectMobileHeadersStacked(page);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("opens Data as a tenant-bound catalog rather than a missing page", async ({ page }) => {
+    await page.goto("/data");
+    await expect(page.getByRole("heading", { name: "Data", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Data catalog unavailable" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page not found" })).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
   });
 
