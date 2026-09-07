@@ -1,0 +1,24 @@
+{
+  "auditedSourceCommit": "0b78b876dda3833126c82821457ca57ca3776c69",
+  "runtimeFingerprint": {
+    "algorithm": "sha256",
+    "recipe": "For sorted git ls-files apps/web services/api packages/schemas pnpm-lock.yaml package.json: append UTF-8 path, NUL, file bytes, NUL. Hash the concatenation.",
+    "fileCount": 713,
+    "sha256": "9ea72e7586c165cc857cbc766fde3e8de3bddfd1fac9554db38b1e358d06c9d7"
+  },
+  "files": {
+    "connector-desktop-geometry.json": "f756642db07a113897c1c062064c127464c52bccdd7479681506c762cb34c59b",
+    "connector-mobile-geometry-390.json": "7c584c31708153607947b82583d24308b9cfb15c78e2a31218cc1fc02123b510",
+    "connectors-mobile-light.png": "61fab5b6ef7479c4e81920cdfd9fd7de6b9f36e19d9b85c38e818e9bf62f8635",
+    "data-route-missing.png": "08a392b0c24ac6654a3d51d93575ee942440ba70ba4ee8d62de563a3f8df1f90",
+    "mobile-navigation-keyboard.json": "59bafbd058300773be556079d158b6f0aafb56c7bf1c28dd7a325bbba21e65c7",
+    "ontology-keyboard.json": "f45eb6edd9cf4a3758e791de5ee4abe963f620cd3e0df2d91a1b3b02530cfb99",
+    "ontology-mobile-geometry.json": "a4c481b50fb943fd0bb893b7f400c050d14afe6add27dae35eb0375398071b68",
+    "ontology-mobile-graph-measured.png": "cd8e3579b7f4adbae52b7e9af55ef69f72c3880436cadf9b70a7293e10346d16",
+    "ontology-mobile-list.png": "a5490ecb3c25225f854ded6b6adc1e51d4211f736b37bc07788bd904500ac6c3",
+    "overview-desktop.png": "d4bd3520e5ada31fcf0bdd4e2a1b6ba0f093be19aafeff56a674687dfe234772",
+    "policy-keyboard.json": "a982b41de2d1c481ec25b53fb6a28dd867be967e869607260e4589b5514929c2",
+    "route-observations.json": "a64581194fdba9986ac4b1926894f733d51a1723fa790ea40423dacc8f2b839e",
+    "settings-keyboard.json": "bb6a82807aefc7a6bb7f2d7c7b4ef7b1547b5f8df343790b3338c2613b01e8e8"
+  }
+}

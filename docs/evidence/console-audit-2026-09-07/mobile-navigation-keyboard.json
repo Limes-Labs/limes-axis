@@ -1,0 +1,73 @@
+{
+  "focusSteps": [
+    {
+      "inDialog": true,
+      "name": "Overview"
+    },
+    {
+      "inDialog": true,
+      "name": "Approvals3"
+    },
+    {
+      "inDialog": true,
+      "name": "Workflows"
+    },
+    {
+      "inDialog": true,
+      "name": "Agents"
+    },
+    {
+      "inDialog": true,
+      "name": "Data"
+    },
+    {
+      "inDialog": true,
+      "name": "Ontology"
+    },
+    {
+      "inDialog": true,
+      "name": "Connectors"
+    },
+    {
+      "inDialog": true,
+      "name": "Models"
+    },
+    {
+      "inDialog": true,
+      "name": "Policies"
+    },
+    {
+      "inDialog": true,
+      "name": "Audit"
+    },
+    {
+      "inDialog": true,
+      "name": "Simulation"
+    },
+    {
+      "inDialog": true,
+      "name": "Tenants"
+    },
+    {
+      "inDialog": true,
+      "name": "Settings"
+    },
+    {
+      "inDialog": true,
+      "name": "Close"
+    },
+    {
+      "inDialog": true,
+      "name": "Overview"
+    },
+    {
+      "inDialog": true,
+      "name": "Approvals3"
+    }
+  ],
+  "afterEscape": {
+    "bodyOverflow": "hidden auto",
+    "dialogCount": 0,
+    "name": "Open navigation. Current section: Overview"
+  }
+}

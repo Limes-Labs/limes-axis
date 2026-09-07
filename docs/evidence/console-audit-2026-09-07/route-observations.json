@@ -1,0 +1,1494 @@
+[
+  {
+    "label": "overview-desktop",
+    "capturedAt": "2026-09-07T21:47:25.881Z",
+    "url": "http://127.0.0.1:13350/",
+    "title": "Overview",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Overview"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Overview"
+      },
+      {
+        "level": "H2",
+        "text": "Plant Operations Cockpit"
+      },
+      {
+        "level": "H2",
+        "text": "Recent audit evidence"
+      },
+      {
+        "level": "H2",
+        "text": "Generate governed evidence"
+      },
+      {
+        "level": "H2",
+        "text": "System health"
+      }
+    ]
+  },
+  {
+    "label": "data-desktop",
+    "capturedAt": "2026-09-07T21:46:13.376Z",
+    "url": "http://127.0.0.1:13350/data",
+    "title": "Page not found \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Page not found"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Page not found"
+      },
+      {
+        "level": "H2",
+        "text": "Nothing lives at this address"
+      }
+    ]
+  },
+  {
+    "label": "approvals-desktop",
+    "capturedAt": "2026-09-07T21:47:28.759Z",
+    "url": "http://127.0.0.1:13350/approvals",
+    "title": "Approvals \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Approvals"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Approvals"
+      },
+      {
+        "level": "H2",
+        "text": "Approval inbox"
+      },
+      {
+        "level": "H2",
+        "text": "Expedite supplier batch"
+      },
+      {
+        "level": "H2",
+        "text": "Decision history"
+      },
+      {
+        "level": "H2",
+        "text": "After the decision"
+      },
+      {
+        "level": "H2",
+        "text": "No approved actions yet"
+      }
+    ]
+  },
+  {
+    "label": "workflows-desktop",
+    "capturedAt": "2026-09-07T21:47:29.928Z",
+    "url": "http://127.0.0.1:13350/workflows",
+    "title": "Workflows \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Workflows"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Workflows"
+      },
+      {
+        "level": "H2",
+        "text": "No workflow runs yet"
+      }
+    ]
+  },
+  {
+    "label": "agents-desktop",
+    "capturedAt": "2026-09-07T21:47:31.127Z",
+    "url": "http://127.0.0.1:13350/agents",
+    "title": "Agents \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Agents"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Agents"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Daily Brief Agent"
+      },
+      {
+        "level": "H2",
+        "text": "Action registry"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Generate daily plant brief"
+      },
+      {
+        "level": "H3",
+        "text": "API dry-run payload"
+      }
+    ]
+  },
+  {
+    "label": "connectors-desktop",
+    "capturedAt": "2026-09-07T21:47:32.521Z",
+    "url": "http://127.0.0.1:13350/connectors",
+    "title": "Connectors \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Connectors"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Connectors"
+      },
+      {
+        "level": "H2",
+        "text": "Import connector manifests"
+      },
+      {
+        "level": "H2",
+        "text": "2 connectors"
+      },
+      {
+        "level": "H2",
+        "text": "Manufacturing assets CSV"
+      }
+    ]
+  },
+  {
+    "label": "ontology-desktop",
+    "capturedAt": "2026-09-07T21:48:00.073Z",
+    "url": "http://127.0.0.1:13350/ontology",
+    "title": "Ontology \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Ontology"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Ontology"
+      },
+      {
+        "level": "H2",
+        "text": "Typed entities and relationships"
+      },
+      {
+        "level": "H2",
+        "text": "Connected context"
+      },
+      {
+        "level": "H2",
+        "text": "axis-deferred-ontology-query-adapter"
+      },
+      {
+        "level": "H2",
+        "text": "Read boundaries"
+      }
+    ]
+  },
+  {
+    "label": "model-routing-desktop",
+    "capturedAt": "2026-09-07T21:48:01.107Z",
+    "url": "http://127.0.0.1:13350/model-routing",
+    "title": "Models \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Models"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Models"
+      },
+      {
+        "level": "H2",
+        "text": "Routing telemetry"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Daily Brief Agent"
+      },
+      {
+        "level": "H3",
+        "text": "local-or-approved-provider"
+      },
+      {
+        "level": "H3",
+        "text": "Local vLLM Gateway"
+      },
+      {
+        "level": "H2",
+        "text": "EUR 0.76 estimated"
+      },
+      {
+        "level": "H2",
+        "text": "OpenTelemetry-first"
+      }
+    ]
+  },
+  {
+    "label": "policies-desktop",
+    "capturedAt": "2026-09-07T21:48:01.906Z",
+    "url": "http://127.0.0.1:13350/policies",
+    "title": "Policies \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Policies"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Policies"
+      },
+      {
+        "level": "H2",
+        "text": "Policy registry"
+      },
+      {
+        "level": "H2",
+        "text": "No policies match the current filters"
+      },
+      {
+        "level": "H2",
+        "text": "New policy"
+      },
+      {
+        "level": "H3",
+        "text": "Advisory dry run for the drafted scope"
+      }
+    ]
+  },
+  {
+    "label": "audit-desktop",
+    "capturedAt": "2026-09-07T21:48:04.619Z",
+    "url": "http://127.0.0.1:13350/audit",
+    "title": "Audit \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Audit"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Audit"
+      },
+      {
+        "level": "H2",
+        "text": "Audit explorer"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Connector Evidence Invariants Read"
+      },
+      {
+        "level": "H3",
+        "text": "Redacted fields"
+      },
+      {
+        "level": "H2",
+        "text": "Export bundle"
+      }
+    ]
+  },
+  {
+    "label": "simulation-desktop",
+    "capturedAt": "2026-09-07T21:48:05.869Z",
+    "url": "http://127.0.0.1:13350/simulation",
+    "title": "Simulation \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Simulation"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Simulation"
+      },
+      {
+        "level": "H2",
+        "text": "No replay history yet"
+      }
+    ]
+  },
+  {
+    "label": "tenants-desktop",
+    "capturedAt": "2026-09-07T21:48:06.519Z",
+    "url": "http://127.0.0.1:13350/tenants",
+    "title": "Tenants \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Tenants"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Tenants"
+      },
+      {
+        "level": "H2",
+        "text": "Tenant registry"
+      },
+      {
+        "level": "H2",
+        "text": "New tenant"
+      }
+    ]
+  },
+  {
+    "label": "settings-desktop",
+    "capturedAt": "2026-09-07T21:48:07.101Z",
+    "url": "http://127.0.0.1:13350/settings",
+    "title": "Settings \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "System status"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "System status"
+      },
+      {
+        "level": "H2",
+        "text": "Axis API boundary"
+      },
+      {
+        "level": "H2",
+        "text": "Production gates"
+      }
+    ]
+  },
+  {
+    "label": "settings-sessions-desktop",
+    "capturedAt": "2026-09-07T21:48:07.790Z",
+    "url": "http://127.0.0.1:13350/settings/sessions",
+    "title": "Sessions \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Session security"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Session security"
+      },
+      {
+        "level": "H2",
+        "text": "No authenticated operator session"
+      }
+    ]
+  },
+  {
+    "label": "ontology-sheet-desktop",
+    "capturedAt": "2026-09-07T21:49:53.815Z",
+    "url": "http://127.0.0.1:13350/ontology?view=list&entity_id=asset_batch_q_1842",
+    "title": "Ontology \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Ontology"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Ontology"
+      },
+      {
+        "level": "H2",
+        "text": "Typed entities and relationships"
+      },
+      {
+        "level": "H2",
+        "text": "Connected context"
+      },
+      {
+        "level": "H2",
+        "text": "axis-deferred-ontology-query-adapter"
+      },
+      {
+        "level": "H2",
+        "text": "Read boundaries"
+      },
+      {
+        "level": "H2",
+        "text": "Batch Q-1842"
+      },
+      {
+        "level": "H2",
+        "text": "Read-only entity context"
+      },
+      {
+        "level": "H2",
+        "text": "1 connected"
+      },
+      {
+        "level": "H2",
+        "text": "Access and evidence"
+      }
+    ]
+  },
+  {
+    "label": "ontology-detail-desktop",
+    "capturedAt": "2026-09-07T21:50:14.165Z",
+    "url": "http://127.0.0.1:13350/ontology/asset_batch_q_1842",
+    "title": "Entity asset_batch_q_1842 \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Entity detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Entity detail"
+      },
+      {
+        "level": "H2",
+        "text": "Batch Q-1842"
+      },
+      {
+        "level": "H2",
+        "text": "Read-only entity context"
+      },
+      {
+        "level": "H2",
+        "text": "1 connected"
+      },
+      {
+        "level": "H2",
+        "text": "Access and evidence"
+      }
+    ]
+  },
+  {
+    "label": "tenant-detail-desktop",
+    "capturedAt": "2026-09-07T21:50:19.222Z",
+    "url": "http://127.0.0.1:13350/tenants/tenant_demo_manufacturing",
+    "title": "Tenant tenant_demo_manufacturing \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Tenant detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Tenant detail"
+      },
+      {
+        "level": "H2",
+        "text": "Ravenna Works"
+      },
+      {
+        "level": "H2",
+        "text": "Provisioning and lifecycle transitions"
+      },
+      {
+        "level": "H2",
+        "text": "Suspend tenant"
+      },
+      {
+        "level": "H2",
+        "text": "Consumption over the last 7 days"
+      },
+      {
+        "level": "H2",
+        "text": "Quota overrides"
+      },
+      {
+        "level": "H2",
+        "text": "Console terminology"
+      }
+    ]
+  },
+  {
+    "label": "policies-populated-desktop",
+    "capturedAt": "2026-09-07T21:51:33.081Z",
+    "url": "http://127.0.0.1:13350/policies",
+    "title": "Policies \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Policies"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Policies"
+      },
+      {
+        "level": "H2",
+        "text": "Policy registry"
+      },
+      {
+        "level": "H2",
+        "text": "New policy"
+      },
+      {
+        "level": "H3",
+        "text": "Advisory dry run for the drafted scope"
+      }
+    ]
+  },
+  {
+    "label": "policy-detail-desktop",
+    "capturedAt": "2026-09-07T21:51:35.209Z",
+    "url": "http://127.0.0.1:13350/policies/console_audit_gate",
+    "title": "Policy console_audit_gate \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Policy detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Policy detail"
+      },
+      {
+        "level": "H2",
+        "text": "Console audit approval gate"
+      },
+      {
+        "level": "H2",
+        "text": "domains Operations / risk low"
+      },
+      {
+        "level": "H2",
+        "text": "Deterministic decision order"
+      }
+    ]
+  },
+  {
+    "label": "policy-revisions-keyboard",
+    "capturedAt": "2026-09-07T21:51:53.547Z",
+    "url": "http://127.0.0.1:13350/policies/console_audit_gate?tab=revisions",
+    "title": "Policy console_audit_gate \u00b7 Axis Console",
+    "theme": "dark",
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    },
+    "rootWidth": 1440,
+    "scrollWidth": 1440,
+    "mains": 1,
+    "h1s": [
+      "Policy detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Policy detail"
+      },
+      {
+        "level": "H2",
+        "text": "Console audit approval gate"
+      },
+      {
+        "level": "H2",
+        "text": "Append a revision to r1"
+      },
+      {
+        "level": "H2",
+        "text": "1 append-only revisions"
+      },
+      {
+        "level": "H2",
+        "text": "Diff a revision against the current one"
+      }
+    ]
+  },
+  {
+    "label": "overview-mobile-dark",
+    "capturedAt": "2026-09-07T21:52:33.863Z",
+    "url": "http://127.0.0.1:13350/",
+    "title": "Overview",
+    "theme": "dark",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Overview"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Overview"
+      },
+      {
+        "level": "H2",
+        "text": "Plant Operations Cockpit"
+      },
+      {
+        "level": "H2",
+        "text": "Recent audit evidence"
+      },
+      {
+        "level": "H2",
+        "text": "Generate governed evidence"
+      },
+      {
+        "level": "H2",
+        "text": "System health"
+      }
+    ]
+  },
+  {
+    "label": "overview-mobile-light",
+    "capturedAt": "2026-09-07T21:53:38.107Z",
+    "url": "http://127.0.0.1:13350/",
+    "title": "Overview",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Overview"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Overview"
+      },
+      {
+        "level": "H2",
+        "text": "Plant Operations Cockpit"
+      },
+      {
+        "level": "H2",
+        "text": "Recent audit evidence"
+      },
+      {
+        "level": "H2",
+        "text": "Generate governed evidence"
+      },
+      {
+        "level": "H2",
+        "text": "System health"
+      }
+    ]
+  },
+  {
+    "label": "approvals-mobile-light",
+    "capturedAt": "2026-09-07T21:53:39.316Z",
+    "url": "http://127.0.0.1:13350/approvals",
+    "title": "Approvals \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Approvals"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Approvals"
+      },
+      {
+        "level": "H2",
+        "text": "Approval inbox"
+      },
+      {
+        "level": "H2",
+        "text": "Expedite supplier batch"
+      },
+      {
+        "level": "H2",
+        "text": "Decision history"
+      },
+      {
+        "level": "H2",
+        "text": "After the decision"
+      },
+      {
+        "level": "H2",
+        "text": "No approved actions yet"
+      }
+    ]
+  },
+  {
+    "label": "workflows-mobile-light",
+    "capturedAt": "2026-09-07T21:53:40.843Z",
+    "url": "http://127.0.0.1:13350/workflows",
+    "title": "Workflows \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Workflows"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Workflows"
+      },
+      {
+        "level": "H2",
+        "text": "No workflow runs yet"
+      }
+    ]
+  },
+  {
+    "label": "agents-mobile-light",
+    "capturedAt": "2026-09-07T21:53:42.058Z",
+    "url": "http://127.0.0.1:13350/agents",
+    "title": "Agents \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Agents"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Agents"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Daily Brief Agent"
+      },
+      {
+        "level": "H2",
+        "text": "Action registry"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Generate daily plant brief"
+      },
+      {
+        "level": "H3",
+        "text": "API dry-run payload"
+      }
+    ]
+  },
+  {
+    "label": "connectors-mobile-light",
+    "capturedAt": "2026-09-07T21:53:45.114Z",
+    "url": "http://127.0.0.1:13350/connectors",
+    "title": "Connectors \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Connectors"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Connectors"
+      },
+      {
+        "level": "H2",
+        "text": "Import connector manifests"
+      },
+      {
+        "level": "H2",
+        "text": "2 connectors"
+      },
+      {
+        "level": "H2",
+        "text": "Manufacturing assets CSV"
+      }
+    ]
+  },
+  {
+    "label": "data-mobile-light",
+    "capturedAt": "2026-09-07T21:53:46.299Z",
+    "url": "http://127.0.0.1:13350/data",
+    "title": "Page not found \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Page not found"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Page not found"
+      },
+      {
+        "level": "H2",
+        "text": "Nothing lives at this address"
+      }
+    ]
+  },
+  {
+    "label": "ontology-mobile-light",
+    "capturedAt": "2026-09-07T21:53:48.492Z",
+    "url": "http://127.0.0.1:13350/ontology",
+    "title": "Ontology \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Ontology"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Ontology"
+      },
+      {
+        "level": "H2",
+        "text": "Typed entities and relationships"
+      },
+      {
+        "level": "H2",
+        "text": "Connected context"
+      },
+      {
+        "level": "H2",
+        "text": "axis-deferred-ontology-query-adapter"
+      },
+      {
+        "level": "H2",
+        "text": "Read boundaries"
+      }
+    ]
+  },
+  {
+    "label": "model-routing-mobile-light",
+    "capturedAt": "2026-09-07T21:53:51.150Z",
+    "url": "http://127.0.0.1:13350/model-routing",
+    "title": "Models \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Models"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Models"
+      },
+      {
+        "level": "H2",
+        "text": "Routing telemetry"
+      },
+      {
+        "level": "H2",
+        "text": "4 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Daily Brief Agent"
+      },
+      {
+        "level": "H3",
+        "text": "local-or-approved-provider"
+      },
+      {
+        "level": "H3",
+        "text": "Local vLLM Gateway"
+      },
+      {
+        "level": "H2",
+        "text": "EUR 0.76 estimated"
+      },
+      {
+        "level": "H2",
+        "text": "OpenTelemetry-first"
+      }
+    ]
+  },
+  {
+    "label": "policies-mobile-light",
+    "capturedAt": "2026-09-07T21:53:58.327Z",
+    "url": "http://127.0.0.1:13350/policies",
+    "title": "Policies \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Policies"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Policies"
+      },
+      {
+        "level": "H2",
+        "text": "Policy registry"
+      },
+      {
+        "level": "H2",
+        "text": "New policy"
+      },
+      {
+        "level": "H3",
+        "text": "Advisory dry run for the drafted scope"
+      }
+    ]
+  },
+  {
+    "label": "audit-mobile-light",
+    "capturedAt": "2026-09-07T21:53:58.923Z",
+    "url": "http://127.0.0.1:13350/audit",
+    "title": "Audit \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Audit"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Audit"
+      },
+      {
+        "level": "H2",
+        "text": "Audit explorer"
+      },
+      {
+        "level": "H2",
+        "text": "8 visible"
+      },
+      {
+        "level": "H2",
+        "text": "Connector Evidence Invariants Read"
+      },
+      {
+        "level": "H3",
+        "text": "Redacted fields"
+      },
+      {
+        "level": "H2",
+        "text": "Export bundle"
+      }
+    ]
+  },
+  {
+    "label": "simulation-mobile-light",
+    "capturedAt": "2026-09-07T21:53:59.515Z",
+    "url": "http://127.0.0.1:13350/simulation",
+    "title": "Simulation \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Simulation"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Simulation"
+      },
+      {
+        "level": "H2",
+        "text": "No replay history yet"
+      }
+    ]
+  },
+  {
+    "label": "tenants-mobile-light",
+    "capturedAt": "2026-09-07T21:54:00.078Z",
+    "url": "http://127.0.0.1:13350/tenants",
+    "title": "Tenants \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Tenants"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Tenants"
+      },
+      {
+        "level": "H2",
+        "text": "Tenant registry"
+      },
+      {
+        "level": "H2",
+        "text": "New tenant"
+      }
+    ]
+  },
+  {
+    "label": "settings-mobile-light",
+    "capturedAt": "2026-09-07T21:54:01.146Z",
+    "url": "http://127.0.0.1:13350/settings",
+    "title": "Settings \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "System status"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "System status"
+      },
+      {
+        "level": "H2",
+        "text": "Axis API boundary"
+      },
+      {
+        "level": "H2",
+        "text": "Production gates"
+      }
+    ]
+  },
+  {
+    "label": "settings-sessions-mobile-light",
+    "capturedAt": "2026-09-07T21:54:02.282Z",
+    "url": "http://127.0.0.1:13350/settings/sessions",
+    "title": "Sessions \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Session security"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Session security"
+      },
+      {
+        "level": "H2",
+        "text": "No authenticated operator session"
+      }
+    ]
+  },
+  {
+    "label": "ontology-asset_batch_q_1842-mobile-light",
+    "capturedAt": "2026-09-07T21:54:04.828Z",
+    "url": "http://127.0.0.1:13350/ontology/asset_batch_q_1842",
+    "title": "Entity asset_batch_q_1842 \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Entity detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Entity detail"
+      },
+      {
+        "level": "H2",
+        "text": "Batch Q-1842"
+      },
+      {
+        "level": "H2",
+        "text": "Read-only entity context"
+      },
+      {
+        "level": "H2",
+        "text": "1 connected"
+      },
+      {
+        "level": "H2",
+        "text": "Access and evidence"
+      }
+    ]
+  },
+  {
+    "label": "policies-console_audit_gate-mobile-light",
+    "capturedAt": "2026-09-07T21:54:08.648Z",
+    "url": "http://127.0.0.1:13350/policies/console_audit_gate",
+    "title": "Policy console_audit_gate \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Policy detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Policy detail"
+      },
+      {
+        "level": "H2",
+        "text": "Console audit approval gate"
+      },
+      {
+        "level": "H2",
+        "text": "domains Operations / risk low"
+      },
+      {
+        "level": "H2",
+        "text": "Deterministic decision order"
+      }
+    ]
+  },
+  {
+    "label": "tenants-tenant_demo_manufacturing-mobile-light",
+    "capturedAt": "2026-09-07T21:54:14.039Z",
+    "url": "http://127.0.0.1:13350/tenants/tenant_demo_manufacturing",
+    "title": "Tenant tenant_demo_manufacturing \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Tenant detail"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Tenant detail"
+      },
+      {
+        "level": "H2",
+        "text": "Ravenna Works"
+      },
+      {
+        "level": "H2",
+        "text": "Provisioning and lifecycle transitions"
+      },
+      {
+        "level": "H2",
+        "text": "Suspend tenant"
+      },
+      {
+        "level": "H2",
+        "text": "Consumption over the last 7 days"
+      },
+      {
+        "level": "H2",
+        "text": "Quota overrides"
+      },
+      {
+        "level": "H2",
+        "text": "Console terminology"
+      }
+    ]
+  },
+  {
+    "label": "connectors-mobile-390-geometry",
+    "capturedAt": "2026-09-07T21:56:17.237Z",
+    "url": "http://127.0.0.1:13350/connectors",
+    "title": "Connectors \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Connectors"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Connectors"
+      },
+      {
+        "level": "H2",
+        "text": "Import connector manifests"
+      },
+      {
+        "level": "H2",
+        "text": "2 connectors"
+      },
+      {
+        "level": "H2",
+        "text": "Manufacturing assets CSV"
+      }
+    ]
+  },
+  {
+    "label": "ontology-mobile-list",
+    "capturedAt": "2026-09-07T21:57:27.710Z",
+    "url": "http://127.0.0.1:13350/ontology?view=list",
+    "title": "Ontology \u00b7 Axis Console",
+    "theme": "light",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "rootWidth": 390,
+    "scrollWidth": 390,
+    "mains": 1,
+    "h1s": [
+      "Ontology"
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Ontology"
+      },
+      {
+        "level": "H2",
+        "text": "Typed entities and relationships"
+      },
+      {
+        "level": "H2",
+        "text": "Connected context"
+      },
+      {
+        "level": "H2",
+        "text": "axis-deferred-ontology-query-adapter"
+      },
+      {
+        "level": "H2",
+        "text": "Read boundaries"
+      }
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "focus": "Revisions",
+  "focusRole": "tab",
+  "selected": [
+    "Revisions"
+  ],
+  "url": "http://127.0.0.1:13350/policies/console_audit_gate?tab=revisions"
+}

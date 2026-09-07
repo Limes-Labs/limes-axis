@@ -1,0 +1,30 @@
+{
+  "focus": "Support",
+  "tabs": [
+    {
+      "label": "Readiness",
+      "left": -18.643465042114254,
+      "right": 82.35085105895996,
+      "selected": "false"
+    },
+    {
+      "label": "Identity",
+      "left": 86.34942626953125,
+      "right": 167.7059555053711,
+      "selected": "false"
+    },
+    {
+      "label": "Deployment",
+      "left": 171.7045440673828,
+      "right": 284.32527923583984,
+      "selected": "false"
+    },
+    {
+      "label": "Support",
+      "left": 288.3238525390625,
+      "right": 373.1747055053711,
+      "selected": "true"
+    }
+  ],
+  "viewport": 390
+}

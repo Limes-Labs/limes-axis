@@ -1,0 +1,100 @@
+{
+  "keyboardLinks": 18,
+  "labels": [
+    {
+      "height": 5.909090518951416,
+      "text": "Ravenna Operations",
+      "width": 49.779815673828125
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Batch Q-1842",
+      "width": 33.18891906738281
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Inbound Motors Batch",
+      "width": 55.31248474121094
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Line 2 Packaging",
+      "width": 44.2542724609375
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Press 4",
+      "width": 19.360794067382812
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Ravenna Works",
+      "width": 35.951690673828125
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Maintenance Reschedule",
+      "width": 60.84515380859375
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Quality Hold Review",
+      "width": 52.549713134765625
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Supplier Delay Review",
+      "width": 58.07528305053711
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Quality Risk Agent",
+      "width": 49.77982711791992
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Supply Risk Agent",
+      "width": 47.01704406738281
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Maintenance Window Risk",
+      "width": 63.60795211791992
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Quality Drift Risk",
+      "width": 49.77982711791992
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Supplier Delay Risk",
+      "width": 52.549713134765625
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Expedite Supplier Batch",
+      "width": 63.60795211791992
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Place Batch Q-1842 On Hold",
+      "width": 71.90338897705078
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "Egress Blocked Audit Event",
+      "width": 71.90340423583984
+    },
+    {
+      "height": 5.909090518951416,
+      "text": "External Model Egress Policy",
+      "width": 77.43606567382812
+    }
+  ],
+  "viewBox": "0 0 720 560",
+  "viewport": {
+    "height": 844,
+    "width": 390
+  }
+}

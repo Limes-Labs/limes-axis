@@ -1,6 +1,27 @@
 # LimesAxis Console Redesign Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+## Current execution status — 7–8 September 2026
+
+This is a historical design/implementation plan. Most phase deliverables now
+exist. **Do not execute its unchecked steps as an unimplemented backlog.**
+Use the [route audit and current phase checklist](../../console-audit-2026-09-07.md)
+from [#350](https://github.com/Limes-Labs/limes-axis/issues/350) to select work.
+The old per-phase branch/PR names are historical proposals, not delivery claims.
+
+- [x] Audit all 16 current pages plus the advertised Data destination, on desktop
+  and mobile, with source provenance and explicit verification limits.
+- [x] Reconcile phases 1–6 with implemented components and existing tests.
+- [ ] [#428: valid Data navigation](https://github.com/Limes-Labs/limes-axis/issues/428).
+- [ ] [#429: connector registry before advanced import](https://github.com/Limes-Labs/limes-axis/issues/429).
+- [ ] [#430: readable narrow-screen entity lookup](https://github.com/Limes-Labs/limes-axis/issues/430).
+- [ ] [#431: entity-sheet focus restoration](https://github.com/Limes-Labs/limes-axis/issues/431).
+- [ ] [#351: simple/advanced onboarding](https://github.com/Limes-Labs/limes-axis/issues/351),
+  extending the existing checklist and wizard.
+
+Each follow-up is a small, separately verified issue/branch/PR. Preserve existing
+authorization, tenancy, audit, credentials and execution boundaries. Unperformed
+live gates remain explicitly NOT RUN in the current audit; visual completion
+does not close them. The original steps below are retained for design context.
 
 **Goal:** Rebuild the governance console per `docs/superpowers/specs/2026-07-10-console-redesign-design.md`: action-first pages, unified states, grouped nav, plain-first copy with Inspect drawers, connector/simulation flows wired to the existing API, guided onboarding + demo switch.
 

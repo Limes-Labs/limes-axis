@@ -1,0 +1,24 @@
+{
+  "headings": [
+    {
+      "label": "Connectors",
+      "y": 92.4857940673828
+    },
+    {
+      "label": "Import connector manifests",
+      "y": 393.1960144042969
+    },
+    {
+      "label": "2 connectors",
+      "y": 851.71875
+    },
+    {
+      "label": "Manufacturing assets CSV",
+      "y": 851.71875
+    }
+  ],
+  "viewport": {
+    "height": 1000,
+    "width": 1440
+  }
+}

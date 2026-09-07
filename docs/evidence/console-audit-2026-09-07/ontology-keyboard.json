@@ -1,0 +1,12 @@
+{
+  "enterOpened": true,
+  "initialFocus": "Close",
+  "escapeAfterClick": {
+    "dialogs": 0,
+    "isOpener": false,
+    "label": null,
+    "tag": "BODY",
+    "url": "http://127.0.0.1:13350/ontology?view=list",
+    "viewport": 390
+  }
+}
