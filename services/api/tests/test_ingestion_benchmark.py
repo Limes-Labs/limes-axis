@@ -1,8 +1,12 @@
 """Deterministic experiment contracts, never shared-runner latency assertions."""
 
+import gzip
+import hashlib
 import importlib
 import json
 import socket
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 from threading import Barrier, Event, Lock
@@ -193,6 +197,20 @@ def test_backpressure_rejects_explicitly_and_recovers_capacity(modules):
     assert queue.offer(pipeline.Job("heavy", 3)) is None
     queue.finish(first)
     assert len(queue.pending) == 3 and not any(queue.active.values())
+
+
+def test_last_acknowledgement_cannot_hide_an_exceeded_time_budget(modules, corpus, monkeypatch):
+    _benchmark, _fixture, pipeline = modules
+    with corpus.source("document", "heavy") as source:
+        source.limits = source.limits.model_copy(update={"max_records": corpus.workload.records})
+        ticks = iter((0, 0, 0, 31))
+        monkeypatch.setattr(pipeline, "monotonic", lambda: next(ticks))
+        sink, meter = pipeline.DigestSink(source), pipeline.BufferMeter()
+        with pytest.raises(TimeoutError):
+            pipeline.consume(source, sink, materialize=False, meter=meter)
+        # Acknowledged work is retained truthfully even though the timing failed.
+        assert sink.rows == corpus.workload.records and sink.position.checkpoint is not None
+        assert meter.rows == meter.bytes == 0
 
 
 def test_fair_turns_keep_a_slow_tenant_from_taking_every_slot(modules):
@@ -424,3 +442,61 @@ def test_fixture_caps_do_not_raise_current_extraction_limits(modules):
             workload.request_seconds
             <= Settings.model_fields["source_ingestion_extraction_time_budget_seconds"].default
         )
+
+
+def test_checked_capture_integrity_and_derived_summaries(modules):
+    benchmark = modules[0]
+    directory = Path(__file__).resolve().parents[3] / "docs/benchmarks/ingestion-v1"
+    manifest = benchmark.read_json((directory / "manifest.json").read_text())
+    paths = {item["path"] for item in manifest["artifacts"]}
+    assert paths == {
+        path.name for path in directory.iterdir() if path.name not in {"README.md", "manifest.json"}
+    }
+    for item in manifest["artifacts"]:
+        content = (directory / item["path"]).read_bytes()
+        assert len(content) == item["bytes"]
+        assert hashlib.sha256(content).hexdigest() == item["sha256"]
+    for profile in ("representative", "saturation"):
+        with gzip.open(directory / f"{profile}.json.gz", "rt") as stream:
+            report = benchmark.read_json(stream.read())
+        benchmark.validate_report(report)
+        assert report["trials"] == 3
+        assert report["provenance"]["head"] == manifest["captured_source_commit"]
+        assert not report["provenance"]["working_tree_dirty"]
+        summary = benchmark.read_json((directory / f"{profile}-summary.json").read_text())
+        assert benchmark.summarize(report) == summary
+        assert summary["validation_status"] == summary["comparison_status"] == "PASS"
+        assert summary["deployment_slo_status"] == "NOT RUN"
+        rejected = [len(result["rejected"]) for result in report["results"]]
+        assert set(rejected) == ({0} if profile == "representative" else {16})
+
+
+def test_cli_smoke_writes_complete_verified_artifacts(modules, tmp_path):
+    benchmark = modules[0]
+    output = tmp_path / "capture"
+    result = subprocess.run(
+        [
+            sys.executable,
+            benchmark.__file__,
+            "run",
+            "--profile",
+            "smoke",
+            "--trials",
+            "1",
+            "--output",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    with gzip.open(output / "report.json.gz", "rt") as stream:
+        report = benchmark.read_json(stream.read())
+    summary = benchmark.read_json((output / "summary.json").read_text())
+    benchmark.validate_report(report)
+    assert len(report["results"]) == 16
+    assert benchmark.summarize(report) == summary
+    assert summary["validation_status"] == "PASS"
+    assert summary["comparison_status"] == "NOT RUN"
+    assert not (output / "partial.json").exists()

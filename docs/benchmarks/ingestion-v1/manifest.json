@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "captured_source_commit": "56d988cf1356a0b717294eabb0c00aead3a58063",
+  "artifacts": [
+    {
+      "path": "representative-summary.json",
+      "bytes": 13947,
+      "sha256": "1ffbfc3b0d581103c8b210a32d15b22b9da76a5f2993b4fbcb3c25494f17a7e9"
+    },
+    {
+      "path": "representative.json.gz",
+      "bytes": 29422,
+      "sha256": "90e1ee56f1625b99f48ccd857428fe94da217018a998642d641138b0948df5bb"
+    },
+    {
+      "path": "saturation-summary.json",
+      "bytes": 13997,
+      "sha256": "35cf554b283f255e2a759241618b2d2b1bb8db1700b9d49363fd5e84bf24ce5c"
+    },
+    {
+      "path": "saturation.json.gz",
+      "bytes": 27352,
+      "sha256": "7930dc181bd011fdd36e78b04a7f2163c540153b0db38f764b53066fe764d94e"
+    }
+  ]
+}

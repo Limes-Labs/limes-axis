@@ -196,6 +196,10 @@ def consume(source, sink: DigestSink, *, materialize: bool, meter: BufferMeter):
             sink.commit(batch, candidate)
             staged.popleft()
             meter.remove(len(batch.records), size)
+        if monotonic() >= deadline:
+            # A final slow acknowledgement must not turn an exceeded job budget
+            # into a successful timing sample. Already acknowledged progress stays.
+            raise TimeoutError("job budget exhausted")
     finally:
         for batch, _candidate, size in staged:
             meter.remove(len(batch.records), size)

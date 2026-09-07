@@ -6,6 +6,9 @@ checks their completed content and checkpoints. It measures the cost of bufferin
 multiple batches, bounded concurrency and tenant turn scheduling before any change
 to the production outbox is considered.
 
+The [version 1 capture](benchmarks/ingestion-v1/README.md) records three-trial
+representative and saturation results, with complete samples and provenance.
+
 ## Current runtime and the experiment boundary
 
 The production [PostgreSQL reader](../services/api/src/axis_api/connector_source_extraction.py)
