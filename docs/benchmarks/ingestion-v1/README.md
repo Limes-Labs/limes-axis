@@ -9,8 +9,8 @@ metrics, comparison policy and reproduction commands.
 
 ## Capture
 
-- Runtime/harness commit: `56d988cf1356a0b717294eabb0c00aead3a58063`, clean at both
-  capture starts, 2026-09-07 at 18:39 and 18:42 UTC.
+- Runtime/harness commit: `8f2c0a5a4befcf9bf3937a9020572070a25817b3`, clean at both
+  capture starts, 2026-09-07 at 19:00:06 and 19:02:50 UTC.
 - Host: macOS 26.5.2, ARM64; Python 3.12.6; SQLite 3.45.3. Each trial ran in a
   fresh process. Relevant source/lockfile hashes and dependency versions are
   retained in the reports.
@@ -30,26 +30,26 @@ provider latency.
 
 | Source fixture | Materialized serial | Streamed serial | Streamed parallel | Streamed tenant turns |
 | --- | --- | --- | --- | --- |
-| REST / in-process HTTP | 1.263 / 1,435.3 | 1.156 / 1,485.0 | 0.372 / 1,728.6 | 0.754 / 1,634.0 |
-| Database / SQLite | 1.222 / 307.8 | 1.226 / 162.1 | 0.253 / 273.2 | 0.736 / 229.6 |
-| Object / S3 reader with file provider | 1.702 / 772.8 | 1.703 / 388.3 | 1.037 / 1,048.8 | 1.393 / 897.5 |
-| Document / UTF-8 files | 1.249 / 310.5 | 1.124 / 156.8 | 0.299 / 309.6 | 0.711 / 224.2 |
+| REST / in-process HTTP | 1.238 / 1,434.9 | 1.204 / 1,484.5 | 0.425 / 1,643.4 | 0.787 / 1,634.5 |
+| Database / SQLite | 1.198 / 307.8 | 1.169 / 162.1 | 0.258 / 276.0 | 0.696 / 229.4 |
+| Object / S3 reader with file provider | 1.788 / 772.8 | 1.786 / 388.3 | 1.187 / 1,076.4 | 1.513 / 857.0 |
+| Document / UTF-8 files | 1.223 / 312.2 | 1.136 / 159.6 | 0.323 / 296.4 | 0.735 / 226.4 |
 
-Streaming serially reduces traced peak memory by **47.3%, 49.8% and 49.5%** for
+Streaming serially reduces traced peak memory by **47.3%, 49.8% and 48.9%** for
 the database, object and document fixtures. Those differences exceed the local
 noise allowance. REST's **+3.5%** difference remains within noise, despite retained
 batch rows falling from 128 to 16. This shows why a smaller retained payload
 cannot be treated as a guaranteed reduction in total Python allocations.
 
 Moving from serial streaming to four-worker FIFO reduces elapsed time by
-**67.8%, 79.3%, 39.1% and 73.4%**, respectively, with traced peak increases of
-**16.4%, 68.6%, 170.1% and 97.5%**. These are workload/fixture observations, not
+**64.7%, 77.9%, 33.6% and 71.6%**, respectively, with traced peak increases of
+**10.7%, 70.2%, 177.2% and 85.7%**. These are workload/fixture observations, not
 predictions for real REST, PostgreSQL, MinIO or document services. In particular,
 the object reader still retains a bounded full listing and checkpoint inventory;
 batch streaming does not remove those structures.
 
 Process RSS high-water marks include imports and fixture preparation and remain
-86.3–92.3 MiB in these captures. The traced-heap differences above do not
+86.8–91.3 MiB in these captures. The traced-heap differences above do not
 establish an equivalent RSS reduction.
 
 ## Queue delay and the cost of tenant turns
@@ -63,10 +63,10 @@ from three trials. This small sample is not an SLO acceptance result.
 
 | Source fixture | FIFO parallel queue p95 | Tenant-turn queue p95 | Total elapsed change, turns vs FIFO |
 | --- | --- | --- | --- |
-| REST | 312.2 ms | 131.9 ms | +102.8% |
-| Database | 203.4 ms | 102.0 ms | +190.5% |
-| Object | 903.5 ms | 362.9 ms | +34.3% |
-| Document | 245.1 ms | 115.2 ms | +138.0% |
+| REST | 396.7 ms | 150.8 ms | +85.3% |
+| Database | 220.4 ms | 109.0 ms | +169.4% |
+| Object | 1,263.1 ms | 475.5 ms | +27.5% (within noise) |
+| Document | 295.4 ms | 124.2 ms | +127.9% |
 
 This candidate trades total drain time for lower waiting time for light tenants.
 It is evidence for evaluating per-tenant concurrency separately from a global
