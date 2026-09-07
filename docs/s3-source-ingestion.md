@@ -71,6 +71,8 @@ be considered. The default enumeration limit is 1,000 objects, configurable up
 to 10,000; every listed entry counts, including excluded file types. Exceeding
 that limit fails the request without progress. An empty or partial listing is
 never interpreted as proof of deletion after a transport error.
+Keys containing dot path segments, backslashes or control characters are
+rejected before GET to keep prefix scope independent of URL normalization.
 
 Object identity and absence are scoped to the activated binding. Objects are
 keyed by SHA-256 of their key. Unchanged ETag and size skip GET;
@@ -85,6 +87,8 @@ Metadata views carry counts, digests and checkpoint revision, with no raw
 cursor. An `observed_absent` payload references the old object hash after a
 complete listing; it does not delete an Axis asset or claim transactional
 source deletion. Concurrent bucket changes can be observed on a later request.
+Its raw-key and content fields are explicitly null, matching the discovered
+nullable field contract.
 
 The per-object limit defaults to 256 KiB and cannot exceed 1 MiB. Existing
 ingestion limits further bound emitted records, encoded bytes and elapsed

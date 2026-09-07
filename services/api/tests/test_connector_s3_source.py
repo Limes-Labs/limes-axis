@@ -118,9 +118,11 @@ def test_incremental_content_and_absence_are_payload_events(s3_profile):
     assert fourth.records == (
         {
             "object_id": first.records[0]["object_id"],
+            "object_key": None,
             "kind": "observed_absent",
             "content_sha256": third.records[0]["content_sha256"],
             "size_bytes": 0,
+            "content_base64": None,
         },
     )
     assert fourth_source.next_inventory == {}
@@ -211,6 +213,10 @@ def test_discovery_exposes_one_pinned_collection_without_reading_payload(s3_prof
     result = source.discover(DiscoveryRequest(context=read_request(source).context))
     assert result.resources[0].resource_id == s3_profile.resource_name
     assert result.resources[0].source_revision == s3_profile.revision
+    assert {field.name for field in result.resources[0].fields if field.nullable} == {
+        "object_key",
+        "content_base64",
+    }
     assert source.client.gets == []
 
 
@@ -255,3 +261,14 @@ def test_source_changed_between_listing_and_get_is_retried_without_progress(s3_p
         source.read(read_request(source))
     assert source.next_inventory is None
     assert client.responses[0].closed and client.responses[0].released
+
+
+@pytest.mark.parametrize(
+    "key", ["approved/./a.json", "approved/../a.json", "approved/a\\b.json", "approved/a\nb.json"]
+)
+def test_object_scope_rejects_noncanonical_keys_before_get(s3_profile, key):
+    client = MemoryS3({key: b"fixture"})
+    source = S3ObjectSource(s3_profile, client)
+    with pytest.raises(ConnectorError, match="resource_mismatch"):
+        source.read(read_request(source))
+    assert client.gets == [] and source.next_inventory is None

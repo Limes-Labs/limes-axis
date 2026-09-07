@@ -157,7 +157,9 @@ class S3ObjectSource:
                     **self.selection.model_dump(),
                     fields=tuple(
                         SourceField(
-                            name=name, value_type="integer" if name == "size_bytes" else "string"
+                            name=name,
+                            value_type="integer" if name == "size_bytes" else "string",
+                            nullable=name in {"object_key", "content_base64"},
                         )
                         for name in OBJECT_FIELDS
                     ),
@@ -210,6 +212,9 @@ class S3ObjectSource:
                 not isinstance(key, str)
                 or not key.startswith(self.profile.prefix)
                 or len(key.encode()) > 1024
+                or any(part in {".", ".."} for part in key.split("/"))
+                or "\\" in key
+                or any(ord(character) < 32 or ord(character) == 127 for character in key)
             ):
                 raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
             if item.is_dir or not any(
@@ -246,9 +251,11 @@ class S3ObjectSource:
             if item is None:
                 record = {
                     "object_id": identity,
+                    "object_key": None,
                     "kind": "observed_absent",
                     "content_sha256": previous["content_sha256"],
                     "size_bytes": 0,
+                    "content_base64": None,
                 }
                 candidate = None
             else:
