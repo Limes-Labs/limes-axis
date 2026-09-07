@@ -8,7 +8,7 @@ import json
 import re
 from datetime import datetime
 
-from pydantic import Field, SecretBytes, SecretStr, ValidationError
+from pydantic import Field, SecretBytes, SecretStr
 
 from axis_sdk.connector_authoring.contracts import (
     ContractModel,
@@ -180,5 +180,5 @@ class ReferenceWebhookAdapter:
                 resource=self.binding.resource,
                 envelope=event,
             )
-        except (ValueError, UnicodeError, RecursionError, ValidationError):
+        except (ValueError, RecursionError):
             raise EventError(EventErrorCode.INVALID_ENVELOPE) from None

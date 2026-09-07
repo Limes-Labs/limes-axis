@@ -1,6 +1,6 @@
 # ADR 0014: Governed event ingress in the authoring SDK
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Owners:** @metaforismo
 - **Related:** [Issue #340](https://github.com/Limes-Labs/limes-axis/issues/340), [event contract](../connector-events.md)
