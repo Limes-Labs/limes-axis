@@ -356,6 +356,8 @@ def compare(before, after):
         new = [run for run in after["runs"] if run["journey"] == journey]
         if min(len(old), len(new)) < 3:
             raise ValueError("Comparison requires at least three trials per journey")
+        if len(old) != len(new):
+            raise ValueError("Comparison requires the same number of trials")
         if any(run["summary"]["successful"] < 100 for run in old + new):
             raise ValueError("Comparison requires at least 100 successful samples per trial")
         for runs in (old, new):
@@ -452,7 +454,11 @@ def compare(before, after):
 
 def validate_report(report):
     require_finite_numbers(report)
-    if report["schema_version"] != 1 or report.get("complete") is not True:
+    if (
+        type(report["schema_version"]) is not int
+        or report["schema_version"] != 1
+        or report.get("complete") is not True
+    ):
         raise ValueError("Incomplete or unsupported report")
     journeys = report["provenance"]["journeys"]
     if not journeys or len(set(journeys)) != len(journeys) or not set(journeys) <= set(JOURNEYS):
@@ -470,6 +476,25 @@ def validate_report(report):
             raise ValueError("Missing arrivals or invalid measurement duration")
         if not samples or [r["sequence"] for r in samples] != list(range(len(samples))):
             raise ValueError("Missing or duplicated request samples")
+        for sample in samples:
+            if type(sample["ok"]) is not bool or type(sample["dropped"]) is not bool:
+                raise ValueError("Invalid sample outcome")
+            if sample["ok"] and (sample["dropped"] or sample["error"] is not None):
+                raise ValueError("Successful work cannot be dropped or failed")
+            if not sample["ok"] and not isinstance(sample["error"], str):
+                raise ValueError("Failed work requires an error classification")
+            for key in ("sequence", "statements", "response_bytes"):
+                if type(sample[key]) is not int or sample[key] < 0:
+                    raise ValueError("Invalid sample count")
+            for key in ("arrival_seconds", "scheduler_lag_ms", "sql_ms"):
+                if type(sample[key]) not in (int, float) or sample[key] < 0:
+                    raise ValueError("Invalid sample timing")
+            for key in ("latency_ms", "service_ms"):
+                if sample["dropped"]:
+                    if sample[key] is not None:
+                        raise ValueError("Dropped work cannot have a response latency")
+                elif type(sample[key]) not in (int, float) or sample[key] < 0:
+                    raise ValueError("Invalid response timing")
         recomputed = summarize(
             samples,
             report["provenance"]["seconds_per_journey"],
@@ -479,6 +504,26 @@ def validate_report(report):
             raise ValueError("Summary differs from retained samples")
         if summary["offered"] != summary["successful"] + sum(summary["errors"].values()):
             raise ValueError("Invalid request accounting")
+        for key in (
+            "pool_at_end",
+            "pool_peak",
+            "pool_mean_occupied",
+            "process_peak_rss_mb",
+            "cpu_cores_used",
+            "database_growth_mb_per_minute",
+        ):
+            if type(run["resources"][key]) not in (int, float) or run["resources"][key] < 0:
+                raise ValueError("Invalid resource measurement")
+        parameters = report["provenance"]["parameters"]
+        expected_budget = evaluate(
+            summary,
+            run["resources"],
+            parameters["journeys"][run["journey"]],
+            parameters["resource_budgets"],
+            profiled=report["provenance"]["mode"] == "profile",
+        )
+        if run["budget"] != expected_budget:
+            raise ValueError("Stored budget result differs from measurements")
 
 
 async def run(args):
@@ -547,8 +592,10 @@ def main():
         result = compare(read_json(args.before), read_json(args.after))
         print(json.dumps(result, indent=2))
         return 0 if result["status"] == "PASS" else 1
-    except (OSError, ValueError, KeyError) as exc:
-        parser.exit(2, f"Benchmark input/evidence error: {type(exc).__name__}\n")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        # Validation errors contain our classifications, not HTTP bodies or SQL values.
+        reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+        parser.exit(2, f"Benchmark input/evidence error: {reason}\n")
 
 
 if __name__ == "__main__":

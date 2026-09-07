@@ -106,6 +106,7 @@ make benchmark-performance BENCHMARK_ARGS='run --profile sme-single-node --mode 
 
 Omitting `--journey` executes all four journeys **sequentially**, with independent
 datasets. This isolates their costs; it is not a mixed-traffic capacity run.
+The process is reused across phases and garbage collection stays enabled.
 `--seconds` overrides a phase duration up to one hour. `--repeat` is bounded at
 10 and the entire report at 100,000 offered arrivals. Output directories must
 not exist, preserving earlier evidence. Interrupted reports keep `complete=false`
@@ -175,8 +176,9 @@ make benchmark-performance BENCHMARK_ARGS='compare /tmp/axis-sme-before/report.j
 ```
 
 The comparison also reads gzip-compressed JSON. It rejects incomplete reports,
-incompatible provenance, missing/duplicate request samples, changed summaries,
-duplicate trials, fewer than three trials, fewer than 100 successful samples,
+incompatible provenance, missing/duplicate request samples, changed summaries or
+budget outcomes, negative timings/counts, duplicate or unequal trial batches,
+fewer than three trials, fewer than 100 successful samples,
 errors, leaked connections and profiler runs.
 
 For p95/p99, compare the median across trials. The allowed increase is the largest

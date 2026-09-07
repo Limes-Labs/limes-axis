@@ -263,7 +263,12 @@ def report(benchmark, workload):
                 "summary": deepcopy(summary),
                 "resources": deepcopy(resources),
                 "samples": deepcopy(samples),
-                "budget": {"status": "PASS"},
+                "budget": benchmark.evaluate(
+                    summary,
+                    resources,
+                    workload["profiles"]["sme-single-node"]["journeys"]["console"],
+                    workload["profiles"]["sme-single-node"]["resource_budgets"],
+                ),
             }
             for trial in range(3)
         ],
@@ -312,6 +317,26 @@ def test_insufficient_repetitions_never_pass(benchmark, report):
     changed = deepcopy(report)
     changed["runs"].pop()
     with pytest.raises(ValueError, match="three trials"):
+        benchmark.compare(report, changed)
+
+
+def test_unequal_batches_and_false_budget_results_are_rejected(benchmark, report):
+    changed = deepcopy(report)
+    extra = deepcopy(changed["runs"][0])
+    extra["trial"] = 3
+    changed["runs"].append(extra)
+    with pytest.raises(ValueError, match="same number"):
+        benchmark.compare(report, changed)
+    changed = deepcopy(report)
+    changed["runs"][0]["budget"]["status"] = "FAIL"
+    with pytest.raises(ValueError, match="Stored budget"):
+        benchmark.compare(report, changed)
+
+
+def test_negative_latency_cannot_be_presented_as_improved_work(benchmark, report):
+    changed = deepcopy(report)
+    change_latencies(benchmark, changed, [-1, -1, -1])
+    with pytest.raises(ValueError, match="Invalid response timing"):
         benchmark.compare(report, changed)
 
 

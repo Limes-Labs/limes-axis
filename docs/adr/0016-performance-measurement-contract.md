@@ -1,6 +1,6 @@
 # ADR 0016: Versioned performance workloads and comparable evidence
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Owners:** @metaforismo
 - **Related:** [Issue #361](https://github.com/Limes-Labs/limes-axis/issues/361), [performance contract](../performance-baseline.md)
