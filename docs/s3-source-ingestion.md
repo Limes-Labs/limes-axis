@@ -72,7 +72,8 @@ to 10,000; every listed entry counts, including excluded file types. Exceeding
 that limit fails the request without progress. An empty or partial listing is
 never interpreted as proof of deletion after a transport error.
 
-Objects are keyed by SHA-256 of their key. Unchanged ETag and size skip GET;
+Object identity and absence are scoped to the activated binding. Objects are
+keyed by SHA-256 of their key. Unchanged ETag and size skip GET;
 changed validators trigger a conditional `If-Match` GET, exact length checks
 and SHA-256 hashing of the downloaded bytes. An identical content hash avoids
 a duplicate upsert even if the ETag changed. This relies on the S3 provider's
@@ -97,7 +98,9 @@ The worker prepares SQL evidence, releases the connection, then reads and
 stores the payload. A final SQL transaction fences the unexpired request
 claim, locks and rechecks current binding/manifest/lease/handle/policy rows,
 compares the binding checkpoint revision, and commits checkpoint, batch
-metadata, audit and terminal request state together. A competing checkpoint,
+metadata, audit and terminal request state together. Batch identities hash a
+framed tuple of tenant, connector, request, binding and revision so long IDs
+and delimiter characters cannot exceed the SQL key bound or alias other tuples. A competing checkpoint,
 lost claim, revoked grant, partial object, storage error or audit failure never
 advances that attempt's checkpoint. Operational failures use the existing
 retry/backoff/dead-letter and governed requeue paths.
@@ -135,6 +138,9 @@ isolated PostgreSQL server with CREATEDB, then run:
 ```sh
 AXIS_RUN_S3_POSTGRES=1 AXIS_MODEL_CONTRACT_BACKEND=postgresql uv run pytest tests/integration/test_s3_checkpoint_postgres.py -q
 ```
+
+The live API CI job runs both integration files with a pinned loopback MinIO
+container, a disposable PostgreSQL database and unconditional fixture cleanup.
 
 Local MinIO, SQLite host transactions and PostgreSQL migration/CAS evidence are
 separate from production certification. AWS S3, non-env credential providers,

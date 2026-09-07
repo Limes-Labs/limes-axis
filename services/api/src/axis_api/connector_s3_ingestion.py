@@ -125,6 +125,20 @@ class CompletedS3Extraction:
     outcome: SourceExtractionOutcome
     checkpoint_state: dict
 
+    @property
+    def batch_key(self) -> str:
+        # IDs can contain colons and each can be 180 characters. Hash a framed
+        # identity so distinct tuples cannot alias and the SQL key stays bounded.
+        identity = (
+            self.prepared.tenant_id,
+            S3_SOURCE_CONNECTOR_ID,
+            self.prepared.request_id,
+            self.prepared.binding_id,
+            self.prepared.revision + 1,
+        )
+        digest = hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+        return f"s3:{digest}"
+
 
 class S3CheckpointConflict(RuntimeError):
     """A different committed request advanced the binding; retry from current state."""
@@ -432,7 +446,7 @@ class S3IngestionRuntime:
         ):
             raise S3CheckpointConflict()
         outcome = result.outcome
-        batch_key = f"{prepared.request_id}:{prepared.binding_id}:{prepared.revision + 1}"
+        batch_key = result.batch_key
         event = repository.append_audit_event(
             AuditEventCreate(
                 tenant_id=prepared.tenant_id,

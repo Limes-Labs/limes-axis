@@ -1,9 +1,13 @@
 # ADR 0017: S3 source reads in the governed ingestion host
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Owners:** Limes Labs maintainers
-- **Related:** [Issue #335](https://github.com/Limes-Labs/limes-axis/issues/335)
+- **Related:** [Issue #335](https://github.com/Limes-Labs/limes-axis/issues/335),
+  [PR #419](https://github.com/Limes-Labs/limes-axis/pull/419)
+- **Review:** Implementation self-review covers scope/lease/egress gates, read
+  budgets, retry and checkpoint ownership, atomic metadata commit, bounded
+  batch identities and retained route contracts.
 
 ## Context
 
@@ -56,6 +60,7 @@ may remain unreferenced after failure. No second outbox or scheduler is added.
 reads, failure/replay, lease/claim loss and SQL connection release. The actual
 MinIO contract crosses the 1,000-object listing page; an isolated migrated
 PostgreSQL contract races two checkpoint updates and permits one winner.
+The live API CI job runs both MinIO and PostgreSQL contracts on each change.
 Production AWS, WORM, identity/network deployment and scale are NOT RUN.
 
 ## Supersession

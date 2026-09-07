@@ -1342,10 +1342,7 @@ class SourceIngestionOutboxDispatcher:
                 "extraction_performed": True,
                 "batches": [
                     {
-                        "batch_key": (
-                            f"{row.request_id}:{result.prepared.binding_id}:"
-                            f"{result.prepared.revision + 1}"
-                        ),
+                        "batch_key": result.batch_key,
                         "binding_id": result.prepared.binding_id,
                         "resource_name": result.prepared.profile.resource_name,
                         "row_count": result.outcome.row_count,

@@ -54,13 +54,14 @@ def host_engine(tmp_path):
 
 
 @pytest.fixture
-def host(tmp_path, s3_profile, host_engine):  # noqa: F811
+def host(tmp_path, s3_profile, host_engine, request):  # noqa: F811
     engine = host_engine
     factory = sessionmaker(engine, autoflush=False, expire_on_commit=False)
     profile = s3_profile.model_copy(
         update={"bucket": f"host-{uuid4().hex}", "tenant_id": f"s3-{uuid4().hex}"}
     )
     tenant = profile.tenant_id
+    binding_id = getattr(request, "param", {}).get("binding_id", "binding")
     connector = "s3_object_storage"
     settings = Settings(
         connector_sync_execution_enabled=True,
@@ -200,7 +201,7 @@ def host(tmp_path, s3_profile, host_engine):  # noqa: F811
                 activation_reason="Read fixture prefix",
                 selections=[
                     {
-                        "binding_id": "binding",
+                        "binding_id": binding_id,
                         "resource_name": profile.resource_name,
                         "expected_schema_fingerprint": found.result.tables[0].column_fingerprint,
                     }
@@ -218,6 +219,7 @@ def host(tmp_path, s3_profile, host_engine):  # noqa: F811
         client=client,
         store=store,
         profile=profile,
+        binding_id=binding_id,
     )
     yield value
 
@@ -233,7 +235,7 @@ def submit(host, request_id="request"):
                 requested_by="test",
                 reason="Incremental fixture read",
                 stage="extract",
-                selections=[{"binding_id": "binding"}],
+                selections=[{"binding_id": host.binding_id}],
             ),
             principal_scopes=[SOURCE_INGESTION_SCOPE],
             max_selections=20,
@@ -256,7 +258,7 @@ def dispatch(host):
 def state(host):
     with session_scope(host.factory) as session:
         repo = AxisPersistenceRepository(session)
-        binding = repo.get_connector_source_binding(host.profile.tenant_id, "binding")
+        binding = repo.get_connector_source_binding(host.profile.tenant_id, host.binding_id)
         batches = list(session.scalars(select(ConnectorSourceExtractionBatch)).all())
         return binding.source_checkpoint_revision, binding.source_checkpoint, batches
 
@@ -405,3 +407,41 @@ def test_operational_retry_reads_again_but_commits_one_payload(host):
     database_bytes = Path(persisted).read_bytes()
     for private_value in (b"private-name.json", b"private-data", b"fixture-private-secret"):
         assert private_value not in database_bytes
+
+
+@pytest.mark.parametrize("host", [{"binding_id": "b" * 180}], indirect=True)
+def test_maximum_request_and_binding_ids_produce_bounded_batch_identity(host):
+    submit(host, "r" * 180)
+    assert dispatch(host).completed == 1
+    batch = state(host)[2][0]
+    assert len(batch.batch_key) <= 240
+    assert batch.binding_id == "b" * 180
+    assert batch.request_id == "r" * 180
+
+
+def test_batch_identity_frames_ids_instead_of_joining_delimiters(host):
+    from dataclasses import replace
+
+    from axis_api.connector_s3_ingestion import CompletedS3Extraction
+    from axis_api.connector_s3_source import OBJECT_SCHEMA_FINGERPRINT
+
+    with session_scope(host.factory) as session:
+        prepared = host.runtime.prepare_selection(
+            AxisPersistenceRepository(session),
+            tenant_id=host.profile.tenant_id,
+            connector_id="s3_object_storage",
+            request_id="a:b",
+            binding_id=host.binding_id,
+            resource_name=host.profile.resource_name,
+            pinned_schema_fingerprint=OBJECT_SCHEMA_FINGERPRINT,
+            executed_by="test",
+        )
+    result = host.runtime.extract_prepared(prepared)
+    first = CompletedS3Extraction(
+        replace(prepared, binding_id="c"), result.outcome, result.checkpoint_state
+    )
+    second = CompletedS3Extraction(
+        replace(prepared, request_id="a", binding_id="b:c"), result.outcome, result.checkpoint_state
+    )
+    assert first.batch_key != second.batch_key
+    assert first.batch_key == replace(first).batch_key
