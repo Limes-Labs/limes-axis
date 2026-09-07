@@ -156,6 +156,13 @@ records and can leave append-only evidence, so use a disposable database.
 
 ## Performance measurement
 
+The [ingestion experiments](ingestion-performance.md) compare batch streaming,
+materialization, bounded parallelism and tenant turns on four explicit source
+fixtures. Run `make benchmark-ingestion` with
+`BENCHMARK_ARGS='run --profile representative --trials 3 --output /tmp/axis-ingestion'`.
+This evaluates local strategies; production scheduling and live-provider capacity
+remain separate evidence.
+
 The [workload and baseline contract](performance-baseline.md) defines SME and
 enterprise fixture shapes, bounded load/soak runs, SQL/resource measurements,
 Python stack profiles and a comparison policy. Run `make benchmark-performance`
