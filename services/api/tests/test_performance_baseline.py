@@ -1,6 +1,7 @@
 """The measurement contract is tested; CI does not gate noisy machine latency."""
 
 import asyncio
+import hashlib
 import importlib
 import json
 import socket
@@ -40,6 +41,25 @@ def test_nearest_rank_and_empty_distributions(benchmark):
         "p99": 99,
         "max": 100,
     }
+
+
+def test_published_capture_accounting_and_profile_artifacts(benchmark):
+    directory = Path(__file__).resolve().parents[3] / "docs/benchmarks/performance-v1"
+    captures = list(directory.glob("*.json.gz"))
+    assert len(captures) == 8
+    for path in captures:
+        benchmark.validate_report(benchmark.read_json(path))
+    for name in ("console-sme.svg", "console-enterprise.svg"):
+        assert ElementTree.parse(directory / name).getroot().tag.endswith("svg")
+    manifest = benchmark.read_json(directory / "manifest.json")
+    recorded = {item["path"] for item in manifest["artifacts"]}
+    assert recorded == {
+        path.name for path in directory.iterdir() if path.name not in {"README.md", "manifest.json"}
+    }
+    for item in manifest["artifacts"]:
+        content = (directory / item["path"]).read_bytes()
+        assert len(content) == item["bytes"]
+        assert hashlib.sha256(content).hexdigest() == item["sha256"]
 
 
 @pytest.mark.parametrize(
