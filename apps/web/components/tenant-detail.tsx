@@ -22,6 +22,7 @@ import {
   type TenantRecord,
 } from "@/lib/platform-tenants";
 import { formatTimestamp } from "@/lib/format";
+import { strings } from "@/lib/strings";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -35,6 +36,7 @@ type TimelineEntry = {
   actor: string | null;
   reason: string | null;
   auditEventId: string | null;
+  auditEventSuperseded: boolean;
 };
 
 function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
@@ -49,6 +51,7 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
       // creation entry only when no later lifecycle change has occurred.
       auditEventId:
         tenant.suspended_at || tenant.reactivated_at ? null : tenant.audit_event_id ?? null,
+      auditEventSuperseded: Boolean(tenant.suspended_at || tenant.reactivated_at),
     },
   ];
 
@@ -60,6 +63,7 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
       actor: tenant.suspended_by ?? null,
       reason: tenant.suspension_reason ?? null,
       auditEventId: tenant.status === "suspended" ? tenant.audit_event_id ?? null : null,
+      auditEventSuperseded: tenant.status !== "suspended",
     });
   }
 
@@ -71,6 +75,7 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
       actor: tenant.reactivated_by ?? null,
       reason: null,
       auditEventId: tenant.status === "active" ? tenant.audit_event_id ?? null : null,
+      auditEventSuperseded: tenant.status !== "active",
     });
   }
 
@@ -248,7 +253,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               </div>
               <div>
                 <p className="eyebrow m-0">Audit Event ID</p>
-                <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{entry.auditEventId ?? "Superseded by later event"}</p>
+                <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{entry.auditEventId ?? (entry.auditEventSuperseded ? "Superseded by later event" : strings.clarity.auditEventIdUnavailable)}</p>
               </div>
             </div>
           ))}
