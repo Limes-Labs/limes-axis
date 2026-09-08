@@ -299,7 +299,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
 
       <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
         <summary className="cursor-pointer font-medium text-ink">Quota technical details</summary>
-        <div className="mt-3 grid min-w-0 gap-2.5">
+        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug break-words">Required permission: {platformTenantQuotaScope}.</p>
           <p className="m-0 break-words font-mono text-[13px]">GET / PUT {buildPlatformTenantQuotasPath(tenantId)}</p>
           {quotaNotes.map((note) => (
