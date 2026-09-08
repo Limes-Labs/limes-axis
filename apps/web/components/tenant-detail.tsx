@@ -269,16 +269,16 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <TenantVocabularyEditor tenantId={tenant.tenant_id} />
 
       {notes.length > 0 ? (
-        <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-          <p className="eyebrow m-0">Tenant Notes</p>
-          <div className="grid min-w-0 gap-2.5">
+        <details className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+          <summary className="cursor-pointer text-sm font-medium text-ink">Tenant notes</summary>
+          <div className="mt-3 grid min-w-0 gap-2.5">
             {notes.map((note) => (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
                 {note}
               </p>
             ))}
           </div>
-        </section>
+        </details>
       ) : null}
     </div>
   );

@@ -343,6 +343,26 @@ describe("ModelRoutingConsole no-match filter state", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("counts blocked routes within the visible filter result and restores the count on reset", async () => {
+    const user = userEvent.setup();
+    render(<ModelRoutingConsole />);
+    expect(screen.getByRole("heading", { name: "2 visible" })).toBeInTheDocument();
+    expect(screen.getByText("1 blocked")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Provider"), "local-vllm");
+    expect(screen.getByRole("heading", { name: "1 visible" })).toBeInTheDocument();
+    expect(screen.getByText("0 blocked")).toBeInTheDocument();
+    expect(screen.queryByText("1 blocked")).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Decision"), "blocked_by_default");
+    expect(screen.getByRole("heading", { name: "No routes match the current filters" })).toBeInTheDocument();
+    expect(screen.queryByText("1 blocked")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(screen.getByRole("heading", { name: "2 visible" })).toBeInTheDocument();
+    expect(screen.getByText("1 blocked")).toBeInTheDocument();
+  });
+
   it("opens the selected dependency through the existing route filters and detail selection", async () => {
     const user = userEvent.setup();
     render(<ModelRoutingConsole />);

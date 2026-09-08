@@ -210,7 +210,7 @@ function ReferenceModelRouting({
           (provider) => provider.provider_id === selectedRoute.provider_id,
         ) ?? routing.provider_options[0])
       : null;
-  const blockedRoutes = routing ? countBlockedModelRoutes(routing) : 0;
+  const blockedRoutes = routing ? countBlockedModelRoutes({ ...routing, routes: filteredRoutes }) : 0;
   const estimatedCost = routing ? sumEstimatedModelCost(routing) : 0;
 
   function updateFilter(filterName: keyof ModelRoutingFilters, value: string) {
