@@ -133,7 +133,7 @@ export function ConsoleTopbar({
         ) : null}
       </div>
       <div
-        className="ops-toolbar-icons flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:flex-nowrap max-sm:gap-1"
+        className="ops-toolbar-icons flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:flex-nowrap max-sm:gap-0.5"
         aria-label="Utility actions"
       >
         <button

@@ -206,7 +206,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Created By</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{tenant.created_by}</p>
+          <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{tenant.created_by}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatTimestamp(tenant.created_at)}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
@@ -216,7 +216,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Last Audit Event</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{tenant.audit_event_type}</p>
+          <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{tenant.audit_event_type}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words font-mono text-[13px]">{tenant.audit_event_id ?? "No audit id"}</p>
         </article>
       </div>
