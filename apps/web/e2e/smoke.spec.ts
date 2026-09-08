@@ -584,6 +584,7 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Agent API unavailable" })).toBeVisible();
+    await page.locator("summary").filter({ hasText: /^Action catalog:/ }).click();
     await expect(page.getByRole("heading", { name: "Action API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback agent records are disabled.")).toBeVisible();
     await expect(page.getByText("Local fallback action records are disabled.")).toBeVisible();
@@ -1085,6 +1086,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/policies");
 
+    await page.locator("summary").filter({ hasText: /^Create policy$/ }).click();
     const createForm = page.getByRole("form", { name: "Platform policy authoring" });
     await expect(createForm).toBeVisible();
 
@@ -1561,6 +1563,7 @@ test.describe("Axis console smoke", () => {
       0,
     );
 
+    await page.locator("summary").filter({ hasText: /^Create organization$/ }).click();
     const provisionForm = page.getByRole("form", { name: "Tenant provisioning" });
     await expect(provisionForm).toBeVisible();
 

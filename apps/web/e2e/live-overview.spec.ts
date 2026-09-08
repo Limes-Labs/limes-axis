@@ -256,44 +256,23 @@ test.describe("Axis live overview demo", () => {
     await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
 
     const dashboardLayout = await page.evaluate(() => {
-      const dashboard = document.querySelector<HTMLElement>(".ops-dashboard-grid");
-      const main = document.querySelector<HTMLElement>(".ops-dashboard-main");
-      const rightRail = document.querySelector<HTMLElement>(".ops-right-rail");
+      const attention = document.querySelector<HTMLElement>('section[aria-label="Needs attention"]');
+      const chart = document.querySelector<HTMLElement>('section[aria-label="Activity by category"]');
       const kpiCards = Array.from(document.querySelectorAll<HTMLElement>("[data-kpi-card]"));
-
-      const rect = (element: HTMLElement | null) => {
-        if (!element) {
-          return null;
-        }
-
-        const bounds = element.getBoundingClientRect();
-        return {
-          bottom: Math.round(bounds.bottom),
-          height: Math.round(bounds.height),
-          top: Math.round(bounds.top),
-          width: Math.round(bounds.width),
-        };
-      };
-
+      const attentionBounds = attention?.getBoundingClientRect();
+      const chartBounds = chart?.getBoundingClientRect();
       return {
-        hasDashboard: Boolean(dashboard),
-        hasMain: Boolean(main),
-        hasRightRail: Boolean(rightRail),
-        gridColumns: dashboard ? window.getComputedStyle(dashboard).gridTemplateColumns : "",
+        attentionWidth: attentionBounds?.width ?? 0,
+        chartWidth: chartBounds?.width ?? 0,
+        topDifference: Math.abs((attentionBounds?.top ?? 0) - (chartBounds?.top ?? 0)),
         kpiWidths: kpiCards.map((card) => Math.round(card.getBoundingClientRect().width)),
-        main: rect(main),
-        rightRail: rect(rightRail),
       };
     });
 
-    expect(dashboardLayout.hasDashboard).toBe(true);
-    expect(dashboardLayout.hasMain).toBe(true);
-    expect(dashboardLayout.hasRightRail).toBe(true);
-    expect(dashboardLayout.gridColumns.trim().split(/\s+/)).toHaveLength(1);
+    expect(dashboardLayout.attentionWidth).toBeGreaterThanOrEqual(500);
+    expect(dashboardLayout.chartWidth).toBeGreaterThanOrEqual(260);
+    expect(dashboardLayout.topDifference).toBeLessThanOrEqual(8);
     expect(Math.min(...dashboardLayout.kpiWidths)).toBeGreaterThanOrEqual(170);
-    expect(dashboardLayout.rightRail?.top ?? 0).toBeGreaterThan(
-      dashboardLayout.main?.top ?? 0,
-    );
     await expectNoHorizontalOverflow(page);
   });
 });

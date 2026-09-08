@@ -230,7 +230,7 @@ export function OntologyExplorer() {
             <div className="grid gap-2 sm:hidden" aria-label={strings.clarity.businessObjects}>
               {ontology.nodes.map((node) => (
                 <button key={node.node_id} type="button" onClick={() => navigateToEntity(node.node_id)}
-                  className="grid min-w-0 gap-2 rounded-xl border border-line p-3 text-left dark:border-white/10">
+                  className="grid min-w-0 justify-items-start gap-2 rounded-xl border border-line p-3 text-left dark:border-white/10">
                   <span className="font-medium text-ink">{node.label}</span>
                   <span className="text-xs text-muted">{formatNodeType(node.node_type)} · {node.domain}</span>
                   <span className="text-sm text-muted">{node.summary}</span>
