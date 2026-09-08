@@ -502,6 +502,8 @@ const workflows = {
 
 /** Connector console copy: list, detail tabs, wizard, and preview-sync runs. */
 const connectors = {
+  partialCsvPreview: (included: number, total: number) =>
+    `Preview includes ${included.toLocaleString("en")} of ${total.toLocaleString("en")} records. ${(total - included).toLocaleString("en")} records are not included.`,
   list: {
     eyebrow: "Registry",
     neverSampled: "Never sampled",

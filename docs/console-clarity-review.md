@@ -22,7 +22,7 @@ All 17 routes below were reviewed at 1440 × 1000 and 390 × 844 in the in-app b
 | Workflows | Verbose purpose statement; empty runtime state | Short purpose statement; retain the accurate empty state | Reference scenarios must not become invented workflow runs |
 | Agents | Agent registry and action catalog competed on one page | Agent registry first; action catalog and registry notes expandable | Operators can inspect an agent before opening technical action definitions |
 | Data | Sidebar destination returned 404 | Route renders the existing tenant-bound catalog; narrow ignore exception tracks the source file | Make the existing capability reachable without changing its contract |
-| Connectors | Manifest JSON import above the registry | Registry first; advanced import below it in an explicit disclosure | Standard connection and monitoring remain the primary path |
+| Connectors | Manifest JSON import above the registry | Registry first; advanced import below it in an explicit disclosure | Standard connection and monitoring remain the primary path; partial CSV previews report included and excluded counts without labeling valid over-limit rows as invalid |
 | Ontology | Generic title, graph labels shrank on phones, adapter identifiers displayed as headings | Business-object title, mobile object cards by default and optional full-size scrollable graph with 13px labels; sources/access details expandable | Keep relationships readable and technical inspection available |
 | Entity detail | Dense but relevant business attributes and relationships | Short purpose and object summary before metrics; preserve relationship and history detail | These facts explain the selected object and its evidence |
 | Models | Verbose purpose; monitoring implementation named as a main section | Short purpose; separate agent and model metadata lines; expandable monitoring details | Preserve example/live distinction, cost basis and routing boundaries |
@@ -46,6 +46,10 @@ Native disclosures retain form drafts while collapsed and remain keyboard-operab
 ## Validation
 
 The pull request records final local, browser and CI results separately. Local `make verify` passed: API 2,560 passed / 43 skipped, worker 64 passed / 3 skipped, SDK 278 passed, web 992 passed, schema and repository contract gates passed. The skipped integration lanes require their own live services. Browser fixtures are synthetic and local; they are not hosted deployment proof. Workflow and simulation were reviewed in their empty runtime states, sessions in the unauthenticated gate, and policies/tenant/entity detail with seeded records.
+
+A bounded synthetic load exercise used the unchanged API through ASGI and a separate PostgreSQL database: 3,978 measured requests with four clients, zero contract mismatches, CSV tiers of 100/1,000/5,000 rows. Ten-second preview windows measured p95 64.05/95.06/147.49 ms. The mapping cap remains 500 rows; all input rows are validated, but excess valid rows are not mapped. Five invalid/schema variants per tier were blocked as expected. This is preview/query evidence with fixture identity, not bulk ingestion, network, IdP, saturation or production-capacity proof. The UI now states partial preview coverage in the wizard and Runs. The local evidence bundle retains the exact fixtures, results, manifest and reproduction script.
+
+For a future scouter, the existing discovery/read ports, schema observations, reviewed source activation and checkpoint/evidence owners are reusable. A semantic mapping proposal must remain distinct from an observed schema and require review before activation or ontology promotion. Sparse-data analysis must distinguish observed, derived, proposed and unknown values; interpolation cannot fill missing production facts. No crawler or semantic inference is implemented by this UI revision.
 
 ## Platform layers and product completeness
 
