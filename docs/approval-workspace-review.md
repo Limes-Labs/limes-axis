@@ -18,7 +18,7 @@ Issue [#436](https://github.com/Limes-Labs/limes-axis/issues/436) refines `/appr
 - An explicit approval or action-run link takes precedence over filters. A pending linked approval excluded by the filters remains reviewable with an explanation and a reset action. A missing record never falls back to another approval.
 - Mobile review focuses the detail region. Return focuses the original row, or the queue heading if that row is no longer available.
 - Decision options, identity and permission checks, confirmation, API payloads, audit persistence, action-run links and external-executor semantics use the existing implementations.
-- Search text updates synchronously while its URL transition is pending. Once navigation settles, URL values restore Back/Forward and reset state.
+- The browser retains search keystrokes while Next updates the URL. External reset and Back/Forward restore the URL value without rewriting the field during typing.
 
 ## Verification
 

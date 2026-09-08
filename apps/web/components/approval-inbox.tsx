@@ -129,11 +129,11 @@ function DecisionRail({ approval, decision }: {
           )}>
             {stage.state === "done" ? <Check size={13} /> : index + 1}
           </span>
-          <div className="grid min-w-0 gap-1">
-            <p className="m-0 text-xs font-medium text-ink">
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
+            <p className="m-0 min-w-0 text-xs font-medium text-ink">
               {stage.label}<span className="sr-only">: {stage.state}</span>
             </p>
-            <p className="m-0 text-xs leading-relaxed break-words text-muted [overflow-wrap:anywhere]">{stage.detail}</p>
+            <p className="m-0 min-w-0 text-xs leading-relaxed wrap-anywhere text-muted">{stage.detail}</p>
           </div>
         </li>
       ))}

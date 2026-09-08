@@ -65,6 +65,7 @@ test.describe("approval review workspace", () => {
     await page.getByRole("combobox", { name: "Risk", exact: true }).selectOption("medium");
     await expect(page.getByText("No pending approvals match these filters. Try another search or clear the filters.")).toBeVisible();
     await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(search).toHaveValue("");
     await page.getByRole("combobox", { name: "Domain", exact: true }).selectOption({ label: "Quality" });
     const row = page.getByRole("button", { name: /Place Batch Q-1842/ });
     await row.click();
@@ -82,6 +83,12 @@ test.describe("approval review workspace", () => {
     await page.goBack();
     await expect(search).toBeVisible();
     await expect(page).not.toHaveURL(/approval_id=/);
+    await row.click();
+    if (compact(page)) await page.getByRole("button", { name: "Back to approval inbox" }).click();
+    await search.fill("quality");
+    await expect(page).toHaveURL(/q=quality/);
+    await page.goBack();
+    await expect(search).toHaveValue("");
     await expectNoHorizontalOverflow(page);
   });
 
@@ -125,6 +132,16 @@ test.describe("approval review workspace", () => {
     await page.getByRole("button", { name: "Decision trail", exact: true }).click();
     await expect(page.getByText(/manufacturing_operations_permission_with_a_very_long_identifier/).first()).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    const trail = page.getByRole("list", { name: "Decision stage rail" });
+    const metadataWidths = await trail.locator("p").evaluateAll((paragraphs) => paragraphs.map((paragraph) => ({
+      width: paragraph.clientWidth,
+      scroll: paragraph.scrollWidth,
+      parent: paragraph.parentElement!.clientWidth,
+    })));
+    for (const metadata of metadataWidths) {
+      expect(metadata.scroll).toBeLessThanOrEqual(metadata.width + 1);
+      expect(metadata.width).toBeLessThanOrEqual(metadata.parent + 1);
+    }
     inbox = { ...original, approvals: [original.approvals[0]] };
     await page.goto("/approvals?q=");
     await expect(page.getByRole("status").filter({ hasText: "1 of 1 pending" })).toBeVisible();

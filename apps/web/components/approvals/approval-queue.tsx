@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { ChevronRight, Search, X } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { controlClassName } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { approvalRiskClass, type ApprovalInboxItem } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
@@ -59,16 +59,24 @@ export function ApprovalQueue({
   onSelect: (approvalId: string, pushHistory: boolean) => void;
 }) {
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
-  const [searchValue, setSearchValue] = useState(filters.search);
-  const [syncedSearch, setSyncedSearch] = useState(filters.search);
-  const [searchPending, startSearchTransition] = useTransition();
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  // Keep keystrokes synchronous while Next commits the URL transition.
-  // Once navigation settles, Back/Forward and reset can restore the URL value.
-  if (!searchPending && syncedSearch !== filters.search) {
-    setSyncedSearch(filters.search);
-    setSearchValue(filters.search);
-  }
+  // Let the native field retain keystrokes while Next commits URL updates.
+  // External resets and browser history still restore the URL's search value.
+  useEffect(() => {
+    if (searchRef.current && document.activeElement !== searchRef.current) {
+      searchRef.current.value = filters.search;
+    }
+  }, [filters.search]);
+  useEffect(() => {
+    const restoreSearch = () => {
+      if (searchRef.current) {
+        searchRef.current.value = new URLSearchParams(window.location.search).get("q") ?? "";
+      }
+    };
+    window.addEventListener("popstate", restoreSearch);
+    return () => window.removeEventListener("popstate", restoreSearch);
+  }, []);
   const domains = Array.from(new Set(allApprovals.map((approval) => approval.domain)));
   const filtered = Boolean(filters.search || filters.risk !== "all" || filters.domain);
   const copy = strings.approvals.queue;
@@ -99,18 +107,13 @@ export function ApprovalQueue({
         <label className="relative block">
           <span className="sr-only">{copy.search}</span>
           <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" size={16} />
-          <Input
-            className="min-h-11 pl-9"
-            onChange={(event) => {
-              const search = event.target.value;
-              setSearchValue(search);
-              startSearchTransition(() => {
-                onFilterChange({ search });
-              });
-            }}
+          <input
+            className={cn(controlClassName, "min-h-11 pl-9")}
+            defaultValue={filters.search}
+            onChange={(event) => onFilterChange({ search: event.target.value })}
             placeholder={copy.searchPlaceholder}
             type="search"
-            value={searchValue}
+            ref={searchRef}
           />
         </label>
         <div className="grid min-w-0 grid-cols-2 gap-3">
@@ -138,7 +141,10 @@ export function ApprovalQueue({
           {approvals.length} of {allApprovals.length} pending
         </p>
         {filtered ? (
-          <button className="inline-flex min-h-8 cursor-pointer items-center gap-1 text-xs font-medium text-signal" onClick={onReset} type="button">
+          <button className="inline-flex min-h-8 cursor-pointer items-center gap-1 text-xs font-medium text-signal" onClick={() => {
+              if (searchRef.current) searchRef.current.value = "";
+              onReset();
+            }} type="button">
             <X aria-hidden="true" size={13} />{copy.clear}
           </button>
         ) : null}
