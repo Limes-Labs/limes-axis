@@ -445,12 +445,11 @@ export function AuditExplorer() {
                   onClick={() => setUrlState({ eventId: event.audit_event_id })}
                   type="button"
                 >
-                  <span>
-                    <span className="m-0 font-medium text-ink break-words font-mono text-[13px]">{event.event_type}</span>
+                  <span className="grid min-w-0 gap-1">
+                    <span className="m-0 text-sm font-medium text-ink break-words">{formatAuditLabel(event.event_type)}</span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {formatDateTime(event.occurred_at)} / {event.actor_id}
                     </span>
-                    <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{event.scope}</span>
                   </span>
                   <span className={`status-pill ${platformStatusClass(event.severity)}`}>
                     {event.result}

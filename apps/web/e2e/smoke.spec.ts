@@ -791,6 +791,7 @@ test.describe("Axis console smoke", () => {
 
     if ((page.viewportSize()?.width ?? 1024) < 640) {
       await page.getByRole("button", { name: "Graph", exact: true }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("graph");
     }
     const explorerSearch = new URL(page.url()).search;
     const graph = page.getByTestId("ontology-graph");

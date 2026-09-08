@@ -232,7 +232,7 @@ describe("AuditExplorer integrity and export", () => {
     render(<AuditExplorer />);
 
     const selected = await screen.findByRole("button", { pressed: true });
-    expect(selected).toHaveTextContent("agent.proposal.created");
+    expect(selected).toHaveTextContent("Agent Proposal Created");
 
     window.history.replaceState(null, "", originalLocation);
   });

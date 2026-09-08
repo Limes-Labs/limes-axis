@@ -383,7 +383,7 @@ function ReferenceModelRouting({
                   onClick={() => onStateChange({ routeId: route.route_id })}
                   type="button"
                 >
-                  <span>
+                  <span className="grid min-w-0 gap-1">
                     <span className="m-0 font-medium text-ink break-words">{route.agent_name}</span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                       {route.domain} / {route.provider_id}
