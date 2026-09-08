@@ -130,9 +130,9 @@ function OverviewHero({
         ))}
       </dl>
       <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
-        <SourcePill state={deriveSourceState(overview.source, true, data.provenance)} subject="scenario context" />
-        <SourcePill state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="operations snapshot" />
-        <SourcePill state={deriveSourceState(auditEvents.source, Boolean(auditEvents.data), auditEvents.data?.provenance)} subject="audit window" />
+        <SourcePill compact state={deriveSourceState(overview.source, true, data.provenance)} subject="Context" />
+        <SourcePill compact state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="Operations" />
+        <SourcePill compact state={deriveSourceState(auditEvents.source, Boolean(auditEvents.data), auditEvents.data?.provenance)} subject="Audit" />
       </div>
     </section>
   );

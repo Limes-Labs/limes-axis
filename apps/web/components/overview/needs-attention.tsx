@@ -229,31 +229,34 @@ function AttentionSources({
   return (
     <div
       aria-label="Needs attention data sources"
-      className="flex min-w-0 flex-wrap items-center justify-end gap-1.5"
+      className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
       <SourcePill
+        compact
         state={deriveSourceState(
           overview.source,
           Boolean(overview.data),
           overview.data?.provenance,
         )}
-        subject="risk context"
+        subject="Risks"
       />
       <SourcePill
+        compact
         state={deriveSourceState(
           approvals.source,
           Boolean(approvals.data),
           approvals.data?.provenance,
         )}
-        subject="approval queue"
+        subject="Approvals"
       />
       <SourcePill
+        compact
         state={deriveSourceState(
           actionRuns.source,
           Boolean(actionRuns.data),
           PROVENANCE_NOT_APPLICABLE,
         )}
-        subject="action follow-through"
+        subject="Outcomes"
       />
     </div>
   );

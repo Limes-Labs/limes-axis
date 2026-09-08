@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
@@ -8,10 +10,12 @@ import { strings } from "@/lib/strings";
 import { deriveSourceState } from "@/lib/source-state";
 
 import { normalizeLabel, type OverviewQuery } from "./overview-shared";
+import { ActivityTimeline } from "./activity-timeline";
 
 /** Each bar uses the same denominator: the returned audit window, not all activity. */
 export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<ManufacturingAuditExplorer> }) {
   const copy = strings.clarity.activity;
+  const [view, setView] = useState("category");
   if (!auditEvents.data) {
     return auditEvents.source === "loading" ? <LoadingPanel layout="detail" /> : (
       <ErrorPanel title={copy.errorTitle} detail={copy.errorDetail}
@@ -27,11 +31,17 @@ export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<Manufactu
   const categories = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   return (
-    <Card as="section" aria-label={copy.title} className="grid content-start gap-4">
+    <Card as="section" aria-label={view === "category" ? copy.title : "Activity by date"} className="grid min-w-0 content-start gap-4">
       <div className="grid gap-1">
-        <h2 className="m-0 font-display text-lg text-ink">{copy.title}</h2>
-        <p className="m-0 text-xs text-muted">{copy.window(events.length)}</p>
+        <h2 className="m-0 font-display text-lg text-ink">{view === "category" ? copy.title : "Activity by date"}</h2>
+        <p className="m-0 text-xs text-muted">{view === "category" ? copy.window(events.length) : `${events.length} returned events · latest window, up to 25.`}</p>
       </div>
+      <Tabs value={view} onValueChange={setView}>
+        <TabsList aria-label="Activity chart view" className="w-full">
+          <TabsTrigger value="category" className="flex-1 px-2.5">Category</TabsTrigger>
+          <TabsTrigger value="date" className="flex-1 px-2.5">By date</TabsTrigger>
+        </TabsList>
+        <TabsContent value="category">
       <dl className="m-0 grid gap-4">
         {categories.map(([category, count]) => (
           <div key={category} className="grid gap-2">
@@ -45,6 +55,9 @@ export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<Manufactu
           </div>
         ))}
       </dl>
+        </TabsContent>
+        <TabsContent value="date"><ActivityTimeline events={events} /></TabsContent>
+      </Tabs>
       <SourcePill state={deriveSourceState(auditEvents.source, true, auditEvents.data.provenance)} subject="audit window" />
     </Card>
   );

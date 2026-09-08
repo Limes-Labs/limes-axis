@@ -45,6 +45,7 @@ import {
   platformStatusLabel,
 } from "@/lib/platform-overview";
 import { Disclosure } from "@/components/ui/disclosure";
+import { ModelRoutingFlow } from "@/components/model-routing-flow";
 import { strings } from "@/lib/strings";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
@@ -281,10 +282,6 @@ function ReferenceModelRouting({
           {formatContextPath(routing.plant_name, routing.scenario, routing.tenant_id)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill
-            state={deriveSourceState(source, Boolean(routing), routing.provenance)}
-            subject="model routing"
-          />
           <span className={`status-pill ${platformStatusClass(routing.routing_status)}`}>
             <Gauge size={15} />
             {platformStatusLabel(routing.routing_status)}
@@ -293,20 +290,16 @@ function ReferenceModelRouting({
         </div>
       </div>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
-        {routing.metrics.map((metric) => (
-          <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-              <p className="eyebrow m-0">{metric.label}</p>
-              <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
-              </span>
-            </div>
-            <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{metric.value}</p>
-            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
-          </article>
-        ))}
-      </div>
+      <ModelRoutingFlow
+        routes={routing.routes}
+        sourceState={deriveSourceState(source, true, routing.provenance)}
+        onInspect={({ providerId, model }) => onStateChange({
+          ...defaultFilters,
+          provider: providerId,
+          routeId: model === undefined ? "" : routing.routes.find((route) =>
+            route.provider_id === providerId && route.model === model)?.route_id ?? "",
+        })}
+      />
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>

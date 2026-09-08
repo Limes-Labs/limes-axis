@@ -210,10 +210,10 @@ describe("PlatformOverview hero", () => {
     renderOverview();
 
     const sources = screen.getByLabelText("Overview data sources");
-    expect(within(sources).getByText("scenario context: reference scenario"))
+    expect(within(sources).getByText("Context: example"))
       .toBeInTheDocument();
-    expect(within(sources).getByText("operations snapshot: live")).toBeInTheDocument();
-    expect(within(sources).getByText("audit window: live")).toBeInTheDocument();
+    expect(within(sources).getByText("Operations: live")).toBeInTheDocument();
+    expect(within(sources).getByText("Audit: live")).toBeInTheDocument();
 
     const posture = screen.getByLabelText("Platform posture");
     const cards = within(posture).getAllByRole("listitem");
@@ -232,9 +232,9 @@ describe("PlatformOverview hero", () => {
       .toBeInTheDocument();
 
     const attentionSources = screen.getByLabelText("Needs attention data sources");
-    expect(within(attentionSources).getByText("approval queue: reference scenario"))
+    expect(within(attentionSources).getByText("Approvals: example"))
       .toBeInTheDocument();
-    expect(within(attentionSources).getByText("action follow-through: live"))
+    expect(within(attentionSources).getByText("Outcomes: live"))
       .toBeInTheDocument();
   });
 
