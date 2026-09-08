@@ -120,7 +120,7 @@ function DecisionRail({ approval, decision }: {
   decision: ApprovalDecisionRecord | undefined;
 }) {
   return (
-    <ol aria-label="Decision stage rail" className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 xl:grid-cols-4">
+    <ol aria-label="Decision stage rail" className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 2xl:grid-cols-4">
       {buildDecisionRail(approval, decision).map((stage, index) => (
         <li className="flex min-w-0 items-start gap-2" key={stage.label}>
           <span aria-hidden="true" className={cn(
