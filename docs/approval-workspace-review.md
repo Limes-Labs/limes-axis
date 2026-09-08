@@ -24,7 +24,7 @@ Issue [#436](https://github.com/Limes-Labs/limes-axis/issues/436) refines `/appr
 
 `make verify` covers the repository's local component and contract gates. Live browser tests remain a separate lane and require an isolated migrated demo database and API, as described in [development](development.md).
 
-`e2e/approval-workspace.spec.ts` runs in `test:e2e:live:read`, before stateful tests consume the three seeded approvals. It checks rapid multiword typing, composed filters, reset, browser history, mobile focus, missing and filtered-out deep links, dialog cancellation, and horizontal overflow on all three configured browser projects. The density test explicitly substitutes browser responses for 30 long records, one record and an empty queue; these are layout fixtures, not production capacity evidence.
+The approval review group in `e2e/control-room.spec.ts` runs in `test:e2e:live:read`, before stateful tests consume the three seeded approvals. It checks rapid multiword typing, composed filters, reset, browser history, mobile focus, missing and filtered-out deep links, dialog cancellation, and horizontal overflow on all three configured browser projects. The density test explicitly substitutes browser responses for 30 long records, one record and an empty queue; these are layout fixtures, not production capacity evidence.
 
 `e2e/approvals-console.spec.ts` exercises keyboard selection, the real decision endpoint, persisted outcomes and the exact audit-event link. Its mutation lane runs once on desktop against the isolated database. Its queue read respects `AXIS_E2E_API_BASE_URL` so it uses the same API as the application build.
 
