@@ -1264,6 +1264,8 @@ const overview = {
     eyebrow: "Needs attention",
     review: "Review & decide",
     openWorkflows: "Open workflows",
+    viewRecordedRuns: "View recorded runs",
+    exampleWorkflow: "Example workflow",
     openAudit: "Open audit",
     openApproval: "Open approval",
     approvalsUnavailable: "Pending approvals could not be loaded from the approval API.",

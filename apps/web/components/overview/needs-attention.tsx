@@ -117,13 +117,15 @@ function AttentionRow({
   action: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line px-4 py-3 dark:border-white/10">
-      {tone}
-      <div className="grid min-w-0 flex-1 gap-0.5">
-        <p className="m-0 text-sm font-medium break-words text-ink">{title}</p>
-        <p className="m-0 text-xs text-muted">{detail}</p>
+    <div className="grid content-start gap-3 rounded-2xl border border-line px-4 py-3 dark:border-white/10">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="mt-0.5 shrink-0">{tone}</span>
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <p className="m-0 text-sm font-medium break-words text-ink">{title}</p>
+          <p className="m-0 text-xs text-muted">{detail}</p>
+        </div>
       </div>
-      {action}
+      <div className="flex flex-wrap items-center gap-2">{action}</div>
     </div>
   );
 }
@@ -154,7 +156,7 @@ function ApprovalAttentionRow({
     <>
       <AttentionRow
         action={
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             {decision ? (
               <span className="status-pill signal-ready">
                 {approvalDecisionLabel(decision.decision)}
@@ -309,6 +311,7 @@ export function NeedsAttention({
       .filter((approval) => approval.status !== "decided")
       .slice(0, APPROVAL_LIMIT) ?? [];
   const blockedWorkflows = overview.data?.workflows.filter(isBlockedWorkflow) ?? [];
+  const referenceWorkflows = overview.data?.provenance === "reference_scenario";
   const stalledRuns = stalledActionRuns(actionRunsQuery.data);
   const riskSignals = overview.data ? pendingRiskSignals(overview.data) : [];
   const approvalsFailed = !approvalsQuery.data && approvalsQuery.source === "unavailable";
@@ -370,10 +373,10 @@ export function NeedsAttention({
           <AttentionRow
             action={
               <Link className={rowLinkClass()} href="/workflows">
-                {copy.openWorkflows}
+                {referenceWorkflows ? copy.viewRecordedRuns : copy.openWorkflows}
               </Link>
             }
-            detail={workflow.blocker ?? normalizeLabel(workflow.state)}
+            detail={`${referenceWorkflows ? `${copy.exampleWorkflow} · ` : ""}${workflow.blocker ?? normalizeLabel(workflow.state)}`}
             key={workflow.workflow_id}
             title={workflow.name}
             tone={<GitBranch aria-hidden="true" className="shrink-0 text-warning" size={16} />}

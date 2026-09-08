@@ -73,7 +73,7 @@ function GraphControlButton({
 /**
  * Interactive ontology graph. Diamond nodes echo the AxisMark glyph; edges
  * draw in with the brand `.draw-path` utility (reduced-motion renders them
- * complete). Hovering or focusing a node pings it and dims non-neighbors;
+ * complete). Hovering or focusing a node highlights it and dims non-neighbors;
  * Enter or click activates the node (slide-over detail or navigation).
  * The view zooms with the wheel (cursor-centered) or the +/− controls and
  * pans by dragging — all via viewBox math, so no new animations run.
@@ -157,6 +157,7 @@ export function OntologyGraph({
   }, [bounds]);
 
   const focusId = activeId ?? selectedNodeId ?? null;
+  const isZoomed = viewBox.width < bounds.width;
   const focusNeighbors = focusId ? (layout.neighbors.get(focusId) ?? new Set<string>()) : null;
 
   const isDimmed = (id: string) =>
@@ -264,9 +265,9 @@ export function OntologyGraph({
     <div className="relative min-w-0">
       <div className="max-h-[520px] overflow-auto rounded-xl" tabIndex={0} role="region" aria-label={strings.clarity.graphRegion}>
         <svg
-          // Native touch scrolling reaches the full-size graph on narrow screens.
-          // Mouse drag and explicit zoom controls retain viewBox navigation.
-          className={`h-auto w-full touch-auto select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          // Full view uses native scrolling. Once zoomed, touch drags must pan
+          // the viewBox to reach nodes outside it; Reset restores native scroll.
+          className={`h-auto w-full ${isZoomed ? "touch-none" : "touch-auto"} select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
           style={{ minWidth: layout.width }}
           data-testid="ontology-graph"
           ref={svgRef}
@@ -321,7 +322,7 @@ export function OntologyGraph({
                 onMouseEnter={() => setActiveId(node.id)}
                 onMouseLeave={() => setActiveId((current) => (current === node.id ? null : current))}
               >
-                {/* Hover ping halo (echoes the AxisMark diamond) */}
+                {/* Focus outline echoes the AxisMark diamond. */}
                 {focused ? (
                   <polygon
                     fill="none"
@@ -350,16 +351,23 @@ export function OntologyGraph({
                     <title>{platformStatusLabel(node.status)}</title>
                   </circle>
                 ) : null}
-                <text
+                {(node.labelVisible || focused) && (node.labelY !== node.y + 25 || node.labelX !== node.x) ? (
+                  <line x1={node.x} y1={node.y} x2={node.labelX} y2={node.labelY - 6} stroke="rgb(var(--muted))" strokeOpacity={0.35} pointerEvents="none" />
+                ) : null}
+                {node.labelVisible || focused ? <text
                   className="font-mono"
                   fill={focused ? "rgb(var(--signal))" : "rgb(var(--muted))"}
                   fontSize={13}
                   textAnchor="middle"
-                  x={node.x}
-                  y={node.y + NODE_HALF + 16}
+                  x={node.labelX}
+                  y={node.labelY}
+                  stroke="rgb(var(--bg))"
+                  strokeWidth={4}
+                  paintOrder="stroke"
                 >
-                  {node.label}
-                </text>
+                  <title>{node.label}</title>
+                  {node.displayLabel}
+                </text> : null}
               </g>
             );
           })}

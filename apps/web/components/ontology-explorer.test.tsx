@@ -190,6 +190,25 @@ describe("OntologyExplorer", () => {
     }
   });
 
+  it("enables touch panning while zoomed and restores native scrolling on reset", async () => {
+    window.history.replaceState(null, "", "/ontology?view=graph");
+    render(<OntologyExplorer />);
+    const graph = screen.getByTestId("ontology-graph");
+    const fullView = graph.getAttribute("viewBox");
+    expect(graph).toHaveClass("touch-auto");
+    expect(graph).not.toHaveClass("touch-none");
+
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(graph.getAttribute("viewBox")).not.toBe(fullView);
+    expect(graph).toHaveClass("touch-none");
+    expect(graph).not.toHaveClass("touch-auto");
+
+    await userEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(graph).toHaveAttribute("viewBox", fullView);
+    expect(graph).toHaveClass("touch-auto");
+    expect(graph).not.toHaveClass("touch-none");
+  });
+
   it("restores a shareable list view from the URL", () => {
     window.history.replaceState(null, "", "/ontology?view=list");
 

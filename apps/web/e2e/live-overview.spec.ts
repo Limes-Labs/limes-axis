@@ -255,6 +255,9 @@ test.describe("Axis live overview demo", () => {
     await expect(page.locator(".ops-dashboard-grid")).toBeVisible();
     await expect(page.locator("[data-kpi-card]")).toHaveCount(5);
 
+    await expect(page.getByRole("region", { name: "Needs attention", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Activity by category", exact: true })).toBeVisible();
+
     const dashboardLayout = await page.evaluate(() => {
       const attention = document.querySelector<HTMLElement>('section[aria-label="Needs attention"]');
       const chart = document.querySelector<HTMLElement>('section[aria-label="Activity by category"]');

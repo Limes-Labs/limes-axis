@@ -39,8 +39,30 @@ All 17 routes below were reviewed at 1440 × 1000 and 390 × 844 in the in-app b
 
 The category bars count every event in the returned audit window, with a maximum requested size of 25; this is neither lifetime activity nor a time trend. Visible text exposes counts and rounded percentages independently of decorative bars. The source pill preserves live/reference provenance. Empty and unavailable sources have different states. The removed radar also inferred connector health from event presence, which cannot establish service health.
 
+Attention cards keep the full title above their actions; reference workflows are explicitly labeled and link to recorded runs. Graph labels use deterministic free-space placement with full accessible names; crowded labels appear on focus/hover while all objects remain available in List. Explicit zoom enables touch panning and Reset restores native scrolling.
+
 Native disclosures retain form drafts while collapsed and remain keyboard-operable. Their children keep existing identity/tenant/query and mutation gates. The graph has a bounded scroll region so its full-size content does not overflow the page; mouse view navigation and explicit zoom controls remain. Keyboard focus includes disclosure summaries and focusable regions. No schema, authentication, transaction, egress or backend execution behavior changes.
 
 ## Validation
 
 The pull request records final local, browser and CI results separately. Local `make verify` passed: API 2,560 passed / 43 skipped, worker 64 passed / 3 skipped, SDK 278 passed, web 992 passed, schema and repository contract gates passed. The skipped integration lanes require their own live services. Browser fixtures are synthetic and local; they are not hosted deployment proof. Workflow and simulation were reviewed in their empty runtime states, sessions in the unauthenticated gate, and policies/tenant/entity detail with seeded records.
+
+## Platform layers and product completeness
+
+The [seven-layer contract](layered-architecture.md) assigns ownership within the existing product. These are capability boundaries, not seven separate services. This source review distinguishes implemented paths from reference data and planned extensions; it adds no runtime capability or deployment evidence.
+
+| Layer | Implemented | Current boundary |
+| --- | --- | --- |
+| Deployment and delivery | Versioned configuration, service packaging and dependency readiness | Each installation still needs its own capacity and recovery evidence. |
+| Trust | OIDC identity, tenant binding, scope and relationship checks, policies, approvals and audit | Domain transitions retain their permission and evidence owners; infrastructure separation does not replace tenant checks. |
+| Data | Governed CSV, Postgres and S3/MinIO ingestion, catalog and source provenance | Raw payloads belong in object storage; SQL stores metadata. CDC, production event ingress and source writeback remain absent. |
+| Operational model | Persisted reference graph, optional TypeDB query/mutation adapters and typed action definitions | Existing manufacturing contracts and core/reference dependencies need compatible migration; action definitions have no individual version field. |
+| Workflow | Axis runtime ports, Temporal execution, approval signals, outbox and fenced ingestion claims | External calls and database commits have distinct durability boundaries; some request paths still retain a transaction across external waits. |
+| Intelligence | Governed model invocation and L1/L2 agent recommendation/proposal runs | Execution is opt-in. Global search and assistant routing are planned; the agent registry remains a reference surface. |
+| Experience | Next.js console, public API contracts, runtime response validation and Python SDK | Vertical pack installation and low-code tools are planned. Presentation must preserve reference, configured runtime and planned states. |
+
+The [current architecture](architecture.md), [connector matrix](connector-capabilities.md), [agent contract](platform-agents.md) and [model invocation contract](platform-model-routing.md) locate the owning code and its limits. Three bounded follow-up priorities emerge for SME and enterprise use:
+
+1. **Prove a second operational scenario through shared contracts.** Select one object/action contract for compatible extraction and versioning, preserving IDs, tenant behavior and public aliases. The [architecture inventory](architecture-layers-inventory.md) records existing reference coupling; its guard prevents growth but does not establish full sector independence.
+2. **Complete one customer-validated decision path.** Trace an activated source through business objects and provenance to a proposal, approval and recorded outcome. Choose the next missing capability from that use case: for example, permission-safe search or one governed source writeback. The [layer contract](layered-architecture.md) marks search as planned; the [connector matrix](connector-capabilities.md) distinguishes internal ontology promotion from external writes.
+3. **Resolve one remaining external-wait and recovery boundary.** Start with an agent or action path, defining durable intent, replay and handling of an unknown outcome. The [transaction inventory](performance-external-await-boundaries.md) identifies remaining paths; the [model contract](platform-model-routing.md) records the current manual recovery limit. Verify interruptions and duplicate delivery before extending execution claims.
