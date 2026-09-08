@@ -788,6 +788,10 @@ test.describe("Axis console smoke", () => {
     await page.goto("/ontology?history_origin=1");
     await page.goto("/ontology");
 
+    if ((page.viewportSize()?.width ?? 1024) < 640) {
+      await page.getByRole("button", { name: "Graph", exact: true }).click();
+    }
+    const explorerSearch = new URL(page.url()).search;
     const graph = page.getByTestId("ontology-graph");
     await expect(graph).toBeVisible();
     const ontologySource = page.locator('[data-source-state="reference"]');
@@ -820,7 +824,7 @@ test.describe("Axis console smoke", () => {
       "href",
       "/ontology/asset_line_2",
     );
-    await expect(sheet.getByText("Read-only entity context")).toBeVisible();
+    await expect(sheet.getByRole("heading", { name: "Summary", exact: true })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/ontology");
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe("asset_line_2");
 
@@ -837,7 +841,7 @@ test.describe("Axis console smoke", () => {
     await page.goBack();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe("/ontology");
-    expect(new URL(page.url()).search).toBe("");
+    expect(new URL(page.url()).search).toBe(explorerSearch);
     await expect(graph).toHaveAttribute("viewBox", zoomedViewBox ?? "");
 
     // Explicit Close collapses the whole peer traversal to the explorer root.
@@ -853,7 +857,7 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(graph).toHaveAttribute("viewBox", zoomedViewBox ?? "");
     expect(new URL(page.url()).pathname).toBe("/ontology");
-    expect(new URL(page.url()).search).toBe("");
+    expect(new URL(page.url()).search).toBe(explorerSearch);
 
     await page.goBack();
     await expect.poll(() => new URL(page.url()).searchParams.get("history_origin")).toBe("1");

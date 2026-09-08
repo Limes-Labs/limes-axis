@@ -24,14 +24,14 @@ All 17 routes below were reviewed at 1440 × 1000 and 390 × 844 in the in-app b
 | Data | Sidebar destination returned 404 | Route renders the existing tenant-bound catalog; narrow ignore exception tracks the source file | Make the existing capability reachable without changing its contract |
 | Connectors | Manifest JSON import above the registry | Registry first; advanced import below it in an explicit disclosure | Standard connection and monitoring remain the primary path |
 | Ontology | Generic title, graph labels shrank on phones, adapter identifiers displayed as headings | Business-object title, mobile object cards by default and optional full-size scrollable graph with 13px labels; sources/access details expandable | Keep relationships readable and technical inspection available |
-| Entity detail | Dense but relevant business attributes and relationships | Shared header cleanup; preserve entity, relationship and history detail | These facts explain the selected object and its evidence |
+| Entity detail | Dense but relevant business attributes and relationships | Short purpose and object summary before metrics; preserve relationship and history detail | These facts explain the selected object and its evidence |
 | Models | Verbose purpose; monitoring implementation named as a main section | Short purpose; expandable monitoring details | Preserve example/live distinction, cost basis and routing boundaries |
 | Policies | Creation form always open below the registry | Explicit create-policy disclosure; registry remains first | Reading and authoring are separate tasks; evaluation semantics remain available |
-| Policy detail | Revision, conditions and comparison | Shared header cleanup; preserve revision and comparison controls | Rules and historical differences are necessary to assess a change |
+| Policy detail | Revision, conditions and comparison | Short purpose; preserve revision and comparison controls | Rules and historical differences are necessary to assess a change |
 | Audit | Database engine and replay capability presented as numeric KPIs | Operational event metrics only; keep filters, raw inspection and replay/export details | Backend implementation is not an operational measurement |
 | Simulation | Long header plus empty replay history | Short purpose; retain accurate empty history | Do not manufacture comparison results |
 | Tenants | Provisioning form always open | Explicit create-organization disclosure below registry | Keep lifecycle status and operator scope visible before authoring |
-| Tenant detail | Lifecycle, quotas and terminology controls | Shared header cleanup; preserve controls and permission explanations | These settings describe real administrative effects |
+| Tenant detail | Lifecycle, quotas and terminology controls | Short purpose; preserve controls and permission explanations | These settings describe real administrative effects |
 | Settings | Repeated category header; guidance mixed with raw check messages | Action guidance remains visible; technical check details expand on demand | Make remediation readable while retaining support evidence |
 | Sessions | Access gate and session management | Shared header cleanup; preserve sign-in/scope gate | A simpler page must not imply session-management permission |
 

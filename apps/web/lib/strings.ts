@@ -1821,6 +1821,10 @@ const tenantVocabulary = {
 
 export const strings = {
   clarity: {
+    objectSummary: "Summary",
+    entityPurpose: "Inspect this object, its relationships, and who can access it.",
+    policyPurpose: "Review the rule, compare revisions, and test its effect.",
+    tenantPurpose: "Manage this organization's access, resource limits, and activity.",
     recordedActivity: "Recorded activity",
     advancedConnectorImport: "Advanced: import connector configuration",
     actionCatalog: "Action catalog: available actions and permissions",
