@@ -263,12 +263,12 @@ export function OntologyGraph({
 
   return (
     <div className="relative min-w-0">
-      <div className="max-h-[520px] overflow-auto rounded-xl" tabIndex={0} role="region" aria-label={strings.clarity.graphRegion}>
+      <div className="max-h-[560px] overflow-auto rounded-xl" tabIndex={0} role="region" aria-label={strings.clarity.graphRegion}>
         <svg
           // Full view uses native scrolling. Once zoomed, touch drags must pan
           // the viewBox to reach nodes outside it; Reset restores native scroll.
-          className={`h-auto w-full ${isZoomed ? "touch-none" : "touch-auto"} select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
-          style={{ minWidth: layout.width }}
+          className={`mx-auto block h-auto ${isZoomed ? "touch-none" : "touch-auto"} select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          style={{ width: layout.width, minWidth: layout.width }}
           data-testid="ontology-graph"
           ref={svgRef}
           role="group"
