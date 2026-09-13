@@ -115,9 +115,19 @@ become durable before the await.
   tests in `services/api/tests/test_model_invocations.py`.
 - The full API test suite.
 - `make docs-check`.
-- `NOT RUN`: wall-clock tail-latency and pool-saturation measurement under a
-  representative workload, which needs the baseline owned by
-  [issue #361](https://github.com/Limes-Labs/limes-axis/issues/361).
+- Tail latency and pool occupancy under the versioned workload, read from the
+  retained [performance-v1 baseline](../benchmarks/performance-v1/README.md).
+  The `model-invocation` journey holds a connection for 15.2% (SME) and 8.4%
+  (enterprise) of its request while awaiting a 50 ms provider response, against
+  77.5% and 89.1% for `workflow-signal`, which awaits a shorter 20 ms runtime
+  with its transaction still open. Both stay at one concurrent connection.
+  Recorded in
+  [external-await transaction boundaries](../performance-external-await-boundaries.md).
+- `NOT RUN`: an attribution comparison isolating this contract; the only runtime
+  without it predates twenty commits, and the measurement contract forbids
+  modifying production code to manufacture a baseline.
+- `NOT RUN`: PostgreSQL pool contention, real provider latency and hosted
+  capacity; the baseline is one process on SQLite with fake external ports.
 - `NOT RUN`: the contract for the four remaining external-await handlers.
 - `NOT RUN`: an independent security review of the widened response contract.
 

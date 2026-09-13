@@ -105,12 +105,78 @@ resolved without knowing whether the provider ran.
 
 All of the above live in `services/api/tests/test_model_invocations.py`.
 
-`NOT RUN`: wall-clock tail-latency and pool-saturation measurement under a
-representative workload. Those need the workload profiles and reproducible
-baseline owned by
-[issue #361](https://github.com/Limes-Labs/limes-axis/issues/361); pool
-occupancy here is measured structurally at the connection pool, not derived
-from a load test.
+## Measured Pool Occupancy Under Load
+
+The structural tests above prove that no transaction is open across the provider
+call. This section measures what that is worth under arrivals, using the
+[versioned workload contract](./performance-baseline.md) delivered by
+[issue #361](https://github.com/Limes-Labs/limes-axis/issues/361).
+
+The evidence is the retained
+[performance-v1 baseline](./benchmarks/performance-v1/README.md). It was captured
+on 2026-09-07, after this contract was applied to the model-invocation handler,
+so its `model-invocation` journey already exercises the phase split. No new
+capture is needed to read it.
+
+Two of the four journeys await an external runtime inside the request, and they
+sit on opposite sides of this contract:
+
+- `workflow-signal` awaits a synthetic workflow acknowledgement of 20 ms with
+  its transaction still open. It is one of the handlers listed as *Not applied*
+  in the inventory above.
+- `model-invocation` awaits a synthetic provider response of 50 ms under the
+  phase contract.
+
+Both stay at `pool_peak` 1 in every trial of both shapes, so for these two the
+mean checked-out time per request divided by the median request latency is
+exactly the fraction of the request during which a connection was held. That
+reading does not hold for `console`, which reaches 3-5 concurrent connections in
+the enterprise shape; it is used here only for the two journeys that never
+exceed one.
+
+Values are medians of the three per-trial figures in the retained batches.
+
+| Shape | Journey | External wait | p50 / p95 / p99 ms | Connection held per request | Fraction of request holding a connection |
+| --- | --- | ---: | ---: | ---: | ---: |
+| SME | `workflow-signal` | 20 ms | 38.92 / 42.00 / 42.33 | 30.14 ms | 77.5% |
+| SME | `model-invocation` | 50 ms | 70.59 / 72.96 / 75.45 | 10.74 ms | 15.2% |
+| Enterprise | `workflow-signal` | 20 ms | 29.06 / 33.38 / 36.51 | 25.88 ms | 89.1% |
+| Enterprise | `model-invocation` | 50 ms | 60.95 / 61.90 / 67.98 | 5.11 ms | 8.4% |
+
+The comparison is not a controlled experiment: the two journeys persist different
+state and issue different statements, so the absolute figures are not
+attributable to the transaction boundary alone. The *direction* is what the
+measurement settles. `model-invocation` waits on an external runtime for two and
+a half times as long as `workflow-signal` and holds a connection for a fifth to a
+tenth as much of its request. If a connection were held across the await, the
+journey with the longer wait would hold one for the larger share of its request.
+It holds one for the smaller share, by five to ten times.
+
+The five-minute
+[enterprise model soak](./benchmarks/performance-v1/soak-enterprise-model.json.gz)
+agrees over a longer window: 1,200 of 1,200 arrivals successful, p95 73.89 ms,
+p99 75.61 ms, 14.72 connection-seconds for the batch — 12.3 ms per request
+against a 70.05 ms median — and peak and final checked-out connections of 1 and
+0.
+
+An independent re-run on different hardware and a later date reproduces the
+shape: three trials per profile of the `model-invocation` journey, 360 and 720
+arrivals, every trial `PASS`, `pool_peak` 1, `pool_at_end` 0, and 10.4% (SME)
+and 11.5% (enterprise) of request time holding a connection. That run is
+corroboration, not a retained artifact: its host was not idle, and the numbers
+above come from the committed baseline instead so that any reader can reproduce
+this reading from the repository alone. Its scheduler lag stayed at p95 1.6 ms.
+
+`NOT RUN`: an attribution comparison isolating this contract. The only runtime
+without it is twenty commits and twenty-seven API files back, and
+[the measurement contract](./performance-baseline.md) forbids modifying
+production code to manufacture a baseline. The figures above therefore establish
+the journey's absolute tail latency and pool behaviour, not a measured speedup.
+
+`NOT RUN`: PostgreSQL pool contention, real provider latency and hosted capacity.
+This is a single process on SQLite with fake identity and external ports, per
+[ADR 0016](./adr/0016-performance-measurement-contract.md). Connection-pool
+behaviour under a real driver and a shared database is a different measurement.
 
 `NOT RUN`: the phase contract for the four remaining external-await handlers.
 Each writes state that belongs to a larger unit of work and needs its own
