@@ -266,7 +266,7 @@ jobs:
 
       - name: Lint API
         working-directory: services/api
-        run: uv run ruff check .
+        run: uv run ruff check --config pyproject.toml . ../../scripts/check_runtime_dependencies.py
 
       - name: Test API
         working-directory: services/api
