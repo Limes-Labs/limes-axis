@@ -12,6 +12,13 @@ release-bound behavior, not the complete commit history.
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
 
+- Restore-capable tenant portability manifest contract
+  ([#876](https://github.com/Limes-Labs/limes-axis/issues/876)): versioned
+  component inventory with owner/consistency/restore decisions, typed rebinding
+  references that keep secrets non-portable, watermark-vs-quiesced consistency
+  disclosure, default-suspended restore safety policy and deterministic
+  portability review for the later #877 dry run.
+
 - Approval queue search and risk/domain filters, compact counts, and a dedicated
   mobile review with focus restoration. Explicit approval links remain reviewable
   outside filters; decision context and required controls are easier to inspect
