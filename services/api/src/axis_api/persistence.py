@@ -53,6 +53,7 @@ from axis_api.models import (
     PlatformNotificationAcknowledgement,
     PlatformPolicy,
     ReplaySimulationOutput,
+    SearchIndexRecord,
     Tenant,
     TenantQuota,
     TenantUsageEvent,
@@ -1189,6 +1190,38 @@ class OidcBrowserSessionRevocation(BaseModel):
     revoked_by: str = Field(min_length=1)
     revocation_reason: str = Field(min_length=1)
     revoke_audit_event_id: UUID | None = None
+
+
+class SearchIndexRecordCreate(BaseModel):
+    tenant_id: str = Field(min_length=1, max_length=80)
+    kind: str = Field(min_length=1, max_length=40)
+    source_object_id: str = Field(min_length=1, max_length=220)
+    content_revision: str = Field(min_length=1, max_length=220)
+    source_locator: str = Field(min_length=1, max_length=500)
+    state: str = Field(min_length=1, max_length=20)
+    searchable_text: str | None = Field(default=None, max_length=20_000)
+    text_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    language: str = Field(min_length=2, max_length=12)
+    analyzer_revision: str = Field(min_length=1, max_length=200)
+    policy_revision_ref: str = Field(min_length=1, max_length=200)
+    index_generation: int = Field(ge=1, strict=True)
+    indexed_event_type: str = Field(min_length=1, max_length=120)
+    indexed_audit_event_id: UUID | None = None
+
+
+class SearchIndexProjectionUpdate(BaseModel):
+    """An already-classified monotonic decision to apply to a locked row."""
+
+    next_state: str = Field(min_length=1, max_length=20)
+    next_content_revision: str | None = Field(default=None, max_length=220)
+    next_generation: int = Field(ge=1, strict=True)
+    searchable_text: str | None = Field(default=None, max_length=20_000)
+    text_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    language: str = Field(default="simple", min_length=2, max_length=12)
+    analyzer_revision: str = Field(default="analyzer-unchanged", min_length=1, max_length=200)
+    policy_revision_ref: str = Field(default="policy-unchanged", min_length=1, max_length=200)
+    indexed_event_type: str = Field(min_length=1, max_length=120)
+    indexed_audit_event_id: UUID | None = None
 
 
 class AxisPersistenceRepository:
@@ -6241,3 +6274,73 @@ class AxisPersistenceRepository:
             ManufacturingRiskScenario.id.desc(),
         ).limit(limit)
         return list(self.session.scalars(statement))
+
+    def get_search_index_record_for_update(
+        self,
+        tenant_id: str,
+        source_object_id: str,
+    ) -> SearchIndexRecord | None:
+        """Row-lock one projection record so concurrent indexers serialize.
+
+        The monotonic decision in search_index.classify_index_update is only
+        safe when the read-modify-write is linearizable per record; the row
+        lock provides that on PostgreSQL the same way terminal state
+        transitions do elsewhere in this repository.
+        """
+        statement: Select[tuple[SearchIndexRecord]] = (
+            select(SearchIndexRecord)
+            .where(
+                SearchIndexRecord.tenant_id == tenant_id,
+                SearchIndexRecord.source_object_id == source_object_id,
+            )
+            .with_for_update()
+        )
+        return self.session.scalar(statement)
+
+    def create_search_index_record(
+        self,
+        record: SearchIndexRecordCreate,
+    ) -> SearchIndexRecord:
+        search_record = SearchIndexRecord(
+            tenant_id=record.tenant_id,
+            kind=record.kind,
+            source_object_id=record.source_object_id,
+            content_revision=record.content_revision,
+            source_locator=record.source_locator,
+            state=record.state,
+            searchable_text=record.searchable_text,
+            text_digest=record.text_digest,
+            language=record.language,
+            analyzer_revision=record.analyzer_revision,
+            policy_revision_ref=record.policy_revision_ref,
+            index_generation=record.index_generation,
+            indexed_event_type=record.indexed_event_type,
+            indexed_audit_event_id=record.indexed_audit_event_id,
+        )
+        self.session.add(search_record)
+        self.session.flush()
+        return search_record
+
+    def apply_search_index_projection(
+        self,
+        record: SearchIndexRecord,
+        projection: SearchIndexProjectionUpdate,
+    ) -> SearchIndexRecord:
+        """Apply an already-classified monotonic decision to a locked row."""
+
+        record.state = projection.next_state
+        record.content_revision = projection.next_content_revision or record.content_revision
+        record.index_generation = projection.next_generation
+        if projection.next_state == "tombstoned":
+            record.searchable_text = None
+            record.text_digest = None
+        else:
+            record.searchable_text = projection.searchable_text
+            record.text_digest = projection.text_digest
+            record.language = projection.language
+            record.analyzer_revision = projection.analyzer_revision
+            record.policy_revision_ref = projection.policy_revision_ref
+        record.indexed_event_type = projection.indexed_event_type
+        record.indexed_audit_event_id = projection.indexed_audit_event_id
+        self.session.flush()
+        return record
