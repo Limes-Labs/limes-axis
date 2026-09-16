@@ -7,6 +7,11 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned static dependency inventory with local options, reasoned capability
+  omissions, configuration-reference checks and a generated operator matrix.
+  This does not enable adapters, enforce zero egress or certify an offline bundle
+  ([#869](https://github.com/Limes-Labs/limes-axis/issues/869)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
