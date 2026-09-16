@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Bounded host-owned REST page reads over the approved source profiles: GET-only
+  transport pinned to the egress-approved origin, no-follow redirects with
+  same-origin pagination validation, streaming wire/decoded-byte caps and
+  deadlines, fixed safe error codes with bounded retry hints, honest truncated
+  results and metadata-only progress evidence. The host still owns leases,
+  secret resolution, retries and durable checkpoint commits
+  ([#860](https://github.com/Limes-Labs/limes-axis/issues/860)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
