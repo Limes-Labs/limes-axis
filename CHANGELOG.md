@@ -12,6 +12,13 @@ release-bound behavior, not the complete commit history.
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
 
+- Microsoft 365 library discovery (#864): bounded Graph v1.0 enumeration of one
+  explicitly selected drive, permission evidence normalized into #863
+  observations, distinct safe setup states per permission mode, and an
+  endpoint-by-permission-mode support table
+  (`docs/m365-discovery-permissions.md`). No content reads, no auto-escalation;
+  production support is unclaimed until a real authorized tenant is tested.
+
 - Approval queue search and risk/domain filters, compact counts, and a dedicated
   mobile review with focus restoration. Explicit approval links remain reviewable
   outside filters; decision context and required controls are easier to inspect
