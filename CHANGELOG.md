@@ -7,6 +7,15 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned assurance pack manifest contract: audience/engagement-bound
+  selection of exact answer, posture and evidence revisions, structured
+  support states that keep gaps and limitations visible, freshness
+  re-verification against observed facts (expired certificates, wrong
+  release/profile, superseded answers cannot pass as current), preflight
+  gating, and a fixed scope note for #871/#879 report citations. Contract
+  slice only; no artifact packaging or signing
+  ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
