@@ -7,6 +7,15 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned clean-room agreement contract modeling multi-party collaboration
+  as a time-bounded agreement: typed purpose/input/output classes as
+  enforcement inputs, bounded isolation profiles, provably independent
+  per-party approvals, material amendments that invalidate prior approvals,
+  authoritative suspension/expiry execution gates, and party removal that
+  preserves historical digests while pruning its inputs. Contract slice
+  only; no dataset binding, query engine or compute
+  ([#855](https://github.com/Limes-Labs/limes-axis/issues/855)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
