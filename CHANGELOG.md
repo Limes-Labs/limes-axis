@@ -7,10 +7,36 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Resumable restore runner for portability: persisted run/step state machine
+  over versioned component restore ports, dependency-ordered sequencing with
+  per-step digest evidence, worker fencing and idempotent retries, quarantine
+  and resume of interrupted runs (only identical bundle/plan digests are
+  resumed; changed bundles open a new generation), suspension-gated targets
+  with fail-closed operator authorization, missing handlers recorded as
+  blocked instead of fabricated completion, and activation blockers surfaced
+  for the later verification slice
+  ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
+
+- Offline portability bundle validator and dry-run restore plan: bounded
+  archive-safety checks without opening members, operator-anchored signature
+  verification, per-component payload digest verification, deterministic
+  identity mapping with explicit consent (two-to-one merges refused, unknown
+  principals disabled without default roles), suspension of operational
+  schedules, and exclusion acknowledgment gating the later write runner.
+  Zero network, admission, credential or destination-write behavior
+  ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
+
+- Restore-capable tenant portability manifest contract
+  ([#876](https://github.com/Limes-Labs/limes-axis/issues/876)): versioned
+  component inventory with owner/consistency/restore decisions, typed rebinding
+  references that keep secrets non-portable, watermark-vs-quiesced consistency
+  disclosure, default-suspended restore safety policy and deterministic
+  portability review for the later #877 dry run.
 
 - Approval queue search and risk/domain filters, compact counts, and a dedicated
   mobile review with focus restoration. Explicit approval links remain reviewable
