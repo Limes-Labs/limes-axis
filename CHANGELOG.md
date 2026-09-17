@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned public dataset release manifest contract: sealed immutable release
+  revisions with opaque public IDs, closed frozen-source modes (no live query),
+  deterministic digests with tamper-checked withdrawal evidence, private
+  internal-lineage ledger kept structurally out of public manifests, and a
+  deterministic readiness classifier over disclosure/license review evidence.
+  Contract slice only; no distribution, API or storage is enabled
+  ([#838](https://github.com/Limes-Labs/limes-axis/issues/838)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
