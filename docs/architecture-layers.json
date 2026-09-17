@@ -84,7 +84,16 @@
     {"id": "model-invocations", "owner": "intelligence", "dependencies": ["trust", "operational-model", "experience"], "kind": "module", "path": "services/api/src/axis_api/model_invocations.py"},
     {"id": "agent-runs", "owner": "intelligence", "dependencies": ["trust", "workflow", "operational-model", "experience"], "kind": "module", "path": "services/api/src/axis_api/agent_runs.py"},
     {"id": "reference-vertical", "owner": "experience", "dependencies": ["trust", "data", "operational-model", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/manufacturing_operations.py"},
-    {"id": "legacy-response-contracts", "owner": "experience", "dependencies": ["trust", "data", "operational-model", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/demo.py"}
+    {"id": "legacy-response-contracts", "owner": "experience", "dependencies": ["trust", "data", "operational-model", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/demo.py"},
+    {
+      "id": "document-studio-contracts",
+      "owner": "experience",
+      "dependencies": [
+        "trust"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/document_studio_contracts.py"
+    }
   ],
   "ports": [
     {"id": "delivery", "owner": "deployment", "status": "current", "input": "Versioned deployment profile and explicit runtime configuration", "output": "Readiness and promotion/recovery evidence", "failure": "Required-dependency readiness failure blocks promotion", "compatibility": "Version images, chart schema and migration chain; rehearse rollback", "evidence": "services/api/src/axis_api/deployment_readiness.py"},
