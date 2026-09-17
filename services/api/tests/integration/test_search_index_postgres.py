@@ -21,6 +21,12 @@ from axis_api.search_indexing import (
     COMMITTED_MUTATION_STATUS,
     index_ontology_promotion,
 )
+from axis_api.search_queries import (
+    SearchAuthorizationDenied,
+    SearcherAuthority,
+    SearchQueryRequest,
+    run_repository_search,
+)
 
 pytestmark = [
     pytest.mark.integration,
@@ -151,3 +157,86 @@ def test_concurrent_indexers_produce_exactly_one_winner(migrated_postgres_engine
 
     assert sum(1 for outcome in outcomes if outcome.decision == "applied") == 1
     assert all(outcome.decision in {"applied", "superseded"} for outcome in outcomes)
+
+
+def test_authorized_search_on_real_postgres(migrated_postgres_engine):
+    engine = migrated_postgres_engine
+    tenant_id = "tenant-search-pg-query"
+    factory = _seed_tenant(engine, tenant_id)
+    node = f"{tenant_id}::asset-query"
+
+    indexed = _index_once(
+        factory,
+        tenant_id,
+        node,
+        "rev-1",
+        "Quality hold escalation pending for line two motors",
+        supersedes=False,
+    )
+    assert indexed.decision == "applied"
+
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        request = SearchQueryRequest(tenant_id=tenant_id, query="quality hold")
+        authority = SearcherAuthority(
+            tenant_id=tenant_id,
+            policy_revision_ref="policy-rev-1",
+        )
+        page = run_repository_search(
+            repository,
+            request=request,
+            authority=authority,
+            searcher_ref="actor:pg-operator",
+        )
+        assert len(page.hits) == 1
+        assert page.hits[0].source_object_id == node
+        assert "Quality hold escalation" in page.hits[0].snippet
+        # A wildcard-bearing query term must not bypass the LIKE escape.
+        wildcard = run_repository_search(
+            repository,
+            request=SearchQueryRequest(tenant_id=tenant_id, query="quality hold %")
+            .model_copy(),
+            authority=authority,
+            searcher_ref="actor:pg-operator",
+        )
+        assert wildcard.hits == []
+
+
+def test_authorized_search_isolation_on_real_postgres(migrated_postgres_engine):
+    engine = migrated_postgres_engine
+    tenant_id = "tenant-search-pg-isolation"
+    factory = _seed_tenant(engine, tenant_id)
+    node = f"{tenant_id}::asset-private"
+
+    indexed = _index_once(
+        factory,
+        tenant_id,
+        node,
+        "rev-1",
+        "Isolation sentinel payload for tenant private data",
+        supersedes=False,
+    )
+    assert indexed.decision == "applied"
+
+    # A searcher bound to another tenant cannot aim the service at this
+    # tenant, and the storage filter itself never returns foreign rows.
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        outsider = SearcherAuthority(
+            tenant_id="tenant-search-pg-other",
+            policy_revision_ref="policy-rev-1",
+        )
+        with pytest.raises(SearchAuthorizationDenied):
+            run_repository_search(
+                repository,
+                request=SearchQueryRequest(tenant_id=tenant_id, query="isolation sentinel"),
+                authority=outsider,
+                searcher_ref="actor:outsider",
+            )
+        rows, _, _ = repository.list_search_index_records(
+            tenant_id=tenant_id,
+            query_terms=["isolation"],
+            offset=0,
+            limit=5,
+        )
+        assert rows == []

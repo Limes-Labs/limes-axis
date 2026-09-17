@@ -22,6 +22,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from axis_api.action_reference import (
@@ -709,6 +710,19 @@ from axis_api.routes.models import ModelRouteDependencies, build_model_routers
 from axis_api.runtime_readiness import (
     RuntimeReadinessService,
     build_runtime_readiness_service,
+)
+from axis_api.search_queries import (
+    DEFAULT_SEARCH_POLICY_REVISION,
+    MAX_PAGE_SIZE,
+    MAX_QUERY_CHARS,
+    SearchAuthorizationDenied,
+    SearcherAuthority,
+    SearchIndexKind,
+    SearchQueryError,
+    SearchQueryRequest,
+    SearchQueryResponse,
+    run_repository_search,
+    search_authority_for_principal,
 )
 from axis_api.session_lifecycle import (
     browser_session_lifecycle_failure,
@@ -1420,6 +1434,7 @@ OidcPrincipalDependency = Annotated[
     Depends(oidc_principal),
 ]
 CheckpointActorScopesQuery = Query(default_factory=list)
+SearchKindQuery: list[SearchIndexKind] | None = Query(default=None)
 CheckpointCreatedAfterQuery = Query(default=None)
 CheckpointCreatedBeforeQuery = Query(default=None)
 PlatformPolicyScopeQuery = Query(default=None)
@@ -1428,6 +1443,7 @@ TenantUsageLastDaysQuery = Query(default=7, ge=1, le=366)
 TenantUsageFromQuery = Query(default=None, alias="from")
 TenantUsageToQuery = Query(default=None, alias="to")
 AUDIT_READ_SCOPE = "audit:read"
+SEARCH_READ_SCOPE = "search:read"
 
 
 def _audit_ledger_signer_from_settings(settings: Settings) -> SelfHostedAuditLedgerSigner | None:
@@ -1766,6 +1782,24 @@ def _authorize_audit_scope(
             required_scopes=[required_scope],
             attributes={"surface": "audit", "resource": resource},
             message=message,
+        )
+    except ScopeAuthorizationError as exc:
+        raise _scope_denial_http_exception(exc) from exc
+
+
+def _authorize_search_scope(
+    *,
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+    resource: str,
+) -> None:
+    try:
+        authorize_principal_scopes(
+            tenant_id=tenant_id,
+            principal=principal,
+            required_scopes=[SEARCH_READ_SCOPE],
+            attributes={"surface": "search", "resource": resource},
+            message="The actor cannot search this tenant.",
         )
     except ScopeAuthorizationError as exc:
         raise _scope_denial_http_exception(exc) from exc
@@ -9246,6 +9280,107 @@ def create_app(
                 },
             )
         return delivery
+
+    @operations_router.get(
+        "/search",
+        response_model=SearchQueryResponse,
+        responses={
+            401: {"description": "OIDC authentication required"},
+            403: {"description": "Search read permission denied"},
+            422: {"description": "Bounded search request or continuation cursor invalid"},
+        },
+        tags=["search"],
+    )
+    def search_index_query(
+        repository: PersistenceRepository,
+        principal: OidcPrincipalDependency,
+        tenant_id: str = Query(min_length=1),
+        q: str = Query(min_length=1, max_length=MAX_QUERY_CHARS + 1),
+        kind: list[SearchIndexKind] | None = SearchKindQuery,
+        locator: str | None = Query(default=None, max_length=120),
+        page_size: int = Query(default=10, ge=1, le=MAX_PAGE_SIZE),
+        cursor: str | None = Query(default=None, max_length=600),
+    ) -> SearchQueryResponse:
+        """Authorized full-text search over the #873 index projection.
+
+        Current authorization is re-evaluated for every candidate before any
+        representation exists; records whose access cannot be evaluated are
+        withheld as metadata-only hits; explicit denials are invisible.
+        Totals and facets cover the emitted authorized subset only. The
+        continuation cursor is opaque, binds the presenting principal and
+        query digest, and is re-authorized on every continuation.
+        """
+        _authorize_search_scope(
+            tenant_id=tenant_id,
+            principal=principal,
+            resource="search_index",
+        )
+        if principal is not None:
+            authority = search_authority_for_principal(principal)
+            searcher_ref = f"actor:{principal.actor_id}"
+        else:
+            # Demo-mode convention: anonymous traffic is governed by the
+            # same scope gate above and bound to the requested tenant.
+            authority = SearcherAuthority(
+                tenant_id=tenant_id,
+                policy_revision_ref=DEFAULT_SEARCH_POLICY_REVISION,
+            )
+            searcher_ref = "anonymous"
+        try:
+            request = SearchQueryRequest(
+                tenant_id=tenant_id,
+                query=q,
+                kinds=tuple(kind) if kind else None,
+                source_locator_contains=locator,
+                page_size=page_size,
+                cursor=cursor,
+            )
+            page = run_repository_search(
+                repository,
+                request=request,
+                authority=authority,
+                searcher_ref=searcher_ref,
+            )
+        except SearchAuthorizationDenied as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": AxisErrorCode.PERMISSION_DENIED.value,
+                    "message": "The actor cannot search this tenant.",
+                    "reason": exc.code,
+                },
+            ) from exc
+        except SearchQueryError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The search request or continuation cursor is invalid.",
+                    "reason": exc.code,
+                },
+            ) from exc
+        except ValidationError as exc:
+            # Request-bound violations surface through the shared model
+            # validator; the fixed code travels in the error message.
+            first_error = exc.errors()[0].get("ctx", {}).get("error", "")
+            reason = str(first_error) or "invalid_search_request"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "code": AxisErrorCode.VALIDATION_FAILED.value,
+                    "message": "The search request or continuation cursor is invalid.",
+                    "reason": reason,
+                },
+            ) from exc
+        return SearchQueryResponse(
+            hits=page.hits,
+            metadata=page.metadata,
+            next_cursor=page.next_cursor,
+            served_under_policy_revision=page.served_under_policy_revision,
+            index_generation=page.index_generation,
+            index_stale=page.index_stale,
+            tenant_id=tenant_id,
+        )
 
     @operations_router.get(
         "/audit",

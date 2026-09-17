@@ -6344,3 +6344,58 @@ class AxisPersistenceRepository:
         record.indexed_audit_event_id = projection.indexed_audit_event_id
         self.session.flush()
         return record
+
+    def list_search_index_records(
+        self,
+        *,
+        tenant_id: str,
+        query_terms: Sequence[str],
+        kinds: Sequence[str] | None = None,
+        locator_contains: str | None = None,
+        offset: int = 0,
+        limit: int = 11,
+    ) -> tuple[Sequence[SearchIndexRecord], int, int]:
+        """Candidate page for the #874 query service; authorization stays up.
+
+        All clauses bind ``tenant_id`` (tenant isolation is a storage-level
+        filter, never an application afterthought). ``query_terms`` are ANDed
+        case-insensitive containment terms — the bounded, leak-free subset of
+        SQL LIKE the service needs; no user text reaches the statement
+        unbound. ``kinds`` and the optional locator filter narrow further.
+        Returned rows are candidates only: the query service re-evaluates
+        current effective access before anything becomes user-visible.
+        Returns the candidate window, the offset of the next window (0 when
+        exhausted) and the tenant's current index generation — a stable
+        aggregate so continuation cursors can bind a rebuild boundary
+        regardless of window emptiness.
+        """
+
+        lowered = [term.casefold() for term in query_terms if term]
+        statement: Select[tuple[SearchIndexRecord]] = select(SearchIndexRecord).where(
+            SearchIndexRecord.tenant_id == tenant_id,
+            SearchIndexRecord.state == "live",
+        )
+        for term in lowered:
+            statement = statement.where(
+                func.lower(SearchIndexRecord.searchable_text).contains(term, autoescape=True)
+            )
+        if kinds:
+            statement = statement.where(SearchIndexRecord.kind.in_(list(kinds)))
+        if locator_contains:
+            statement = statement.where(
+                func.lower(SearchIndexRecord.source_locator).contains(
+                    locator_contains.casefold(), autoescape=True
+                )
+            )
+        statement = statement.order_by(
+            SearchIndexRecord.source_object_id.desc(),
+        )
+        statement = statement.offset(offset).limit(limit + 1)
+        rows = list(self.session.scalars(statement))
+        has_more = len(rows) > limit
+        generation = self.session.scalar(
+            select(func.max(SearchIndexRecord.index_generation)).where(
+                SearchIndexRecord.tenant_id == tenant_id
+            )
+        )
+        return rows[:limit], (offset + limit) if has_more else 0, generation or 0
