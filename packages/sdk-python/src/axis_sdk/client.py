@@ -93,6 +93,7 @@ class AxisClient:
         self.audit = AuditResource(self)
         self.ontology = OntologyResource(self)
         self.agents = AgentsResource(self)
+        self.search = SearchResource(self)
 
     def close(self) -> None:
         self._http.close()
@@ -175,6 +176,7 @@ class AsyncAxisClient:
         self.audit = AsyncAuditResource(self)
         self.ontology = AsyncOntologyResource(self)
         self.agents = AsyncAgentsResource(self)
+        self.search = AsyncSearchResource(self)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -437,6 +439,31 @@ class AgentsResource:
         return self._client._call(endpoints.agent_registry(tenant_id))
 
 
+class SearchResource:
+    def __init__(self, client: AxisClient) -> None:
+        self._client = client
+
+    def query(
+        self,
+        tenant_id: str,
+        query: str,
+        *,
+        kinds: list[str] | None = None,
+        locator: str | None = None,
+        page_size: int | None = None,
+        cursor: str | None = None,
+    ) -> models.SearchResultPage:
+        return self._client._call(
+            endpoints.search_index(
+                tenant_id=tenant_id,
+                query=query,
+                kinds=kinds,
+                locator=locator,
+                page_size=page_size,
+                cursor=cursor,            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # Async resources
 # ---------------------------------------------------------------------------
@@ -649,3 +676,29 @@ class AsyncAgentsResource:
 
     async def registry(self, tenant_id: str | None = None) -> models.AgentRegistry:
         return await self._client._call(endpoints.agent_registry(tenant_id))
+
+
+class AsyncSearchResource:
+    def __init__(self, client: AsyncAxisClient) -> None:
+        self._client = client
+
+    async def query(
+        self,
+        tenant_id: str,
+        query: str,
+        *,
+        kinds: list[str] | None = None,
+        locator: str | None = None,
+        page_size: int | None = None,
+        cursor: str | None = None,
+    ) -> models.SearchResultPage:
+        return await self._client._call(
+            endpoints.search_index(
+                tenant_id=tenant_id,
+                query=query,
+                kinds=kinds,
+                locator=locator,
+                page_size=page_size,
+                cursor=cursor,
+            )
+        )

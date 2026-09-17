@@ -21036,6 +21036,161 @@
         "title": "RiskSignal",
         "type": "object"
       },
+      "SearchHit": {
+        "additionalProperties": false,
+        "description": "One user-visible hit; restricted records are metadata-only.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "ontology_asset",
+              "document"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          },
+          "source_locator": {
+            "title": "Source Locator",
+            "type": "string"
+          },
+          "source_object_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Object Id",
+            "type": "string"
+          },
+          "text_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Digest"
+          },
+          "withheld_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "access_not_evaluable",
+                  "not_textually_searchable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withheld Reason"
+          }
+        },
+        "required": [
+          "kind",
+          "source_object_id",
+          "source_locator"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SearchPageMetadata": {
+        "additionalProperties": false,
+        "description": "Counts/facets over the authorized page subset only; no global counts.",
+        "properties": {
+          "facets": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Facets",
+            "type": "object"
+          },
+          "returned": {
+            "minimum": 0.0,
+            "title": "Returned",
+            "type": "integer"
+          },
+          "withheld": {
+            "minimum": 0.0,
+            "title": "Withheld",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "returned",
+          "withheld"
+        ],
+        "title": "SearchPageMetadata",
+        "type": "object"
+      },
+      "SearchQueryResponse": {
+        "additionalProperties": false,
+        "description": "Public API response: the authorized page plus tenant binding.",
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "index_generation": {
+            "minimum": 0.0,
+            "title": "Index Generation",
+            "type": "integer"
+          },
+          "index_stale": {
+            "default": false,
+            "title": "Index Stale",
+            "type": "boolean"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/SearchPageMetadata"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "served_under_policy_revision": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Served Under Policy Revision",
+            "type": "string"
+          },
+          "tenant_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hits",
+          "metadata",
+          "served_under_policy_revision",
+          "index_generation",
+          "tenant_id"
+        ],
+        "title": "SearchQueryResponse",
+        "type": "object"
+      },
       "SourceBindingSelection": {
         "additionalProperties": false,
         "properties": {
@@ -32880,6 +33035,146 @@
         ]
       }
     },
+    "/demo/manufacturing/search": {
+      "get": {
+        "deprecated": true,
+        "description": "Authorized full-text search over the #873 index projection.\n\nCurrent authorization is re-evaluated for every candidate before any\nrepresentation exists; records whose access cannot be evaluated are\nwithheld as metadata-only hits; explicit denials are invisible.\nTotals and facets cover the emitted authorized subset only. The\ncontinuation cursor is opaque, binds the presenting principal and\nquery digest, and is re-authorized on every continuation.",
+        "operationId": "search_index_query_demo_manufacturing_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 241,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "ontology_asset",
+                      "document"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Locator"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 600,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Search read permission denied"
+          },
+          "422": {
+            "description": "Bounded search request or continuation cursor invalid"
+          }
+        },
+        "summary": "Search Index Query",
+        "tags": [
+          "search"
+        ]
+      }
+    },
     "/demo/manufacturing/simulation/replay": {
       "get": {
         "deprecated": true,
@@ -42207,6 +42502,145 @@
         "summary": "Manufacturing Overview",
         "tags": [
           "demo"
+        ]
+      }
+    },
+    "/operations/search": {
+      "get": {
+        "description": "Authorized full-text search over the #873 index projection.\n\nCurrent authorization is re-evaluated for every candidate before any\nrepresentation exists; records whose access cannot be evaluated are\nwithheld as metadata-only hits; explicit denials are invisible.\nTotals and facets cover the emitted authorized subset only. The\ncontinuation cursor is opaque, binds the presenting principal and\nquery digest, and is re-authorized on every continuation.",
+        "operationId": "search_index_query_operations_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 241,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "ontology_asset",
+                      "document"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Locator"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 600,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "OIDC authentication required"
+          },
+          "403": {
+            "description": "Search read permission denied"
+          },
+          "422": {
+            "description": "Bounded search request or continuation cursor invalid"
+          }
+        },
+        "summary": "Search Index Query",
+        "tags": [
+          "search"
         ]
       }
     },

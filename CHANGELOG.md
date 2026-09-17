@@ -7,10 +7,26 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Authorized full-text search over the #873 index projection: one bounded query
+  service and `GET /operations/search` that re-evaluate current authorization
+  before any representation, withhold non-evaluable records as metadata-only
+  hits, paginate by emitted hits with re-authorized opaque cursors, and report
+  authorized-subset counts/facets plus explicit index freshness. Python SDK
+  `search.query(...)` and a public `search-result-page` JSON Schema contract
+  are included
+  ([#874](https://github.com/Limes-Labs/limes-axis/issues/874)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
+
+- Tenant-scoped full-text search index projection (#873): bounded approved text
+  from committed ontology promotions and normalized document observations,
+  monotonic revision fencing with durable tombstones, row-locked concurrent
+  writer serialization, metadata-only audit evidence and a disposable,
+  rebuildable index table. No query surface or retrieval authorization in this
+  slice.
 
 - Approval queue search and risk/domain filters, compact counts, and a dedicated
   mobile review with focus restoration. Explicit approval links remain reviewable

@@ -47,6 +47,11 @@ from axis_api.persistence import (
     TenantCreate,
 )
 from axis_api.platform_tenants import TenantProvisionRequest, provision_tenant
+from axis_api.search_queries import (
+    SearchHit,
+    SearchPageMetadata,
+    SearchQueryResponse,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMAS_DIR = REPO_ROOT / "packages" / "schemas"
@@ -298,6 +303,34 @@ def test_connector_manifest_matches_connector_manifest_schema(
             AxisPersistenceRepository(session), request
         )
         validator.validate(record.manifest)
+
+
+def test_authorized_search_page_matches_search_result_page_schema() -> None:
+    validator = build_validator("search-result-page.schema.json")
+    page = SearchQueryResponse(
+        hits=[
+            SearchHit(
+                kind="document",
+                source_object_id="doc-1",
+                source_locator="doc/doc-1",
+                snippet="quality hold on batch 42",
+                text_digest="a" * 64,
+            ),
+            SearchHit(
+                kind="document",
+                source_object_id="doc-2",
+                source_locator="doc/doc-2",
+                withheld_reason="access_not_evaluable",
+            ),
+        ],
+        metadata=SearchPageMetadata(returned=1, withheld=1, facets={"document": 2}),
+        next_cursor=None,
+        served_under_policy_revision="search-policy:current",
+        index_generation=1,
+        index_stale=False,
+        tenant_id="tenant_demo_manufacturing",
+    )
+    validator.validate(page.model_dump(mode="json"))
 
 
 def test_persisted_audit_ledger_events_match_audit_event_schema(

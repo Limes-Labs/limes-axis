@@ -410,3 +410,50 @@ def test_errors_are_never_retried_on_4xx(app: FastAPI) -> None:
         client.ontology.entity("node_does_not_exist")
 
     assert len(recording.requests) == 1
+
+
+def test_search_query_round_trip_and_continuation(session_factory) -> None:
+    app = build_app(
+        session_factory,
+        oidc_auth_required=True,
+        principal=OidcPrincipal(
+            actor_id="search-operator",
+            tenant_id=TENANT_ID,
+            scopes=["search:read"],
+        ),
+    )
+    with make_client(app, token="sdk-test-token") as client:
+        page = client.search.query(
+            TENANT_ID,
+            "quality hold",
+            page_size=2,
+        )
+
+    assert page.tenant_id == TENANT_ID
+    assert [hit.source_object_id for hit in page.hits][:2] == [
+        "search_doc_2",
+        "search_doc_1",
+    ]
+    assert page.hits[0].snippet == "quality hold item 2"
+    assert page.metadata.facets == {"document": 2}
+    assert page.next_cursor is not None
+    assert page.served_under_policy_revision == "search-policy:current"
+    assert page.index_stale is False
+
+
+def test_search_query_empty_result_has_no_cursor(session_factory) -> None:
+    app = build_app(
+        session_factory,
+        oidc_auth_required=True,
+        principal=OidcPrincipal(
+            actor_id="search-operator",
+            tenant_id=TENANT_ID,
+            scopes=["search:read"],
+        ),
+    )
+    with make_client(app, token="sdk-test-token") as client:
+        page = client.search.query(TENANT_ID, "nothing matches this term")
+
+    assert page.hits == []
+    assert page.metadata.returned == 0
+    assert page.next_cursor is None
