@@ -7,6 +7,16 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Resumable restore runner for portability: persisted run/step state machine
+  over versioned component restore ports, dependency-ordered sequencing with
+  per-step digest evidence, worker fencing and idempotent retries, quarantine
+  and resume of interrupted runs (only identical bundle/plan digests are
+  resumed; changed bundles open a new generation), suspension-gated targets
+  with fail-closed operator authorization, missing handlers recorded as
+  blocked instead of fabricated completion, and activation blockers surfaced
+  for the later verification slice
+  ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
+
 - Offline portability bundle validator and dry-run restore plan: bounded
   archive-safety checks without opening members, operator-anchored signature
   verification, per-component payload digest verification, deterministic

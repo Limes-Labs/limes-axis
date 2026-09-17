@@ -94,6 +94,16 @@
       ],
       "kind": "module",
       "path": "services/api/src/axis_api/portability_validator.py"
+    },
+    {
+      "id": "portability-restore-runner",
+      "owner": "deployment",
+      "dependencies": [
+        "trust",
+        "operational-model"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/portability_restore_runner.py"
     }
   ],
   "ports": [
