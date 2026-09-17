@@ -7,6 +7,15 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned Workbook Studio contract separating workbook structure, source
+  bindings and cell provenance: stable identities disjoint from source
+  storage IDs, opaque resource-prefix bindings without credentials or rows,
+  explicit local-only value labeling, frozen bind-time mapping whose schema
+  drift surfaces as compatibility state instead of silent column remap, and
+  shareable definitions that strip viewer-local values. Contract slice
+  only; no grid UI, source access, formula evaluation or writeback
+  ([#848](https://github.com/Limes-Labs/limes-axis/issues/848)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
