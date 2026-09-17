@@ -87,14 +87,18 @@ test.describe("approval review workspace", () => {
     await expect(page).toHaveURL(/approval_id=/);
     await page.goBack();
     await expect(page).not.toHaveURL(/approval_id=/);
-    await expect(search).toBeVisible();
+    // The queue remounts behind a data-bound loading surface; under a slow
+    // live API that hand-off can exceed the default 5s expectation budget.
+    await expect(search).toBeVisible({ timeout: 15_000 });
     await row.click();
     if (compact(page)) await page.getByRole("button", { name: "Back to approval inbox" }).click();
     await search.fill("quality");
     await expect(page).toHaveURL(/q=quality/);
     await page.goBack();
     await expect(page).not.toHaveURL(/q=quality/);
-    await expect(search).toHaveValue("");
+    // Same remount budget as above: the queue refetches before the uncontrolled
+    // search input is remounted with the cleared filter value.
+    await expect(search).toHaveValue("", { timeout: 15_000 });
     await expectNoHorizontalOverflow(page);
   });
 
