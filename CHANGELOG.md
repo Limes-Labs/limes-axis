@@ -7,6 +7,15 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Offline portability bundle validator and dry-run restore plan: bounded
+  archive-safety checks without opening members, operator-anchored signature
+  verification, per-component payload digest verification, deterministic
+  identity mapping with explicit consent (two-to-one merges refused, unknown
+  principals disabled without default roles), suspension of operational
+  schedules, and exclusion acknowledgment gating the later write runner.
+  Zero network, admission, credential or destination-write behavior
+  ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled

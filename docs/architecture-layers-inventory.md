@@ -43,6 +43,7 @@ collaborations, not permission to import a vertical into shared core.
 | agent-runs | intelligence | trust, workflow, operational-model, experience | [`services/api/src/axis_api/agent_runs.py`](../services/api/src/axis_api/agent_runs.py) |
 | reference-vertical | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/manufacturing_operations.py`](../services/api/src/axis_api/manufacturing_operations.py) |
 | legacy-response-contracts | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/demo.py`](../services/api/src/axis_api/demo.py) |
+| portability-validator | deployment | trust | [`services/api/src/axis_api/portability_validator.py`](../services/api/src/axis_api/portability_validator.py) |
 
 ## Issue snapshot
 
