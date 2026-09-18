@@ -162,6 +162,10 @@ operational profiles and secret injection.
 | `AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED` | `deployment_data_residency_configured` | boolean | `false` |  |
 | `AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED` | `deployment_operator_access_runbook_configured` | boolean | `false` |  |
 | `AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED` | `deployment_break_glass_approval_configured` | boolean | `false` |  |
+| `AXIS_DEPLOYMENT_RELEASE_IDENTITY` | `deployment_release_identity` | string | `""` |  |
+| `AXIS_DEPENDENCY_MANIFEST_REVISION` | `deployment_dependency_manifest_revision` | string | `""` |  |
+| `AXIS_DEPLOYMENT_OFFLINE_LOCAL_BINDINGS` | `deployment_offline_local_bindings` | array | `[]` |  |
+| `AXIS_OFFLINE_REHEARSAL_EVIDENCE` | `offline_rehearsal_evidence` | string | `""` |  |
 | `AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED` | `replay_arbitrary_policy_set_diff_enabled` | boolean | `false` |  |
 
 ## Observability

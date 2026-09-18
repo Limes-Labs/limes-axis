@@ -516,6 +516,13 @@ or private endpoint names. Restricted mode is production-ready only when at
 least one CIDR allowlist is configured; offline and local-only modes are
 production-ready without external destination allowlists.
 
+The readiness response also carries an additive `offline_readiness` section that
+keeps declared configuration, observed rehearsal evidence and external
+accreditation as distinct concepts: an offline profile with no rehearsal is
+reported as configured but unverified, never as observed. It adds no
+production-required check. See
+[offline-readiness.md](offline-readiness.md).
+
 ## Deployment Tenancy Profiles
 
 The chart exposes `AXIS_DEPLOYMENT_TENANCY_MODE` so operators can identify the

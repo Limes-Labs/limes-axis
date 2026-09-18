@@ -1,0 +1,57 @@
+{
+  "section_fields": [
+    "state",
+    "declared",
+    "egress_mode",
+    "release_identity",
+    "profile_digest",
+    "dependency_manifest_revision",
+    "configuration",
+    "observed_evidence",
+    "notes"
+  ],
+  "section_states": [
+    "not_declared",
+    "action_required",
+    "configured_unverified",
+    "verified_in_rehearsal"
+  ],
+  "observed_evidence_states": [
+    "not_run",
+    "incomplete",
+    "malformed",
+    "tampered",
+    "mismatched",
+    "stale",
+    "matched"
+  ],
+  "configuration_states": [
+    "not_evaluated",
+    "valid",
+    "invalid"
+  ],
+  "required_dependencies": [
+    "artifact-object-store",
+    "identity-validation",
+    "operational-database",
+    "workflow-engine"
+  ],
+  "optional_dependencies": [
+    "distributed-rate-limit",
+    "external-database-source",
+    "model-inference",
+    "ontology-store",
+    "s3-input",
+    "telemetry-export"
+  ],
+  "evidence_fields": [
+    "ref",
+    "release",
+    "profile_digest",
+    "captured_at",
+    "scope",
+    "result_digest"
+  ],
+  "profile_schema": "axis.offline-profile.v1",
+  "rehearsal_max_age_seconds": 7776000
+}

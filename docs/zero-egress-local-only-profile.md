@@ -132,7 +132,8 @@ disabled).
 This slice delivers the manifest/profile and the rendering checks it actually
 ran. It does not run a live rehearsal and does not claim observed isolation:
 [#871](https://github.com/Limes-Labs/limes-axis/issues/871) separates configured
-posture from observed isolation in deployment readiness, and
+posture from observed isolation in deployment readiness (see
+[offline-readiness.md](offline-readiness.md)), and
 [#872](https://github.com/Limes-Labs/limes-axis/issues/872) must demonstrate both
 local connectivity and external denial in an isolated environment with bounded
 evidence. Offline bundle production remains

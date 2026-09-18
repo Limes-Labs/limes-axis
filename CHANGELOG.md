@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Additive `offline_readiness` section in the deployment readiness report that
+  keeps declared configuration, observed rehearsal evidence and external
+  accreditation distinct: an offline profile with no rehearsal is reported as
+  configured but unverified, and missing, malformed, tampered, stale or
+  mismatched evidence is never observed. It adds no production-required check and
+  establishes no accreditation
+  ([#871](https://github.com/Limes-Labs/limes-axis/issues/871)).
+
 - Opt-in `local_only` Helm egress profile with scoped DNS, an explicit local
   service graph derived from the runtime dependency inventory and fail-closed
   validation of missing or unbounded bindings. Rendering a NetworkPolicy is a

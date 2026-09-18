@@ -13976,6 +13976,9 @@
             "title": "Notes",
             "type": "array"
           },
+          "offline_readiness": {
+            "$ref": "#/components/schemas/OfflineReadinessSection"
+          },
           "production_blockers": {
             "items": {
               "type": "string"
@@ -14006,7 +14009,8 @@
           "demo_safe",
           "capabilities",
           "production_blockers",
-          "checks"
+          "checks",
+          "offline_readiness"
         ],
         "title": "DeploymentReadinessReport",
         "type": "object"
@@ -18900,6 +18904,279 @@
           "route_count"
         ],
         "title": "ModelRoutingTelemetryProjection",
+        "type": "object"
+      },
+      "OfflineConfigurationValidation": {
+        "properties": {
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineDependencyBinding"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "local_bindings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Local Bindings",
+            "type": "array"
+          },
+          "omitted_capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineOmittedCapability"
+            },
+            "title": "Omitted Capabilities",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "not_evaluated",
+              "valid",
+              "invalid"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "local_bindings",
+          "blockers",
+          "omitted_capabilities",
+          "dependencies"
+        ],
+        "title": "OfflineConfigurationValidation",
+        "type": "object"
+      },
+      "OfflineDependencyBinding": {
+        "properties": {
+          "dependency_id": {
+            "minLength": 1,
+            "title": "Dependency Id",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "requirement": {
+            "enum": [
+              "required",
+              "optional"
+            ],
+            "title": "Requirement",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "local",
+              "external",
+              "disabled"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dependency_id",
+          "requirement",
+          "state",
+          "detail"
+        ],
+        "title": "OfflineDependencyBinding",
+        "type": "object"
+      },
+      "OfflineObservedEvidence": {
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "captured_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured At"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "environment_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment Scope"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "state": {
+            "enum": [
+              "not_run",
+              "incomplete",
+              "malformed",
+              "tampered",
+              "mismatched",
+              "stale",
+              "matched"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "tested_profile_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested Profile Digest"
+          },
+          "tested_release_identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested Release Identity"
+          }
+        },
+        "required": [
+          "state",
+          "detail"
+        ],
+        "title": "OfflineObservedEvidence",
+        "type": "object"
+      },
+      "OfflineOmittedCapability": {
+        "properties": {
+          "dependency_id": {
+            "minLength": 1,
+            "title": "Dependency Id",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dependency_id",
+          "reason"
+        ],
+        "title": "OfflineOmittedCapability",
+        "type": "object"
+      },
+      "OfflineReadinessSection": {
+        "description": "Additive offline-readiness section of the deployment readiness report.",
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/OfflineConfigurationValidation"
+          },
+          "declared": {
+            "title": "Declared",
+            "type": "boolean"
+          },
+          "dependency_manifest_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Manifest Revision"
+          },
+          "egress_mode": {
+            "minLength": 1,
+            "title": "Egress Mode",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "observed_evidence": {
+            "$ref": "#/components/schemas/OfflineObservedEvidence"
+          },
+          "profile_digest": {
+            "minLength": 1,
+            "title": "Profile Digest",
+            "type": "string"
+          },
+          "release_identity": {
+            "minLength": 1,
+            "title": "Release Identity",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "not_declared",
+              "action_required",
+              "configured_unverified",
+              "verified_in_rehearsal"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "declared",
+          "egress_mode",
+          "release_identity",
+          "profile_digest",
+          "configuration",
+          "observed_evidence",
+          "notes"
+        ],
+        "title": "OfflineReadinessSection",
         "type": "object"
       },
       "OidcClaimOnboarding": {
