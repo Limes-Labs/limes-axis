@@ -480,7 +480,7 @@ connector execution test or production certification.
 
 ## Network Egress Modes
 
-The chart exposes `networkPolicy.egressMode` with three modes:
+The chart exposes `networkPolicy.egressMode` with four modes:
 
 - `port_allowlist`: preserves the initial chart behavior by allowing configured
   ports through `networkPolicy.allowedEgressPorts` without destination binding.
@@ -489,8 +489,23 @@ The chart exposes `networkPolicy.egressMode` with three modes:
 - `restricted`: renders `ipBlock` rules for each CIDR in
   `networkPolicy.allowedEgressCidrs`, limited to the configured
   `networkPolicy.allowedEgressPorts`.
-- `offline`: renders no generic external egress rule. DNS and the optional
-  same-release Helm smoke-test rule remain the only chart-managed egress paths.
+- `offline`: renders no generic external egress rule. DNS stays unrestricted
+  because the chart cannot infer the local resolvers, and the optional
+  same-release Helm smoke-test rule remains. This is the weaker legacy mode, not
+  the strict profile.
+- `local_only`: the opt-in strict profile. Egress is limited to the explicit
+  local service graph in `networkPolicy.localOnly.services` plus resolvers
+  scoped by `networkPolicy.localOnly.dns`. It never renders an unrestricted DNS
+  rule, a port-only rule or an all-address CIDR allow rule, and rendering fails
+  with an actionable message when a required service, resolver or bounded CIDR
+  binding is missing. See
+  [zero-egress-local-only-profile.md](zero-egress-local-only-profile.md).
+
+NetworkPolicies are additive and only take effect when the CNI enforces them, so
+rendering a profile is not evidence of isolation. The local-only profile
+requires the deployment checks documented in
+[zero-egress-local-only-profile.md](zero-egress-local-only-profile.md), and a
+live rehearsal must still demonstrate local connectivity and external denial.
 
 The API receives the public-safe posture through
 `AXIS_DEPLOYMENT_NETWORK_POLICY_ENABLED`,
@@ -498,8 +513,15 @@ The API receives the public-safe posture through
 `AXIS_DEPLOYMENT_NETWORK_EGRESS_ALLOWLIST_CONFIGURED`. The readiness endpoint
 does not expose destination CIDRs, customer network names, firewall policy IDs
 or private endpoint names. Restricted mode is production-ready only when at
-least one CIDR allowlist is configured; offline mode is production-ready without
-external destination allowlists.
+least one CIDR allowlist is configured; offline and local-only modes are
+production-ready without external destination allowlists.
+
+The readiness response also carries an additive `offline_readiness` section that
+keeps declared configuration, observed rehearsal evidence and external
+accreditation as distinct concepts: an offline profile with no rehearsal is
+reported as configured but unverified, never as observed. It adds no
+production-required check. See
+[offline-readiness.md](offline-readiness.md).
 
 ## Deployment Tenancy Profiles
 
@@ -531,6 +553,8 @@ deployment paths:
 - `profiles/single-tenant-managed.yaml`
 - `profiles/private-cloud.yaml`
 - `profiles/on-prem-offline.yaml`
+- `profiles/local-only.yaml` (strict local-only egress; see
+  [zero-egress-local-only-profile.md](zero-egress-local-only-profile.md))
 
 Render or install them with the normal chart plus `-f`:
 
@@ -538,9 +562,11 @@ Render or install them with the normal chart plus `-f`:
 helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/single-tenant-managed.yaml
 helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/private-cloud.yaml
 helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/on-prem-offline.yaml
+helm template limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/local-only.yaml
 helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/single-tenant-managed.yaml
 helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/private-cloud.yaml
 helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/on-prem-offline.yaml
+helm upgrade --install limes-axis infra/helm/limes-axis -f infra/helm/limes-axis/profiles/local-only.yaml
 ```
 
 `make deployment-profile-render-check` is the local profile render gate. It
@@ -553,7 +579,7 @@ secret material must come from the configured external secret manager boundary.
 
 The overlays enable enterprise-shaped defaults such as required OIDC,
 Secure-session cookies, ExternalSecret usage, HPA/PDB availability controls,
-profile annotations and restricted or offline NetworkPolicy posture. They do
+profile annotations and restricted, offline or local-only NetworkPolicy posture. They do
 not set customer-specific evidence gates to `true`; operators must explicitly
 set isolation, data-residency, operator-access and break-glass evidence only
 after the real customer environment has been reviewed.

@@ -90,6 +90,7 @@ def test_deployment_package_declares_deployment_profile_overlays() -> None:
     assert "infra/helm/limes-axis/profiles/single-tenant-managed.yaml" in required_profiles
     assert "infra/helm/limes-axis/profiles/private-cloud.yaml" in required_profiles
     assert "infra/helm/limes-axis/profiles/on-prem-offline.yaml" in required_profiles
+    assert "infra/helm/limes-axis/profiles/local-only.yaml" in required_profiles
 
 
 def test_deployment_package_includes_first_tenant_bootstrap_in_api_image() -> None:
@@ -129,6 +130,7 @@ def test_deployment_values_schema_declares_operational_enums() -> None:
         "port_allowlist",
         "restricted",
         "offline",
+        "local_only",
     ]
     assert external_secret["secretStoreRef"]["properties"]["kind"]["enum"] == [
         "SecretStore",
@@ -535,6 +537,37 @@ def test_network_policy_declares_restricted_and_offline_egress_modes() -> None:
     assert "offline" in network_policy
     assert "ipBlock:" in network_policy
     assert ".Values.networkPolicy.allowedEgressCidrs" in network_policy
+
+
+def test_network_policy_declares_the_opt_in_local_only_egress_profile() -> None:
+    values = (REPO_ROOT / "infra" / "helm" / "limes-axis" / "values.yaml").read_text(
+        encoding="utf-8"
+    )
+    template_dir = REPO_ROOT / "infra" / "helm" / "limes-axis" / "templates"
+    network_policy = (template_dir / "networkpolicy.yaml").read_text(encoding="utf-8")
+    helpers = (template_dir / "_helpers.tpl").read_text(encoding="utf-8")
+    profile = (
+        REPO_ROOT / "infra" / "helm" / "limes-axis" / "profiles" / "local-only.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "local_only" in values
+    assert "localOnly:" in values
+    assert "local_only" in network_policy
+    assert 'include "limes-axis.validateLocalOnly"' in network_policy
+    assert 'include "limes-axis.localOnlyEgress"' in network_policy
+    assert "limes-axis.requiredLocalOnlyServices" in helpers
+    assert "node_local" in helpers
+    assert "all-address allow rules are not permitted" in helpers
+    assert "egressMode: local_only" in profile
+    assert "state: omitted" in profile
+    for required in (
+        "identity-validation",
+        "operational-database",
+        "workflow-engine",
+        "artifact-object-store",
+        "model-inference",
+    ):
+        assert required in profile, f"local-only profile must declare {required}"
 
 
 def test_deployment_chart_declares_tenancy_profile_boundaries() -> None:

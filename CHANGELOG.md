@@ -7,6 +7,26 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Additive `offline_readiness` section in the deployment readiness report that
+  keeps declared configuration, observed rehearsal evidence and external
+  accreditation distinct: an offline profile with no rehearsal is reported as
+  configured but unverified, and missing, malformed, tampered, stale or
+  mismatched evidence is never observed. It adds no production-required check and
+  establishes no accreditation
+  ([#871](https://github.com/Limes-Labs/limes-axis/issues/871)).
+
+- Opt-in `local_only` Helm egress profile with scoped DNS, an explicit local
+  service graph derived from the runtime dependency inventory and fail-closed
+  validation of missing or unbounded bindings. Rendering a NetworkPolicy is a
+  policy check, not proof of isolation: CNI enforcement, additive policies and
+  upstream resolver forwarding remain deployment prerequisites
+  ([#870](https://github.com/Limes-Labs/limes-axis/issues/870)).
+
+- Versioned static dependency inventory with local options, reasoned capability
+  omissions, configuration-reference checks and a generated operator matrix.
+  This does not enable adapters, enforce zero egress or certify an offline bundle
+  ([#869](https://github.com/Limes-Labs/limes-axis/issues/869)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
