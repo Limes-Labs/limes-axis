@@ -442,14 +442,14 @@ Git blob digests bind the review baseline to packaging, not live traffic.
 | --- | --- |
 | `infra/docker/docker-compose.yml` | `066d34e76411c3f0dc0c9dc13249521b51dcc2bd` |
 | `infra/helm/limes-axis/Chart.yaml` | `6450c0e7c5695c4f378083e892134b58effa4585` |
-| `infra/helm/limes-axis/templates/_helpers.tpl` | `526397d3a5960a2312427e6e3761c52b20a29f83` |
+| `infra/helm/limes-axis/templates/_helpers.tpl` | `fd9afc2734bdefd3e9b67abde18309510e901688` |
 | `infra/helm/limes-axis/templates/api-deployment.yaml` | `3385ce302e45d7fc3f3368b9a1bbf17cea4e9fe7` |
 | `infra/helm/limes-axis/templates/api-service.yaml` | `70c5fb300f8b1489c51afb96e56c8cdb9dd9e0b3` |
-| `infra/helm/limes-axis/templates/configmap.yaml` | `b242953cf59c14de92cb9f26d5faf7a7e5b7b30e` |
+| `infra/helm/limes-axis/templates/configmap.yaml` | `d5b470b74e26685090b1fb87acb5af9d3f80518c` |
 | `infra/helm/limes-axis/templates/externalsecret.yaml` | `09c60ad1cbd9fcc0afdfcac4912d0bcd90cb5136` |
 | `infra/helm/limes-axis/templates/hpa.yaml` | `3ffd02e33cbc0111d592d37075ddf117972dd4a2` |
 | `infra/helm/limes-axis/templates/ingress.yaml` | `e032e6ad4103f39e3ca09ef42d19472159168953` |
-| `infra/helm/limes-axis/templates/networkpolicy.yaml` | `c1f54fedeb1c7818f5d828fa959f713ce8f6d2c8` |
+| `infra/helm/limes-axis/templates/networkpolicy.yaml` | `4d338d938e998acbedae86cbca9b5db465952298` |
 | `infra/helm/limes-axis/templates/poddisruptionbudget.yaml` | `a95f7a191beb2bc4f23295cda2f46b6ecd343ae9` |
 | `infra/helm/limes-axis/templates/secret-example.yaml` | `3f7ef22a4797f4e7131d94f0102c9ef61c34d362` |
 | `infra/helm/limes-axis/templates/serviceaccount.yaml` | `840c07358a3cb37e981fd04322329da1546eab4a` |

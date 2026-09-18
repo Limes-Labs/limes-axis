@@ -424,6 +424,16 @@ ingress:
 networkPolicy:
   enabled: true
   dnsPort: 53
+  # port_allowlist: generic TCP port allowlist plus unrestricted DNS (default).
+  # restricted:     bounded CIDR destinations plus unrestricted DNS.
+  # offline:        no generic external egress rule; DNS stays unrestricted
+  #                 because the chart cannot infer the local resolvers. This
+  #                 is the weaker legacy mode, not the strict #473 profile.
+  # local_only:     opt-in strict profile. Egress is limited to the explicit
+  #                 local service graph in `localOnly` plus scoped local
+  #                 resolvers. It never renders an unrestricted DNS rule, a
+  #                 port-only rule or an all-address CIDR allow rule. See
+  #                 docs/zero-egress-local-only-profile.md.
   egressMode: port_allowlist
   allowedEgressPorts:
     - 443
@@ -432,6 +442,32 @@ networkPolicy:
     - 7233
     - 9000
   allowedEgressCidrs: []
+  # Opt-in local-only egress graph, read only when egressMode: local_only.
+  # Destinations are derived from the #869 runtime dependency inventory
+  # (docs/runtime-dependencies.local-profile.json); see
+  # docs/zero-egress-local-only-profile.md for the required names.
+  localOnly:
+    # DNS is always scoped in this mode: there is no unrestricted DNS rule.
+    dns:
+      # cluster:    cluster DNS pods (default).
+      # node_local: node-local DNS pods plus the documented link-local
+      #             resolver address; requires CNI/node-network support.
+      # explicit:   only `resolvers` below.
+      mode: cluster
+      namespace: kube-system
+      podSelector:
+        k8s-app: kube-dns
+      # Bounded link-local resolver address used by node_local mode.
+      nodeLocalCidr: 169.254.20.10/32
+      # Extra or explicit resolver destinations. Each entry declares a
+      # `namespace` (with an optional `podSelector`) or an `ipBlock`.
+      resolvers: []
+    # Required local services are identity-validation, operational-database,
+    # workflow-engine, artifact-object-store and model-inference. Each must be
+    # declared either as state: local (namespace or ipBlock plus at least one
+    # port) or as state: omitted with an explicit reason; a missing entry fails
+    # rendering instead of silently widening egress.
+    services: []
 
 externalServices:
   postgres:

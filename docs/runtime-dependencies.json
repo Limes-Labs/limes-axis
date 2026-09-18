@@ -1108,7 +1108,7 @@
     },
     {
       "path": "infra/helm/limes-axis/templates/_helpers.tpl",
-      "git_blob": "526397d3a5960a2312427e6e3761c52b20a29f83"
+      "git_blob": "fd9afc2734bdefd3e9b67abde18309510e901688"
     },
     {
       "path": "infra/helm/limes-axis/templates/api-deployment.yaml",
@@ -1120,7 +1120,7 @@
     },
     {
       "path": "infra/helm/limes-axis/templates/configmap.yaml",
-      "git_blob": "b242953cf59c14de92cb9f26d5faf7a7e5b7b30e"
+      "git_blob": "d5b470b74e26685090b1fb87acb5af9d3f80518c"
     },
     {
       "path": "infra/helm/limes-axis/templates/externalsecret.yaml",
@@ -1136,7 +1136,7 @@
     },
     {
       "path": "infra/helm/limes-axis/templates/networkpolicy.yaml",
-      "git_blob": "c1f54fedeb1c7818f5d828fa959f713ce8f6d2c8"
+      "git_blob": "4d338d938e998acbedae86cbca9b5db465952298"
     },
     {
       "path": "infra/helm/limes-axis/templates/poddisruptionbudget.yaml",
