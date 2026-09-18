@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from axis_api.audit import AuditEventCreate
 from axis_api.config import Settings
 from axis_api.connector_postgres_discovery import ConnectorSourceOperationError
+from axis_api.connector_rest_ingestion import RestIngestionRuntime, RestSourceFailure
 from axis_api.connector_s3_ingestion import S3IngestionRuntime
 from axis_api.connector_s3_source import S3ReadProgress
 from axis_api.connector_source_extraction import (
@@ -49,6 +50,7 @@ from axis_api.persistence import (
     ConnectorSourceExtractionBatchCreate,
     ConnectorSourceIngestionRequestCreate,
 )
+from axis_api.rest_source_profile import REST_SOURCE_CONNECTOR_ID
 from axis_api.s3_source_profile import S3_SOURCE_CONNECTOR_ID
 
 SOURCE_INGESTION_SCOPE = "connectors:source:ingest"
@@ -1003,6 +1005,7 @@ class SourceIngestionOutboxDispatcher:
         runtime: SourceIngestionRuntimePort,
         extraction_runtime: Any | None = None,
         s3_runtime: S3IngestionRuntime | None = None,
+        rest_runtime: RestIngestionRuntime | None = None,
         clock: Callable[[], datetime] | None = None,
         random_uniform: Callable[[float, float], float] | None = None,
     ) -> None:
@@ -1011,6 +1014,7 @@ class SourceIngestionOutboxDispatcher:
         self._runtime = runtime
         self._extraction_runtime = extraction_runtime
         self._s3_runtime = s3_runtime
+        self._rest_runtime = rest_runtime
         self._clock = clock or (lambda: datetime.now(UTC))
         self._random_uniform = random_uniform or random.uniform
 
@@ -1119,7 +1123,11 @@ class SourceIngestionOutboxDispatcher:
         if row.stage == EXTRACTION_STAGE:
             if (
                 not self.settings.source_ingestion_extraction_enabled
-                or (self._extraction_runtime is None and self._s3_runtime is None)
+                or (
+                    self._extraction_runtime is None
+                    and self._s3_runtime is None
+                    and self._rest_runtime is None
+                )
             ):
                 return self._finalize_failure(
                     row,
@@ -1148,6 +1156,8 @@ class SourceIngestionOutboxDispatcher:
         """
         if row.connector_id == S3_SOURCE_CONNECTOR_ID:
             return self._extract_s3_selections(row, evidence)
+        if row.connector_id == REST_SOURCE_CONNECTOR_ID:
+            return self._extract_rest_selections(row, evidence)
         batches_summary: list[dict] = []
         try:
             with session_scope(self._session_factory) as session:
@@ -1372,6 +1382,95 @@ class SourceIngestionOutboxDispatcher:
                 row, self._safe_error_code(exc), permanent=False, evidence=failure_evidence()
             )
 
+    def _extract_rest_selections(self, row, evidence):
+        """Prepare under SQL, read/store one page without a transaction, then commit.
+
+        The cursor only advances inside the same fenced transaction that records
+        the batch: a crash before upload, after upload and after SQL commit all
+        replay onto the same deterministic object, and a stale claim or a
+        changed binding revision commits nothing.
+        """
+        if self._rest_runtime is None:
+            return self._finalize_failure(
+                row, "rest_source_disabled", permanent=True, evidence=evidence
+            )
+        completed = []
+        progress = {"source_dial_performed": False, "extraction_performed": False}
+
+        def failure_evidence():
+            return {
+                **{key: value for key, value in evidence.items() if key != "batches"},
+                "source_dial_performed": progress["source_dial_performed"],
+                "extraction_performed": progress["extraction_performed"],
+            }
+
+        try:
+            for selection in sorted(row.selections, key=lambda item: item["binding_id"]):
+                with session_scope(self._session_factory) as session:
+                    prepared = self._rest_runtime.prepare_selection(
+                        AxisPersistenceRepository(session),
+                        tenant_id=row.tenant_id,
+                        connector_id=row.connector_id,
+                        request_id=row.request_id,
+                        binding_id=str(selection["binding_id"]),
+                        resource_name=str(selection["resource_name"]),
+                        pinned_schema_fingerprint=str(selection["schema_fingerprint"]),
+                        executed_by=EXTRACTION_ACTOR,
+                    )
+                completed.append(self._rest_runtime.extract_prepared(prepared))
+                progress["source_dial_performed"] = True
+                progress["extraction_performed"] = True
+            evidence = {
+                **evidence,
+                "source_dial_performed": True,
+                "extraction_performed": True,
+                "batches": [
+                    {
+                        "batch_key": result.batch_key,
+                        "binding_id": result.prepared.binding_id,
+                        "resource_name": result.prepared.profile.resource_name,
+                        "row_count": result.outcome.row_count,
+                        "truncated": result.outcome.truncated,
+                        "digest_sha256": result.outcome.digest_sha256,
+                        "storage_uri": result.outcome.stored["storage_uri"],
+                        "traversal": result.checkpoint_state["traversal"],
+                    }
+                    for result in completed
+                ],
+            }
+
+            def commit_batches(repository):
+                for result in completed:
+                    self._rest_runtime.commit(repository, result)
+
+            return self._finalize_success(row, evidence, commit_batches=commit_batches)
+        except RestSourceFailure as exc:
+            progress["source_dial_performed"] = (
+                progress["source_dial_performed"] or exc.source_dial_performed
+            )
+            failure_evidence_value = failure_evidence()
+            if exc.retry_after_seconds is not None:
+                failure_evidence_value["retry_after_seconds"] = exc.retry_after_seconds
+            return self._finalize_failure(
+                row,
+                exc.code.value,
+                permanent=not exc.retryable,
+                evidence=failure_evidence_value,
+                retry_after_seconds=exc.retry_after_seconds,
+            )
+        except ConnectorError as exc:
+            return self._finalize_failure(
+                row, exc.code.value, permanent=not exc.retryable, evidence=failure_evidence()
+            )
+        except ConnectorSourceOperationError as exc:
+            return self._finalize_failure(
+                row, exc.reason, permanent=True, evidence=failure_evidence()
+            )
+        except Exception as exc:
+            return self._finalize_failure(
+                row, self._safe_error_code(exc), permanent=False, evidence=failure_evidence()
+            )
+
     def _finalize_success(
         self, row: _ClaimedIngestionRequest, evidence: dict, *,
         commit_batches: Callable[[AxisPersistenceRepository], None] | None = None,
@@ -1436,15 +1535,24 @@ class SourceIngestionOutboxDispatcher:
         *,
         permanent: bool,
         evidence: dict | None = None,
+        retry_after_seconds: int | None = None,
     ) -> _ProcessOutcome:
         now = self._clock()
         exhausted = (
             row.attempt_count >= self.settings.source_ingestion_max_attempts
         )
         dead_letter = permanent or exhausted
-        available_at = (
-            now if dead_letter else now + self._retry_delay(row.attempt_count)
-        )
+        available_at = now if dead_letter else now + self._retry_delay(row.attempt_count)
+        if not dead_letter and retry_after_seconds:
+            # Honor a bounded provider hint by SCHEDULING later, never sleeping:
+            # the worker's durable retry state owns the wait.
+            hinted = timedelta(
+                seconds=min(
+                    retry_after_seconds,
+                    self.settings.source_ingestion_retry_after_max_seconds,
+                )
+            )
+            available_at = max(available_at, now + hinted)
         with session_scope(self._session_factory) as session:
             repository = AxisPersistenceRepository(session)
             if evidence is None:

@@ -13,11 +13,15 @@ not certify a deployment or enable a connector. The
 | `file_csv_manufacturing_assets` | CSV in an allowlisted local dropzone | Header validation, bounded file batches, checkpoints and review-only proposals |
 | `external_db_operational_mirror` | Postgres | Metadata preview, bounded verification/discovery, governed live-sync batches and activated-table extraction |
 | `s3_object_storage` | S3 / MinIO approved bucket prefix | Opt-in protocol 1.0 discovery and bounded incremental object extraction through the ingestion outbox |
+| `rest_collection_source` | One declared paginated REST JSON collection | Opt-in protocol 1.0 single-page reads through the ingestion outbox with fenced cursor commits and bounded rate-limit retries |
 
 The CSV/Postgres IDs are dispatched by
 [`SelfHostedConnectorLiveSyncRuntime`](../services/api/src/axis_api/connector_execution.py).
 The [S3 host](s3-source-ingestion.md) uses the existing activated-source ingestion
-outbox, with binding checkpoints and current manifest/lease/policy checks.
+outbox, with binding checkpoints and current manifest/lease/policy checks. The
+[REST host](rest-source-ingestion.md) uses the same outbox for one declared
+collection per binding; it reads a single governed page per fenced attempt and
+never discovers or writes to the provider.
 Tenant-scoped manifest registration can describe other sources, but does not
 install an adapter or make a new ID executable. The persisted registry and
 manifest lifecycle remain authoritative; there is no browser-local fallback.
