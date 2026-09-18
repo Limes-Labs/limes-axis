@@ -7,6 +7,32 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned assurance pack manifest contract: audience/engagement-bound
+  selection of exact answer, posture and evidence revisions, structured
+  support states that keep gaps and limitations visible, freshness
+  re-verification against observed facts (expired certificates, wrong
+  release/profile, superseded answers cannot pass as current), preflight
+  gating, and a fixed scope note for #871/#879 report citations. Contract
+  slice only; no artifact packaging or signing
+- Deterministic assurance pack assembly: released-only packaging of an
+  approved manifest into a bounded archive (canonical manifest JSON,
+  sanitized local Markdown index, permitted attachments) with caller-owned
+  release authorization and final-output secret scanning; revocation,
+  revision changes, digest mismatches or unsupported scan formats abort
+  generation instead of reusing a privileged cached package. No signing,
+  issuance or download delivery
+  ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Immutable signed assurance pack issuance and bounded offline verification:
+  final approval binds to the exact assembled package/manifest digests with a
+  sign-time support re-check, issuance records carry the #729 lifecycle facts
+  (capture time, valid-through, revocation state, supersession) as separate
+  fields, and verification runs with no network or global trust — separately
+  trusted verification material, supported-algorithm allowlist, embedded
+  trust anchors rejected, stale revocation data or an uncertain clock yield
+  qualified (never unqualified-current) results, and the wording states that
+  a signature proves integrity and provenance, not certification
+  ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
