@@ -6,6 +6,7 @@ from pathlib import Path
 
 from axis_api import connector_execution
 from axis_api.connector_s3_source import S3ObjectSource
+from axis_api.rest_source_profile import REST_SOURCE_CONNECTOR_ID
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MATRIX = REPO_ROOT / "docs/connector-capabilities.md"
@@ -19,7 +20,10 @@ def test_capability_matrix_covers_the_wired_source_connector_ids() -> None:
     inventory = MATRIX.read_text().split("## Source families actually wired\n", 1)[1]
     inventory = inventory.split("## Capability matrix\n", 1)[0]
     documented_ids = set(re.findall(r"^\| `([^`]+)` \|", inventory, re.MULTILINE))
-    assert documented_ids == live_ids | {S3ObjectSource.descriptor.connector_id}
+    # Descriptor-backed source adapters keep their connector id next to the
+    # profile contract, not in the shared live-sync execution module.
+    descriptor_ids = {S3ObjectSource.descriptor.connector_id, REST_SOURCE_CONNECTOR_ID}
+    assert documented_ids == live_ids | descriptor_ids
 
 
 def test_capability_evidence_selectors_still_resolve() -> None:

@@ -98,8 +98,10 @@ The transport performs no live authorization by itself and records no audit
 events: constructing evidence, resolving material, committing checkpoints and
 admitting page counts across a traversal remain host responsibilities.
 [#861](https://github.com/Limes-Labs/limes-axis/issues/861) owns fenced durable
-host adoption; [#862](https://github.com/Limes-Labs/limes-axis/issues/862) owns
-end-to-end conformance. OAuth, external writes, source discovery execution,
+host adoption, implemented in
+[rest-source-ingestion.md](rest-source-ingestion.md);
+[#862](https://github.com/Limes-Labs/limes-axis/issues/862) owns end-to-end
+conformance. OAuth, external writes, source discovery execution,
 schedules and UI remain outside this contract.
 
 ## Verification
