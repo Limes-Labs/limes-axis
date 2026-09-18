@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.limeslabs.eu/axis/search-result-page.schema.json",
+  "title": "Limes Axis Authorized Search Result Page",
+  "description": "A bounded, authorized full-text search result page over the tenant-scoped index projection. Current authorization is re-evaluated for every candidate before any representation is produced: records whose access cannot be evaluated are withheld as metadata-only hits, explicit denials are invisible, and totals and facets cover the emitted authorized subset only. Continuation cursors are opaque and bind the presenting principal, the query/filter digest and the index generation.",
+  "type": "object",
+  "required": [
+    "tenant_id",
+    "hits",
+    "metadata",
+    "served_under_policy_revision",
+    "index_generation",
+    "index_stale"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant the search was executed against; always the caller's admitted tenant.",
+      "minLength": 1
+    },
+    "hits": {
+      "type": "array",
+      "description": "Authorized hits for this page in service-determined order. Restricted records appear only as metadata-only hits with a withheld_reason and never carry text.",
+      "items": {
+        "$ref": "#/$defs/searchHit"
+      }
+    },
+    "metadata": {
+      "$ref": "#/$defs/pageMetadata"
+    },
+    "next_cursor": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Opaque continuation token bound to the presenting principal, the query/filter digest and the index generation; null when the authorized result set is exhausted. Cursors expire and are re-authorized on every continuation.",
+      "maxLength": 600
+    },
+    "served_under_policy_revision": {
+      "type": "string",
+      "description": "The current search ACL policy revision the page was evaluated under; hits captured under older revisions are withheld until re-indexed.",
+      "minLength": 1
+    },
+    "index_generation": {
+      "type": "integer",
+      "description": "Index generation the page was served from; a rebuild invalidates continuation cursors instead of shifting results.",
+      "minimum": 0
+    },
+    "index_stale": {
+      "type": "boolean",
+      "description": "True when the served page comes from an empty index generation (nothing indexed yet); clients must not fall back to unrestricted source queries."
+    }
+  },
+  "$defs": {
+    "searchHit": {
+      "type": "object",
+      "required": [
+        "kind",
+        "source_object_id",
+        "source_locator"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Indexed resource kind.",
+          "enum": [
+            "ontology_asset",
+            "document"
+          ]
+        },
+        "source_object_id": {
+          "type": "string",
+          "description": "Stable source or ontology identity of the indexed record.",
+          "minLength": 1,
+          "maxLength": 220
+        },
+        "source_locator": {
+          "type": "string",
+          "description": "Opaque source locator; narrowing filter metadata only, never a label.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "snippet": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Exact authorized text span around the first query match; null on metadata-only hits. Stored plain text only, never raw marked-up source."
+        },
+        "text_digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Digest binding the served text; null on metadata-only hits."
+        },
+        "withheld_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Present only on metadata-only hits: access_not_evaluable (current authorization could not be evaluated) or not_textually_searchable (tombstoned or textless record).",
+          "enum": [
+            "access_not_evaluable",
+            "not_textually_searchable",
+            null
+          ]
+        }
+      }
+    },
+    "pageMetadata": {
+      "type": "object",
+      "description": "Counts and facets computed over the authorized emitted subset only; never global counts with rows hidden afterwards.",
+      "required": [
+        "returned",
+        "withheld",
+        "facets"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "returned": {
+          "type": "integer",
+          "description": "Hits that carried text on this page.",
+          "minimum": 0
+        },
+        "withheld": {
+          "type": "integer",
+          "description": "Metadata-only hits on this page.",
+          "minimum": 0
+        },
+        "facets": {
+          "type": "object",
+          "description": "Hit counts per resource kind over the emitted authorized subset.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

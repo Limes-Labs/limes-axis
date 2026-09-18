@@ -61,6 +61,36 @@ def list_approvals(tenant_id: str | None = None) -> Endpoint:
     )
 
 
+def search_index(
+    *,
+    tenant_id: str,
+    query: str,
+    kinds: list[str] | None = None,
+    locator: str | None = None,
+    page_size: int | None = None,
+    cursor: str | None = None,
+) -> Endpoint:
+    params: dict[str, Any] = {"tenant_id": tenant_id, "q": query}
+    if kinds:
+        params["kind"] = kinds
+    if locator is not None:
+        params["locator"] = locator
+    if page_size is not None:
+        params["page_size"] = page_size
+    if cursor is not None:
+        params["cursor"] = cursor
+    return (
+        RequestSpec(
+            "GET",
+            f"{OPERATIONS_PREFIX}/search",
+            params=params,
+            tenant_scoped=True,
+            idempotent=True,
+        ),
+        models.SearchResultPage,
+    )
+
+
 def decide_approval(
     approval_id: str,
     *,

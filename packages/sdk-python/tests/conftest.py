@@ -25,6 +25,8 @@ from axis_api.models import Base
 from axis_api.persistence import (
     AxisPersistenceRepository,
     DemoReferenceRecordCreate,
+    SearchIndexRecordCreate,
+    TenantCreate,
     WorkflowRunCreate,
     WorkflowTimelineEventCreate,
 )
@@ -136,6 +138,33 @@ def session_factory() -> sessionmaker[Session]:
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     with session_scope(factory) as session:
         repository = AxisPersistenceRepository(session)
+        repository.create_tenant(
+            TenantCreate(
+                tenant_id=TENANT_ID,
+                display_name="Ravenna Works",
+                description="Plant Operations Cockpit",
+                created_by="sdk-tests",
+            )
+        )
+        for index in range(3):
+            repository.create_search_index_record(
+                SearchIndexRecordCreate(
+                    tenant_id=TENANT_ID,
+                    kind="document",
+                    source_object_id=f"search_doc_{index}",
+                    content_revision="rev-1",
+                    source_locator=f"doc/search-{index}",
+                    state="live",
+                    searchable_text=f"quality hold item {index}",
+                    text_digest="a" * 64,
+                    language="en",
+                    analyzer_revision="analyzer-1",
+                    policy_revision_ref="search-policy:current",
+                    index_generation=1,
+                    indexed_event_type="search.index.record_projected",
+                    indexed_audit_event_id=None,
+                )
+            )
         for surface, reference_id, migration_file, symbol in _REFERENCE_SEEDS:
             payload = _reference_payload(migration_file, symbol)
             repository.upsert_demo_reference_record(

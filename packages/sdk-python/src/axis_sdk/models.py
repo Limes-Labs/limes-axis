@@ -624,3 +624,34 @@ class AgentRegistry(AxisModel):
     metrics: list[OverviewMetric] = Field(default_factory=list)
     filter_options: AgentRegistryFilterOptions | None = None
     registry_notes: list[str] = Field(default_factory=list)
+
+
+class SearchPageMetadata(AxisModel):
+    """Counts and facets over the authorized page subset only."""
+
+    returned: int = 0
+    withheld: int = 0
+    facets: dict[str, int] = Field(default_factory=dict)
+
+
+class SearchHit(AxisModel):
+    """One authorized search hit; restricted records are metadata-only."""
+
+    kind: str
+    source_object_id: str
+    source_locator: str
+    snippet: str | None = None
+    text_digest: str | None = None
+    withheld_reason: str | None = None
+
+
+class SearchResultPage(AxisModel):
+    """One bounded authorized search page with explicit freshness metadata."""
+
+    tenant_id: str
+    hits: list[SearchHit] = Field(default_factory=list)
+    metadata: SearchPageMetadata = Field(default_factory=SearchPageMetadata)
+    next_cursor: str | None = None
+    served_under_policy_revision: str = ""
+    index_generation: int = 0
+    index_stale: bool = False

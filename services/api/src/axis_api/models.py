@@ -2205,3 +2205,66 @@ class ConnectorSourceExtractionBatch(Base):
             "binding_id",
         ),
     )
+
+
+class SearchIndexRecord(Base):
+    """Tenant-scoped full-text index projection row (#873).
+
+    A derived, data-bearing projection: every column describes where the text
+    came from and which authorization evidence it was captured under. Text is
+    bounded at the application layer before reaching this table. Rows are
+    disposable and rebuildable per ``index_generation``; deleting them never
+    touches ontology or source artifacts.
+    """
+
+    __tablename__ = "search_index_records"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_object_id: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
+    content_revision: Mapped[str] = mapped_column(String(220), nullable=False)
+    source_locator: Mapped[str] = mapped_column(String(500), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    searchable_text: Mapped[str] = mapped_column(Text, nullable=True)
+    text_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    language: Mapped[str] = mapped_column(String(12), nullable=False)
+    analyzer_revision: Mapped[str] = mapped_column(String(200), nullable=False)
+    policy_revision_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    index_generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    indexed_event_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    indexed_audit_event_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "source_object_id",
+            name="uq_search_index_records_tenant_object",
+        ),
+        Index(
+            "ix_search_index_records_tenant_state",
+            "tenant_id",
+            "state",
+            "id",
+        ),
+        CheckConstraint(
+            "kind IN ('ontology_asset', 'document')",
+            name="ck_search_index_records_kind",
+        ),
+        CheckConstraint(
+            "state IN ('live', 'tombstoned')",
+            name="ck_search_index_records_state",
+        ),
+        CheckConstraint(
+            "(state = 'live' AND searchable_text IS NOT NULL AND text_digest IS NOT NULL) "
+            "OR (state = 'tombstoned' AND searchable_text IS NULL AND text_digest IS NULL)",
+            name="ck_search_index_records_text_state",
+        ),
+        CheckConstraint("index_generation >= 1", name="ck_search_index_records_generation"),
+    )
