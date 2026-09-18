@@ -6399,3 +6399,20 @@ class AxisPersistenceRepository:
             )
         )
         return rows[:limit], (offset + limit) if has_more else 0, generation or 0
+
+    def list_search_index_states(self, *, tenant_id: str) -> Sequence[SearchIndexRecord]:
+        """Full tenant index state for the #875 rebuild switch validator.
+
+        Unlike the query-service candidate window this applies no state
+        filter: tombstones must be visible so a generation switch can prove
+        that no identity was lost between generations. The rebuild validator
+        reads identity/state/revision columns only; text never leaves the
+        storage boundary through this method's callers.
+        """
+
+        statement = (
+            select(SearchIndexRecord)
+            .where(SearchIndexRecord.tenant_id == tenant_id)
+            .order_by(SearchIndexRecord.source_object_id)
+        )
+        return list(self.session.scalars(statement))

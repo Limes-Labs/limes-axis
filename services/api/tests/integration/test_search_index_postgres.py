@@ -240,3 +240,105 @@ def test_authorized_search_isolation_on_real_postgres(migrated_postgres_engine):
             limit=5,
         )
         assert rows == []
+
+
+def test_generation_rebuild_on_real_postgres_rejects_old_cursors(
+    migrated_postgres_engine,
+):
+    """#875 AC6: full rebuild over PostgreSQL; old cursors fail closed."""
+
+    from axis_api.audit import AuditEventCreate
+    from axis_api.search_queries import (
+        SearcherAuthority,
+        SearchQueryError,
+        SearchQueryRequest,
+        run_repository_search,
+    )
+    from axis_api.search_rebuild import RebuildContext, RebuildItem, RebuildSource
+
+    engine = migrated_postgres_engine
+    tenant_id = "tenant-search-pg-rebuild"
+    factory = _seed_tenant(engine, tenant_id)
+    node_a = f"{tenant_id}::asset-a"
+    node_b = f"{tenant_id}::asset-b"
+    _index_once(factory, tenant_id, node_a, "rev-1", "Pump alpha calibration", supersedes=False)
+    _index_once(factory, tenant_id, node_b, "rev-1", "Pump beta pressure records", supersedes=False)
+
+    # A pre-rebuild page mints a continuation cursor bound to generation 1.
+    with session_scope(factory) as session:
+        repo = AxisPersistenceRepository(session)
+        authority = SearcherAuthority(tenant_id=tenant_id, policy_revision_ref="policy-rev-1")
+        page = run_repository_search(
+            repo,
+            request=SearchQueryRequest(tenant_id=tenant_id, query="pump", page_size=1),
+            authority=authority,
+            searcher_ref="actor:rebuild",
+        )
+        assert page.index_generation == 1
+        assert page.next_cursor is not None
+    old_cursor = page.next_cursor
+
+    # The rebuild reprojects both identities onto generation 2 and switches.
+    with session_scope(factory) as session:
+        repo = AxisPersistenceRepository(session)
+        watermark = repo.append_audit_event(
+            AuditEventCreate(
+                tenant_id=tenant_id,
+                actor_id="rebuild-test",
+                event_type="rebuild.source.watermark",
+                payload={"reason": "fixture"},
+            )
+        )
+        source = RebuildSource(
+            tenant_id=tenant_id,
+            watermark_event_id=watermark.id,
+            items=[
+                RebuildItem(
+                    kind="ontology_asset",
+                    source_object_id=node_a,
+                    content_revision="rev-1",
+                    source_locator=f"typedb://axis/{node_a}",
+                    searchable_text="Pump alpha calibration data",
+                    policy_revision_ref="policy-rev-1",
+                ),
+                RebuildItem(
+                    kind="ontology_asset",
+                    source_object_id=node_b,
+                    content_revision="rev-1",
+                    source_locator=f"typedb://axis/{node_b}",
+                    searchable_text="Pump beta pressure records",
+                    policy_revision_ref="policy-rev-1",
+                ),
+            ],
+        )
+        context = RebuildContext(repository=repo, source=source)
+        context.prepare()
+        for item in source.items:
+            context.build(item)
+        outcome = context.commit()
+    assert outcome.decision == "switched"
+    assert outcome.index_generation == 2
+
+    # The fresh generation serves the same authorized content...
+    with session_scope(factory) as session:
+        repo = AxisPersistenceRepository(session)
+        authority = SearcherAuthority(tenant_id=tenant_id, policy_revision_ref="policy-rev-1")
+        served = run_repository_search(
+            repo,
+            request=SearchQueryRequest(tenant_id=tenant_id, query="pump"),
+            authority=authority,
+            searcher_ref="actor:rebuild",
+        )
+        assert served.index_generation == 2
+        assert {hit.source_object_id for hit in served.hits} == {node_a, node_b}
+        # ...while the pre-rebuild cursor is rejected, never stale-paged.
+        with pytest.raises(SearchQueryError) as error:
+            run_repository_search(
+                repo,
+                request=SearchQueryRequest(
+                    tenant_id=tenant_id, query="pump", page_size=1, cursor=old_cursor
+                ),
+                authority=authority,
+                searcher_ref="actor:rebuild",
+            )
+        assert error.value.code == SearchQueryError.CURSOR_EXPIRED

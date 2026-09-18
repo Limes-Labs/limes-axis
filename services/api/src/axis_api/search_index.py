@@ -23,7 +23,10 @@ Core invariants:
   silently indexed as complete.
 * **Rebuildability**: the projection is disposable. ``index_generation``
   exists so a rebuild can proceed under a fresh generation without mutating
-  any authoritative ontology or source artifact.
+  any authoritative ontology or source artifact; a strictly newer generation
+  with bound ordering evidence may re-project the same revision
+  (``generation_rebuild``), while equal-revision same-generation events stay
+  idempotent replays.
 
 No text or secret material appears in evidence or audit helpers.
 """
@@ -151,6 +154,7 @@ class IndexProjection(ContractModel):
     reason: Literal[
         "new_record",
         "newer_revision",
+        "generation_rebuild",
         "idempotent_replay",
         "older_revision",
         "tombstone",
@@ -181,6 +185,13 @@ def classify_index_update(
     that binding — retry after re-reading the source, never guess. Tombstones
     always apply (deletions are monotone), and only strictly newer ordering
     evidence can replace a tombstone with live content.
+
+    Rebuild exception (#875): the same authoritative revision re-projected
+    under a *strictly newer* index generation with bound ordering evidence
+    applies as ``generation_rebuild`` — the generation bump is the rebuild's
+    ordering evidence, so a rebuild can move unchanged content onto a fresh
+    generation. Equal revisions at the same generation remain idempotent
+    replays and never rewrite the row.
     """
 
     if current_state is None:
@@ -200,6 +211,17 @@ def classify_index_update(
             next_generation=incoming_generation,
         )
     if incoming_content_revision == current_content_revision:
+        if supersedes_current and incoming_generation > current_generation:
+            # #875 rebuild path: unchanged revision re-projected onto a fresh
+            # generation. Fail-closed otherwise: without bound ordering
+            # evidence the replay leaves the row untouched.
+            return IndexProjection(
+                decision="applied",
+                reason="generation_rebuild",
+                next_state=incoming_state,
+                next_content_revision=incoming_content_revision,
+                next_generation=incoming_generation,
+            )
         return IndexProjection(
             decision="superseded",
             reason="idempotent_replay",
