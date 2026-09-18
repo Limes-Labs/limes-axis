@@ -14,6 +14,13 @@ release-bound behavior, not the complete commit history.
   release/profile, superseded answers cannot pass as current), preflight
   gating, and a fixed scope note for #871/#879 report citations. Contract
   slice only; no artifact packaging or signing
+- Deterministic assurance pack assembly: released-only packaging of an
+  approved manifest into a bounded archive (canonical manifest JSON,
+  sanitized local Markdown index, permitted attachments) with caller-owned
+  release authorization and final-output secret scanning; revocation,
+  revision changes, digest mismatches or unsupported scan formats abort
+  generation instead of reusing a privileged cached package. No signing,
+  issuance or download delivery
   ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
 
 - Offline GET-only REST source profiles with typed selectors/parameters, declared

@@ -91,6 +91,13 @@
       "dependencies": [],
       "kind": "module",
       "path": "services/api/src/axis_api/assurance_pack_contracts.py"
+    },
+    {
+      "id": "assurance-packaging",
+      "owner": "trust",
+      "dependencies": [],
+      "kind": "module",
+      "path": "services/api/src/axis_api/assurance_packaging.py"
     }
   ],
   "ports": [
