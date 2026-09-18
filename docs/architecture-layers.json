@@ -74,6 +74,7 @@
     {"id": "data-provenance", "owner": "data", "dependencies": ["trust", "operational-model"], "kind": "module", "path": "services/api/src/axis_api/data_asset_lineage.py"},
     {"id": "connector-authoring-contracts", "owner": "data", "dependencies": ["trust"], "kind": "module", "path": "packages/sdk-python/src/axis_sdk/connector_authoring"},
     {"id": "operational-persistence", "owner": "operational-model", "dependencies": ["trust", "data", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/persistence.py"},
+    {"id": "portability-manifest", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_manifest.py"},
     {"id": "ontology-ports", "owner": "operational-model", "dependencies": ["trust", "data", "experience"], "kind": "module", "path": "services/api/src/axis_api/ontology"},
     {"id": "action-definitions", "owner": "operational-model", "dependencies": ["trust", "workflow"], "kind": "module", "path": "services/api/src/axis_api/actions.py"},
     {"id": "workflow-api-port", "owner": "workflow", "dependencies": ["trust", "experience"], "kind": "module", "path": "services/api/src/axis_api/workflow_runtime.py"},
@@ -84,7 +85,35 @@
     {"id": "model-invocations", "owner": "intelligence", "dependencies": ["trust", "operational-model", "experience"], "kind": "module", "path": "services/api/src/axis_api/model_invocations.py"},
     {"id": "agent-runs", "owner": "intelligence", "dependencies": ["trust", "workflow", "operational-model", "experience"], "kind": "module", "path": "services/api/src/axis_api/agent_runs.py"},
     {"id": "reference-vertical", "owner": "experience", "dependencies": ["trust", "data", "operational-model", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/manufacturing_operations.py"},
-    {"id": "legacy-response-contracts", "owner": "experience", "dependencies": ["trust", "data", "operational-model", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/demo.py"}
+    {"id": "legacy-response-contracts", "owner": "experience", "dependencies": ["trust", "data", "operational-model", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/demo.py"},
+    {
+      "id": "portability-validator",
+      "owner": "deployment",
+      "dependencies": [
+        "trust"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/portability_validator.py"
+    },
+    {
+      "id": "portability-restore-runner",
+      "owner": "deployment",
+      "dependencies": [
+        "trust",
+        "operational-model"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/portability_restore_runner.py"
+    },
+    {
+      "id": "portability-conformance",
+      "owner": "deployment",
+      "dependencies": [
+        "trust"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/portability_conformance.py"
+    }
   ],
   "ports": [
     {"id": "delivery", "owner": "deployment", "status": "current", "input": "Versioned deployment profile and explicit runtime configuration", "output": "Readiness and promotion/recovery evidence", "failure": "Required-dependency readiness failure blocks promotion", "compatibility": "Version images, chart schema and migration chain; rehearse rollback", "evidence": "services/api/src/axis_api/deployment_readiness.py"},
