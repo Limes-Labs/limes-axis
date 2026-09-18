@@ -44,6 +44,7 @@ collaborations, not permission to import a vertical into shared core.
 | legacy-response-contracts | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/demo.py`](../services/api/src/axis_api/demo.py) |
 | assurance-pack-contracts | trust | None | [`services/api/src/axis_api/assurance_pack_contracts.py`](../services/api/src/axis_api/assurance_pack_contracts.py) |
 | assurance-packaging | trust | None | [`services/api/src/axis_api/assurance_packaging.py`](../services/api/src/axis_api/assurance_packaging.py) |
+| assurance-issuance | trust | None | [`services/api/src/axis_api/assurance_issuance.py`](../services/api/src/axis_api/assurance_issuance.py) |
 
 ## Issue snapshot
 

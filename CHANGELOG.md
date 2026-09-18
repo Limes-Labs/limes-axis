@@ -22,6 +22,16 @@ release-bound behavior, not the complete commit history.
   generation instead of reusing a privileged cached package. No signing,
   issuance or download delivery
   ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Immutable signed assurance pack issuance and bounded offline verification:
+  final approval binds to the exact assembled package/manifest digests with a
+  sign-time support re-check, issuance records carry the #729 lifecycle facts
+  (capture time, valid-through, revocation state, supersession) as separate
+  fields, and verification runs with no network or global trust — separately
+  trusted verification material, supported-algorithm allowlist, embedded
+  trust anchors rejected, stale revocation data or an uncertain clock yield
+  qualified (never unqualified-current) results, and the wording states that
+  a signature proves integrity and provenance, not certification
+  ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
 
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
