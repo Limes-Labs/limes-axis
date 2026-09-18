@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from axis_api.rest_source_profile import RestHostProfile
 from axis_api.s3_source_profile import S3SourceProfile
 
 
@@ -13,6 +14,14 @@ class ConnectorsSettings(BaseModel):
     s3_source_profiles: list[S3SourceProfile] = Field(
         default_factory=list,
         alias="AXIS_S3_SOURCE_PROFILES",
+    )
+    rest_source_ingestion_enabled: bool = Field(
+        default=False,
+        alias="AXIS_REST_SOURCE_INGESTION_ENABLED",
+    )
+    rest_source_profiles: list[RestHostProfile] = Field(
+        default_factory=list,
+        alias="AXIS_REST_SOURCE_PROFILES",
     )
     credential_lease_execution_enabled: bool = Field(
         default=False,
@@ -184,6 +193,12 @@ class ConnectorsSettings(BaseModel):
         default=60,
         ge=1,
         alias="AXIS_SOURCE_INGESTION_RETRY_MAX_SECONDS",
+    )
+    source_ingestion_retry_after_max_seconds: int = Field(
+        default=300,
+        ge=1,
+        le=3_600,
+        alias="AXIS_SOURCE_INGESTION_RETRY_AFTER_MAX_SECONDS",
     )
     source_ingestion_max_attempts: int = Field(
         default=3,

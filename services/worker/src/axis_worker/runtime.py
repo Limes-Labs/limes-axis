@@ -24,6 +24,7 @@ from typing import Protocol
 
 from axis_api.approval_outbox import ApprovalDecisionOutboxDispatcher
 from axis_api.config import Settings
+from axis_api.connector_rest_ingestion import RestIngestionRuntime
 from axis_api.connector_s3_ingestion import S3IngestionRuntime
 from axis_api.connector_source_extraction import SelfHostedPostgresExtractionRuntime
 from axis_api.connector_source_ingestion import (
@@ -154,6 +155,7 @@ def optional_source_ingestion_dispatcher(
         return None
     extraction_runtime = None
     s3_runtime = None
+    rest_runtime = None
     if settings.source_ingestion_extraction_enabled:
         # Real bounded extraction through the canonical object-store seam;
         # never constructed when either gate is off.
@@ -163,12 +165,15 @@ def optional_source_ingestion_dispatcher(
         )
         if settings.s3_source_ingestion_enabled:
             s3_runtime = S3IngestionRuntime(settings, object_store=object_store)
+        if settings.rest_source_ingestion_enabled:
+            rest_runtime = RestIngestionRuntime(settings, object_store=object_store)
     dispatcher = SourceIngestionOutboxDispatcher(
         settings=settings,
         session_factory=create_session_factory(settings),
         runtime=ObservationFreshnessIngestionRuntime(),
         extraction_runtime=extraction_runtime,
         s3_runtime=s3_runtime,
+        rest_runtime=rest_runtime,
     )
     if telemetry is not None:
         return _InstrumentedIngestionDispatcher(dispatcher, telemetry)
