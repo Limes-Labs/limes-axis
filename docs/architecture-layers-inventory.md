@@ -18,6 +18,7 @@ collaborations, not permission to import a vertical into shared core.
 | public-json-schemas | operational-model | trust | [`packages/schemas`](../packages/schemas) |
 | local-topology | deployment | trust, data, operational-model, workflow | [`infra/docker`](../infra/docker) |
 | deployment-profiles | deployment | trust, data, operational-model, workflow | [`infra/helm/limes-axis`](../infra/helm/limes-axis) |
+| runtime-dependency-manifest | deployment | trust | [`services/api/src/axis_api/runtime_dependency_manifest.py`](../services/api/src/axis_api/runtime_dependency_manifest.py) |
 | identity | trust | None | [`services/api/src/axis_api/identity.py`](../services/api/src/axis_api/identity.py) |
 | tenant-admission | trust | None | [`services/api/src/axis_api/tenant_admission.py`](../services/api/src/axis_api/tenant_admission.py) |
 | permission-authority | trust | None | [`services/api/src/axis_api/permissions.py`](../services/api/src/axis_api/permissions.py) |

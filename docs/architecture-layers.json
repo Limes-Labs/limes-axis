@@ -61,6 +61,15 @@
     {"id": "public-json-schemas", "owner": "operational-model", "dependencies": ["trust"], "kind": "package", "path": "packages/schemas"},
     {"id": "local-topology", "owner": "deployment", "dependencies": ["trust", "data", "operational-model", "workflow"], "kind": "delivery", "path": "infra/docker"},
     {"id": "deployment-profiles", "owner": "deployment", "dependencies": ["trust", "data", "operational-model", "workflow"], "kind": "delivery", "path": "infra/helm/limes-axis"},
+    {
+      "id": "runtime-dependency-manifest",
+      "owner": "deployment",
+      "dependencies": [
+        "trust"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/runtime_dependency_manifest.py"
+    },
     {"id": "identity", "owner": "trust", "dependencies": [], "kind": "module", "path": "services/api/src/axis_api/identity.py"},
     {"id": "tenant-admission", "owner": "trust", "dependencies": [], "kind": "module", "path": "services/api/src/axis_api/tenant_admission.py"},
     {"id": "permission-authority", "owner": "trust", "dependencies": [], "kind": "module", "path": "services/api/src/axis_api/permissions.py"},

@@ -7,6 +7,17 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Runtime dependency manifest: one versioned machine-readable inventory of
+  the network dependencies behind each shipped capability (owner, purpose,
+  configuration key, required/optional/conditional status, direction,
+  protocol/port, local service reference, local replacement, failure
+  behavior and evidence), with build/install/upgrade dependencies separated
+  from normal-runtime entries, profile-specific omissions carrying explicit
+  reasons instead of a boolean sovereign flag, a consistency check that
+  fails on any new unclassified endpoint setting or secret-looking material,
+  and a deterministic human-readable matrix. Static inventory only — not
+  runtime isolation evidence and not a deployment accreditation claim
+  ([#869](https://github.com/Limes-Labs/limes-axis/issues/869)).
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
