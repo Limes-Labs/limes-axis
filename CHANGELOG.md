@@ -7,6 +7,19 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- End-to-end portability conformance harness: two isolated deployment facades
+  run the canonical #324/#876 export bundle through the real #877 validation
+  and #878 restore paths with the source permanently disconnected before the
+  destination is touched; zero runtime source access is enforced by the
+  destination view, logical identities/digests/effective permissions are
+  compared against the approved plan, imported audit evidence stays
+  source-origin while new destination actions append separate attributable
+  evidence, and one machine-readable PASS/FAIL/BLOCKED/NOT RUN report carries
+  the exact reason, release and profile per row. `portable` is claimed only
+  on an all-PASS supported profile; missing handlers, planned exclusions,
+  blocked rows or NOT RUN infrastructure yield the narrower
+  `partially_portable`, and corrupt bundles or incompatible versions yield
+  `not_portable` with the exact validator reason.
 - Resumable restore runner for portability: persisted run/step state machine
   over versioned component restore ports, dependency-ordered sequencing with
   per-step digest evidence, worker fencing and idempotent retries, quarantine

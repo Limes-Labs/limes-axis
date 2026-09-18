@@ -104,6 +104,15 @@
       ],
       "kind": "module",
       "path": "services/api/src/axis_api/portability_restore_runner.py"
+    },
+    {
+      "id": "portability-conformance",
+      "owner": "deployment",
+      "dependencies": [
+        "trust"
+      ],
+      "kind": "module",
+      "path": "services/api/src/axis_api/portability_conformance.py"
     }
   ],
   "ports": [
