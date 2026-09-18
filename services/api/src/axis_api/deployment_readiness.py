@@ -171,12 +171,14 @@ def build_deployment_readiness_report(
         and bool(settings.api_rate_limit_paths)
     )
     network_egress_mode = _network_egress_mode(settings)
-    network_egress_restricted_ready = settings.deployment_network_policy_enabled and (
-        network_egress_mode == "offline"
-        or (
-            network_egress_mode == "restricted"
-            and settings.deployment_network_egress_allowlist_configured
-        )
+    # offline and local_only render no unrestricted external egress rule; the
+    # local-only profile additionally scopes DNS and declares its destinations.
+    network_egress_bounded = network_egress_mode in {"offline", "local_only"} or (
+        network_egress_mode == "restricted"
+        and settings.deployment_network_egress_allowlist_configured
+    )
+    network_egress_restricted_ready = (
+        settings.deployment_network_policy_enabled and network_egress_bounded
     )
     audit_signing_configured = bool(settings.audit_ledger_signing_secret)
     deployment_tenancy_mode = _deployment_tenancy_mode(settings)
@@ -352,10 +354,14 @@ def build_deployment_readiness_report(
         _check(
             "network_egress_restricted",
             network_egress_restricted_ready,
-            "Network egress is restricted by NetworkPolicy in restricted or offline mode.",
+            (
+                "Network egress is restricted by NetworkPolicy in restricted, "
+                "offline or local-only mode."
+            ),
             (
                 "Network egress is not production-restricted; enable NetworkPolicy "
-                "and use offline mode or restricted mode with an explicit destination allowlist."
+                "and use local-only mode or restricted mode with an explicit destination "
+                "allowlist (offline mode keeps DNS unrestricted)."
             ),
         ),
         _check(

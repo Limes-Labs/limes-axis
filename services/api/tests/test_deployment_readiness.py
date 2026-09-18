@@ -471,6 +471,99 @@ def test_deployment_readiness_accepts_on_prem_profile_with_required_boundaries()
     assert "production-signing-key" not in str(body)
 
 
+def test_deployment_readiness_accepts_local_only_network_egress_mode() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="production-signing-key",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_secure_transport=True,
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="GOVERNANCE",
+                connector_export_s3_retention_days=90,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=True,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=True,
+                dr_customer_approval_configured=True,
+                deployment_network_policy_enabled=True,
+                deployment_network_egress_mode="local_only",
+                # The local-only profile declares explicit destinations, not a
+                # CIDR allowlist, so the flag stays false without blocking.
+                deployment_network_egress_allowlist_configured=False,
+                deployment_tenancy_mode="on_prem",
+                deployment_customer_isolation_configured=True,
+                deployment_data_residency_configured=True,
+                deployment_operator_access_runbook_configured=True,
+                deployment_break_glass_approval_configured=True,
+            )
+        )
+    )
+
+    response = client.get("/deployment/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    checks = _checks_by_id(body)
+    assert body["capabilities"]["network_egress_mode"] == "local_only"
+    assert checks["network_egress_restricted"]["status"] == "ready"
+    assert "network_egress_restricted" not in body["production_blockers"]
+
+
+def test_deployment_readiness_blocks_local_only_mode_without_network_policy() -> None:
+    client = TestClient(
+        create_app(
+            _enterprise_sso_settings(
+                audit_ledger_signing_secret="production-signing-key",
+                external_model_egress_enabled=False,
+                connector_sync_execution_enabled=False,
+                external_db_sync_execution_enabled=False,
+                external_db_live_query_preflight_enabled=False,
+                credential_lease_execution_enabled=False,
+                credential_lease_provider_adapters_enabled=False,
+                connector_export_object_store_adapter="s3_compatible",
+                connector_export_s3_endpoint="minio.internal:9000",
+                connector_export_s3_bucket="axis-evidence",
+                connector_export_s3_access_key="axis-service-account",
+                connector_export_s3_secret_key="axis-secret-key",
+                connector_export_s3_secure_transport=True,
+                connector_export_s3_object_lock_enabled=True,
+                connector_export_s3_retention_mode="GOVERNANCE",
+                connector_export_s3_retention_days=90,
+                dr_runbook_configured=True,
+                dr_rpo_rto_defined=True,
+                dr_rehearsal_evidence_configured=True,
+                dr_restore_owner_configured=True,
+                dr_customer_approval_configured=True,
+                deployment_network_policy_enabled=False,
+                deployment_network_egress_mode="local_only",
+                deployment_network_egress_allowlist_configured=False,
+                deployment_tenancy_mode="on_prem",
+                deployment_customer_isolation_configured=True,
+                deployment_data_residency_configured=True,
+                deployment_operator_access_runbook_configured=True,
+                deployment_break_glass_approval_configured=True,
+            )
+        )
+    )
+
+    response = client.get("/deployment/readiness")
+
+    assert response.status_code == 200
+    checks = _checks_by_id(response.json())
+    assert checks["network_egress_restricted"]["status"] == "action_required"
+
+
 def test_deployment_readiness_flags_insecure_cookie_session_profile() -> None:
     client = TestClient(
         create_app(

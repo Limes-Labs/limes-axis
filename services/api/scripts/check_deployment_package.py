@@ -46,6 +46,11 @@ PROFILE_CONTRACTS = {
         "network_mode": "offline",
         "profile": "on-prem-offline",
     },
+    "infra/helm/limes-axis/profiles/local-only.yaml": {
+        "mode": "on_prem",
+        "network_mode": "local_only",
+        "profile": "local-only",
+    },
 }
 
 
@@ -77,6 +82,7 @@ def required_profile_files() -> tuple[str, ...]:
         "infra/helm/limes-axis/profiles/single-tenant-managed.yaml",
         "infra/helm/limes-axis/profiles/private-cloud.yaml",
         "infra/helm/limes-axis/profiles/on-prem-offline.yaml",
+        "infra/helm/limes-axis/profiles/local-only.yaml",
     )
 
 
@@ -214,6 +220,10 @@ def required_chart_terms() -> tuple[str, ...]:
         "egressMode",
         "allowedEgressCidrs",
         "ipBlock",
+        "localOnly",
+        "local_only",
+        "node_local",
+        "resolvers",
         "ingressClassName",
         "tls:",
         "pathType",
