@@ -7,6 +7,18 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- A reproducible REST connector conformance scenario (one documented command,
+  `make rest-conformance`) that drives a declared synthetic collection through
+  the real host boundaries over a loopback service: pagination completion with a
+  bounded payload digest, durable 429 retry, repeated-cursor and malformed-JSON
+  terminals, schema-change blocking before any request, interrupted acceptance
+  replay and zero source I/O behind disabled gates. Support evidence projects
+  the shared health model from existing durable records and labels its own
+  verification scope (`contract_only`, `local_wire_level`, `provider_verified`),
+  so a local run never claims provider support and a past green run never
+  certifies current availability
+  ([#862](https://github.com/Limes-Labs/limes-axis/issues/862)).
+
 - REST collection ingestion through the existing source-ingestion outbox: one
   governed page per fenced attempt, protocol negotiation before any client,
   per-attempt revalidation of the active binding, declared observation, lease

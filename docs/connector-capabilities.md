@@ -28,6 +28,25 @@ manifest lifecycle remain authoritative; there is no browser-local fallback.
 The older seeded `sync_modes` describe the reference manifest, not a complete
 list of subsequently implemented runtime paths.
 
+### REST collection source modes
+
+`rest_collection_source` reads one declared JSON collection per activated
+binding. Supported today, with executable evidence:
+
+| Mode | Supported | Evidence |
+| --- | --- | --- |
+| Pagination | `opaque_cursor` and same-endpoint `next_link`; repeated cursors are terminal | `services/api/tests/test_rest_connector_conformance.py::test_full_traversal_commits_bounded_payloads_and_reports_completion`, `...::test_repeated_cursor_is_terminal_without_storing_the_loop` |
+| Auth | Lease-scoped `env://` bearer reference resolved server-side; 401 is terminal for the lease | `services/api/tests/test_connector_rest_ingestion.py::test_revoked_lease_blocks_before_any_read` |
+| Consistency | `mutable_traversal` only: bounded pages, no snapshot, no CDC and no general change-feed | `services/api/tests/test_rest_connector_conformance.py::test_full_traversal_commits_bounded_payloads_and_reports_completion` |
+| Throttling | 429 defers through durable retry state with a bounded `Retry-After` floor; the worker never sleeps | `services/api/tests/test_rest_connector_conformance.py::test_throttle_retries_durably_then_completes` |
+| Failure containment | Malformed JSON, changed schema, truncated pages and cross-tenant cursors fail closed without advancing | `services/api/tests/test_rest_connector_conformance.py::test_malformed_json_dead_letters_without_advancing`, `...::test_schema_change_blocks_before_any_request` |
+| Disabled gates | Default-off; disabled REST proves zero source I/O | `services/api/tests/test_rest_connector_conformance.py::test_disabled_gates_prove_zero_source_io` |
+
+Deliberately unsupported: OAuth/refresh flows, provider-side discovery execution,
+snapshot or CDC semantics, REST writeback, schedules and connector UI. The
+binding is activated against a declared schema recorded as
+`rest_declared_schema`, never against provider discovery.
+
 ## Capability matrix
 
 **Implemented** means a concrete code path exists. **Conditional** means it also
@@ -161,6 +180,9 @@ test functions still exist and that the supported live IDs remain represented.
 | Unsupported reconciliation | `services/api/tests/test_connector_extraction_batches.py::test_s3_configured_reconciliation_returns_409_without_client_construction` |
 | Scheduled ownership | `services/worker/tests/test_connector_live_sync_workflow.py::test_activities_resume_claims_checkpoint_and_releases_on_completion` |
 | Extraction flag composition | `services/worker/tests/test_source_ingestion_wiring.py::test_extraction_runtime_built_only_when_both_gates_open` |
+| REST wire-level traversal | `services/api/tests/test_rest_connector_conformance.py::test_full_traversal_commits_bounded_payloads_and_reports_completion` |
+| REST durable throttle | `services/api/tests/test_rest_connector_conformance.py::test_throttle_retries_durably_then_completes` |
+| REST support evidence and health | `services/api/tests/test_rest_connector_conformance.py::test_health_distinguishes_never_tested_from_fresh_and_stale` |
 
 Use `make test-api PYTEST_ARGS='tests/test_connector_source_extraction.py -q'`
 for the reader regression and
@@ -168,6 +190,18 @@ for the reader regression and
 for worker composition.
 Run other selectors inside their corresponding package, omitting the
 `services/api/` or `services/worker/` prefix. Run `make docs-check` for local links.
+
+Evidence records its own verification scope. `contract_only` means offline
+contract/fixture checks, `local_wire_level` means a real loopback service with
+substituted SQLite/object-store components, and `provider_verified` requires a
+provider evidence reference and is never inferred from a local run.
+`rest_connector_support_evidence.py`
+([tests](../services/api/tests/test_rest_connector_conformance.py)) exposes these
+tiers and projects the SDK
+[health model](connector-conformance.md): never-dispatched bindings stay
+`unknown`, a fresh success is not `ready` without a caller-supplied live probe,
+and a success older than the freshness budget is `stale` — a past green run does
+not certify current availability.
 
 Unit evidence uses temporary files, isolated SQLite and substituted source
 drivers. It does not prove real Postgres source behavior, distributed claims,
