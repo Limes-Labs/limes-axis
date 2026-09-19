@@ -25,6 +25,7 @@ collaborations, not permission to import a vertical into shared core.
 | credential-leases | trust | data | [`services/api/src/axis_api/connector_credential_leases.py`](../services/api/src/axis_api/connector_credential_leases.py) |
 | source-execution | data | trust | [`services/api/src/axis_api/connector_execution.py`](../services/api/src/axis_api/connector_execution.py) |
 | source-ingestion | data | trust, workflow | [`services/api/src/axis_api/connector_source_ingestion.py`](../services/api/src/axis_api/connector_source_ingestion.py) |
+| writeback-contracts | data | trust, operational-model | [`services/api/src/axis_api/writeback_contracts.py`](../services/api/src/axis_api/writeback_contracts.py) |
 | object-storage | data | deployment, trust | [`services/api/src/axis_api/object_storage.py`](../services/api/src/axis_api/object_storage.py) |
 | data-catalog | data | trust, operational-model, experience | [`services/api/src/axis_api/data_assets.py`](../services/api/src/axis_api/data_assets.py) |
 | data-quality-contracts | data | trust | [`services/api/src/axis_api/data_asset_contracts.py`](../services/api/src/axis_api/data_asset_contracts.py) |
