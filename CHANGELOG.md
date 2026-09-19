@@ -7,6 +7,37 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- A reproducible REST connector conformance scenario (one documented command,
+  `make rest-conformance`) that drives a declared synthetic collection through
+  the real host boundaries over a loopback service: pagination completion with a
+  bounded payload digest, durable 429 retry, repeated-cursor and malformed-JSON
+  terminals, schema-change blocking before any request, interrupted acceptance
+  replay and zero source I/O behind disabled gates. Support evidence projects
+  the shared health model from existing durable records and labels its own
+  verification scope (`contract_only`, `local_wire_level`, `provider_verified`),
+  so a local run never claims provider support and a past green run never
+  certifies current availability
+  ([#862](https://github.com/Limes-Labs/limes-axis/issues/862)).
+
+- REST collection ingestion through the existing source-ingestion outbox: one
+  governed page per fenced attempt, protocol negotiation before any client,
+  per-attempt revalidation of the active binding, declared observation, lease
+  and egress policy, deterministic payload keys with a compare-and-swap
+  checkpoint commit, bounded `Retry-After` scheduling instead of in-worker
+  sleeps, and terminal handling of repeated cursors, truncated pages and
+  completed traversals. Default-off behind `AXIS_REST_SOURCE_INGESTION_ENABLED`
+  with profiles in `AXIS_REST_SOURCE_PROFILES`; no second outbox, scheduler,
+  checkpoint database or secret store
+  ([#861](https://github.com/Limes-Labs/limes-axis/issues/861)).
+
+- Bounded host-owned REST page reads over the approved source profiles: GET-only
+  transport pinned to the egress-approved origin, no-follow redirects with
+  same-origin pagination validation, streaming wire/decoded-byte caps and
+  deadlines, fixed safe error codes with bounded retry hints, honest truncated
+  results and metadata-only progress evidence. The host still owns leases,
+  secret resolution, retries and durable checkpoint commits
+  ([#860](https://github.com/Limes-Labs/limes-axis/issues/860)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
