@@ -329,6 +329,8 @@ class ConnectorSourceBindingCreate(BaseModel):
     connection_profile_id: str = Field(min_length=1, max_length=180)
     resource_name: str = Field(min_length=1, max_length=240)
     schema_fingerprint: str = Field(min_length=64, max_length=64)
+    schema_fingerprint_version: str = "column_names_v1"
+    supersedes_binding_id: str | None = None
     credential_lease_id: str = Field(min_length=1, max_length=180)
     egress_policy_id: str = Field(min_length=1, max_length=180)
     ingestion_status: str = Field(min_length=1, max_length=60)
@@ -474,6 +476,7 @@ class DataResourceObservationCreate(BaseModel):
     asset_id: str = Field(min_length=1)
     resource_name: str = Field(min_length=1, max_length=240)
     schema_fingerprint: str | None = Field(default=None, min_length=64, max_length=64)
+    schema_fingerprint_version: str = "column_names_v1"
     drift_state: str = Field(min_length=1, max_length=20)
     observed_by: str = Field(min_length=1)
     source_kind: ObservationSourceKind = Field(default="csv_preview", max_length=40)
@@ -2753,6 +2756,7 @@ class AxisPersistenceRepository:
             asset_id=record.asset_id,
             resource_name=record.resource_name,
             schema_fingerprint=record.schema_fingerprint,
+            schema_fingerprint_version=record.schema_fingerprint_version,
             previous_fingerprint=None,
             drift_state=record.drift_state,
             first_seen_at=utc_now(),
@@ -2846,6 +2850,7 @@ class AxisPersistenceRepository:
         existing: DataAssetResourceObservation,
         *,
         schema_fingerprint: str | None,
+        schema_fingerprint_version: str = "column_names_v1",
         drift_state: str,
         observed_by: str,
     ) -> DataAssetResourceObservation:
@@ -2853,6 +2858,7 @@ class AxisPersistenceRepository:
 
         existing.previous_fingerprint = existing.schema_fingerprint
         existing.schema_fingerprint = schema_fingerprint
+        existing.schema_fingerprint_version = schema_fingerprint_version
         existing.drift_state = drift_state
         existing.last_seen_at = utc_now()
         existing.observation_count += 1
@@ -3141,6 +3147,8 @@ class AxisPersistenceRepository:
             connection_profile_id=record.connection_profile_id,
             resource_name=record.resource_name,
             schema_fingerprint=record.schema_fingerprint,
+            schema_fingerprint_version=record.schema_fingerprint_version,
+            supersedes_binding_id=record.supersedes_binding_id,
             credential_lease_id=record.credential_lease_id,
             egress_policy_id=record.egress_policy_id,
             status="active",
@@ -3411,6 +3419,22 @@ class AxisPersistenceRepository:
         self.session.flush()
         return rows
 
+    def lock_connector_source_ingestion_claim(
+        self, ingestion_request_id: UUID, claim_token: UUID, *, now: datetime,
+    ) -> bool:
+        """Fence a short batch transaction against claim takeover and expiry."""
+        statement = (
+            select(ConnectorSourceIngestionRequest.id)
+            .where(
+                ConnectorSourceIngestionRequest.id == ingestion_request_id,
+                ConnectorSourceIngestionRequest.claim_token == claim_token,
+                ConnectorSourceIngestionRequest.status == "dispatching",
+                ConnectorSourceIngestionRequest.lease_expires_at > now,
+            )
+            .with_for_update()
+        )
+        return self.session.scalar(statement) is not None
+
     def complete_connector_source_ingestion_request(
         self,
         ingestion_request_id: UUID,
@@ -3418,7 +3442,6 @@ class AxisPersistenceRepository:
         *,
         completed_at: datetime,
         evidence: dict,
-        require_unexpired: bool = False,
     ) -> bool:
         result = self.session.execute(
             update(ConnectorSourceIngestionRequest)
@@ -3426,8 +3449,7 @@ class AxisPersistenceRepository:
                 ConnectorSourceIngestionRequest.id == ingestion_request_id,
                 ConnectorSourceIngestionRequest.claim_token == claim_token,
                 ConnectorSourceIngestionRequest.status == "dispatching",
-                *((ConnectorSourceIngestionRequest.lease_expires_at > completed_at,)
-                  if require_unexpired else ()),
+                ConnectorSourceIngestionRequest.lease_expires_at > completed_at,
             )
             .values(
                 status="completed",
@@ -3460,6 +3482,7 @@ class AxisPersistenceRepository:
                 ConnectorSourceIngestionRequest.id == ingestion_request_id,
                 ConnectorSourceIngestionRequest.claim_token == claim_token,
                 ConnectorSourceIngestionRequest.status == "dispatching",
+                ConnectorSourceIngestionRequest.lease_expires_at > updated_at,
             )
             .values(
                 status="failed" if dead_letter else "pending",
@@ -3860,6 +3883,15 @@ class AxisPersistenceRepository:
             .execution_options(synchronize_session=False)
         )
         return result.rowcount == 1
+
+    def has_incompatible_raw_checkpoint(self, tenant_id: str, request_id: str) -> bool:
+        return self.session.scalar(
+            select(ConnectorSourceExtractionBatch.id).where(
+                ConnectorSourceExtractionBatch.tenant_id == tenant_id,
+                ConnectorSourceExtractionBatch.request_id == request_id,
+                ~ConnectorSourceExtractionBatch.batch_key.startswith("raw-v1:"),
+            ).limit(1)
+        ) is not None
 
     def get_connector_source_ingestion_request_batches(
         self,

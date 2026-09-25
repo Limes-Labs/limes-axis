@@ -162,6 +162,27 @@ Evidence: [ADR 0003](./adr/0003-external-await-transaction-boundary.md), the
 transaction, pool-occupancy, interruption and duplicate-delivery tests in
 `services/api/tests/test_model_invocations.py`.
 
+## 2026-09-07 — Version and Persist PostgreSQL Source Selections
+
+**Boundary:** governed PostgreSQL discovery, activation and raw ingestion.
+
+Discovery and extraction share bounded versioned schema evidence. Activation
+replaces a binding only through an explicit predecessor and preserves old binding
+IDs for immutable raw history. Migration 0067 follows the S3 checkpoint migration,
+keeps legacy name-only fingerprints valid and stores schema versions plus
+predecessor IDs.
+
+The dispatcher prepares metadata in a short transaction, reads one bounded
+repeatable-read source snapshot outside Axis transactions, writes a
+content-addressed envelope and commits its batch metadata plus audit event under
+an unexpired claim. Retries verify committed bytes before reuse; governed requeues
+create a new generation. Object storage and PostgreSQL cannot commit atomically,
+so unreferenced objects remain detectable by reconciliation.
+
+The [connector capability matrix](connector-capabilities.md), schema/replay tests
+and isolated PostgreSQL proof record behavior and limits. No mapping or graph
+ownership moves into the connector, and no CDC or cross-request snapshot is added.
+
 ## 2026-08-29 — Separate Current Truth from Delivery History
 
 **Issue:** [#359](https://github.com/Limes-Labs/limes-axis/issues/359)

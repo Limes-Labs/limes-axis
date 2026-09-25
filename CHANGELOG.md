@@ -159,6 +159,15 @@ release-bound behavior, not the complete commit history.
   requesting tenant's rows; without it the planner combined two single-column
   indexes and scanned index entries belonging to every other tenant. Responses
   are unchanged ([#363](https://github.com/Limes-Labs/limes-axis/issues/363)).
+
+- CSV/Postgres live sync negotiates an explicit legacy host contract before source
+  access. PostgreSQL discovery records versioned type/key/nullability evidence;
+  extraction refuses schema drift, revalidates lease and egress posture, and
+  commits content-addressed raw batches under an unexpired claim. Retries verify
+  stored bytes before reuse, governed requeues create a new snapshot generation,
+  and SELECT-only source roles retain primary-key ordering. Migration 0067 keeps
+  legacy fingerprints and superseded binding history.
+
 - The architecture overview now describes current runtime truth while delivery
   history lives in a separate changelog ([#359](https://github.com/Limes-Labs/limes-axis/issues/359)).
 - The API compatibility suite is warning-clean and fails on new warnings
