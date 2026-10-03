@@ -682,6 +682,7 @@ from axis_api.platform_tenants import (
     update_tenant_quotas,
     update_tenant_vocabulary,
 )
+from axis_api.public_institutional_context import PublicContextConfig
 from axis_api.rate_limit import (
     ApiRateLimitMiddleware,
     RateLimitBackend,
@@ -2285,6 +2286,7 @@ def create_app(
     telemetry: TelemetryRuntime | None = None,
     readiness_service: RuntimeReadinessService | None = None,
     rate_limit_backend: RateLimitBackend | None = None,
+    public_context: PublicContextConfig | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings()
     validate_runtime_configuration(resolved_settings)
@@ -2389,6 +2391,24 @@ def create_app(
     )
     app.add_middleware(RequestCorrelationMiddleware)
     app.state.settings = resolved_settings
+    if public_context is not None:
+        from axis_api.public_institutional_context import register_public_context
+
+        def fresh_public_context_principal(request: Request) -> OidcPrincipal | None:
+            # Re-verify the bearer principal rather than reuse request admission.
+            # Browser sessions already rehydrate current persisted scopes/state.
+            if request.headers.get("Authorization"):
+                request.state.axis_principal = None
+            return _resolve_request_principal(
+                request, request.headers.get("Authorization"),
+            )[0]
+
+        register_public_context(
+            app,
+            public_context,
+            principal_dependency=oidc_principal,
+            refresh_principal=fresh_public_context_principal,
+        )
     app.state.rate_limit_backend = resolved_rate_limit_backend
     telemetry = telemetry or configure_api_telemetry(resolved_settings)
     app.state.telemetry = telemetry

@@ -1,0 +1,16 @@
+{
+  "source_repository": "https://github.com/metaforismo/gov-core",
+  "core_base_reviewed": "adec96829119fab0575d06d9493f29a9ba794d57",
+  "source_state": "base plus independently authored axis.py hardening in iteration 3",
+  "license": "MIT",
+  "wheel": "govcore_client-0.1.0-py3-none-any.whl",
+  "wheel_sha256": "292da108d2cdc0fd441733f229b47c0a45f88c83eab623b083768d19a2b388fc",
+  "source_files": {
+    "govcore_client/axis.py": "56a245df941e82846f57ff43723c8661fb7af004598ff7d29cdcdea3a2c1cc70",
+    "govcore_client/client.py": "e2e160561f089b5519d5cde3fd89eb0ce97b214c585a9df677252285bc41266f",
+    "govcore_client/__init__.py": "eef41d62968fe33406736c879497553aa4fc915a8fcfb7e8356852d4ec08f950",
+    "govcore_client/civlo.py": "bdd05cd9293edf2198ea9400fdbc6085c23eb8b0fc7d854a8ab645b5222d87b5"
+  },
+  "service_implementation_included": false,
+  "public_data_included": false
+}

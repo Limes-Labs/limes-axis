@@ -3,6 +3,12 @@
 This file records notable changes to Limes Axis. It describes shipped or
 release-bound behavior, not the complete commit history.
 
+## Isolated integration review (unreleased)
+
+- Add an optional authenticated public institutional context reader, default absent,
+  with current tenant/scope and separate fixed-origin policy checks. No ontology ingestion
+  or execution authority. See ADR 0019; production installation remains unverified.
+
 ## [Unreleased]
 
 ### Added

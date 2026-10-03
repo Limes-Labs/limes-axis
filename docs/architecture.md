@@ -180,6 +180,18 @@ the nearest contract evidence; they are not an exhaustive test inventory.
    row payload.
 5. Reconciliation reports divergence without silently repairing either store.
 
+## Optional public institutional context
+
+The isolated opt-in integration described in [ADR 0019](adr/0019-public-institutional-context.md)
+adds a separate authenticated read of public GovCore identity/provenance. Its domain
+module `axis_api.public_institutional_context` checks current Axis scopes, tenant lifecycle
+and a dedicated fixed-origin capability policy before and after HTTP. The composition
+root registers it only with an explicit `PublicContextConfig`; default API contracts and
+runtime dependencies remain unchanged. It returns a public namespace snapshot without
+ontology ingestion, private overlays, model invocation or execution authority. Connector
+egress, infrastructure policy, production installation and live IdP verification retain
+their own boundaries and have not been established by this local integration.
+
 ## Current Limits
 
 - The API composition root remains large; route-module extraction has not yet
