@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 ORIGIN = "http://127.0.0.1:8041"
-ENTITY = "gov_0e832ade3eb15ed59dce284016db5e30"  # public Massa pilot identity
+ENTITY = "gov_5228b607e4a354b6aadefebabd85f1d1"  # Cassano all'Ionio, ISTAT 078029
 TENANT = "synthetic-loopback-axis"
 
 

@@ -36,6 +36,12 @@ class PublicContextConfig:
 
     def __post_init__(self) -> None:
         url = urlsplit(self.base_url)
+        try:
+            port = url.port
+        except ValueError:
+            raise ValueError("A valid GovCore origin port is required") from None
+        if port == 0:
+            raise ValueError("A valid GovCore origin port is required")
         if (
             url.scheme not in {"https", "http"}
             or not url.hostname

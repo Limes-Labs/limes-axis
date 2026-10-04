@@ -7,7 +7,7 @@
   "requests": [
     {
       "method": "GET",
-      "url": "http://127.0.0.1:8041/v1/entities/gov_0e832ade3eb15ed59dce284016db5e30",
+      "url": "http://127.0.0.1:8041/v1/entities/gov_5228b607e4a354b6aadefebabd85f1d1",
       "body_bytes": 0
     }
   ],
@@ -15,7 +15,7 @@
   "ontology_mutations": 0,
   "core_db_writes": 0,
   "live_idp": "NOT RUN",
-  "response_sha256": "55d53cce9ed28f3b8f668820740fa5b4a27051bcb6e5c565b533d48732a9fd0b",
-  "gov_entity_id": "gov_0e832ade3eb15ed59dce284016db5e30",
-  "public_name": "Massa"
+  "response_sha256": "77daaf478ff8f2c5f570aa2306bf20591edf9258e91e5b1d53f7b981096301d4",
+  "gov_entity_id": "gov_5228b607e4a354b6aadefebabd85f1d1",
+  "public_name": "Cassano all'Ionio"
 }

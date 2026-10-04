@@ -1,6 +1,7 @@
 # Optional public institutional context acceptance
 
-This is an isolated reviewable consumer integration, not product deployment.
+This optional integration supports an independently running public GovCore service.
+Use a fixed operator-approved origin, including loopback for local PostgreSQL operation.
 The default API and its committed locks do not depend on GovCore. After normal
 `uv sync --locked` in `services/api`, explicitly install the reviewed MIT wheel:
 
@@ -17,7 +18,7 @@ No environment file, connector registration, tenant migration, ontology write or
 execution is required. A normal frozen sync may remove this optional wheel; reinstall it
 explicitly for the acceptance lane. The default API continues to import without the SDK.
 
-See [the proposed boundary ADR](../../docs/adr/0019-public-institutional-context.md).
+See [the boundary ADR](../../docs/adr/0019-public-institutional-context.md).
 The wheel is independently authored public GovCore SDK code, with its MIT license inside
 the archive and `LICENSE` beside it. It contains no GovCore service implementation,
 product source, pilot data, credentials or private records. `sdk-manifest.json` records

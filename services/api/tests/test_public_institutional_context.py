@@ -197,6 +197,17 @@ def test_unavailable_or_malformed_core_fails_closed(host, response):
     assert result.status_code == 503 and "entity" not in result.json()
 
 
+@pytest.mark.parametrize(
+    "url",
+    ["https://govcore.example:bad", "https://govcore.example:70000", "https://govcore.example:0"],
+)
+def test_invalid_origin_port_is_rejected_even_if_allowlisted(url):
+    with pytest.raises(ValueError):
+        PublicContextConfig(
+            base_url=url, approved_origins=frozenset({url}), allowed_tenants=frozenset({TENANT})
+        )
+
+
 def test_unapproved_or_credentialled_origin_is_rejected():
     for url in [
         "https://other.example",
