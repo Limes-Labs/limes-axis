@@ -127,19 +127,38 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: make test-model-persistence-postgres
 
+      - name: Setup Go for MinIO fixture
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.25.5'
+          cache: false
+
+      - name: Build MinIO source fixture
+        env:
+          GOBIN: ${{ runner.temp }}/axis-ci-minio-bin
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
+        # Official RELEASE.2024-10-13T13-34-11Z, pinned to its source commit.
+        # Upstream's public images and archived binaries are unavailable.
+        run: go install github.com/minio/minio@d10bb7e1b667c2df72c394ef1fa52ab4a6802d0f
+
       - name: Start MinIO source fixture
+        env:
+          MINIO_ROOT_USER: axis335fixture
+          MINIO_ROOT_PASSWORD: axis335fixturepassword
         run: |
-          docker run -d --name axis-ci-s3-input -p 127.0.0.1:19335:9000 \
-            -e MINIO_ROOT_USER=axis335fixture \
-            -e MINIO_ROOT_PASSWORD=axis335fixturepassword \
-            quay.io/minio/minio:RELEASE.2024-10-13T13-34-11Z@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa server /data
+          mkdir -p "$RUNNER_TEMP/axis-ci-minio-data"
+          "$RUNNER_TEMP/axis-ci-minio-bin/minio" server \
+            --address 127.0.0.1:19335 --console-address 127.0.0.1:19336 \
+            "$RUNNER_TEMP/axis-ci-minio-data" > "$RUNNER_TEMP/minio.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/minio.pid"
           for _ in $(seq 1 60); do
             if curl -fsS --max-time 1 http://127.0.0.1:19335/minio/health/ready > /dev/null; then
               exit 0
             fi
             sleep 1
           done
-          docker logs axis-ci-s3-input
+          cat "$RUNNER_TEMP/minio.log"
           exit 1
 
       - name: Test S3 input and checkpoint contracts
@@ -153,7 +172,21 @@ jobs:
 
       - name: Stop MinIO source fixture
         if: always()
-        run: docker rm -f axis-ci-s3-input > /dev/null 2>&1 || true
+        run: |
+          if [ -f "$RUNNER_TEMP/minio.pid" ]; then
+            pid=$(cat "$RUNNER_TEMP/minio.pid")
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid"
+              for _ in $(seq 1 20); do
+                if ! kill -0 "$pid" 2>/dev/null; then
+                  exit 0
+                fi
+                sleep .25
+              done
+              echo 'MinIO did not stop after SIGTERM' >&2
+              exit 1
+            fi
+          fi
 
       # Migrations are Postgres-only (JSONB columns), which is why this job cannot
       # fall back to SQLite the way local development can.
@@ -270,7 +303,9 @@ jobs:
 
       - name: Test API
         working-directory: services/api
-        run: uv run pytest
+        run: |
+          uv pip install --python .venv/bin/python --no-deps ../../tools/govcore/govcore_client-0.1.0-py3-none-any.whl
+          uv run --no-sync pytest
 
       - name: Check OpenAPI schema
         run: make openapi-check

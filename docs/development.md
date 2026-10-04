@@ -87,7 +87,7 @@ Machine resources remain the operator's responsibility.
 1. Review the PR's complete head and workflow, then provision a disposable Linux
    VM with no personal-directory mounts, forwarded SSH agent, host Docker socket
    or production credentials. Install Docker, Git, curl, make, Helm and build tools;
-   the workflow installs its pinned Python/Node dependencies and browsers.
+   the workflow installs its pinned Python/Node/Go dependencies and browsers.
 2. Choose a fresh, unique runner label. Set repository Actions variable
    `AXIS_CI_SELF_HOSTED_LABELS` to a JSON array such as
    `["self-hosted", "Linux", "axis-ci-<unique-run>"]`. Set
@@ -96,7 +96,10 @@ Machine resources remain the operator's responsibility.
 3. Register repository-scoped just-in-time runners with that label, one job per
    registration, and rerun CI for that head. Three jobs execute the same Web,
    Python and live-API steps; the integration runner needs Docker for its isolated
-   PostgreSQL and MinIO fixtures. A single VM may run the three reviewed jobs
+   PostgreSQL fixture. MinIO is built from its official release's immutable source
+   commit with Go module checksum verification and runs as a separate loopback
+   process with fixture credentials; its public container images are unavailable.
+   A single VM may run the three reviewed jobs
    sequentially with separate runner work directories. Keep job logs on GitHub.
 4. Check every job conclusion and its actual runner. Confirm the PR head and
    base have not changed before merging. Clear both variables, remove any unused

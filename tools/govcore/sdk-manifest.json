@@ -1,0 +1,18 @@
+{
+  "source_repository": "https://github.com/metaforismo/gov-core",
+  "core_base_reviewed": "0fb9ed30a3e4d1a0a6d57e0cfbe95f90dd7d91e2",
+  "source_state": "Merged core PR #1, exact reviewed wheel",
+  "license": "MIT",
+  "wheel": "govcore_client-0.1.0-py3-none-any.whl",
+  "wheel_sha256": "58b0e53b827c2bf720ff66d1d6f2a7639b13562d884fa9078157dc4c351d8b91",
+  "source_files": {
+    "govcore_client/__init__.py": "28b65e41baa98df8dc45d0e1325a313c11922dec7476b16b9bdd40ad95ca57d7",
+    "govcore_client/axis.py": "56a245df941e82846f57ff43723c8661fb7af004598ff7d29cdcdea3a2c1cc70",
+    "govcore_client/civlo.py": "bdd05cd9293edf2198ea9400fdbc6085c23eb8b0fc7d854a8ab645b5222d87b5",
+    "govcore_client/client.py": "89eb1fcdd1d15e74bf245769e8c6d272091fea438d916880cd847852668d7d2e",
+    "govcore_client/pages.py": "6b4abfb1289d64eca6d7d32bc58e0deffec84d5106b8a3a31ef6526d4afba364",
+    "govcore_client/types.py": "a88f47bf66259bc3695888b606e0d1e7b2862f9a70e53c74a2e92120f4b081e1"
+  },
+  "service_implementation_included": false,
+  "public_data_included": false
+}
