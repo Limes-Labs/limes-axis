@@ -120,7 +120,7 @@ def mapping(**overrides: Any) -> WritebackOperationMapping:
             protected_headers=(
                 WritebackProtectedHeader(name="authorization", value_source="credential_lease"),
                 WritebackProtectedHeader(name="idempotency-key", value_source="idempotency_key"),
-                WritebackProtectedHeader(name="if-match", value_source="approval_digest"),
+                WritebackProtectedHeader(name="if-match", value_source="resource_version"),
             ),
             max_request_bytes=65_536,
         ),
@@ -468,8 +468,23 @@ def test_resource_precondition_requires_a_declared_remote_version(host: Host) ->
     )
     registry.register_target("itsm-incidents", spec, registered_at=NOW)
     registry.set_enabled("itsm-incidents", 1, enabled=True)
+    with pytest.raises(ValidationError):
+        mapping(response=WritebackResponseMapping(remote_id_field="incident_id"))
     versionless = mapping(
-        response=WritebackResponseMapping(remote_id_field="incident_id"),
+        bindings=(
+            WritebackParameterBinding(
+                action_input_field="incident_id", remote_field="incident_id", value_type="string"
+            ),
+            WritebackParameterBinding(
+                action_input_field="status", remote_field="state", value_type="string"
+            ),
+            WritebackParameterBinding(
+                action_input_field="current_version",
+                remote_field="version",
+                value_type="string",
+                required=False,
+            ),
+        ),
     )
     registry.register_mapping(versionless)
     registry.register_action_binding(
@@ -486,7 +501,7 @@ def test_resource_precondition_requires_a_declared_remote_version(host: Host) ->
     with pytest.raises(WritebackContractError) as exc:
         registry.resolve(
             ACTION,
-            ACTION_INPUT,
+            {"incident_id": "INC-9", "status": "on hold"},
             Host(
                 registry=registry,
                 record=registry.record("itsm-incidents", 1),
@@ -525,7 +540,11 @@ def test_unsupported_operation_and_precondition_block(host: Host) -> None:
         )
     )
     with pytest.raises(WritebackContractError) as exc:
-        resolve(host, action_input={"incident_id": "INC-9", "status": "x", "current_version": "7"})
+        resolve(
+            host,
+            action_input={"incident_id": "INC-9"},
+            mapping_ref="itsm-incident-delete",
+        )
     assert code_of(exc) is WritebackErrorCode.UNSUPPORTED_OPERATION
 
 
@@ -726,6 +745,7 @@ def test_native_idempotency_claim_requires_the_declared_header() -> None:
             path_template="/v1/incidents/{incident_id}",
             protected_headers=(
                 WritebackProtectedHeader(name="authorization", value_source="credential_lease"),
+                WritebackProtectedHeader(name="if-match", value_source="resource_version"),
             ),
         ),
     )
@@ -743,7 +763,9 @@ def test_native_idempotency_claim_requires_the_declared_header() -> None:
         )
     )
     with pytest.raises(WritebackContractError) as exc:
-        host.registry.resolve(ACTION, ACTION_INPUT, host.context(), prepared_at=NOW)
+        host.registry.resolve(
+            ACTION, ACTION_INPUT, host.context(mapping_ref=no_header.mapping_ref), prepared_at=NOW
+        )
     assert code_of(exc) is WritebackErrorCode.INVALID_OPERATION_MAPPING
 
 
@@ -888,7 +910,13 @@ def test_adapter_conformance_reports_each_violation(host: Host) -> None:
     assert "result_mapping" in collapsed.failed_checks()
 
     idempotent_claim = mapping(
-        request=WritebackRequestTemplate(method="PUT", path_template="/v1/incidents/{incident_id}")
+        request=WritebackRequestTemplate(
+            method="PUT",
+            path_template="/v1/incidents/{incident_id}",
+            protected_headers=(
+                WritebackProtectedHeader(name="if-match", value_source="resource_version"),
+            ),
+        )
     )
     report = run_adapter_conformance(host.adapter, spec=host.record.spec, mapping=idempotent_claim)
     assert "idempotency_declaration" in report.failed_checks()
@@ -932,6 +960,7 @@ def test_oversized_request_is_blocked() -> None:
             protected_headers=(
                 WritebackProtectedHeader(name="authorization", value_source="credential_lease"),
                 WritebackProtectedHeader(name="idempotency-key", value_source="idempotency_key"),
+                WritebackProtectedHeader(name="if-match", value_source="resource_version"),
             ),
             max_request_bytes=2,
         ),
@@ -949,7 +978,9 @@ def test_oversized_request_is_blocked() -> None:
         )
     )
     with pytest.raises(WritebackContractError) as exc:
-        host.registry.resolve(ACTION, ACTION_INPUT, host.context(), prepared_at=NOW)
+        host.registry.resolve(
+            ACTION, ACTION_INPUT, host.context(mapping_ref=tiny.mapping_ref), prepared_at=NOW
+        )
     assert code_of(exc) is WritebackErrorCode.REQUEST_TOO_LARGE
 
 
@@ -963,3 +994,126 @@ def test_delete_requests_never_carry_a_replacement_body() -> None:
             body=(("state", "on hold"),),
             body_digest="d" * 64,
         )
+
+
+# ---------------------------------------------------------------------------
+# Review hardening
+# ---------------------------------------------------------------------------
+
+
+def test_protected_header_sources_are_pinned_per_header() -> None:
+    for name, source in (
+        ("x-correlation-id", "credential_lease"),
+        ("idempotency-key", "credential_lease"),
+        ("if-match", "approval_digest"),
+        ("authorization", "correlation_id"),
+    ):
+        with pytest.raises(ValidationError):
+            WritebackProtectedHeader(name=name, value_source=source)
+    with pytest.raises(ValidationError):
+        mapping(
+            request=WritebackRequestTemplate(
+                method="PUT",
+                path_template="/v1/incidents/{incident_id}",
+                protected_headers=(
+                    WritebackProtectedHeader(
+                        name="idempotency-key", value_source="idempotency_key"
+                    ),
+                ),
+            )
+        )
+
+
+def test_transport_binding_names_are_case_insensitive() -> None:
+    with pytest.raises(ValidationError):
+        WritebackParameterBinding(
+            action_input_field="note", remote_field="Body", value_type="string"
+        )
+
+
+def test_every_5xx_and_202_are_outcome_unknown_and_only_2xx_is_accepted() -> None:
+    for status in (202, 501, 507, 599):
+        result = normalize_remote_outcome(outcome(status=status), idempotency=non_native_plan())
+        assert result.state == "outcome_unknown", status
+        assert result.reason_code is WritebackErrorCode.REMOTE_OUTCOME_UNKNOWN
+    accepted = normalize_remote_outcome(outcome(status=202), idempotency=non_native_plan())
+    assert accepted.acknowledgement is not None
+    assert accepted.acknowledgement.accepted is True
+    rejected = normalize_remote_outcome(outcome(status=422), idempotency=non_native_plan())
+    assert rejected.acknowledgement is not None
+    assert rejected.acknowledgement.accepted is False
+
+
+def test_action_input_must_match_the_declared_value_type(host: Host) -> None:
+    with pytest.raises(WritebackContractError) as exc:
+        resolve(host, action_input={**ACTION_INPUT, "status": {"nested": "override"}})
+    assert code_of(exc) is WritebackErrorCode.INVALID_ACTION_INPUT
+
+
+def test_context_must_name_the_bound_target_and_mapping(host: Host) -> None:
+    with pytest.raises(WritebackContractError) as target:
+        resolve(host, target_ref="itsm-other")
+    assert code_of(target) is WritebackErrorCode.TARGET_UNKNOWN
+    with pytest.raises(WritebackContractError) as mapped:
+        resolve(host, mapping_ref="itsm-other-mapping")
+    assert code_of(mapped) is WritebackErrorCode.MAPPING_UNKNOWN
+
+
+def test_enabling_a_new_version_supersedes_the_previous_record(host: Host) -> None:
+    host.registry.register_target("itsm-incidents", host.record.spec, registered_at=NOW)
+    host.registry.set_enabled("itsm-incidents", 2, enabled=True)
+    assert host.registry.enabled_record("itsm-incidents").version == 2
+    assert host.registry.record("itsm-incidents", 1).state == "disabled"
+    assert host.registry.record("itsm-incidents", 2).state == "enabled"
+
+
+def test_remote_id_outside_the_path_stays_in_the_body() -> None:
+    host = build_host()
+    create = mapping(
+        mapping_ref="itsm-incident-create",
+        request=WritebackRequestTemplate(
+            method="POST",
+            path_template="/v1/incidents",
+            protected_headers=(
+                WritebackProtectedHeader(name="idempotency-key", value_source="idempotency_key"),
+            ),
+        ),
+        precondition_kind=None,
+    )
+    host.registry.register_mapping(create)
+    host.registry.register_action_binding(
+        WritebackActionBinding(
+            tenant_id=TENANT,
+            action_id=ACTION.action_id,
+            action_input_schema_digest=digest(INPUT_SCHEMA),
+            target_ref="itsm-incidents",
+            mapping_ref=create.mapping_ref,
+            mapping_version=1,
+            approved_by="operator@example.com",
+        )
+    )
+    body = {"incident_id": "INC-9", "state": "on hold", "version": "7"}
+    approved = compute_plan_digest(
+        tenant_id=TENANT,
+        actor_id="actor-1",
+        action_id=ACTION.action_id,
+        approval_id="approval-1",
+        target_ref="itsm-incidents",
+        target_version=1,
+        spec_digest=host.record.spec_digest,
+        mapping=create,
+        resource_kind="incident",
+        remote_id="INC-9",
+        precondition=None,
+        method="POST",
+        path="/v1/incidents",
+        body_digest=digest(body),
+    )
+    plan = host.registry.resolve(
+        ACTION,
+        ACTION_INPUT,
+        host.context(mapping_ref=create.mapping_ref, approved_payload_digest=approved),
+        prepared_at=NOW,
+    )
+    assert dict(plan.request.body) == body
+    assert plan.idempotency.mode == "native_key"

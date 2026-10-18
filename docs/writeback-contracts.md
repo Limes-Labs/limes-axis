@@ -67,7 +67,11 @@ fields for exactly one operation, with:
   typed input and only when each value matches a single safe path segment;
 - protected headers from a fixed allowlist whose values are **host-derived**
   (`credential_lease`, `approval_digest`, `idempotency_key`, `correlation_id`,
-  `contract_version`) — a caller cannot inject a header name or a header value;
+  `contract_version`, `resource_version`) — a caller cannot inject a header name
+  or a header value, and each header accepts only the sources that fit it: the
+  lease only feeds `authorization`, `if-match`/`if-none-match` only carry the
+  resource version, and a version precondition must declare its header and bind
+  the remote version field, so it is never planned without reaching the remote;
 - bindings that cannot name transport or raw payload fields (`raw_body`, `body`,
   `sql`, `query`, `url`, `host`, `authority`, `headers`, `method`, `path`);
 - a bounded response projection that keeps the remote id, version, receipt,
@@ -77,7 +81,12 @@ fields for exactly one operation, with:
 
 Provided action input must be a subset of both the action's declared schema
 properties and the mapping's bound fields: an unbound field is rejected rather
-than silently dropped, because the approval covers the whole payload.
+than silently dropped, because the approval covers the whole payload. Each
+provided value must match its binding's declared `value_type`. The request body
+omits only values the transport carries elsewhere (path segments, and the
+remote version when a version precondition sends it as a header); a remote id
+that is not part of the path stays in the body. The execution context must name
+the target and mapping the action is currently bound to.
 
 ## Remote request, acknowledgement, result, verification
 
@@ -92,10 +101,11 @@ mutation gets repeated destructively:
 | Source-of-truth verification | `WritebackSourceVerification` | A later observation that the remote change is actually visible |
 
 `normalize_remote_outcome` maps one observed `RemoteOutcome` (status plus
-digested body, never the body) onto those states: `2xx` is `succeeded`, `4xx` is
-`rejected`, `409`/`412` is `conflict` with `WritebackConflictEvidence`, and
-`408`/`425`/`429`/`5xx` is `outcome_unknown`. A request that was never sent is
-`not_sent` with `accepted = False`. Acknowledgement is never promoted into
+digested body, never the body) onto those states: `2xx` is `succeeded` except
+`202`, which is only an acknowledgement and therefore `outcome_unknown`; `4xx`
+is `rejected`, `409`/`412` is `conflict` with `WritebackConflictEvidence`, and
+`408`/`425`/`429`/every `5xx` is `outcome_unknown`. `accepted` is true only for
+a `2xx`. A request that was never sent is `not_sent` with `accepted = False`. Acknowledgement is never promoted into
 verification: a decided verification result requires its own timestamp and
 observation reference, and an unresolved state cannot be `confirmed`.
 
@@ -124,7 +134,9 @@ claim, and a timeout after send is explicitly `outcome_unknown` — never
   match. Existing versions are never rewritten.
 - `set_enabled` is the only mutating operation, and it changes activation state
   alone — not the definition, not the digest. Enabling version 1 after
-  registering version 2 leaves version 2 unactivated, and `catalog()` with no
+  registering version 2 leaves version 2 unactivated; enabling a different
+  version marks the previously active record disabled, so exactly one version
+  per target reads as enabled; and `catalog()` with no
   enabled target is empty rather than silently falling back to another version.
 - `register_mapping` is append-only per `(mapping_ref, version)`, and
   `register_action_binding` refuses a binding whose declared action-input-schema

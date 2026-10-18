@@ -82,8 +82,26 @@ ProtectedHeaderName = Literal[
     "x-request-id",
 ]
 HeaderValueSource = Literal[
-    "credential_lease", "approval_digest", "idempotency_key", "correlation_id", "contract_version"
+    "credential_lease",
+    "approval_digest",
+    "idempotency_key",
+    "correlation_id",
+    "contract_version",
+    "resource_version",
 ]
+# Each protected header accepts only the host-derived sources that mean something
+# for it, so a lease can never be routed into a loggable correlation header and a
+# version precondition always carries the remote version, not an unrelated digest.
+_HEADER_VALUE_SOURCES: dict[str, frozenset[str]] = {
+    "authorization": frozenset({"credential_lease"}),
+    "content-type": frozenset({"contract_version"}),
+    "idempotency-key": frozenset({"idempotency_key"}),
+    "if-match": frozenset({"resource_version"}),
+    "if-none-match": frozenset({"resource_version"}),
+    "x-correlation-id": frozenset({"correlation_id", "approval_digest"}),
+    "x-request-id": frozenset({"correlation_id", "approval_digest"}),
+}
+_PRECONDITION_HEADERS: dict[str, str] = {"if_match": "if-match", "if_none_match": "if-none-match"}
 MutationMethod = Literal["PUT", "PATCH", "POST", "DELETE"]
 OperationKind = Literal["upsert", "delete"]
 PreconditionKind = Literal["if_match", "if_none_match", "must_exist", "must_not_exist"]
@@ -318,8 +336,8 @@ class WritebackParameterBinding(ContractModel):
     @model_validator(mode="after")
     def no_transport_escape(self) -> WritebackParameterBinding:
         if (
-            self.action_input_field in _FORBIDDEN_BINDINGS
-            or self.remote_field in _FORBIDDEN_BINDINGS
+            self.action_input_field.lower() in _FORBIDDEN_BINDINGS
+            or self.remote_field.lower() in _FORBIDDEN_BINDINGS
         ):
             raise ValueError("Mappings cannot bind transport or raw payload fields")
         return self
@@ -335,6 +353,8 @@ class WritebackProtectedHeader(ContractModel):
     def known_header(self) -> WritebackProtectedHeader:
         if self.name not in _ALLOWED_HEADERS:
             raise ValueError("Unsupported protected header")
+        if self.value_source not in _HEADER_VALUE_SOURCES[self.name]:
+            raise ValueError("Protected header value source does not fit the header")
         return self
 
 
@@ -408,6 +428,14 @@ class WritebackOperationMapping(ContractModel):
             raise ValueError("A remote field cannot be bound twice")
         if _PLACEHOLDER.sub("", self.request.path_template).count("{"):
             raise ValueError("path_template contains an unsupported placeholder")
+        precondition_header = _PRECONDITION_HEADERS.get(self.precondition_kind or "")
+        if precondition_header is not None:
+            if precondition_header not in {
+                header.name for header in self.request.protected_headers
+            }:
+                raise ValueError("A version precondition must declare its protected header")
+            if self.response.remote_version_field not in remote_fields:
+                raise ValueError("A version precondition must bind the remote version field")
         return self
 
     def digest(self) -> str:
@@ -674,7 +702,7 @@ def normalize_remote_outcome(
 
     status = outcome.response_status or 0
     acknowledgement = WritebackAcknowledgement(
-        accepted=status < 500,
+        accepted=200 <= status < 300,
         remote_request_id=outcome.remote_request_id,
         remote_correlation_id=outcome.remote_correlation_id,
     )
@@ -689,10 +717,11 @@ def normalize_remote_outcome(
                 observed_digest=outcome.response_body_digest,
             ),
         )
-    if status == 408 or status in {425, 429, 500, 502, 503, 504}:
+    if status in {202, 408, 425, 429} or status >= 500:
         # Sending happened (or its success is unobservable). Without native
         # idempotency the remote may or may not have applied the mutation, so
-        # this is explicitly not "failed and safe to repeat".
+        # this is explicitly not "failed and safe to repeat". A 202 is an
+        # acknowledgement only: the business result is not yet known.
         return WritebackBusinessResult(
             state="outcome_unknown",
             reason_code=WritebackErrorCode.REMOTE_OUTCOME_UNKNOWN,
@@ -815,11 +844,19 @@ class WritebackTargetRegistry:
         if record is None:
             raise WritebackContractError(WritebackErrorCode.TARGET_UNKNOWN)
         updated = record.model_copy(update={"state": "enabled" if enabled else "disabled"})
-        self._records[(target_ref, version)] = updated
         if enabled:
+            previous = self._enabled.get(target_ref)
+            if previous is not None and previous != version:
+                # One active version per target: the superseded record says so too.
+                self._records[(target_ref, previous)] = self._records[
+                    (target_ref, previous)
+                ].model_copy(update={"state": "disabled"})
+            self._records[(target_ref, version)] = updated
             self._enabled[target_ref] = version
-        elif self._enabled.get(target_ref) == version:
-            del self._enabled[target_ref]
+        else:
+            self._records[(target_ref, version)] = updated
+            if self._enabled.get(target_ref) == version:
+                del self._enabled[target_ref]
         return updated
 
     def register_mapping(self, mapping: WritebackOperationMapping) -> WritebackOperationMapping:
@@ -904,6 +941,20 @@ def _schema_fields(schema: object) -> tuple[set[str], set[str]]:
     return set(properties), set(required)
 
 
+def _matches_value_type(value: object, value_type: str) -> bool:
+    if value_type == "string":
+        return isinstance(value, str)
+    if value_type == "boolean":
+        return isinstance(value, bool)
+    if value_type == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if value_type == "number":
+        return isinstance(value, int | float) and not isinstance(value, bool)
+    if value_type == "object":
+        return isinstance(value, dict)
+    return isinstance(value, list)
+
+
 def _idempotency_plan(
     capability: WritebackAdapterCapability, *, has_precondition: bool
 ) -> WritebackIdempotencyPlan:
@@ -946,6 +997,10 @@ def resolve_writeback_plan(
     if action_id != context.action_id:
         raise WritebackContractError(WritebackErrorCode.INVALID_ACTION_INPUT)
     binding = registry.action_binding(action_id)
+    if context.target_ref != binding.target_ref:
+        raise WritebackContractError(WritebackErrorCode.TARGET_UNKNOWN)
+    if context.mapping_ref != binding.mapping_ref:
+        raise WritebackContractError(WritebackErrorCode.MAPPING_UNKNOWN)
     properties, required_fields = _schema_fields(input_schema)
     if _digest(input_schema) != binding.action_input_schema_digest:
         raise WritebackContractError(WritebackErrorCode.MAPPING_SCHEMA_MISMATCH)
@@ -992,6 +1047,12 @@ def resolve_writeback_plan(
         for binding_ in mapping.bindings
     ):
         raise WritebackContractError(WritebackErrorCode.INVALID_ACTION_INPUT)
+    if any(
+        binding_.action_input_field in action_input
+        and not _matches_value_type(action_input[binding_.action_input_field], binding_.value_type)
+        for binding_ in mapping.bindings
+    ):
+        raise WritebackContractError(WritebackErrorCode.INVALID_ACTION_INPUT)
 
     remote_values = {
         binding_.remote_field: action_input[binding_.action_input_field]
@@ -1025,9 +1086,12 @@ def resolve_writeback_plan(
         else:
             precondition = WritebackPrecondition(kind=mapping.precondition_kind)
 
-    identifier_fields = {mapping.response.remote_id_field}
-    if mapping.response.remote_version_field:
-        identifier_fields.add(mapping.response.remote_version_field)
+    # Only values the transport carries elsewhere leave the body: path segments and
+    # the remote version sent through the precondition header. A remote id that is
+    # not in the path stays in the body, or the request would not identify it.
+    identifier_fields = set(_PLACEHOLDER.findall(mapping.request.path_template))
+    if precondition is not None and precondition.remote_version is not None:
+        identifier_fields.add(mapping.response.remote_version_field or "")
     body: tuple[tuple[str, JsonValue], ...] = (
         ()
         if mapping.operation_kind == "delete"
