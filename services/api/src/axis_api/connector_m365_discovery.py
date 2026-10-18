@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Self
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import urllib3
 from axis_sdk.connector_authoring.contracts import (
@@ -51,7 +51,7 @@ from axis_sdk.connector_authoring.contracts import (
     OperationContext,
     SecretStr,
 )
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from axis_api.document_source_contracts import (
     DocumentACLObservation,
@@ -75,7 +75,9 @@ _MAX_GRANTS_PER_ITEM = 1_024
 _TRANSPORT_ERRORS = (urllib3.exceptions.HTTPError, OSError)
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
-_GRAPH_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._,:-]{0,239}$")
+# SharePoint drive IDs are ``b!``-prefixed; the length matches the #863
+# ``Identifier`` bound so a validated ID always fits the contract.
+_GRAPH_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9!._,:-]{0,199}$")
 _GRAPH_TENANT_ID_PATTERN = re.compile(
     r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
 )
@@ -121,9 +123,9 @@ class M365LibrarySelection(BaseModel):
     tenant_id: str = Field(min_length=1, max_length=80)
     connector_id: str = Field(min_length=1, max_length=180)
     org_tenant_id: str = Field(min_length=36, max_length=36)
-    site_id: str = Field(min_length=1, max_length=240)
-    drive_id: str = Field(min_length=1, max_length=240)
-    folder_item_id: str | None = Field(default=None, min_length=1, max_length=240)
+    site_id: str = Field(min_length=1, max_length=200)
+    drive_id: str = Field(min_length=1, max_length=200)
+    folder_item_id: str | None = Field(default=None, min_length=1, max_length=200)
     permission_mode: str = Field(min_length=1, max_length=40)
     max_items: int = Field(default=500, ge=1, le=5_000, strict=True)
     max_pages: int = Field(default=20, ge=1, le=1_000, strict=True)
@@ -288,8 +290,10 @@ class _PinnedGraphTransport:
             if response.status != 200:
                 # The machine-readable Graph code is safe evidence; the human
                 # message and any payload are consumed and discarded here.
-                raise _GraphFailure(response.status, _graph_error_code(response), "enumerate")
-            return _bounded_json(response)
+                raise _GraphFailure(
+                    response.status, _graph_error_code(response, deadline), "enumerate"
+                )
+            return _bounded_json(response, deadline)
         finally:
             response.close()
             response.release_conn()
@@ -304,9 +308,9 @@ def _target(url: str) -> tuple[str, str, int]:
     )
 
 
-def _graph_error_code(response) -> str | None:
+def _graph_error_code(response, deadline: float) -> str | None:
     try:
-        payload = _bounded_json(response)
+        payload = _bounded_json(response, deadline)
     except (ConnectorError, zlib.error):
         return None
     if isinstance(payload, dict) and isinstance(payload.get("error"), dict):
@@ -316,7 +320,7 @@ def _graph_error_code(response) -> str | None:
     return None
 
 
-def _bounded_json(response) -> object:
+def _bounded_json(response, deadline: float) -> object:
     content_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
     if not (content_type == "application/json" or content_type.endswith("+json")):
         raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
@@ -330,6 +334,10 @@ def _bounded_json(response) -> object:
         remaining_wire = _MAX_WIRE_BYTES - wire
         if remaining_wire <= 0:
             raise ConnectorError(ErrorCode.LIMIT_EXCEEDED)
+        # Socket timeouts bound each read, not the body: a slow-drip source
+        # must not outlive the shared discovery deadline.
+        if time.monotonic() >= deadline:
+            raise ConnectorError(ErrorCode.TIME_BUDGET_EXCEEDED)
         chunk = response.read(min(_STREAM_CHUNK_BYTES, remaining_wire), decode_content=False)
         if not chunk:
             break
@@ -451,6 +459,10 @@ class M365LibraryDiscovery:
         deadline = self.clock() + _DISCOVERY_TIME_BUDGET_SECONDS
         try:
             return self._enumerate(context, deadline)
+        except ValidationError:
+            # Source values that do not fit the #863 contract are a fixed
+            # mismatch, never a raw validation error carrying source shape.
+            raise ConnectorError(ErrorCode.RESOURCE_MISMATCH) from None
         except _GraphFailure as failure:
             state = _setup_state_for(failure, self.selection.permission_mode)
             return _setup_outcome(state, self.authority)
@@ -493,10 +505,22 @@ class M365LibraryDiscovery:
         # any request, so other tenants/sites/drives are never dialed.
         if _target(url) != self.authority.pinned_origin:
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
-        path = urlsplit(url).path
-        if not path.startswith(f"/v1.0/drives/{self.selection.drive_id}/"):
+        parsed = urlsplit(url)
+        if parsed.username is not None or parsed.password is not None or parsed.fragment:
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
-        if surface == "permissions" and "/permissions" not in urlsplit(url).path:
+        # The HTTP client and Graph both collapse dot segments, so a prefix
+        # check alone would let ``drives/<selected>/../../<other>`` escape.
+        # Segments are compared decoded, and encoded separators are refused.
+        segments = [unquote(segment) for segment in parsed.path.split("/")]
+        if any(
+            segment in {".", ".."} or "/" in segment or "\\" in segment
+            for segment in segments
+        ):
+            raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
+        if len(segments) < 6 or segments[:4] != ["", "v1.0", "drives", self.selection.drive_id]:
+            raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
+        expected_leaf = "permissions" if surface == "permissions" else "children"
+        if segments[-1] != expected_leaf:
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
 
     def _enumerate(self, context: OperationContext, deadline: float) -> M365DiscoveryOutcome:
@@ -714,10 +738,15 @@ def _normalize_grants(permission: dict, account_id: str) -> list[DocumentGrant] 
             if not _append_principal(grants, principal, account_id, inherited_from):
                 return None
     link = permission.get("link")
-    if link is not None and direct is None and not identities:
+    if link is not None:
         if not isinstance(link, dict):
             return None
         scope = link.get("scope")
+        # A specific-people link is fully described by its recipients, but an
+        # organization or anonymous link reaches beyond any redeemed
+        # identities listed with it: that broader exposure stays evidence.
+        if grants and scope not in {"organization", "anonymous"}:
+            return grants
         kind = "domain" if scope == "organization" else "link"
         grants.append(
             DocumentGrant(

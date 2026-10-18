@@ -25,8 +25,11 @@ The operator selects one organizational tenant (Entra tenant ID), site and drive
 `M365LibrarySelection`. Nothing is discovered from source data: no site search,
 no directory crawl, no drive listing. Every request is pinned to the
 egress-approved origin, and every continuation link must stay inside the selected
-drive before it is dialed; a scope-escaping link is a hard `resource_mismatch`
-error, never a fetch.
+drive and on the expected `children` or `permissions` surface before it is
+dialed. Paths are compared segment by segment after decoding, so dot segments,
+encoded separators, user info and fragments are refused rather than normalized
+into another drive; a scope-escaping link is a hard `resource_mismatch` error,
+never a fetch.
 
 Credentials are never handled by the adapter: the host resolves them server-side
 through an executed credential lease and passes lease-scoped bearer material plus
@@ -90,7 +93,9 @@ Each observed item yields a #863 `DocumentACLObservation`:
   leave the observation `partial`: a Graph application's access is never an
   end-user entitlement.
 * Organizational sharing links become `domain` grants and other links become
-  `link` grants. Both are preserved as evidence and remain ineligible for
+  `link` grants. An organization or anonymous link keeps that evidence even
+  when Graph also lists identities that redeemed it; a specific-people link is
+  described by its recipients. Both are preserved as evidence and remain ineligible for
   baseline read authorization under the #863 contract — no organizational
   account is treated as universally authorized.
 * Unresolvable permission shapes leave the observation `partial`.

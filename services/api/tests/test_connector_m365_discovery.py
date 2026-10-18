@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import json
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
@@ -600,3 +601,87 @@ def test_error_bodies_and_bearer_never_reach_evidence(server):
     assert BEARER not in serialized
     assert "accessDenied" not in serialized
     assert BEARER not in repr(discovery)
+
+
+@pytest.mark.parametrize(
+    "escape",
+    [
+        f"/v1.0/drives/{DRIVE}/../../sites/other/drives/x/root/children",
+        f"/v1.0/drives/{DRIVE}/%2e%2e/%2E%2E/drives/other-drive/root/children",
+        f"/v1.0/drives/{DRIVE}/items/a%2F..%2F..%2Fother/children",
+        f"/v1.0/drives/{DRIVE}/items/item-1/content",
+    ],
+)
+def test_dot_segment_continuation_cannot_escape_the_selected_drive(server, escape):
+    # urllib3 and Graph both collapse dot segments, so a prefix check alone
+    # would dial another drive with the tenant bearer.
+    next_url = _page_url(server, escape)
+    server.route(
+        f"/v1.0/drives/{DRIVE}/root/children",
+        lambda query: (200, _children_payload(ITEM_USER_FILE, next_url=next_url)),
+    )
+    with build_discovery(server) as discovery, pytest.raises(ConnectorError) as error:
+        discovery.discover(context())
+    assert error.value.code == ErrorCode.RESOURCE_MISMATCH
+    assert all(path.startswith(f"/v1.0/drives/{DRIVE}/") for path in server.requests)
+    assert not any(path.endswith("/content") for path in server.requests)
+
+
+def test_sharepoint_shaped_drive_ids_are_accepted(server):
+    drive = "b!-RIj2DuyvEyV1T4NlOaMHk8XkS_I8MdFlUCq1BlcjgmhRfAj3-Z8RY2VpuvV_tpd"
+    server.route(
+        f"/v1.0/drives/{drive}/root/children",
+        lambda query: (200, _children_payload(ITEM_FOLDER)),
+    )
+    server.route(
+        f"/v1.0/drives/{drive}/items/{ITEM_FOLDER['id']}/permissions",
+        lambda query: (200, {"value": [_group_permission("group-a")]}),
+    )
+    selection = build_selection(
+        site_id=(
+            "contoso.sharepoint.com,2C712604-1370-44E7-A1F5-426573FDA80A,"
+            "2D2244C3-251A-49EA-93A8-39E1C3A060FE"
+        ),
+        drive_id=drive,
+    )
+    with build_discovery(server, selection=selection) as discovery:
+        outcome = discovery.discover(context())
+    assert outcome.setup_state == M365SetupState.READY
+    assert [item.identity.container_id for item in outcome.items] == [drive]
+
+
+def test_organization_link_keeps_domain_evidence_beside_redeemed_identities(server):
+    permission = _org_link_permission() | {
+        "grantedToIdentitiesV2": [{"user": {"id": "user-r"}}],
+    }
+    server.route(
+        f"/v1.0/drives/{DRIVE}/items/item-1/permissions",
+        lambda query: (200, {"value": [permission]}),
+    )
+    with build_discovery(server) as discovery:
+        outcome = discovery.discover(context())
+    item = next(o for o in outcome.items if o.identity.item_id == "item-1")
+    kinds = sorted(grant.principal_kind for grant in item.snapshot.acl.grants)
+    assert kinds == ["domain", "user"]
+    assert not item.snapshot.acl.ready_for_authorization(datetime.now(UTC))
+
+
+def test_source_values_outside_the_contract_are_a_fixed_error(server):
+    _install_library(server, (ITEM_USER_FILE | {"eTag": "e" * 500},))
+    with build_discovery(server) as discovery, pytest.raises(ConnectorError) as error:
+        discovery.discover(context())
+    assert error.value.code == ErrorCode.RESOURCE_MISMATCH
+
+
+def test_body_reads_stop_at_the_shared_deadline():
+    from axis_api.connector_m365_discovery import _bounded_json
+
+    class ExpiredBody:
+        headers = {"Content-Type": "application/json"}
+
+        def read(self, *args, **kwargs):
+            raise AssertionError("read after the deadline")
+
+    with pytest.raises(ConnectorError) as error:
+        _bounded_json(ExpiredBody(), time.monotonic() - 1)
+    assert error.value.code == ErrorCode.TIME_BUDGET_EXCEEDED
