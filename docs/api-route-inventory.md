@@ -8,7 +8,7 @@ Handler ownership is derived from source declarations; domain labels are
 the extraction map, not a claim that every domain already has a router.
 See [route extraction](api-route-extraction.md) for boundaries and verification.
 
-**257 operations**, 105 deprecated aliases.
+**259 operations**, 106 deprecated aliases.
 
 | Domain | Operations |
 | --- | ---: |
@@ -21,7 +21,7 @@ See [route extraction](api-route-extraction.md) for boundaries and verification.
 | identity | 10 |
 | models | 10 |
 | ontology | 4 |
-| operations | 21 |
+| operations | 23 |
 | policies | 5 |
 | simulation | 4 |
 | system | 5 |
@@ -140,6 +140,7 @@ See [route extraction](api-route-extraction.md) for boundaries and verification.
 | POST | `/demo/manufacturing/operations/risk-scenarios/supplier-delay` | `manufacturing_supplier_delay_scenario` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
 | GET | `/demo/manufacturing/operations/snapshot` | `manufacturing_operations_snapshot` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
 | GET | `/demo/manufacturing/overview` | `manufacturing_overview` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
+| GET | `/demo/manufacturing/search` | `search_index_query` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
 | GET | `/demo/manufacturing/simulation/replay` | `manufacturing_replay_simulation` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
 | POST | `/demo/manufacturing/simulation/replay/outputs` | `manufacturing_replay_simulation_output_create` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
 | GET | `/demo/manufacturing/workflows` | `manufacturing_workflow_console` | [axis_api.main](../services/api/src/axis_api/main.py) | yes |
@@ -258,6 +259,7 @@ See [route extraction](api-route-extraction.md) for boundaries and verification.
 | POST | `/operations/operations/risk-scenarios/supplier-delay` | `manufacturing_supplier_delay_scenario` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
 | GET | `/operations/operations/snapshot` | `manufacturing_operations_snapshot` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
 | GET | `/operations/overview` | `manufacturing_overview` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
+| GET | `/operations/search` | `search_index_query` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
 | GET | `/operations/simulation/replay` | `manufacturing_replay_simulation` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
 | POST | `/operations/simulation/replay/outputs` | `manufacturing_replay_simulation_output_create` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
 | GET | `/operations/workflows` | `manufacturing_workflow_console` | [axis_api.main](../services/api/src/axis_api/main.py) | no |
