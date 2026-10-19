@@ -7,6 +7,26 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- A provider-neutral writeback contract that maps an existing typed action onto
+  one registered external mutation: adapter capability/readiness and conformance
+  declarations, a schema-bound REST operation mapping with allowlisted methods,
+  protected host-derived headers and bounded response projection, remote
+  identifier/version/precondition fields, honest idempotency metadata and
+  normalized outcome states that keep remote request, acknowledgement, business
+  result and later source verification apart. A tenant-bound registry keeps
+  append-only target versions with explicit enable/disable, and resolution
+  rechecks tenant, approval payload digest, credential handle and lease,
+  resolved egress target, readiness and request bounds before any I/O
+  ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
+
+- Bounded host-owned REST page reads over the approved source profiles: GET-only
+  transport pinned to the egress-approved origin, no-follow redirects with
+  same-origin pagination validation, streaming wire/decoded-byte caps and
+  deadlines, fixed safe error codes with bounded retry hints, honest truncated
+  results and metadata-only progress evidence. The host still owns leases,
+  secret resolution, retries and durable checkpoint commits
+  ([#860](https://github.com/Limes-Labs/limes-axis/issues/860)).
+
 - Bounded Google Drive discovery adapter over Drive API v3: one explicitly
   configured My Drive root or shared drive is enumerated with pinned origin,
   drive-scoped queries and token-only pagination, normalizing user/group/domain/link
