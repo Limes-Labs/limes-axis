@@ -28,8 +28,9 @@ parameters are rejected. Record and continuation selectors are finite member-nam
 tuples such as `("data", "orders")`, not JSONPath or code.
 
 Supported pagination declarations are `opaque_cursor` and `next_link`. Next links
-are restricted to the same registered endpoint; the future transport must validate
-the actual destination before using them. A declaration is not enforcement.
+are restricted to the same registered endpoint; the transport must validate the
+actual destination before using them, and the bounded reader below enforces
+this. A declaration alone is not enforcement.
 Only `mutable_traversal` consistency is supported. A schema fingerprint or a
 recorded source revision does not imply snapshot isolation or CDC. The declared
 fingerprint must resolve to the host's approved schema before records are accepted.
@@ -61,26 +62,60 @@ values or storage records. `hide_input_in_errors` alone does not sanitize those
 structured errors. Treat validation errors from direct model construction as
 internal only.
 
-Limits are declarations for the future reader/host: SDK row/record-byte and elapsed
-budgets, page-count, wire-byte and decoded-body bounds. Every page is bounded;
-the host must additionally bound total work across a traversal and its retries.
-This module does not run timers, count network bytes or enforce job admission.
+Limits are declarations for the reader/host: SDK row/record-byte and elapsed
+budgets, page-count, wire-byte and decoded-body bounds. The bounded reader
+enforces them per page; the host must additionally bound total work across a
+traversal and its retries. This module does not run timers, count network bytes
+or enforce job admission.
 
-## Verification and next owners
+## Bounded transport (implemented for #860)
+
+[`connector_rest_reader.py`](../services/api/src/axis_api/connector_rest_reader.py)
+implements one governed page read per `RestPageSource.read()` call. Trust and
+durability stay with existing owners: the host constructs the source from a
+fail-closed lease/policy evidence pair (`RestSourceAuthority`) plus
+already-resolved lease-scoped bearer material; the module performs no lease,
+secret-resolution or policy lookups and adds no secret store.
+
+The egress policy is enforced on the actual connection: the transport is pinned
+to the approved origin, redirects are never followed, and pagination
+continuations must resolve to the same origin before any request. A 3xx is a
+fixed safe failure. GET-only transport applies explicit connect/read timeouts
+and hard wire/decoded-byte caps, streaming the body under a shared deadline so
+a slow or endless source cannot exceed the configured bounds. A page that
+exceeds its declared record/byte bounds is an honest `truncated` result without
+a checkpoint, never a silently skipping `more`.
+
+Failure codes stay on the protocol 1.0 SDK surface: a 401 maps to
+`SOURCE_UNAVAILABLE` (as in the SDK credential fixture) with `auth_failure`
+evidence marking the lease terminal for reauthorization; 429 and eligible 5xx
+report a bounded `Retry-After` hint without ever sleeping or retrying inside
+the adapter. Provider payloads appear only as raw records in the returned
+`ReadBatch`; progress evidence is fixed metadata with no authorization headers,
+tokens, cursors or row values.
+
+The transport performs no live authorization by itself and records no audit
+events: constructing evidence, resolving material, committing checkpoints and
+admitting page counts across a traversal remain host responsibilities.
+[#861](https://github.com/Limes-Labs/limes-axis/issues/861) owns fenced durable
+host adoption; [#862](https://github.com/Limes-Labs/limes-axis/issues/862) owns
+end-to-end conformance. OAuth, external writes, source discovery execution,
+schedules and UI remain outside this contract.
+
+## Verification
 
 From a complete locked checkout, run:
 
 ```sh
-make test-api PYTEST_ARGS='tests/test_connector_rest_profiles.py -q'
+make test-api PYTEST_ARGS='tests/test_connector_rest_profiles.py tests/test_connector_rest_reader.py -q'
 make docs-check
 ```
 
-The tests exercise both profile modes, strict validation, revision/filter binding,
-safe errors, cursor storage round-trips and the actual SDK completion/evidence
-semantics. They require no provider, database or network access.
-
-[#860](https://github.com/Limes-Labs/limes-axis/issues/860) owns bounded transport;
-[#861](https://github.com/Limes-Labs/limes-axis/issues/861) owns fenced durable host
-adoption; [#862](https://github.com/Limes-Labs/limes-axis/issues/862) owns end-to-end
-conformance. OAuth, external writes, source discovery execution, schedules and UI
-remain outside this contract. No runtime ownership or trust boundary is changed.
+The profile tests exercise both pagination modes, strict validation,
+revision/filter binding, safe errors and cursor storage round-trips without any
+I/O. The reader tests drive the transport against a local HTTP fixture server:
+bounded pages and candidate checkpoints, zero transport calls on gate failures,
+redirect/continuation containment, compressed/oversized/endless payloads, MIME
+and JSON-shape failures, fixed status codes with bounded retry hints, honest
+truncation and secret-leak assertions. They require no provider, database or
+network access beyond loopback.
