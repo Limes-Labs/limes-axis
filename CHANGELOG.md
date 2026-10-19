@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- An optional authenticated public institutional context reader (GovCore),
+  absent unless `create_app(public_context=...)` opts in, with current
+  tenant/scope and separate fixed-origin policy checks before and after the
+  remote read. No ontology ingestion, tenant writes or execution authority.
+  See [ADR 0020](docs/adr/0020-public-institutional-context.md); production
+  installation remains unverified
+  ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
+
 - Offline portability bundle validator and dry-run restore plan: bounded
   archive-safety checks without opening members, Ed25519 manifest signature
   verification against operator-supplied public keys, per-component payload

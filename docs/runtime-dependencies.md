@@ -317,6 +317,24 @@ Failure behavior: Missing or expired trust material can prevent TLS communicatio
 
 Evidence references: documentation `docs/development.md`; source `infra/docker/docker-compose.yml`; source `infra/helm/limes-axis/templates/ingress.yaml`.
 
+### public-institutional-context
+
+Read one public GovCore entity snapshot by canonical public ID for an authorized tenant, without ontology ingestion or tenant writes.
+
+Owner: **Optional public institutional context reader**. Components: api.
+
+Phase: runtime. Requirement: **conditional**. An operator passes an enabled PublicContextConfig to create_app and installs the optional client.
+
+Configuration references: none; platform or packaged dependency.
+
+Local option (conditional): Run the separately licensed GovCore service inside the boundary on an approved loopback or internal HTTPS origin and install the optional reviewed client wheel.
+
+Failure behavior: Without the opt-in the route and client import are absent. Unavailable, invalid, mismatched or retired responses return a closed 503 and never create associations or change tenant records.
+
+- outbound, https, ports deployment-selected: Registered only by create_app(public_context=...) with a fixed operator-approved origin; HTTP is accepted only for loopback. No environment setting enables it.
+
+Evidence references: documentation `docs/adr/0020-public-institutional-context.md`; source `services/api/src/axis_api/public_institutional_context.py`; test `services/api/tests/test_public_institutional_context.py`.
+
 ### s3-input
 
 Read an approved input bucket through deployment-owned profiles and lease-scoped credentials.
@@ -428,6 +446,7 @@ Logical local-only capability plan. This is not a runnable environment, validate
 | operational-database | local | postgres | Provide the logical service inside the deployment and verify its declared limitations. |
 | operator-diagnostics | omitted | — | Do not configure operator links; supply local operating procedures separately. |
 | pki | local | local-pki | Provide the logical service inside the deployment and verify its declared limitations. |
+| public-institutional-context | omitted | — | Leave the optional public institutional context reader unregistered unless a local GovCore service is approved. |
 | s3-input | omitted | — | Leave the S3 source adapter disabled with no source profiles. |
 | software-distribution | preloaded | — | Acquire and verify locked packages and images before disconnecting; bundle production remains separate. |
 | static-assets | bundled | — | Serve packaged assets and fonts from the local web artifact. |
