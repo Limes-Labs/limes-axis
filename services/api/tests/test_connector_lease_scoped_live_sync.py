@@ -48,6 +48,7 @@ from axis_api.connector_execution import (
     _secret_retrieval_decision,
     connector_live_sync_runtime_from_settings,
     external_postgres_live_query_profile_from_settings,
+    lease_scoped_secret_resolver_from_settings,
     postgres_endpoint_target_sha256,
     runtime_egress_target_block_reason,
 )
@@ -78,7 +79,7 @@ from axis_api.persistence import (
     ConnectorCredentialLeaseCreate,
 )
 
-ENV_SECRET_VAR = "AXIS_TEST_LIVE_SYNC_DSN"
+ENV_SECRET_VAR = "SOURCE_TEST_LIVE_SYNC_DSN"
 SECRET_DSN = "postgresql://axis_live:sup3r-secret-material@readonly.local:5432/axis_external"
 UNAPPROVED_SECRET_DSN = (
     "postgresql://axis_live:sup3r-secret-material@unapproved.local:5432/axis_external"
@@ -114,7 +115,7 @@ def resolution_request(**overrides) -> SecretResolutionRequest:
 
 def env_resolver(value: str | None = SECRET_DSN) -> EnvLeaseScopedSecretResolver:
     environ = {} if value is None else {ENV_SECRET_VAR: value}
-    return EnvLeaseScopedSecretResolver(environ=environ)
+    return EnvLeaseScopedSecretResolver(environ=environ, allowed_variables=["SOURCE_*"])
 
 
 def lease_scoped_profile(
@@ -318,7 +319,7 @@ def test_env_resolver_resolves_active_lease_scoped_secret() -> None:
         ({"secret_ref": "env://lower_case_var"}, SECRET_RESOLUTION_MALFORMED_SECRET_REF),
         ({"secret_ref": "env://"}, SECRET_RESOLUTION_MALFORMED_SECRET_REF),
         (
-            {"secret_ref": "env://AXIS_OTHER_UNSET_VAR"},
+            {"secret_ref": "env://SOURCE_OTHER_UNSET_VAR"},
             SECRET_RESOLUTION_ENV_SECRET_NOT_CONFIGURED,
         ),
     ],
@@ -855,3 +856,93 @@ def test_live_sync_runtime_from_settings_flags_off_stays_deferred() -> None:
     assert runtime.lease_scoped_secret_resolution_enabled is False
     assert runtime.runtime_egress_enforcement_enabled is False
     assert runtime.secret_resolver is None
+
+
+# --- env:// scoping regression ----------------------------------------------
+# A tenant-supplied credential handle used to be able to name any process
+# environment variable, e.g. ``env://AXIS_POSTGRES_DSN``, making discovery or
+# live sync dial the control-plane database.
+
+
+@pytest.mark.parametrize(
+    "variable",
+    ["AXIS_POSTGRES_DSN", "AXIS_OIDC_CLIENT_SECRET", "PGPASSWORD", "AWS_SECRET_ACCESS_KEY"],
+)
+def test_env_resolver_never_resolves_reserved_platform_variables(variable: str) -> None:
+    resolver = EnvLeaseScopedSecretResolver(environ={variable: "postgresql://control-plane"})
+
+    with pytest.raises(SecretResolutionError) as exc_info:
+        resolver.resolve(resolution_request(secret_ref=f"env://{variable}"))
+
+    assert exc_info.value.reason == "secret_resolution_env_secret_reserved"
+    assert "control-plane" not in str(exc_info.value)
+
+
+def test_env_resolver_reserved_prefix_wins_over_allowlist() -> None:
+    resolver = EnvLeaseScopedSecretResolver(
+        environ={"AXIS_POSTGRES_DSN": "postgresql://control-plane"},
+        allowed_variables=["AXIS_*", "AXIS_POSTGRES_DSN"],
+    )
+
+    with pytest.raises(SecretResolutionError) as exc_info:
+        resolver.resolve(resolution_request(secret_ref="env://AXIS_POSTGRES_DSN"))
+
+    assert exc_info.value.reason == "secret_resolution_env_secret_reserved"
+
+
+def test_env_resolver_empty_allowlist_denies_all() -> None:
+    resolver = EnvLeaseScopedSecretResolver(environ={"SOURCE_DB_DSN": SECRET_DSN})
+
+    with pytest.raises(SecretResolutionError) as exc_info:
+        resolver.resolve(resolution_request(secret_ref="env://SOURCE_DB_DSN"))
+
+    assert exc_info.value.reason == "secret_resolution_env_secret_not_allowlisted"
+
+
+def test_env_resolver_allowlist_exact_and_prefix_entries() -> None:
+    environ = {"SOURCE_DB_DSN": SECRET_DSN, "OTHER_DSN": SECRET_DSN}
+    exact = EnvLeaseScopedSecretResolver(environ=environ, allowed_variables=["SOURCE_DB_DSN"])
+    prefix = EnvLeaseScopedSecretResolver(environ=environ, allowed_variables=["SOURCE_*"])
+
+    assert exact.resolve(resolution_request(secret_ref="env://SOURCE_DB_DSN")).dsn == SECRET_DSN
+    assert prefix.resolve(resolution_request(secret_ref="env://SOURCE_DB_DSN")).dsn == SECRET_DSN
+    for resolver in (exact, prefix):
+        with pytest.raises(SecretResolutionError) as exc_info:
+            resolver.resolve(resolution_request(secret_ref="env://OTHER_DSN"))
+        assert exc_info.value.reason == "secret_resolution_env_secret_not_allowlisted"
+
+
+def test_settings_resolver_uses_operator_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AXIS_POSTGRES_DSN", "postgresql://control-plane")
+    monkeypatch.setenv("SOURCE_DB_DSN", SECRET_DSN)
+    resolver = lease_scoped_secret_resolver_from_settings(
+        Settings(
+            AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED="true",
+            AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED="true",
+            AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST=["SOURCE_DB_DSN"],
+        )
+    )
+
+    assert resolver is not None
+    assert resolver.resolve(resolution_request(secret_ref="env://SOURCE_DB_DSN")).dsn == SECRET_DSN
+    with pytest.raises(SecretResolutionError) as exc_info:
+        resolver.resolve(resolution_request(secret_ref="env://AXIS_POSTGRES_DSN"))
+    assert exc_info.value.reason == "secret_resolution_env_secret_reserved"
+
+
+def test_settings_resolver_fails_closed_without_runtime_egress_enforcement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SOURCE_DB_DSN", SECRET_DSN)
+    resolver = lease_scoped_secret_resolver_from_settings(
+        Settings(
+            AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED="true",
+            AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED="false",
+            AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST=["SOURCE_DB_DSN"],
+        )
+    )
+
+    assert resolver is not None
+    with pytest.raises(SecretResolutionError) as exc_info:
+        resolver.resolve(resolution_request(secret_ref="env://SOURCE_DB_DSN"))
+    assert exc_info.value.reason == "secret_resolution_egress_enforcement_disabled"

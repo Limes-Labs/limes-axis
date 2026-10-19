@@ -3919,6 +3919,8 @@
             "type": "string"
           },
           "required_scopes": {
+            "deprecated": true,
+            "description": "Deprecated and ignored. Accepted for wire compatibility only; the service always enforces its own per-operation scope.",
             "items": {
               "type": "string"
             },
@@ -4015,6 +4017,8 @@
             "type": "string"
           },
           "required_scopes": {
+            "deprecated": true,
+            "description": "Deprecated and ignored. Accepted for wire compatibility only; the service always enforces its own per-operation scope.",
             "items": {
               "type": "string"
             },
@@ -4068,6 +4072,8 @@
             "type": "string"
           },
           "required_scopes": {
+            "deprecated": true,
+            "description": "Deprecated and ignored. Accepted for wire compatibility only; the service always enforces its own per-operation scope.",
             "items": {
               "type": "string"
             },
@@ -6543,6 +6549,8 @@
           },
           "required_scope": {
             "default": "connectors:manifest:lifecycle",
+            "deprecated": true,
+            "description": "Deprecated and ignored. Accepted for wire compatibility only; the service always enforces connectors:manifest:lifecycle (plus connectors:manifest:enable_live for active_live).",
             "minLength": 1,
             "title": "Required Scope",
             "type": "string"

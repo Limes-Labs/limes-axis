@@ -1627,6 +1627,98 @@ def test_object_legal_hold_denied_without_write_scope(
     assert store.holds == {}
 
 
+@pytest.mark.parametrize(
+    "storage_key",
+    [
+        "tenant_other/exports/audit-export-abc.json",
+        "tenants/tenant_other/source-ingestion/r/b/k.json",
+        "tenant_demo_manufacturing/../tenant_other/exports/x.json",
+        "./tenant_demo_manufacturing/exports/x.json",
+        "/tenant_demo_manufacturing/exports/x.json",
+        "tenant_demo_manufacturing//exports/x.json",
+        "tenant_demo_manufacturing\\..\\tenant_other\\x.json",
+        "tenant_demo_manufacturing",
+        "tenant_demo_manufacturing_other/exports/x.json",
+    ],
+)
+@pytest.mark.parametrize("operation", ["apply", "release"])
+def test_object_legal_hold_rejects_keys_outside_tenant_namespace(
+    session_factory: sessionmaker[Session],
+    storage_key: str,
+    operation: str,
+) -> None:
+    # Regression: holds were applied/released on any key, so one tenant could
+    # pin or (worse) release another tenant's WORM export bundle.
+    store = _FakeLegalHoldStore()
+    function = apply_object_legal_hold if operation == "apply" else release_object_legal_hold
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        with pytest.raises(PermissionError) as exc_info:
+            function(
+                repository,
+                store,
+                AuditObjectLegalHoldRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    actor_id="legal-ops-controller",
+                    actor_scopes=["audit:legal_hold:write"],
+                    storage_key=storage_key,
+                    reason="Cross-tenant attempt.",
+                ),
+            )
+        events = session.execute(
+            select(AuditEvent).where(AuditEvent.event_type.like("audit.object_legal_hold.%"))
+        ).scalars().all()
+    assert getattr(exc_info.value, "reason", None) == "storage_key_outside_tenant_scope"
+    assert store.holds == {}
+    assert events == []
+
+
+def test_object_legal_hold_accepts_tenant_ingestion_namespace(
+    session_factory: sessionmaker[Session],
+) -> None:
+    store = _FakeLegalHoldStore()
+    key = "tenants/tenant_demo_manufacturing/source-ingestion/r/b/k.json"
+    with session_scope(session_factory) as session:
+        applied = apply_object_legal_hold(
+            AxisPersistenceRepository(session),
+            store,
+            AuditObjectLegalHoldRequest(
+                tenant_id="tenant_demo_manufacturing",
+                actor_id="legal-ops-controller",
+                actor_scopes=["audit:legal_hold:write"],
+                storage_key=key,
+                reason="Hold ingestion artifact.",
+            ),
+        )
+    assert applied.status == "applied"
+    assert store.holds == {key: True}
+
+
+def test_object_legal_hold_endpoint_rejects_cross_tenant_key(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    store = _FakeLegalHoldStore()
+    app.dependency_overrides[connector_export_object_store] = lambda: store
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/audit/object-legal-holds/release",
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "actor_id": "legal-ops-controller",
+            "actor_scopes": ["audit:legal_hold:write"],
+            "storage_key": "tenant_other/exports/audit-export-abc.json",
+            "reason": "Cross-tenant release attempt.",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "storage_key_outside_tenant_scope"
+    assert store.holds == {}
+
+
 def test_object_legal_hold_endpoint_applies_and_releases(
     session_factory: sessionmaker[Session],
 ) -> None:

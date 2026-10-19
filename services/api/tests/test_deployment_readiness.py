@@ -42,8 +42,9 @@ def _enterprise_sso_settings(**overrides: object) -> Settings:
             "https://idp.example/realms/axis/protocol/openid-connect/logout"
         ),
         "oidc_post_logout_redirect_uri": "https://console.axis.example/signed-out",
-        "oidc_session_cookie_signing_secret": "axis-cookie-signing-key",
+        "oidc_session_cookie_signing_secret": "axis-cookie-signing-key-0123456789abcdef",
         "oidc_session_cookie_secure": True,
+        "cors_origins": ["https://console.axis.example"],
         "oidc_refresh_token_encryption_key": "axis-refresh-credential-encryption-key-01",
         "api_rate_limit_enabled": True,
         "api_rate_limit_paths": ["*"],
@@ -573,7 +574,7 @@ def test_deployment_readiness_flags_insecure_cookie_session_profile() -> None:
                 oidc_redirect_uri="http://api.axis.example/identity/oidc/callback",
                 oidc_post_logout_redirect_uri="https://console.axis.example/signed-out",
                 oidc_session_cookie_secure=True,
-                oidc_session_cookie_signing_secret="super-secret-cookie-key",
+                oidc_session_cookie_signing_secret="super-secret-cookie-key-0123456789abcdef",
                 audit_ledger_signing_secret="production-signing-key",
             )
         )
@@ -596,4 +597,4 @@ def test_deployment_readiness_flags_insecure_cookie_session_profile() -> None:
     assert body["capabilities"]["public_base_url_https"] is False
     assert body["capabilities"]["oidc_redirect_uri_https"] is False
     assert body["capabilities"]["oidc_post_logout_redirect_uri_https"] is True
-    assert "super-secret-cookie-key" not in str(body)
+    assert "super-secret-cookie-key-0123456789abcdef" not in str(body)

@@ -246,6 +246,50 @@ class AuditLegalHoldNotFound(LookupError):
     pass
 
 
+OBJECT_LEGAL_HOLD_KEY_OUT_OF_SCOPE_REASON = "storage_key_outside_tenant_scope"
+# Ingestion artifacts live under ``tenants/<tenant_id>/``; export bundles under
+# ``<tenant_id>/``. ``tenants`` is therefore never a tenant-owned first segment.
+_TENANT_NAMESPACE_ROOT = "tenants"
+
+
+class AuditObjectLegalHoldKeyOutOfScope(PermissionError):
+    """An object legal hold named a storage key outside the caller's tenant."""
+
+    reason = OBJECT_LEGAL_HOLD_KEY_OUT_OF_SCOPE_REASON
+
+    def __init__(self) -> None:
+        super().__init__(self.reason)
+
+
+def _require_tenant_scoped_storage_key(tenant_id: str, storage_key: str) -> str:
+    """Fail closed unless ``storage_key`` is a clean key in ``tenant_id``'s namespace.
+
+    Accepted namespaces are ``<tenant_id>/...`` (export bundles) and
+    ``tenants/<tenant_id>/...`` (ingestion artifacts). The key must already be
+    in normalized relative form: absolute paths, ``.``/``..`` segments, empty
+    segments, backslashes and control characters are rejected rather than
+    normalized, so a traversal can never resolve into another tenant's prefix.
+    """
+
+    if (
+        not storage_key
+        or "\\" in storage_key
+        or any(ord(character) < 0x20 or ord(character) == 0x7F for character in storage_key)
+        or storage_key.startswith("/")
+    ):
+        raise AuditObjectLegalHoldKeyOutOfScope()
+    parts = storage_key.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise AuditObjectLegalHoldKeyOutOfScope()
+    if tenant_id in {"", ".", "..", _TENANT_NAMESPACE_ROOT} or "/" in tenant_id:
+        raise AuditObjectLegalHoldKeyOutOfScope()
+    if len(parts) >= 2 and parts[0] == tenant_id:
+        return storage_key
+    if len(parts) >= 3 and parts[0] == _TENANT_NAMESPACE_ROOT and parts[1] == tenant_id:
+        return storage_key
+    raise AuditObjectLegalHoldKeyOutOfScope()
+
+
 class AuditLegalHoldConflict(ValueError):
     def __init__(self, hold_id: str, reason: str) -> None:
         super().__init__(reason)
@@ -912,6 +956,7 @@ def apply_object_legal_hold(
         request.actor_scopes,
         "audit.object_legal_hold.apply",
     )
+    _require_tenant_scoped_storage_key(request.tenant_id, request.storage_key)
     if not _object_legal_hold_supported(object_store):
         raise AuditExportWormEnforcementError(
             "object_store_cannot_hold: the configured object store does not "
@@ -962,6 +1007,7 @@ def release_object_legal_hold(
         request.actor_scopes,
         "audit.object_legal_hold.release",
     )
+    _require_tenant_scoped_storage_key(request.tenant_id, request.storage_key)
     if not _object_legal_hold_supported(object_store):
         raise AuditExportWormEnforcementError(
             "object_store_cannot_hold: the configured object store does not "

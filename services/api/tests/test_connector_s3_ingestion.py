@@ -89,7 +89,9 @@ def host(tmp_path, s3_profile, host_engine, request):  # noqa: F811
                 "AXIS_S3_FIXTURE_CREDENTIALS": json.dumps(
                     {"access_key": "fixture-access", "secret_key": "fixture-private-secret"}
                 )
-            }
+            },
+            allowed_variables=["AXIS_S3_FIXTURE_CREDENTIALS"],
+            reserved_prefixes=(),
         ),
     )
     with session_scope(factory) as session:

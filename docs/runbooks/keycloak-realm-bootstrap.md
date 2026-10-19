@@ -21,7 +21,12 @@ One source of truth — `idp_bootstrap.py` — declares:
   admin-created users without it);
 - the canonical Axis realm roles: `audit:read`, `workflows:read`,
   `notifications:acknowledge`, `connectors:manifest:lifecycle`,
-  `connectors:manifest:enable_live`, `platform:policy:{author,revise,read,evaluate}`,
+  `connectors:manifest:enable_live`, `connectors:manifest:write`,
+  `connectors:configuration:write`, `connectors:credential_handle:write`,
+  `connectors:egress_policy:write`, `connectors:ontology_proposal:write`,
+  `connectors:manual_import:write`, `connectors:source:discover`,
+  `data:asset:stewardship:write`, `data:asset:contract:write`,
+  `platform:policy:{author,revise,read,evaluate}`,
   `platform:tenant:{operator,read}`;
 - the web console client: confidential client, authorization-code flow with
   PKCE (S256), no implicit flow, no direct access grants, front-channel
@@ -147,8 +152,13 @@ Assign only the roles a persona needs; every grant becomes an effective API
 scope. Reference personas:
 
 - read-only auditor: `audit:read`;
-- connector steward: `connectors:manifest:lifecycle` (+ `connectors:manifest:enable_live`
-  only behind the governed live-enablement decision);
+- connector steward: `connectors:manifest:lifecycle`,
+  `connectors:manifest:write`, `connectors:configuration:write`,
+  `connectors:credential_handle:write`, `connectors:egress_policy:write`,
+  `connectors:ontology_proposal:write`, `connectors:manual_import:write`
+  (+ `connectors:manifest:enable_live` only behind the governed
+  live-enablement decision);
+- data steward: `data:asset:stewardship:write`, `data:asset:contract:write`;
 - policy author: `platform:policy:author`, `platform:policy:read`,
   `platform:policy:evaluate`.
 

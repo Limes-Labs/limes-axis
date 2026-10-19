@@ -56,6 +56,11 @@ connector manifest. Declarations are addressed by catalog asset ID:
   including the first declaration where no row exists to lock.
 - Verified OIDC principals own their declarations; the request body cannot
   spoof `declared_by`.
+- A verified principal needs `data:asset:stewardship:write` (stewardship) or
+  `data:asset:contract:write` (contract) to declare a revision; without it the
+  write fails closed with 403 `missing_required_scope` before the catalog
+  lookup, revision lock or audit append. Unauthenticated demo traffic keeps
+  the demo-mode convention.
 - Every accepted declaration appends `data.stewardship.declared` or
   `data.stewardship.updated` audit evidence.
 

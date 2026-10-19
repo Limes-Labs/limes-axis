@@ -1631,3 +1631,81 @@ def test_manifest_detail_without_lifecycle_rows_reports_empty_history_without_le
     assert detail.current_revision.status == "registered_preview_only"
     assert detail.transitions == []
     assert guard.ledger_reads == 0
+
+
+@pytest.mark.parametrize("target_status", ["active_preview", "deprecated"])
+def test_transition_connector_manifest_lifecycle_ignores_caller_chosen_required_scope(
+    session_factory: sessionmaker[Session],
+    target_status: str,
+) -> None:
+    # Regression: the deprecated ``required_scope`` body field must never let a
+    # caller pick a scope it already holds (e.g. ``openid``) to authorize a
+    # lifecycle transition. The service always enforces its own constant.
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        record_demo_connector_manifest(repository, external_db_manifest_request())
+        with pytest.raises(ConnectorManifestLifecycleValidationError) as exc_info:
+            transition_demo_connector_manifest_lifecycle(
+                repository,
+                "external_db_shift_orders",
+                ConnectorManifestLifecycleRequest(
+                    tenant_id="tenant_demo_manufacturing",
+                    transitioned_by="scope-less-member",
+                    target_status=target_status,
+                    actor_scopes=["openid"],
+                    required_scope="openid",
+                    transition_reason="Attempt with a caller-chosen scope.",
+                ),
+            )
+        manifest = repository.get_connector_manifest(
+            "tenant_demo_manufacturing", "external_db_shift_orders"
+        )
+
+    assert exc_info.value.reason == "missing_manifest_lifecycle_scope"
+    assert manifest is not None
+    assert manifest.status == "registered_preview_only"
+
+
+def test_connector_manifest_lifecycle_route_ignores_caller_chosen_scope_for_principal(
+    session_factory: sessionmaker[Session],
+) -> None:
+    from axis_api.identity import OidcPrincipal
+
+    class StaticIdentityVerifier:
+        def verify_authorization_header(self, authorization: str | None) -> OidcPrincipal:
+            assert authorization == "Bearer valid-token"
+            return OidcPrincipal(
+                actor_id="scope-less-member",
+                tenant_id="tenant_demo_manufacturing",
+                scopes=["openid"],
+            )
+
+    with session_scope(session_factory) as session:
+        record_demo_connector_manifest(
+            AxisPersistenceRepository(session), external_db_manifest_request()
+        )
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = StaticIdentityVerifier()
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/connectors/manifests/external_db_shift_orders/lifecycle",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            "transitioned_by": "scope-less-member",
+            "target_status": "deprecated",
+            "required_scope": "openid",
+            "transition_reason": "Attempt with a caller-chosen scope.",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_manifest_lifecycle_scope"
+    with session_scope(session_factory) as session:
+        manifest = AxisPersistenceRepository(session).get_connector_manifest(
+            "tenant_demo_manufacturing", "external_db_shift_orders"
+        )
+    assert manifest is not None
+    assert manifest.status == "registered_preview_only"

@@ -277,7 +277,9 @@ credential values.
 
 `POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision`
 records the human approval decision for a governed export request. The endpoint
-requires `approvals:connectors:export:decide`, records the approval decision on
+requires `approvals:connectors:export:decide` and a decision actor other than
+the request's `requested_by` (403 `separation_of_duties_self_decision`
+otherwise, with no decision, signal or audit written), records the approval decision on
 the approval row, signals the Axis workflow runtime with
 `connector_evidence_snapshot_export_decided`, writes
 `connector.evidence_snapshot_export.decision_recorded` audit evidence and
@@ -447,7 +449,13 @@ leases require
 `connectors:credential_lease:renew` and
 `connectors:credential_lease:revoke` respectively, writing
 `connector.credential_lease.renewed` and
-`connector.credential_lease.revoked`. The default adapter is deferred.
+`connector.credential_lease.revoked`. These scopes are fixed by the service:
+the deprecated `required_scopes` request field is accepted for wire
+compatibility but ignored, so a caller can never choose (or empty) the scope
+that authorizes its own lease operation. The same applies to the deprecated
+`required_scope` field of manifest lifecycle transitions, which always require
+`connectors:manifest:lifecycle` (plus `connectors:manifest:enable_live` for
+`active_live`). The default adapter is deferred.
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true` switches the boundary to the
 self-hosted Vault/KMS lease adapter, which records a provider lease reference
 without returning secret material, without requiring a managed service, without
@@ -1183,6 +1191,33 @@ is built from `AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256` (the pinned
 sha256 of the approved `host:port`); the static-DSN construction path is
 preserved as the fallback whenever the flag is off.
 
+The `env://` reference comes from a tenant-registered credential handle, so it
+is scoped twice before any value is read:
+
+- `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST` lists the variable names
+  (or prefixes ending in `*`, for example `["SOURCE_DB_*"]`) handles may name.
+  The default empty list denies every reference
+  (`secret_resolution_env_secret_not_allowlisted`).
+- Reserved platform prefixes (`AXIS_`, `PG`, `DATABASE_`, `POSTGRES_`,
+  `TEMPORAL_`, `MINIO_`, `KEYCLOAK_`, `KC_`, `OTEL_`, `AWS_`, `AZURE_`,
+  `GOOGLE_`, `GCP_`, `VAULT_`, `KUBERNETES_`) never resolve, even when
+  allowlisted (`secret_resolution_env_secret_reserved`), so a handle such as
+  `env://AXIS_POSTGRES_DSN` cannot point discovery or live sync at the control
+  plane's own database.
+
+Resolution also requires
+`AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED=true`. With resolution
+enabled and enforcement off the API still starts, but every resolution fails
+closed with `secret_resolution_egress_enforcement_disabled` (discovery,
+verification and live sync record the blocked reason), because a resolved DSN
+without connect-time target enforcement could dial any reachable host. This
+refuse-at-use behavior was chosen over refusing startup so an incomplete
+rollout disables only the live path rather than the whole API.
+
+S3 and REST source profiles are unaffected by the allowlist: their
+`credential_secret_ref` is pinned by operator profile configuration and must
+match the handle exactly, so the runtimes resolve only those pinned names.
+
 ### Runtime egress enforcement
 
 `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED` upgrades egress policy
@@ -1453,6 +1488,28 @@ truncation); all four surfaces are tenant-scoped with no existence leakage
 across tenants; audit events are appended only on real transitions.
 
 ## Governance Boundary
+
+### Governance write scopes
+
+Every connector governance write requires its own scope when a verified OIDC
+principal is bound (the request body's `actor_scopes` never satisfies these
+gates). A missing scope fails closed with 403 `missing_required_scope` before
+the service layer runs, so no record or audit event is written.
+Unauthenticated demo traffic keeps the demo-mode convention.
+
+| Write | Scope |
+| --- | --- |
+| `POST /connectors/manifests`, `PUT /connectors/manifests/{connector_id}` | `connectors:manifest:write` |
+| `POST /connectors/configurations` | `connectors:configuration:write` |
+| `POST /connectors/credential-handles`, `POST /connectors/credential-handles/{handle_id}/rotations` | `connectors:credential_handle:write` |
+| `POST /connectors/egress-policies` | `connectors:egress_policy:write` |
+| `POST /connectors/ontology-proposals` | `connectors:ontology_proposal:write` |
+| `POST /connectors/manual-imports` | `connectors:manual_import:write` |
+
+The paths are relative to `/operations` (and the deprecated
+`/demo/manufacturing` alias). Provision these as realm roles for connector
+stewards; `make demo-keycloak-bootstrap-check` and the IdP bootstrap declare
+them.
 
 Connectors are designed as extractable from day one. The current manifest
 contract keeps these boundaries visible:

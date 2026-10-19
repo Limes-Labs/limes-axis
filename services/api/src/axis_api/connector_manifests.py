@@ -171,7 +171,16 @@ class ConnectorManifestLifecycleRequest(BaseModel):
     transitioned_by: str = Field(min_length=1, max_length=160)
     target_status: str = Field(min_length=1, max_length=80)
     actor_scopes: list[str] = Field(default_factory=list)
-    required_scope: str = Field(default="connectors:manifest:lifecycle", min_length=1)
+    required_scope: str = Field(
+        default="connectors:manifest:lifecycle",
+        min_length=1,
+        description=(
+            "Deprecated and ignored. Accepted for wire compatibility only; the "
+            "service always enforces connectors:manifest:lifecycle (plus "
+            "connectors:manifest:enable_live for active_live)."
+        ),
+        json_schema_extra={"deprecated": True},
+    )
     transition_reason: str = Field(min_length=1, max_length=600)
     evidence_refs: list[str] = Field(default_factory=list)
 
@@ -274,6 +283,7 @@ RAW_CONNECTION_MARKERS = ("postgres://", "postgresql://", "jdbc:")
 RAW_QUERY_MARKERS = ("select ", "insert ", "update ", "delete ", "drop ")
 MANIFEST_LIFECYCLE_SCOPE = "connectors:manifest:lifecycle"
 LIVE_MANIFEST_ENABLE_SCOPE = "connectors:manifest:enable_live"
+MANIFEST_WRITE_SCOPE = "connectors:manifest:write"
 ACTIVE_LIVE_STATUS = "active_live"
 MANIFEST_LIFECYCLE_TRANSITIONS = {
     "registered_preview_only": {"active_preview", "deprecated"},
@@ -759,10 +769,9 @@ def transition_demo_connector_manifest_lifecycle(
     connector_id: str,
     request: ConnectorManifestLifecycleRequest,
 ) -> ConnectorManifestRecordView:
-    required_scopes = _required_scopes_for_target(
-        request.target_status,
-        request.required_scope,
-    )
+    # ``request.required_scope`` is deprecated and ignored: the caller never
+    # chooses which scope authorizes its own transition.
+    required_scopes = _required_scopes_for_target(request.target_status)
     missing_scopes = [
         required_scope
         for required_scope in required_scopes
@@ -857,10 +866,10 @@ def transition_demo_connector_manifest_lifecycle(
     return _record_from_persistence(updated)
 
 
-def _required_scopes_for_target(target_status: str, default_scope: str) -> list[str]:
+def _required_scopes_for_target(target_status: str) -> list[str]:
     if target_status == ACTIVE_LIVE_STATUS:
         return [MANIFEST_LIFECYCLE_SCOPE, LIVE_MANIFEST_ENABLE_SCOPE]
-    return [default_scope]
+    return [MANIFEST_LIFECYCLE_SCOPE]
 
 
 def _missing_scope_reason(missing_scopes: list[str]) -> str:

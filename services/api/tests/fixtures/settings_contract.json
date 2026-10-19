@@ -128,6 +128,7 @@
   "external_db_live_query_private_endpoint_ref": {"alias": "AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF", "default": "private-endpoint://tenant_demo_manufacturing/persisted-operations-postgres-readonly", "probe": "settings-contract-probe"},
   "external_db_lease_scoped_secret_resolution_enabled": {"alias": "AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED", "default": false, "probe": true},
   "external_db_runtime_egress_enforcement_enabled": {"alias": "AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED", "default": false, "probe": true},
+  "external_db_lease_scoped_secret_env_allowlist": {"alias": "AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST", "default": [], "probe": ["SOURCE_DB_*"]},
   "external_db_live_query_endpoint_target_sha256": {"alias": "AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256", "default": null, "probe": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
   "external_db_discovery_enabled": {"alias": "AXIS_EXTERNAL_DB_DISCOVERY_ENABLED", "default": false, "probe": true},
   "external_db_discovery_profile_id": {"alias": "AXIS_EXTERNAL_DB_DISCOVERY_PROFILE_ID", "default": "profile_postgres_discovery_readonly", "probe": "settings-contract-probe"},

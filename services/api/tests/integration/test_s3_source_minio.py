@@ -112,7 +112,9 @@ def test_real_minio_through_host_checkpoint_and_payload_commit(minio_input, host
                 "AXIS_S3_FIXTURE_CREDENTIALS": json.dumps(
                     {"access_key": "axis335fixture", "secret_key": "axis335fixturepassword"}
                 )
-            }
+            },
+            allowed_variables=["AXIS_S3_FIXTURE_CREDENTIALS"],
+            reserved_prefixes=(),
         )
         submit(host)
         assert dispatch(host).completed == 1

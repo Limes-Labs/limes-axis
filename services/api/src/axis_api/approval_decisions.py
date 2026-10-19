@@ -12,7 +12,12 @@ from axis_api.action_runs import payload_requested_amount, registry_action_entry
 from axis_api.approval_reference import require_persisted_manufacturing_approval_inbox
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ApprovalDecision, ApprovalInboxItem
-from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
+from axis_api.permissions import (
+    PermissionDecision,
+    PermissionRequest,
+    evaluate_permission,
+    separation_of_duties_denial,
+)
 from axis_api.persistence import (
     ActionRunCreate,
     ActionRunResultRecord,
@@ -396,6 +401,12 @@ def _evaluate_approval_decision_permission(
     )
     if not decision.allowed:
         raise ApprovalPermissionDenied(approval.required_permission, decision)
+    self_decision = separation_of_duties_denial(
+        decision_actor_id=request.actor_id,
+        requested_by=approval.requested_by,
+    )
+    if self_decision is not None:
+        raise ApprovalPermissionDenied(approval.required_permission, self_decision)
 
     return decision
 

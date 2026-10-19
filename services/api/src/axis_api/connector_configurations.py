@@ -59,6 +59,8 @@ class ManufacturingConnectorConfigurationRegistry(BaseModel):
     configuration_notes: list[str] = Field(default_factory=list)
 
 
+CONFIGURATION_WRITE_SCOPE = "connectors:configuration:write"
+
 RAW_SECRET_FIELD_NAMES = {
     "api_key",
     "client_secret",

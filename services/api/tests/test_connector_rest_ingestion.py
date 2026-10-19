@@ -174,7 +174,8 @@ def host(tmp_path):
         store,
         transport_factory=lambda origin: transport,
         resolver=EnvLeaseScopedSecretResolver(
-            {"REST_FIXTURE_CREDENTIALS": json.dumps({"bearer_token": BEARER})}
+            {"REST_FIXTURE_CREDENTIALS": json.dumps({"bearer_token": BEARER})},
+            allowed_variables=["REST_FIXTURE_CREDENTIALS"],
         ),
     )
     with session_scope(factory) as session:

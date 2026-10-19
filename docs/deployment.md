@@ -26,6 +26,14 @@ route coverage (`AXIS_API_RATE_LIMIT_PATHS=["*"]`). Verified bearer and browser
 sessions share tenant quota buckets. The in-memory backend remains available
 only for local development and tests.
 
+Production startup also rejects insecure browser-session posture:
+`AXIS_OIDC_SESSION_COOKIE_SECURE=false`, a missing or shorter-than-32-character
+`AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`, and `AXIS_CORS_ORIGINS` entries that
+contain `*` or are plain-http loopback origins (see
+[configuration](configuration.md#production-combinations)). The chart's
+production values already satisfy these checks once the signing secret is
+supplied.
+
 Production startup also rejects a disabled API limiter. `/health` remains a
 process-local liveness signal and is never gated by Redis or request quotas;
 `/ready` remains the dependency-aware traffic admission signal. The chart maps
@@ -853,7 +861,7 @@ review.
 Object-store legal holds on materialized export artifacts are applied and
 released through `POST /demo/manufacturing/audit/object-legal-holds` and
 `.../object-legal-holds/release` (permission-gated on `audit:legal_hold:write`,
-audited). This is distinct from the DB-level audit legal hold that blocks
+restricted to storage keys in the caller's tenant namespace, audited). This is distinct from the DB-level audit legal hold that blocks
 physical retention deletion of ledger rows.
 
 ## Object Storage Recovery Rehearsal

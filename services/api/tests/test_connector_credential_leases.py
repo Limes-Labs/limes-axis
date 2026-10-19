@@ -935,3 +935,110 @@ def test_lease_create_requires_complete_permission_decision() -> None:
             expires_at=datetime(2026, 8, 23, 10, 15, tzinfo=UTC),
             renewal_due_at=datetime(2026, 8, 23, 10, 10, tzinfo=UTC),
         )
+
+
+class _StaticIdentityVerifier:
+    def __init__(self, scopes: list[str]) -> None:
+        from axis_api.identity import OidcPrincipal
+
+        self.principal = OidcPrincipal(
+            actor_id="scope-less-member",
+            tenant_id="tenant_demo_manufacturing",
+            scopes=scopes,
+        )
+
+    def verify_authorization_header(self, authorization: str | None):
+        assert authorization == "Bearer valid-token"
+        return self.principal
+
+
+def _oidc_client(session_factory: sessionmaker[Session], scopes: list[str]) -> TestClient:
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://", oidc_auth_required=True))
+    app.state.session_factory = session_factory
+    app.state.identity_verifier = _StaticIdentityVerifier(scopes)
+    return TestClient(app)
+
+
+def test_lease_request_ignores_caller_chosen_required_scopes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    # Regression: an authenticated member without the lease scope used to send
+    # ``"required_scopes": []`` and obtain a lease (201).
+    with session_scope(session_factory) as session:
+        seed_active_handle(AxisPersistenceRepository(session))
+    client = _oidc_client(session_factory, ["openid"])
+    body = lease_request().model_dump(mode="json")
+    body["requested_by"] = "scope-less-member"
+    body["actor_scopes"] = []
+    body["required_scopes"] = []
+
+    response = client.post(
+        "/demo/manufacturing/connectors/credential-leases",
+        headers={"Authorization": "Bearer valid-token"},
+        json=body,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permission"] == (
+        "connectors:credential_lease:request"
+    )
+    with session_scope(session_factory) as session:
+        assert (
+            AxisPersistenceRepository(session).get_connector_credential_lease(
+                "tenant_demo_manufacturing", "lease_file_csv_readonly_20260622"
+            )
+            is None
+        )
+
+
+@pytest.mark.parametrize(
+    ("operation", "actor_field", "extra", "required_permission"),
+    [
+        (
+            "renew",
+            "renewed_by",
+            {"renewal_reason": "caller-chosen scope", "evidence_ref": "test://renew"},
+            "connectors:credential_lease:renew",
+        ),
+        (
+            "revoke",
+            "revoked_by",
+            {"revocation_reason": "caller-chosen scope", "evidence_ref": "test://revoke"},
+            "connectors:credential_lease:revoke",
+        ),
+    ],
+)
+def test_lease_renew_and_revoke_ignore_caller_chosen_required_scopes(
+    session_factory: sessionmaker[Session],
+    operation: str,
+    actor_field: str,
+    extra: dict,
+    required_permission: str,
+) -> None:
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        seed_active_handle(repository)
+        record_demo_connector_credential_lease(repository, lease_request())
+    client = _oidc_client(session_factory, ["openid"])
+
+    response = client.post(
+        f"/demo/manufacturing/connectors/credential-leases/"
+        f"lease_file_csv_readonly_20260622/{operation}",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "tenant_id": "tenant_demo_manufacturing",
+            actor_field: "scope-less-member",
+            "required_scopes": ["openid"],
+            **extra,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["required_permission"] == required_permission
+    with session_scope(session_factory) as session:
+        lease = AxisPersistenceRepository(session).get_connector_credential_lease(
+            "tenant_demo_manufacturing", "lease_file_csv_readonly_20260622"
+        )
+    assert lease is not None
+    assert lease.status == "active"
+    assert lease.renewal_count == 0

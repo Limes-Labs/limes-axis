@@ -43,7 +43,11 @@ actor and scopes from token claims, and binds the request to that authenticated
 principal. Actor impersonation attempts return 403 before any approval record
 or audit event is written. If the required `approvals:*:decide` scope is
 missing, the endpoint returns 403 and does not write the approval record or
-audit event. When allowed, it creates or reuses the matching tenant-scoped
+audit event. Separation of duties is enforced: the actor named in the
+approval's `requested_by` can never decide it (approve or reject), even with
+the decision scope; the endpoint returns 403 with reason
+`separation_of_duties_self_decision` and writes nothing. There is no
+single-operator mode. When allowed, it creates or reuses the matching tenant-scoped
 `approval_records` row, records the decision and appends an
 `approval.decision.recorded` audit event. By default it also signals the Axis
 workflow runtime adapter. When Temporal is unavailable or the workflow is not

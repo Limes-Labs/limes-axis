@@ -54,6 +54,7 @@ from axis_api.connector_secret_resolution import (
     EnvLeaseScopedSecretResolver,
     SecretResolutionError,
     SecretResolutionRequest,
+    env_variable_names_from_refs,
 )
 from axis_api.connector_source_extraction import SourceExtractionOutcome
 from axis_api.data_asset_discovery import (
@@ -245,7 +246,14 @@ class RestIngestionRuntime:
     ) -> None:
         self.settings = settings
         self.object_store = object_store
-        self.resolver = resolver or EnvLeaseScopedSecretResolver()
+        # Secret refs here are pinned by operator profile configuration and
+        # matched exactly before resolution, so only those names resolve.
+        self.resolver = resolver or EnvLeaseScopedSecretResolver(
+            allowed_variables=env_variable_names_from_refs(
+                profile.credential_secret_ref for profile in settings.rest_source_profiles
+            ),
+            reserved_prefixes=(),
+        )
         # Injecting a transport is the only test seam; production uses the
         # reader's pinned-origin transport.
         self.transport_factory = transport_factory

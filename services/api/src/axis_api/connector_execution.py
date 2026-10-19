@@ -13,6 +13,7 @@ from axis_api.connector_secret_resolution import (
     SECRET_RESOLUTION_RESOLVER_NOT_CONFIGURED as _RESOLVER_NOT_CONFIGURED_REASON,
 )
 from axis_api.connector_secret_resolution import (
+    EgressEnforcementRequiredSecretResolver,
     EnvLeaseScopedSecretResolver,
     LeaseScopedSecretResolver,
     ResolvedSecret,
@@ -1747,7 +1748,11 @@ def lease_scoped_secret_resolver_from_settings(
 ) -> LeaseScopedSecretResolver | None:
     if not settings.external_db_lease_scoped_secret_resolution_enabled:
         return None
-    return EnvLeaseScopedSecretResolver()
+    if not settings.external_db_runtime_egress_enforcement_enabled:
+        return EgressEnforcementRequiredSecretResolver()
+    return EnvLeaseScopedSecretResolver(
+        allowed_variables=settings.external_db_lease_scoped_secret_env_allowlist,
+    )
 
 
 def connector_sync_execution_runtime_from_settings(

@@ -39,6 +39,7 @@ from axis_api.connector_secret_resolution import (
     EnvLeaseScopedSecretResolver,
     SecretResolutionError,
     SecretResolutionRequest,
+    env_variable_names_from_refs,
 )
 from axis_api.connector_source_extraction import SourceExtractionOutcome
 from axis_api.persistence import AuditEventCreate, ConnectorSourceExtractionBatchCreate
@@ -151,7 +152,14 @@ class S3IngestionRuntime:
         self.settings = settings
         self.object_store = object_store
         self.client_factory = client_factory
-        self.resolver = resolver or EnvLeaseScopedSecretResolver()
+        # Secret refs here are pinned by operator profile configuration and
+        # matched exactly before resolution, so only those names resolve.
+        self.resolver = resolver or EnvLeaseScopedSecretResolver(
+            allowed_variables=env_variable_names_from_refs(
+                profile.credential_secret_ref for profile in settings.s3_source_profiles
+            ),
+            reserved_prefixes=(),
+        )
         identities = [(p.tenant_id, p.profile_id) for p in settings.s3_source_profiles]
         if len(set(identities)) != len(identities):
             raise ValueError("S3 source profile identities must be unique per tenant")

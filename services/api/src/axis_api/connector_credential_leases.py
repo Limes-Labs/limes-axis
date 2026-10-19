@@ -25,6 +25,13 @@ from axis_api.persistence import (
 REQUEST_SCOPE = "connectors:credential_lease:request"
 RENEW_SCOPE = "connectors:credential_lease:renew"
 REVOKE_SCOPE = "connectors:credential_lease:revoke"
+# The request bodies historically let the caller name the scopes the service
+# checked. The field stays accepted for wire compatibility but is ignored: the
+# service always enforces its own per-operation scope constant.
+DEPRECATED_REQUIRED_SCOPES_DESCRIPTION = (
+    "Deprecated and ignored. Accepted for wire compatibility only; the service "
+    "always enforces its own per-operation scope."
+)
 READ_AUDIT_EVENT_TYPE = "connector.credential_leases_read"
 LEASE_MODE = "deferred_vault_kms_lease"
 LEASE_RUNTIME_BOUNDARY = "axis-credential-lease-broker"
@@ -279,7 +286,11 @@ class ConnectorCredentialLeaseRequest(BaseModel):
     lease_id: str = Field(min_length=1, max_length=180, pattern=r"^[a-z0-9][a-z0-9_-]*$")
     requested_by: str = Field(min_length=1, max_length=160)
     actor_scopes: list[str] = Field(default_factory=list)
-    required_scopes: list[str] = Field(default_factory=lambda: [REQUEST_SCOPE])
+    required_scopes: list[str] = Field(
+        default_factory=lambda: [REQUEST_SCOPE],
+        description=DEPRECATED_REQUIRED_SCOPES_DESCRIPTION,
+        json_schema_extra={"deprecated": True},
+    )
     lease_purpose: str = Field(min_length=1, max_length=160)
     requested_at: datetime | None = None
     lease_duration_seconds: int = Field(default=900, ge=60, le=24 * 60 * 60)
@@ -295,7 +306,11 @@ class ConnectorCredentialLeaseRenewRequest(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     renewed_by: str = Field(min_length=1, max_length=160)
     actor_scopes: list[str] = Field(default_factory=list)
-    required_scopes: list[str] = Field(default_factory=lambda: [RENEW_SCOPE])
+    required_scopes: list[str] = Field(
+        default_factory=lambda: [RENEW_SCOPE],
+        description=DEPRECATED_REQUIRED_SCOPES_DESCRIPTION,
+        json_schema_extra={"deprecated": True},
+    )
     renewed_at: datetime | None = None
     extend_seconds: int = Field(default=900, ge=60, le=24 * 60 * 60)
     renewal_window_seconds: int = Field(default=300, ge=30, le=60 * 60)
@@ -309,7 +324,11 @@ class ConnectorCredentialLeaseRevokeRequest(BaseModel):
     tenant_id: str = Field(default="tenant_demo_manufacturing", min_length=1)
     revoked_by: str = Field(min_length=1, max_length=160)
     actor_scopes: list[str] = Field(default_factory=list)
-    required_scopes: list[str] = Field(default_factory=lambda: [REVOKE_SCOPE])
+    required_scopes: list[str] = Field(
+        default_factory=lambda: [REVOKE_SCOPE],
+        description=DEPRECATED_REQUIRED_SCOPES_DESCRIPTION,
+        json_schema_extra={"deprecated": True},
+    )
     revoked_at: datetime | None = None
     revocation_reason: str = Field(min_length=1, max_length=600)
     evidence_ref: str = Field(min_length=1, max_length=240)
@@ -526,7 +545,7 @@ def record_demo_connector_credential_lease(
         tenant_id=request.tenant_id,
         actor_id=request.requested_by,
         actor_scopes=request.actor_scopes,
-        required_scopes=request.required_scopes,
+        required_scopes=[REQUEST_SCOPE],
         action="request",
     )
     granted_at = _aware_datetime(request.requested_at or utc_now())
@@ -604,7 +623,7 @@ def renew_demo_connector_credential_lease(
         tenant_id=request.tenant_id,
         actor_id=request.renewed_by,
         actor_scopes=request.actor_scopes,
-        required_scopes=request.required_scopes,
+        required_scopes=[RENEW_SCOPE],
         action="renew",
     )
     renewed_at = _aware_datetime(request.renewed_at or utc_now())
@@ -669,7 +688,7 @@ def revoke_demo_connector_credential_lease(
         tenant_id=request.tenant_id,
         actor_id=request.revoked_by,
         actor_scopes=request.actor_scopes,
-        required_scopes=request.required_scopes,
+        required_scopes=[REVOKE_SCOPE],
         action="revoke",
     )
     revoked_at = _aware_datetime(request.revoked_at or utc_now())

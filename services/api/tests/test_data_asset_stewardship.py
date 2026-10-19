@@ -388,7 +388,7 @@ def test_principal_actor_overrides_declared_body_actor(
         OidcPrincipal(
             actor_id="actor-enterprise",
             tenant_id=TENANT_A,
-            scopes=["connectors:read"],
+            scopes=["connectors:read", "data:asset:stewardship:write"],
         )
     )
 

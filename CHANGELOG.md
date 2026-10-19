@@ -5,6 +5,57 @@ release-bound behavior, not the complete commit history.
 
 ## [Unreleased]
 
+### Security
+
+- Connector credential lease request/renew/revoke and manifest lifecycle
+  transitions always enforce the service's own scope constants. The
+  `required_scopes`/`required_scope` request fields are deprecated and ignored
+  (still accepted on the wire), so a caller can no longer send
+  `"required_scopes": []` or `"required_scope": "openid"` to bypass the gate.
+- Object-store legal hold apply/release only accept storage keys in the
+  requesting tenant's namespace (`<tenant_id>/...` or `tenants/<tenant_id>/...`)
+  and reject traversal or non-normalized keys with 403
+  `storage_key_outside_tenant_scope`, so a tenant can no longer hold or release
+  another tenant's WORM export artifact.
+- Connector and data-asset governance writes now enforce a dedicated scope for
+  verified principals, failing closed with 403 before any write:
+  `connectors:manifest:write` (manifest register/replace),
+  `connectors:configuration:write`, `connectors:credential_handle:write`
+  (handles and rotations), `connectors:egress_policy:write`,
+  `connectors:ontology_proposal:write`, `connectors:manual_import:write`,
+  `data:asset:stewardship:write` and `data:asset:contract:write`. Operators
+  must grant these realm roles (declared by the IdP bootstrap and the local
+  demo realm) to connector and data stewards before upgrading.
+- Connector evidence-invariant snapshot history, credential-lease,
+  egress-policy and evidence-invariant reads use the verified principal's actor
+  and scopes; query `actor_id`/`actor_scopes` only apply to unauthenticated
+  demo traffic, so callers can no longer self-assert read scopes or attribute
+  append-only read-audit evidence to another actor.
+- Platform tenant provisioning, suspend, reactivate, quota and vocabulary
+  updates evaluate the operator permission before idempotent replay,
+  existence or lifecycle-state checks. An unscoped caller now gets 403 instead
+  of a replayed tenant record or a 404/409 that revealed whether a tenant
+  exists.
+- `env://` lease-scoped secret resolution for external databases only resolves
+  variables on the new operator allowlist
+  `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST` (empty denies all) and
+  never resolves reserved platform prefixes such as `AXIS_` or `PG`, so a
+  tenant handle like `env://AXIS_POSTGRES_DSN` can no longer make discovery or
+  live sync dial the control-plane database. Resolution now also fails closed
+  (`secret_resolution_egress_enforcement_disabled`) unless
+  `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED=true`. Deployments using
+  lease-scoped resolution must set the allowlist, enable runtime egress
+  enforcement and rename any handle variable that uses a reserved prefix.
+- `AXIS_ENV=production` startup now refuses
+  `AXIS_OIDC_SESSION_COOKIE_SECURE=false`, a missing or shorter-than-32-character
+  `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`, and `AXIS_CORS_ORIGINS` containing
+  `*` or plain-http loopback origins. Development and test profiles are
+  unchanged.
+- Approval decisions and connector evidence snapshot export-request decisions
+  enforce separation of duties: the requester can no longer approve or reject
+  their own request (403 `separation_of_duties_self_decision`, nothing
+  written).
+
 ### Added
 
 - Versioned Document Studio contract for durable documents and reusable

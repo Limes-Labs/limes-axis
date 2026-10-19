@@ -811,6 +811,47 @@ def test_provision_endpoint_rejects_existing_bootstrap_admin_actor() -> None:
     assert response.json()["detail"]["reason"] == "bootstrap_admin_actor_exists"
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {},  # exact replay of the provisioned request
+        {"display_name": "Acme Manufacturing Renamed"},  # idempotency conflict
+        {"idempotency_key": "idem_provision_acme_v2"},  # tenant already exists
+    ],
+    ids=["replay", "idempotency_conflict", "tenant_exists"],
+)
+def test_provision_authorizes_before_replay_or_existence_checks(overrides: dict) -> None:
+    # Regression: replay (200 with the tenant record) and 409 existence answers
+    # were returned before the operator permission check, so an unscoped caller
+    # could read a tenant record back or probe which tenants exist.
+    client, _factory = build_test_client()
+    assert client.post("/platform/tenants", json=provision_payload()).status_code == 201
+
+    response = client.post(
+        "/platform/tenants",
+        json=provision_payload(actor_scopes=[], **overrides),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "missing_required_scope"
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        ("suspend", lambda: suspend_payload(actor_scopes=[])),
+        ("reactivate", lambda: reactivate_payload(actor_scopes=[])),
+    ],
+)
+def test_lifecycle_authorizes_before_existence_and_state_checks(path: str, payload) -> None:
+    client, _factory = build_test_client()
+
+    unknown = client.post(f"/platform/tenants/tenant_never_provisioned/{path}", json=payload())
+
+    assert unknown.status_code == 403
+    assert unknown.json()["detail"]["reason"] == "missing_required_scope"
+
+
 def test_provision_endpoint_rejects_missing_operator_scope() -> None:
     client, factory = build_test_client()
 
