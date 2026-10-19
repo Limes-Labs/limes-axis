@@ -635,7 +635,7 @@ class SearchPageMetadata(AxisModel):
 
 
 class SearchHit(AxisModel):
-    """One authorized search hit; restricted records are metadata-only."""
+    """One authorized search hit; permitted records without text are metadata-only."""
 
     kind: str
     source_object_id: str
