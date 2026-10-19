@@ -301,6 +301,10 @@ export function NeedsAttention({
       <ErrorPanel
         detail={copy.error.detail}
         endpoint={`${APPROVALS_ENDPOINT} + ${OPERATIONS_API_PREFIX}/overview`}
+        onRetry={() => {
+          overview.refetch?.();
+          approvalsQuery.refetch?.();
+        }}
         reference={overviewErrorReference(overview, approvalsQuery)}
         title={copy.error.title}
       />

@@ -78,7 +78,8 @@ export function SimulationConsole() {
         detail="The console could not verify the current actor and tenant. Replay data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -96,6 +97,7 @@ export function SimulationConsole() {
       <ErrorPanel
         detail={strings.simulation.error.detail}
         endpoint={replayPath}
+        onRetry={replayQuery.refetch}
         reference={replayQuery.errorRequestId ?? undefined}
         title={strings.simulation.error.title}
       />

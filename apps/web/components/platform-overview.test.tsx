@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/ui/toast";
 
 const mocks = vi.hoisted(() => ({
   axisFetchParsedJson: vi.fn(),
+  refetch: vi.fn(),
   triggerRefresh: vi.fn(),
   useAxisQuery: vi.fn(),
 }));
@@ -77,6 +78,7 @@ function queryResult(data: unknown, source: Source, errorStatus: number | null =
     isLoading: source === "loading",
     isUnavailable: source === "unavailable",
     isTenantNotFound: source === "tenant_not_found",
+    refetch: mocks.refetch,
   };
 }
 
@@ -162,6 +164,7 @@ function renderOverview() {
 beforeEach(() => {
   mocks.axisFetchParsedJson.mockReset();
   mocks.triggerRefresh.mockReset();
+  mocks.refetch.mockReset();
   mocks.useAxisQuery.mockReset();
 });
 
@@ -304,12 +307,25 @@ describe("PlatformOverview per-section degradation", () => {
     ]);
     renderOverview();
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(
       screen.getByText("Tenant-scoped data is not loaded until identity is available.", {
         exact: false,
       }),
     ).toBeInTheDocument();
+  });
+
+  it("offers a retry that re-runs the identity session instead of blaming one API", async () => {
+    mockQueriesByPath(["/identity/session"]);
+    const user = userEvent.setup();
+    renderOverview();
+
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
+    expect(screen.queryByText(/Identity API/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: strings.states.retry }));
+
+    expect(mocks.refetch).toHaveBeenCalledTimes(1);
+    expect(mocks.triggerRefresh).not.toHaveBeenCalled();
   });
 
   it("does not fall back to demo data when an authenticated tenant claim is missing", () => {
@@ -381,7 +397,7 @@ describe("PlatformOverview onboarding checklist", () => {
     ]);
     renderOverview();
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Set up your governed platform" }),
     ).not.toBeInTheDocument();

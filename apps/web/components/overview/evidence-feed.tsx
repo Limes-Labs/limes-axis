@@ -52,6 +52,7 @@ export function EvidenceFeed({
       <ErrorPanel
         detail={copy.error.detail}
         endpoint={AUDIT_EVENTS_ENDPOINT}
+        onRetry={auditEvents.refetch}
         reference={auditEvents.errorRequestId ?? undefined}
         title={copy.error.title}
       />

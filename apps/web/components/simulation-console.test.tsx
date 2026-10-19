@@ -94,7 +94,7 @@ describe("SimulationConsole tenant and empty states", () => {
 
     render(<SimulationConsole />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
       expect.stringContaining("tenant_id=tenant_demo_manufacturing"),
       expect.objectContaining({ enabled: false }),

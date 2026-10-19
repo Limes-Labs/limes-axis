@@ -196,6 +196,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
       <ErrorPanel
         detail="The connector console is disabled because the current tenant could not be verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
+        onRetry={identity.refetch}
         reference={identity.errorRequestId ?? undefined}
         title="Tenant identity unavailable"
       />
@@ -220,6 +221,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
       <ErrorPanel
         detail={strings.connectors.error.detail}
         endpoint={CONNECTOR_ENDPOINTS.workspace}
+        onRetry={registry.refetch}
         reference={registry.errorRequestId ?? undefined}
         title={strings.connectors.error.title}
       />

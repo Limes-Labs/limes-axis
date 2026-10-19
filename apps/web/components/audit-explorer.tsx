@@ -301,7 +301,8 @@ export function AuditExplorer() {
         detail="The console could not verify the current actor and tenant. Audit data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -324,6 +325,7 @@ export function AuditExplorer() {
       <ErrorPanel
         detail={strings.audit.error.detail}
         endpoint={auditEventsPath}
+        onRetry={auditQuery.refetch}
         reference={auditQuery.errorRequestId ?? undefined}
         title={strings.audit.error.title}
       />

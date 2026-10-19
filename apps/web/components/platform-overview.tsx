@@ -74,6 +74,7 @@ function OverviewHero({
       <ErrorPanel
         detail={strings.overview.hero.error.detail}
         endpoint={OVERVIEW_ENDPOINT}
+        onRetry={overview.refetch}
         reference={overview.errorRequestId ?? undefined}
         title={strings.overview.hero.error.title}
       />
@@ -193,7 +194,8 @@ export function PlatformOverview() {
         detail="The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identityQuery.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identityQuery.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }

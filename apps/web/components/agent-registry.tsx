@@ -130,6 +130,7 @@ export function AgentRegistry() {
   const {
     data: registry,
     errorRequestId: registryErrorRequestId,
+    refetch: refetchRegistry,
     source,
   } = useAxisQuery<ManufacturingAgentRegistry>(agentsPath, {
     enabled: tenantQueriesEnabled,
@@ -162,7 +163,8 @@ export function AgentRegistry() {
         detail="The agent registry is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -198,6 +200,7 @@ export function AgentRegistry() {
       <ErrorPanel
         detail={strings.agents.error.detail}
         endpoint={agentsPath}
+        onRetry={refetchRegistry}
         reference={registryErrorRequestId ?? undefined}
         title={strings.agents.error.title}
       />

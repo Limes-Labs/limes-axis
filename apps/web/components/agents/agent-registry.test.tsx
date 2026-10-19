@@ -132,7 +132,7 @@ describe("AgentRegistry states", () => {
 
     render(<AgentRegistry />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
       `${OPERATIONS_API_PREFIX}/agents?tenant_id=${DEMO_TENANT_ID}`,
       expect.objectContaining({ enabled: false, expectedTenantId: undefined }),

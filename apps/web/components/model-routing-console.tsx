@@ -98,7 +98,8 @@ export function ModelRoutingConsole() {
         detail="Model routing data is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -177,6 +178,7 @@ function ReferenceModelRouting({
   const {
     data: routing,
     errorRequestId: routingErrorRequestId,
+    refetch: refetchRouting,
     source,
   } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
     enabled,
@@ -234,6 +236,7 @@ function ReferenceModelRouting({
       <ErrorPanel
         detail={strings.models.reference.error.detail}
         endpoint={routingPath}
+        onRetry={refetchRouting}
         reference={routingErrorRequestId ?? undefined}
         title={strings.models.reference.error.title}
       />

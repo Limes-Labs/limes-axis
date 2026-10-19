@@ -46,6 +46,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
+import { strings } from "@/lib/strings";
 
 type ActionRunSource = "api";
 
@@ -99,6 +100,7 @@ export function ActionRegistry() {
   const {
     data: registry,
     errorRequestId: registryErrorRequestId,
+    refetch: refetchRegistry,
     source,
   } = useAxisQuery<ManufacturingActionRegistry>(
     buildTenantScopedPath(
@@ -220,7 +222,8 @@ export function ActionRegistry() {
         detail="The action registry is not loaded until the current actor and tenant are verified."
         endpoint="/identity/session"
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -248,6 +251,7 @@ export function ActionRegistry() {
       <ErrorPanel
         detail="Axis did not receive API-backed action records. Local fallback action records are disabled."
         endpoint={`${OPERATIONS_API_PREFIX}/actions`}
+        onRetry={refetchRegistry}
         reference={registryErrorRequestId ?? undefined}
         title="Action API unavailable"
       />

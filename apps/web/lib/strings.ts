@@ -2081,6 +2081,11 @@ export const strings = {
     technicalDetails: "Technical details",
     /** Correlation id an operator can quote to support. */
     reference: "Reference",
+    /* Shown when `/identity/session` cannot be read. The console cannot tell
+       which part of Axis is down, so it does not blame one API. */
+    identityUnavailable: {
+      title: "Can't reach Axis",
+    },
     error: {
       title: "This data could not be loaded",
       detail: "The console could not reach the platform API. Check your connection and try again.",

@@ -130,7 +130,7 @@ describe("ModelRoutingConsole tabs", () => {
 
     render(<ModelRoutingConsole />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Reference routing" })).not.toBeInTheDocument();
   });
 

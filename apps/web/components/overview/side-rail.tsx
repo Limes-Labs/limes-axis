@@ -22,6 +22,7 @@ export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<Manufactu
     }
     return auditEvents.source === "loading" ? <LoadingPanel layout="detail" /> : (
       <ErrorPanel title={copy.errorTitle} detail={copy.errorDetail}
+        onRetry={auditEvents.refetch}
         reference={auditEvents.errorRequestId ?? undefined} />
     );
   }

@@ -433,7 +433,8 @@ export function WorkflowConsole() {
         detail="The console could not verify the current actor and tenant. Workflow data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -459,6 +460,7 @@ export function WorkflowConsole() {
       <ErrorPanel
         detail={strings.workflows.error.detail}
         endpoint={runsPath}
+        onRetry={persisted.refetch}
         reference={persisted.errorRequestId ?? undefined}
         title={strings.workflows.error.title}
       />

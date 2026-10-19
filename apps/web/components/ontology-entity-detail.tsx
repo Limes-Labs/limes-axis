@@ -13,6 +13,7 @@ import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
 import { formatContextPath, formatTimestamp } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
+import { strings } from "@/lib/strings";
 import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -33,7 +34,8 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
         detail="The entity is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }

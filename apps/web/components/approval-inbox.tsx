@@ -388,6 +388,7 @@ export function ApprovalInbox() {
   const {
     data: inbox,
     errorRequestId: inboxErrorRequestId,
+    refetch: refetchInbox,
     source,
   } = useAxisQuery<ManufacturingApprovalInbox>(
     buildTenantScopedPath(APPROVALS_ENDPOINT, tenantId ?? DEMO_TENANT_ID),
@@ -440,7 +441,8 @@ export function ApprovalInbox() {
         detail="The approval queue is not loaded until the current actor and tenant are verified."
         endpoint="/identity/session"
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -476,6 +478,7 @@ export function ApprovalInbox() {
       <ErrorPanel
         detail={strings.approvals.error.detail}
         endpoint={APPROVALS_ENDPOINT}
+        onRetry={refetchInbox}
         reference={inboxErrorRequestId ?? undefined}
         title={strings.approvals.error.title}
       />

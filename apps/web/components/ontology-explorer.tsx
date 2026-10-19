@@ -76,6 +76,7 @@ export function OntologyExplorer() {
   const {
     data: ontology,
     errorRequestId: ontologyErrorRequestId,
+    refetch: refetchOntology,
     source,
   } = useAxisQuery<ManufacturingOntology>(ontologyPath, {
     enabled: tenantQueriesEnabled,
@@ -137,7 +138,8 @@ export function OntologyExplorer() {
         detail="The ontology is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -165,6 +167,7 @@ export function OntologyExplorer() {
       <ErrorPanel
         detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
         endpoint={ontologyPath}
+        onRetry={refetchOntology}
         reference={ontologyErrorRequestId ?? undefined}
         title="Ontology API unavailable"
       />
