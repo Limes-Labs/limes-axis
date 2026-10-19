@@ -7,6 +7,32 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned Document Studio contract for durable documents and reusable
+  templates: section/block schema with stable IDs, typed template parameters
+  and fixed/editable/required regions, digest-bound template provenance that
+  survives template deletion, published-revision immutability, bounded
+  design tokens, and accessibility outline as contract data. Contract slice
+  only; no storage, editor runtime, rendering or embed resolution
+  ([#829](https://github.com/Limes-Labs/limes-axis/issues/829)).
+
+- Versioned Workbook Studio contract separating workbook structure, source
+  bindings and cell provenance: stable identities disjoint from source
+  storage IDs, opaque resource-prefix bindings without credentials or rows,
+  explicit local-only value labeling, frozen bind-time mapping whose schema
+  drift surfaces as compatibility state instead of silent column remap, and
+  shareable definitions that strip viewer-local values. Contract slice
+  only; no grid UI, source access, formula evaluation or writeback
+  ([#848](https://github.com/Limes-Labs/limes-axis/issues/848)).
+
+- Versioned clean-room agreement contract modeling multi-party collaboration
+  as a time-bounded agreement: typed purpose/input/output classes as
+  enforcement inputs, bounded isolation profiles, provably independent
+  per-party approvals, material amendments that invalidate prior approvals,
+  authoritative suspension/expiry execution gates, and party removal that
+  preserves historical digests while pruning its inputs. Contract slice
+  only; no dataset binding, query engine or compute
+  ([#855](https://github.com/Limes-Labs/limes-axis/issues/855)).
+
 - Versioned public dataset release manifest contract: sealed immutable release
   revisions with opaque public IDs, closed frozen-source modes (no live query),
   deterministic digests with tamper-checked withdrawal evidence, private
@@ -78,6 +104,18 @@ release-bound behavior, not the complete commit history.
   unsupported scan formats abort generation instead of reusing a privileged
   cached package. No signing, issuance or download delivery
   ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
+- Immutable signed assurance pack issuance and bounded offline verification:
+  final approval binds to the exact assembled package and manifest digests
+  after a sign-time preflight and support re-check; frozen issuance records
+  carry the approver, Ed25519 signing profile and the #729 lifecycle facts
+  (capture time, valid-through, supersession by record digest) as separate
+  fields. The verifier reads the manifest and attachments from the package
+  itself under member/size bounds, needs only a separately trusted public
+  key, rejects unknown record fields and unsupported algorithms, and lets
+  stale or missing revocation data or an uncertain clock only qualify the
+  result; the wording states that a signature proves integrity and
+  provenance, not certification
+  ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
 
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
