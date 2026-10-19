@@ -39,6 +39,7 @@ collaborations, not permission to import a vertical into shared core.
 | portability-conformance | deployment | trust | [`services/api/src/axis_api/portability_conformance.py`](../services/api/src/axis_api/portability_conformance.py) |
 | ontology-ports | operational-model | trust, data, experience | [`services/api/src/axis_api/ontology`](../services/api/src/axis_api/ontology) |
 | action-definitions | operational-model | trust, workflow | [`services/api/src/axis_api/actions.py`](../services/api/src/axis_api/actions.py) |
+| document-studio-contracts | experience | trust | [`services/api/src/axis_api/document_studio_contracts.py`](../services/api/src/axis_api/document_studio_contracts.py) |
 | workflow-api-port | workflow | trust, experience | [`services/api/src/axis_api/workflow_runtime.py`](../services/api/src/axis_api/workflow_runtime.py) |
 | approval-decisions | workflow | trust, operational-model, experience | [`services/api/src/axis_api/approval_decisions.py`](../services/api/src/axis_api/approval_decisions.py) |
 | approval-outbox | workflow | trust | [`services/api/src/axis_api/approval_outbox.py`](../services/api/src/axis_api/approval_outbox.py) |
@@ -47,10 +48,12 @@ collaborations, not permission to import a vertical into shared core.
 | model-provider-port | intelligence | trust | [`services/api/src/axis_api/model_providers.py`](../services/api/src/axis_api/model_providers.py) |
 | model-invocations | intelligence | trust, operational-model, experience | [`services/api/src/axis_api/model_invocations.py`](../services/api/src/axis_api/model_invocations.py) |
 | agent-runs | intelligence | trust, workflow, operational-model, experience | [`services/api/src/axis_api/agent_runs.py`](../services/api/src/axis_api/agent_runs.py) |
+| workbook-studio-contracts | experience | trust | [`services/api/src/axis_api/workbook_studio_contracts.py`](../services/api/src/axis_api/workbook_studio_contracts.py) |
 | reference-vertical | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/manufacturing_operations.py`](../services/api/src/axis_api/manufacturing_operations.py) |
 | legacy-response-contracts | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/demo.py`](../services/api/src/axis_api/demo.py) |
 | assurance-pack-contracts | trust | None | [`services/api/src/axis_api/assurance_pack_contracts.py`](../services/api/src/axis_api/assurance_pack_contracts.py) |
 | assurance-packaging | trust | None | [`services/api/src/axis_api/assurance_packaging.py`](../services/api/src/axis_api/assurance_packaging.py) |
+| assurance-issuance | trust | None | [`services/api/src/axis_api/assurance_issuance.py`](../services/api/src/axis_api/assurance_issuance.py) |
 
 ## Issue snapshot
 
