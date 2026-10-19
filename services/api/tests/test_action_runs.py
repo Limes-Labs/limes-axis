@@ -787,6 +787,51 @@ async def test_record_demo_action_run_replays_same_idempotency_key_without_dupli
     assert len(audit_events) == 1
 
 
+async def test_record_demo_action_run_replays_when_a_concurrent_insert_wins_the_key(
+    session_factory: sessionmaker[Session],
+) -> None:
+    request = supplier_action_request()
+    with session_scope(session_factory) as session:
+        first = await record_demo_action_run(
+            AxisPersistenceRepository(session),
+            "request_supplier_expedite",
+            request,
+        )
+
+    workflow_runtime = RecordingActionWorkflowRuntime()
+    with session_scope(session_factory) as session:
+        repository = AxisPersistenceRepository(session)
+        lookup = repository.get_action_run_by_idempotency_key
+        lookups: list[str] = []
+
+        def lose_the_race(tenant_id: str, action_id: str, idempotency_key: str) -> ActionRun | None:
+            # The first lookup runs before the concurrent winner is visible.
+            lookups.append(idempotency_key)
+            if len(lookups) == 1:
+                return None
+            return lookup(tenant_id, action_id, idempotency_key)
+
+        repository.get_action_run_by_idempotency_key = lose_the_race
+        second = await record_demo_action_run(
+            repository,
+            "request_supplier_expedite",
+            request,
+            workflow_runtime,
+        )
+
+    with session_factory() as session:
+        action_runs = list(session.scalars(select(ActionRun)))
+        audit_events = list(session.scalars(select(AuditEvent)))
+
+    assert len(lookups) == 2
+    assert second.action_run_id == first.action_run_id
+    assert second.idempotent_replay is True
+    assert second.workflow_signal_status == "idempotent_replay"
+    assert workflow_runtime.requests == []
+    assert len(action_runs) == 1
+    assert len(audit_events) == 1
+
+
 async def test_record_demo_action_run_rejects_same_idempotency_key_with_different_payload(
     session_factory: sessionmaker[Session],
 ) -> None:

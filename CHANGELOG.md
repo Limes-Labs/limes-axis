@@ -373,6 +373,11 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- A concurrent duplicate action run (same tenant, action and idempotency key)
+  now returns the idempotent replay of the run that won the unique constraint
+  instead of a 500, without a second audit event or workflow signal. A
+  different payload under the same key still returns the idempotency conflict.
+
 - Worker maintenance and scheduled live-sync activities no longer block the
   worker event loop shared with the Temporal pollers and outbox loops: their
   synchronous DB and connector work runs in a thread while the activity
