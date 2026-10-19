@@ -1142,7 +1142,7 @@
   "baseline_topology": [
     {
       "path": "infra/docker/docker-compose.yml",
-      "git_blob": "35a0e05928d2b08d66eca2f70f58ecd92f3435b4"
+      "git_blob": "f1a1b31cd4c91c47178b7e3e92edb34b33ac2c8d"
     },
     {
       "path": "infra/helm/limes-axis/Chart.yaml",
