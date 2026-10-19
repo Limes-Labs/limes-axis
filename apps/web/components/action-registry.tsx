@@ -310,7 +310,7 @@ export function ActionRegistry() {
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <FileText size={15} />
-            {platformStatusLabel(registry.registry_status)}
+            {platformStatusLabel(registry.registry_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatTimestamp(registry.as_of)}</span>
         </div>
@@ -321,7 +321,7 @@ export function ActionRegistry() {
           <StatCard
             aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
+                {platformStatusLabel(metric.status, strings)}
               </span>
             }
             detail={metric.detail}

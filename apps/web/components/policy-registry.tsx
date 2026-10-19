@@ -267,7 +267,7 @@ export function PolicyRegistry() {
               <option value={allPolicyFilter}>{strings.ui.common.allScopes}</option>
               {platformPolicyScopes.map((scope) => (
                 <option key={scope} value={scope}>
-                  {policyScopeLabel(scope)}
+                  {policyScopeLabel(scope, strings)}
                 </option>
               ))}
             </Select>
@@ -280,7 +280,7 @@ export function PolicyRegistry() {
               <option value={allPolicyFilter}>{strings.ui.common.allStatuses}</option>
               {platformPolicyStatuses.map((status) => (
                 <option key={status} value={status}>
-                  {policyStatusLabel(status)}
+                  {policyStatusLabel(status, strings)}
                 </option>
               ))}
             </Select>
@@ -313,10 +313,10 @@ export function PolicyRegistry() {
                   </Link>
                   <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policy.policy_id}</p>
                 </td>
-                <td>{policyScopeLabel(policy.scope)}</td>
+                <td>{policyScopeLabel(policy.scope, strings)}</td>
                 <td>
                   <span className={`status-pill ${policyEffectClass(policy.effect)}`}>
-                    {policyEffectLabel(policy.effect)}
+                    {policyEffectLabel(policy.effect, strings)}
                   </span>
                 </td>
                 <td>
@@ -329,7 +329,7 @@ export function PolicyRegistry() {
                 </td>
                 <td>
                   <span className={`status-pill ${policyStatusClass(policy.status)}`}>
-                    {policyStatusLabel(policy.status)}
+                    {policyStatusLabel(policy.status, strings)}
                   </span>
                 </td>
                 <td>

@@ -13,9 +13,15 @@
  */
 
 import { getConsoleLocale, getConsoleTimeZone } from "@/lib/console-locale";
+import { getCatalogue } from "@/lib/i18n";
 
-/** Shown when a value is absent or unparseable. Never invent a date. */
-export const NOT_RECORDED = "Not recorded";
+/**
+ * Shown when a value is absent or unparseable. Never invent a date. It follows
+ * the console locale, like the dates it stands in for.
+ */
+export function notRecordedLabel(): string {
+  return getCatalogue(getConsoleLocale()).strings.identifiers.notRecorded;
+}
 
 /** Shown for a numeric value that is absent or not finite. */
 export const NO_VALUE = "—";
@@ -101,7 +107,7 @@ function parseInstant(value: string | null | undefined): Date | null {
 
 function format(value: string | null | undefined, formatter: () => Intl.DateTimeFormat): string {
   const parsed = parseInstant(value);
-  return parsed ? formatter().format(parsed) : NOT_RECORDED;
+  return parsed ? formatter().format(parsed) : notRecordedLabel();
 }
 
 /** Absolute date and time — "21 Jun 2026, 16:30". For page and record timestamps. */

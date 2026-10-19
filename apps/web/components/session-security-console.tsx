@@ -120,7 +120,7 @@ function SessionRow({
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <span className={`status-pill ${sessionStatusClass(record.status)}`}>
-          {record.current ? strings.ui.sessionSecurityConsole.current : sessionStatusLabel(record.status)}
+          {record.current ? strings.ui.sessionSecurityConsole.current : sessionStatusLabel(record.status, strings)}
         </span>
         {revocable ? (
           record.current ? (

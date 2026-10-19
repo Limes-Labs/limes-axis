@@ -28,6 +28,7 @@ const ENGLISH_ALLOWLIST = new Set([
   "Menu",
   "No",
   "Object store",
+  "Online",
   "Policy",
   "Provider",
   "Replay",

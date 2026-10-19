@@ -74,9 +74,10 @@ function compactId(value: string): string {
 }
 
 function SettingsStatusPill({ status }: { status: "ready" | "action_required" }) {
+  const strings = useStrings();
   return (
     <span className={`status-pill ${settingsStatusClass(status)}`}>
-      {settingsStatusLabel(status)}
+      {settingsStatusLabel(status, strings)}
     </span>
   );
 }
@@ -138,7 +139,7 @@ function CheckList({
     <div className="grid min-w-0 gap-0 border-t border-line/60 pt-1 dark:border-white/10">
       {sortSettingsChecks(checks).map((check) => {
         const action =
-          check.status === "action_required" ? settingsCheckAction(check.check_id) : null;
+          check.status === "action_required" ? settingsCheckAction(check.check_id, strings) : null;
         return (
           <div
             className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10"
@@ -147,11 +148,11 @@ function CheckList({
           >
             <div className="grid min-w-0 gap-1">
               <p className="m-0 font-medium text-ink break-words">
-                {settingsCheckLabel(check.check_id)}
+                {settingsCheckLabel(check.check_id, strings)}
               </p>
               {check.status === "action_required" ? (
                 <p className="m-0 text-sm leading-snug text-ink break-words">
-                  {settingsCheckGuidance(check.check_id)}
+                  {settingsCheckGuidance(check.check_id, strings)}
                 </p>
               ) : null}
               {action ? (

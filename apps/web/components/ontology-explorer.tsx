@@ -259,11 +259,11 @@ export function OntologyExplorer() {
               >
                 <span className="inline-flex items-center gap-2" data-legend-status="watch">
                   <span aria-hidden="true" className="inline-block size-2 rounded-full bg-warning" />
-                  {platformStatusLabel("watch")}
+                  {platformStatusLabel("watch", strings)}
                 </span>
                 <span className="inline-flex items-center gap-2" data-legend-status="action_required">
                   <span aria-hidden="true" className="inline-block size-2 rounded-full bg-danger" />
-                  {platformStatusLabel("action_required")}
+                  {platformStatusLabel("action_required", strings)}
                 </span>
                 <span className="normal-case">{strings.ontology.legend.readyNoMarker}</span>
               </span>

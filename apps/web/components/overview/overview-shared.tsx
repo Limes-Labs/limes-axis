@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { platformStatusLabel, type PlatformStatus } from "@/lib/platform-overview";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
 import { consoleDateTimeFormat } from "@/lib/format";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * Small shared pieces for the overview control-room sections. Each section
@@ -49,6 +50,7 @@ export function shortTime(value: string): string {
 }
 
 export function StatusDot({ status }: { status: PlatformStatus }) {
+  const strings = useStrings();
   const Icon = status === "ready"
     ? CircleCheck
     : status === "watch"
@@ -57,7 +59,7 @@ export function StatusDot({ status }: { status: PlatformStatus }) {
 
   return (
     <Icon
-      aria-label={`Status: ${platformStatusLabel(status)}`}
+      aria-label={strings.labels.statusAria(platformStatusLabel(status, strings))}
       className={cn(
         "size-3.5 shrink-0",
         status === "ready" && "text-positive",

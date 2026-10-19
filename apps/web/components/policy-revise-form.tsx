@@ -174,7 +174,7 @@ export function PolicyReviseForm({
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.policyReviseForm.appendRevisionTo(current.revision_number)}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {strings.policyDetail.reviseAccess.summary}{" "}
-            {strings.ui.policyReviseForm.prefilledScope(policyScopeLabel(current.scope))}{" "}
+            {strings.ui.policyReviseForm.prefilledScope(policyScopeLabel(current.scope, strings))}{" "}
             {strings.policyDetail.reviseAccess.detail}
           </p>
           <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
@@ -210,7 +210,7 @@ export function PolicyReviseForm({
           >
             {platformPolicyEffects.map((effect) => (
               <option key={effect} value={effect}>
-                {policyEffectLabel(effect)}
+                {policyEffectLabel(effect, strings)}
               </option>
             ))}
           </Select>

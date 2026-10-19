@@ -417,7 +417,7 @@ export function AuditExplorer() {
           <SourcePill state={source} subject="audit ledger" />
           <span className={`status-pill ${platformStatusClass(auditData.ledger_status)}`}>
             <ShieldCheck size={15} />
-            {platformStatusLabel(auditData.ledger_status)}
+            {platformStatusLabel(auditData.ledger_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(auditData.as_of)}</span>
         </div>
@@ -428,7 +428,7 @@ export function AuditExplorer() {
         {auditData.metrics.filter((metric) => !["Query Source", "Replay"].includes(metric.label)).map((metric) => (
           <StatCard
             aside={metric.status !== "ready" ? <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-              {platformStatusLabel(metric.status)}
+              {platformStatusLabel(metric.status, strings)}
             </span> : null}
             detail={metric.label === "Persisted Events"
               ? strings.ui.auditExplorer.eventsInTheReturnedWindow
@@ -564,7 +564,7 @@ export function AuditExplorer() {
             </div>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <span className={`status-pill ${platformStatusClass(selectedEvent.severity)}`}>
-                {platformStatusLabel(selectedEvent.severity)}
+                {platformStatusLabel(selectedEvent.severity, strings)}
               </span>
               <span className="status-pill status-checking">{selectedEvent.result}</span>
             </div>

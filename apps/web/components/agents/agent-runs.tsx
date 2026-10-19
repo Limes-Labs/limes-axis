@@ -61,7 +61,7 @@ function RunRailMarker({ state }: { state: AgentRunRailState }) {
  */
 function AgentRunRail({ run }: { run: AgentRunRecord }) {
   const strings = useStrings();
-  const stages = buildAgentRunRail(run);
+  const stages = buildAgentRunRail(run, strings);
 
   return (
     <div className="grid gap-2" aria-label={strings.ui.agentsAgentRuns.agentRunStepTimeline}>
@@ -408,7 +408,7 @@ export function AgentRuns({
                   <span className="status-pill signal-watch">{strings.agents.runs.dryRun}</span>
                 ) : null}
                 <span className={`status-pill ${agentRunStatusClass(run.status)}`}>
-                  {agentRunStatusLabel(run.status)}
+                  {agentRunStatusLabel(run.status, strings)}
                 </span>
               </span>
             </button>

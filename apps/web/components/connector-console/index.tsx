@@ -304,7 +304,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
           />
           <span className={`status-pill ${platformStatusClass(registryData.registry_status)}`}>
             <Cable size={15} />
-            {platformStatusLabel(registryData.registry_status)}
+            {platformStatusLabel(registryData.registry_status, strings)}
           </span>
           {updatedAt ? (
             <span className="font-mono text-xs text-muted">

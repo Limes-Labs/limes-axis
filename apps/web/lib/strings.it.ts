@@ -3371,4 +3371,103 @@ export const stringsIt: ConsoleStrings = {
   },
   pages,
   ui,
+  labels: {
+    approvalDecision: {
+      approve: "Approvata",
+      reject: "Rifiutata",
+      request_changes: "Modifiche richieste",
+    },
+    decisionRail: {
+      submitted: "Inviata",
+      submittedDetail: (requester: string, due: string) => `${requester} / scadenza ${due}`,
+      requiredControls: "Controlli richiesti",
+      approval: "Approvazione",
+      decisionPending: (owner: string) => `Decisione di ${owner} in attesa`,
+      recorded: "Registrata",
+      persistingAuditEvidence: "Registrazione dell'evidenza di audit in corso",
+      states: {
+        done: "completata",
+        required: "obbligatoria",
+        current: "in corso",
+        pending: "in attesa",
+      },
+    },
+    platformStatus: {
+      ready: "Pronto",
+      watch: "Da monitorare",
+      action_required: "Azione richiesta",
+    },
+    statusAria: (status: string) => `Stato: ${status}`,
+    policyScope: {
+      action_execution: "Esecuzione delle azioni",
+      approval_requirement: "Requisito di approvazione",
+    },
+    policyEffect: {
+      deny: "Negare",
+      require_approval: "Richiedere approvazione",
+      allow_with_evidence: "Consentire con evidenza",
+      allow: "Consentire (predefinito)",
+    },
+    policyStatus: {
+      active: "Attiva",
+      superseded: "Sostituita",
+    },
+    tenantStatus: {
+      active: "Attivo",
+      suspended: "Sospeso",
+      pending_deletion: "In attesa di eliminazione",
+    },
+    settingsStatus: {
+      ready: "Pronto",
+      action_required: "Azione richiesta",
+    },
+    identitySession: {
+      required: "API richiesta",
+      verified: "API verificata",
+      public: "Pubblica",
+    },
+    usageMetric: {
+      api_request: "Richieste API",
+      connector_sync_rows: "Righe sincronizzate dai connettori",
+      session_created: "Sessioni create",
+    },
+    notProvided: "Non fornito",
+    unknownStatus: "Sconosciuto",
+    agentRunRail: {
+      context_read: "Lettura del contesto",
+      model_invocation: "Chiamata al modello",
+      proposal: "Proposta",
+      notReached: "Non raggiunta",
+    },
+    apiStatus: {
+      checking: {
+        label: "Verifica in corso",
+        detail: "Verifica dello stato e della disponibilità dell'API di Axis in corso.",
+      },
+      online: {
+        label: "Online",
+        detail: "I controlli di stato e di disponibilità rispondono.",
+      },
+      degraded: {
+        label: "Degradata",
+        detail: "Il controllo di stato risponde, ma la disponibilità non è confermata.",
+      },
+      unavailable: {
+        label: "Non disponibile",
+        detail: "L'API non è raggiungibile dalla console.",
+      },
+      panelCheckingDetail: "Lettura dello stato e della disponibilità dell'API.",
+    },
+    policyRevisionFields: {
+      displayName: "Nome visualizzato",
+      description: "Descrizione",
+      policyVersion: "Versione della policy",
+      effect: "Effetto",
+      actionDomains: "Domini delle azioni",
+      riskLevels: "Livelli di rischio",
+      autonomyLevels: "Livelli di autonomia",
+      amountThreshold: "Soglia di importo",
+      notes: "Note",
+    },
+  },
 };

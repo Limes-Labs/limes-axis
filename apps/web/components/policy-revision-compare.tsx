@@ -54,7 +54,7 @@ export function PolicyRevisionCompare({
   target: PlatformPolicyRecord;
 }) {
   const strings = useStrings();
-  const diffs = comparePolicyRevisions(base, target);
+  const diffs = comparePolicyRevisions(base, target, strings);
   const changedCount = diffs.filter((diff) => diff.changed).length;
 
   return (

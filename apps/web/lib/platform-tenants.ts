@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import {
   AxisApiError,
   axisFetch,
@@ -286,16 +288,12 @@ export function buildPlatformTenantReactivatePath(tenantId: string): string {
   return `${buildPlatformTenantDetailPath(tenantId)}/reactivate`;
 }
 
-export function tenantStatusLabel(status: TenantLifecycleStatus | string): string {
-  if (status === "active") {
-    return "Active";
-  }
-
-  if (status === "suspended") {
-    return "Suspended";
-  }
-
-  return status === "pending_deletion" ? "Pending deletion" : status;
+export function tenantStatusLabel(
+  status: TenantLifecycleStatus | string,
+  copy: ConsoleStrings = strings,
+): string {
+  const labels: Record<string, string> = copy.labels.tenantStatus;
+  return Object.hasOwn(labels, status) ? labels[status] : status;
 }
 
 export function tenantStatusClass(status: TenantLifecycleStatus | string): string {

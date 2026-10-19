@@ -3407,4 +3407,105 @@ export const strings = {
   },
   pages,
   ui,
+  labels: {
+    /* Status and decision labels the lib/ helpers return. Helpers take the
+       active catalogue as their last argument and default to this English one. */
+    approvalDecision: {
+      approve: "Approved",
+      reject: "Rejected",
+      request_changes: "Changes Requested",
+    },
+    decisionRail: {
+      submitted: "Submitted",
+      submittedDetail: (requester: string, due: string) => `${requester} / due ${due}`,
+      requiredControls: "Required controls",
+      approval: "Approval",
+      decisionPending: (owner: string) => `${owner} decision pending`,
+      recorded: "Recorded",
+      persistingAuditEvidence: "Persisting audit evidence",
+      states: {
+        done: "done",
+        required: "required",
+        current: "current",
+        pending: "pending",
+      },
+    },
+    platformStatus: {
+      ready: "Ready",
+      watch: "Watch",
+      action_required: "Action Required",
+    },
+    statusAria: (status: string) => `Status: ${status}`,
+    policyScope: {
+      action_execution: "Action execution",
+      approval_requirement: "Approval requirement",
+    },
+    policyEffect: {
+      deny: "Deny",
+      require_approval: "Require approval",
+      allow_with_evidence: "Allow with evidence",
+      allow: "Allow (default)",
+    },
+    policyStatus: {
+      active: "Active",
+      superseded: "Superseded",
+    },
+    tenantStatus: {
+      active: "Active",
+      suspended: "Suspended",
+      pending_deletion: "Pending deletion",
+    },
+    settingsStatus: {
+      ready: "Ready",
+      action_required: "Action required",
+    },
+    identitySession: {
+      required: "API required",
+      verified: "API verified",
+      public: "Public",
+    },
+    usageMetric: {
+      api_request: "API requests",
+      connector_sync_rows: "Connector sync rows",
+      session_created: "Sessions created",
+    },
+    notProvided: "Not provided",
+    unknownStatus: "Unknown",
+    agentRunRail: {
+      context_read: "Context read",
+      model_invocation: "Model call",
+      proposal: "Proposal",
+      notReached: "Not reached",
+    },
+    apiStatus: {
+      checking: {
+        label: "Checking",
+        detail: "Probing Axis API health and readiness.",
+      },
+      online: {
+        label: "Online",
+        detail: "Health and readiness checks are responding.",
+      },
+      degraded: {
+        label: "Degraded",
+        detail: "Health is responding, but readiness is not confirmed.",
+      },
+      unavailable: {
+        label: "Unavailable",
+        detail: "API is not reachable from the console.",
+      },
+      panelCheckingDetail: "Reading API health and readiness.",
+    },
+    policyRevisionFields: {
+      displayName: "Display name",
+      description: "Description",
+      policyVersion: "Policy version",
+      effect: "Effect",
+      actionDomains: "Action domains",
+      riskLevels: "Risk levels",
+      autonomyLevels: "Autonomy levels",
+      amountThreshold: "Amount threshold",
+      notes: "Notes",
+    },
+  },
 } as const;

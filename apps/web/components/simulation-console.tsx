@@ -148,7 +148,7 @@ export function SimulationConsole() {
           <SourcePill state={source} subject="replay artifacts" />
           <span className={`status-pill ${platformStatusClass(simulationData.simulation_status)}`}>
             <ShieldCheck size={15} />
-            {platformStatusLabel(simulationData.simulation_status)}
+            {platformStatusLabel(simulationData.simulation_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(simulationData.as_of)}</span>
         </div>
@@ -159,7 +159,7 @@ export function SimulationConsole() {
           <StatCard
             aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
+                {platformStatusLabel(metric.status, strings)}
               </span>
             }
             detail={metric.detail}

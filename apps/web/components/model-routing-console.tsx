@@ -295,7 +295,7 @@ function ReferenceModelRouting({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className={`status-pill ${platformStatusClass(routing.routing_status)}`}>
             <Gauge size={15} />
-            {platformStatusLabel(routing.routing_status)}
+            {platformStatusLabel(routing.routing_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(routing.as_of)}</span>
         </div>
@@ -415,7 +415,7 @@ function ReferenceModelRouting({
                 {formatModelRoutingLabel(selectedRoute.egress_decision)}
               </span>
               <span className={`status-pill ${platformStatusClass(selectedRoute.route_status)}`}>
-                {platformStatusLabel(selectedRoute.route_status)}
+                {platformStatusLabel(selectedRoute.route_status, strings)}
               </span>
             </div>
           </div>

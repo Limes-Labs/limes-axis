@@ -79,7 +79,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
     return () => controller.abort();
   }, [tenantId, session, refreshNonce]);
 
-  const rows: UsageMetricSummaryRow[] = summarizeUsageByMetric(summary);
+  const rows: UsageMetricSummaryRow[] = summarizeUsageByMetric(summary, strings);
   const usageNotes = summary?.usage_notes ?? [];
 
   return (

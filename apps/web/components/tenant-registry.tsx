@@ -267,7 +267,7 @@ export function TenantRegistry() {
               <option value={allTenantFilter}>{strings.ui.common.allStatuses}</option>
               {tenantLifecycleStatuses.map((status: TenantLifecycleStatus) => (
                 <option key={status} value={status}>
-                  {tenantStatusLabel(status)}
+                  {tenantStatusLabel(status, strings)}
                 </option>
               ))}
             </Select>
@@ -301,7 +301,7 @@ export function TenantRegistry() {
                   </td>
                   <td>
                     <span className={`status-pill ${tenantStatusClass(tenant.status)}`}>
-                      {tenantStatusLabel(tenant.status)}
+                      {tenantStatusLabel(tenant.status, strings)}
                     </span>
                   </td>
                   <td>

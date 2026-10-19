@@ -159,7 +159,7 @@ function ApprovalAttentionRow({
           <span className="flex flex-wrap items-center gap-2">
             {decision ? (
               <span className="status-pill signal-ready">
-                {approvalDecisionLabel(decision.decision)}
+                {approvalDecisionLabel(decision.decision, strings)}
               </span>
             ) : (
               <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>

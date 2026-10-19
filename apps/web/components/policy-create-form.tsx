@@ -203,7 +203,7 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
           >
             {platformPolicyScopes.map((scope) => (
               <option key={scope} value={scope}>
-                {policyScopeLabel(scope)}
+                {policyScopeLabel(scope, strings)}
               </option>
             ))}
           </Select>
@@ -218,7 +218,7 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
           >
             {platformPolicyEffects.map((effect) => (
               <option key={effect} value={effect}>
-                {policyEffectLabel(effect)}
+                {policyEffectLabel(effect, strings)}
               </option>
             ))}
           </Select>

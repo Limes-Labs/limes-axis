@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import {
   AxisApiError,
   axisFetch,
@@ -176,24 +178,14 @@ export function buildPlatformPolicyRevisionsPath(policyId: string): string {
   return `${buildPlatformPolicyDetailPath(policyId)}/revisions`;
 }
 
-export function policyScopeLabel(scope: PlatformPolicyScope): string {
-  return scope === "action_execution" ? "Action execution" : "Approval requirement";
+export function policyScopeLabel(scope: PlatformPolicyScope, copy: ConsoleStrings = strings): string {
+  const labels = copy.labels.policyScope;
+  return scope === "action_execution" ? labels.action_execution : labels.approval_requirement;
 }
 
-export function policyEffectLabel(effect: string): string {
-  if (effect === "deny") {
-    return "Deny";
-  }
-
-  if (effect === "require_approval") {
-    return "Require approval";
-  }
-
-  if (effect === "allow_with_evidence") {
-    return "Allow with evidence";
-  }
-
-  return effect === "allow" ? "Allow (default)" : effect;
+export function policyEffectLabel(effect: string, copy: ConsoleStrings = strings): string {
+  const labels: Record<string, string> = copy.labels.policyEffect;
+  return Object.hasOwn(labels, effect) ? labels[effect] : effect;
 }
 
 export function policyEffectClass(effect: string): string {
@@ -204,8 +196,9 @@ export function policyEffectClass(effect: string): string {
   return effect === "require_approval" ? "signal-watch" : "signal-ready";
 }
 
-export function policyStatusLabel(status: string): string {
-  return status === "active" ? "Active" : status === "superseded" ? "Superseded" : status;
+export function policyStatusLabel(status: string, copy: ConsoleStrings = strings): string {
+  const labels = copy.labels.policyStatus;
+  return status === "active" ? labels.active : status === "superseded" ? labels.superseded : status;
 }
 
 export function policyStatusClass(status: string): string {
@@ -638,42 +631,44 @@ function listDiff(label: string, base: string[], target: string[]): PolicyRevisi
   };
 }
 
-function amountThresholdLabel(conditions: PlatformPolicyRuleConditions): string {
+function amountThresholdLabel(conditions: PlatformPolicyRuleConditions, copy: ConsoleStrings): string {
   return conditions.requested_amount_at_least != null
     ? `>= ${conditions.requested_amount_at_least}`
-    : "No amount gate";
+    : copy.ui.policyDetail.noAmountGate;
 }
 
 export function comparePolicyRevisions(
   base: PlatformPolicyRecord,
   target: PlatformPolicyRecord,
+  copy: ConsoleStrings = strings,
 ): PolicyRevisionDiff[] {
+  const fields = copy.labels.policyRevisionFields;
   return [
-    scalarDiff("Display name", base.display_name, target.display_name),
-    scalarDiff("Description", base.description, target.description),
-    scalarDiff("Policy version", base.policy_version, target.policy_version),
-    scalarDiff("Effect", policyEffectLabel(base.effect), policyEffectLabel(target.effect)),
+    scalarDiff(fields.displayName, base.display_name, target.display_name),
+    scalarDiff(fields.description, base.description, target.description),
+    scalarDiff(fields.policyVersion, base.policy_version, target.policy_version),
+    scalarDiff(fields.effect, policyEffectLabel(base.effect, copy), policyEffectLabel(target.effect, copy)),
     listDiff(
-      "Action domains",
+      fields.actionDomains,
       base.conditions.action_domains ?? [],
       target.conditions.action_domains ?? [],
     ),
     listDiff(
-      "Risk levels",
+      fields.riskLevels,
       base.conditions.risk_levels ?? [],
       target.conditions.risk_levels ?? [],
     ),
     listDiff(
-      "Autonomy levels",
+      fields.autonomyLevels,
       base.conditions.autonomy_levels ?? [],
       target.conditions.autonomy_levels ?? [],
     ),
     scalarDiff(
-      "Amount threshold",
-      amountThresholdLabel(base.conditions),
-      amountThresholdLabel(target.conditions),
+      fields.amountThreshold,
+      amountThresholdLabel(base.conditions, copy),
+      amountThresholdLabel(target.conditions, copy),
     ),
-    listDiff("Notes", base.notes ?? [], target.notes ?? []),
+    listDiff(fields.notes, base.notes ?? [], target.notes ?? []),
   ];
 }
 

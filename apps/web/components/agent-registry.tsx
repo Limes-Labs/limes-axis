@@ -246,7 +246,7 @@ export function AgentRegistry() {
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <Bot size={15} />
-            {platformStatusLabel(registry.registry_status)}
+            {platformStatusLabel(registry.registry_status, strings)}
           </span>
           <span className="font-mono text-xs text-muted">
             {formatTimestamp(registry.as_of)}

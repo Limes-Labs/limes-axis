@@ -118,7 +118,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
             </td>
             <td>
               <span className={`status-pill ${policyEffectClass(revision.effect)}`}>
-                {policyEffectLabel(revision.effect)}
+                {policyEffectLabel(revision.effect, strings)}
               </span>
             </td>
             <td>
@@ -126,7 +126,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
             </td>
             <td>
               <span className={`status-pill ${policyStatusClass(revision.status)}`}>
-                {policyStatusLabel(revision.status)}
+                {policyStatusLabel(revision.status, strings)}
               </span>
               {revision.replaced_by_revision_number != null ? (
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
@@ -296,7 +296,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
     <div className="grid min-w-0 gap-4">
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">{policyScopeLabel(current.scope)}</p>
+          <p className="eyebrow m-0">{policyScopeLabel(current.scope, strings)}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{current.display_name}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{current.description}</p>
           <Disclosure className="mt-1 text-xs text-muted" size="sm" title={strings.identifiers.inspectIdentifiers} variant="plain">
@@ -316,7 +316,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           />
           <span className={`status-pill ${policyEffectClass(current.effect)}`}>
             <ShieldCheck size={15} />
-            {policyEffectLabel(current.effect)}
+            {policyEffectLabel(current.effect, strings)}
           </span>
           <Link className={buttonVariants({ variant: "secondary" })} href="/policies">
             <ArrowLeft size={17} />
@@ -335,7 +335,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         <StatCard
           detail={strings.ui.policyDetail.onlyTheActiveRevisionIs}
           label={strings.ui.common.status}
-          value={policyStatusLabel(current.status)}
+          value={policyStatusLabel(current.status, strings)}
         />
         <StatCard
           detail={formatTimestamp(current.created_at)}

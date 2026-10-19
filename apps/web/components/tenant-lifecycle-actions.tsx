@@ -256,7 +256,7 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
         </form>
       ) : (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-          {strings.ui.tenantLifecycleActions.actionsUnavailable(tenantStatusLabel(tenant.status), isTerminal)}
+          {strings.ui.tenantLifecycleActions.actionsUnavailable(tenantStatusLabel(tenant.status, strings), isTerminal)}
         </p>
       )}
 

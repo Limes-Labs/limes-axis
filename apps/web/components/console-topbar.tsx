@@ -10,6 +10,7 @@ import { SidebarAccount } from "@/components/sidebar-account";
 import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/topbar/notification-panel";
+import { apiStatusCopy } from "@/lib/api-status";
 import { apiStatusClass } from "@/lib/identity-format";
 import { useStrings } from "@/providers/locale-provider";
 import { isNavActive } from "@/lib/nav";
@@ -47,6 +48,7 @@ export function ConsoleTopbar({
   const strings = useStrings();
   const pathname = usePathname();
   const { apiStatus, triggerRefresh } = useConsole();
+  const apiStatusText = apiStatusCopy(apiStatus.state, strings);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<TopbarPanel>(null);
   useExclusivePopover(
@@ -133,10 +135,10 @@ export function ConsoleTopbar({
         <span
           className={`status-pill ${apiStatusClass(apiStatus.state)}`}
           data-api-status-pill
-          title={apiStatus.detail}
+          title={apiStatusText.detail}
         >
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
-          API {apiStatus.label}
+          API {apiStatusText.label}
         </span>
         {/* Below `sm` the Demo pill moves first so it is the leading status
             on phones, and keeps its sticky left pin on an opaque backing (its
@@ -231,7 +233,7 @@ export function ConsoleTopbar({
         ) : null}
       </div>
       <ConsoleCommandMenu
-        apiLabel={apiStatus.label}
+        apiLabel={apiStatusText.label}
         onClose={() => setCommandMenuOpen(false)}
         onRefresh={triggerRefresh}
         open={commandMenuOpen}

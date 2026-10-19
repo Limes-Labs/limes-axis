@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "@/components/ui/toast";
+import { LocaleProvider } from "@/providers/locale-provider";
 import type { ActionRunList } from "@/lib/action-demo";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 
@@ -511,6 +512,24 @@ describe("ApprovalInbox decision flow", () => {
     expect(
       risks.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("renders the decision trail in the active locale", async () => {
+    render(
+      <LocaleProvider locale="it">
+        <ToastProvider>
+          <ApprovalInbox />
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Traccia della decisione" }));
+    const rail = screen.getByRole("list", { name: "Fasi della decisione" });
+    expect(rail).toHaveTextContent("Controlli richiesti");
+    expect(rail).toHaveTextContent("Approvazione");
+    expect(rail).toHaveTextContent("Registrata");
+    expect(rail).toHaveTextContent(/Decisione di .+ in attesa/);
+    expect(rail).not.toHaveTextContent(/Required controls|decision pending|Recorded/);
   });
 
   it("shows consequence text for every option without hover", () => {

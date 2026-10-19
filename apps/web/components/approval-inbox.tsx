@@ -88,31 +88,35 @@ function buildDecisionRail(
 ): RailStage[] {
   const decided = Boolean(decision);
   const recorded = decision?.storage === "persisted";
+  const copy = strings.labels.decisionRail;
 
   return [
     {
-      label: "Submitted",
-      detail: `${humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded} / due ${approval.due}`,
+      label: copy.submitted,
+      detail: copy.submittedDetail(
+        humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded,
+        approval.due,
+      ),
       state: "done",
     },
     {
-      label: "Required controls",
+      label: copy.requiredControls,
       detail: `${humanizeScope(approval.required_permission) ?? strings.identifiers.notRecorded} / ${humanizeIdentifier(approval.model_policy) ?? strings.identifiers.notRecorded}`,
       state: "required",
     },
     {
-      label: "Approval",
+      label: copy.approval,
       detail: decision
-        ? approvalDecisionLabel(decision.decision)
-        : `${humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded} decision pending`,
+        ? approvalDecisionLabel(decision.decision, strings)
+        : copy.decisionPending(humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded),
       state: decided ? "done" : "current",
     },
     {
-      label: "Recorded",
+      label: copy.recorded,
       detail: recorded
         ? (decision?.auditEventId ?? approval.audit_event_preview.event)
         : decided
-          ? "Persisting audit evidence"
+          ? copy.persistingAuditEvidence
           : approval.audit_event_preview.event,
       state: recorded ? "done" : decided ? "current" : "pending",
     },
@@ -136,7 +140,7 @@ function DecisionRail({ approval, decision }: {
           </span>
           <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
             <p className="m-0 min-w-0 text-xs font-medium text-ink">
-              {stage.label}<span className="sr-only">: {stage.state}</span>
+              {stage.label}<span className="sr-only">: {strings.labels.decisionRail.states[stage.state]}</span>
             </p>
             <p className="m-0 min-w-0 text-xs leading-relaxed wrap-anywhere text-muted">{stage.detail}</p>
           </div>
@@ -221,7 +225,7 @@ function DecisionHistory({
                         <span
                           className={`status-pill ${decision === "approve" ? "signal-ready" : ""}`}
                         >
-                          {approvalDecisionLabel(decision)}
+                          {approvalDecisionLabel(decision, strings)}
                         </span>
                       ) : (
                         <span className="status-pill">{entry.decision}</span>

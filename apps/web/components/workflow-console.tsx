@@ -509,7 +509,7 @@ export function WorkflowConsole() {
           <SourcePill state={source} subject="workflow runs" />
           <span className={`status-pill ${platformStatusClass(workflowData.runtime_status)}`}>
             <Route size={15} />
-            {platformStatusLabel(workflowData.runtime_status)}
+            {platformStatusLabel(workflowData.runtime_status, strings)}
           </span>
           <span className="font-mono text-xs text-muted">
             {formatOverviewTimestamp(workflowData.as_of)}
