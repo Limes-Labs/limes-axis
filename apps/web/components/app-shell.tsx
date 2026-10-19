@@ -11,6 +11,7 @@ import { SidebarAccount } from "@/components/sidebar-account";
 import { SignInGate } from "@/components/sign-in-gate";
 import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
+import { strings } from "@/lib/strings";
 import { ToastProvider } from "@/components/ui/toast";
 import { desktopNavGroups, isNavActive, type NavItem } from "@/lib/nav";
 import { useAxisQuery } from "@/lib/use-axis-query";
@@ -190,15 +191,15 @@ function ConsoleShell({ children }: { children: ReactNode }) {
             <Link
               className="mb-3.5 flex min-h-[44px] items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
               href="/"
-              aria-label="Limes Axis home"
+              aria-label={strings.shell.homeLink}
             >
               <AxisMark className="h-[30px] w-[30px] shrink-0 text-ink" />
               <span>
                 <span className="font-display block text-base text-ink">
-                  Limes Axis
+                  {strings.shell.brand}
                 </span>
                 <span className="mt-0.5 block font-mono text-[11px] font-medium tracking-[0.14em] text-muted uppercase">
-                  Control plane
+                  {strings.shell.controlPlane}
                 </span>
               </span>
             </Link>

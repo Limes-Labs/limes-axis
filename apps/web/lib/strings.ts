@@ -221,6 +221,22 @@ const globalError = {
   action: "Reload the console",
 } as const;
 
+/**
+ * Console chrome. Accessible names start with the control's visible text so
+ * speech-input users can say what they see (WCAG 2.5.3 Label in Name).
+ */
+const shell = {
+  brand: "Limes Axis",
+  controlPlane: "Control plane",
+  homeLink: "Limes Axis Control plane, home",
+  menu: "Menu",
+  menuLabel: (section: string) => `Menu, current section: ${section}`,
+  notifications: "Open notifications",
+  notificationsLabel: (badge: string) => `Open notifications, ${badge} unread`,
+  account: "Open operator account",
+  accountLabel: (visible: string) => `${visible}, open operator account`,
+} as const;
+
 const commandMenu = {
   placeholder: "Search pages, entities, actions",
   empty: "No matching command.",
@@ -1866,6 +1882,7 @@ export const strings = {
   },
   scopeDenial,
   nav,
+  shell,
   identityGate,
   commandMenu,
   routeError,

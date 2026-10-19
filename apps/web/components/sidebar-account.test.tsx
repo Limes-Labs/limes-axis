@@ -70,10 +70,20 @@ describe("SidebarAccount", () => {
     expect(screen.getByText(strings.nav.noTenant)).toBeInTheDocument();
   });
 
+  it("names the account button with its visible actor and tenant (WCAG 2.5.3)", () => {
+    renderFooter();
+
+    expect(
+      screen.getByRole("button", {
+        name: "plant.operator, tenant_demo_manufacturing, open operator account",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("opens the account panel from the footer and closes it on Escape", async () => {
     const user = userEvent.setup();
     renderFooter();
-    const trigger = screen.getByRole("button", { name: "Open operator account" });
+    const trigger = screen.getByRole("button", { name: /open operator account/i });
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await user.click(trigger);
@@ -93,7 +103,7 @@ describe("SidebarAccount", () => {
       "true",
     );
 
-    await user.click(screen.getByRole("button", { name: "Open operator account" }));
+    await user.click(screen.getByRole("button", { name: /open operator account/i }));
     expect(screen.getByRole("button", { name: "Open platform help" })).toHaveAttribute(
       "aria-expanded",
       "false",

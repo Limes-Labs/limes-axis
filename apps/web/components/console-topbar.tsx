@@ -11,6 +11,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/topbar/notification-panel";
 import { apiStatusClass } from "@/lib/identity-format";
+import { strings } from "@/lib/strings";
 import { isNavActive } from "@/lib/nav";
 import type {
   ManufacturingNotificationCenter,
@@ -162,8 +163,12 @@ export function ConsoleTopbar({
           className={`icon-button${activePanel === "notifications" ? " icon-button-active" : ""}`}
           type="button"
           aria-expanded={activePanel === "notifications"}
-          aria-label="Open notifications"
-          title="Open notifications"
+          aria-label={
+            notificationCount > 0
+              ? strings.shell.notificationsLabel(String(notificationBadge))
+              : strings.shell.notifications
+          }
+          title={strings.shell.notifications}
           onClick={() =>
             setActivePanel((current) => {
               const next = current === "notifications" ? null : "notifications";

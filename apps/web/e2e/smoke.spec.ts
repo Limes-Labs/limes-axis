@@ -562,7 +562,7 @@ test.describe("Axis console smoke", () => {
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.locator("[data-mobile-current-section]")).toHaveText("Settings");
     const menuTrigger = mobileNav.getByRole("button", {
-      name: "Open navigation. Current section: Settings",
+      name: "Menu, current section: Settings",
     });
     await menuTrigger.click();
 

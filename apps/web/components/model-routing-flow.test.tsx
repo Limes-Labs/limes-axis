@@ -59,14 +59,14 @@ describe("Model routing dependencies", () => {
     const onInspect = vi.fn();
     render(<ModelRoutingFlow routes={routes} sourceState="reference" onInspect={onInspect} />);
     const diagram = screen.getByRole("region", { name: "Provider to model diagram" });
-    const provider = within(diagram).getByRole("button", { name: "Select provider Local inference" });
+    const provider = within(diagram).getByRole("button", { name: /^Local inference, \d+ routes?$/ });
     await user.hover(provider);
     expect(screen.getByRole("status")).toHaveTextContent("Local inference · 3 routes configured");
     expect(screen.queryByRole("button", { name: "View provider routes" })).not.toBeInTheDocument();
     await user.unhover(provider);
     expect(screen.getByRole("status")).toHaveTextContent("Select a provider or model");
 
-    const model = within(diagram).getByRole("button", { name: "Select quality-model from Local inference" });
+    const model = within(diagram).getByRole("button", { name: /^quality-model, \d+ routes? from Local inference$/ });
     await user.click(model);
     await user.unhover(model);
     expect(model).toHaveAttribute("aria-pressed", "true");
@@ -83,7 +83,7 @@ describe("Model routing dependencies", () => {
     const user = userEvent.setup();
     render(<ModelRoutingFlow routes={routes} sourceState="reference" />);
     const list = screen.getByLabelText("Routes by provider and model");
-    const provider = within(list).getByRole("button", { name: "Select provider Remote inference" });
+    const provider = within(list).getByRole("button", { name: /^Remote inference, \d+ routes?$/ });
     act(() => provider.focus());
     expect(screen.getByRole("status")).toHaveTextContent("Remote inference · 1 route configured");
     expect(provider).toHaveAttribute("aria-pressed", "false");
@@ -98,7 +98,7 @@ describe("Model routing dependencies", () => {
     const user = userEvent.setup();
     const { rerender } = render(<ModelRoutingFlow routes={routes} sourceState="live" onInspect={vi.fn()} />);
     const diagram = screen.getByRole("region", { name: "Provider to model diagram" });
-    await user.click(within(diagram).getByRole("button", { name: "Select provider Local inference" }));
+    await user.click(within(diagram).getByRole("button", { name: /^Local inference, \d+ routes?$/ }));
     rerender(<ModelRoutingFlow routes={[routes[3]]} sourceState="live" onInspect={vi.fn()} />);
     expect(screen.getByRole("status")).not.toHaveTextContent("Local inference");
     expect(screen.queryByRole("button", { name: "View provider routes" })).not.toBeInTheDocument();

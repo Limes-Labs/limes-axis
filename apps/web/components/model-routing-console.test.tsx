@@ -368,7 +368,7 @@ describe("ModelRoutingConsole no-match filter state", () => {
     render(<ModelRoutingConsole />);
     await user.selectOptions(screen.getByLabelText("Domain"), "Operations");
     const diagram = screen.getByRole("region", { name: "Provider to model diagram" });
-    await user.click(within(diagram).getByRole("button", { name: "Select general-large from External General LLM" }));
+    await user.click(within(diagram).getByRole("button", { name: /^general-large, \d+ routes? from External General LLM$/ }));
     expect(new URLSearchParams(window.location.search).get("domain")).toBe("Operations");
     await user.click(screen.getByRole("button", { name: "Inspect first matching route" }));
     const params = new URLSearchParams(window.location.search);
