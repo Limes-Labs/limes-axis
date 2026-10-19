@@ -156,6 +156,8 @@ class IndexProjection(ContractModel):
         "tombstone",
         "tombstone_not_resurrected",
         "missing_ordering_evidence",
+        "uncommitted_source",
+        "rejected_input",
     ]
     next_state: IndexState
     next_content_revision: str | None
@@ -181,6 +183,11 @@ def classify_index_update(
     that binding — retry after re-reading the source, never guess. Tombstones
     always apply (deletions are monotone), and only strictly newer ordering
     evidence can replace a tombstone with live content.
+
+    Generations never move backwards: an applied update keeps the larger of
+    the current and incoming generation, so an incremental writer that does
+    not know about a completed rebuild cannot demote a row to an older
+    generation (and cannot make a later rebuild reuse a generation number).
     """
 
     if current_state is None:
@@ -191,13 +198,14 @@ def classify_index_update(
             next_content_revision=incoming_content_revision,
             next_generation=incoming_generation,
         )
+    advanced_generation = max(current_generation, incoming_generation)
     if incoming_state == "tombstoned":
         return IndexProjection(
             decision="applied",
             reason="tombstone",
             next_state="tombstoned",
             next_content_revision=incoming_content_revision,
-            next_generation=incoming_generation,
+            next_generation=advanced_generation,
         )
     if incoming_content_revision == current_content_revision:
         return IndexProjection(
@@ -221,7 +229,7 @@ def classify_index_update(
             reason="newer_revision",
             next_state="live",
             next_content_revision=incoming_content_revision,
-            next_generation=incoming_generation,
+            next_generation=advanced_generation,
         )
     # Tombstone on the record: only bound ordering evidence revives it.
     if not supersedes_current:
@@ -237,7 +245,7 @@ def classify_index_update(
         reason="newer_revision",
         next_state="live",
         next_content_revision=incoming_content_revision,
-        next_generation=incoming_generation,
+        next_generation=advanced_generation,
     )
 
 

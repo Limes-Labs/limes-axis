@@ -18,10 +18,16 @@ Fail-closed rules encoded here:
   construction; unsupported languages are reported with a fixed code.
 * Ordering evidence must be bound by the caller for live-over-live updates;
   without it the update is superseded (fail-closed), never guessed.
+* Refused input (uncommitted mutation, unsupported language, empty text) is
+  recorded as ``search.index.record_rejected`` with reason
+  ``uncommitted_source`` / ``rejected_input``: it is not retry-safe ordering
+  ambiguity and nothing was tombstoned.
 * Audit evidence is metadata-only: digests, decisions and IDs — never text.
 """
 
 from __future__ import annotations
+
+from pydantic import ValidationError
 
 from axis_api.audit import AuditEventCreate
 from axis_api.persistence import (
@@ -30,6 +36,7 @@ from axis_api.persistence import (
     SearchIndexRecordCreate,
 )
 from axis_api.search_index import (
+    MAX_SEARCHABLE_TEXT_CHARS,
     SEARCH_INDEX_ADAPTER,
     IndexProjection,
     SearchableDocument,
@@ -42,6 +49,9 @@ from axis_api.search_index import (
 COMMITTED_MUTATION_STATUS = "type_db_mutation_applied"
 INDEX_AUDIT_EVENT_TYPE = "search.index.record_projected"
 TOMBSTONE_AUDIT_EVENT_TYPE = "search.index.record_tombstoned"
+#: Input that was refused before touching the index (uncommitted mutation,
+#: unsupported language, empty/oversized text). Nothing was tombstoned.
+REJECTED_AUDIT_EVENT_TYPE = "search.index.record_rejected"
 
 
 def searchable_text_from_field_summary(field_summary: dict) -> str:
@@ -91,7 +101,7 @@ def index_ontology_promotion(
         repository.append_audit_event(
             _audit_event_create(
                 tenant_id=tenant_id,
-                event_type=TOMBSTONE_AUDIT_EVENT_TYPE,
+                event_type=REJECTED_AUDIT_EVENT_TYPE,
                 payload={
                     "reason": "uncommitted_graph_mutation",
                     "promotion_id": promotion_id,
@@ -101,32 +111,40 @@ def index_ontology_promotion(
         )
         return IndexProjection(
             decision="superseded",
-            reason="missing_ordering_evidence",
+            reason="uncommitted_source",
             next_state="live",
             next_content_revision=content_revision,
             next_generation=index_generation,
         )
 
     try:
-        document = SearchableDocument(
-            kind="ontology_asset",
-            tenant_id=tenant_id,
-            source_object_id=node_id,
-            content_revision=content_revision,
-            source_locator=ontology_mutation_ref or f"promotion://{promotion_id}",
-            searchable_text=searchable_text_from_field_summary(field_summary),
-            language=language,
-            analyzer_revision=analyzer_revision,
-            policy_revision_ref=policy_revision_ref,
-        )
-        if not document.searchable_text.strip():
+        searchable_text = searchable_text_from_field_summary(field_summary)
+        # Check the derived text before model construction so empty or
+        # oversized summaries surface as fixed codes, not raw validation.
+        if not searchable_text.strip():
             raise SearchIndexError(SearchIndexError.INVALID_RECORD)
+        if len(searchable_text) > MAX_SEARCHABLE_TEXT_CHARS:
+            raise SearchIndexError(SearchIndexError.TEXT_TOO_LARGE)
+        try:
+            document = SearchableDocument(
+                kind="ontology_asset",
+                tenant_id=tenant_id,
+                source_object_id=node_id,
+                content_revision=content_revision,
+                source_locator=ontology_mutation_ref or f"promotion://{promotion_id}",
+                searchable_text=searchable_text,
+                language=language,
+                analyzer_revision=analyzer_revision,
+                policy_revision_ref=policy_revision_ref,
+            )
+        except ValidationError as error:
+            raise SearchIndexError(SearchIndexError.INVALID_RECORD) from error
         projection_data = project_searchable_document(document)
     except SearchIndexError as error:
         repository.append_audit_event(
             _audit_event_create(
                 tenant_id=tenant_id,
-                event_type=TOMBSTONE_AUDIT_EVENT_TYPE,
+                event_type=REJECTED_AUDIT_EVENT_TYPE,
                 payload={
                     "reason": "unsupported_projection_input",
                     "error_code": error.code,
@@ -136,7 +154,7 @@ def index_ontology_promotion(
         )
         return IndexProjection(
             decision="superseded",
-            reason="missing_ordering_evidence",
+            reason="rejected_input",
             next_state="live",
             next_content_revision=content_revision,
             next_generation=index_generation,
@@ -169,7 +187,7 @@ def index_document_observation(
         repository.append_audit_event(
             _audit_event_create(
                 tenant_id=document.tenant_id,
-                event_type=TOMBSTONE_AUDIT_EVENT_TYPE,
+                event_type=REJECTED_AUDIT_EVENT_TYPE,
                 payload={
                     "reason": "unsupported_projection_input",
                     "error_code": error.code,
@@ -179,7 +197,7 @@ def index_document_observation(
         )
         return IndexProjection(
             decision="superseded",
-            reason="missing_ordering_evidence",
+            reason="rejected_input",
             next_state="live",
             next_content_revision=document.content_revision,
             next_generation=index_generation,

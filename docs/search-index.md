@@ -41,6 +41,10 @@ store or source artifacts.
 * **Tombstones always apply** (deletion is monotone) and clear text and digest.
   A tombstone can only be replaced by live content carrying bound ordering
   evidence; late out-of-order live events cannot resurrect deleted rows.
+* **Generations never move backwards.** An applied update keeps the larger of
+  the row's current and the incoming `index_generation`, so an incremental
+  writer that is unaware of a rebuild cannot demote a row to an older
+  generation.
 
 The read-modify-write is serialized per record by
 `get_search_index_record_for_update()` (`SELECT … FOR UPDATE`), the same
@@ -51,12 +55,15 @@ workers produce exactly one winner per record.
 
 Only ontology promotions whose graph mutation status is
 `type_db_mutation_applied` project text; deferred/failed/unavailable mutations
-record a metadata-only audit event and project nothing. Searchable text is
+record a metadata-only `search.index.record_rejected` audit event (reason
+`uncommitted_source`) and project nothing. Searchable text is
 derived deterministically from the operator-approved promotion field summary
 (or supplied verbatim for documents) and capped at 20 000 characters —
-oversized input and unsupported languages are reported with fixed codes
-(`search_text_too_large`, `unsupported_search_language`), never silently
-truncated as complete.
+empty or oversized input and unsupported languages are reported with fixed
+codes (`invalid_search_index_record`, `search_text_too_large`,
+`unsupported_search_language`) on a `search.index.record_rejected` event
+(reason `rejected_input`), never silently truncated as complete. Rejections
+are not ordering ambiguity: retrying the same input yields the same refusal.
 
 ## Audit and redaction
 
@@ -67,15 +74,14 @@ what operators see.
 
 ## Verification status
 
-* PASS (SQLite contract engine) — `uv run pytest tests/test_search_index.py -q`
-  in services/api: 21 tests covering bounds, language behavior, digest binding,
-  the full monotonic classifier matrix, repository-backed projection
-  lifecycle, tenant isolation and audit redaction.
-* PASS — full API suite `uv run pytest -q`: 2 691 passed, 45 skipped.
-* PASS — `tests/integration/test_search_index_postgres.py` syntax and skips
-  verified locally; the live-PostgreSQL run (migration chain on a disposable
-  database + concurrent-winner fencing) is opt-in via
-  `AXIS_RUN_SEARCH_POSTGRES=1` and executes in CI's Integration job where
-  Docker is available.
+* `make test-api PYTEST_ARGS='tests/test_search_index.py -q'` covers bounds,
+  language behavior, digest binding, rejection evidence, the full monotonic
+  classifier matrix (including generation monotonicity), repository-backed
+  projection lifecycle, tenant isolation and audit redaction.
+* `tests/integration/test_search_index_postgres.py` runs the migration chain
+  on a disposable PostgreSQL database and exercises concurrent-winner fencing
+  through real row locks. It is opt-in via `AXIS_RUN_SEARCH_POSTGRES=1` plus
+  `AXIS_SEARCH_POSTGRES_DSN` (a server whose role may `CREATE DATABASE`) and
+  runs in CI's live-API job.
 * Mock-only tests: the classifier matrix (`classify_index_update` tests) is
   pure-logic; all persistence tests run against a real SQLAlchemy engine.
