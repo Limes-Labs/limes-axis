@@ -373,6 +373,13 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Source ingestion no longer loops forever when extraction outlives its claim
+  lease. The lease is renewed (fenced) before each selection; a lease that
+  expires anyway now counts as an attempt with error `claim_lease_expired` and
+  dead-letters at `AXIS_SOURCE_INGESTION_MAX_ATTEMPTS`, where previously the
+  expired row was reclaimed with an ever-growing `attempt_count` and re-read its
+  source on every pass. An expired claim reclaimed past the final attempt is
+  dead-lettered without another source read.
 - Migration `0069_tenant_created_at_list_indexes` adds composite
   `(tenant_id, created_at, id)` indexes on `audit_events`, `action_runs` and
   `connector_runs`, `(tenant_id, event_type, created_at, id)` on

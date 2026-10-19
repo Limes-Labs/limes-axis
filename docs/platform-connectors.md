@@ -1360,6 +1360,19 @@ operational failures retry then dead-letter after `AXIS_SOURCE_INGESTION_MAX_ATT
 | `AXIS_SOURCE_INGESTION_RETRY_MAX_SECONDS` | `60` (≥1) | Backoff cap |
 | `AXIS_SOURCE_INGESTION_MAX_ATTEMPTS` | `3` (≤20) | Attempts before dead-letter |
 
+Extraction renews the claim lease before each selection, through the same
+token-and-expiry fence as completion, so a request with many selections stays
+inside a live lease as long as each selection's read fits the claim timeout.
+Production validation requires `AXIS_SOURCE_INGESTION_CLAIM_TIMEOUT_SECONDS` to
+exceed `AXIS_SOURCE_INGESTION_EXTRACTION_TIME_BUDGET_SECONDS`, the per-selection
+bound; there is no requirement on the selection count. The design fails closed:
+a renewal against a lost or expired claim stops before the next source read,
+and a lease that expires during the read or before the final commit counts as
+an attempt (`claim_lease_expired`) — retried, then dead-lettered at
+`AXIS_SOURCE_INGESTION_MAX_ATTEMPTS` — with no batch committed. An expired claim
+reclaimed past its final attempt (a worker died holding it) is dead-lettered
+without reading the source again.
+
 ### Extraction stage (default-off)
 
 When the deployment enables both dispatch and extraction gates, a request may

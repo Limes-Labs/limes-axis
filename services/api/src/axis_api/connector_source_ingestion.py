@@ -1031,7 +1031,15 @@ class SourceIngestionOutboxDispatcher:
             "fenced": 0,
         }
         for row in claimed:
-            outcome = await asyncio.to_thread(self._process, row)
+            if row.attempt_count > self.settings.source_ingestion_max_attempts:
+                # Only an expired claim can be reclaimed past the final attempt
+                # (a worker died, or its extraction outlived the lease). Count
+                # it and dead-letter instead of reading the source again.
+                outcome = await asyncio.to_thread(
+                    self._finalize_failure, row, LEASE_EXPIRED_ERROR, permanent=False
+                )
+            else:
+                outcome = await asyncio.to_thread(self._process, row)
             counts[outcome.status] += 1
         return SourceIngestionRunResult(claimed=len(claimed), **counts)
 
@@ -1061,6 +1069,27 @@ class SourceIngestionOutboxDispatcher:
                 for row in rows
                 if row.claim_token is not None
             ]
+
+    def _renew_lease(
+        self, repository: AxisPersistenceRepository, row: _ClaimedIngestionRequest
+    ) -> None:
+        """Extend the claim before the next selection, or stop reading.
+
+        Each selection's read is bounded by the extraction time budget, which
+        production validation requires the claim timeout to exceed, so renewing
+        before every selection keeps the whole request inside a live lease. A
+        lost or expired claim raises and no further source is read.
+        """
+        now = self._clock()
+        renewed = repository.renew_connector_source_ingestion_request_lease(
+            row.id,
+            row.claim_token,
+            now=now,
+            lease_expires_at=now
+            + timedelta(seconds=self.settings.source_ingestion_claim_timeout_seconds),
+        )
+        if not renewed:
+            raise _ClaimLeaseLost
 
     def _process(self, row: _ClaimedIngestionRequest) -> _ProcessOutcome:
         selection_evidence: list[dict] = []
@@ -1335,8 +1364,10 @@ class SourceIngestionOutboxDispatcher:
         try:
             for selection in sorted(row.selections, key=lambda item: item["binding_id"]):
                 with session_scope(self._session_factory) as session:
+                    repository = AxisPersistenceRepository(session)
+                    self._renew_lease(repository, row)
                     prepared = self._s3_runtime.prepare_selection(
-                        AxisPersistenceRepository(session),
+                        repository,
                         tenant_id=row.tenant_id,
                         connector_id=row.connector_id,
                         request_id=row.request_id,
@@ -1369,6 +1400,10 @@ class SourceIngestionOutboxDispatcher:
                     self._s3_runtime.commit(repository, result)
 
             return self._finalize_success(row, evidence, commit_batches=commit_batches)
+        except _ClaimLeaseLost:
+            return self._finalize_failure(
+                row, LEASE_EXPIRED_ERROR, permanent=False, evidence=failure_evidence()
+            )
         except ConnectorError as exc:
             return self._finalize_failure(
                 row, exc.code.value, permanent=not exc.retryable, evidence=failure_evidence()
@@ -1407,8 +1442,10 @@ class SourceIngestionOutboxDispatcher:
         try:
             for selection in sorted(row.selections, key=lambda item: item["binding_id"]):
                 with session_scope(self._session_factory) as session:
+                    repository = AxisPersistenceRepository(session)
+                    self._renew_lease(repository, row)
                     prepared = self._rest_runtime.prepare_selection(
-                        AxisPersistenceRepository(session),
+                        repository,
                         tenant_id=row.tenant_id,
                         connector_id=row.connector_id,
                         request_id=row.request_id,
@@ -1444,6 +1481,10 @@ class SourceIngestionOutboxDispatcher:
                     self._rest_runtime.commit(repository, result)
 
             return self._finalize_success(row, evidence, commit_batches=commit_batches)
+        except _ClaimLeaseLost:
+            return self._finalize_failure(
+                row, LEASE_EXPIRED_ERROR, permanent=False, evidence=failure_evidence()
+            )
         except RestSourceFailure as exc:
             progress["source_dial_performed"] = (
                 progress["source_dial_performed"] or exc.source_dial_performed
@@ -1526,6 +1567,21 @@ class SourceIngestionOutboxDispatcher:
                         },
                     )
                 )
+        if not changed and commit_batches is not None:
+            # The lease-checked completion was fenced. If this worker still
+            # holds the claim, its lease expired during extraction: count the
+            # attempt (retry or dead-letter) instead of leaving an expired
+            # ``dispatching`` row to be reclaimed and re-read forever. If the
+            # claim moved to another worker, the fenced retry below changes
+            # nothing and that worker's attempt counts instead.
+            return self._finalize_failure(
+                row,
+                LEASE_EXPIRED_ERROR,
+                permanent=False,
+                evidence={key: value for key, value in evidence.items() if key not in {
+                    "batches", "attempts"
+                }},
+            )
         return _ProcessOutcome(status="completed" if changed else "fenced")
 
     def _finalize_failure(
@@ -1626,3 +1682,10 @@ class SourceIngestionOutboxDispatcher:
 @dataclass(frozen=True)
 class _ProcessOutcome:
     status: str
+
+
+LEASE_EXPIRED_ERROR = "claim_lease_expired"
+
+
+class _ClaimLeaseLost(Exception):
+    """The dispatcher no longer holds a live claim on the request."""

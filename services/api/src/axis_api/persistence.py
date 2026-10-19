@@ -3485,6 +3485,32 @@ class AxisPersistenceRepository:
         )
         return result.rowcount == 1
 
+    def renew_connector_source_ingestion_request_lease(
+        self,
+        ingestion_request_id: UUID,
+        claim_token: UUID,
+        *,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> bool:
+        """Extend a still-live claim; the same fence as a lease-checked completion.
+
+        Only the current claim holder can renew, and only before its lease has
+        expired: an expired lease may already be reclaimable by another worker,
+        so it is never silently revived.
+        """
+        result = self.session.execute(
+            update(ConnectorSourceIngestionRequest)
+            .where(
+                ConnectorSourceIngestionRequest.id == ingestion_request_id,
+                ConnectorSourceIngestionRequest.claim_token == claim_token,
+                ConnectorSourceIngestionRequest.status == "dispatching",
+                ConnectorSourceIngestionRequest.lease_expires_at > now,
+            )
+            .values(lease_expires_at=lease_expires_at, updated_at=now)
+        )
+        return result.rowcount == 1
+
     def retry_connector_source_ingestion_request(
         self,
         ingestion_request_id: UUID,
