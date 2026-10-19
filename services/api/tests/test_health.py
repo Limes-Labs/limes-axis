@@ -181,6 +181,9 @@ def test_production_disables_public_api_documentation() -> None:
         api_rate_limit_failure_mode="closed",
         redis_url="redis://rate-limit.internal:6379/0",
         tenant_admission_mode="registered_only",
+        oidc_session_cookie_secure=True,
+        oidc_session_cookie_signing_secret="production-session-cookie-signing-secret-0001",
+        cors_origins=["https://axis.example.com"],
     )
     client = TestClient(
         create_app(

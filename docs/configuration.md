@@ -44,6 +44,14 @@ variable names in the error, without printing configured values:
 - Source ingestion dispatch is enabled but its retry maximum is below its base delay.
 - Source ingestion dispatch and extraction are enabled but the claim timeout is
   less than or equal to the extraction time budget. The timeout must be larger.
+- `AXIS_OIDC_SESSION_COOKIE_SECURE` is false. Production session cookies must
+  carry the Secure attribute.
+- `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET` is missing or shorter than 32
+  characters (the same minimum as the refresh-credential encryption key).
+- `AXIS_CORS_ORIGINS` contains a wildcard (`*` anywhere in an origin) or a
+  plain-http loopback origin (`localhost`, `*.localhost`, `127.0.0.1`,
+  `[::1]`, `0.0.0.0`). The development defaults are such origins, so a
+  production profile must list its HTTPS console origins explicitly.
 
 Disabled ingestion capabilities do not trigger the corresponding checks.
 Development settings retain their previous behavior. The claim check is a

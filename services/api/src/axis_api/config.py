@@ -29,6 +29,51 @@ class RuntimeConfigurationError(ValueError):
     """Raised before startup side effects when a runtime profile is unsafe."""
 
 
+#: Minimum length of the operator-provided session-cookie signing secret in
+#: production; matches the refresh-credential encryption key minimum.
+SESSION_COOKIE_SIGNING_SECRET_MIN_LENGTH = 32
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"})
+
+
+def _is_plain_http_loopback_origin(origin: str) -> bool:
+    value = origin.strip().casefold()
+    if not value.startswith("http://"):
+        return False
+    authority = value[len("http://") :].split("/", 1)[0]
+    if authority.startswith("["):
+        host = authority.split("]", 1)[0] + "]"
+    else:
+        host = authority.rsplit(":", 1)[0] if ":" in authority else authority
+    return host in _LOOPBACK_HOSTS or host.endswith(".localhost")
+
+
+def _validate_production_browser_boundary(settings: "Settings") -> None:
+    """Session cookie and CORS posture that production must never relax."""
+
+    if not settings.oidc_session_cookie_secure:
+        raise RuntimeConfigurationError(
+            "AXIS_OIDC_SESSION_COOKIE_SECURE must be true when AXIS_ENV is production."
+        )
+    signing_secret = settings.oidc_session_cookie_signing_secret or ""
+    if len(signing_secret) < SESSION_COOKIE_SIGNING_SECRET_MIN_LENGTH:
+        raise RuntimeConfigurationError(
+            "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET must be set to at least "
+            f"{SESSION_COOKIE_SIGNING_SECRET_MIN_LENGTH} characters when AXIS_ENV is "
+            "production."
+        )
+    for origin in settings.cors_origins:
+        if "*" in origin:
+            raise RuntimeConfigurationError(
+                "AXIS_CORS_ORIGINS must not contain wildcard origins when AXIS_ENV is "
+                "production."
+            )
+        if _is_plain_http_loopback_origin(origin):
+            raise RuntimeConfigurationError(
+                "AXIS_CORS_ORIGINS must not contain plain-http localhost origins when "
+                "AXIS_ENV is production."
+            )
+
+
 def validate_runtime_configuration(settings: Settings) -> None:
     """Reject unsafe production combinations before startup side effects."""
 
@@ -96,3 +141,4 @@ def validate_runtime_configuration(settings: Settings) -> None:
                     "AXIS_SOURCE_INGESTION_EXTRACTION_TIME_BUDGET_SECONDS when dispatch "
                     "and extraction are enabled in production."
                 )
+        _validate_production_browser_boundary(settings)

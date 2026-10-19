@@ -46,6 +46,11 @@ release-bound behavior, not the complete commit history.
   `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED=true`. Deployments using
   lease-scoped resolution must set the allowlist, enable runtime egress
   enforcement and rename any handle variable that uses a reserved prefix.
+- `AXIS_ENV=production` startup now refuses
+  `AXIS_OIDC_SESSION_COOKIE_SECURE=false`, a missing or shorter-than-32-character
+  `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`, and `AXIS_CORS_ORIGINS` containing
+  `*` or plain-http loopback origins. Development and test profiles are
+  unchanged.
 
 ### Added
 

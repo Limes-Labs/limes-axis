@@ -107,6 +107,9 @@ def production_settings(**overrides: object) -> Settings:
         api_rate_limit_failure_mode="closed",
         redis_url="redis://redis.example:6379/0",
         tenant_admission_mode="registered_only",
+        oidc_session_cookie_secure=True,
+        oidc_session_cookie_signing_secret="production-session-cookie-signing-secret-0001",
+        cors_origins=["https://axis.example.com"],
     )
     return Settings(_env_file=None, **(values | overrides))
 
@@ -126,6 +129,17 @@ INVALID_COMBINATIONS = [
         },
         "AXIS_SOURCE_INGESTION_CLAIM_TIMEOUT_SECONDS",
     ),
+    ({"oidc_session_cookie_secure": False}, "AXIS_OIDC_SESSION_COOKIE_SECURE"),
+    ({"oidc_session_cookie_signing_secret": None}, "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET"),
+    (
+        {"oidc_session_cookie_signing_secret": "x" * 31},
+        "AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET",
+    ),
+    ({"cors_origins": ["*"]}, "AXIS_CORS_ORIGINS"),
+    ({"cors_origins": ["https://axis.example.com", "https://*.example.com"]}, "AXIS_CORS_ORIGINS"),
+    ({"cors_origins": ["http://localhost:3000"]}, "AXIS_CORS_ORIGINS"),
+    ({"cors_origins": ["http://127.0.0.1:3100"]}, "AXIS_CORS_ORIGINS"),
+    ({"cors_origins": ["http://[::1]:3000"]}, "AXIS_CORS_ORIGINS"),
 ]
 
 

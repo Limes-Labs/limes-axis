@@ -26,6 +26,14 @@ route coverage (`AXIS_API_RATE_LIMIT_PATHS=["*"]`). Verified bearer and browser
 sessions share tenant quota buckets. The in-memory backend remains available
 only for local development and tests.
 
+Production startup also rejects insecure browser-session posture:
+`AXIS_OIDC_SESSION_COOKIE_SECURE=false`, a missing or shorter-than-32-character
+`AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`, and `AXIS_CORS_ORIGINS` entries that
+contain `*` or are plain-http loopback origins (see
+[configuration](configuration.md#production-combinations)). The chart's
+production values already satisfy these checks once the signing secret is
+supplied.
+
 Production startup also rejects a disabled API limiter. `/health` remains a
 process-local liveness signal and is never gated by Redis or request quotas;
 `/ready` remains the dependency-aware traffic admission signal. The chart maps
