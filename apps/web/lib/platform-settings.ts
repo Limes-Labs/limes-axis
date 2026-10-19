@@ -1,3 +1,4 @@
+import type { ConsoleStrings } from "./i18n";
 import { strings } from "./strings";
 
 export type SettingsReadinessStatus = "ready" | "action_required";
@@ -93,8 +94,12 @@ export type SupportDiagnosticsReport = {
   notes: string[];
 };
 
-export function settingsStatusLabel(status: SettingsReadinessStatus): string {
-  return status === "ready" ? "Ready" : "Action required";
+export function settingsStatusLabel(
+  status: SettingsReadinessStatus,
+  copy: ConsoleStrings = strings,
+): string {
+  const labels = copy.labels.settingsStatus;
+  return status === "ready" ? labels.ready : labels.action_required;
 }
 
 export function settingsStatusClass(status: SettingsReadinessStatus): string {
@@ -127,9 +132,9 @@ export function countActionRequiredChecks(checks: SettingsCheck[]): number {
  * keyed by the check id the API emits. Unknown ids get generic guidance so a
  * new API check never renders a pill without a what-to-do line.
  */
-export function settingsCheckGuidance(checkId: string): string {
-  const guidance: Record<string, string> = strings.settings.guidance;
-  return guidance[checkId] ?? strings.settings.guidanceFallback;
+export function settingsCheckGuidance(checkId: string, copy: ConsoleStrings = strings): string {
+  const guidance: Record<string, string> = copy.settings.guidance;
+  return guidance[checkId] ?? copy.settings.guidanceFallback;
 }
 
 const checkLabelAcronyms = new Set(["api", "dr", "https", "jwks", "oidc", "slo", "sso", "url"]);
@@ -139,8 +144,8 @@ const checkLabelAcronyms = new Set(["api", "dr", "https", "jwks", "oidc", "slo",
  * an id the console has not seen yet is sentence-cased (acronyms upper-cased)
  * rather than shown as a raw lowercase identifier.
  */
-export function settingsCheckLabel(checkId: string): string {
-  const labels: Record<string, string> = strings.settings.checkLabels;
+export function settingsCheckLabel(checkId: string, copy: ConsoleStrings = strings): string {
+  const labels: Record<string, string> = copy.settings.checkLabels;
   const known = labels[checkId];
   if (known) {
     return known;
@@ -155,30 +160,31 @@ export function settingsCheckLabel(checkId: string): string {
 
 export type SettingsCheckAction = { href: string; label: string };
 
-const actions = strings.settings.checkActions;
+type CheckActionKey = keyof ConsoleStrings["settings"]["checkActions"];
 
 /**
  * In-console destination for checks an operator can act on from here. Checks
  * that only change through deployment configuration have none: their guidance
  * line and technical detail are the actionable part.
  */
-const checkActionById: Record<string, SettingsCheckAction> = {
-  oidc_enterprise_sso: { href: "/settings?tab=identity", label: actions.identityTab },
-  oidc_secure_cookie_session: { href: "/settings?tab=identity", label: actions.identityTab },
-  demo_support_ready: { href: "/settings?tab=deployment", label: actions.deploymentTab },
-  deployment_readiness_attached: {
-    href: "/settings?tab=deployment",
-    label: actions.deploymentTab,
-  },
-  registered_tenant_admission: { href: "/tenants", label: actions.tenants },
-  external_model_egress_disabled: { href: "/model-routing", label: actions.modelRouting },
-  live_connector_execution_disabled: { href: "/connectors", label: actions.connectors },
-  ontology_graph_mutation_posture: { href: "/ontology", label: actions.ontology },
-  audit_ledger_signing_configured: { href: "/audit", label: actions.audit },
+const checkActionById: Record<string, { href: string; label: CheckActionKey }> = {
+  oidc_enterprise_sso: { href: "/settings?tab=identity", label: "identityTab" },
+  oidc_secure_cookie_session: { href: "/settings?tab=identity", label: "identityTab" },
+  demo_support_ready: { href: "/settings?tab=deployment", label: "deploymentTab" },
+  deployment_readiness_attached: { href: "/settings?tab=deployment", label: "deploymentTab" },
+  registered_tenant_admission: { href: "/tenants", label: "tenants" },
+  external_model_egress_disabled: { href: "/model-routing", label: "modelRouting" },
+  live_connector_execution_disabled: { href: "/connectors", label: "connectors" },
+  ontology_graph_mutation_posture: { href: "/ontology", label: "ontology" },
+  audit_ledger_signing_configured: { href: "/audit", label: "audit" },
 };
 
-export function settingsCheckAction(checkId: string): SettingsCheckAction | null {
-  return checkActionById[checkId] ?? null;
+export function settingsCheckAction(
+  checkId: string,
+  copy: ConsoleStrings = strings,
+): SettingsCheckAction | null {
+  const action = Object.hasOwn(checkActionById, checkId) ? checkActionById[checkId] : null;
+  return action ? { href: action.href, label: copy.settings.checkActions[action.label] } : null;
 }
 
 /**

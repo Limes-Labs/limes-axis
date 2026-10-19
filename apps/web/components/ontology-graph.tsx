@@ -318,7 +318,7 @@ export function OntologyGraph({
                 key={node.id}
                 role="link"
                 tabIndex={0}
-                aria-label={`${node.label} — ${formatNodeType(node.type)}, ${platformStatusLabel(node.status)}`}
+                aria-label={`${node.label} — ${formatNodeType(node.type)}, ${platformStatusLabel(node.status, strings)}`}
                 opacity={dimmed ? 0.25 : 1}
                 onBlur={() => setActiveId((current) => (current === node.id ? null : current))}
                 onClick={(event) => openNode(node.id, event.currentTarget)}
@@ -358,7 +358,7 @@ export function OntologyGraph({
                     }
                     r={STATUS_DOT_RADIUS}
                   >
-                    <title>{platformStatusLabel(node.status)}</title>
+                    <title>{platformStatusLabel(node.status, strings)}</title>
                   </circle>
                 ) : null}
                 {/* Labels sit in a slot touching their node, so no leader line;

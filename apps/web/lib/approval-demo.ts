@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import type { ManufacturingProvenance, PlatformStatus } from "./platform-overview";
 import type { PlatformPolicyDecision } from "./platform-policies";
 
@@ -139,12 +141,11 @@ export function approvalRiskClass(riskLevel: ApprovalInboxItem["risk_level"]): s
   return riskLevel === "medium" ? "signal-watch" : "signal-ready";
 }
 
-export function approvalDecisionLabel(decision: ApprovalDecision): string {
-  if (decision === "request_changes") {
-    return "Changes Requested";
-  }
-
-  return decision === "approve" ? "Approved" : "Rejected";
+export function approvalDecisionLabel(
+  decision: ApprovalDecision,
+  copy: ConsoleStrings = strings,
+): string {
+  return copy.labels.approvalDecision[decision];
 }
 
 export function approvalDecisionActorId(approval: ApprovalInboxItem): string {

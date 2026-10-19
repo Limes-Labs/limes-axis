@@ -816,8 +816,8 @@ export function AddConnectorWizard({
               </KeyValueRow>
               <KeyValueRow label={copy.reviewStep.records}>
                 {choice === "file_csv"
-                  ? `${formatNumber(parsedCsv?.rows.length ?? 0)} rows from ${csvFileName}`
-                  : `${dbForm.schemaName}.${dbForm.tableName} metadata`}
+                  ? strings.ui.connectorConsoleAddConnectorWizard.rowsFromFile(parsedCsv?.rows.length ?? 0, csvFileName)
+                  : strings.ui.connectorConsoleAddConnectorWizard.tableMetadata(dbForm.schemaName, dbForm.tableName)}
               </KeyValueRow>
             </DetailGrid>
 

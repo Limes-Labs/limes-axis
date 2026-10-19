@@ -1,5 +1,5 @@
 import type { PlatformStatus } from "./platform-overview";
-import { consoleDateTimeFormat } from "@/lib/format";
+import { consoleDateTimeFormat, notRecordedLabel } from "@/lib/format";
 
 /**
  * Typed parsers for the live model-router read surfaces:
@@ -362,7 +362,7 @@ export function formatLiveEuroCost(value: number): string {
 export function formatLiveTimestamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    return "Not recorded";
+    return notRecordedLabel();
   }
   return consoleDateTimeFormat({
     dateStyle: "medium",

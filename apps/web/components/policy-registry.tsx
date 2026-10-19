@@ -37,6 +37,7 @@ import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { TemplateText } from "@/components/ui/template-text";
 import {
   missingRequiredScopePermission,
   ScopeDenialPanel,
@@ -146,7 +147,7 @@ export function PolicyRegistry() {
     });
     if (deniedScope) {
       return (
-        <ScopeDenialPanel requiredPermission={deniedScope} subject="policy registry" />
+        <ScopeDenialPanel requiredPermission={deniedScope} subject={strings.sources.subjects.policyRegistry} />
       );
     }
 
@@ -181,8 +182,11 @@ export function PolicyRegistry() {
             role="status"
           >
             <p className="m-0 min-w-0 text-sm leading-snug break-words text-ink">
-              Policy authored as r{authoredRecord.revision_number} /{" "}
-              {authoredRecord.policy_version}: {authoredRecord.display_name}
+              {strings.ui.policyRegistry.policyAuthored(
+                authoredRecord.revision_number,
+                authoredRecord.policy_version,
+                authoredRecord.display_name,
+              )}
             </p>
             <button
               className="inline-flex min-h-6 cursor-pointer items-center font-mono text-xs text-muted transition-colors hover:text-signal"
@@ -199,7 +203,7 @@ export function PolicyRegistry() {
             role="status"
           >
             <p className="m-0 text-sm text-muted">
-              The authored policy {authoredPolicyId} is not in the current registry view.
+              {strings.ui.policyRegistry.authoredNotInView(authoredPolicyId)}
             </p>
           </div>
         )
@@ -209,17 +213,19 @@ export function PolicyRegistry() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          Versioned governance rules for{" "}
-          <span title={registry.tenant_id}>{strings.identifiers.thisTenant}</span>
+          <TemplateText
+            template={strings.ui.policyRegistry.versionedRulesFor}
+            values={{ tenant: <span title={registry.tenant_id}>{strings.identifiers.thisTenant}</span> }}
+          />
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), PROVENANCE_NOT_APPLICABLE)}
-            subject="policy registry"
+            subject={strings.sources.subjects.policyRegistry}
           />
           <span className="status-pill signal-watch">
             <ShieldCheck size={15} />
-            {formatNumber(registry.active_policy_count)} active
+            {strings.ui.policyRegistry.activeCount(registry.active_policy_count)}
           </span>
         </div>
       </div>
@@ -261,7 +267,7 @@ export function PolicyRegistry() {
               <option value={allPolicyFilter}>{strings.ui.common.allScopes}</option>
               {platformPolicyScopes.map((scope) => (
                 <option key={scope} value={scope}>
-                  {policyScopeLabel(scope)}
+                  {policyScopeLabel(scope, strings)}
                 </option>
               ))}
             </Select>
@@ -274,7 +280,7 @@ export function PolicyRegistry() {
               <option value={allPolicyFilter}>{strings.ui.common.allStatuses}</option>
               {platformPolicyStatuses.map((status) => (
                 <option key={status} value={status}>
-                  {policyStatusLabel(status)}
+                  {policyStatusLabel(status, strings)}
                 </option>
               ))}
             </Select>
@@ -307,10 +313,10 @@ export function PolicyRegistry() {
                   </Link>
                   <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policy.policy_id}</p>
                 </td>
-                <td>{policyScopeLabel(policy.scope)}</td>
+                <td>{policyScopeLabel(policy.scope, strings)}</td>
                 <td>
                   <span className={`status-pill ${policyEffectClass(policy.effect)}`}>
-                    {policyEffectLabel(policy.effect)}
+                    {policyEffectLabel(policy.effect, strings)}
                   </span>
                 </td>
                 <td>
@@ -318,12 +324,12 @@ export function PolicyRegistry() {
                 </td>
                 <td>
                   <span className="font-mono text-[13px] break-words">
-                    r{policy.revision_number} / {policy.policy_version}
+                    {strings.ui.common.revisionVersion(policy.revision_number, policy.policy_version)}
                   </span>
                 </td>
                 <td>
                   <span className={`status-pill ${policyStatusClass(policy.status)}`}>
-                    {policyStatusLabel(policy.status)}
+                    {policyStatusLabel(policy.status, strings)}
                   </span>
                 </td>
                 <td>

@@ -20,7 +20,7 @@ import {
   getOperationsArtifactActionState,
   operationsArtifactHeadline,
   operationsArtifactRecordId,
-  OPERATIONS_ARTIFACT_ACTIONS,
+  operationsArtifactActions,
   type OperationsArtifactKind,
   type OperationsArtifactResponse,
 } from "@/lib/operations-artifacts";
@@ -114,7 +114,7 @@ export function ArtifactPanel({
         kind,
         identitySession,
         snapshot: operationsSnapshot,
-      });
+      }, strings);
       const response = await axisFetchParsedJson<OperationsArtifactResponse>(
         request.endpoint,
         parseOperationsArtifactResponse,
@@ -163,8 +163,8 @@ export function ArtifactPanel({
       ) : null}
 
       <div className="flex flex-wrap gap-2" role="group" aria-label={strings.ui.overviewArtifactPanel.governedArtifactActions}>
-        {OPERATIONS_ARTIFACT_ACTIONS.map((action) => {
-          const state = getOperationsArtifactActionState(action.kind, identitySession);
+        {operationsArtifactActions(strings).map((action) => {
+          const state = getOperationsArtifactActionState(action.kind, identitySession, strings);
           const pending = pendingKind === action.kind;
           const Icon = ACTION_ICONS[action.kind] ?? ShieldCheck;
 
@@ -199,10 +199,10 @@ export function ArtifactPanel({
             <p className="m-0 font-mono text-sm break-words text-ink">
               {artifact.actionLabel} / {operationsArtifactRecordId(artifact.response)}
             </p>
-            <p className="m-0 text-xs text-muted">{operationsArtifactHeadline(artifact.response)}</p>
+            <p className="m-0 text-xs text-muted">{operationsArtifactHeadline(artifact.response, strings)}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted">
               <span>{artifact.response.idempotent_replay ? strings.ui.overviewArtifactPanel.idempotentReplay : strings.ui.overviewArtifactPanel.created}</span>
-              <span>{artifact.response.source_record_ids.length} source records</span>
+              <span>{strings.ui.overviewArtifactPanel.sourceRecords(artifact.response.source_record_ids.length)}</span>
               <span>{artifact.response.audit_event_type}</span>
             </div>
           </div>

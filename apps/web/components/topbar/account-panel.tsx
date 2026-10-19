@@ -13,6 +13,7 @@ import {
   tagClass,
 } from "@/components/topbar/panel-chrome";
 import { Disclosure } from "@/components/ui/disclosure";
+import { apiStatusCopy } from "@/lib/api-status";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { Input } from "@/components/ui/input";
@@ -88,7 +89,7 @@ export function AccountPanel({
     >
       <PopoverHeader label={strings.ui.topbarAccountPanel.operator}>
         <span className={`status-pill ${identitySessionTone(identitySession)}`}>
-          {identitySessionLabel(identitySession)}
+          {identitySessionLabel(identitySession, strings)}
         </span>
       </PopoverHeader>
 
@@ -123,7 +124,7 @@ export function AccountPanel({
         </span>
         <span>
           <small>{strings.ui.topbarAccountPanel.apiStatus}</small>
-          <strong>{apiStatus.label}</strong>
+          <strong>{apiStatusCopy(apiStatus.state, strings).label}</strong>
         </span>
         <span>
           <small>{strings.ui.topbarAccountPanel.ssoPosture}</small>
@@ -137,7 +138,7 @@ export function AccountPanel({
         </span>
         <span>
           <small>{strings.ui.topbarAccountPanel.sessionExpires}</small>
-          <strong>{formatExpiry(identitySession?.expires_at ?? undefined)}</strong>
+          <strong>{formatExpiry(identitySession?.expires_at ?? undefined, strings)}</strong>
         </span>
       </div>
 

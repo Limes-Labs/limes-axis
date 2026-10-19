@@ -1,10 +1,12 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import {
   AxisApiError,
   axisFetch,
   axisResponseRequestId,
   type AxisFetchOptions,
 } from "./axis-api";
-import { consoleDateTimeFormat } from "@/lib/format";
+import { consoleDateTimeFormat, notRecordedLabel } from "@/lib/format";
 
 export const IDENTITY_SESSION_ADMIN_SCOPE = "identity:sessions:admin";
 
@@ -54,9 +56,9 @@ export async function revokeIdentitySession(
   }
 }
 
-export function sessionStatusLabel(status: string): string {
+export function sessionStatusLabel(status: string, copy: ConsoleStrings = strings): string {
   if (!status) {
-    return "Unknown";
+    return copy.labels.unknownStatus;
   }
   const compact = status.replaceAll("_", " ");
   return compact.charAt(0).toUpperCase() + compact.slice(1);
@@ -78,11 +80,11 @@ export function isRevocableSessionStatus(status: string): boolean {
 
 export function formatSessionInstant(value: string | null | undefined): string {
   if (!value) {
-    return "Not recorded";
+    return notRecordedLabel();
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    return "Not recorded";
+    return notRecordedLabel();
   }
   return consoleDateTimeFormat({
     dateStyle: "medium",

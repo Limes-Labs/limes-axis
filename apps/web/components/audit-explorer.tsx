@@ -39,7 +39,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
-import { formatContextPath, formatDateTime, formatNumber, formatTimeZoneLabel } from "@/lib/format";
+import { formatContextPath, formatDateTime, formatTimeZoneLabel } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import {
   formatOverviewTimestamp,
@@ -120,8 +120,10 @@ function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExport
           <p className="eyebrow m-0">{copy.eyebrow}</p>
           <h2 className="font-display mx-0 mt-1 mb-1 text-xl text-ink">{copy.title}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {formatNumber(exportBundle.manifest.record_count)} records, ready to download as{" "}
-            {exportBundle.format.toUpperCase()}.
+            {strings.ui.auditExplorer.exportReady(
+              exportBundle.manifest.record_count,
+              exportBundle.format.toUpperCase(),
+            )}
           </p>
           <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
             {exportBundle.manifest.export_id}
@@ -338,7 +340,7 @@ export function AuditExplorer() {
 
     const deniedScope = missingRequiredScopePermission(auditQuery);
     if (deniedScope) {
-      return <ScopeDenialPanel requiredPermission={deniedScope} subject="audit ledger" />;
+      return <ScopeDenialPanel requiredPermission={deniedScope} subject={strings.sources.subjects.auditLedger} />;
     }
 
     if (auditQuery.isTenantNotFound) {
@@ -412,10 +414,10 @@ export function AuditExplorer() {
           {formatContextPath(auditData.plant_name ?? humanizeIdentifier(auditData.tenant_id), auditData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={source} subject="audit ledger" />
+          <SourcePill state={source} subject={strings.sources.subjects.auditLedger} />
           <span className={`status-pill ${platformStatusClass(auditData.ledger_status)}`}>
             <ShieldCheck size={15} />
-            {platformStatusLabel(auditData.ledger_status)}
+            {platformStatusLabel(auditData.ledger_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(auditData.as_of)}</span>
         </div>
@@ -426,7 +428,7 @@ export function AuditExplorer() {
         {auditData.metrics.filter((metric) => !["Query Source", "Replay"].includes(metric.label)).map((metric) => (
           <StatCard
             aside={metric.status !== "ready" ? <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-              {platformStatusLabel(metric.status)}
+              {platformStatusLabel(metric.status, strings)}
             </span> : null}
             detail={metric.label === "Persisted Events"
               ? strings.ui.auditExplorer.eventsInTheReturnedWindow
@@ -503,7 +505,7 @@ export function AuditExplorer() {
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
               <p className="eyebrow m-0">{strings.ui.auditExplorer.events}</p>
-              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink" aria-live="polite">{formatNumber(visibleEvents.length)} visible</h2>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink" aria-live="polite">{strings.ui.common.visibleCount(visibleEvents.length)}</h2>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {/* The heatmap bins in this same zone, so a bin and its rows agree. */}
@@ -512,7 +514,7 @@ export function AuditExplorer() {
               </span>
               <span className="status-pill signal-ready">
                 <Filter size={15} />
-                {formatNumber(auditData.events.length)} returned
+                {strings.ui.auditExplorer.returnedCount(auditData.events.length)}
               </span>
             </div>
           </div>
@@ -562,7 +564,7 @@ export function AuditExplorer() {
             </div>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <span className={`status-pill ${platformStatusClass(selectedEvent.severity)}`}>
-                {platformStatusLabel(selectedEvent.severity)}
+                {platformStatusLabel(selectedEvent.severity, strings)}
               </span>
               <span className="status-pill status-checking">{selectedEvent.result}</span>
             </div>

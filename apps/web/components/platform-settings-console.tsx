@@ -74,9 +74,10 @@ function compactId(value: string): string {
 }
 
 function SettingsStatusPill({ status }: { status: "ready" | "action_required" }) {
+  const strings = useStrings();
   return (
     <span className={`status-pill ${settingsStatusClass(status)}`}>
-      {settingsStatusLabel(status)}
+      {settingsStatusLabel(status, strings)}
     </span>
   );
 }
@@ -96,14 +97,16 @@ function PanelState<T>({
   error: { title: string; detail: string };
   children: (data: T) => ReactNode;
 }) {
-  const copy = useStrings().settings;
+  const strings = useStrings();
+  const copy = strings.settings;
+  const requestCopy = strings.ui.platformSettings;
   if (query.data) {
     return (
       <div className="grid min-w-0 gap-2">
         {query.source !== "api" ? (
           <p className="m-0 text-sm text-warning" role="status">
             {copy.stale}
-            {query.errorRequestId ? ` Request ${query.errorRequestId}.` : null}
+            {query.errorRequestId ? ` ${requestCopy.requestId(query.errorRequestId)}` : null}
           </p>
         ) : null}
         {children(query.data)}
@@ -136,7 +139,7 @@ function CheckList({
     <div className="grid min-w-0 gap-0 border-t border-line/60 pt-1 dark:border-white/10">
       {sortSettingsChecks(checks).map((check) => {
         const action =
-          check.status === "action_required" ? settingsCheckAction(check.check_id) : null;
+          check.status === "action_required" ? settingsCheckAction(check.check_id, strings) : null;
         return (
           <div
             className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10"
@@ -145,11 +148,11 @@ function CheckList({
           >
             <div className="grid min-w-0 gap-1">
               <p className="m-0 font-medium text-ink break-words">
-                {settingsCheckLabel(check.check_id)}
+                {settingsCheckLabel(check.check_id, strings)}
               </p>
               {check.status === "action_required" ? (
                 <p className="m-0 text-sm leading-snug text-ink break-words">
-                  {settingsCheckGuidance(check.check_id)}
+                  {settingsCheckGuidance(check.check_id, strings)}
                 </p>
               ) : null}
               {action ? (
@@ -185,6 +188,7 @@ function SettingsPanel({
   inspect?: Record<string, unknown>;
   children: ReactNode;
 }) {
+  const strings = useStrings();
   return (
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
@@ -194,7 +198,7 @@ function SettingsPanel({
         </div>
         <div className="flex items-center gap-3">
           {status ? <SettingsStatusPill status={status} /> : null}
-          {inspect ? <InspectDrawer record={inspect} title={`${title} report`} /> : null}
+          {inspect ? <InspectDrawer record={inspect} title={strings.ui.platformSettings.reportTitle(title)} /> : null}
         </div>
       </div>
       {children}

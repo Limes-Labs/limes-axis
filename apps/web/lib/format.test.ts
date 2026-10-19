@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   formatClockTime,
@@ -33,6 +33,18 @@ describe("timestamp formatters", () => {
 
   it.each([null, undefined])("renders a fallback for %j", (value) => {
     expect(formatTimestamp(value)).toBe("Not recorded");
+  });
+
+  describe("in the Italian console", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("renders the fallback in the console locale, like the dates it replaces", () => {
+      vi.stubGlobal("document", { documentElement: { lang: "it" } });
+      expect(formatTimestamp(null)).toBe("Non registrato");
+      expect(formatDateTime("not-a-date")).toBe("Non registrato");
+    });
   });
 
   it("does not treat null as the unix epoch", () => {

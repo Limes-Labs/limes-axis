@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import type { IdentitySessionReadModel } from "./platform-overview";
 import { consoleDateTimeFormat } from "@/lib/format";
 
@@ -33,9 +35,9 @@ export function operatorInitials(actorId?: string): string {
   return letters || "OP";
 }
 
-export function formatExpiry(expiresAt?: number): string {
+export function formatExpiry(expiresAt?: number, copy: ConsoleStrings = strings): string {
   if (!expiresAt) {
-    return "Not provided";
+    return copy.labels.notProvided;
   }
 
   return consoleDateTimeFormat({
@@ -54,12 +56,14 @@ export function notificationTone(severity: string): string {
 
 export function identitySessionLabel(
   identitySession: IdentitySessionReadModel | null,
+  copy: ConsoleStrings = strings,
 ): string {
+  const labels = copy.labels.identitySession;
   if (!identitySession) {
-    return "API required";
+    return labels.required;
   }
 
-  return identitySession.authenticated ? "API verified" : "Public";
+  return identitySession.authenticated ? labels.verified : labels.public;
 }
 
 export function identitySessionTone(

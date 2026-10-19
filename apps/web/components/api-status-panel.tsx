@@ -5,6 +5,7 @@ import { Activity, ServerCrash } from "lucide-react";
 
 import {
   getApiBaseUrl,
+  apiStatusCopy,
   summarizeApiStatus,
   type ApiStatusSummary,
 } from "@/lib/api-status";
@@ -57,9 +58,9 @@ export function ApiStatusPanel() {
       <div className="grid gap-2">
         <span className={`status-pill status-${status.state}`}>
           <Icon size={15} />
-          {status.label}
+          {apiStatusCopy(status.state, strings).label}
         </span>
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{status.detail}</p>
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{status.state === "checking" ? strings.labels.apiStatus.panelCheckingDetail : apiStatusCopy(status.state, strings).detail}</p>
         <p className="font-mono text-[13px] break-words text-muted">{apiBaseUrl}</p>
       </div>
     </section>

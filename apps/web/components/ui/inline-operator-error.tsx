@@ -1,4 +1,5 @@
 import type { AxisOperatorError } from "@/lib/axis-api";
+import { useStrings } from "@/providers/locale-provider";
 
 /**
  * Compact mutation failure for forms that already use inline status copy.
@@ -12,6 +13,7 @@ export function InlineOperatorError({
   error: AxisOperatorError;
   prefix?: string;
 }) {
+  const strings = useStrings();
   return (
     <div className="grid gap-1" role="alert">
       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-danger break-words">
@@ -19,7 +21,7 @@ export function InlineOperatorError({
       </p>
       {error.requestId ? (
         <p className="m-0 text-xs leading-snug text-muted break-words">
-          Request reference: <span className="font-mono text-ink">{error.requestId}</span>
+          {strings.ui.uiInlineOperatorError.requestReference}{" "}<span className="font-mono text-ink">{error.requestId}</span>
         </p>
       ) : null}
     </div>

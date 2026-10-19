@@ -21,7 +21,7 @@ import {
 } from "@/lib/agent-demo";
 import { cn } from "@/lib/cn";
 import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
-import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
+import { formatContextPath, formatTimestamp } from "@/lib/format";
 import {
   platformStatusClass,
   platformStatusLabel,
@@ -242,11 +242,11 @@ export function AgentRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), registry.provenance)}
-            subject="agent registry"
+            subject={strings.sources.subjects.agentRegistry}
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <Bot size={15} />
-            {platformStatusLabel(registry.registry_status)}
+            {platformStatusLabel(registry.registry_status, strings)}
           </span>
           <span className="font-mono text-xs text-muted">
             {formatTimestamp(registry.as_of)}
@@ -303,7 +303,7 @@ export function AgentRegistry() {
               <div className="grid gap-1">
                 <Eyebrow>{strings.agents.list.eyebrow}</Eyebrow>
                 <h2 className="font-display m-0 text-xl text-ink">
-                  {formatNumber(filteredAgents.length)} visible
+                  {strings.ui.common.visibleCount(filteredAgents.length)}
                 </h2>
               </div>
               <div className="grid gap-2">

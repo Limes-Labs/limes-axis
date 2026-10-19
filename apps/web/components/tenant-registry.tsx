@@ -224,11 +224,11 @@ export function TenantRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), PROVENANCE_NOT_APPLICABLE)}
-            subject="tenant registry"
+            subject={strings.sources.subjects.tenantRegistry}
           />
           <span className="status-pill signal-watch">
             <ShieldCheck size={15} />
-            {formatNumber(registry.active_tenant_count)} active
+            {strings.ui.tenantRegistry.activeCount(registry.active_tenant_count)}
           </span>
         </div>
       </div>
@@ -267,7 +267,7 @@ export function TenantRegistry() {
               <option value={allTenantFilter}>{strings.ui.common.allStatuses}</option>
               {tenantLifecycleStatuses.map((status: TenantLifecycleStatus) => (
                 <option key={status} value={status}>
-                  {tenantStatusLabel(status)}
+                  {tenantStatusLabel(status, strings)}
                 </option>
               ))}
             </Select>
@@ -301,7 +301,7 @@ export function TenantRegistry() {
                   </td>
                   <td>
                     <span className={`status-pill ${tenantStatusClass(tenant.status)}`}>
-                      {tenantStatusLabel(tenant.status)}
+                      {tenantStatusLabel(tenant.status, strings)}
                     </span>
                   </td>
                   <td>
@@ -310,12 +310,12 @@ export function TenantRegistry() {
                   <td>
                     {tenant.status === "suspended" ? (
                       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                        Suspended by {tenant.suspended_by ?? "unknown"}
+                        {strings.ui.tenantRegistry.suspendedBy(tenant.suspended_by ?? strings.ui.tenantRegistry.unknownActor)}
                         {tenant.suspension_reason ? ` — ${tenant.suspension_reason}` : ""}
                       </p>
                     ) : tenant.reactivated_at ? (
                       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                        Reactivated by {tenant.reactivated_by ?? "unknown"}
+                        {strings.ui.tenantRegistry.reactivatedBy(tenant.reactivated_by ?? strings.ui.tenantRegistry.unknownActor)}
                       </p>
                     ) : (
                       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.tenantRegistry.noLifecycleChanges}</p>

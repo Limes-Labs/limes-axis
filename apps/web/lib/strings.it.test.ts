@@ -26,9 +26,12 @@ const ENGLISH_ALLOWLIST = new Set([
   "Lease",
   "Limes Axis",
   "Menu",
+  "model routing",
   "No",
   "Object store",
+  "Online",
   "Policy",
+  "policy",
   "Provider",
   "Replay",
   "Runtime",
@@ -36,6 +39,7 @@ const ENGLISH_ALLOWLIST = new Set([
   "Snapshot",
   "Stewardship",
   "Tenant",
+  "tenant",
   "Workflow",
 ]);
 
@@ -51,6 +55,9 @@ const IDENTICAL_TEMPLATES = new Set([
   "connectors.manifestImport.applyEndpointPaths",
   "models.reference.routeDetail.latencyValue",
   "models.reference.routeDetail.tokenSplit",
+  "ui.common.revisionNumber",
+  "ui.common.revisionVersion",
+  "ui.overviewActivityTimeline.dateInZone",
   "ui.detailPages.policyMetaTitle",
   "ui.detailPages.tenantMetaTitle",
 ]);

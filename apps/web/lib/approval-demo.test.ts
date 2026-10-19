@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { stringsIt } from "./strings.it";
+
 import {
   approvalDecisionActorId,
   approvalDecisionActorScopes,
@@ -99,6 +101,12 @@ describe("approval inbox helpers", () => {
     expect(approvalRiskClass("medium")).toBe("signal-watch");
     expect(approvalRiskClass("low")).toBe("signal-ready");
     expect(approvalDecisionLabel("request_changes")).toBe("Changes Requested");
+  });
+
+  it("labels decisions from the catalogue it is given", () => {
+    expect(approvalDecisionLabel("approve", stringsIt)).toBe("Approvata");
+    expect(approvalDecisionLabel("reject", stringsIt)).toBe("Rifiutata");
+    expect(approvalDecisionLabel("request_changes", stringsIt)).toBe("Modifiche richieste");
   });
 
   it("requires a rationale for rejections and for every high-risk decision", () => {

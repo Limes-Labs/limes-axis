@@ -59,10 +59,10 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
           <p className="eyebrow m-0">{strings.ui.common.decision}</p>
-          <p className="m-0 font-medium text-ink break-words">{policyEffectLabel(decision.effect)}</p>
+          <p className="m-0 font-medium text-ink break-words">{policyEffectLabel(decision.effect, strings)}</p>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {decision.matched && decision.matched_policy_id
-              ? `Matched ${decision.matched_policy_id} r${decision.matched_revision_number} / ${decision.matched_policy_version}`
+              ? strings.ui.policyEvaluationPanel.matchedPolicy(decision.matched_policy_id, decision.matched_revision_number, decision.matched_policy_version)
               : strings.policyDetail.precedence.noMatch}
           </p>
           <p
@@ -73,7 +73,7 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
           </p>
         </div>
         <span className={`status-pill ${policyEffectClass(decision.effect)}`}>
-          {policyEffectLabel(decision.effect)}
+          {policyEffectLabel(decision.effect, strings)}
         </span>
       </div>
 
@@ -86,7 +86,7 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
                 <span>
                   <span className="eyebrow m-0">{match.policy_id}</span>
                   <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                    r{match.revision_number} / {match.policy_version}
+                    {strings.ui.common.revisionVersion(match.revision_number, match.policy_version)}
                   </span>
                 </span>
                 <span className="font-mono text-[13px] break-words">{match.effect}</span>
@@ -202,7 +202,7 @@ export function PolicyEvaluationPanel({
           >
             {platformPolicyScopes.map((scopeOption) => (
               <option key={scopeOption} value={scopeOption}>
-                {policyScopeLabel(scopeOption)}
+                {policyScopeLabel(scopeOption, strings)}
               </option>
             ))}
           </Select>
@@ -265,15 +265,13 @@ export function PolicyEvaluationPanel({
       </form>
 
       {evaluation.phase === "failed" ? (
-        <InlineOperatorError error={evaluation.error} prefix="Dry-run evaluation failed" />
+        <InlineOperatorError error={evaluation.error} prefix={strings.ui.policyEvaluationPanel.dryRunEvaluationFailed} />
       ) : null}
       {evaluation.phase === "decided" ? (
         <>
           {evaluation.draftMatch !== null ? (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              Advisory draft check: the drafted conditions{" "}
-              {evaluation.draftMatch ? "would match" : "would not match"} this sample context.
-              The decision below only evaluates policies already persisted for the tenant.
+              {strings.ui.policyEvaluationPanel.draftCheck(evaluation.draftMatch)}
             </p>
           ) : null}
           <DecisionResult decision={evaluation.decision} />

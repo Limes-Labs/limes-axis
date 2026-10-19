@@ -26,7 +26,7 @@ import {
   type ActionRunPersistenceResult,
   type ManufacturingActionRegistry,
 } from "@/lib/action-demo";
-import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
+import { formatContextPath, formatTimestamp } from "@/lib/format";
 import { deriveGovernedActor } from "@/lib/governed-action";
 import {
   platformStatusClass,
@@ -268,7 +268,7 @@ export function ActionRegistry() {
         <div className="flex justify-end">
           <SourcePill
             state={deriveSourceState(source, true, registry.provenance)}
-            subject="action registry"
+            subject={strings.sources.subjects.actionRegistry}
           />
         </div>
         <EmptyPanel
@@ -306,11 +306,11 @@ export function ActionRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), registry.provenance)}
-            subject="action registry"
+            subject={strings.sources.subjects.actionRegistry}
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <FileText size={15} />
-            {platformStatusLabel(registry.registry_status)}
+            {platformStatusLabel(registry.registry_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatTimestamp(registry.as_of)}</span>
         </div>
@@ -321,7 +321,7 @@ export function ActionRegistry() {
           <StatCard
             aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
+                {platformStatusLabel(metric.status, strings)}
               </span>
             }
             detail={metric.detail}
@@ -401,11 +401,11 @@ export function ActionRegistry() {
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
               <p className="eyebrow m-0">{strings.ui.actionRegistry.actions}</p>
-              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatNumber(filteredActions.length)} visible</h2>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.common.visibleCount(filteredActions.length)}</h2>
             </div>
             <span className="status-pill signal-watch">
               <Filter size={15} />
-              {formatNumber(gatedActions)} gated
+              {strings.ui.actionRegistry.gatedCount(gatedActions)}
             </span>
           </div>
           {filteredActions.length === 0 ? (
@@ -489,7 +489,7 @@ export function ActionRegistry() {
             <div>
               <p className="eyebrow m-0">{strings.ui.actionRegistry.autonomy}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedAction.policy.autonomy_ceiling}</p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Ceiling for agent draft/execution</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.actionRegistry.ceilingForAgentDraft}</p>
             </div>
           </div>
 
@@ -500,10 +500,10 @@ export function ActionRegistry() {
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{selectedAction.policy.model_egress_policy}</span>
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{selectedAction.policy.audit_event_type}</span>
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">
-                  idempotency {selectedAction.policy.idempotency_required ? "required" : "optional"}
+                  {strings.ui.actionRegistry.idempotencyRequirement(selectedAction.policy.idempotency_required)}
                 </span>
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">
-                  dry-run {selectedAction.policy.dry_run_supported ? "supported" : "blocked"}
+                  {strings.ui.actionRegistry.dryRunSupport(selectedAction.policy.dry_run_supported)}
                 </span>
               </div>
             </section>
@@ -550,7 +550,7 @@ export function ActionRegistry() {
                     </span>
                   ))
                 ) : (
-                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">not_required</span>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{strings.ui.actionRegistry.noApprovalRefs}</span>
                 )}
               </div>
             </section>

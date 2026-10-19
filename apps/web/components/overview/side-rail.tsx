@@ -56,7 +56,7 @@ export function SideRail({
       data-source-state={sourceState}
     >
       <div className="grid gap-1">
-        <h2 className="m-0 font-display text-lg text-ink" title={sourceStateLabel(sourceState, "audit window")}>{view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}</h2>
+        <h2 className="m-0 font-display text-lg text-ink" title={sourceStateLabel(sourceState, strings.sources.subjects.auditWindow, strings)}>{view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}</h2>
         <p className="m-0 text-xs text-muted">{view === "category" ? copy.window(events.length, windowLimit) : copy.dateWindow(events.length, windowLimit)}</p>
         {hiddenReadCount > 0 ? (
           <p className="m-0 text-xs text-muted">{strings.audit.reads.hidden(hiddenReadCount)}</p>
@@ -84,7 +84,7 @@ export function SideRail({
         </TabsContent>
         <TabsContent value="date"><ActivityTimeline events={events} /></TabsContent>
       </Tabs>
-      {sourceState === "stale" ? <SourcePill state={sourceState} subject="audit window" /> : null}
+      {sourceState === "stale" ? <SourcePill state={sourceState} subject={strings.sources.subjects.auditWindow} /> : null}
     </Card>
   );
 }

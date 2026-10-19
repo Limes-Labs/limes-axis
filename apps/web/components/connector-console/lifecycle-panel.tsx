@@ -156,7 +156,7 @@ function HistoryRow({ revision }: { revision: ConnectorManifestRecord }) {
       <span className={`status-pill ${lifecycleStatusClass(revision.status)}`}>
         {formatConnectorLabel(revision.status)}
       </span>
-      <span className="font-mono text-xs text-muted">r{revision.revision_number}</span>
+      <span className="font-mono text-xs text-muted">{strings.ui.common.revisionNumber(revision.revision_number)}</span>
       {contentLabel ? (
         <span className="min-w-0 break-words text-sm text-muted">
           {contentLabel}

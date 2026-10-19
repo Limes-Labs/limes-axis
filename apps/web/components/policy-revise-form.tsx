@@ -171,16 +171,16 @@ export function PolicyReviseForm({
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
           <p className="eyebrow m-0">{strings.ui.policyReviseForm.revisePolicy}</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Append a revision to r{current.revision_number}</h2>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.policyReviseForm.appendRevisionTo(current.revision_number)}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {strings.policyDetail.reviseAccess.summary} Pre-filled from the current revision;
-            scope stays {policyScopeLabel(current.scope)}.{" "}
+            {strings.policyDetail.reviseAccess.summary}{" "}
+            {strings.ui.policyReviseForm.prefilledScope(policyScopeLabel(current.scope, strings))}{" "}
             {strings.policyDetail.reviseAccess.detail}
           </p>
           <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
             POST /platform/policies/{current.policy_id}/revisions — {platformPolicyReviseScope}
           </p>
-          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">Idempotency key {idempotencyKey}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{strings.ui.common.idempotencyKey(idempotencyKey)}</p>
         </div>
         <GitBranchPlus size={18} />
       </div>
@@ -210,7 +210,7 @@ export function PolicyReviseForm({
           >
             {platformPolicyEffects.map((effect) => (
               <option key={effect} value={effect}>
-                {policyEffectLabel(effect)}
+                {policyEffectLabel(effect, strings)}
               </option>
             ))}
           </Select>
@@ -251,7 +251,7 @@ export function PolicyReviseForm({
         <PolicyConditionFields
           conditions={draft.conditions}
           errors={fieldErrors}
-          labelPrefix="Revision"
+          labelPrefix={strings.ui.policyReviseForm.conditionsPrefix}
           onChange={updateConditions}
         />
         <Field className="col-span-full" label={strings.ui.common.notesOnePerLine}>
@@ -281,22 +281,25 @@ export function PolicyReviseForm({
 
       {submission.phase === "created" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          Revision created: r{submission.record.revision_number} /{" "}
-          {submission.record.policy_version} is now the active revision.
+          {strings.ui.policyReviseForm.revisionCreated(
+            submission.record.revision_number,
+            submission.record.policy_version,
+          )}
         </p>
       ) : null}
       {submission.phase === "replayed" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          Revision already applied: the API replayed r{submission.record.revision_number} /{" "}
-          {submission.record.policy_version} for this idempotency key without writing a new
-          revision.
+          {strings.ui.policyReviseForm.revisionReplayed(
+            submission.record.revision_number,
+            submission.record.policy_version,
+          )}
         </p>
       ) : null}
       {submission.phase === "conflict" ? (
-        <InlineOperatorError error={submission.error} prefix="Revision conflict" />
+        <InlineOperatorError error={submission.error} prefix={strings.ui.policyReviseForm.revisionConflict} />
       ) : null}
       {submission.phase === "failed" ? (
-        <InlineOperatorError error={submission.error} prefix="Policy revision failed" />
+        <InlineOperatorError error={submission.error} prefix={strings.ui.policyReviseForm.policyRevisionFailed} />
       ) : null}
     </section>
   );

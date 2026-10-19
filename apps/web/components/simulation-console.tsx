@@ -9,8 +9,6 @@ import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/compon
 import {
   formatContextPath,
   formatDateTime,
-  formatNumber,
-  pluralize,
 } from "@/lib/format";
 import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { parseManufacturingReplaySimulation } from "@/lib/runtime-contracts/simulation";
@@ -147,10 +145,10 @@ export function SimulationConsole() {
           {formatContextPath(simulationData.plant_name ?? humanizeIdentifier(simulationData.tenant_id), simulationData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={source} subject="replay artifacts" />
+          <SourcePill state={source} subject={strings.sources.subjects.replayArtifacts} />
           <span className={`status-pill ${platformStatusClass(simulationData.simulation_status)}`}>
             <ShieldCheck size={15} />
-            {platformStatusLabel(simulationData.simulation_status)}
+            {platformStatusLabel(simulationData.simulation_status, strings)}
           </span>
           <span className="font-mono text-[13px] break-words text-muted">{formatOverviewTimestamp(simulationData.as_of)}</span>
         </div>
@@ -161,7 +159,7 @@ export function SimulationConsole() {
           <StatCard
             aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
+                {platformStatusLabel(metric.status, strings)}
               </span>
             }
             detail={metric.detail}
@@ -178,7 +176,7 @@ export function SimulationConsole() {
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
           <div>
             <p className="eyebrow m-0">{strings.ui.simulationConsole.replayWindow}</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{pluralize(retentionWindow.retention_days, "day")} retention</h2>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.simulationConsole.retentionDays(retentionWindow.retention_days)}</h2>
             <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">
               {retentionWindow.policy_id} / {retentionWindow.disposal_action}
             </p>
@@ -189,29 +187,29 @@ export function SimulationConsole() {
             }`}
           >
             <ShieldCheck size={15} />
-            {retentionWindow.legal_hold ? "legal hold" : "enforced"}
+            {retentionWindow.legal_hold ? strings.ui.simulationConsole.legalHold : strings.ui.simulationConsole.enforced}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
           <div>
             <p className="eyebrow m-0">{strings.ui.simulationConsole.windowStart}</p>
             <p className="m-0 font-medium text-ink break-words">{formatDateTime(retentionWindow.retention_window_start)}</p>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{retentionWindow.retention_enforced ? "active" : "held"}</p>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{retentionWindow.retention_enforced ? strings.ui.simulationConsole.retentionActive : strings.ui.simulationConsole.retentionHeld}</p>
           </div>
           <div>
             <p className="eyebrow m-0">{strings.ui.simulationConsole.timeline}</p>
-            <p className="m-0 font-medium text-ink break-words">{formatNumber(retentionWindow.excluded_timeline_event_count)} excluded</p>
+            <p className="m-0 font-medium text-ink break-words">{strings.ui.simulationConsole.excludedCount(retentionWindow.excluded_timeline_event_count)}</p>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.simulationConsole.historyEvents}</p>
           </div>
           <div>
             <p className="eyebrow m-0">{strings.ui.common.audit}</p>
-            <p className="m-0 font-medium text-ink break-words">{formatNumber(retentionWindow.excluded_audit_event_count)} excluded</p>
+            <p className="m-0 font-medium text-ink break-words">{strings.ui.simulationConsole.excludedCount(retentionWindow.excluded_audit_event_count)}</p>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.simulationConsole.ledgerEvents}</p>
           </div>
           <div>
             <p className="eyebrow m-0">{strings.ui.simulationConsole.outputs}</p>
-            <p className="m-0 font-medium text-ink break-words">{formatNumber(retentionWindow.excluded_output_count)} excluded</p>
-            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatNumber(excludedReplayRecords)} total excluded</p>
+            <p className="m-0 font-medium text-ink break-words">{strings.ui.simulationConsole.excludedCount(retentionWindow.excluded_output_count)}</p>
+            <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.simulationConsole.totalExcluded(excludedReplayRecords)}</p>
           </div>
         </div>
       </section>
@@ -221,11 +219,11 @@ export function SimulationConsole() {
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
               <p className="eyebrow m-0">{strings.ui.simulationConsole.artifacts}</p>
-              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{pluralize(simulationData.artifacts.length, "replay preview")}</h2>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.simulationConsole.replayPreviews(simulationData.artifacts.length)}</h2>
             </div>
             <span className="status-pill signal-watch">
               <GitBranch size={15} />
-              {formatNumber(changedPolicies + changedPolicySetDiffs)} changed
+              {strings.ui.simulationConsole.changedCount(changedPolicies + changedPolicySetDiffs)}
             </span>
           </div>
 
@@ -245,7 +243,7 @@ export function SimulationConsole() {
                     <span className="m-0 font-medium text-ink break-words">{artifact.workflow_name}</span>
                     <span className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{artifact.workflow_id}</span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                      {pluralize(artifact.timeline_event_count + artifact.audit_event_count, "evidence event")}
+                      {strings.ui.simulationConsole.evidenceEvents(artifact.timeline_event_count + artifact.audit_event_count)}
                     </span>
                   </span>
                   <span className="status-pill signal-watch">
@@ -319,7 +317,7 @@ export function SimulationConsole() {
                 </div>
                 <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
                   <span className="eyebrow m-0">{strings.ui.simulationConsole.outcomeChange}</span>
-                  <span className="font-mono text-[13px] break-words">{primaryPolicy.changed_outcome ? "yes" : "no"}</span>
+                  <span className="font-mono text-[13px] break-words">{strings.ui.simulationConsole.outcomeChanged(primaryPolicy.changed_outcome)}</span>
                 </div>
               </div>
             </section>
@@ -401,7 +399,7 @@ export function SimulationConsole() {
               </div>
               <span className="status-pill signal-ready">
                 <History size={15} />
-                {pluralize(selectedArtifact.timeline.length, "event")}
+                {strings.ui.simulationConsole.eventCount(selectedArtifact.timeline.length)}
               </span>
             </div>
             <div className="grid gap-3">
@@ -429,11 +427,11 @@ export function SimulationConsole() {
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
           <div>
             <p className="eyebrow m-0">{strings.ui.simulationConsole.persistedOutputs}</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{pluralize(persistedOutputs.length, "governed output")}</h2>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.simulationConsole.governedOutputs(persistedOutputs.length)}</h2>
           </div>
           <span className="status-pill signal-ready">
             <FileText size={15} />
-            audit-backed
+            {strings.ui.simulationConsole.auditBacked}
           </span>
         </div>
         <div className="grid min-w-0 gap-2">
@@ -450,7 +448,7 @@ export function SimulationConsole() {
           ) : (
             <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
               <span className="eyebrow m-0">{strings.ui.simulationConsole.noPersistedOutput}</span>
-              <span className="font-mono text-[13px] break-words">preview-only</span>
+              <span className="font-mono text-[13px] break-words">{strings.ui.simulationConsole.previewOnly}</span>
             </div>
           )}
         </div>
@@ -466,7 +464,7 @@ export function SimulationConsole() {
             </div>
             <div>
               <p className="eyebrow m-0">{strings.ui.simulationConsole.retention}</p>
-              <p className="m-0 font-medium text-ink break-words">{pluralize(output.retention_window_days, "day")}</p>
+              <p className="m-0 font-medium text-ink break-words">{strings.ui.simulationConsole.dayCount(output.retention_window_days)}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{output.status}</p>
             </div>
             <div>
@@ -476,7 +474,7 @@ export function SimulationConsole() {
             </div>
             <div>
               <p className="eyebrow m-0">{strings.ui.common.audit}</p>
-              <p className="m-0 font-medium text-ink break-words">{output.audit_event_id ?? "pending"}</p>
+              <p className="m-0 font-medium text-ink break-words">{output.audit_event_id ?? strings.ui.common.pendingValue}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{output.required_scope}</p>
             </div>
           </div>
