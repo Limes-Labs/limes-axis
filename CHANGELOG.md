@@ -12,25 +12,30 @@ release-bound behavior, not the complete commit history.
   support states that keep gaps and limitations visible, freshness
   re-verification against observed facts (expired certificates, wrong
   release/profile, superseded answers cannot pass as current), preflight
-  gating, and a fixed scope note for #871/#879 report citations. Contract
+  gating (required entries without positive support block issuance unless
+  the partial pack lists them), entry disclosure bound to the pack's
+  disclosure class, and a fixed scope note for #871/#879 report citations. Contract
   slice only; no artifact packaging or signing
-- Deterministic assurance pack assembly: released-only packaging of an
-  approved manifest into a bounded archive (canonical manifest JSON,
-  sanitized local Markdown index, permitted attachments) with caller-owned
-  release authorization and final-output secret scanning; revocation,
-  revision changes, digest mismatches or unsupported scan formats abort
-  generation instead of reusing a privileged cached package. No signing,
-  issuance or download delivery
   ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Deterministic assurance pack assembly: released-only packaging of a
+  preflight-ready manifest into a bounded, stored (uncompressed) archive
+  (canonical manifest JSON, sanitized local Markdown index, permitted
+  attachments) with caller-owned release authorization and final-output
+  secret scanning; revocation, revision changes, digest mismatches or
+  unsupported scan formats abort generation instead of reusing a privileged
+  cached package. No signing, issuance or download delivery
+  ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
 - Immutable signed assurance pack issuance and bounded offline verification:
-  final approval binds to the exact assembled package/manifest digests with a
-  sign-time support re-check, issuance records carry the #729 lifecycle facts
-  (capture time, valid-through, revocation state, supersession) as separate
-  fields, and verification runs with no network or global trust — separately
-  trusted verification material, supported-algorithm allowlist, embedded
-  trust anchors rejected, stale revocation data or an uncertain clock yield
-  qualified (never unqualified-current) results, and the wording states that
-  a signature proves integrity and provenance, not certification
+  final approval binds to the exact assembled package and manifest digests
+  after a sign-time preflight and support re-check; frozen issuance records
+  carry the approver, Ed25519 signing profile and the #729 lifecycle facts
+  (capture time, valid-through, supersession by record digest) as separate
+  fields. The verifier reads the manifest and attachments from the package
+  itself under member/size bounds, needs only a separately trusted public
+  key, rejects unknown record fields and unsupported algorithms, and lets
+  stale or missing revocation data or an uncertain clock only qualify the
+  result; the wording states that a signature proves integrity and
+  provenance, not certification
   ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
 
 - A provider-neutral writeback contract that maps an existing typed action onto

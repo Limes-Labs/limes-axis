@@ -17,9 +17,13 @@ attachments. It owns no registry and performs no I/O of its own:
   is emitted as a bounded metadata citation — never as a copy of
   restricted bytes, a URL or a bearer link. The scope wording for #871/#879
   citations is the contract's own (`reference_scope_note`).
+* **Only ready packs are assembled.** The #883 preflight
+  (`pack_readiness`) must pass — unlisted missing required support blocks
+  generation before any evidence byte is read.
 * **The package is deterministic and bounded.** Fixed member order, fixed
-  timestamps, pinned archive metadata; entry count, attachment bytes and
-  total package size are capped. Any breach aborts the build — no partial
+  timestamps, pinned archive metadata and stored (uncompressed) members, so
+  the bytes do not depend on the local zlib build; entry count, attachment
+  bytes and total package size are capped. Any breach aborts the build — no partial
   or issued artifact exists on failure.
 * **The final output is scanned before release.** The manifest JSON, index
   text, member filenames and each packaged attachment's bytes go through
@@ -51,6 +55,7 @@ from typing import Protocol
 from axis_api.assurance_pack_contracts import (
     AnswerSelection,
     PackManifest,
+    pack_readiness,
     reference_scope_note,
 )
 
@@ -81,6 +86,7 @@ class PackagingError(ValueError):
     """Fixed safe codes; details never include secret or evidence content."""
 
     INVALID_MANIFEST = "invalid_assurance_pack_manifest"
+    NOT_READY = "pack_not_ready"
     RELEASE_NOT_CURRENT = "pack_release_not_current"
     ARTIFACT_UNAVAILABLE = "pack_artifact_unavailable"
     REVISION_MISMATCH = "pack_artifact_revision_mismatch"
@@ -155,7 +161,9 @@ def _ensure_safe(text: str) -> None:
         raise PackagingError(PackagingError.UNSAFE_TEXT)
 
 
-def _attachment_name(entry_id: str) -> str:
+def attachment_name(entry_id: str) -> str:
+    """The fixed package member name of one included attachment."""
+
     return f"attachments/{entry_id}.bin"
 
 
@@ -163,6 +171,8 @@ def _entry_block(entry: AnswerSelection) -> list[str]:
     lines = [
         f"## {entry.entry_id}",
         "",
+        f"answer revision: {entry.answer_revision} as of {entry.as_of}",
+        f"required: {'yes' if entry.required else 'no'}",
         f"support: {entry.support}",
         f"responsibility: {entry.responsibility}",
         f"disclosure: {entry.disclosure}",
@@ -186,6 +196,7 @@ def build_index_text(manifest: PackManifest) -> str:
             f"release: {manifest.release_snapshot.release} "
             f"profile: {manifest.release_snapshot.profile}"
         ),
+        f"issued on: {manifest.issued_on} valid through: {manifest.valid_through}",
         "",
         "## Entries",
         "",
@@ -193,17 +204,26 @@ def build_index_text(manifest: PackManifest) -> str:
     for entry in manifest.entries:
         lines.extend(_entry_block(entry))
         lines.append("")
+    lines.append("## Unsupported requirements")
+    lines.append("")
+    for entry_id in manifest.unsupported_requirements:
+        lines.append(f"- {entry_id}")
+    if not manifest.unsupported_requirements:
+        lines.append("- none listed")
+    lines.append("")
     lines.append("## Included attachments")
     lines.append("")
     for entry in manifest.entries:
         if entry.mode == "included_artifact":
-            lines.append(f"- {_attachment_name(entry.entry_id)}")
+            lines.append(f"- {attachment_name(entry.entry_id)}")
     lines.append("")
     lines.append(reference_scope_note())
     return "\n".join(lines)
 
 
-def _manifest_json(manifest: PackManifest) -> bytes:
+def canonical_manifest_json(manifest: PackManifest) -> bytes:
+    """The canonical manifest bytes packaged as ``manifest.json``."""
+
     return json.dumps(
         manifest.model_dump(mode="json"),
         sort_keys=True,
@@ -218,7 +238,9 @@ def _build_zip(members: list[tuple[str, bytes]]) -> bytes:
         for name, content in members:
             info = zipfile.ZipInfo(name)
             info.date_time = _PACKAGE_DATE_TIME
-            info.compress_type = zipfile.ZIP_DEFLATED
+            # Stored, not deflated: compressed bytes vary with the zlib build,
+            # stored bytes do not, and verifiers read sizes without inflating.
+            info.compress_type = zipfile.ZIP_STORED
             info.create_system = 3  # pinned; otherwise platform-dependent
             info.external_attr = 0o600 << 16
             archive.writestr(info, content)
@@ -235,15 +257,18 @@ def build_assurance_pack(
     Deterministic given the same manifest, artifact bytes and scan policy.
     Raises fixed-code :class:`PackagingError` on any authorization,
     integrity, scan or bound failure; the caller is left with no package
-    to release. Run the #883 freshness preflight (`check_support_freshness`)
-    before calling — this builder verifies revision/digest integrity but
-    re-derives no support states.
+    to release. The #883 readiness preflight runs here; run the freshness
+    re-check (`check_support_freshness`) before calling — this builder
+    verifies revision/digest integrity but re-derives no support states.
     """
 
     if not isinstance(manifest, PackManifest) or not manifest.entries:
         raise PackagingError(PackagingError.INVALID_MANIFEST)
+    _, ready, _ = pack_readiness(manifest)
+    if not ready:
+        raise PackagingError(PackagingError.NOT_READY)
 
-    manifest_json = _manifest_json(manifest)
+    manifest_json = canonical_manifest_json(manifest)
     index_text = build_index_text(manifest)
 
     members: list[tuple[str, bytes]] = [
@@ -255,6 +280,7 @@ def build_assurance_pack(
     included = [entry for entry in manifest.entries if entry.mode == "included_artifact"]
     if len(included) > MAX_ATTACHMENTS:
         raise PackagingError(PackagingError.BOUNDS_EXCEEDED)
+    total_bytes = len(manifest_json) + len(index_text.encode("utf-8"))
 
     for entry in manifest.entries:
         if entry.mode == "reference_only":
@@ -270,13 +296,14 @@ def build_assurance_pack(
             continue
 
         content = artifacts.resolve(entry, manifest)
-        if len(content) > MAX_ATTACHMENT_BYTES:
+        total_bytes += len(content)
+        if len(content) > MAX_ATTACHMENT_BYTES or total_bytes > MAX_PACKAGE_BYTES:
             raise PackagingError(PackagingError.BOUNDS_EXCEEDED)
         # The approved digest is over the raw artifact bytes; a producer
         # cannot ship content that differs from the approved revision.
         if hashlib.sha256(content).hexdigest() != entry.artifact_digest:
             raise PackagingError(PackagingError.DIGEST_MISMATCH)
-        name = _attachment_name(entry.entry_id)
+        name = attachment_name(entry.entry_id)
         _ensure_safe(name)
         members.append((name, content))
         attachments.append(name)

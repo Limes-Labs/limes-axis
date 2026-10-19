@@ -10,6 +10,7 @@ import zipfile
 import pytest
 
 from axis_api.assurance_pack_contracts import (
+    POSITIVE_SUPPORT,
     AnswerSelection,
     ManifestVersion,
     PackContext,
@@ -20,6 +21,7 @@ from axis_api.assurance_pack_contracts import (
 from axis_api.assurance_packaging import (
     MAX_ATTACHMENT_BYTES,
     MAX_ATTACHMENTS,
+    MAX_PACKAGE_BYTES,
     PackagingError,
     build_assurance_pack,
     build_index_text,
@@ -101,13 +103,19 @@ def _entries() -> tuple[AnswerSelection, ...]:
 
 
 def _manifest(entries: tuple[AnswerSelection, ...] | None = None) -> PackManifest:
+    selected = _entries() if entries is None else entries
     return PackManifest(
         schema_version=ManifestVersion(major=1, minor=0),
         pack_id="pack-acme-2026",
         title="Acme assurance pack",
         context=_context(),
         release_snapshot=_snapshot(),
-        entries=_entries() if entries is None else entries,
+        entries=selected,
+        # An allowed partial pack lists its unsupported requirements.
+        unsupported_requirements=tuple(
+            entry.entry_id for entry in selected if entry.support not in POSITIVE_SUPPORT
+        ),
+        issued_on="2026-09-15",
         valid_through="2026-12-31",
     )
 
@@ -204,10 +212,11 @@ def test_planted_secret_in_released_attachment_blocks_release() -> None:
 
 def test_planted_secret_in_index_text_blocks_release() -> None:
     class IndexSecretScanner(_Scanner):
+        # Judges only the index text, so the block cannot come from the
+        # manifest JSON scan that runs first.
         def scan(self, data: bytes, fmt: str) -> bool:
-            if fmt == "text" and b"assurance pack" in data and _SECRET in data:
-                return False
-            return super().scan(data, fmt)
+            self.scanned.append((fmt, len(data)))
+            return not (fmt == "text" and b"# Acme assurance pack" in data and _SECRET in data)
 
     # The secret rides inside the (approved) limitation text of an entry.
     entries = (
@@ -228,6 +237,7 @@ def test_planted_secret_in_index_text_blocks_release() -> None:
     with pytest.raises(PackagingError) as blocked:
         build_assurance_pack(_manifest(entries), source, scanner)
     assert blocked.value.code == PackagingError.SECRET_DETECTED
+    assert [fmt for fmt, _ in scanner.scanned] == ["json", "text"]
 
 
 def test_planted_secret_in_filename_blocks_release() -> None:
@@ -307,6 +317,8 @@ def test_expired_support_is_caught_by_preflight_not_the_builder() -> None:
 def test_summary_preserves_limitations_and_scope_verbatim() -> None:
     index = build_index_text(_manifest())
     assert "FedRAMP assessment has not been performed for this release." in index
+    assert "issued on: 2026-09-15 valid through: 2026-12-31" in index
+    assert "## Unsupported requirements\n\n- ent-fedramp" in index
     assert "reference-only for their actually tested scope" in index
     # No automatic positive compliance wording is introduced.
     assert "fully compliant" not in index.lower()
@@ -357,11 +369,30 @@ def test_partial_failure_leaves_no_issued_success_artifact() -> None:
     assert source.resolved == ["ent-soc2", "ent-soc2-derivative"]
 
 
-def test_member_and_package_size_are_bounded() -> None:
-    from axis_api.assurance_packaging import MAX_MEMBERS, MAX_PACKAGE_BYTES
+def test_total_package_size_is_bounded() -> None:
+    content = b"x" * MAX_ATTACHMENT_BYTES
+    count = MAX_PACKAGE_BYTES // MAX_ATTACHMENT_BYTES + 1
+    entries = tuple(
+        _included(f"ent-large-{index}", f"questions.large-{index}", content)
+        for index in range(count)
+    )
+    source = _Source({entry.entry_id: content for entry in entries})
+    with pytest.raises(PackagingError) as blocked:
+        build_assurance_pack(_manifest(entries), source, _Scanner())
+    assert blocked.value.code == PackagingError.BOUNDS_EXCEEDED
+    # The cumulative bound trips before the archive is built or every entry is read.
+    assert len(source.resolved) < count
 
-    assert MAX_MEMBERS == 128
-    assert MAX_PACKAGE_BYTES == 16 * 1024 * 1024
+
+def test_unready_pack_is_refused_before_reading_evidence() -> None:
+    unlisted = PackManifest.model_validate(
+        {**_manifest().model_dump(mode="json"), "unsupported_requirements": ()}
+    )
+    source = _Source({"ent-soc2": _ATTACHMENT, "ent-soc2-derivative": _DERIVATIVE})
+    with pytest.raises(PackagingError) as blocked:
+        build_assurance_pack(unlisted, source, _Scanner())
+    assert blocked.value.code == PackagingError.NOT_READY
+    assert source.resolved == []
 
 
 # --- AC6: local generation, no external fetches, safe audit facts -------------
@@ -404,6 +435,7 @@ def test_deterministic_package_and_tamper_evidence() -> None:
     infos = archive.infolist()
     assert all(info.date_time == (1980, 1, 1, 0, 0, 0) for info in infos)
     assert all(info.create_system == 3 for info in infos)
+    assert all(info.compress_type == zipfile.ZIP_STORED for info in infos)
     assert archive.read("attachments/ent-soc2.bin") == _ATTACHMENT
 
     # Different approved attachment bytes produce a different package.

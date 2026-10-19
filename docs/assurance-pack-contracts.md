@@ -22,6 +22,12 @@ single `invalid_assurance_pack_manifest` code.
   never be presented as a generic product claim; the context is part of the
   digest, so re-audienceing a pack is a new candidate that must be reviewed
   again.
+- Entry disclosure is bound to that class: an `included_artifact` entry can
+  never exceed the pack's disclosure class (no NDA artifact in a `public`
+  pack), and `internal_only` entries cannot appear in a disclosed pack at
+  all — not even as reference-only citations, whose references would leak.
+- `issued_on` and `valid_through` are real calendar dates; `valid_through`
+  cannot precede `issued_on`.
 - `ReleaseSnapshot` freezes the release version, profile and the exact
   deployment-posture observation (reference + revision + digest) the whole
   pack speaks about — from #730; this contract creates no new registry.
@@ -51,12 +57,18 @@ a superseded answer cannot pass as current support; stale entries are named
 `entry:reason` against the manifest's digest, so the stale pack is
 detectably different from its approved form and preflight must run again.
 
-## Preflight gating
+## Required entries and preflight gating
 
-`pack_readiness` blocks issuance when a pack contains no `current` support
-or when structured states lack their limitations (already
-construction-enforced — the check exists for parsed candidates). Missing
-required support never silently degrades to a positive answer.
+Entries are `required` by default. Only `current` and
+`customer_responsibility` answer a requirement positively. A required entry
+in any other state is an unsupported requirement: `pack_readiness` blocks
+issuance with `<entry_id>:required_support_missing` unless the manifest
+lists it in `unsupported_requirements` — an allowed partial pack names its
+gaps explicitly. The list may only name required entries without positive
+support. Preflight also blocks a pack with no `current` support at all and
+re-checks limitation statements for parsed candidates (construction already
+enforces them). Missing required support never silently degrades to a
+positive answer.
 
 ## Scope note for #871 / #879 citations
 
