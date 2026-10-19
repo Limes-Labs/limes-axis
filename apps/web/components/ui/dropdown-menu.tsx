@@ -2,6 +2,7 @@
 
 import type { ComponentProps } from "react";
 
+import { Check } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/cn";
@@ -10,6 +11,13 @@ export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
+export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
+
+const itemClass = cn(
+  "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-ink outline-none select-none",
+  "data-[disabled]:pointer-events-none data-[disabled]:opacity-55",
+  "data-[highlighted]:bg-tint-100 data-[highlighted]:text-signal",
+);
 
 export function DropdownMenuContent({
   className,
@@ -36,15 +44,28 @@ export function DropdownMenuItem({
   ...props
 }: ComponentProps<typeof DropdownMenuPrimitive.Item>) {
   return (
-    <DropdownMenuPrimitive.Item
-      className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-ink outline-none select-none",
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-55",
-        "data-[highlighted]:bg-tint-100 data-[highlighted]:text-signal",
-        className,
-      )}
-      {...props}
-    />
+    <DropdownMenuPrimitive.Item className={cn(itemClass, className)} {...props} />
+  );
+}
+
+/**
+ * A `menuitemradio`: Radix exposes the choice through `aria-checked`, and the
+ * check mark repeats it visually so state never rests on color alone.
+ */
+export function DropdownMenuRadioItem({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem className={cn(itemClass, "pr-2", className)} {...props}>
+      {children}
+      <span aria-hidden="true" className="ml-auto inline-flex size-4 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <Check size={14} />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+    </DropdownMenuPrimitive.RadioItem>
   );
 }
 

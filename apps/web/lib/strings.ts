@@ -235,6 +235,11 @@ const shell = {
   notificationsLabel: (badge: string) => `Open notifications, ${badge} unread`,
   account: "Open operator account",
   accountLabel: (visible: string) => `${visible}, open operator account`,
+  theme: {
+    trigger: "Color theme",
+    triggerLabel: (current: string) => `Color theme: ${current}`,
+    options: { system: "System", light: "Light", dark: "Dark" },
+  },
 } as const;
 
 const commandMenu = {

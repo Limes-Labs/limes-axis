@@ -259,14 +259,15 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("toggles to the navy dark theme and persists it across reloads", async ({ page }) => {
+  test("switches to the navy dark theme, persists it, and returns to System", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
     await expectAxisLightShell(page);
 
-    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await page.getByRole("button", { name: "Color theme: System" }).click();
+    await page.getByRole("menuitemradio", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
     const dark = await page.evaluate(() => ({
@@ -289,8 +290,16 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
     await expectNoUndersizedTargets(page);
 
-    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await page.getByRole("button", { name: "Color theme: Dark" }).click();
+    await expect(page.getByRole("menuitemradio", { name: "Dark" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.getByRole("menuitemradio", { name: "System" }).click();
+    // Playwright's default color scheme is light, so System resolves to light.
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(page.getByRole("button", { name: "Color theme: System" })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("axis-theme"))).toBe("system");
     await expectAxisLightShell(page);
     expect(pageErrors).toEqual([]);
   });
