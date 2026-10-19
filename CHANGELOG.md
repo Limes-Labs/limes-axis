@@ -193,6 +193,12 @@ release-bound behavior, not the complete commit history.
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
 
+- Tenant-scoped full-text search index projection (#873): bounded approved text
+  from committed ontology promotions and normalized document observations,
+  monotonic revision fencing with durable tombstones, row-locked concurrent
+  writer serialization, metadata-only audit evidence and a disposable,
+  rebuildable index table. No query surface or retrieval authorization in this
+  slice.
 - Restore-capable tenant portability manifest contract
   ([#876](https://github.com/Limes-Labs/limes-axis/issues/876)): versioned
   component inventory with owner/consistency/restore decisions, typed rebinding
