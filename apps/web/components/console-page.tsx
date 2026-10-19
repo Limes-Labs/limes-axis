@@ -6,7 +6,8 @@ import { ConsoleTopbar } from "@/components/console-topbar";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingPanel } from "@/components/ui/states";
 import { ConsoleUrlStateProvider } from "@/lib/console-url-state";
-import { strings, type PageKey } from "@/lib/strings";
+import { type PageKey } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 type ConsolePageProps = {
   /** Route key into `strings.pages`; supplies eyebrow/title/description. */
@@ -32,6 +33,7 @@ export function ConsolePage({
   controls,
   children,
 }: ConsolePageProps) {
+  const strings = useStrings();
   const pageStrings = pageKey ? strings.pages[pageKey] : undefined;
   const resolvedTitle = title ?? pageStrings?.title ?? "";
   const resolvedDescription = subtitle ?? pageStrings?.description;

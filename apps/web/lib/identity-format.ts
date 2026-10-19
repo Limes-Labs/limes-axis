@@ -1,4 +1,5 @@
 import type { IdentitySessionReadModel } from "./platform-overview";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 export function apiStatusClass(state: string): string {
   if (state === "online") {
@@ -37,7 +38,7 @@ export function formatExpiry(expiresAt?: number): string {
     return "Not provided";
   }
 
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(expiresAt * 1000));

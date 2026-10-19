@@ -1,4 +1,5 @@
 import type { ManufacturingProvenance, PlatformStatus } from "./platform-overview";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 export type WorkflowSignal = {
   signal: string;
@@ -176,7 +177,7 @@ export function formatWorkflowRelativeTime(value: string, now: Date = new Date()
     return `${prefix}${days}d${suffix}`;
   }
 
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
+  return consoleDateTimeFormat({ month: "short", day: "numeric" }).format(
     new Date(value),
   );
 }

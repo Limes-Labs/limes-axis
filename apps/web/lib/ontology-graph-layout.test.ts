@@ -3,12 +3,48 @@ import { describe, expect, it } from "vitest";
 import type { OntologyNode, OntologyRelationship } from "./ontology-demo";
 import {
   buildOntologyGraphLayout,
+  clientPointToViewBox,
+  MIN_VIEW_HEIGHT,
+  MIN_VIEW_WIDTH,
+  NODE_HIT_RADIUS,
+  nodeTargetBounds,
   ONTOLOGY_GRAPH_MAX_ZOOM,
   ONTOLOGY_NODE_TIERS,
   panViewBox,
+  viewBoxScale,
   zoomViewBox,
   type GraphViewBox,
+  type OntologyGraphLayoutNode,
 } from "./ontology-graph-layout";
+
+type Box = { left: number; right: number; top: number; bottom: number };
+
+/** The marker half-diagonal (9) plus a small gap; farther reads as floating. */
+const MAX_LABEL_GAP = 14;
+
+/** The 13px mono label box, measured independently of the layout module. */
+function labelBox(entry: OntologyGraphLayoutNode): Box {
+  const width = entry.displayLabel.length * 8;
+  const left = entry.labelAnchor === "start"
+    ? entry.labelX
+    : entry.labelAnchor === "end" ? entry.labelX - width : entry.labelX - width / 2;
+  return { left: left - 4, right: left + width + 4, top: entry.labelY - 14, bottom: entry.labelY + 4 };
+}
+
+function square(x: number, y: number, half: number): Box {
+  return { left: x - half, right: x + half, top: y - half, bottom: y + half };
+}
+
+function boxesOverlap(a: Box, b: Box): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/** Distance from a node centre to the nearest point of a box (0 inside). */
+function distanceToBox(x: number, y: number, box: Box): number {
+  const dx = Math.max(box.left - x, 0, x - box.right);
+  const dy = Math.max(box.top - y, 0, y - box.bottom);
+  return Math.hypot(dx, dy);
+}
 
 function node(overrides: Partial<OntologyNode> & Pick<OntologyNode, "node_id" | "node_type">): OntologyNode {
   return {
@@ -113,30 +149,41 @@ describe("buildOntologyGraphLayout", () => {
     }
   });
 
-  it("keeps long labels separate from labels and node markers in a populated graph", () => {
+  it("anchors every label to its own node and keeps it clear of labels and other markers", () => {
     const populated = Array.from({ length: 18 }, (_, index) => node({
       node_id: `node_${index}`,
       node_type: nodes[index % nodes.length].node_type,
       label: `Supplier Delay Review Batch ${index}`,
     }));
     const layout = buildOntologyGraphLayout(populated, []);
-    expect(layout.nodes.every((entry) => entry.labelVisible)).toBe(true);
-    const boxes = layout.nodes.map((entry) => ({
-      left: entry.labelX - entry.displayLabel.length * 4 - 4,
-      right: entry.labelX + entry.displayLabel.length * 4 + 4,
-      top: entry.labelY - 14,
-      bottom: entry.labelY + 4,
-    }));
+    const visible = layout.nodes.filter((entry) => entry.labelVisible);
+    // Most labels fit beside their node; the rest wait for hover/focus rather
+    // than drifting to a distant free spot.
+    expect(visible.length).toBeGreaterThanOrEqual(populated.length / 2);
+
+    const boxes = visible.map(labelBox);
     boxes.forEach((box, index) => {
-      expect(box.top).toBeGreaterThanOrEqual(8);
-      expect(box.bottom).toBeLessThanOrEqual(layout.height - 8);
+      const owner = visible[index];
+      // Anchored: the label's box comes within a few units of its own marker.
+      expect(distanceToBox(owner.x, owner.y, box)).toBeLessThanOrEqual(MAX_LABEL_GAP);
       for (const other of boxes.slice(index + 1)) {
-        expect(box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top).toBe(false);
+        expect(boxesOverlap(box, other)).toBe(false);
       }
       for (const marker of layout.nodes) {
-        expect(box.left < marker.x + 14 && box.right > marker.x - 14 && box.top < marker.y + 14 && box.bottom > marker.y - 14).toBe(false);
+        if (marker.id === owner.id) continue;
+        expect(boxesOverlap(box, square(marker.x, marker.y, 14))).toBe(false);
       }
     });
+  });
+
+  it("never draws a leader line: labels sit in a slot touching the node", () => {
+    const layout = buildOntologyGraphLayout(nodes, relationships);
+    for (const entry of layout.nodes) {
+      expect(distanceToBox(entry.x, entry.y, labelBox(entry))).toBeLessThanOrEqual(MAX_LABEL_GAP);
+      expect(["start", "middle", "end"]).toContain(entry.labelAnchor);
+    }
+    // In the reference-sized graph every label fits beside its node.
+    expect(layout.nodes.every((entry) => entry.labelVisible)).toBe(true);
   });
 
   it("defers crowded labels to node focus without dropping their full names", () => {
@@ -149,14 +196,53 @@ describe("buildOntologyGraphLayout", () => {
     expect(layout.nodes.some((entry) => !entry.labelVisible)).toBe(true);
     expect(layout.nodes).toHaveLength(crowded.length);
     expect(layout.nodes.map((entry) => entry.label).sort()).toEqual(crowded.map((entry) => entry.label).sort());
-    const visible = layout.nodes.filter((entry) => entry.labelVisible);
-    visible.forEach((entry, index) => {
+    const visible = layout.nodes.filter((entry) => entry.labelVisible).map(labelBox);
+    visible.forEach((box, index) => {
       for (const other of visible.slice(index + 1)) {
-        const overlapsX = Math.abs(entry.labelX - other.labelX) < (entry.displayLabel.length + other.displayLabel.length) * 4 + 8;
-        const overlapsY = Math.abs(entry.labelY - other.labelY) < 18;
-        expect(overlapsX && overlapsY).toBe(false);
+        expect(boxesOverlap(box, other)).toBe(false);
       }
     });
+    // A deferred label still has an anchored slot for when it is focused.
+    for (const entry of layout.nodes.filter((item) => !item.labelVisible)) {
+      expect(entry.labelAnchor).toBe("middle");
+      expect(entry.labelX).toBe(entry.x);
+      expect(entry.labelY).toBeGreaterThan(entry.y);
+      expect(distanceToBox(entry.x, entry.y, labelBox(entry))).toBeLessThanOrEqual(MAX_LABEL_GAP);
+    }
+  });
+
+  it("fits the opening view to the drawn content so no side of the canvas is empty", () => {
+    for (const payload of [nodes, nodes.slice(0, 3)]) {
+      const layout = buildOntologyGraphLayout(payload, []);
+      const content = layout.nodes.flatMap((entry) => [square(entry.x, entry.y, NODE_HIT_RADIUS), labelBox(entry)]);
+      const left = Math.min(...content.map((box) => box.left));
+      const right = Math.max(...content.map((box) => box.right));
+      const top = Math.min(...content.map((box) => box.top));
+      const bottom = Math.max(...content.map((box) => box.bottom));
+      const { viewBox } = layout;
+
+      // Everything drawn is inside the view…
+      expect(viewBox.x).toBeLessThanOrEqual(left);
+      expect(viewBox.y).toBeLessThanOrEqual(top);
+      expect(viewBox.x + viewBox.width).toBeGreaterThanOrEqual(right);
+      expect(viewBox.y + viewBox.height).toBeGreaterThanOrEqual(bottom);
+      // …centred, so neither side carries an empty band…
+      const [marginLeft, marginTop, marginRight, marginBottom] = [
+        left - viewBox.x, top - viewBox.y, viewBox.x + viewBox.width - right, viewBox.y + viewBox.height - bottom,
+      ];
+      expect(Math.abs(marginLeft - marginRight)).toBeLessThan(0.05);
+      expect(Math.abs(marginTop - marginBottom)).toBeLessThan(0.05);
+      // …and only padded beyond the content when it is smaller than the minimum view.
+      if (viewBox.width > MIN_VIEW_WIDTH) expect(marginLeft).toBeLessThanOrEqual(16);
+      if (viewBox.height > MIN_VIEW_HEIGHT) expect(marginTop).toBeLessThanOrEqual(16);
+      expect(viewBox.width).toBeGreaterThanOrEqual(MIN_VIEW_WIDTH);
+      expect(viewBox.height).toBeGreaterThanOrEqual(MIN_VIEW_HEIGHT);
+    }
+  });
+
+  it("falls back to the full canvas for an empty payload", () => {
+    const layout = buildOntologyGraphLayout([], []);
+    expect(layout.viewBox).toEqual({ x: 0, y: 0, width: layout.width, height: layout.height });
   });
 
   it("builds edge paths and symmetric neighbor sets from relationships", () => {
@@ -260,5 +346,36 @@ describe("panViewBox", () => {
 
   it("is a no-op at full view", () => {
     expect(panViewBox(bounds, 50, 50, bounds)).toEqual(bounds);
+  });
+});
+
+describe("client to viewBox mapping", () => {
+  const view: GraphViewBox = { x: 100, y: 50, width: 400, height: 200 };
+
+  it("scales by the limiting axis, as preserveAspectRatio meet does", () => {
+    // 800x200 px for a 2:1 view: height limits, so 1 unit = 1 px.
+    expect(viewBoxScale({ left: 0, top: 0, width: 800, height: 200 }, view)).toBe(1);
+    expect(viewBoxScale({ left: 0, top: 0, width: 200, height: 400 }, view)).toBe(0.5);
+    expect(viewBoxScale({ left: 0, top: 0, width: 0, height: 400 }, view)).toBe(0);
+  });
+
+  it("gives each labelled node one gap-free target over the node and its label", () => {
+    const layout = buildOntologyGraphLayout(nodes, relationships);
+    for (const entry of layout.nodes) {
+      const target = nodeTargetBounds(entry);
+      const label = labelBox(entry);
+      expect(target.x).toBeLessThanOrEqual(Math.min(entry.x - NODE_HIT_RADIUS, label.left) + 0.01);
+      expect(target.y).toBeLessThanOrEqual(Math.min(entry.y - NODE_HIT_RADIUS, label.top) + 0.01);
+      expect(target.x + target.width).toBeGreaterThanOrEqual(Math.max(entry.x + NODE_HIT_RADIUS, label.right) - 0.01);
+      expect(target.y + target.height).toBeGreaterThanOrEqual(Math.max(entry.y + NODE_HIT_RADIUS, label.bottom) - 0.01);
+    }
+  });
+
+  it("maps pointer positions through the centred letterbox", () => {
+    const rect = { left: 10, top: 20, width: 800, height: 200 };
+    // The 400px-wide drawing is centred in 800px: 200px of letterbox each side.
+    expect(clientPointToViewBox(rect, view, 10 + 200, 20)).toEqual({ x: 100, y: 50 });
+    expect(clientPointToViewBox(rect, view, 10 + 400, 20 + 100)).toEqual({ x: 300, y: 150 });
+    expect(clientPointToViewBox({ left: 0, top: 0, width: 0, height: 0 }, view, 5, 5)).toBeNull();
   });
 });

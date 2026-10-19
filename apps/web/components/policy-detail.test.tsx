@@ -112,7 +112,10 @@ describe("PolicyDetail tabs", () => {
 
     // Conditions tab is active: rule conditions + precedence render.
     expect(screen.getByText("Rule Conditions")).toBeInTheDocument();
-    expect(screen.getByText("Evaluation Precedence")).toBeInTheDocument();
+    expect(screen.getByText("How policies decide")).toBeInTheDocument();
+    expect(
+      screen.getByText("If no policy matches, actions are allowed by default."),
+    ).toBeInTheDocument();
 
     // Revisions and Evaluate content are not mounted yet.
     expect(

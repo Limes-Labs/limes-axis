@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -376,6 +378,35 @@ describe("PlatformSettingsConsole", () => {
       "active",
     );
     expect(screen.getByText("Browser session")).toBeInTheDocument();
+  });
+
+  it("hydrates /settings?tab=identity with the server tab markup, then selects the linked tab", async () => {
+    mockQueriesByPath();
+    window.history.replaceState(null, "", "/settings");
+    const serverMarkup = renderToString(<PlatformSettingsConsole />);
+
+    window.history.replaceState(null, "", "/settings?tab=identity");
+    const container = document.createElement("div");
+    container.innerHTML = serverMarkup;
+    document.body.append(container);
+    const recoverableErrors: unknown[] = [];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const root = await act(async () =>
+      hydrateRoot(container, <PlatformSettingsConsole />, {
+        onRecoverableError: (error) => recoverableErrors.push(error),
+      }),
+    );
+
+    expect(recoverableErrors).toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(
+      container.querySelector("[role='tab'][data-state='active']")?.textContent,
+    ).toBe("Identity");
+
+    act(() => root.unmount());
+    container.remove();
+    consoleError.mockRestore();
   });
 
   it("pushes discrete tab changes into browser history", async () => {

@@ -21,7 +21,7 @@ import {
   type ManufacturingReplaySimulation,
   type ReplayArtifact,
 } from "@/lib/simulation-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /*
@@ -75,6 +75,7 @@ function DecisionRow({
   simulated: string;
   changed: boolean;
 }) {
+  const strings = useStrings();
   const copy = strings.simulation.run.result;
 
   return (
@@ -103,6 +104,7 @@ function DecisionRow({
 }
 
 function ReplayComparison({ result }: { result: ManufacturingReplaySimulation }) {
+  const strings = useStrings();
   const copy = strings.simulation.run.result;
   const artifacts = result.artifacts ?? [];
   const decisions = countArtifactPolicyDecisions(artifacts);
@@ -188,6 +190,7 @@ function ReplayComparison({ result }: { result: ManufacturingReplaySimulation })
 }
 
 export function RunReplayForm({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const copy = strings.simulation.run;
   const { session } = useOidcConsoleSession();
   const [draft, setDraft] = useState<ReplayDraft>(initialDraft);

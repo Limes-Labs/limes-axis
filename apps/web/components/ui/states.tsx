@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, TriangleAlert, type LucideIcon } from "lucide-react";
+import { TriangleAlert, type LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiBaseUrl, isDefaultApiBaseUrl } from "@/lib/api-status";
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * Unified state system: LoadingPanel / ErrorPanel / EmptyPanel are the only
@@ -26,10 +26,11 @@ type LoadingPanelProps = {
 };
 
 export function LoadingPanel({ rows, layout = "list" }: LoadingPanelProps) {
+  const strings = useStrings();
   if (layout === "metrics") {
     const count = rows ?? 4;
     return (
-      <div aria-busy="true" aria-label="Loading content" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="status">
+      <div aria-busy="true" aria-label={strings.ui.uiStates.loadingContent} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="status">
         {Array.from({ length: count }, (_, index) => (
           <Skeleton key={index} className="h-24" />
         ))}
@@ -39,7 +40,7 @@ export function LoadingPanel({ rows, layout = "list" }: LoadingPanelProps) {
 
   if (layout === "detail") {
     return (
-      <div aria-busy="true" aria-label="Loading content" className="flex min-w-0 flex-col gap-3" role="status">
+      <div aria-busy="true" aria-label={strings.ui.uiStates.loadingContent} className="flex min-w-0 flex-col gap-3" role="status">
         <Skeleton className="h-7 w-2/5" />
         <Skeleton className="h-4 w-4/5" />
         <Skeleton className="h-40" />
@@ -49,7 +50,7 @@ export function LoadingPanel({ rows, layout = "list" }: LoadingPanelProps) {
 
   const count = rows ?? 5;
   return (
-    <div aria-busy="true" aria-label="Loading content" className="flex min-w-0 flex-col gap-2.5" role="status">
+    <div aria-busy="true" aria-label={strings.ui.uiStates.loadingContent} className="flex min-w-0 flex-col gap-2.5" role="status">
       {Array.from({ length: count }, (_, index) => (
         <Skeleton key={index} className="h-11" />
       ))}
@@ -70,8 +71,7 @@ type ErrorPanelProps = {
 };
 
 export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: ErrorPanelProps) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const DetailsChevron = detailsOpen ? ChevronDown : ChevronRight;
+  const strings = useStrings();
 
   return (
     <section className="min-w-0 rounded-2xl border border-danger/35 bg-danger/5 p-4 dark:border-danger/40 dark:bg-danger/10">
@@ -91,17 +91,14 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
           </Button>
         ) : null}
       </div>
-      <button
-        aria-expanded={detailsOpen}
-        className="mt-3 inline-flex min-h-6 items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-ink"
-        type="button"
-        onClick={() => setDetailsOpen((open) => !open)}
+      <Disclosure
+        className="mt-3"
+        keepMounted={false}
+        size="sm"
+        title={strings.states.technicalDetails}
+        variant="plain"
       >
-        <DetailsChevron aria-hidden="true" size={13} />
-        {strings.states.technicalDetails}
-      </button>
-      {detailsOpen ? (
-        <dl className="mx-0 mt-2 mb-0 flex min-w-0 flex-col gap-1.5 rounded-xl border border-line bg-surface/70 p-3 text-xs dark:border-white/10 dark:bg-white/4">
+        <dl className="m-0 flex min-w-0 flex-col gap-1.5 rounded-xl border border-line bg-surface/70 p-3 text-xs dark:border-white/10 dark:bg-white/4">
           {reference ? (
             <div className="flex min-w-0 flex-wrap gap-x-2">
               <dt className="m-0 font-medium text-muted">{strings.states.reference}</dt>
@@ -110,12 +107,12 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
           ) : null}
           {endpoint ? (
             <div className="flex min-w-0 flex-wrap gap-x-2">
-              <dt className="m-0 font-medium text-muted">Endpoint</dt>
+              <dt className="m-0 font-medium text-muted">{strings.ui.common.endpoint}</dt>
               <dd className="m-0 font-mono break-words text-ink">{endpoint}</dd>
             </div>
           ) : null}
           <div className="flex min-w-0 flex-wrap gap-x-2">
-            <dt className="m-0 font-medium text-muted">API base URL</dt>
+            <dt className="m-0 font-medium text-muted">{strings.ui.uiStates.apiBaseUrl}</dt>
             <dd className="m-0 font-mono break-words text-ink">{getApiBaseUrl()}</dd>
           </div>
           {isDefaultApiBaseUrl() ? (
@@ -124,7 +121,7 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
             </p>
           ) : null}
         </dl>
-      ) : null}
+      </Disclosure>
     </section>
   );
 }
@@ -179,6 +176,7 @@ type TenantEmptyPanelProps = {
  * tenant is the guided-setup story, so it must never render as an API error.
  */
 export function TenantEmptyPanel({ icon, title }: TenantEmptyPanelProps) {
+  const strings = useStrings();
   const copy = strings.states.tenantEmpty;
   return (
     <EmptyPanel

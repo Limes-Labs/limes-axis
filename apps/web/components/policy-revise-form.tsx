@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { GitBranchPlus } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { PolicyConditionFields } from "@/components/policy-condition-fields";
 import { Field } from "@/components/ui/field";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -27,7 +28,7 @@ import {
 } from "@/lib/platform-policies";
 import { safeRandomUuid } from "@/lib/ids";
 import { opaqueStringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useIdentitySession } from "@/lib/use-identity-session";
 import { useConsole } from "@/providers/console-provider";
@@ -47,6 +48,7 @@ export function PolicyReviseForm({
   tenantId: string;
   current: PlatformPolicyRecord;
 }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const identity = useIdentitySession();
   // The API rebinds updated_by to the verified OIDC principal and rejects
@@ -168,7 +170,7 @@ export function PolicyReviseForm({
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="eyebrow m-0">Revise Policy</p>
+          <p className="eyebrow m-0">{strings.ui.policyReviseForm.revisePolicy}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Append a revision to r{current.revision_number}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {strings.policyDetail.reviseAccess.summary} Pre-filled from the current revision;
@@ -184,23 +186,23 @@ export function PolicyReviseForm({
       </div>
 
       <form
-        aria-label="Platform policy revision"
+        aria-label={strings.ui.policyReviseForm.platformPolicyRevision}
         className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
         noValidate
         onSubmit={(event) => void submitRevision(event)}
       >
-        <Field label="Policy Version">
+        <Field label={strings.ui.common.policyVersion}>
           <Input
-            aria-label="Revision policy version"
+            aria-label={strings.ui.policyReviseForm.revisionPolicyVersion}
             onChange={(event) => updateDraft({ policyVersion: event.target.value })}
             required
             type="text"
             value={draft.policyVersion}
           />
         </Field>
-        <Field label="Effect">
+        <Field label={strings.ui.common.effect}>
           <Select
-            aria-label="Revision effect"
+            aria-label={strings.ui.policyReviseForm.revisionEffect}
             onChange={(event) =>
               updateDraft({ effect: event.target.value as PolicyDraftFormState["effect"] })
             }
@@ -213,18 +215,18 @@ export function PolicyReviseForm({
             ))}
           </Select>
         </Field>
-        <Field className="col-span-full" label="Display Name">
+        <Field className="col-span-full" label={strings.ui.common.displayName}>
           <Input
-            aria-label="Revision display name"
+            aria-label={strings.ui.policyReviseForm.revisionDisplayName}
             onChange={(event) => updateDraft({ displayName: event.target.value })}
             required
             type="text"
             value={draft.displayName}
           />
         </Field>
-        <Field className="col-span-full" label="Description">
+        <Field className="col-span-full" label={strings.ui.common.description}>
           <Input
-            aria-label="Revision description"
+            aria-label={strings.ui.policyReviseForm.revisionDescription}
             onChange={(event) => updateDraft({ description: event.target.value })}
             required
             type="text"
@@ -252,11 +254,11 @@ export function PolicyReviseForm({
           labelPrefix="Revision"
           onChange={updateConditions}
         />
-        <Field className="col-span-full" label="Notes (one per line)">
+        <Field className="col-span-full" label={strings.ui.common.notesOnePerLine}>
           <Textarea
-            aria-label="Revision notes"
+            aria-label={strings.ui.policyReviseForm.revisionNotes}
             onChange={(event) => updateDraft({ notesText: event.target.value })}
-            placeholder="Optional reviewer notes"
+            placeholder={strings.ui.common.optionalReviewerNotes}
             rows={2}
             value={draft.notesText}
           />
@@ -267,14 +269,13 @@ export function PolicyReviseForm({
             {strings.policyDetail.reviseAccess.ssoGate}
           </p>
         ) : (
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
+          <Button
             disabled={submission.phase === "saving"}
             type="submit"
           >
             <GitBranchPlus size={15} />
-            {submission.phase === "saving" ? "Appending" : "Append revision"}
-          </button>
+            {submission.phase === "saving" ? strings.ui.policyReviseForm.appending : strings.ui.policyReviseForm.appendRevision}
+          </Button>
         )}
       </form>
 

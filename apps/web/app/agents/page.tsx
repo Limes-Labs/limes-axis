@@ -4,14 +4,18 @@ import { ConsolePage } from "@/components/console-page";
 import { ActionRegistry } from "@/components/action-registry";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AgentRegistry } from "@/components/agent-registry";
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 
-export const metadata: Metadata = {
-  title: strings.pages.agents.title,
-  description: strings.pages.agents.description,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getServerStrings();
+  return {
+    title: strings.pages.agents.title,
+    description: strings.pages.agents.description,
+  };
+}
 
-export default function AgentsPage() {
+export default async function AgentsPage() {
+  const strings = await getServerStrings();
   return (
     <ConsolePage pageKey="agents">
       <AgentRegistry />

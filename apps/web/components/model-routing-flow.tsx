@@ -4,6 +4,8 @@ import { useState, type PointerEvent } from "react";
 import type { ModelRouteTelemetry } from "@/lib/model-routing-demo";
 import type { SourceState } from "@/lib/source-state";
 import { SourcePill } from "@/components/ui/source-pill";
+import { useStrings } from "@/providers/locale-provider";
+import { formatNumber } from "@/lib/format";
 
 type RouteDependency = Pick<ModelRouteTelemetry, "provider_id" | "provider_name" | "model">;
 export type RoutingFlowSelection = { providerId: string; model?: string };
@@ -32,7 +34,7 @@ export function groupRoutingDependencies(routes: RouteDependency[]): ProviderGro
   })).sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
 }
 
-const routeCount = (count: number) => `${count.toLocaleString("en")} ${count === 1 ? "route" : "routes"}`;
+const routeCount = (count: number) => `${formatNumber(count)} ${count === 1 ? "route" : "routes"}`;
 
 function buildDependencyLayout(providers: ProviderGroup[]) {
   const palette = ["rgb(var(--signal))", "rgb(var(--positive))", "rgb(var(--warning))", "rgb(var(--muted))"];
@@ -70,6 +72,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
   sourceState: SourceState;
   onInspect?: (selection: RoutingFlowSelection) => void;
 }) {
+  const strings = useStrings();
   const [selected, setSelected] = useState<RoutingFlowSelection | null>(null);
   const [preview, setPreview] = useState<RoutingFlowSelection | null>(null);
   const providers = groupRoutingDependencies(routes);
@@ -102,31 +105,31 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
   }
 
   return (
-    <section onKeyDown={(event) => { if (event.key === "Escape") { setSelected(null); setPreview(null); } }} aria-label="Routing dependencies" className="grid min-w-0 gap-3 rounded-2xl border border-line bg-surface p-4 dark:border-white/10">
+    <section onKeyDown={(event) => { if (event.key === "Escape") { setSelected(null); setPreview(null); } }} aria-label={strings.ui.modelRoutingFlow.routingDependencies} className="grid min-w-0 gap-3 rounded-2xl border border-line bg-surface p-4 dark:border-white/10">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
-          <h2 className="m-0 font-display text-xl text-ink">Routing dependencies</h2>
-          <p className="m-0 text-sm text-muted">{routes.length.toLocaleString("en")} configured {routes.length === 1 ? "route" : "routes"} · {providers.length} {providers.length === 1 ? "provider" : "providers"}</p>
+          <h2 className="m-0 font-display text-xl text-ink">{strings.ui.modelRoutingFlow.routingDependencies}</h2>
+          <p className="m-0 text-sm text-muted">{formatNumber(routes.length)} configured {routes.length === 1 ? "route" : "routes"} · {providers.length} {providers.length === 1 ? "provider" : "providers"}</p>
         </div>
         <SourcePill state={sourceState} subject="model routing" />
       </div>
-      <p className="m-0 text-xs leading-relaxed text-muted">Includes blocked routes. Width = configured routes.</p>
+      <p className="m-0 text-xs leading-relaxed text-muted">{strings.ui.modelRoutingFlow.includesBlockedRoutesWidthConfigured}</p>
       {routes.length > 0 ? (
         <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-xl bg-ink/4 px-3 py-2 dark:bg-white/5">
           <p className="m-0 min-w-0 break-words text-sm text-ink" role="status">
-            {active ? `${active.provider.name}${active.model ? ` → ${active.model.name}` : ""} · ${routeCount(active.count)} configured` : "Select a provider or model to inspect its configured routes."}
+            {active ? `${active.provider.name}${active.model ? ` → ${active.model.name}` : ""} · ${routeCount(active.count)} configured` : strings.ui.modelRoutingFlow.selectAProviderOrModel}
           </p>
           <div className="flex shrink-0 flex-wrap gap-3">
-            {pinned && onInspect ? <button type="button" className="min-h-9 text-sm font-medium text-signal underline-offset-4 hover:underline" onClick={() => onInspect(pinned.selection)}>{pinned.model ? "Inspect first matching route" : "View provider routes"}</button> : null}
-            {active ? <button type="button" className="min-h-9 text-sm text-muted underline-offset-4 hover:underline" onClick={() => { setSelected(null); setPreview(null); }}>Reset selection</button> : null}
+            {pinned && onInspect ? <button type="button" className="min-h-9 text-sm font-medium text-signal underline-offset-4 hover:underline" onClick={() => onInspect(pinned.selection)}>{pinned.model ? strings.ui.modelRoutingFlow.inspectFirstMatchingRoute : strings.ui.modelRoutingFlow.viewProviderRoutes}</button> : null}
+            {active ? <button type="button" className="min-h-9 text-sm text-muted underline-offset-4 hover:underline" onClick={() => { setSelected(null); setPreview(null); }}>{strings.ui.modelRoutingFlow.resetSelection}</button> : null}
           </div>
         </div>
       ) : null}
-      {routes.length === 0 ? <p className="m-0 text-sm text-muted">No configured routes to compare.</p> : <>
+      {routes.length === 0 ? <p className="m-0 text-sm text-muted">{strings.ui.modelRoutingFlow.noConfiguredRoutesToCompare}</p> : <>
         {showDiagram ? (
-          <div className="hidden max-h-[560px] overflow-auto sm:block" tabIndex={0} role="region" aria-label="Provider to model diagram">
+          <div className="hidden max-h-[560px] overflow-auto sm:block" tabIndex={0} role="region" aria-label={strings.ui.modelRoutingFlow.providerToModelDiagram}>
             <div className="grid min-w-[760px] grid-cols-[180px_minmax(300px,1fr)_240px] gap-3 text-xs text-muted" aria-hidden="true">
-              <span>Provider</span><span /><span>Model</span>
+              <span>{strings.ui.common.provider}</span><span /><span>{strings.ui.common.model}</span>
             </div>
             <div className="relative mt-3 grid min-w-[760px] grid-cols-[180px_minmax(300px,1fr)_240px] gap-3" style={{ height }}>
               <div className="relative">
@@ -161,7 +164,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
             </div>
           </div>
         ) : null}
-        <dl className={`m-0 grid gap-4 ${showDiagram ? "sm:hidden" : ""}`} aria-label="Routes by provider and model">
+        <dl className={`m-0 grid gap-4 ${showDiagram ? "sm:hidden" : ""}`} aria-label={strings.ui.modelRoutingFlow.routesByProviderAndModel}>
           {providers.map((provider) => (
             <div key={provider.id} className="min-w-0 rounded-xl border border-line p-3 dark:border-white/10">
               <dt><button type="button" {...controls({ providerId: provider.id })} aria-label={`${provider.name}, ${routeCount(provider.count)}`} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg text-left text-sm font-medium text-ink aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{provider.name}</span><span className="tabular-nums">{routeCount(provider.count)}</span></button></dt>

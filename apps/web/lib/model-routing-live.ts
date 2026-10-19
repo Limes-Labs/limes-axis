@@ -1,4 +1,5 @@
 import type { PlatformStatus } from "./platform-overview";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 /**
  * Typed parsers for the live model-router read surfaces:
@@ -363,7 +364,7 @@ export function formatLiveTimestamp(value: string): string {
   if (Number.isNaN(parsed.getTime())) {
     return "Not recorded";
   }
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(parsed);

@@ -60,7 +60,12 @@ describe("SidebarAccount", () => {
     renderFooter();
 
     expect(screen.getByText("plant.operator")).toBeInTheDocument();
-    expect(screen.getByText("tenant_demo_manufacturing")).toBeInTheDocument();
+    // The tenant reads as a name; the raw id stays in the tooltip.
+    expect(screen.getByText("Demo manufacturing")).toHaveAttribute(
+      "title",
+      "tenant_demo_manufacturing",
+    );
+    expect(screen.queryByText("tenant_demo_manufacturing")).not.toBeInTheDocument();
   });
 
   it("falls back to explicit copy rather than blank lines when identity is absent", () => {
@@ -75,7 +80,7 @@ describe("SidebarAccount", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "plant.operator, tenant_demo_manufacturing, open operator account",
+        name: "plant.operator, Demo manufacturing, open operator account",
       }),
     ).toBeInTheDocument();
   });

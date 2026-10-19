@@ -75,4 +75,44 @@ describe("AccountPanel", () => {
       "Paste a JWT bearer token to bridge an OIDC session.",
     );
   });
+
+  it("names the tenant and keeps raw scopes behind an Inspect disclosure", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccountPanel
+        identitySession={{
+          authenticated: true,
+          mode: "secure_oidc_cookie",
+          actor_id: "plant.operator",
+          tenant_id: "tenant_demo_manufacturing",
+          scopes: ["approvals:supply:decide", "tenant:read"],
+          expires_at: null,
+          api_auth_required: true,
+          enterprise_sso_ready: true,
+          readiness_status: "ready",
+          issuer: "https://issuer.example",
+          audience: "limes-axis-api",
+          jwks_source: "remote",
+          session_boundary: "cookie",
+          capabilities: [],
+          limitations: [],
+          notes: [],
+          unauthenticated_reason: null,
+        }}
+        identitySessionUnavailable={false}
+      />,
+    );
+
+    expect(screen.getByText("Demo manufacturing")).toHaveAttribute(
+      "title",
+      "tenant_demo_manufacturing",
+    );
+    const trigger = screen.getByRole("button", { name: /2 permissions/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("approvals:supply:decide")).not.toBeVisible();
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector("[data-account-scopes]")).toHaveTextContent("Approvals · supply · decide");
+  });
 });

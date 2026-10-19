@@ -25,7 +25,8 @@ import {
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
 import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
@@ -38,7 +39,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
-import { formatContextPath, formatDateTime, formatNumber } from "@/lib/format";
+import { formatContextPath, formatDateTime, formatNumber, formatTimeZoneLabel } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import {
   formatOverviewTimestamp,
@@ -52,6 +53,7 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { ShowReadsToggle } from "@/components/ui/show-reads-toggle";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   AuditActivityHeatmap,
   filterAuditTimeInterval,
@@ -99,6 +101,7 @@ function downloadAuditExportBundle(bundle: AuditExportBundle) {
  * a real client-side download of the fetched export bundle.
  */
 function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExportBundle }) {
+  const strings = useStrings();
   const copy = strings.audit.integrity;
   const summary = buildAuditExportSummary(exportBundle);
   const inspectRecord: Record<string, unknown> = {
@@ -165,6 +168,7 @@ function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExport
 }
 
 export function AuditExplorer() {
+  const strings = useStrings();
   const [auditExport, setAuditExport] = useState<AuditExportBundle | null>(null);
   const [auditExportError, setAuditExportError] = useState<AxisOperatorError | null>(null);
   const [timeSelection, setTimeSelection] = useState<{
@@ -266,7 +270,7 @@ export function AuditExplorer() {
     void loadAuditExport();
 
     return () => controller.abort();
-  }, [auditExportPath, refreshNonce, session, tenantId, tenantQueriesEnabled]);
+  }, [auditExportPath, refreshNonce, session, strings, tenantId, tenantQueriesEnabled]);
 
   const matchingEvents = auditData ? filterAuditEvents(auditData, filters) : [];
   // The list and the heatmap default to state-changing events. Choosing a read
@@ -318,7 +322,7 @@ export function AuditExplorer() {
   if (identity.source === "unavailable" || !tenantId) {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Audit data is not loaded until identity is available."
+        detail={strings.ui.auditExplorer.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -355,9 +359,9 @@ export function AuditExplorer() {
   if (auditData.events.length === 0) {
     return (
       <EmptyPanel
-        detail="Governed actions and decisions will appear here as append-only evidence."
+        detail={strings.ui.auditExplorer.governedActionsAndDecisionsWill}
         icon={FileText}
-        title="No audit evidence yet"
+        title={strings.ui.auditExplorer.noAuditEvidenceYet}
       />
     );
   }
@@ -365,7 +369,7 @@ export function AuditExplorer() {
   if (urlState.eventId && !selectedEvent) {
     return (
       <EmptyPanel
-        action={{ label: "Reset filters", onClick: resetFilters }}
+        action={{ label: strings.ui.common.resetFilters, onClick: resetFilters }}
         detail={strings.states.requestedRecord.detail}
         icon={Filter}
         title={strings.states.requestedRecord.title}
@@ -390,10 +394,10 @@ export function AuditExplorer() {
   if (!selectedEvent && !timeInterval) {
     return (
       <EmptyPanel
-        action={{ label: "Reset filters", onClick: resetFilters }}
-        detail="No audit events match the selected filters."
+        action={{ label: strings.ui.common.resetFilters, onClick: resetFilters }}
+        detail={strings.ui.auditExplorer.noAuditEventsMatchThe}
         icon={Filter}
-        title="No matching audit evidence"
+        title={strings.ui.auditExplorer.noMatchingAuditEvidence}
       />
     );
   }
@@ -401,15 +405,11 @@ export function AuditExplorer() {
   return (
     <div className="grid min-w-0 gap-4">
       <div
-        aria-label="Audit source and ledger status"
+        aria-label={strings.ui.auditExplorer.auditSourceAndLedgerStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {formatContextPath(
-            auditData.plant_name,
-            auditData.scenario,
-            auditData.tenant_id,
-          )}
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted" title={auditData.tenant_id}>
+          {formatContextPath(auditData.plant_name ?? humanizeIdentifier(auditData.tenant_id), auditData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="audit ledger" />
@@ -422,20 +422,19 @@ export function AuditExplorer() {
       </div>
 
       <div className="grid min-w-0 items-start gap-3.5 xl:grid-cols-[minmax(0,0.65fr)_minmax(0,1fr)]">
-        <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-1 [&>*]:min-w-0">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-1 [&>*]:min-w-0" role="list">
         {auditData.metrics.filter((metric) => !["Query Source", "Replay"].includes(metric.label)).map((metric) => (
-          <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5" key={metric.label}>
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <p className="eyebrow m-0">{metric.label === "Persisted Events" ? "Events" : metric.label}</p>
-              {metric.status !== "ready" ? <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
-              </span> : null}
-            </div>
-            <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{metric.value}</p>
-            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.label === "Persisted Events"
-              ? "Events in the returned window"
-              : metric.label === "Action Required" ? "Events marked for attention" : metric.detail}</p>
-          </article>
+          <StatCard
+            aside={metric.status !== "ready" ? <span className={`status-pill ${platformStatusClass(metric.status)}`}>
+              {platformStatusLabel(metric.status)}
+            </span> : null}
+            detail={metric.label === "Persisted Events"
+              ? strings.ui.auditExplorer.eventsInTheReturnedWindow
+              : metric.label === "Action Required" ? strings.ui.auditExplorer.eventsMarkedForAttention : metric.detail}
+            key={metric.label}
+            label={metric.label === "Persisted Events" ? strings.ui.auditExplorer.events : metric.label}
+            value={metric.value}
+          />
         ))}
         </div>
         <AuditActivityHeatmap
@@ -450,13 +449,13 @@ export function AuditExplorer() {
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Filters</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Audit explorer</h2>
+          <p className="eyebrow m-0">{strings.ui.common.filters}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.auditExplorer.auditExplorer}</h2>
         </div>
         <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-          <Field label="Tenant">
+          <Field label={strings.ui.common.tenant}>
             <Select value={filters.tenant} onChange={(event) => updateFilter("tenant", event.target.value)}>
-              <option value={allAuditFilter}>All tenants</option>
+              <option value={allAuditFilter}>{strings.ui.auditExplorer.allTenants}</option>
               {auditData.filter_options.tenants.map((tenant) => (
                 <option key={tenant} value={tenant}>
                   {tenant}
@@ -464,12 +463,12 @@ export function AuditExplorer() {
               ))}
             </Select>
           </Field>
-          <Field label="Event">
+          <Field label={strings.ui.common.event}>
             <Select
               value={filters.eventType}
               onChange={(event) => updateFilter("eventType", event.target.value)}
             >
-              <option value={allAuditFilter}>All events</option>
+              <option value={allAuditFilter}>{strings.ui.auditExplorer.allEvents}</option>
               {auditData.filter_options.event_types.map((eventType) => (
                 <option key={eventType} value={eventType}>
                   {formatAuditLabel(eventType)}
@@ -477,9 +476,9 @@ export function AuditExplorer() {
               ))}
             </Select>
           </Field>
-          <Field label="Scope">
+          <Field label={strings.ui.common.scope}>
             <Select value={filters.scope} onChange={(event) => updateFilter("scope", event.target.value)}>
-              <option value={allAuditFilter}>All scopes</option>
+              <option value={allAuditFilter}>{strings.ui.common.allScopes}</option>
               {auditData.filter_options.scopes.map((scope) => (
                 <option key={scope} value={scope}>
                   {scope}
@@ -493,28 +492,34 @@ export function AuditExplorer() {
             onCheckedChange={(checked) =>
               setUrlState({ reads: checked ? "shown" : "hidden", eventId: "" })}
           />
-          <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
+          <button className="icon-button" onClick={resetFilters} title={strings.ui.common.resetFilters} type="button">
             <RotateCcw size={17} />
           </button>
         </div>
       </section>
 
       <div className={`grid items-start gap-4 [&>*]:min-w-0 ${selectedEvent ? "lg:grid-cols-[minmax(310px,0.48fr)_minmax(0,1fr)]" : ""}`}>
-        <section id={eventsId} aria-label="Visible audit events" className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
+        <section id={eventsId} aria-label={strings.ui.auditExplorer.visibleAuditEvents} className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="eyebrow m-0">Events</p>
+              <p className="eyebrow m-0">{strings.ui.auditExplorer.events}</p>
               <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink" aria-live="polite">{formatNumber(visibleEvents.length)} visible</h2>
             </div>
-            <span className="status-pill signal-ready">
-              <Filter size={15} />
-              {formatNumber(auditData.events.length)} returned
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* The heatmap bins in this same zone, so a bin and its rows agree. */}
+              <span className="text-xs text-muted" data-audit-time-zone>
+                {strings.ui.auditExplorer.timesInZone(formatTimeZoneLabel())}
+              </span>
+              <span className="status-pill signal-ready">
+                <Filter size={15} />
+                {formatNumber(auditData.events.length)} returned
+              </span>
+            </div>
           </div>
           {visibleEvents.length === 0 ? (
             <EmptyPanel
-              detail="No returned events in this interval match the current tenant, event and scope filters. Select another cell or clear the time filter."
-              title="No events in this time interval"
+              detail={strings.ui.auditExplorer.noReturnedEventsInThis}
+              title={strings.ui.auditExplorer.noEventsInThisTime}
             />
           ) : null}
           <div className="grid">
@@ -545,7 +550,7 @@ export function AuditExplorer() {
         </section>
 
         {selectedEvent ? <section
-          aria-label="Selected audit event"
+          aria-label={strings.ui.auditExplorer.selectedAuditEvent}
           className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4"
           data-audit-detail
         >
@@ -565,27 +570,27 @@ export function AuditExplorer() {
 
           <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="eyebrow m-0">Audit Event</p>
+              <p className="eyebrow m-0">{strings.ui.common.auditEvent}</p>
               <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">{selectedEvent.audit_event_id}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.event_type}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Actor</p>
+              <p className="eyebrow m-0">{strings.ui.common.actor}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedEvent.actor_id}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.actor_type}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Scope</p>
+              <p className="eyebrow m-0">{strings.ui.common.scope}</p>
               <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">{selectedEvent.scope}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.permission_scope}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Source</p>
+              <p className="eyebrow m-0">{strings.ui.common.source}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedEvent.source}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.domain}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Occurred</p>
+              <p className="eyebrow m-0">{strings.ui.auditExplorer.occurred}</p>
               <p className="m-0 font-medium text-ink break-words">{formatDateTime(selectedEvent.occurred_at)}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedEvent.data_classification}</p>
             </div>
@@ -593,7 +598,7 @@ export function AuditExplorer() {
 
           <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
             <section>
-              <p className="eyebrow m-0">Related</p>
+              <p className="eyebrow m-0">{strings.ui.auditExplorer.related}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 {[
                   selectedEvent.related_workflow_id,
@@ -609,7 +614,7 @@ export function AuditExplorer() {
               </div>
             </section>
             <section>
-              <p className="eyebrow m-0">Evidence</p>
+              <p className="eyebrow m-0">{strings.ui.common.evidence}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedEvent.evidence_refs.map((item) => (
                   <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={item}>
@@ -623,12 +628,12 @@ export function AuditExplorer() {
           <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="eyebrow m-0">Payload Preview</p>
-                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">Redacted fields</h3>
+                <p className="eyebrow m-0">{strings.ui.common.payloadPreview}</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{strings.ui.auditExplorer.redactedFields}</h3>
               </div>
               {selectedEventConnectorSnapshotHref ? (
                 <a className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" href={selectedEventConnectorSnapshotHref}>
-                  Connector snapshot
+                  {strings.ui.auditExplorer.connectorSnapshot}
                 </a>
               ) : (
                 <FileText size={18} />
@@ -647,7 +652,7 @@ export function AuditExplorer() {
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <p className="eyebrow m-0">Retention Notes</p>
+        <p className="eyebrow m-0">{strings.ui.auditExplorer.retentionNotes}</p>
         <div className="grid min-w-0 gap-2.5">
           {auditData.retention_notes.map((note) => (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

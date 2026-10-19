@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, CircleCheckBig, Circle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -15,7 +15,7 @@ import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
 import type { ManufacturingOntology } from "@/lib/ontology-demo";
 import type { AxisOperatorError } from "@/lib/axis-api";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import { parseManufacturingConnectorRegistry } from "@/lib/runtime-contracts/connectors";
@@ -105,6 +105,7 @@ export function activatedConnectorCount(
  * failing or pending query yields a null count and an "unknown" step.
  */
 function useOnboardingSteps(tenantId: string): OnboardingStep[] {
+  const strings = useStrings();
   const connectors = useAxisQuery<ManufacturingConnectorRegistry>(buildTenantScopedPath(ONBOARDING_ENDPOINTS.connectors, tenantId), {
     expectedTenantId: tenantId,
     parse: parseManufacturingConnectorRegistry,
@@ -145,6 +146,7 @@ function useOnboardingSteps(tenantId: string): OnboardingStep[] {
 }
 
 function ProgressBar({ complete, total }: { complete: number; total: number }) {
+  const strings = useStrings();
   return (
     <div className="grid min-w-0 gap-1.5">
       <p className="m-0 text-sm font-medium text-ink">
@@ -168,6 +170,7 @@ function ProgressBar({ complete, total }: { complete: number; total: number }) {
 }
 
 function StepRow({ step }: { step: OnboardingStep }) {
+  const strings = useStrings();
   const done = step.state === "done";
 
   return (
@@ -187,10 +190,7 @@ function StepRow({ step }: { step: OnboardingStep }) {
         <span className="status-pill signal-ready">{strings.onboarding.stepDone}</span>
       ) : (
         <Link
-          className={cn(
-            "inline-flex items-center rounded-full border border-line px-3.5 py-1.5 text-xs font-medium",
-            "text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/15",
-          )}
+          className={buttonVariants({ size: "sm", variant: "secondary" })}
           href={step.href}
         >
           {step.cta}
@@ -215,6 +215,7 @@ function ExploreDemoButton({
   demoAvailable,
   demoPending,
 }: Pick<OnboardingChecklistProps, "onExploreDemo" | "demoAvailable" | "demoPending">) {
+  const strings = useStrings();
   const enabled = Boolean(demoAvailable && onExploreDemo) && !demoPending;
 
   return (
@@ -240,6 +241,7 @@ export function OnboardingChecklist({
   demoError = null,
   tenantId = DEMO_TENANT_ID,
 }: OnboardingChecklistProps) {
+  const strings = useStrings();
   const steps = useOnboardingSteps(tenantId);
   const [stepsOpen, setStepsOpen] = useState(false);
   const total = steps.length;

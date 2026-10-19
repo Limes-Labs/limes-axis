@@ -1,5 +1,7 @@
 "use client";
 
+import { buttonVariants } from "@/components/ui/button";
+
 /* Shared popover chrome. The `.topbar-popover-header` / `.notification-row`
  * class names stay as e2e markers; all styling is Tailwind on tokens. */
 const popoverSurfaceBaseClass =
@@ -25,10 +27,12 @@ export const popoverRowLinkClass =
   "transition-colors hover:border-signal/30 hover:bg-signal/10";
 export const popoverLinkClass =
   "inline-flex min-h-[34px] items-center justify-center rounded-xl border border-line text-xs font-semibold text-signal transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/15";
-export const commandClass =
-  "inline-flex min-h-9 w-full min-w-0 items-center justify-center gap-2 rounded-full bg-navy px-4 text-sm font-medium text-white transition-colors select-none hover:bg-signal dark:bg-signal dark:hover:bg-white dark:hover:text-navy";
-export const commandSecondaryClass =
-  "inline-flex min-h-9 w-full min-w-0 items-center justify-center gap-2 rounded-full border border-line bg-transparent px-4 text-sm font-medium text-ink transition-colors select-none hover:border-signal/50 hover:text-signal dark:border-white/20";
+/** Full-width panel commands are the shared Button variants, not a local pill. */
+export const commandClass = buttonVariants({ className: "w-full min-w-0" });
+export const commandSecondaryClass = buttonVariants({
+  variant: "secondary",
+  className: "w-full min-w-0",
+});
 export const tagClass =
   "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs break-words text-muted dark:border-white/15 dark:bg-white/5";
 

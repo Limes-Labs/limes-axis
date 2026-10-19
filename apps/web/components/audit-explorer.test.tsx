@@ -213,8 +213,8 @@ describe("AuditExplorer integrity and export", () => {
     expect(screen.getByText("2 events")).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("Event"), "agent.proposal.created");
     expect(screen.getByText("1 of 1 filtered events")).toBeInTheDocument();
-    expect(screen.getByText(/2 returned.*10 Jul 2026 UTC/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /10 Jul 2026, 18:00–24:00 UTC: 0 events/ }));
+    expect(screen.getByText(/2 returned.*10, 2026 UTC/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Jul 10, 2026, 18:00–24:00 UTC: 0 events/ }));
     expect(screen.getByRole("heading", { name: "0 visible" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "No events in this time interval" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Selected audit event" })).not.toBeInTheDocument();
@@ -242,10 +242,10 @@ describe("AuditExplorer integrity and export", () => {
     await user.selectOptions(screen.getByLabelText("Event"), "agent.proposal.created");
     await user.selectOptions(screen.getByLabelText("Scope"), "wf_fixture");
     expect(screen.getByRole("heading", { name: "2 visible" })).toBeInTheDocument();
-    const cell = screen.getByRole("button", { name: /9 Jul 2026, 06:00–12:00 UTC: 1 event/ });
+    const cell = screen.getByRole("button", { name: /Jul 9, 2026, 06:00–12:00 UTC: 1 event/ });
     await user.click(cell);
     expect(screen.getByRole("heading", { name: "1 visible" })).toBeInTheDocument();
-    expect(screen.getByText("Time filter: 9 Jul 2026, 06:00–12:00 UTC")).toBeInTheDocument();
+    expect(screen.getByText("Time filter: Jul 9, 2026, 06:00–12:00 UTC")).toBeInTheDocument();
     expect(screen.queryByText("at_end")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tenant")).toHaveValue("tenant_fixture");
     expect(screen.getByLabelText("Event")).toHaveValue("agent.proposal.created");
@@ -263,7 +263,7 @@ describe("AuditExplorer integrity and export", () => {
   it.each(["query", "provenance", "tenant", "actor", "refresh", "source"])("resets a time selection when %s changes", async (change) => {
     const user = userEvent.setup();
     const { rerender } = render(<AuditExplorer />);
-    await user.click(screen.getByRole("button", { name: /9 Jul 2026, 00:00–06:00 UTC: 0 events/ }));
+    await user.click(screen.getByRole("button", { name: /Jul 9, 2026, 00:00–06:00 UTC: 0 events/ }));
     expect(screen.getByRole("heading", { name: "0 visible" })).toBeInTheDocument();
     if (change === "query") mocks.useAxisQuery.mockReturnValue(queryResult({ ...explorerFixture }, "api"));
     if (change === "provenance") mocks.useAxisQuery.mockReturnValue(queryResult({ ...explorerFixture, provenance: "reference" }, "api"));

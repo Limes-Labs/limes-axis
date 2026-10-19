@@ -4,25 +4,30 @@ import { GeistSans } from "geist/font/sans";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { getRequestLocale, getServerStrings } from "@/lib/locale-server";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { LocaleProvider } from "@/providers/locale-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 
 import "./globals.css";
 
-export const metadata: Metadata = {
-  /*
-   * Operators keep Approvals, Audit and a policy detail open side by side, so
-   * every tab needs its own name. Pages supply the `%s`.
-   */
-  title: {
-    default: "Axis Console",
-    template: "%s · Axis Console",
-  },
-  description: "The sovereign AI control plane for European operations.",
-  // A tenant governance console must never be indexed — staging deploys are
-  // how that leaks.
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = (await getServerStrings()).ui.rootLayout;
+  return {
+    /*
+     * Operators keep Approvals, Audit and a policy detail open side by side, so
+     * every tab needs its own name. Pages supply the `%s`.
+     */
+    title: {
+      default: copy.title,
+      template: copy.titleTemplate,
+    },
+    description: copy.description,
+    // A tenant governance console must never be indexed — staging deploys are
+    // how that leaks.
+    robots: { index: false, follow: false },
+  };
+}
 
 export const viewport: Viewport = {
   // Matches --cloud / --bg in globals.css so mobile browser chrome tracks the
@@ -51,16 +56,22 @@ const themeInitScript = `(function () {
   }
 })();`;
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  // Cookie, then Accept-Language, then English: the same resolution the
+  // pages use, so `<html lang>` always names the language on screen.
+  const locale = await getRequestLocale();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
-        <ThemeProvider>
-          <AppShell>{children}</AppShell>
-        </ThemeProvider>
+        <LocaleProvider locale={locale}>
+          <ThemeProvider>
+            <AppShell>{children}</AppShell>
+          </ThemeProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

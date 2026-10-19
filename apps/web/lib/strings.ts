@@ -248,6 +248,11 @@ const shell = {
     triggerLabel: (current: string) => `Color theme: ${current}`,
     options: { system: "System", light: "Light", dark: "Dark" },
   },
+  /* Option names come from `LOCALE_NAMES`: each language in its own words. */
+  locale: {
+    label: "Language",
+    detail: "Changing the language reloads the console.",
+  },
 } as const;
 
 /*
@@ -297,6 +302,7 @@ const approvals = {
     back: "Back to approval inbox",
     select: "Select an approval to review",
     selectDetail: "Choose a matching action from the queue to see its evidence and decision options.",
+    cost: "Cost",
   },
   history: {
     eyebrow: "History",
@@ -312,8 +318,22 @@ const approvals = {
     pending: "Pending review",
     confirmTitle: "Confirm decision",
     rationaleLabel: "Rationale (optional)",
+    rationaleRequiredLabel: "Rationale (required)",
     rationalePlaceholder: "Why you are deciding this way — recorded with the audit evidence.",
+    rationaleRequiredReject:
+      "Rejections need a rationale so the requester knows what to change. It is recorded with the audit evidence.",
+    rationaleRequiredHighRisk:
+      "High-risk decisions need a rationale. It is recorded with the audit evidence.",
+    rationaleMissing: "Enter a rationale before recording this decision.",
     confirm: "Confirm decision",
+    /** Confirm button: names the decision and the action it applies to. */
+    confirmAction: (decision: string, action: string) => `${decision} “${action}”`,
+    summaryLabel: "What you are deciding",
+    risk: "Risk",
+    riskLevel: (level: string) =>
+      `${String(level).charAt(0).toUpperCase()}${String(level).slice(1)} risk`,
+    cost: "Cost exposure",
+    due: "Due",
     cancel: "Cancel",
     persisting: "Recording decision…",
     persisted: "Recorded as evidence",
@@ -727,10 +747,10 @@ const connectors = {
     /* Scope denials name exactly which grant is absent and who can fix it, so
        an operator never has to guess which of the two lifecycle scopes failed. */
     deniedLifecycleScope:
-      "Your session is missing the connector lifecycle scope (connectors:manifest:lifecycle) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to change connector status in this tenant. A tenant admin can grant connector lifecycle access.",
     deniedLiveScope:
-      "Enabling live operation additionally requires the enable-live scope (connectors:manifest:enable_live), which your session does not have for this tenant. A tenant admin can grant it.",
-    forbidden: "Your session does not carry the connector lifecycle scope for this tenant.",
+      "Turning on live operation needs an extra permission you don't have in this tenant. A tenant admin can grant live-operation access.",
+    forbidden: "You don't have permission to change connector status in this tenant.",
     validationFailed: "The API rejected this transition. Complete the missing requirements first.",
     genericError: "The lifecycle transition could not be recorded.",
     successToast: { title: "Lifecycle updated", detail: "The transition was recorded with audit evidence." },
@@ -746,7 +766,7 @@ const connectors = {
       title: "What you need before starting",
       lease: "An active credential lease for this connector",
       policy: "An active egress policy approving the source endpoint",
-      scope: "The source discovery scope (connectors:source:discover) for this tenant",
+      scope: "Permission to discover sources in this tenant",
     },
     prerequisiteMet: "Ready",
     prerequisiteMissing: "Missing",
@@ -800,7 +820,7 @@ const connectors = {
         "Axis blocked this operation at the runtime boundary. Review the evidence in the audit ledger.",
     },
     deniedScope:
-      "Your session is missing the source discovery scope (connectors:source:discover) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to discover sources in this tenant. A tenant admin can grant source discovery access.",
     forbidden: "Your session cannot operate this connector's source for this tenant.",
     validationFailed: "One of the referenced records does not match this connector. Check the IDs above.",
     notFound: "A referenced lease or egress policy does not exist for this tenant.",
@@ -851,7 +871,7 @@ const connectors = {
     },
     reasonRequired: "An activation reason is required for the audit trail.",
     deniedScope:
-      "Your session is missing the source activation scope (connectors:source:activate) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to activate sources in this tenant. A tenant admin can grant source activation access.",
     forbidden: "Your session cannot activate sources for this tenant.",
     notFound: "A referenced lease or egress policy does not exist for this tenant.",
     genericError: "The activation could not be recorded.",
@@ -866,12 +886,12 @@ const connectors = {
         done: "Source verified and schema observed.",
         todo: "Verify the connection and discover the schema in Verify & discover below. Discovery is read-only: Axis records what it sees without touching your data.",
         consequence:
-          "Without discovery there is no fingerprint, so nothing can be activated or ingested.",
+          "Until discovery has recorded each table's columns, nothing can be activated or ingested.",
       },
       activate: {
         label: "Activate tables",
         done: "{count} bound table(s) ready for ingestion.",
-        todo: "Activate the discovered tables you want governed. Activation pins the observed schema fingerprint as the baseline for validation.",
+        todo: "Activate the discovered tables you want governed. Activation saves each table's current columns so later changes can be detected.",
         consequence:
           "Only activated tables can enter a governed ingestion request.",
       },
@@ -885,8 +905,8 @@ const connectors = {
       validate: {
         label: "Validate & review evidence",
         done: "{completed} completed · {failed} need attention.",
-        doneClean: "{completed} completed — fingerprints re-checked against fresh observations.",
-        todo: "Wait for dispatch to validate pinned fingerprints, then open a request to review its batch evidence and storage state.",
+        doneClean: "{completed} completed — table columns re-checked against the latest discovery.",
+        todo: "Wait for Axis to re-check the saved table columns, then open a request to review what was extracted and where it is stored.",
         remediation:
           "Dead-lettered requests stay failed until you remediate: re-discover, re-activate, then use Re-dispatch after remediation inside the request.",
         consequence:
@@ -909,7 +929,7 @@ const connectors = {
     emptyDetail:
       "No discovered table is bound for ingestion yet. Verify the source, discover its tables, then activate the ones you need.",
     tableColumn: "Table",
-    fingerprintColumn: "Schema fingerprint",
+    fingerprintColumn: "Columns check",
     stateColumn: "State",
     ingestionPendingPill: "Pending ingestion",
     activePill: "Active",
@@ -922,7 +942,7 @@ const connectors = {
     eyebrow: "Ingestion requests",
     title: "Governed ingestion requests",
     validationOnlyNote:
-      "Validation stage only. Axis re-checks each bound table's schema fingerprint against its own observations. No source is dialed and no rows are read or stored.",
+      "Validation stage only. Axis checks that each table still has the columns saved at activation. It does not connect to the source and reads or stores no rows.",
     overviewTitle: "Operations at a glance",
     overviewUnavailable: "Overview unavailable — retry after checking the API status.",
     overviewNeedsAttention: "{count} dead-lettered request(s) need a decision",
@@ -946,7 +966,7 @@ const connectors = {
     eligibilityTitle: "Ingestion eligibility",
     selectColumn: "Select",
     tableColumn: "Table",
-    fingerprintColumn: "Fingerprint",
+    fingerprintColumn: "Columns check",
     stateColumn: "State",
     requestColumn: "Request",
     attemptsColumn: "Attempts",
@@ -957,7 +977,7 @@ const connectors = {
     eligiblePill: "Eligible",
     blockedPill: "Blocked",
     blockedReasons: {
-      stale_fingerprint: "Stale fingerprint",
+      stale_fingerprint: "Columns changed",
       binding_not_pending_ingestion: "Not awaiting ingestion",
     } as Record<string, string>,
     requestIdLabel: "Request ID",
@@ -965,7 +985,7 @@ const connectors = {
     reasonPlaceholder:
       "Why this ingestion request is being raised (stored as evidence).",
     formHint:
-      "Schema fingerprints are pinned by Axis from the active bindings; you never supply one. Re-submitting the same request ID replays the existing request.",
+      "Axis checks each table against the columns saved at activation; there is nothing for you to supply. Submitting the same request again returns the existing request instead of creating a duplicate.",
     createAction: "Request ingestion",
     creatingAction: "Requesting ingestion…",
     createdStatus: {
@@ -994,7 +1014,7 @@ const connectors = {
     redispatchReasonLabel: "Remediation reason",
     requeuedStatus: "Request requeued for dispatch.",
     redispatchHint:
-      "Only dead-lettered requests can be re-dispatched. Remediate first (fresh discovery + activation); execution still revalidates fingerprints.",
+      "Only requests that failed permanently can be sent again. Fix the cause first (run discovery and activate again); Axis re-checks the table columns before it runs.",
     cancellingAction: "Cancelling…",
     cancelledStatus: "Request cancelled before dispatch.",
     conflictMessage:
@@ -1032,12 +1052,12 @@ const connectors = {
     preflightReasonReady: "A governance reason is required for every request",
     deadLetteredPill: "Dead-lettered",
     deniedScope:
-      "Your actor lacks the connectors:source:ingest scope required to raise governed ingestion requests.",
+      "You don't have permission to request ingestion in this tenant. A tenant admin can grant source ingestion access.",
     forbidden: "Axis refused this action for your actor.",
     conflict:
       "That request ID already names a different ingestion request. Pick a new ID instead of overriding durable evidence.",
     validationFailed:
-      "Axis rejected the request: a selected binding must exist, be active, await ingestion, and carry a still-current schema fingerprint.",
+      "Axis rejected the request. Each selected table must be active, waiting for ingestion, and still have the columns saved at activation.",
     notFound: "That ingestion request does not exist.",
     genericError: "Axis could not record this ingestion request. Nothing was invented; try again after checking the API status.",
     unavailableTitle: "Ingestion requests unavailable",
@@ -1295,6 +1315,30 @@ const connectors = {
 
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
+  /* Secondary overview sections collapse behind these on a phone. */
+  mobileSections: {
+    activity: "Activity breakdown",
+    posture: "Platform posture",
+    evidence: "Evidence and governed artifacts",
+  },
+  /* One page-level notice replaces a provenance chip on every panel. Each
+     panel still names its own source in its tooltip. */
+  scenarioBanner: {
+    title: "Example scenario",
+    detail:
+      "Parts of this overview come from a reference scenario, not from records in your tenant.",
+    demoDetail:
+      "This tenant runs the demo scenario, so its records are sample data rather than your operations.",
+    sections: (subjects: string[]) => `Example data: ${subjects.join(", ")}.`,
+    /* Section names for the banner list and each card's provenance tooltip. */
+    subjects: {
+      context: "Context",
+      operations: "Operations",
+      approvals: "Approvals",
+      audit: "Audit",
+      models: "Models",
+    },
+  },
   hero: {
     /* Used when the tenant has recorded no scenario name. Must stay
        vertical-neutral: this console is not manufacturing-only. */
@@ -1511,6 +1555,22 @@ const models = {
 
 /** Policy pages copy: detail tabs and plain-first authoring-scope lines. */
 const policyDetail = {
+  /* How the platform picks a decision when several policies match. Plain
+     operator wording; the API's rule names stay in the Inspect payloads. */
+  precedence: {
+    eyebrow: "How policies decide",
+    title: "Which policy wins",
+    steps: [
+      "A policy that blocks an action wins over one that asks for approval, and asking for approval wins over allowing the action with recorded evidence.",
+      "If two matching policies have the same outcome, the one whose ID comes first alphabetically is applied.",
+    ],
+    defaultAllowTitle: "If no policy matches, actions are allowed by default.",
+    defaultAllowDetail:
+      "Add a policy that blocks or requires approval for any action that must never run unreviewed.",
+    noMatch: "No active policy matched, so the action is allowed by default.",
+    evaluated: (count: number) =>
+      count === 1 ? "1 active policy checked" : `${count} active policies checked`,
+  },
   tabs: {
     conditions: "Conditions",
     revisions: "Revisions",
@@ -1649,6 +1709,8 @@ const settingsPanelUnavailable = "Local fallback settings records are disabled."
 const settings = {
   // No page-title override: the h1 is `pages.settings.title`, matching the
   // "Settings" nav label (#945).
+  revokeDenied:
+    "You don't have permission to sign out other people's sessions. An identity administrator can grant session admin access.",
   source: {
     live: "Live system status",
     loading: "Loading system status",
@@ -1884,6 +1946,9 @@ const ontology = {
     entity: "Entity",
     selected: "Selected",
     relation: "Relation",
+    /* Status markers: the dot at a node's upper right. Ready nodes have none. */
+    statusGroup: "Node status",
+    readyNoMarker: "Ready: no marker",
     hint: "Click or press Enter on a node to open its entity detail",
   },
   graph: {
@@ -1906,6 +1971,25 @@ const ontology = {
         "No ontology entity exists with this id. It may have been renamed or removed from the graph.",
     },
   },
+  entity: {
+    type: "Type",
+    domain: "Domain",
+    source: "Source",
+    attention: {
+      action_required: "Why this needs action",
+      watch: "Why this is on watch",
+      connected: "Connected records that need attention",
+      reviewApprovals: "Review approvals",
+      openWorkflows: "Open workflows",
+    },
+    direction: {
+      inbound: "Incoming",
+      outbound: "Outgoing",
+    },
+    ownerVerification: (owner: string, verification: string) =>
+      `Owner: ${owner} · ${verification}`,
+    evidenceIds: "Evidence references",
+  },
 } as const;
 
 /** Topbar pill marking a tenant that runs the bootstrapped demo scenario. */
@@ -1927,6 +2011,9 @@ const tenantLifecycle = {
     impact:
       "Every sign-in and API request made as this tenant is denied until it is reactivated, so its operators, agents and integrations are locked out. Remaining browser sessions are revoked by the next reconciliation sweep. Tenant data and audit evidence are kept.",
   },
+  /* Shown above the lifecycle actions; the raw permission stays in a title. */
+  permissionNote:
+    "Only operators allowed to suspend tenants can change a tenant's status. Every change is recorded in the audit log; anyone without that permission sees an explanation instead.",
 } as const;
 
 const tenantVocabulary = {
@@ -1989,6 +2076,854 @@ const tenantVocabulary = {
       `${message} Required permission: ${permission}.`,
   },
   success: "Vocabulary update applied.",
+} as const;
+
+/**
+ * Component copy moved out of JSX (#945), grouped by the component that
+ * renders it. `common` holds labels several components share.
+ */
+const ui = {
+  actionRegistry: {
+    theActionRegistryIsNot:
+      "The action registry is not loaded until the current actor and tenant are verified.",
+    axisDidNotReceiveApi:
+      "Axis did not receive API-backed action records. Local fallback action records are disabled.",
+    actionApiUnavailable: "Action API unavailable",
+    governedActionsWillAppearHere:
+      "Governed actions will appear here after they are registered for this tenant.",
+    noActionsRegisteredYet: "No actions registered yet",
+    theActionApiRespondedWithout:
+      "The action API responded without registry records for this tenant.",
+    actionApiReturnedNoRecords: "Action API returned no records",
+    actionSourceAndRegistryStatus: "Action source and registry status",
+    actionRegistry: "Action registry",
+    risk: "Risk",
+    allRisks: "All risks",
+    approval: "Approval",
+    allModes: "All modes",
+    resetActionFilters: "Reset action filters",
+    actions: "Actions",
+    adjustOrResetTheDomain:
+      "Adjust or reset the domain, risk, approval and status filters to see registered actions.",
+    noActionsMatchTheCurrent: "No actions match the current filters",
+    actionId: "Action ID",
+    runtime: "Runtime",
+    autonomy: "Autonomy",
+    connectedAgents: "Connected Agents",
+    workflowBindings: "Workflow Bindings",
+    approvalRefs: "Approval Refs",
+    inputSchema: "Input Schema",
+    outputSchema: "Output Schema",
+    sideEffects: "Side Effects",
+    guardrails: "Guardrails",
+    validationChecks: "Validation Checks",
+    blockedConditions: "Blocked Conditions",
+    apiDryRunPayload: "API dry-run payload",
+    signInWithSsoTo: "Sign in with SSO to request governed action runs.",
+    requesting: "Requesting",
+    requestDryRun: "Request dry-run",
+    sampleInput: "Sample Input",
+    sampleOutput: "Sample Output",
+    actionRunResult: "Action run result",
+    persistedActionRun: "Persisted Action Run",
+    runId: "Run ID",
+    idempotency: "Idempotency",
+    workflowSignal: "Workflow Signal",
+    actionRunPersistenceError: "Action run persistence error",
+    actionRunPersistenceUnavailable: "Action run persistence unavailable",
+  },
+  agentRegistry: {
+    theAgentRegistryIsNot:
+      "The agent registry is not loaded until the current actor and tenant are verified.",
+    theAuthenticatedIdentityResponseDoes:
+      "The authenticated identity response does not contain a tenant. Axis will not fall back to demo agent records.",
+    loadingAgentApi: "Loading agent API",
+    agentSourceAndRegistryStatus: "Agent source and registry status",
+  },
+  agentsAgentRuns: {
+    agentRunStepTimeline: "Agent run step timeline",
+    loadingAgentRunSteps: "Loading agent run steps",
+    loadingAgentRuns: "Loading agent runs",
+  },
+  apiStatusPanel: {
+    apiStatus: "API Status",
+    controlApi: "Control API",
+  },
+  appShell: {
+    pendingApprovals: (count: number) => `${count} pending approvals`,
+    axisSections: "Axis sections",
+    skipToMainContent: "Skip to main content",
+  },
+  approvalInbox: {
+    decisionStageRail: "Decision stage rail",
+    decisionHistory: "Decision history",
+    risks: "Risks",
+    alternatives: "Alternatives",
+    decisionTrail: "Decision trail",
+    requestedBy: "Requested by",
+    costExposure: "Cost exposure",
+    theApprovalQueueIsNot:
+      "The approval queue is not loaded until the current actor and tenant are verified.",
+    loadingApprovalApi: "Loading approval API",
+    approvalSourceAndStatus: "Approval source and status",
+    approvalMetrics: "Approval metrics",
+    ready: "Ready:",
+    needsWatching: "Needs watching:",
+    actionRequired: "Action required:",
+    thisLinkedApprovalIsOutside: "This linked approval is outside the current queue filters.",
+    clearQueueFilters: "Clear queue filters",
+    policyNotes: "Policy Notes",
+  },
+  approvalsApprovalDecisionCard: {
+    decisionPersistenceError: "Decision persistence error",
+  },
+  approvalsApprovalQueue: {
+    highRisk: "High risk",
+    mediumRisk: "Medium risk",
+    lowRisk: "Low risk",
+  },
+  auditActivityHeatmap: {
+    activityByTime: "Activity by time",
+    utc6HourBins: "UTC · 6-hour bins",
+    auditEventsByUtcDate: "Audit events by UTC date and six-hour interval",
+    /* The heatmap bins in the console time zone, the same zone the list prints. */
+    zoneSixHourBins: (zone: string) => `${zone} · 6-hour bins`,
+    auditEventsByZonedDate: (zone: string) =>
+      `Audit events by date and six-hour interval, ${zone} time`,
+    clearTimeFilter: "Clear time filter",
+  },
+  auditExplorer: {
+    theConsoleCouldNotVerify:
+      "The console could not verify the current actor and tenant. Audit data is not loaded until identity is available.",
+    governedActionsAndDecisionsWill:
+      "Governed actions and decisions will appear here as append-only evidence.",
+    noAuditEvidenceYet: "No audit evidence yet",
+    noAuditEventsMatchThe: "No audit events match the selected filters.",
+    noMatchingAuditEvidence: "No matching audit evidence",
+    auditSourceAndLedgerStatus: "Audit source and ledger status",
+    events: "Events",
+    eventsInTheReturnedWindow: "Events in the returned window",
+    eventsMarkedForAttention: "Events marked for attention",
+    /* Labels the list's time zone so it can be read against the heatmap. */
+    timesInZone: (zone: string) => `Times in ${zone}`,
+    auditExplorer: "Audit explorer",
+    allTenants: "All tenants",
+    allEvents: "All events",
+    visibleAuditEvents: "Visible audit events",
+    noReturnedEventsInThis:
+      "No returned events in this interval match the current tenant, event and scope filters. Select another cell or clear the time filter.",
+    noEventsInThisTime: "No events in this time interval",
+    selectedAuditEvent: "Selected audit event",
+    occurred: "Occurred",
+    related: "Related",
+    redactedFields: "Redacted fields",
+    connectorSnapshot: "Connector snapshot",
+    retentionNotes: "Retention Notes",
+  },
+  common: {
+    theAuthenticatedIdentityResponseDoes:
+      "The authenticated identity response does not contain a tenant.",
+    authenticatedTenantMissing: "Authenticated tenant missing",
+    filters: "Filters",
+    domain: "Domain",
+    allDomains: "All domains",
+    status: "Status",
+    allStatuses: "All statuses",
+    owner: "Owner",
+    policy: "Policy",
+    requiredPermissions: "Required Permissions",
+    payloadPreview: "Payload Preview",
+    audit: "Audit",
+    permission: "Permission",
+    registryNotes: "Registry Notes",
+    workflow: "Workflow",
+    decision: "Decision",
+    tenant: "Tenant",
+    event: "Event",
+    scope: "Scope",
+    allScopes: "All scopes",
+    resetFilters: "Reset filters",
+    auditEvent: "Audit Event",
+    actor: "Actor",
+    source: "Source",
+    evidence: "Evidence",
+    node: "Node",
+    type: "Type",
+    none: "None",
+    yes: "Yes",
+    refreshState: "Refresh state",
+    provider: "Provider",
+    model: "Model",
+    endpoint: "Endpoint",
+    openAudit: "Open audit",
+    reset: "Reset",
+    actionDomains: "Action Domains",
+    amountThreshold: "Amount Threshold",
+    optional: "Optional",
+    policyVersion: "Policy Version",
+    effect: "Effect",
+    displayName: "Display Name",
+    description: "Description",
+    notesOnePerLine: "Notes (one per line)",
+    optionalReviewerNotes: "Optional reviewer notes",
+    revision: "Revision",
+    conditions: "Conditions",
+    theConsoleCouldNotVerify:
+      "The console could not verify the current actor and tenant. Policy data is not loaded until identity is available.",
+    policies: "Policies",
+    evaluationPrecedence: "Evaluation Precedence",
+    dismiss: "Dismiss",
+    updated: "Updated",
+    registry: "Registry",
+    emptyRegistry: "Empty registry",
+    sessionApiUnavailable: "Session API unavailable",
+    unknown: "Unknown",
+    tenantApiUnavailable: "Tenant API unavailable",
+    tenants: "Tenants",
+    saving: "Saving",
+    close: "Close",
+  },
+  connectorConsole: {
+    loadingConnectorIdentity: "Loading connector identity",
+    theConnectorConsoleIsDisabled:
+      "The connector console is disabled because the current tenant could not be verified.",
+    tenantIdentityUnavailable: "Tenant identity unavailable",
+    loadingConnectorApi: "Loading connector API",
+    connectorSourceAndStatus: "Connector source and status",
+    connectorDetailUnavailable: "Connector detail unavailable",
+    refreshToLoadTheSelected: "Refresh to load the selected connector again.",
+    selectAConnector: "Select a connector",
+    chooseAConnectorFromThe: "Choose a connector from the list.",
+  },
+  connectorConsoleAddConnectorWizard: {
+    loadingConnectorTemplates: "Loading connector templates…",
+    connectorTemplatesUnavailableCloseAnd:
+      "Connector templates unavailable. Close and reopen to retry.",
+    ontologyTarget: "Ontology target",
+    column: "Column",
+    target: "Target",
+  },
+  connectorConsoleGovernance: {
+    liveRefreshFailedShowingThe: "Live refresh failed. Showing the last validated data.",
+    reference: "Reference",
+    rotation: "Rotation",
+    lease: "Lease",
+    window: "Window",
+    boundary: "Boundary",
+    profile: "Profile",
+  },
+  connectorConsoleList: {
+    connectorPages: "Connector pages",
+    previousConnectors: "Previous connectors",
+    previous: "Previous",
+    nextConnectors: "Next connectors",
+    next: "Next",
+  },
+  connectorConsoleRuns: {
+    liveRefreshFailedShowingThe: "Live refresh failed. Showing the last validated run data.",
+  },
+  connectorConsoleSourceIngestionPanel: {
+    off: "Off",
+  },
+  connectorConsoleSourceJourney: {
+    completedStep: "Completed step: ",
+    notDoneYet: "Not done yet: ",
+    needsAttention: "Needs attention",
+    done: "Done",
+    toDo: "To do",
+  },
+  consoleCommandMenu: {
+    currentApiStatus: "Current API status",
+  },
+  consoleTopbar: {
+    consoleStatusBar: "Console status bar",
+    utilityActions: "Utility actions",
+  },
+  mobileNavigation: {
+    navigationLabel: (section: string) => `Mobile Axis navigation. Current section: ${section}`,
+    sheetDescription: (section: string) =>
+      `Current section: ${section}. Choose another console area.`,
+    limesAxisOverview: "Limes Axis overview",
+    navigateAxis: "Navigate Axis",
+    allAxisSections: "All Axis sections",
+  },
+  modelRoutingConsole: {
+    noLiveInvocationsDetail: (flag: string) =>
+      `No live model invocations are recorded for this tenant. Model routing execution is deferred by default until ${flag} is enabled on the API; deferred requests perform zero provider calls and Axis never fabricates rows.`,
+    modelRoutingDataIsNot:
+      "Model routing data is not loaded until the current actor and tenant are verified.",
+    theAuthenticatedIdentityResponseDoes:
+      "The authenticated identity response does not contain a tenant. Axis will not fall back to demo routing data.",
+    modelRoutingSourceAndStatus: "Model routing source and status",
+    routingTelemetry: "Routing telemetry",
+    allProviders: "All providers",
+    allDecisions: "All decisions",
+    resetRoutingFilters: "Reset routing filters",
+    routes: "Routes",
+    providerBoundary: "Provider Boundary",
+    hosting: "Hosting",
+    costBasis: "Cost Basis",
+    budgetNotes: "Budget Notes",
+    liveExecuted: "Live executed",
+    loadingLiveModelRouterData: "Loading live model router data",
+    liveModelRouter: "Live Model Router",
+    executedInvocations: "Executed invocations",
+    persistedInvocationRecordsFromThe:
+      "Persisted invocation records from the platform model router. Token counts, latency, cost estimates and egress decisions are recorded values, never reference data.",
+    liveModelRouterSourceAnd: "Live model router source and status",
+    liveInvocations: "Live Invocations",
+    awaitingInvocationApi: "Awaiting invocation API",
+    noInvocationsRecordedYet: "No invocations recorded yet",
+    task: "Task",
+    tokensInOut: "Tokens in / out",
+    estCost: "Est. cost",
+    latency: "Latency",
+    egress: "Egress",
+    recorded: "Recorded",
+    endpointRegistry: "Endpoint Registry",
+    awaitingEndpointApi: "Awaiting endpoint API",
+    metadataOnly: "Metadata only",
+    noModelEndpointsRegistered: "No model endpoints registered",
+    defaultModel: "Default Model",
+    taskTypes: "Task Types",
+    credentialAttached: "Credential attached",
+    noCredentialHandle: "No credential handle",
+    egressPolicyAttached: "Egress policy attached",
+    noEgressPolicy: "No egress policy",
+    telemetryNotes: "Telemetry Notes",
+  },
+  modelRoutingFlow: {
+    routingDependencies: "Routing dependencies",
+    includesBlockedRoutesWidthConfigured: "Includes blocked routes. Width = configured routes.",
+    selectAProviderOrModel: "Select a provider or model to inspect its configured routes.",
+    inspectFirstMatchingRoute: "Inspect first matching route",
+    viewProviderRoutes: "View provider routes",
+    resetSelection: "Reset selection",
+    noConfiguredRoutesToCompare: "No configured routes to compare.",
+    providerToModelDiagram: "Provider to model diagram",
+    routesByProviderAndModel: "Routes by provider and model",
+  },
+  oidcSessionBridge: {
+    oidcSession: "OIDC session",
+    oidcBearerToken: "OIDC bearer token",
+    bearerToken: "Bearer token",
+    connectOidcSession: "Connect OIDC session",
+    cancelOidcSessionEntry: "Cancel OIDC session entry",
+    connectOidcBearerToken: "Connect OIDC bearer token",
+    clearOidcSession: "Clear OIDC session",
+  },
+  ontologyEntityDetail: {
+    backToOntology: "Back to ontology",
+    notFoundDetail: (nodeId: string) =>
+      `No ontology entity exists with the id ${nodeId}. It may have been renamed or removed from the graph.`,
+    theEntityIsNotLoaded:
+      "The entity is not loaded until the current actor and tenant are verified.",
+    theAuthenticatedIdentityResponseDoes:
+      "The authenticated identity response does not contain a tenant. Axis will not fall back to a demo entity.",
+    loadingEntityApi: "Loading entity API",
+    axisDidNotReceiveAn:
+      "Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled.",
+    entityApiUnavailable: "Entity API unavailable",
+    entityNotFound: "Entity not found",
+    ontologyEntity: "Ontology Entity",
+    entitySourceAndNodeStatus: "Entity source and node status",
+    ontology: "Ontology",
+  },
+  ontologyEntityDetailContent: {
+    incomingRelationships: "Incoming relationships",
+    inbound: "Inbound",
+    outgoingRelationships: "Outgoing relationships",
+    outbound: "Outbound",
+    relationships: "Relationships",
+    governance: "Governance",
+    accessAndEvidence: "Access and evidence",
+    derivedReadScope: "derived read scope",
+    nodeSummaryOnly: "node summary only",
+    workflows: "Workflows",
+    noWorkflowRelation: "no workflow relation",
+    approvals: "Approvals",
+    noApprovalRelation: "no approval relation",
+    agents: "Agents",
+    noAgentRelation: "no agent relation",
+    dataAccess: "Data Access",
+    publicDemoSummaryOnly: "Public demo summary only",
+    detailNotes: "Detail Notes",
+  },
+  ontologyEntitySheet: {
+    liveRefreshFailedShowingThe: "Live refresh failed. Showing the last validated entity data.",
+  },
+  ontologyExplorer: {
+    loadingOntologyApi: "Loading ontology API",
+    theOntologyIsNotLoaded:
+      "The ontology is not loaded until the current actor and tenant are verified.",
+    theAuthenticatedIdentityResponseDoes:
+      "The authenticated identity response does not contain a tenant. Axis will not fall back to the demo ontology.",
+    axisDidNotReceiveApi:
+      "Axis did not receive API-backed ontology records. Local fallback ontology records are disabled.",
+    ontologyApiUnavailable: "Ontology API unavailable",
+    ontologySource: "Ontology source",
+    ontologyView: "Ontology view",
+    graph: "Graph",
+    list: "List",
+    ontologyNodes: "Ontology nodes",
+    ontologyRelationships: "Ontology relationships",
+    relationship: "Relationship",
+    from: "From",
+    to: "To",
+    sourceSystems: "Source Systems",
+    connectedContext: "Connected context",
+    graphQuery: "Graph Query",
+    ontologyGraphQueryMetadata: "Ontology graph query metadata",
+    permissionNotes: "Permission Notes",
+    readBoundaries: "Read boundaries",
+  },
+  overviewActivityTimeline: {
+    returnedWindow: "Returned window",
+    chartLegend: "Chart legend",
+    eventsLeftAxis: "Events · left axis",
+    attentionShareRightAxis: "Attention share · right axis",
+    eventsAndAttentionShareBy: "Events and attention share by UTC date; scroll for more dates",
+    eventsAndAttentionShareBy2: "Events and attention share by UTC date",
+    chooseAUtcDateArrow:
+      "Choose a UTC date. Arrow keys navigate; Enter or Space selects; Escape clears.",
+    noValidTimestampsToPlot: "No valid timestamps to plot.",
+    onlyOneUtcDateIn: "Only one UTC date in this window.",
+    selectADateToInspect: "Select a date to inspect. Returned dates only.",
+    noDatedActivityInThis: "No dated activity in this window.",
+    dailyValues: "Daily values",
+    attentionWatchActionRequiredShare:
+      "Attention = Watch + Action required; share of that date’s returned events. Not complete daily totals.",
+    dailyActivityValues: "Daily activity values",
+  },
+  overviewArtifactPanel: {
+    governedArtifactActions: "Governed artifact actions",
+    persisting: "Persisting...",
+    idempotentReplay: "Idempotent replay",
+    created: "Created",
+    artifactPersistenceFailed: "Artifact persistence failed",
+  },
+  overviewNeedsAttention: {
+    openTheFullApprovalInbox: "Open the full approval inbox",
+    needsAttentionDataSources: "Needs attention data sources",
+  },
+  overviewPostureCards: {
+    platformPosture: "Platform posture",
+  },
+  overviewSideRail: {
+    activityByDate: "Activity by date",
+    activityChartView: "Activity chart view",
+    category: "Category",
+    byDate: "By date",
+  },
+  pageActions: {
+    pageActions: "Page actions",
+  },
+  platformOverview: {
+    overviewDataSources: "Overview data sources",
+    theConsoleCouldNotVerify:
+      "The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available.",
+    theAuthenticatedIdentityResponseDoes:
+      "The authenticated identity response does not contain a tenant. Axis will not fall back to demo data for an authenticated actor.",
+    operationsEvidence: "Operations evidence",
+  },
+  policyConditionFields: {
+    operationsFinanceCommaSeparated: "Operations, Finance (comma separated)",
+  },
+  policyCreateForm: {
+    authorPolicy: "Author Policy",
+    newPolicy: "New policy",
+    platformPolicyAuthoring: "Platform policy authoring",
+    policyId: "Policy ID",
+    newPolicyId: "New policy id",
+    newPolicyVersion: "New policy version",
+    newPolicyScope: "New policy scope",
+    newPolicyEffect: "New policy effect",
+    newPolicyDisplayName: "New policy display name",
+    denyCriticalActions: "Deny critical actions",
+    newPolicyDescription: "New policy description",
+    whatThisPolicyGatesAnd: "What this policy gates and why",
+    newPolicyNotes: "New policy notes",
+    authoring: "Authoring",
+    authorPolicy2: "Author policy",
+    previewEvaluation: "Preview Evaluation",
+    advisoryDryRunForThe: "Advisory dry run for the drafted scope",
+  },
+  policyDetail: {
+    policyRevisionHistory: "Policy revision history",
+    authored: "Authored",
+    initialRevision: "Initial revision",
+    platformPolicy: "Platform Policy",
+    policyNotFound: "Policy not found",
+    policySourceAndStatus: "Policy source and status",
+    currentRevision: "Current Revision",
+    onlyTheActiveRevisionIs: "Only the active revision is evaluated",
+    authoredBy: "Authored By",
+    authoringScope: "Authoring Scope",
+    ruleConditions: "Rule Conditions",
+    riskLevels: "Risk Levels",
+    autonomyLevels: "Autonomy Levels",
+    noAmountGate: "No amount gate",
+    malformedAmountsFailClosed: "Malformed amounts fail closed",
+    deterministicDecisionOrder: "Deterministic decision order",
+    policyRevisionResult: "Policy revision result",
+    revisionHistory: "Revision History",
+    supersededRevisionsStayReadableBut:
+      "Superseded revisions stay readable but are never evaluated.",
+    revisionCompare: "Revision Compare",
+    diffARevisionAgainstThe: "Diff a revision against the current one",
+    fieldLevelCompareOfName:
+      "Field-level compare of name, description, effect and typed conditions.",
+    compareRevision: "Compare Revision",
+    revisionToCompare: "Revision to compare",
+    selectARevision: "Select a revision",
+    onlyTheInitialRevisionExists:
+      "Only the initial revision exists; append a revision to compare definitions.",
+    dryRunEvaluation: "Dry-Run Evaluation",
+    evaluateAContextAgainstTenant: "Evaluate a context against tenant policies",
+    dryRunOnlyEvaluationIs:
+      "Dry run only: evaluation is deterministic, records no audit event and never mutates state.",
+  },
+  policyEvaluationPanel: {
+    noActivePolicyMatchedThis: "No active policy matched this context",
+    matchedPolicies: "Matched Policies",
+    evidencePayload: "Evidence Payload",
+    evaluationScope: "Evaluation scope",
+    actionDomain: "Action Domain",
+    actionDomain2: "Action domain",
+    operations: "Operations",
+    riskLevel: "Risk Level",
+    riskLevel2: "Risk level",
+    notSet: "Not set",
+    autonomyLevel: "Autonomy Level",
+    autonomyLevel2: "Autonomy level",
+    requestedAmount: "Requested Amount",
+    requestedAmount2: "Requested amount",
+    evaluating: "Evaluating",
+    runDryRunEvaluation: "Run dry-run evaluation",
+  },
+  policyRegistry: {
+    policyAuthoringResult: "Policy authoring result",
+    policySourceAndRegistryStatus: "Policy source and registry status",
+    tenantScopedRulesMatchingThe: "Tenant-scoped rules matching the current filters",
+    deny: "Deny",
+    hardBlocksThatRejectMatching: "Hard blocks that reject matching action runs",
+    requireApproval: "Require Approval",
+    rulesThatForceTheHuman: "Rules that force the human approval gate",
+    allowWithEvidence: "Allow With Evidence",
+    rulesThatRecordDecisionEvidence: "Rules that record decision evidence on execution",
+    policyRegistry: "Policy registry",
+    noPoliciesMatchTheCurrent: "No policies match the current filters",
+    thePolicyApiRespondedWithout:
+      "The policy API responded without records for this tenant, scope and status selection. Author the tenant's first policy with the form below.",
+  },
+  policyReviseForm: {
+    revisePolicy: "Revise Policy",
+    platformPolicyRevision: "Platform policy revision",
+    revisionPolicyVersion: "Revision policy version",
+    revisionEffect: "Revision effect",
+    revisionDisplayName: "Revision display name",
+    revisionDescription: "Revision description",
+    revisionNotes: "Revision notes",
+    appending: "Appending",
+    appendRevision: "Append revision",
+  },
+  policyRevisionCompare: {
+    fieldsChangedRemovedValuesWere:
+      "fields changed. Removed values (−) were dropped by the current revision; added values (+) are new in it.",
+    changed: "Changed",
+    unchanged: "Unchanged",
+  },
+  sessionSecurityConsole: {
+    browserSession: (ref: string) => `Browser session ${ref}`,
+    sessionShort: (ref: string) => `Session ${ref}`,
+    current: "Current",
+    revokingThisBrowsersSessionSigns:
+      "Revoking this browser's session signs you out through the identity provider",
+    signOut: "Sign out",
+    revoking: "Revoking",
+    revoke: "Revoke",
+    signedOut: "Signed out",
+    noAuthenticatedOperatorSession: "No authenticated operator session",
+    sessionManagementListsOnlyApi:
+      "Session management lists only API-verified sessions. Sign in with the API-owned OIDC browser session, or attach a bearer token from the account panel, before managing sessions.",
+    liveSessionDataRequiresThe:
+      "Live session data requires the Axis identity session APIs. Local fallback session records are disabled.",
+    sessionsApiUnavailable: "Sessions API unavailable",
+    browserSessions: "Browser sessions",
+    tenantWideSessions: "Tenant-wide sessions",
+    yourSessions: "Your sessions",
+    showMySessions: "Show my sessions",
+    showTenantSessions: "Show tenant sessions",
+    loadingSessions: "Loading sessions",
+    liveRefreshFailedShowingThe: "Live refresh failed. Showing the last validated session data.",
+    noBrowserSessionsRecorded: "No browser sessions recorded",
+    axisHasNoPersistedOidc:
+      "Axis has no persisted OIDC browser sessions for this actor. Bearer-token bridges do not create cookie sessions; sign in with SSO to start one.",
+    empty: "Empty",
+    loadingPersistedSessionRecordsFrom: "Loading persisted session records from the Axis API.",
+    sessionRevocationFailed: "Session revocation failed",
+    platformControl: "Platform control",
+    apiOwnedOidcBrowserSessions:
+      "API-owned OIDC browser sessions with rotation, revocation and logout evidence.",
+    sessionSecurity: "Session security",
+    liveSessionManagementRequiresThe:
+      "Live session management requires the Axis identity APIs. Local fallback session records are disabled.",
+    operatorSession: "Operator session",
+    apiVerifiedIdentity: "API-verified identity",
+    cookieSession: "Cookie session",
+    bearerSession: "Bearer session",
+    sessionBoundary: "Session boundary",
+    scopes: "Scopes",
+    thisConsoleIsAttachedThrough:
+      "This console is attached through the developer bearer bridge. Revocation below applies to persisted browser cookie sessions; clear the bearer bridge from the account panel to detach this console.",
+  },
+  sidebarAccount: {
+    openPlatformHelp: "Open platform help",
+  },
+  simulationConsole: {
+    theConsoleCouldNotVerify:
+      "The console could not verify the current actor and tenant. Replay data is not loaded until identity is available.",
+    simulationSourceAndStatus: "Simulation source and status",
+    replayWindow: "Replay Window",
+    windowStart: "Window Start",
+    timeline: "Timeline",
+    historyEvents: "history events",
+    ledgerEvents: "ledger events",
+    outputs: "Outputs",
+    artifacts: "Artifacts",
+    workflowHistoryEvents: "workflow history events",
+    replayReady: "Replay Ready",
+    no: "No",
+    previewFoundation: "preview foundation",
+    policySimulation: "Policy Simulation",
+    baseline: "Baseline",
+    simulated: "Simulated",
+    outcomeChange: "Outcome Change",
+    policySetDiff: "Policy Set Diff",
+    baselineSet: "Baseline Set",
+    candidateSet: "Candidate Set",
+    diffStatus: "Diff Status",
+    changedPolicies: "Changed Policies",
+    auditEventTypes: "Audit Event Types",
+    mode: "Mode",
+    replayTrace: "Replay Trace",
+    timelineEvidence: "Timeline evidence",
+    persistedOutputs: "Persisted Outputs",
+    noPersistedOutput: "No persisted output",
+    retention: "Retention",
+    requestedBy: "Requested By",
+    simulationNotes: "Simulation Notes",
+  },
+  tenantDetail: {
+    axisDidNotReceiveAn:
+      "Axis did not receive an API-backed platform tenant. Local fallback tenant records are disabled.",
+    platformTenant: "Platform Tenant",
+    tenantNotFound: "Tenant not found",
+    theTenantReadRouteReturned:
+      "The tenant read route returned 404: no tenant with this id is provisioned.",
+    noDescriptionRecorded: "No description recorded.",
+    tenantSourceAndStatus: "Tenant source and status",
+    onlyActiveTenantsCanEstablish: "Only active tenants can establish sessions",
+    createdBy: "Created By",
+    bootstrapAdmin: "Bootstrap Admin",
+    optionalActorCreatedAtProvisioning: "Optional actor created at provisioning time",
+    lastAuditEvent: "Last Audit Event",
+    noAuditId: "No audit id",
+    lifecycleTimeline: "Lifecycle Timeline",
+    provisioningAndLifecycleTransitions: "Provisioning and lifecycle transitions",
+    everyTransitionRecordsTheOperator:
+      "Every transition records the operator actor, an optional reason and append-only audit evidence.",
+    unknownActor: "Unknown actor",
+    reason: "Reason",
+    noReasonRecorded: "No reason recorded",
+    auditEventId: "Audit Event ID",
+    supersededByLaterEvent: "Superseded by later event",
+    tenantNotes: "Tenant notes",
+  },
+  tenantLifecycleActions: {
+    lifecycleActions: "Lifecycle Actions",
+    reactivateTenant: "Reactivate tenant",
+    noActionsAvailable: "No actions available",
+    suspendTenant: "Suspend tenant",
+    suspensionReason: "Suspension Reason",
+    suspensionReason2: "Suspension reason",
+    whyThisTenantIsBeing: "Why this tenant is being suspended",
+    reactivationReasonOptional: "Reactivation Reason (optional)",
+    reactivationReason: "Reactivation reason",
+    optionalReasonForReactivating: "Optional reason for reactivating",
+    reactivating: "Reactivating",
+  },
+  tenantProvisionForm: {
+    provisionTenant: "Provision Tenant",
+    newTenant: "New tenant",
+    tenantProvisioning: "Tenant provisioning",
+    tenantId: "Tenant ID",
+    newTenantId: "New tenant id",
+    newTenantDisplayName: "New tenant display name",
+    acmeManufacturing: "Acme Manufacturing",
+    newTenantDescription: "New tenant description",
+    whatThisTenantIsFor: "What this tenant is for (optional)",
+    bootstrapAnAdminActor: "Bootstrap an admin actor",
+    bootstrapAnAdminActorFor: "Bootstrap an admin actor for this tenant",
+    bootstrapAdminActorId: "Bootstrap Admin Actor ID",
+    bootstrapAdminActorId2: "Bootstrap admin actor id",
+    bootstrapAdminDisplayName: "Bootstrap Admin Display Name",
+    bootstrapAdminDisplayName2: "Bootstrap admin display name",
+    acmeAdministrator: "Acme Administrator",
+    bootstrapAdminRequestedScopesComma:
+      "Bootstrap Admin Requested Scopes (comma or newline separated)",
+    bootstrapAdminRequestedScopes: "Bootstrap admin requested scopes",
+    recordedAsAuditEvidenceOnly:
+      "Recorded as audit evidence only. Scope grants stay IdP-owned; the API never grants these live.",
+    newTenantNotes: "New tenant notes",
+    optionalProvisioningNotes: "Optional provisioning notes",
+    signInWithSsoTo: "Sign in with SSO to provision tenants.",
+    provisioning: "Provisioning",
+    provisionTenant2: "Provision tenant",
+  },
+  tenantQuotaEditor: {
+    perTenantQuotas: "Per-Tenant Quotas",
+    quotaOverrides: "Quota overrides",
+    leavingAFieldBlankClears:
+      "Leaving a field blank clears the override and falls back to the global configuration.",
+    tenantQuotaUpdate: "Tenant quota update",
+    globalDefault: "Global default",
+    confirmTheQuotaUpdateBlank: "Confirm the quota update: blank fields clear the override.",
+    confirmQuotaUpdate: "Confirm quota update",
+    cancel: "Cancel",
+    reviewQuotaUpdate: "Review quota update",
+    quotaTechnicalDetails: "Quota technical details",
+  },
+  tenantRegistry: {
+    showingTenants: (count: string) => `Showing ${count} tenants. More match this filter.`,
+    axisDidNotReceiveApi:
+      "Axis did not receive API-backed platform tenant records. Local fallback tenant records are disabled.",
+    tenantSourceAndRegistryStatus: "Tenant source and registry status",
+    crossTenantOperatorSurfaceEvery:
+      "Cross-tenant operator surface; every lifecycle change appends audit evidence.",
+    tenantsMatchingTheCurrentStatus: "Tenants matching the current status filter",
+    active: "Active",
+    tenantsAbleToEstablishSessions: "Tenants able to establish sessions",
+    suspended: "Suspended",
+    rejectedFailClosedAtThe: "Rejected fail-closed at the OIDC principal boundary",
+    pendingDeletion: "Pending Deletion",
+    modeledAndBlockedNoDeletion: "Modeled and blocked; no deletion pipeline yet",
+    tenantRegistry: "Tenant registry",
+    createdBy: "Created by",
+    lifecycle: "Lifecycle",
+    noLifecycleChanges: "No lifecycle changes",
+    loading: "Loading…",
+    loadMoreTenants: "Load more tenants",
+    axisCouldNotLoadThe: "Axis could not load the next page of tenants. Try again.",
+    tenantPageUnavailable: "Tenant page unavailable",
+    noTenantsMatchTheCurrent: "No tenants match the current filter",
+    theTenantApiRespondedWithout:
+      "The tenant API responded without records for this status selection. Provision the first tenant with the form below.",
+  },
+  tenantUsagePanel: {
+    usageMetering: "Usage Metering",
+    noMeteredConsumptionInThis: "No metered consumption in this window.",
+    perMetricConsumption: "Per-metric consumption",
+    usageMethodologyAndAccess: "Usage methodology and access",
+    meteringIsCumulativeConsumptionAccounting:
+      "Metering is cumulative consumption accounting; quotas remain the enforcement ceilings.",
+  },
+  tenantVocabularyEditor: {
+    vocabularyTechnicalDetails: "Vocabulary technical details",
+  },
+  topbarAccountPanel: {
+    pasteTokenError: "Paste a JWT bearer token to bridge an OIDC session.",
+    tokenRejected: "Token rejected. Axis expects a JWT with sub and axis_tenant claims.",
+    sessionEndpointRequired: "Identity session requires `/identity/session`.",
+    needsSessionEndpoint:
+      "The account panel needs `/identity/session` before it can display an API-verified actor.",
+    operatorAccount: "Operator account",
+    operator: "Operator",
+    publicEvaluationOperator: "Public evaluation operator",
+    apiStatus: "API status",
+    ssoPosture: "SSO posture",
+    enterpriseReady: "Enterprise ready",
+    needsHardening: "Needs hardening",
+    sessionExpires: "Session expires",
+    capability: "Capability",
+    limitation: "Limitation",
+    noScopesInToken: "No scopes in token",
+    awaitingApiValidation: "Awaiting API validation",
+    manageSessions: "Manage sessions",
+    signOutWithIdentityProvider: "Sign out with identity provider",
+    clearBearerBridge: "Clear bearer bridge",
+    openSsoSetup: "Open SSO setup",
+    developerAccess: "Developer access",
+    forLocalDevelopmentAgainstA: "For local development against a non-SSO API.",
+    developerBearerBridge: "Developer bearer bridge",
+    pasteJwtAccessToken: "Paste JWT access token",
+    attachBearerBridge: "Attach bearer bridge",
+  },
+  topbarHelpPanel: {
+    platformHelp: "Platform help",
+    docs: "Docs",
+    modelRouting: "Model routing",
+    inspectProviderBoundariesAndEgress: "Inspect provider boundaries and egress decisions.",
+    architectureDocs: "Architecture docs",
+    openThePublicPlatformArchitecture: "Open the public platform architecture notes.",
+  },
+  topbarNotificationPanel: {
+    notifications: "Notifications",
+    loadingNotificationEvidence: "Loading notification evidence.",
+    acknowledged: "Acknowledged",
+    open: "Open",
+    acked: "Acked",
+    ack: "Ack",
+    noActiveNotifications: "No active notifications",
+    axisDidNotDerivePending: "Axis did not derive pending alerts from persisted platform state.",
+    openAuditEvidence: "Open audit evidence",
+  },
+  uiInspectDrawer: {
+    inspect: "Inspect",
+    rawRecordFieldsExactlyAs: "Raw record fields, exactly as the API returned them.",
+    fields: "Fields",
+    raw: "Raw",
+    thisRecordHasNoFields: "This record has no fields.",
+  },
+  uiStates: {
+    loadingContent: "Loading content",
+    apiBaseUrl: "API base URL",
+  },
+  uiToast: {
+    viewDetails: "View details",
+    dismissNotification: "Dismiss notification",
+  },
+  workflowConsole: {
+    currentBlocker: "Current blocker",
+    workflowRuntimeTimeline: "Workflow runtime timeline",
+    theConsoleCouldNotVerify:
+      "The console could not verify the current actor and tenant. Workflow data is not loaded until identity is available.",
+    loadingWorkflowApi: "Loading workflow API",
+    workflowSourceAndRuntimeStatus: "Workflow source and runtime status",
+    runtimeNotes: "Runtime Notes",
+  },
+  ontologyGraph: {
+    graphLabel: (nodes: number, relationships: number) =>
+      `Ontology graph with ${nodes} nodes and ${relationships} relationships`,
+  },
+  overviewEvidenceFeed: {
+    showingRecent: (shown: number, total: number) => `Showing ${shown} of ${total} recent events`,
+  },
+  detailPages: {
+    entityTitle: "Entity detail",
+    entityMetaTitle: (nodeId: string) => `Entity ${nodeId}`,
+    policyTitle: "Policy detail",
+    policyMetaTitle: (policyId: string) => `Policy ${policyId}`,
+    tenantTitle: "Tenant detail",
+    tenantMetaTitle: (tenantId: string) => `Tenant ${tenantId}`,
+    sessionsTitle: "Sessions",
+    sessionsDescription: "Review and revoke active console sessions for this tenant.",
+  },
+  rootLayout: {
+    title: "Axis Console",
+    titleTemplate: "%s · Axis Console",
+    description: "The sovereign AI control plane for European operations.",
+  },
 } as const;
 
 export const strings = {
@@ -2143,7 +3078,7 @@ export const strings = {
       },
       fields: {
         expectedResource: "Expected resource",
-        expectedFingerprint: "Expected schema fingerprint",
+        expectedFingerprint: "Expected columns code",
         warnHours: "Freshness warn threshold (hours)",
         failHours: "Freshness fail threshold (hours)",
         revision: "Revision",
@@ -2153,14 +3088,14 @@ export const strings = {
       form: {
         title: "Declare a data contract",
         description:
-          "State the resource this asset must keep observing, optionally the exact header fingerprint it must carry and how fresh the last observation must be.",
+          "State the resource this asset must keep observing, optionally the code for the exact columns it must keep, and how fresh the last observation must be.",
         submit: "Declare contract",
         submitting: "Declaring…",
         success: "Contract declared. Evaluation now runs against real observations.",
         errors: {
           resourceRequired: "The expected resource name is required.",
           fingerprintInvalid: (limit: number) =>
-            `The schema fingerprint must be ${limit} hexadecimal characters.`,
+            `The columns code must be ${limit} characters, using only 0–9 and a–f.`,
           hoursInvalid: "Thresholds must be whole numbers of at least 1 hour.",
           orderingInvalid: "The warn threshold cannot exceed the fail threshold.",
           declareFailed: "The data contract declaration was not applied.",
@@ -2179,7 +3114,7 @@ export const strings = {
     resources: {
       title: "Observed resources",
       description:
-        "Source files Axis actually observed through governed preview boundaries. Metadata only — header names and fingerprints, never row values.",
+        "Source files Axis actually observed through governed previews. Column names only, never row values.",
       countSummary: (count: number) =>
         count === 1 ? "1 resource observed" : `${count} resources observed`,
       empty: {
@@ -2236,6 +3171,17 @@ export const strings = {
   tenantLifecycle,
   tenantVocabulary,
   workflows,
+  /* Raw identifiers stay secondary: display names first, ids in a title,
+     a mono line or an Inspect disclosure. */
+  identifiers: {
+    notRecorded: "Not recorded",
+    inspect: "Inspect",
+    inspectIdentifiers: "Inspect identifiers",
+    permissions: (count: number) => (count === 1 ? "1 permission" : `${count} permissions`),
+    thisTenant: "this tenant",
+    tenantDetailTitle: "Tenant",
+    approvalRole: (role: string) => `Approval role: ${role}`,
+  },
   states: {
     loading: "Loading…",
     retry: "Try again",
@@ -2272,4 +3218,5 @@ export const strings = {
     },
   },
   pages,
+  ui,
 } as const;

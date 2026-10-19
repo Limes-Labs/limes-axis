@@ -42,11 +42,14 @@ import {
   resolveConsoleTenantScope,
   OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 
 type ActionRunSource = "api";
 
@@ -94,6 +97,7 @@ function PayloadRows({ payload }: { payload: Record<string, string> }) {
 }
 
 export function ActionRegistry() {
+  const strings = useStrings();
   const identity = useIdentitySession();
   const tenantScope = resolveConsoleTenantScope(identity.data);
   const tenantId = tenantScope.tenantId;
@@ -219,7 +223,7 @@ export function ActionRegistry() {
   if (identity.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The action registry is not loaded until the current actor and tenant are verified."
+        detail={strings.ui.actionRegistry.theActionRegistryIsNot}
         endpoint="/identity/session"
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -231,9 +235,9 @@ export function ActionRegistry() {
   if (identity.source === "api" && !tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant."
+        detail={strings.ui.common.theAuthenticatedIdentityResponseDoes}
         endpoint="/identity/session"
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -249,11 +253,11 @@ export function ActionRegistry() {
 
     return (
       <ErrorPanel
-        detail="Axis did not receive API-backed action records. Local fallback action records are disabled."
+        detail={strings.ui.actionRegistry.axisDidNotReceiveApi}
         endpoint={`${OPERATIONS_API_PREFIX}/actions`}
         onRetry={refetchRegistry}
         reference={registryErrorRequestId ?? undefined}
-        title="Action API unavailable"
+        title={strings.ui.actionRegistry.actionApiUnavailable}
       />
     );
   }
@@ -268,9 +272,9 @@ export function ActionRegistry() {
           />
         </div>
         <EmptyPanel
-          detail="Governed actions will appear here after they are registered for this tenant."
+          detail={strings.ui.actionRegistry.governedActionsWillAppearHere}
           icon={FileText}
-          title="No actions registered yet"
+          title={strings.ui.actionRegistry.noActionsRegisteredYet}
         />
       </div>
     );
@@ -279,9 +283,9 @@ export function ActionRegistry() {
   if (!selectedAction) {
     return (
       <ErrorPanel
-        detail="The action API responded without registry records for this tenant."
+        detail={strings.ui.actionRegistry.theActionApiRespondedWithout}
         endpoint={`${OPERATIONS_API_PREFIX}/actions`}
-        title="Action API returned no records"
+        title={strings.ui.actionRegistry.actionApiReturnedNoRecords}
       />
     );
   }
@@ -289,7 +293,7 @@ export function ActionRegistry() {
   return (
     <div className="grid min-w-0 gap-4">
       <div
-        aria-label="Action source and registry status"
+        aria-label={strings.ui.actionRegistry.actionSourceAndRegistryStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
@@ -312,33 +316,34 @@ export function ActionRegistry() {
         </div>
       </div>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" role="list">
         {registry.metrics.map((metric) => (
-          <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-              <p className="eyebrow m-0">{metric.label}</p>
+          <StatCard
+            aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
-            </div>
-            <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{metric.value}</p>
-            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
-          </article>
+            }
+            detail={metric.detail}
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+          />
         ))}
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Filters</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Action registry</h2>
+          <p className="eyebrow m-0">{strings.ui.common.filters}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.actionRegistry.actionRegistry}</h2>
         </div>
         <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-          <Field label="Domain">
+          <Field label={strings.ui.common.domain}>
             <Select
               value={filters.domain}
               onChange={(event) => updateFilter("domain", event.target.value)}
             >
-              <option value={allActionFilter}>All domains</option>
+              <option value={allActionFilter}>{strings.ui.common.allDomains}</option>
               {registry.filter_options.domains.map((domain) => (
                 <option key={domain} value={domain}>
                   {domain}
@@ -346,12 +351,12 @@ export function ActionRegistry() {
               ))}
             </Select>
           </Field>
-          <Field label="Risk">
+          <Field label={strings.ui.actionRegistry.risk}>
             <Select
               value={filters.riskLevel}
               onChange={(event) => updateFilter("riskLevel", event.target.value)}
             >
-              <option value={allActionFilter}>All risks</option>
+              <option value={allActionFilter}>{strings.ui.actionRegistry.allRisks}</option>
               {registry.filter_options.risk_levels.map((risk) => (
                 <option key={risk} value={risk}>
                   {formatActionLabel(risk)}
@@ -359,12 +364,12 @@ export function ActionRegistry() {
               ))}
             </Select>
           </Field>
-          <Field label="Approval">
+          <Field label={strings.ui.actionRegistry.approval}>
             <Select
               value={filters.approvalMode}
               onChange={(event) => updateFilter("approvalMode", event.target.value)}
             >
-              <option value={allActionFilter}>All modes</option>
+              <option value={allActionFilter}>{strings.ui.actionRegistry.allModes}</option>
               {registry.filter_options.approval_modes.map((mode) => (
                 <option key={mode} value={mode}>
                   {formatActionLabel(mode)}
@@ -372,12 +377,12 @@ export function ActionRegistry() {
               ))}
             </Select>
           </Field>
-          <Field label="Status">
+          <Field label={strings.ui.common.status}>
             <Select
               value={filters.status}
               onChange={(event) => updateFilter("status", event.target.value)}
             >
-              <option value={allActionFilter}>All statuses</option>
+              <option value={allActionFilter}>{strings.ui.common.allStatuses}</option>
               {registry.filter_options.statuses.map((status) => (
                 <option key={status} value={status}>
                   {formatActionLabel(status)}
@@ -385,7 +390,7 @@ export function ActionRegistry() {
               ))}
             </Select>
           </Field>
-          <button className="icon-button" onClick={resetFilters} title="Reset action filters" type="button">
+          <button className="icon-button" onClick={resetFilters} title={strings.ui.actionRegistry.resetActionFilters} type="button">
             <RotateCcw size={17} />
           </button>
         </div>
@@ -395,7 +400,7 @@ export function ActionRegistry() {
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="eyebrow m-0">Actions</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.actions}</p>
               <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatNumber(filteredActions.length)} visible</h2>
             </div>
             <span className="status-pill signal-watch">
@@ -405,9 +410,9 @@ export function ActionRegistry() {
           </div>
           {filteredActions.length === 0 ? (
             <EmptyPanel
-              action={{ label: "Reset filters", onClick: resetFilters }}
-              detail="Adjust or reset the domain, risk, approval and status filters to see registered actions."
-              title="No actions match the current filters"
+              action={{ label: strings.ui.common.resetFilters, onClick: resetFilters }}
+              detail={strings.ui.actionRegistry.adjustOrResetTheDomain}
+              title={strings.ui.actionRegistry.noActionsMatchTheCurrent}
             />
           ) : null}
           <div className="grid">
@@ -426,7 +431,10 @@ export function ActionRegistry() {
                   <span>
                     <span className="m-0 font-medium text-ink break-words">{action.definition.display_name}</span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                      {action.definition.domain} / {action.owner_role}
+                      {action.definition.domain} /{" "}
+                      <span title={action.owner_role}>
+                        {humanizeIdentifier(action.owner_role) ?? strings.identifiers.notRecorded}
+                      </span>
                     </span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(action.status)}</span>
                   </span>
@@ -458,22 +466,28 @@ export function ActionRegistry() {
 
           <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="eyebrow m-0">Action ID</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.actionId}</p>
               <p className="m-0 font-medium text-ink break-words font-mono text-[13px]">{selectedAction.definition.action_id}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(selectedAction.status)}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Owner</p>
-              <p className="m-0 font-medium text-ink break-words">{selectedAction.owner_role}</p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Approval role {selectedAction.policy.approval_role}</p>
+              <p className="eyebrow m-0">{strings.ui.common.owner}</p>
+              <p className="m-0 font-medium text-ink break-words" title={selectedAction.owner_role}>
+                {humanizeIdentifier(selectedAction.owner_role) ?? strings.identifiers.notRecorded}
+              </p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" title={selectedAction.policy.approval_role}>
+                {strings.identifiers.approvalRole(
+                  humanizeIdentifier(selectedAction.policy.approval_role) ?? strings.identifiers.notRecorded,
+                )}
+              </p>
             </div>
             <div>
-              <p className="eyebrow m-0">Runtime</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.runtime}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedAction.policy.runtime_adapter}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(selectedAction.policy.execution_mode)}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Autonomy</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.autonomy}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedAction.policy.autonomy_ceiling}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Ceiling for agent draft/execution</p>
             </div>
@@ -481,7 +495,7 @@ export function ActionRegistry() {
 
           <div className="grid gap-4 border-y border-line/60 py-3.5 dark:border-white/10 lg:grid-cols-[minmax(0,0.65fr)_minmax(260px,1fr)] [&>*]:min-w-0">
             <section>
-              <p className="eyebrow m-0">Policy</p>
+              <p className="eyebrow m-0">{strings.ui.common.policy}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{selectedAction.policy.model_egress_policy}</span>
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{selectedAction.policy.audit_event_type}</span>
@@ -494,7 +508,7 @@ export function ActionRegistry() {
               </div>
             </section>
             <section>
-              <p className="eyebrow m-0">Required Permissions</p>
+              <p className="eyebrow m-0">{strings.ui.common.requiredPermissions}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.definition.required_permissions.map((permission) => (
                   <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={permission}>
@@ -507,7 +521,7 @@ export function ActionRegistry() {
 
           <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="eyebrow m-0">Connected Agents</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.connectedAgents}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.connected_agents.map((agent) => (
                   <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={agent}>
@@ -517,7 +531,7 @@ export function ActionRegistry() {
               </div>
             </section>
             <section>
-              <p className="eyebrow m-0">Workflow Bindings</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.workflowBindings}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.workflow_bindings.map((workflow) => (
                   <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={workflow}>
@@ -527,7 +541,7 @@ export function ActionRegistry() {
               </div>
             </section>
             <section>
-              <p className="eyebrow m-0">Approval Refs</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.approvalRefs}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
                 {selectedAction.approval_refs.length > 0 ? (
                   selectedAction.approval_refs.map((approval) => (
@@ -544,7 +558,7 @@ export function ActionRegistry() {
 
           <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="eyebrow m-0">Input Schema</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.inputSchema}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {formatSchemaFields(selectedAction.definition.input_schema).map((field) => (
                   <li key={field}>{field}</li>
@@ -552,7 +566,7 @@ export function ActionRegistry() {
               </ul>
             </section>
             <section>
-              <p className="eyebrow m-0">Output Schema</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.outputSchema}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {formatSchemaFields(selectedAction.definition.output_schema).map((field) => (
                   <li key={field}>{field}</li>
@@ -560,14 +574,14 @@ export function ActionRegistry() {
               </ul>
             </section>
             <section>
-              <p className="eyebrow m-0">Side Effects</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.sideEffects}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedAction.side_effects}</p>
             </section>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
             <section>
-              <p className="eyebrow m-0">Guardrails</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.guardrails}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedAction.guardrails.map((guardrail) => (
                   <li key={guardrail}>{guardrail}</li>
@@ -575,7 +589,7 @@ export function ActionRegistry() {
               </ul>
             </section>
             <section>
-              <p className="eyebrow m-0">Validation Checks</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.validationChecks}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedAction.validation_checks.map((check) => (
                   <li key={check}>{check}</li>
@@ -583,7 +597,7 @@ export function ActionRegistry() {
               </ul>
             </section>
             <section>
-              <p className="eyebrow m-0">Blocked Conditions</p>
+              <p className="eyebrow m-0">{strings.ui.actionRegistry.blockedConditions}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
                 {selectedAction.blocked_conditions.map((condition) => (
                   <li key={condition}>{condition}</li>
@@ -595,45 +609,45 @@ export function ActionRegistry() {
           <section className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="eyebrow m-0">Payload Preview</p>
-                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">API dry-run payload</h3>
+                <p className="eyebrow m-0">{strings.ui.common.payloadPreview}</p>
+                <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{strings.ui.actionRegistry.apiDryRunPayload}</h3>
               </div>
               <div className="inline-flex flex-wrap items-center justify-end gap-2.5">
                 {ssoBlocked ? (
                   <p className="m-0 flex items-center gap-2 text-sm text-muted" role="status">
                     <ShieldCheck aria-hidden="true" className="shrink-0 text-signal" size={15} />
-                    Sign in with SSO to request governed action runs.
+                    {strings.ui.actionRegistry.signInWithSsoTo}
                   </p>
                 ) : (
-                  <button
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+                  <Button
+                    variant="secondary"
                     disabled={submittingActionId === selectedAction.definition.action_id}
                     onClick={() => void requestActionRun(selectedAction)}
                     type="button"
                   >
                     <Send size={16} />
                     {submittingActionId === selectedAction.definition.action_id
-                      ? "Requesting"
-                      : "Request dry-run"}
-                  </button>
+                      ? strings.ui.actionRegistry.requesting
+                      : strings.ui.actionRegistry.requestDryRun}
+                  </Button>
                 )}
                 {!ssoBlocked ? <ShieldCheck size={18} /> : null}
               </div>
             </div>
             <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
               <section>
-                <p className="eyebrow m-0">Sample Input</p>
+                <p className="eyebrow m-0">{strings.ui.actionRegistry.sampleInput}</p>
                 <PayloadRows payload={selectedAction.sample_input} />
               </section>
               <section>
-                <p className="eyebrow m-0">Sample Output</p>
+                <p className="eyebrow m-0">{strings.ui.actionRegistry.sampleOutput}</p>
                 <PayloadRows payload={selectedAction.sample_output} />
               </section>
             </div>
             {selectedRunResult ? (
-              <section className="grid gap-4 border-t border-line/60 pt-3.5 dark:border-white/10 lg:grid-cols-[minmax(220px,0.4fr)_minmax(0,1fr)] [&>*]:min-w-0" aria-label="Action run result">
+              <section className="grid gap-4 border-t border-line/60 pt-3.5 dark:border-white/10 lg:grid-cols-[minmax(220px,0.4fr)_minmax(0,1fr)] [&>*]:min-w-0" aria-label={strings.ui.actionRegistry.actionRunResult}>
                 <div>
-                  <p className="eyebrow m-0">Persisted Action Run</p>
+                  <p className="eyebrow m-0">{strings.ui.actionRegistry.persistedActionRun}</p>
                   <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
                     {formatActionLabel(selectedRunResult.status)}
                   </h3>
@@ -641,28 +655,28 @@ export function ActionRegistry() {
                 </div>
                 <div className="grid min-w-0 gap-2">
                   <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                    <p className="eyebrow m-0">Run ID</p>
+                    <p className="eyebrow m-0">{strings.ui.actionRegistry.runId}</p>
                     <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{selectedRunResult.actionRunId}</p>
                   </div>
                   <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                    <p className="eyebrow m-0">Idempotency</p>
+                    <p className="eyebrow m-0">{strings.ui.actionRegistry.idempotency}</p>
                     <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{selectedRunResult.idempotencyKey}</p>
                   </div>
                   {selectedRunResult.auditEventType ? (
                     <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                      <p className="eyebrow m-0">Audit</p>
+                      <p className="eyebrow m-0">{strings.ui.common.audit}</p>
                       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.auditEventType}</p>
                     </div>
                   ) : null}
                   {selectedRunResult.permissionDetail ? (
                     <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                      <p className="eyebrow m-0">Permission</p>
+                      <p className="eyebrow m-0">{strings.ui.common.permission}</p>
                       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.permissionDetail}</p>
                     </div>
                   ) : null}
                   {selectedRunResult.workflowSignalDetail ? (
                     <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                      <p className="eyebrow m-0">Workflow Signal</p>
+                      <p className="eyebrow m-0">{strings.ui.actionRegistry.workflowSignal}</p>
                       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRunResult.workflowSignalDetail}</p>
                     </div>
                   ) : null}
@@ -670,11 +684,11 @@ export function ActionRegistry() {
               </section>
             ) : null}
             {selectedRunError ? (
-              <section className="border-t border-line/60 pt-3.5 dark:border-white/10" aria-label="Action run persistence error">
+              <section className="border-t border-line/60 pt-3.5 dark:border-white/10" aria-label={strings.ui.actionRegistry.actionRunPersistenceError}>
                 <ErrorPanel
                   detail={selectedRunError.message}
                   reference={selectedRunError.requestId ?? undefined}
-                  title="Action run persistence unavailable"
+                  title={strings.ui.actionRegistry.actionRunPersistenceUnavailable}
                 />
               </section>
             ) : null}
@@ -683,7 +697,7 @@ export function ActionRegistry() {
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <p className="eyebrow m-0">Registry Notes</p>
+        <p className="eyebrow m-0">{strings.ui.common.registryNotes}</p>
         <div className="grid min-w-0 gap-2.5">
           {registry.registry_notes.map((note) => (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

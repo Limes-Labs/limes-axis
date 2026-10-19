@@ -9,7 +9,7 @@ import {
   type AxisOperatorError,
 } from "@/lib/axis-api";
 import { formatContextPath } from "@/lib/format";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseDemoBootstrapResult } from "@/lib/runtime-contracts/bootstrap";
 import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { useIdentitySession } from "@/lib/use-identity-session";
@@ -65,6 +65,7 @@ export function buildDemoBootstrapPayload(actorId: string): DemoBootstrapRequest
  * land in `error` for inline rendering on the checklist.
  */
 export function useDemoBootstrap() {
+  const strings = useStrings();
   const { triggerRefresh } = useConsole();
   const { push } = useToast();
   const { session } = useOidcConsoleSession();

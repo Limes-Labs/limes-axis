@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,8 @@ import {
   type SourceIngestionEligibilityRow,
   type SourceIngestionRequestView,
 } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { useConsole } from "@/providers/console-provider";
 import { useToast } from "@/components/ui/toast";
 import { deriveGovernedActor } from "@/lib/governed-action";
@@ -59,7 +61,7 @@ import { useAxisQuery } from "@/lib/use-axis-query";
 type EligibilityRow = SourceIngestionEligibilityRow;
 type Stage = "validate" | "extract";
 
-function eligibilityPill(row: EligibilityRow): { label: string; className: string } {
+function eligibilityPill(row: EligibilityRow, strings: ConsoleStrings): { label: string; className: string } {
   const copy = strings.connectors.sourceIngestion;
   if (row.eligible) {
     return { label: copy.eligiblePill, className: "signal-ready" };
@@ -74,17 +76,18 @@ function eligibilityPill(row: EligibilityRow): { label: string; className: strin
 }
 
 function PreflightRow({ met, label }: { met: boolean; label: string }) {
+  const strings = useStrings();
   return (
     <li className="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <span className="min-w-0 break-words text-xs text-ink">{label}</span>
       <span className={`status-pill ${met ? "signal-ready" : "status-checking"}`}>
-        {met ? "Yes" : "Off"}
+        {met ? strings.ui.common.yes : strings.ui.connectorConsoleSourceIngestionPanel.off}
       </span>
     </li>
   );
 }
 
-function requestStatusPill(status: string): { label: string; className: string } {
+function requestStatusPill(status: string, strings: ConsoleStrings): { label: string; className: string } {
   const pills = strings.connectors.sourceIngestion.statusPills;
   switch (status) {
     case "completed":
@@ -101,7 +104,7 @@ function requestStatusPill(status: string): { label: string; className: string }
 }
 
 /** Operator copy per API failure class; unknown reasons stay honest. */
-function ingestionErrorCopy(error: AxisOperatorError): string {
+function ingestionErrorCopy(error: AxisOperatorError, strings: ConsoleStrings): string {
   const copy = strings.connectors.sourceIngestion;
   if (error.status === 403) {
     return error.reason?.startsWith("missing_scope:") ? copy.deniedScope : copy.forbidden;
@@ -130,6 +133,7 @@ function IngestionOverviewStrip({
   tenantId: string;
   connectorId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceIngestion;
   const path = buildSourceIngestionReadPath({
     endpoint: SOURCE_INGESTION_ENDPOINTS.overview,
@@ -208,6 +212,7 @@ export function ConnectorSourceIngestionSection({
   identitySession: IdentitySessionReadModel | null;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceIngestion;
   const { triggerRefresh } = useConsole();
   const { push } = useToast();
@@ -328,7 +333,7 @@ export function ConnectorSourceIngestionSection({
     } catch (caught) {
       if (caught instanceof AxisApiError || caught instanceof AxisApiDecodeError) {
         const operatorError = toAxisOperatorError(caught, copy.genericError);
-        setError({ ...operatorError, message: ingestionErrorCopy(operatorError) });
+        setError({ ...operatorError, message: ingestionErrorCopy(operatorError, strings) });
       } else {
         setError({
           code: null,
@@ -372,7 +377,7 @@ export function ConnectorSourceIngestionSection({
     } catch (caught) {
       if (caught instanceof AxisApiError || caught instanceof AxisApiDecodeError) {
         const operatorError = toAxisOperatorError(caught, copy.genericError);
-        setError({ ...operatorError, message: ingestionErrorCopy(operatorError) });
+        setError({ ...operatorError, message: ingestionErrorCopy(operatorError, strings) });
       } else {
         setError({
           code: null,
@@ -432,7 +437,7 @@ export function ConnectorSourceIngestionSection({
     } catch (caught) {
       if (caught instanceof AxisApiError || caught instanceof AxisApiDecodeError) {
         const operatorError = toAxisOperatorError(caught, copy.genericError);
-        setError({ ...operatorError, message: ingestionErrorCopy(operatorError) });
+        setError({ ...operatorError, message: ingestionErrorCopy(operatorError, strings) });
       } else {
         setError({
           code: null,
@@ -525,7 +530,7 @@ export function ConnectorSourceIngestionSection({
                 </thead>
                 <tbody>
                   {(eligibilityData?.rows ?? []).map((row) => {
-                    const pill = eligibilityPill(row);
+                    const pill = eligibilityPill(row, strings);
                     return (
                       <tr
                         className="border-b border-line/60 last:border-b-0 dark:border-white/10"
@@ -671,7 +676,7 @@ export function ConnectorSourceIngestionSection({
                   </thead>
                   <tbody>
                     {requests.map((request) => {
-                      const pill = requestStatusPill(request.status);
+                      const pill = requestStatusPill(request.status, strings);
                       const deadLettered = request.dead_lettered_at !== null;
                       return (
                         <tr
@@ -703,11 +708,10 @@ export function ConnectorSourceIngestionSection({
                 </table>
               </div>
               {requests.map((request) => (
-                <details
+                <Disclosure
                   className="rounded-xl border border-line/60 px-3 py-2 dark:border-white/10"
                   key={`${request.request_id}-detail`}
-                  onToggle={(event) => {
-                    const open = (event.target as HTMLDetailsElement).open;
+                  onOpenChange={(open) => {
                     setOpenRequestIds((current) => {
                       const next = new Set(current);
                       if (open) {
@@ -718,13 +722,16 @@ export function ConnectorSourceIngestionSection({
                       return next;
                     });
                   }}
+                  title={
+                    <>
+                      {copy.requestColumn}:{" "}
+                      <span className="font-mono text-xs break-all">{request.request_id}</span>
+                    </>
+                  }
+                  variant="plain"
                 >
-                  <summary className="cursor-pointer text-sm font-medium">
-                    {copy.requestColumn}:{" "}
-                    <span className="font-mono text-xs break-all">{request.request_id}</span>
-                  </summary>
                   <dl
-                    className="mt-2 grid gap-1.5 text-xs leading-snug"
+                    className="m-0 grid gap-1.5 text-xs leading-snug"
                     data-request-detail={request.request_id}
                   >
                     <div className="flex min-w-0 flex-wrap gap-x-2">
@@ -905,7 +912,7 @@ export function ConnectorSourceIngestionSection({
                       </div>
                     </form>
                   ) : null}
-                </details>
+                </Disclosure>
               ))}
             </>
           )}
@@ -927,6 +934,7 @@ function ExtractionBatchesEvidence({
   tenantId: string;
   session: ReturnType<typeof useOidcConsoleSession>["session"];
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceIngestion;
   const path = buildTenantScopedPath(
     SOURCE_EXTRACTION_BATCHES_ENDPOINT(requestId),

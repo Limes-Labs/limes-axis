@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, CircleAlert, CircleCheck, Clock3 } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { platformStatusLabel, type PlatformStatus } from "@/lib/platform-overview";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 /*
  * Small shared pieces for the overview control-room sections. Each section
@@ -40,7 +42,7 @@ export function normalizeLabel(value: string): string {
 }
 
 export function shortTime(value: string): string {
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
@@ -71,7 +73,7 @@ export function StatusDot({ status }: { status: PlatformStatus }) {
 export function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
-      className="mt-auto inline-flex min-h-6 items-center gap-1.5 pt-1 font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+      className={buttonVariants({ size: "sm", variant: "link", className: "mt-auto w-fit" })}
       href={href}
     >
       {children}
@@ -84,15 +86,18 @@ export function PanelHeader({
   eyebrow,
   title,
   aside,
+  sourceHint,
 }: {
   eyebrow: string;
   title?: string;
   aside?: ReactNode;
+  /** Provenance tooltip on the heading, e.g. "Risks: live · Approvals: live". */
+  sourceHint?: string;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="grid gap-1">
-        <h2 className="font-display m-0 text-lg text-ink">{title ?? eyebrow}</h2>
+        <h2 className="font-display m-0 text-lg text-ink" title={sourceHint}>{title ?? eyebrow}</h2>
       </div>
       {aside}
     </div>

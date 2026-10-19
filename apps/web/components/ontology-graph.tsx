@@ -17,19 +17,27 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { formatNodeType, type OntologyNode, type OntologyRelationship } from "@/lib/ontology-demo";
 import {
   buildOntologyGraphLayout,
+  clientPointToViewBox,
+  NODE_HALF,
+  NODE_HIT_RADIUS,
+  nodeTargetBounds,
   panViewBox,
+  STATUS_DOT_OFFSET,
+  STATUS_DOT_RADIUS,
+  viewBoxScale,
   zoomViewBox,
   type GraphViewBox,
   type OntologyGraphLayoutNode,
 } from "@/lib/ontology-graph-layout";
 import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 import { platformStatusLabel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
-const NODE_HALF = 9; // half-diagonal of the diamond marker
 const WHEEL_ZOOM_SENSITIVITY = 0.0022;
 const BUTTON_ZOOM_STEP = 1.4;
 const DRAG_THRESHOLD_PX = 4;
+/** Below this the graph scrolls inside its region rather than shrink labels. */
+const GRAPH_MIN_WIDTH = 560;
 
 type OntologyGraphProps = {
   nodes: OntologyNode[];
@@ -84,6 +92,7 @@ export function OntologyGraph({
   selectedNodeId,
   onNodeActivate,
 }: OntologyGraphProps) {
+  const strings = useStrings();
   const router = useRouter();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [drawn, setDrawn] = useState(false);
@@ -92,10 +101,8 @@ export function OntologyGraph({
     () => buildOntologyGraphLayout(nodes, relationships),
     [nodes, relationships],
   );
-  const bounds = useMemo<GraphViewBox>(
-    () => ({ x: 0, y: 0, width: layout.width, height: layout.height }),
-    [layout.width, layout.height],
-  );
+  // The view opens fitted to the drawn content, not the fixed layout canvas.
+  const bounds = layout.viewBox;
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [viewBox, setViewBox] = useState<GraphViewBox>(bounds);
@@ -141,14 +148,10 @@ export function OntologyGraph({
 
       event.preventDefault();
       const rect = svg.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        return;
-      }
       const factor = Math.exp(-event.deltaY * WHEEL_ZOOM_SENSITIVITY);
       setViewBox((current) => {
-        const cx = current.x + ((event.clientX - rect.left) / rect.width) * current.width;
-        const cy = current.y + ((event.clientY - rect.top) / rect.height) * current.height;
-        return zoomViewBox(current, factor, cx, cy, bounds);
+        const point = clientPointToViewBox(rect, current, event.clientX, event.clientY);
+        return point ? zoomViewBox(current, factor, point.x, point.y, bounds) : current;
       });
     };
 
@@ -232,13 +235,13 @@ export function OntologyGraph({
       event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
+    const scale = viewBoxScale(event.currentTarget.getBoundingClientRect(), viewBox);
+    if (scale === 0) {
       return;
     }
 
-    const dx = ((state.lastX - event.clientX) * viewBox.width) / rect.width;
-    const dy = ((state.lastY - event.clientY) * viewBox.height) / rect.height;
+    const dx = (state.lastX - event.clientX) / scale;
+    const dy = (state.lastY - event.clientY) / scale;
     state.lastX = event.clientX;
     state.lastY = event.clientY;
     setViewBox((current) => panViewBox(current, dx, dy, bounds));
@@ -267,12 +270,14 @@ export function OntologyGraph({
         <svg
           // Full view uses native scrolling. Once zoomed, touch drags must pan
           // the viewBox to reach nodes outside it; Reset restores native scroll.
-          className={`mx-auto block h-auto ${isZoomed ? "touch-none" : "touch-auto"} select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
-          style={{ width: layout.width, minWidth: layout.width }}
+          // Fills the card width and keeps the content's aspect ratio up to the
+          // region's height; the default `meet` centres the fitted graph.
+          className={`mx-auto block h-auto w-full max-h-[560px] ${isZoomed ? "touch-none" : "touch-auto"} select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          style={{ aspectRatio: `${bounds.width} / ${bounds.height}`, minWidth: GRAPH_MIN_WIDTH }}
           data-testid="ontology-graph"
           ref={svgRef}
           role="group"
-          aria-label={`Ontology graph with ${layout.nodes.length} nodes and ${layout.edges.length} relationships`}
+          aria-label={strings.ui.ontologyGraph.graphLabel(layout.nodes.length, layout.edges.length)}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
           onPointerCancel={onPointerEnd}
           onPointerDown={onPointerDown}
@@ -331,8 +336,13 @@ export function OntologyGraph({
                     strokeWidth={1.5}
                   />
                 ) : null}
-                {/* Generous invisible hit target */}
-                <circle cx={node.x} cy={node.y} fill="transparent" r={NODE_HALF + 12} />
+                {/* Generous invisible hit target; with a label shown it spans
+                    node and label, so there is no dead gap between them. */}
+                <circle cx={node.x} cy={node.y} fill="transparent" r={NODE_HIT_RADIUS} />
+                {node.labelVisible || focused ? (() => {
+                  const target = nodeTargetBounds(node);
+                  return <rect data-node-target fill="transparent" height={target.height} width={target.width} x={target.x} y={target.y} />;
+                })() : null}
                 <polygon
                   fill={fill}
                   points={diamondPoints(node, node.tier === 0 ? NODE_HALF + 3 : NODE_HALF)}
@@ -341,24 +351,24 @@ export function OntologyGraph({
                 />
                 {node.status !== "ready" ? (
                   <circle
-                    cx={node.x + NODE_HALF + 2}
-                    cy={node.y - NODE_HALF - 2}
+                    cx={node.x + STATUS_DOT_OFFSET}
+                    cy={node.y - STATUS_DOT_OFFSET}
                     fill={
                       node.status === "action_required" ? "rgb(var(--danger))" : "rgb(var(--warning))"
                     }
-                    r={3}
+                    r={STATUS_DOT_RADIUS}
                   >
                     <title>{platformStatusLabel(node.status)}</title>
                   </circle>
                 ) : null}
-                {(node.labelVisible || focused) && (node.labelY !== node.y + 25 || node.labelX !== node.x) ? (
-                  <line x1={node.x} y1={node.y} x2={node.labelX} y2={node.labelY - 6} stroke="rgb(var(--muted))" strokeOpacity={0.35} pointerEvents="none" />
-                ) : null}
+                {/* Labels sit in a slot touching their node, so no leader line;
+                    the label is part of the node's target, so it opens it too. */}
                 {node.labelVisible || focused ? <text
                   className="font-mono"
+                  data-label-anchor={node.labelAnchor}
                   fill={focused ? "rgb(var(--signal))" : "rgb(var(--muted))"}
                   fontSize={13}
-                  textAnchor="middle"
+                  textAnchor={node.labelAnchor}
                   x={node.labelX}
                   y={node.labelY}
                   stroke="rgb(var(--bg))"

@@ -494,6 +494,25 @@ describe("ApprovalInbox decision flow", () => {
     mockQuery({ data: inboxFixture, source: "api" });
   });
 
+  it("shows cost next to the risk chips and places the decision after the evidence", () => {
+    renderInbox();
+
+    const queueItem = screen.getByRole("button", { name: /Expedite fixture batch/ });
+    expect(within(queueItem).getByText("Cost: EUR 120")).toBeInTheDocument();
+    const detailCost = screen.getByText("Cost exposure: EUR 120");
+    expect(detailCost.parentElement).toHaveTextContent("high risk");
+
+    const evidence = screen.getByRole("button", { name: "Evidence" });
+    const risks = screen.getByRole("button", { name: "Risks & alternatives" });
+    const decision = screen.getByRole("region", { name: "Decision" });
+    expect(
+      evidence.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      risks.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows consequence text for every option without hover", () => {
     renderInbox();
 
@@ -609,7 +628,11 @@ describe("ApprovalInbox decision flow", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Confirm decision" }));
+    // The fixture is high risk, so the dialog requires a rationale.
+    await user.type(screen.getByLabelText("Rationale (required)"), "Supplier slot confirmed.");
+    await user.click(
+      screen.getByRole("button", { name: "Approve & execute “Expedite fixture batch”" }),
+    );
 
     await waitFor(() => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
@@ -623,7 +646,7 @@ describe("ApprovalInbox decision flow", () => {
           decision: "approve",
           actor_id: "acme-operator",
           actor_scopes: ["approvals:supply:decide", "tenant:read"],
-          note: "Console decision recorded for appr_supply_fixture.",
+          note: "Supplier slot confirmed.",
         },
       }),
     );
@@ -639,16 +662,22 @@ describe("ApprovalInbox decision flow", () => {
     ).toHaveAttribute("href", "/audit?event_id=22222222-2222-4222-8222-222222222222");
   });
 
-  it("truncates the workflow id and exposes the full value in a tooltip", () => {
+  it("shows the workflow and owner by name and keeps the raw ids secondary", () => {
     renderInbox();
 
-    const workflowValue = screen.getByText(
-      "wf_supply_fixture_with_a_very_long_identifier_suffix",
+    const workflowName = screen.getByText(
+      "Supply fixture with a very long identifier suffix",
     );
-    expect(workflowValue).toHaveClass("truncate");
-    expect(workflowValue).toHaveAttribute(
+    expect(workflowName).toHaveAttribute(
       "title",
       "wf_supply_fixture_with_a_very_long_identifier_suffix",
     );
+    // The raw id survives only as the secondary mono line.
+    const workflowId = screen.getByText("wf_supply_fixture_with_a_very_long_identifier_suffix");
+    expect(workflowId).toHaveClass("font-mono", "text-xs");
+    expect(screen.getAllByTitle("plant-operations-owner")[0]).toHaveTextContent(
+      "Plant operations owner",
+    );
+    expect(document.body.textContent).not.toMatch(/\b(None|null|undefined)\b/);
   });
 });

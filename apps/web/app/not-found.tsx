@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 
 import { ConsolePage } from "@/components/console-page";
 import { EmptyPanel } from "@/components/ui/states";
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 
-export const metadata: Metadata = {
-  title: strings.notFound.title,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getServerStrings();
+  return {
+    title: strings.notFound.title,
+  };
+}
 
 /**
  * Replaces Next's built-in 404.
@@ -18,7 +21,8 @@ export const metadata: Metadata = {
  * navy background, and app-light on an OS-dark machine produced a black page
  * under a white sidebar. Defining this file removes that stylesheet entirely.
  */
-export default function NotFound() {
+export default async function NotFound() {
+  const strings = await getServerStrings();
   return (
     <ConsolePage
       eyebrow={strings.notFound.eyebrow}

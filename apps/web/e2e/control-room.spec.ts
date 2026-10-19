@@ -143,7 +143,9 @@ test.describe("approval review workspace", () => {
     await expectNoHorizontalOverflow(page);
     await page.getByRole("button", { name: /^30\. Review/ }).click();
     await page.getByRole("button", { name: "Decision trail", exact: true }).click();
-    await expect(page.getByText(/manufacturing_operations_permission_with_a_very_long_identifier/).first()).toBeVisible();
+    // The trail shows the permission by its readable name (#945); the long
+    // name must still wrap inside the rail rather than overflow it.
+    await expect(page.getByText(/Manufacturing operations permission with a very long identifier/).first()).toBeVisible();
     await expectNoHorizontalOverflow(page);
     const trail = page.getByRole("list", { name: "Decision stage rail" });
     const metadataWidths = await trail.locator("p").evaluateAll((paragraphs) => paragraphs.map((paragraph) => ({
@@ -173,7 +175,10 @@ test.describe("approval review workspace", () => {
     await page.getByRole("button", { name: /^Approve/ }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Confirm decision" })).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Approve “Expedite supplier batch”" }),
+    ).toBeVisible();
+    await expect(dialog.getByLabel("What you are deciding")).toContainText("High risk");
     await expectNoHorizontalOverflow(page);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();

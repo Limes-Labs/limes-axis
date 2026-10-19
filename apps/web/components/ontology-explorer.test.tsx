@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { ontologyFixture } from "./ontology/ontology-fixtures";
 
@@ -112,6 +113,14 @@ describe("OntologyExplorer", () => {
     );
   });
 
+  it("keeps the tenant id out of the context breadcrumb", () => {
+    render(<OntologyExplorer />);
+
+    const context = screen.getByText("Fixture Plant / Runtime contract fixture");
+    expect(context).toHaveAttribute("title", DEMO_TENANT_ID);
+    expect(context.textContent).not.toContain(DEMO_TENANT_ID);
+  });
+
   it("renders no per-type metric cards", () => {
     render(<OntologyExplorer />);
 
@@ -138,6 +147,35 @@ describe("OntologyExplorer", () => {
     // The existing legend markers stay in the same row.
     expect(within(legend).getByText("Entity")).toBeInTheDocument();
     expect(within(legend).getByText("Relation")).toBeInTheDocument();
+  });
+
+  it("explains the graph's status dot colours in the legend", () => {
+    render(<OntologyExplorer />);
+
+    const statuses = within(screen.getByLabelText("Ontology graph legend"))
+      .getByRole("group", { name: strings.ontology.legend.statusGroup });
+    expect(within(statuses).getByText("Watch")).toBeInTheDocument();
+    expect(within(statuses).getByText("Action Required")).toBeInTheDocument();
+    expect(within(statuses).getByText(strings.ontology.legend.readyNoMarker)).toBeInTheDocument();
+    // Same tokens as the dots drawn on the nodes.
+    expect(statuses.querySelector('[data-legend-status="watch"] .bg-warning')).not.toBeNull();
+    expect(statuses.querySelector('[data-legend-status="action_required"] .bg-danger')).not.toBeNull();
+  });
+
+  it("opens fitted to the drawn graph with labels anchored to their nodes", () => {
+    window.history.replaceState(null, "", "/ontology?view=graph");
+    render(<OntologyExplorer />);
+
+    const graph = screen.getByTestId("ontology-graph");
+    const [x, y, width, height] = (graph.getAttribute("viewBox") ?? "").split(" ").map(Number);
+    // Fitted to content rather than the fixed 720×560 layout canvas.
+    expect([x, y, width, height]).not.toEqual([0, 0, 720, 560]);
+    expect(graph).toHaveClass("w-full");
+    // No leader lines: every label is placed in a slot beside its node.
+    expect(graph.querySelector("line")).toBeNull();
+    for (const label of Array.from(graph.querySelectorAll("text"))) {
+      expect(["start", "middle", "end"]).toContain(label.getAttribute("text-anchor"));
+    }
   });
 
   it("zooms the graph with the +/− controls and resets the view", async () => {

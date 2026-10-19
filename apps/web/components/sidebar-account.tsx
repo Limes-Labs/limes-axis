@@ -19,7 +19,8 @@ import { cn } from "@/lib/cn";
 import { announcePopoverOpened, useExclusivePopover } from "@/lib/console-popovers";
 import { operatorInitials } from "@/lib/identity-format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 type SidebarPanel = "account" | "help";
@@ -54,6 +55,7 @@ export function SidebarAccount({
    */
   variant?: "rail" | "compact";
 }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const [activePanel, setActivePanel] = useState<SidebarPanel | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,10 +140,10 @@ export function SidebarAccount({
         </Link>
         <button
           aria-expanded={activePanel === "help"}
-          aria-label="Open platform help"
+          aria-label={strings.ui.sidebarAccount.openPlatformHelp}
           className={cn("icon-button", activePanel === "help" && "icon-button-active")}
           onClick={() => toggle("help")}
-          title="Open platform help"
+          title={strings.ui.sidebarAccount.openPlatformHelp}
           type="button"
         >
           <HugeiconsIcon icon={HelpCircleIcon} size={17} strokeWidth={1.8} />
@@ -150,7 +152,7 @@ export function SidebarAccount({
           aria-expanded={activePanel === "account"}
           aria-label={strings.shell.accountLabel(operatorInitials(actorId ?? undefined))}
           className={cn(
-            "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-surface font-mono text-[11px] font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/20 dark:bg-white/5",
+            "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full pointer-coarse:size-11 border border-line bg-surface font-mono text-[11px] font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/20 dark:bg-white/5",
             activePanel === "account" && "border-signal/40 bg-signal/10",
           )}
           data-operator-initials
@@ -191,10 +193,10 @@ export function SidebarAccount({
 
       <button
         aria-expanded={activePanel === "help"}
-        aria-label="Open platform help"
+        aria-label={strings.ui.sidebarAccount.openPlatformHelp}
         className={cn(footerRowClass, activePanel === "help" && "bg-signal/10 text-ink")}
         onClick={() => toggle("help")}
-        title="Open platform help"
+        title={strings.ui.sidebarAccount.openPlatformHelp}
         type="button"
       >
         <HugeiconsIcon icon={HelpCircleIcon} size={18} strokeWidth={1.8} />
@@ -204,7 +206,7 @@ export function SidebarAccount({
       <button
         aria-expanded={activePanel === "account"}
         aria-label={strings.shell.accountLabel(
-          `${actorId ?? strings.nav.signedOut}, ${identitySession?.tenant_id ?? strings.nav.noTenant}`,
+          `${actorId ?? strings.nav.signedOut}, ${humanizeIdentifier(identitySession?.tenant_id) ?? strings.nav.noTenant}`,
         )}
         className={cn(
           "mt-0.5 flex min-h-[46px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line px-2 text-left transition-colors hover:border-signal/40 hover:bg-signal/8 dark:border-white/15",
@@ -225,8 +227,11 @@ export function SidebarAccount({
           <span className="truncate text-[12px] font-semibold text-ink">
             {actorId ?? strings.nav.signedOut}
           </span>
-          <span className="truncate text-[10.5px] text-muted">
-            {identitySession?.tenant_id ?? strings.nav.noTenant}
+          <span
+            className="truncate text-[10.5px] text-muted"
+            title={identitySession?.tenant_id ?? undefined}
+          >
+            {humanizeIdentifier(identitySession?.tenant_id) ?? strings.nav.noTenant}
           </span>
         </span>
       </button>

@@ -110,6 +110,10 @@ type MockOptions = {
   onboardingCount?: number;
   identity?: IdentitySessionReadModel;
   overview?: ManufacturingOverview;
+  approvals?: typeof approvalInboxFixture;
+  routing?: typeof modelRoutingFixture;
+  /** Unavailable paths keep their last good payload, so the data is stale. */
+  keepStaleData?: boolean;
 };
 
 /** Route the per-path mock so each endpoint can succeed or fail independently. */
@@ -129,9 +133,9 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
       : []),
     [`${OPERATIONS_API_PREFIX}/overview`, options.overview ?? overviewFixture],
     [`${OPERATIONS_API_PREFIX}/operations/snapshot`, snapshotFixture],
-    [`${OPERATIONS_API_PREFIX}/model-routing`, modelRoutingFixture],
+    [`${OPERATIONS_API_PREFIX}/model-routing`, options.routing ?? modelRoutingFixture],
     [`${OPERATIONS_API_PREFIX}/audit/events`, auditEventsFixture],
-    [`${OPERATIONS_API_PREFIX}/approvals`, approvalInboxFixture],
+    [`${OPERATIONS_API_PREFIX}/approvals`, options.approvals ?? approvalInboxFixture],
     [`${OPERATIONS_API_PREFIX}/actions/runs`, emptyActionRunsFixture],
     ["/platform/policies", policyRegistryFixture],
     ["/identity/session", options.identity ?? identitySessionFixture],
@@ -157,7 +161,7 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
       return queryResult(null, "tenant_not_found", 404);
     }
     if (unavailablePaths.some((prefix) => path.startsWith(prefix))) {
-      return queryResult(null, "unavailable");
+      return queryResult(options.keepStaleData ? match[1] : null, "unavailable");
     }
     return queryResult(match[1], "api");
   });
@@ -252,11 +256,21 @@ describe("PlatformOverview hero", () => {
     });
     renderOverview();
 
-    const sources = screen.getByLabelText("Overview data sources");
-    expect(within(sources).getByText("Context: example"))
-      .toBeInTheDocument();
-    expect(within(sources).getByText("Operations: live")).toBeInTheDocument();
-    expect(within(sources).getByText("Audit: live")).toBeInTheDocument();
+    // One page-level banner names the example sections instead of a chip on
+    // every panel; live sections are not listed as example data.
+    const banner = screen.getByRole("region", { name: strings.overview.scenarioBanner.title });
+    expect(banner).toHaveTextContent(strings.overview.scenarioBanner.detail);
+    expect(banner).toHaveTextContent(/Example data: Context, Approvals, Models\./);
+    expect(banner).not.toHaveTextContent(/Operations|Audit/);
+    expect(screen.queryByLabelText("Overview data sources")).not.toBeInTheDocument();
+    expect(screen.queryByText(/: example$/)).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".status-pill[data-source-state]")).toHaveLength(0);
+
+    // Each number still names its own source in a tooltip.
+    expect(screen.getByTestId("hero-open-workflows").closest("[data-stat-card]"))
+      .toHaveAttribute("title", "Operations: live");
+    expect(screen.getByTestId("hero-pending-approvals").closest("[data-stat-card]"))
+      .toHaveAttribute("title", "Approvals: reference scenario");
 
     const posture = screen.getByLabelText("Platform posture");
     const cards = within(posture).getAllByRole("listitem");
@@ -267,17 +281,62 @@ describe("PlatformOverview hero", () => {
     expect(agentsCard).toBeDefined();
     expect(connectorsCard).toBeDefined();
     expect(modelsCard).toBeDefined();
-    expect(within(agentsCard as HTMLElement).getByText("agents: reference scenario"))
-      .toBeInTheDocument();
-    expect(within(connectorsCard as HTMLElement).getByText("connector activity: live"))
-      .toBeInTheDocument();
-    expect(within(modelsCard as HTMLElement).getByText("models: reference scenario"))
-      .toBeInTheDocument();
+    expect(agentsCard).toHaveAttribute("title", "agents: reference scenario");
+    expect(connectorsCard).toHaveAttribute("title", "connector activity: live");
+    expect(modelsCard).toHaveAttribute("title", "models: reference scenario");
 
-    const attentionSources = screen.getByLabelText("Needs attention data sources");
-    expect(within(attentionSources).getByText("Approvals: example"))
-      .toBeInTheDocument();
-    expect(within(attentionSources).getByText("Outcomes: live"))
+    expect(screen.queryByLabelText("Needs attention data sources")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: strings.overview.needsAttention.eyebrow }))
+      .toHaveAttribute("title", "Risks: reference scenario · Approvals: reference scenario · Outcomes: live");
+  });
+
+  it("puts secondary sections behind phone-only disclosures after the hero and attention items", () => {
+    mockQueriesByPath();
+    renderOverview();
+
+    const triggers = Array.from(document.querySelectorAll("[data-mobile-disclosure-trigger]"));
+    expect(triggers.map((trigger) => trigger.textContent)).toEqual(
+      Object.values(strings.overview.mobileSections),
+    );
+    const attention = screen.getByRole("region", { name: strings.overview.needsAttention.eyebrow });
+    for (const trigger of triggers) {
+      // Every collapsed section comes after the attention strip in page order.
+      expect(attention.compareDocumentPosition(trigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    expect(screen.getByLabelText("Platform posture").closest("[data-mobile-disclosure]")).not.toBeNull();
+  });
+
+  it("shows no example banner when every overview source is live", () => {
+    mockQueriesByPath([], {
+      overview: { ...overviewFixture, provenance: "live", scenario: null },
+      approvals: { ...approvalInboxFixture, provenance: "live" },
+      routing: { ...modelRoutingFixture, provenance: "live" },
+    });
+    renderOverview();
+
+    expect(screen.getByRole("heading", { name: "Recorded activity" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: strings.overview.scenarioBanner.title }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names a bootstrapped demo tenant even when its records are persisted", () => {
+    mockQueriesByPath([], {
+      overview: { ...overviewFixture, provenance: "live" },
+      approvals: { ...approvalInboxFixture, provenance: "live" },
+      routing: { ...modelRoutingFixture, provenance: "live" },
+    });
+    renderOverview();
+
+    expect(screen.getByRole("region", { name: strings.overview.scenarioBanner.title }))
+      .toHaveTextContent(strings.overview.scenarioBanner.demoDetail);
+  });
+
+  it("keeps a visible warning for numbers that are no longer current", () => {
+    mockQueriesByPath([`${OPERATIONS_API_PREFIX}/operations/snapshot`], { keepStaleData: true });
+    renderOverview();
+
+    expect(within(screen.getByLabelText("Overview data sources")).getByText("Operations: stale"))
       .toBeInTheDocument();
   });
 

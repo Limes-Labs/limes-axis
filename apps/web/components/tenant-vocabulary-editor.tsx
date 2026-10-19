@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { BookOpenText, Plus, Trash2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +19,8 @@ import {
   type TenantVocabularySet,
 } from "@/lib/platform-tenants";
 import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -72,7 +75,7 @@ function formsEqual(left: VocabularyFormState, right: VocabularyFormState): bool
   );
 }
 
-function validateForm(form: VocabularyFormState): VocabularyFieldErrors {
+function validateForm(form: VocabularyFormState, strings: ConsoleStrings): VocabularyFieldErrors {
   const copy = strings.tenantVocabulary.validation;
   const errors: VocabularyFieldErrors = {};
 
@@ -119,11 +122,12 @@ function vocabularyFromForm(form: VocabularyFormState): TenantVocabulary {
   };
 }
 
-function sourceLabel(source: ReturnType<typeof useTenantVocabulary>["source"]): string {
+function sourceLabel(source: ReturnType<typeof useTenantVocabulary>["source"], strings: ConsoleStrings): string {
   return strings.tenantVocabulary.source[source];
 }
 
 export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const {
     tenantId: loadedTenantId,
@@ -235,7 +239,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
       return;
     }
 
-    const errors = validateForm(form);
+    const errors = validateForm(form, strings);
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -332,7 +336,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
 
       {!recordReady ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          {sourceLabel(loadedTenantId === tenantId ? source : "loading")}
+          {sourceLabel(loadedTenantId === tenantId ? source : "loading", strings)}
         </p>
       ) : (
         <>
@@ -414,15 +418,15 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
                     {copy.fields.domainLabelsDetail}
                   </p>
                 </div>
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+                <Button
+                  variant="secondary"
                   disabled={form.domainRows.length >= tenantVocabularyDomainLimit}
                   onClick={addDomainRow}
                   type="button"
                 >
                   <Plus size={15} />
                   {copy.actions.addDomain}
-                </button>
+                </Button>
               </div>
 
               {form.domainRows.map((row) => (
@@ -470,32 +474,32 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
                   {copy.confirmation}
                 </p>
                 <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-                  <button
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+                  <Button
+                    variant="secondary"
                     onClick={() => void confirmSave()}
                     type="button"
                   >
                     <BookOpenText size={15} />
                     {copy.actions.confirm}
-                  </button>
-                  <button
-                    className="inline-flex items-center justify-center rounded-full px-3 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:text-signal"
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={() => setSave({ phase: "idle" })}
                     type="button"
                   >
                     {copy.actions.cancel}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
-              <button
-                className="col-span-full inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy sm:justify-self-end"
+              <Button
+                className="col-span-full sm:justify-self-end"
                 disabled={save.phase === "saving"}
                 type="submit"
               >
                 <BookOpenText size={15} />
                 {save.phase === "saving" ? copy.actions.saving : copy.actions.review}
-              </button>
+              </Button>
             )}
           </form>
         </>
@@ -510,16 +514,19 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
         </p>
       ) : null}
 
-      <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
-        <summary className="cursor-pointer font-medium text-ink">Vocabulary technical details</summary>
-        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
+      <Disclosure
+        className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10"
+        title={strings.ui.tenantVocabularyEditor.vocabularyTechnicalDetails}
+        variant="plain"
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug break-words">{copy.requiredScope(platformTenantConfigureScope)}</p>
           <p aria-label={copy.endpoint} className="m-0 font-mono text-[13px] leading-snug break-words">{buildPlatformTenantVocabularyPath(tenantId)}</p>
           {vocabularySet?.vocabulary_notes?.map((note) => (
             <p className="m-0 leading-snug break-words" key={note}>{note}</p>
           ))}
         </div>
-      </details>
+      </Disclosure>
     </section>
   );
 }

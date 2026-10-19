@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,6 +34,14 @@ import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { SOURCE_INGESTION_ENDPOINTS } from "@/lib/connectors-console";
 
 import { ConnectorSourceIngestionSection } from "./source-ingestion-panel";
+
+/** Opens the shared Disclosure that holds a request's detail list. */
+function openRequestDetail(detail: Element) {
+  const disclosure = detail.closest("[data-disclosure]");
+  const trigger = disclosure?.querySelector(":scope > button");
+  if (!trigger) throw new Error("request detail is not inside a Disclosure");
+  fireEvent.click(trigger);
+}
 
 const TENANT_ID = "tenant_demo_manufacturing";
 const CONNECTOR_ID = "external_db_operational_mirror";
@@ -241,7 +249,7 @@ describe("ConnectorSourceIngestionSection", () => {
     const table = screen.getByRole("table", { name: "Ingestion eligibility" });
     expect(table).toHaveTextContent("operations.production_orders");
     expect(table).toHaveTextContent("Eligible");
-    expect(table).toHaveTextContent("Stale fingerprint");
+    expect(table).toHaveTextContent("Columns changed");
     expect(table).toHaveTextContent("Not awaiting ingestion");
   });
 
@@ -255,7 +263,7 @@ describe("ConnectorSourceIngestionSection", () => {
       />,
     );
     expect(screen.getByText(/Validation stage only\./)).toBeInTheDocument();
-    expect(screen.getByText(/No source is dialed and no rows are read/)).toBeInTheDocument();
+    expect(screen.getByText(/does not connect to the source and reads or stores no rows/)).toBeInTheDocument();
     expect(container.textContent ?? "").not.toMatch(/\bsync(ed|ing)\b|extract(ion|ed) rows/i);
   });
 
@@ -335,7 +343,7 @@ describe("ConnectorSourceIngestionSection", () => {
       [
         403,
         { code: "PERMISSION_DENIED", reason: "missing_scope:connectors:source:ingest" },
-        /lacks the connectors:source:ingest scope/,
+        /permission to request ingestion/,
       ],
       [
         409,
@@ -506,7 +514,7 @@ describe("ConnectorSourceIngestionSection", () => {
     // Cancel lives inside the keyboard-native disclosure, only for pending.
     const details = document.querySelector("[data-request-detail]");
     expect(details).not.toBeNull();
-    details!.setAttribute("open", "");
+    openRequestDetail(details!);
     const cancel = screen.getByRole("button", { name: "Cancel request" });
     await user.click(cancel);
     await waitFor(() => {
@@ -548,9 +556,7 @@ describe("ConnectorSourceIngestionSection", () => {
     // Closed by default: no evidence table yet.
     expect(screen.queryByRole("table", { name: /Extraction batch evidence/ })).not.toBeInTheDocument();
 
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle", { bubbles: false }));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
 
     await waitFor(() => {
       expect(
@@ -594,9 +600,7 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle", { bubbles: false }));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
 
     const button = await screen.findByRole("button", { name: "Check storage" });
     await user.click(button);
@@ -634,15 +638,13 @@ describe("ConnectorSourceIngestionSection", () => {
       const el = Array.from(
         document.querySelectorAll("[data-request-detail]"),
       ).find((node) => node.getAttribute("data-request-detail") === requestId);
-      el!.parentElement!.setAttribute("open", "");
-      el!.parentElement!.dispatchEvent(new Event("toggle"));
+      openRequestDetail(el!);
     };
 
     const doneDetails = Array.from(
       document.querySelectorAll("[data-request-detail]"),
     ).find((el) => el.getAttribute("data-request-detail") === "req_done")!;
-    doneDetails.parentElement!.setAttribute("open", "");
-    doneDetails.parentElement!.dispatchEvent(new Event("toggle"));
+    openRequestDetail(doneDetails!);
     await waitFor(() => {
       expect(
         screen.queryByRole("button", { name: /Re-dispatch after remediation/ }),
@@ -652,8 +654,7 @@ describe("ConnectorSourceIngestionSection", () => {
     const plainDetails = Array.from(
       document.querySelectorAll("[data-request-detail]"),
     ).find((el) => el.getAttribute("data-request-detail") === "req_plain_failed")!;
-    plainDetails.parentElement!.setAttribute("open", "");
-    plainDetails.parentElement!.dispatchEvent(new Event("toggle"));
+    openRequestDetail(plainDetails!);
     expect(
       screen.queryByRole("button", { name: /Re-dispatch after remediation/ }),
     ).not.toBeInTheDocument();
@@ -697,9 +698,7 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle"));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
     await user.type(await screen.findByLabelText(/Remediation reason/), "Remediated.");
 
     await user.click(screen.getByRole("button", { name: /Re-dispatch after remediation/ }));
@@ -747,14 +746,12 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle"));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
     await user.type(await screen.findByLabelText(/Remediation reason/), "Remediated.");
     await user.click(await screen.findByRole("button", { name: /Re-dispatch after remediation/ }));
     await waitFor(() => {
       // The shared operator error surface names the refusal class.
-      expect(document.body.textContent).toMatch(/dead-lettered requests can be re-dispatched|refused/i);
+      expect(document.body.textContent).toMatch(/failed permanently can be sent again|refused/i);
     });
   });
 
@@ -855,9 +852,7 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle"));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
     const timeline = await screen.findByRole("region", {
       name: /Dispatch attempt timeline/,
     });
@@ -902,9 +897,7 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle"));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
     expect(
       await screen.findByTestId(/attempts-truncated-/),
     ).toHaveTextContent(/latest 50 recorded dispatch attempts/);
@@ -943,9 +936,7 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle"));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
     await screen.findByRole("region", { name: /Dispatch attempt timeline/ });
     expect(screen.queryByTestId(/attempts-truncated-/)).not.toBeInTheDocument();
   });
@@ -991,9 +982,7 @@ describe("ConnectorSourceIngestionSection", () => {
         tenantId={TENANT_ID}
       />,
     );
-    const details = document.querySelector("[data-request-detail]")!.parentElement!;
-    details.setAttribute("open", "");
-    details.dispatchEvent(new Event("toggle"));
+    openRequestDetail(document.querySelector("[data-request-detail]")!);
     const timeline = await screen.findByRole("region", {
       name: /Dispatch attempt timeline/,
     });

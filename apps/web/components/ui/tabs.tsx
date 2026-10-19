@@ -39,7 +39,7 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsP
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-transparent px-3.5 py-1.5",
+        "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-transparent px-3.5 py-1.5 pointer-coarse:min-h-11",
         "text-sm font-medium whitespace-nowrap text-muted transition-colors duration-200 select-none",
         "hover:text-ink disabled:cursor-not-allowed disabled:opacity-55",
         "data-[state=active]:border-signal/25 data-[state=active]:bg-tint-100 data-[state=active]:text-signal",

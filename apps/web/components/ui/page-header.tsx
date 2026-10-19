@@ -26,7 +26,9 @@ export function PageHeader({ title, description, status, actions, meta }: PageHe
           {status}
         </div>
         {description ? (
-          <p className="mx-0 mt-1.5 mb-0 max-w-3xl text-sm leading-snug text-muted">
+          // On a phone the title alone keeps the first screen for content;
+          // every route's description repeats what its navigation label says.
+          <p className="mx-0 mt-1.5 mb-0 max-w-3xl text-sm leading-snug text-muted max-sm:hidden">
             {description}
           </p>
         ) : null}

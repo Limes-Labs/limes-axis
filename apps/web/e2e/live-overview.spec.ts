@@ -45,6 +45,13 @@ test.describe("Axis live overview demo", () => {
 
     // One page title followed by persisted activity counts.
     await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
+    if ((page.viewportSize()?.width ?? 1024) < 768) {
+      // On a phone the secondary sections start collapsed behind their
+      // triggers; open them so the story checks the same content everywhere.
+      for (const section of Object.values(strings.overview.mobileSections)) {
+        await page.getByRole("button", { name: section, exact: true }).click();
+      }
+    }
     await expect(page.getByRole("heading", { name: "Recorded activity" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Recorded activity" })).toContainText("Ravenna Works");
 
@@ -130,8 +137,13 @@ test.describe("Axis live overview demo", () => {
       .first();
     await expect(optionButton).toBeVisible();
     await optionButton.click();
-    await expect(page.getByRole("button", { name: "Confirm decision" })).toBeVisible();
-    await page.getByRole("button", { name: "Confirm decision" }).click();
+    // The confirm button names the decision and the action; rejections and
+    // high-risk approvals require a rationale first.
+    const dialog = page.getByRole("dialog");
+    const confirmButton = dialog.getByRole("button", { name: /“.+”$/ });
+    await expect(confirmButton).toBeVisible();
+    await dialog.getByRole("textbox").fill("Recorded by the live overview e2e lane.");
+    await confirmButton.click();
 
     await expect(page.getByText("Recorded as evidence")).toBeVisible();
     // Scope to the decision card — the confirmation toast links to the same

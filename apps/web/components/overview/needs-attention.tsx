@@ -8,10 +8,11 @@ import {
   ApprovalDecisionCard,
   useApprovalDecisionState,
 } from "@/components/approvals/approval-decision-card";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { SourcePill } from "@/components/ui/source-pill";
+import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   formatActionLabel,
@@ -35,7 +36,8 @@ import type {
   RiskSignal,
   WorkflowSummary,
 } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
@@ -97,7 +99,7 @@ function stalledActionRuns(actionRuns: ActionRunList | null): ActionRunRecord[] 
     .slice(0, STALLED_ACTION_LIMIT);
 }
 
-function stalledActionDetail(run: ActionRunRecord): string {
+function stalledActionDetail(run: ActionRunRecord, strings: ConsoleStrings): string {
   const waited = strings.approvals.followThrough.awaiting.waited(
     formatElapsedDuration(run.waiting_duration_seconds),
   );
@@ -131,10 +133,7 @@ function AttentionRow({
 }
 
 function rowLinkClass(): string {
-  return cn(
-    "inline-flex items-center rounded-full border border-line px-3.5 py-1.5 text-xs font-medium",
-    "text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/15",
-  );
+  return buttonVariants({ size: "sm", variant: "secondary" });
 }
 
 function ApprovalAttentionRow({
@@ -148,6 +147,7 @@ function ApprovalAttentionRow({
   identitySession: IdentitySessionReadModel | null;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const [open, setOpen] = useState(false);
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
   const decision = decisions[approval.approval_id];
@@ -200,7 +200,7 @@ function ApprovalAttentionRow({
             className="inline-flex w-fit items-center text-sm font-medium text-signal hover:underline"
             href="/approvals"
           >
-            Open the full approval inbox
+            {strings.ui.overviewNeedsAttention.openTheFullApprovalInbox}
           </Link>
         </SheetContent>
       </Sheet>
@@ -217,47 +217,51 @@ function SourceUnavailableNote({ message }: { message: string }) {
   );
 }
 
-function AttentionSources({
-  actionRuns,
-  approvals,
-  overview,
-}: {
+type AttentionSourceQueries = {
   actionRuns: OverviewQuery<ActionRunList>;
   approvals: OverviewQuery<ManufacturingApprovalInbox>;
   overview: OverviewQuery<ManufacturingOverview>;
-}) {
+};
+
+function attentionSources({ actionRuns, approvals, overview }: AttentionSourceQueries) {
+  return [
+    {
+      subject: "Risks",
+      state: deriveSourceState(overview.source, Boolean(overview.data), overview.data?.provenance),
+    },
+    {
+      subject: "Approvals",
+      state: deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance),
+    },
+    {
+      subject: "Outcomes",
+      state: deriveSourceState(actionRuns.source, Boolean(actionRuns.data), PROVENANCE_NOT_APPLICABLE),
+    },
+  ];
+}
+
+/** Provenance for the strip's tooltip; the page banner covers example data. */
+function attentionSourceTitle(queries: AttentionSourceQueries): string {
+  return attentionSources(queries)
+    .map((source) => sourceStateLabel(source.state, source.subject))
+    .join(" · ");
+}
+
+/** Only data that is no longer current keeps a visible provenance warning. */
+function AttentionSources(queries: AttentionSourceQueries) {
+  const strings = useStrings();
+  const stale = attentionSources(queries).filter((source) => source.state === "stale");
+  if (stale.length === 0) {
+    return null;
+  }
   return (
     <div
-      aria-label="Needs attention data sources"
+      aria-label={strings.ui.overviewNeedsAttention.needsAttentionDataSources}
       className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
-      <SourcePill
-        compact
-        state={deriveSourceState(
-          overview.source,
-          Boolean(overview.data),
-          overview.data?.provenance,
-        )}
-        subject="Risks"
-      />
-      <SourcePill
-        compact
-        state={deriveSourceState(
-          approvals.source,
-          Boolean(approvals.data),
-          approvals.data?.provenance,
-        )}
-        subject="Approvals"
-      />
-      <SourcePill
-        compact
-        state={deriveSourceState(
-          actionRuns.source,
-          Boolean(actionRuns.data),
-          PROVENANCE_NOT_APPLICABLE,
-        )}
-        subject="Outcomes"
-      />
+      {stale.map((source) => (
+        <SourcePill compact key={source.subject} state={source.state} subject={source.subject} />
+      ))}
     </div>
   );
 }
@@ -279,6 +283,7 @@ export function NeedsAttention({
   overview: OverviewQuery<ManufacturingOverview>;
   tenantId?: string;
 }) {
+  const strings = useStrings();
   // Best effort: this source adds stalled runs to the strip, it never gates it.
   const actionRunsQuery = useAxisQuery<ActionRunList>(
     buildTenantScopedPath(ACTION_RUNS_ENDPOINT, tenantId),
@@ -338,7 +343,10 @@ export function NeedsAttention({
     }
 
     return (
-      <div className="grid gap-3">
+      <div
+        className="grid gap-3"
+        title={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview })}
+      >
         <AttentionSources
           actionRuns={actionRunsQuery}
           approvals={approvalsQuery}
@@ -364,6 +372,7 @@ export function NeedsAttention({
           />
         }
         eyebrow={copy.eyebrow}
+        sourceHint={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview })}
       />
       {approvalsFailed ? <SourceUnavailableNote message={copy.approvalsUnavailable} /> : null}
       {overviewFailed ? <SourceUnavailableNote message={copy.overviewUnavailable} /> : null}
@@ -398,7 +407,7 @@ export function NeedsAttention({
                 {copy.openApproval}
               </Link>
             }
-            detail={stalledActionDetail(run)}
+            detail={stalledActionDetail(run, strings)}
             key={run.action_run_id}
             title={formatActionLabel(run.action_id)}
             tone={<Clock3 aria-hidden="true" className="shrink-0 text-warning" size={16} />}

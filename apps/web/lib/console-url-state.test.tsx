@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -111,5 +113,32 @@ describe("useConsoleUrlState", () => {
 
     expect(new URLSearchParams(window.location.search).get("node_id")).toBe(opaqueNodeId);
     expect(window.location.hash).toBe("");
+  });
+
+  it("hydrates server markup without a mismatch and then applies the URL state", async () => {
+    // The server cannot see the query string, so it renders the defaults.
+    const serverMarkup = renderToString(<Fixture />);
+    expect(serverMarkup).toContain(":overview");
+
+    window.history.replaceState(null, "", "/console?item_id=item_1&tab=evidence");
+    const container = document.createElement("div");
+    container.innerHTML = serverMarkup;
+    document.body.append(container);
+    const recoverableErrors: unknown[] = [];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const root = await act(async () =>
+      hydrateRoot(container, <Fixture />, {
+        onRecoverableError: (error) => recoverableErrors.push(error),
+      }),
+    );
+
+    expect(recoverableErrors).toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(container.querySelector("output")?.textContent).toBe("item_1:evidence");
+
+    act(() => root.unmount());
+    container.remove();
+    consoleError.mockRestore();
   });
 });

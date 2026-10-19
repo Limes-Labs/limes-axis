@@ -29,7 +29,7 @@ import {
   parseModelInvocation,
   type LiveModelInvocation,
 } from "@/lib/model-routing-live";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
@@ -60,10 +60,11 @@ function RunRailMarker({ state }: { state: AgentRunRailState }) {
  * approval inbox decision rail treatment.
  */
 function AgentRunRail({ run }: { run: AgentRunRecord }) {
+  const strings = useStrings();
   const stages = buildAgentRunRail(run);
 
   return (
-    <div className="grid gap-2" aria-label="Agent run step timeline">
+    <div className="grid gap-2" aria-label={strings.ui.agentsAgentRuns.agentRunStepTimeline}>
       <div className="flex items-center gap-2">
         {stages.map((stage, index) => (
           <div
@@ -167,6 +168,7 @@ function useLinkedModelInvocations(invocationIds: string[]): LinkedInvocationsSt
 }
 
 function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord }) {
+  const strings = useStrings();
   const linked = useLinkedModelInvocations(run.model_invocation_ids);
   // The run LIST endpoint returns runs without their step records; only the
   // run DETAIL endpoint carries the persisted context_read → model call →
@@ -180,7 +182,7 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
   return (
     <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3 dark:border-white/10" data-run-detail={run.run_id}>
       {detailQuery.isLoading ? (
-        <Skeleton aria-label="Loading agent run steps" className="h-14 w-full" />
+        <Skeleton aria-label={strings.ui.agentsAgentRuns.loadingAgentRunSteps} className="h-14 w-full" />
       ) : detailRun ? (
         <AgentRunRail run={detailRun} />
       ) : (
@@ -294,6 +296,7 @@ export function AgentRuns({
   onSelect?: (runId: string) => void;
   selectedRunId?: string;
 }) {
+  const strings = useStrings();
   const [internalSelectedRunId, setInternalSelectedRunId] = useState("");
   const resolvedSelectedRunId = selectedRunId ?? internalSelectedRunId;
   const runsQuery = useAxisQuery(agentRunsPath(agentId), { parse: parseAgentRunList });
@@ -308,7 +311,7 @@ export function AgentRuns({
 
   if (runsQuery.isLoading) {
     return (
-      <div aria-label="Loading agent runs" className="grid gap-2.5" role="status">
+      <div aria-label={strings.ui.agentsAgentRuns.loadingAgentRuns} className="grid gap-2.5" role="status">
         <Skeleton className="h-9 w-full" />
         <Skeleton className="h-9 w-2/3" />
       </div>
